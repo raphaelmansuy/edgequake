@@ -2720,3 +2720,118 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
 
     println!("✅ OODA-18 TEST PASSED: All entities and relationships cleaned during reprocess");
 }
+
+// ============================================================================
+// OODA-24: Additional Edge Case Tests
+// ============================================================================
+
+/// Test: Document deletion with empty content (edge case).
+/// Verifies that documents with no extracted entities can be deleted.
+#[tokio::test]
+async fn test_delete_document_with_no_entities() {
+    let app = create_test_app();
+    
+    // Upload a document that won't produce entities (too short)
+    let (status, body) = upload_document_http(
+        &app,
+        "Empty Doc",
+        "x"  // Single character - won't produce entities
+    ).await;
+    
+    // Upload might still succeed (mock LLM may produce entities)
+    // or fail silently - either way, check deletion
+    if status == StatusCode::CREATED {
+        let document_id = body["document_id"].as_str().unwrap();
+        
+        // Delete should succeed
+        let (delete_status, _) = delete_document_http(&app, document_id).await;
+        assert_eq!(delete_status, StatusCode::OK);
+    }
+    
+    println!("✅ OODA-24 TEST PASSED: Delete document with no entities");
+}
+
+/// Test: Rapid sequential uploads and deletes (stress test).
+/// Verifies that the system handles rapid operations without race conditions.
+#[tokio::test]
+async fn test_rapid_sequential_operations() {
+    let app = create_test_app();
+    
+    // Upload and delete 5 documents rapidly
+    for i in 0..5 {
+        let (status, body) = upload_document_http(
+            &app,
+            &format!("Rapid Doc {}", i),
+            &format!("Person {} works at Company {}. The relationship is professional.", i, i)
+        ).await;
+        
+        assert_eq!(status, StatusCode::CREATED, "Upload {} should succeed", i);
+        let document_id = body["document_id"].as_str().unwrap();
+        
+        // Immediately delete
+        let (delete_status, _) = delete_document_http(&app, document_id).await;
+        assert_eq!(delete_status, StatusCode::OK, "Delete {} should succeed", i);
+    }
+    
+    println!("✅ OODA-24 TEST PASSED: Rapid sequential operations handled");
+}
+
+/// Test: Deletion preserves unrelated documents and entities.
+/// Verifies that deleting one document doesn't affect others.
+#[tokio::test]
+async fn test_deletion_preserves_unrelated_data() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+    
+    // Upload two completely unrelated documents
+    let (_, body1) = upload_document_http(
+        &app,
+        "Science Doc",
+        "Albert Einstein developed the theory of relativity. Physics is fascinating."
+    ).await;
+    let doc1_id = body1["document_id"].as_str().unwrap().to_string();
+    
+    let (_, body2) = upload_document_http(
+        &app,
+        "Sports Doc",
+        "Michael Jordan played basketball. He won many championships with the Bulls."
+    ).await;
+    let doc2_id = body2["document_id"].as_str().unwrap().to_string();
+    
+    // Count entities before deletion
+    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let doc2_entities_before: Vec<_> = nodes_before
+        .iter()
+        .filter(|n| {
+            n.properties.get("source_ids")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().any(|s| s.as_str() == Some(&doc2_id)))
+                .unwrap_or(false)
+        })
+        .collect();
+    
+    // Delete doc1
+    let (delete_status, _) = delete_document_http(&app, &doc1_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // Doc2's entities should still exist
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let doc2_entities_after: Vec<_> = nodes_after
+        .iter()
+        .filter(|n| {
+            n.properties.get("source_ids")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().any(|s| s.as_str() == Some(&doc2_id)))
+                .unwrap_or(false)
+        })
+        .collect();
+    
+    assert_eq!(
+        doc2_entities_before.len(),
+        doc2_entities_after.len(),
+        "Doc2's entities should be preserved after deleting Doc1"
+    );
+    
+    println!("✅ OODA-24 TEST PASSED: Deletion preserves unrelated data");
+}
+

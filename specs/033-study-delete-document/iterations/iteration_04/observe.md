@@ -34,12 +34,14 @@ Analyzed the `delete_document` handler in [documents.rs](edgequake/crates/edgequ
 #### RACE-01: Concurrent Deletion of Same Document
 
 **Scenario:**
+
 - Request A starts deleting document X
 - Request B starts deleting document X
 - Both requests pass the "document exists" check
 - Both requests proceed with cascade deletion
 
-**Risk:** 
+**Risk:**
+
 - Double-counting in metrics
 - Redundant operations (harmless but wasteful)
 - Potential errors if A deletes data B expects to find
@@ -49,6 +51,7 @@ Analyzed the `delete_document` handler in [documents.rs](edgequake/crates/edgequ
 #### RACE-02: Deletion During Processing
 
 **Scenario:**
+
 - Document X has status "processing"
 - Request A checks status → "processing" → REJECTED ✅
 - Background worker completes processing
@@ -62,12 +65,14 @@ Analyzed the `delete_document` handler in [documents.rs](edgequake/crates/edgequ
 #### RACE-03: Concurrent Processing and Deletion
 
 **Scenario:**
+
 - Document X has status "pending"
 - Background worker starts processing (status → "processing")
 - Almost simultaneously, deletion request arrives
 - Due to non-atomic status check, deletion might proceed
 
-**Risk:** 
+**Risk:**
+
 - If deletion wins: Processing writes to deleted document
 - If processing wins: Deletion fails correctly
 
@@ -76,6 +81,7 @@ Analyzed the `delete_document` handler in [documents.rs](edgequake/crates/edgequ
 #### RACE-04: Concurrent Graph Operations
 
 **Scenario:**
+
 - Document A deletion is processing node updates
 - Document B deletion also modifying same shared entity
 - Both read source_ids = [chunk_a, chunk_b]
@@ -120,6 +126,7 @@ pub struct PostgresGraphStorage {
 ### GAP-06: No Transactional Cascade Deletion
 
 The cascade deletion in `delete_document`:
+
 1. Reads all nodes
 2. Processes each node individually
 3. Reads all edges
@@ -127,6 +134,7 @@ The cascade deletion in `delete_document`:
 5. Deletes KV entries
 
 This multi-step process is NOT wrapped in a transaction. If any step fails:
+
 - Partial deletion state
 - Orphaned data
 - Inconsistent source_ids
@@ -134,6 +142,7 @@ This multi-step process is NOT wrapped in a transaction. If any step fails:
 ## Test Coverage Gap
 
 Current tests do not verify:
+
 - [ ] Concurrent deletion of same document
 - [ ] Concurrent deletion of documents sharing entities
 - [ ] Partial failure recovery

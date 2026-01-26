@@ -9,6 +9,7 @@
 ## Mission Re-Read ✅
 
 From mission file:
+
 > "You must ensure and prove perfect safety when deleting documents that are partially processed, in the middle of processing, or failed processing."
 
 ---
@@ -24,20 +25,24 @@ Tests call handlers directly → pipeline doesn't execute → entity_count = 0 �
 
 **Solution**:
 Rewrite `e2e_document_deletion.rs` to use the same pattern as `e2e_documents.rs`:
-- Use `Server::new(config, state).build_router()` 
+
+- Use `Server::new(config, state).build_router()`
 - Make HTTP requests via `app.oneshot()`
 - Parse JSON responses
 
 **Implementation Plan**:
+
 1. Add helper functions matching e2e_documents.rs pattern
 2. Rewrite test cases to use HTTP requests
 3. Remove direct handler calls
 4. Verify all 5 tests pass
 
 **Files to Modify**:
+
 - `edgequake/crates/edgequake-api/tests/e2e_document_deletion.rs`
 
 **Acceptance Criteria**:
+
 - ✅ All 5 deletion tests pass
 - ✅ entity_count > 0 after upload
 - ✅ Tests verify cascade deletion behavior
@@ -57,6 +62,7 @@ Rewrite `e2e_document_deletion.rs` to use the same pattern as `e2e_documents.rs`
 
 **Solution**:
 Add status check at the beginning of `delete_document`:
+
 ```rust
 // Check document status before deletion
 let status = metadata.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
@@ -77,6 +83,7 @@ match status {
 ```
 
 **Implementation Plan**:
+
 1. Read metadata at start of `delete_document`
 2. Extract status field
 3. Return 409 Conflict for "pending" or "processing"
@@ -84,9 +91,11 @@ match status {
 5. Add WHY comment explaining safety requirement
 
 **Files to Modify**:
+
 - `edgequake/crates/edgequake-api/src/handlers/documents.rs`
 
 **Acceptance Criteria**:
+
 - ✅ 409 Conflict returned for "pending" documents
 - ✅ 409 Conflict returned for "processing" documents
 - ✅ Successful deletion for "completed", "failed" documents
@@ -107,15 +116,18 @@ No tests verify deletion safety for different document states
 
 **Solution**:
 Add new test cases:
+
 1. `test_delete_pending_document_rejected` - Cannot delete pending
 2. `test_delete_processing_document_rejected` - Cannot delete processing
 3. `test_delete_failed_document_allowed` - Can delete failed
 4. `test_delete_completed_document_allowed` - Can delete completed
 
 **Files to Modify**:
+
 - `edgequake/crates/edgequake-api/tests/e2e_document_deletion.rs`
 
 **Acceptance Criteria**:
+
 - ✅ 4 new tests added
 - ✅ All tests pass
 - ✅ Tests cover mission safety requirements
@@ -163,13 +175,14 @@ Upload (async=true)         Upload (async=false)
 
 DELETION RULES:
 - "pending"    → 409 Conflict (wait or cancel)
-- "processing" → 409 Conflict (wait or cancel)  
+- "processing" → 409 Conflict (wait or cancel)
 - "completed"  → 200 OK (cascade delete)
 - "processed"  → 200 OK (legacy, same as completed)
 - "failed"     → 200 OK (cleanup partial data)
 ```
 
 **Files to Create/Modify**:
+
 - `edgequake/crates/edgequake-api/src/handlers/documents.rs` (WHY comments)
 - `specs/033-study-delete-document/docs/status-lifecycle.md` (new)
 

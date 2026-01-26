@@ -12,6 +12,7 @@
 **Description:** Add test that attempts concurrent deletion of two documents that share an entity. This will prove whether RACE-04 (lost update) exists.
 
 **Test Design:**
+
 1. Create shared entity with source_ids referencing both documents
 2. Create metadata for both documents
 3. Spawn two concurrent delete requests using `tokio::join!`
@@ -20,6 +21,7 @@
    - Or has consistent source_ids (one source remaining)
 
 **Expected Outcomes:**
+
 - **If test passes:** Concurrent deletion is safe (possibly by accident)
 - **If test fails:** RACE-04 confirmed, needs fix
 
@@ -30,6 +32,7 @@
 **Description:** Verify that deleting an already-deleted document returns 404.
 
 **Test Design:**
+
 1. Create document
 2. Delete document → expect 200
 3. Delete again → expect 404

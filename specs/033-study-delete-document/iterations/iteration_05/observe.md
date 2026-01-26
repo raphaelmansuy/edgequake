@@ -56,6 +56,7 @@ Background Worker:
 **Potential Issue:** What happens if two documents are uploaded with the same ID?
 
 Current behavior:
+
 - Document IDs are generated as UUIDs - collision is extremely unlikely
 - BUT: If manually specified ID collides, behavior is undefined
 
@@ -94,6 +95,7 @@ This may or may not be desired behavior.
 ## Code Analysis Required
 
 Need to examine:
+
 1. Document upload handler implementation
 2. Chunking logic
 3. Entity extraction pipeline

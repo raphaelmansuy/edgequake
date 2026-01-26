@@ -10,6 +10,31 @@ Your mission is study the document add/delete process on EdgeQuake, identify any
 - What improvements can be made to ensure data integrity and performance?
 - What is the impact of the KG --> add node/edge, delete node/edge?, update node/edge?, relationships, etc. Pruning? Reference counting to avoid dangling nodes/edges? Reference tracking to avoid deleting shared nodes/edges? Reference tracking to avoid deleting shared embeddings if applicables ? Reference tracking to avoid deleting shared chunks if applicable? Reference tracking on relationships on KG?
 
+How to ensure that all edge cases are handled correctly when adding or deleting documents? How to ensure no dangling data remains, no shared data is deleted? How to ensure perfect safety and reliability when deleting documents under all circumstances? How to ensure lineage and provenance of data is maintained correctly? Important to ensure data integrity.
+
+Harden and optimize the document add/delete process for performance, reliability, and data integrity.
+
+Harden and optimize the knowledge graph operations for performance, reliability, and data integrity when adding or deleting documents.
+
+Harden and optimize the embedding storage operations for performance, reliability, and data integrity when adding or deleting documents.
+
+- Ensure metric likes number of Entities, Relationships, Embeddings per document, Relaltions, Entity Types are tracked and logged in specific database table and integrated in edgequake web ui. 
+
+We want to monitor Documents numbers, Entities numbers, Relationships numbers, Embeddings numbers per workspace and per tenant over time.
+
+Ensure the Postgres schema  is updated accordingly to support these metrics. Ensure the initialization scripts are updated accordingly and are indopendent of the existing schema.
+Ensure to have function that verify the integrity of schema agains the version of edgequake running.
+
+Ensure first perfect safety and reliability when deleting documents under all circumstances. Then optimize for performance query / insertion / deletion.
+
+
+Ensure the comments in code is high signal value, precise, and documents the WHY behind decisions. Use ASCII diagrams where applicable.
+
+Impact of reprocessing a document must be fully studied, and handled correctly. Ensure we have envisaged all edge cases and handled them correctly. Ensure we have full test coverage of all edge cases for chunk reprocessing, KG reprocessing, embedding reprocessing. What happens when reprocessing a document that was partially processed, failed processing, or is in the middle of processing? Ensure no dangling data remains, no shared data is deleted. Reference counting/tracking must be implemented where applicable.
+
+
+Ensure e2e test are conducted also with ollama provider with real llm such as gemma3:latest  and embeddinggemma:latest for embeddings. Ensure the create/update/delete and query document process is fully reliable with ollama provider. Ensure all mode of query works as expected: LLM-only, embedding-only, hybrid.
+
 ## Context
 
 - **Location**:  edgequake/
@@ -88,6 +113,8 @@ Read the mission every iteration! It is vital to avoid alignment drift. You can 
 ### Very important:
 
 Check the codebase, do not make assumptions. Make deep code analysis. Search on the web if you don't know something. Always use First Principle Thinking as your north star to decide the best approach.
+
+Safety, accuracy, recall, precision reliability are your top priorities for edgequake.
 
 
 - Update edgequake code to implement the decided changes. Ensure to have comprehensive test coverage for all modifications. Comprehensive Edge cases must implemented in tests to ensure reliability. This critical to ensure data integrity and performance.

@@ -14,6 +14,7 @@ Added test `test_source_ids_accumulates_across_documents` that:
 3. Checks if both references are preserved
 
 **Result:**
+
 ```
 GAP-07 CONFIRMED: source_ids = ["accumulate-doc-b-chunk-0"] - doc A reference was overwritten by doc B
 ```
@@ -47,13 +48,13 @@ test result: ok. 16 passed; 0 failed
 
 **CONFIRMED** - The gap exists and is documented:
 
-| Aspect | Status |
-|--------|--------|
-| Gap Identified | ✅ Yes - source_ids overwritten on upsert |
-| Test Created | ✅ Yes - test_source_ids_accumulates_across_documents |
-| Root Cause | ✅ upsert_node does full property replacement |
-| Impact | HIGH - Reference counting broken for shared entities |
-| Fix Implemented | ⏳ Pending - Iteration 06 |
+| Aspect          | Status                                                |
+| --------------- | ----------------------------------------------------- |
+| Gap Identified  | ✅ Yes - source_ids overwritten on upsert             |
+| Test Created    | ✅ Yes - test_source_ids_accumulates_across_documents |
+| Root Cause      | ✅ upsert_node does full property replacement         |
+| Impact          | HIGH - Reference counting broken for shared entities  |
+| Fix Implemented | ⏳ Pending - Iteration 06                             |
 
 ## Why Test Passes Despite Gap
 
@@ -64,27 +65,29 @@ The test is designed to **document** the gap, not **enforce** it being fixed:
 - Once fix is implemented, the log message will change to "GAP-07 NOT PRESENT"
 
 This approach allows:
+
 1. Documentation of known issues
 2. CI doesn't break on known gaps
 3. Clear indication when fix is applied
 
 ## Updated Test Count
 
-| Category | Count |
-|----------|-------|
-| Basic Deletion | 2 |
-| Status Safety (OODA-02) | 4 |
-| Partial Cleanup (OODA-03) | 2 |
-| Reference Counting (OODA-03) | 1 |
-| Concurrency (OODA-04) | 3 |
-| Source_ids Accumulation (OODA-05) | 2 |
-| Metrics | 1 |
-| Error Handling | 1 |
-| **Total** | **16** |
+| Category                          | Count  |
+| --------------------------------- | ------ |
+| Basic Deletion                    | 2      |
+| Status Safety (OODA-02)           | 4      |
+| Partial Cleanup (OODA-03)         | 2      |
+| Reference Counting (OODA-03)      | 1      |
+| Concurrency (OODA-04)             | 3      |
+| Source_ids Accumulation (OODA-05) | 2      |
+| Metrics                           | 1      |
+| Error Handling                    | 1      |
+| **Total**                         | **16** |
 
 ## Next Iteration Focus
 
 Iteration 06 will:
+
 1. Implement the source_ids merge fix in entity storage
 2. Verify fix with existing test (log should change to "NOT PRESENT")
 3. Add edge source_ids accumulation if same pattern exists

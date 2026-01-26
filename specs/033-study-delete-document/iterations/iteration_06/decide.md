@@ -24,6 +24,7 @@ state
 ## Orientation
 
 The fix needs to:
+
 1. Check if entity already exists
 2. If exists, get current source_ids
 3. Merge new document reference with existing source_ids

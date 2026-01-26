@@ -10,16 +10,19 @@
 Added three new tests to verify concurrent deletion behavior:
 
 #### 1. `test_idempotent_deletion_returns_404`
+
 - Validates that deleting an already-deleted document returns 404
 - Proves idempotent API behavior
 
 #### 2. `test_concurrent_deletion_of_shared_entity`
+
 - Two documents sharing one entity
 - Concurrent deletion via `tokio::join!`
 - Verifies entity is deleted (not orphaned)
 - **RACE-04 Detection**: Would panic if race condition exists
 
 #### 3. `test_multiple_concurrent_deletions`
+
 - Five documents with complex entity overlap
 - Entity A: shared by docs 1, 2, 3
 - Entity B: shared by docs 3, 4, 5
@@ -83,20 +86,21 @@ pub struct PostgresGraphStorage {
 
 ## Updated Test Count
 
-| Category | Count |
-|----------|-------|
-| Basic Deletion | 2 |
-| Status Safety (OODA-02) | 4 |
-| Partial Cleanup (OODA-03) | 2 |
-| Reference Counting (OODA-03) | 1 |
-| Concurrency (OODA-04) | 3 |
-| Metrics | 1 |
-| Error Handling | 1 |
-| **Total** | **14** |
+| Category                     | Count  |
+| ---------------------------- | ------ |
+| Basic Deletion               | 2      |
+| Status Safety (OODA-02)      | 4      |
+| Partial Cleanup (OODA-03)    | 2      |
+| Reference Counting (OODA-03) | 1      |
+| Concurrency (OODA-04)        | 3      |
+| Metrics                      | 1      |
+| Error Handling               | 1      |
+| **Total**                    | **14** |
 
 ## Next Iteration Focus
 
 For iteration 05, I will:
+
 1. Add PostgreSQL-specific concurrent deletion test (requires running database)
 2. Explore adding transaction wrapper for PostgreSQL cascade deletion
 3. Document the concurrency behavior differences between providers

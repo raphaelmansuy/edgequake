@@ -10,6 +10,7 @@
 **Location:** `documents.rs` lines ~510-555
 
 Before upserting an entity, the code now:
+
 1. Checks if entity already exists via `get_node()`
 2. If exists, extracts current `source_ids` array
 3. Uses `HashSet` to merge with new document reference
@@ -39,6 +40,7 @@ let merged_source_ids = match state.graph_storage.get_node(&entity.name).await {
 **Location:** `documents.rs` lines ~592-635
 
 Same pattern applied to edges (relationships):
+
 1. Check if edge exists via `get_edge()`
 2. Merge source_ids arrays
 3. Upsert with merged source_ids
@@ -46,6 +48,7 @@ Same pattern applied to edges (relationships):
 ### CHANGE-IT06-03: Test Updated (COMPLETED ✅)
 
 Updated `test_source_ids_accumulates_across_documents` to:
+
 1. Simulate the fixed handler behavior (read-merge-write)
 2. Assert that both document references are present
 3. Log success message confirming fix
@@ -58,7 +61,7 @@ test test_source_ids_accumulates_across_documents ... ok
 ...
 test result: ok. 16 passed; 0 failed
 
-✅ GAP-07 NOT PRESENT: source_ids correctly accumulated: 
+✅ GAP-07 NOT PRESENT: source_ids correctly accumulated:
    ["accumulate-doc-a-chunk-0", "accumulate-doc-b-chunk-0"]
 ```
 
@@ -70,11 +73,11 @@ test result: ok. 30 passed; 0 failed; 0 ignored
 
 ## GAP-07 Status: FIXED ✅
 
-| Aspect | Before | After |
-|--------|--------|-------|
-| source_ids on second upload | Overwritten | Merged |
-| Entity preservation on partial delete | Broken | Working |
-| Test verification | GAP-07 CONFIRMED | GAP-07 NOT PRESENT |
+| Aspect                                | Before           | After              |
+| ------------------------------------- | ---------------- | ------------------ |
+| source_ids on second upload           | Overwritten      | Merged             |
+| Entity preservation on partial delete | Broken           | Working            |
+| Test verification                     | GAP-07 CONFIRMED | GAP-07 NOT PRESENT |
 
 ## Performance Impact
 
@@ -87,13 +90,13 @@ For high-volume ingestion, a batch-optimized version could be implemented.
 
 ## Updated Gaps Registry
 
-| ID | Status | Description | Iteration |
-|----|--------|-------------|-----------|
-| GAP-03 | **FIXED** | Edge deletion race condition | 01 |
-| GAP-04 | **FIXED** | No status validation before deletion | 02 |
-| GAP-05 | N/A | Reprocessing partial data cleanup | 03 |
-| GAP-06 | Partial | No transactional cascade deletion | 04 |
-| GAP-07 | **FIXED** | source_ids overwrite instead of merge | 06 |
+| ID     | Status    | Description                           | Iteration |
+| ------ | --------- | ------------------------------------- | --------- |
+| GAP-03 | **FIXED** | Edge deletion race condition          | 01        |
+| GAP-04 | **FIXED** | No status validation before deletion  | 02        |
+| GAP-05 | N/A       | Reprocessing partial data cleanup     | 03        |
+| GAP-06 | Partial   | No transactional cascade deletion     | 04        |
+| GAP-07 | **FIXED** | source_ids overwrite instead of merge | 06        |
 
 ## Commit Message
 
