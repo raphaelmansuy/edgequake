@@ -741,13 +741,88 @@ impl DocumentTaskProcessor {
             std::collections::HashMap<String, serde_json::Value>,
         )> = Vec::new();
 
+        // OODA-07: Pre-fetch existing entities to merge source_ids (GAP-07 fix for async path)
+        // WHY: Without merge, second document overwrites first's source_ids, breaking reference counting
+        let entity_names: Vec<String> = result
+            .extractions
+            .iter()
+            .flat_map(|e| e.entities.iter().map(|ent| ent.name.clone()))
+            .collect();
+
+        let existing_entity_source_ids: std::collections::HashMap<String, std::collections::HashSet<String>> =
+            if !entity_names.is_empty() {
+                match self.graph_storage.get_nodes_by_ids(&entity_names).await {
+                    Ok(nodes) => nodes
+                        .into_iter()
+                        .map(|node| {
+                            let sources: std::collections::HashSet<String> = node
+                                .properties
+                                .get("source_ids")
+                                .and_then(|v| v.as_array())
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|v| v.as_str().map(String::from))
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            (node.id, sources)
+                        })
+                        .collect(),
+                    Err(e) => {
+                        warn!("Failed to fetch existing entities for source_ids merge: {}", e);
+                        std::collections::HashMap::new()
+                    }
+                }
+            } else {
+                std::collections::HashMap::new()
+            };
+
+        // OODA-07: Pre-fetch existing edges to merge source_ids
+        // WHY: Same issue as entities - edges need reference counting for correct deletion
+        let edge_keys: Vec<(String, String)> = result
+            .extractions
+            .iter()
+            .flat_map(|e| {
+                e.relationships
+                    .iter()
+                    .map(|r| (r.source.clone(), r.target.clone()))
+            })
+            .collect();
+
+        let mut existing_edge_source_ids: std::collections::HashMap<(String, String), std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
+        for (source, target) in &edge_keys {
+            if let Ok(Some(edge)) = self.graph_storage.get_edge(source, target).await {
+                let sources: std::collections::HashSet<String> = edge
+                    .properties
+                    .get("source_ids")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                existing_edge_source_ids.insert((source.clone(), target.clone()), sources);
+            }
+        }
+
         for extraction in &result.extractions {
             for entity in &extraction.entities {
                 let mut properties = std::collections::HashMap::new();
                 properties.insert("entity_type".to_string(), json!(entity.entity_type));
                 properties.insert("description".to_string(), json!(entity.description));
                 properties.insert("importance".to_string(), json!(entity.importance));
-                properties.insert("source_ids".to_string(), json!(vec![&document_id]));
+
+                // OODA-07: Merge source_ids with existing entity (GAP-07 fix)
+                let mut merged_sources: std::collections::HashSet<String> = existing_entity_source_ids
+                    .get(&entity.name)
+                    .cloned()
+                    .unwrap_or_default();
+                merged_sources.insert(document_id.clone());
+                let source_ids_vec: Vec<String> = merged_sources.into_iter().collect();
+                properties.insert("source_ids".to_string(), json!(source_ids_vec));
+
                 // CRITICAL: Store source_chunk_ids for Local/Global query mode chunk retrieval
                 properties.insert(
                     "source_chunk_ids".to_string(),
@@ -771,7 +846,17 @@ impl DocumentTaskProcessor {
                 properties.insert("description".to_string(), json!(relationship.description));
                 properties.insert("weight".to_string(), json!(relationship.weight));
                 properties.insert("keywords".to_string(), json!(relationship.keywords));
-                properties.insert("source_ids".to_string(), json!(vec![&document_id]));
+
+                // OODA-07: Merge source_ids with existing edge (GAP-07 fix)
+                let edge_key = (relationship.source.clone(), relationship.target.clone());
+                let mut merged_sources: std::collections::HashSet<String> = existing_edge_source_ids
+                    .get(&edge_key)
+                    .cloned()
+                    .unwrap_or_default();
+                merged_sources.insert(document_id.clone());
+                let source_ids_vec: Vec<String> = merged_sources.into_iter().collect();
+                properties.insert("source_ids".to_string(), json!(source_ids_vec));
+
                 // CRITICAL: Store source_chunk_id for relationship chunk linkage
                 if let Some(ref chunk_id) = relationship.source_chunk_id {
                     properties.insert("source_chunk_ids".to_string(), json!(vec![chunk_id]));
