@@ -1374,3 +1374,274 @@ async fn test_delete_with_accumulated_source_ids() {
     );
 }
 
+// ============================================================================
+// OODA-08: Reprocess Cleanup Tests
+// ============================================================================
+
+/// Test that reprocess_failed cleans up partial graph data before requeueing.
+///
+/// @tests GAP-08: Reprocess endpoints must clean partial data
+///
+/// Scenario:
+/// 1. Create a "failed" document with partial entities in graph
+/// 2. Call reprocess endpoint
+/// 3. Verify entities were cleaned up before requeueing
+#[tokio::test]
+async fn test_reprocess_cleans_partial_graph_data() {
+    let state = AppState::test_state();
+    let server = Server::new(create_test_config(), state.clone());
+    let app = server.build_router();
+    
+    let doc_id = "reprocess-cleanup-test-doc";
+    let chunk_id = format!("{}-chunk-0", doc_id);
+    
+    // 1. Create a "failed" document with partial entities
+    // This simulates a document that failed processing at 60% completion
+    let metadata = serde_json::json!({
+        "id": doc_id,
+        "title": "Reprocess Cleanup Test",
+        "status": "failed",  // KEY: Document is in failed state
+        "workspace_id": "default",
+        "error_message": "Simulated processing failure"
+    });
+    state.kv_storage.upsert(&[(format!("{}-metadata", doc_id), metadata)]).await.unwrap();
+    state.kv_storage.upsert(&[(format!("{}-content", doc_id), json!({"content": "Test content for reprocessing"}))]).await.unwrap();
+    
+    // 2. Create partial entities that would have been created before failure
+    let mut entity_props = std::collections::HashMap::new();
+    entity_props.insert("entity_type".to_string(), json!("PERSON"));
+    entity_props.insert("description".to_string(), json!("Partial entity from failed processing"));
+    entity_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
+    
+    state
+        .graph_storage
+        .upsert_node("PARTIAL_ENTITY_FROM_FAILURE", entity_props)
+        .await
+        .expect("Should create partial entity");
+    
+    // Verify entity exists before reprocess
+    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        nodes_before.iter().any(|n| n.id == "PARTIAL_ENTITY_FROM_FAILURE"),
+        "Partial entity should exist before reprocess"
+    );
+    
+    // 3. Call reprocess endpoint
+    let request = json!({
+        "max_documents": 10
+    });
+    
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/reprocess")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    let status = response.status();
+    assert_eq!(status, StatusCode::OK, "Reprocess endpoint should succeed");
+    
+    // 4. Verify partial entity was cleaned up
+    // WHY: The cleanup happens BEFORE requeueing, so entity should be gone immediately
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    
+    assert!(
+        !nodes_after.iter().any(|n| n.id == "PARTIAL_ENTITY_FROM_FAILURE"),
+        "Partial entity should be deleted during reprocess cleanup (OODA-08 fix). Found nodes: {:?}",
+        nodes_after.iter().map(|n| &n.id).collect::<Vec<_>>()
+    );
+    
+    println!("✅ GAP-08 FIX VERIFIED: reprocess_failed cleaned up partial entity before requeueing");
+}
+
+/// Test that recover_stuck cleans up partial graph data before requeueing.
+///
+/// @tests GAP-08: Recover stuck endpoints must clean partial data
+///
+/// Scenario:
+/// 1. Create a "processing" document stuck for >30 minutes with partial entities
+/// 2. Call recover-stuck endpoint
+/// 3. Verify entities were cleaned up before requeueing
+#[tokio::test]
+async fn test_recover_stuck_cleans_partial_graph_data() {
+    let state = AppState::test_state();
+    let server = Server::new(create_test_config(), state.clone());
+    let app = server.build_router();
+    
+    let doc_id = "recover-stuck-cleanup-test-doc";
+    let chunk_id = format!("{}-chunk-0", doc_id);
+    
+    // 1. Create a "stuck" document (processing for >30 minutes) with partial entities
+    // Use an old timestamp to make it appear stuck
+    let old_timestamp = "2020-01-01T00:00:00Z";  // Very old timestamp
+    let metadata = serde_json::json!({
+        "id": doc_id,
+        "title": "Recover Stuck Cleanup Test",
+        "status": "processing",  // KEY: Document is stuck in processing
+        "workspace_id": "default",
+        "updated_at": old_timestamp  // KEY: Old timestamp makes it "stuck"
+    });
+    state.kv_storage.upsert(&[(format!("{}-metadata", doc_id), metadata)]).await.unwrap();
+    state.kv_storage.upsert(&[(format!("{}-content", doc_id), json!({"content": "Test content for stuck recovery"}))]).await.unwrap();
+    
+    // 2. Create partial entities that would have been created before process hung
+    let mut entity_props = std::collections::HashMap::new();
+    entity_props.insert("entity_type".to_string(), json!("ORGANIZATION"));
+    entity_props.insert("description".to_string(), json!("Partial entity from stuck processing"));
+    entity_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
+    
+    state
+        .graph_storage
+        .upsert_node("PARTIAL_ENTITY_FROM_STUCK", entity_props)
+        .await
+        .expect("Should create partial entity");
+    
+    // Verify entity exists before recovery
+    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        nodes_before.iter().any(|n| n.id == "PARTIAL_ENTITY_FROM_STUCK"),
+        "Partial entity should exist before recovery"
+    );
+    
+    // 3. Call recover-stuck endpoint with a short threshold to catch our old document
+    let request = json!({
+        "max_documents": 10,
+        "stuck_threshold_minutes": 1  // 1 minute threshold (our doc is years old)
+    });
+    
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/recover-stuck")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    let status = response.status();
+    assert_eq!(status, StatusCode::OK, "Recover-stuck endpoint should succeed");
+    
+    // 4. Verify partial entity was cleaned up
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    
+    assert!(
+        !nodes_after.iter().any(|n| n.id == "PARTIAL_ENTITY_FROM_STUCK"),
+        "Partial entity should be deleted during recover-stuck cleanup (OODA-08 fix). Found nodes: {:?}",
+        nodes_after.iter().map(|n| &n.id).collect::<Vec<_>>()
+    );
+    
+    println!("✅ GAP-08 FIX VERIFIED: recover_stuck cleaned up partial entity before requeueing");
+}
+
+/// Test that reprocess preserves entities shared with other completed documents.
+///
+/// @tests GAP-08 + GAP-07: Reprocess must respect shared entity references
+///
+/// Scenario:
+/// 1. Document A (completed) and Document B (failed) share an entity
+/// 2. Call reprocess on Document B
+/// 3. Entity should be preserved (still referenced by Document A)
+/// 4. Only Document B's reference should be removed for reprocessing
+#[tokio::test]
+async fn test_reprocess_preserves_shared_entities() {
+    let state = AppState::test_state();
+    let server = Server::new(create_test_config(), state.clone());
+    let app = server.build_router();
+    
+    let doc_a_id = "reprocess-shared-doc-a";
+    let doc_b_id = "reprocess-shared-doc-b";
+    let chunk_a_id = format!("{}-chunk-0", doc_a_id);
+    let chunk_b_id = format!("{}-chunk-0", doc_b_id);
+    
+    // 1. Create shared entity referenced by BOTH documents
+    let mut entity_props = std::collections::HashMap::new();
+    entity_props.insert("entity_type".to_string(), json!("SHARED_ENTITY"));
+    entity_props.insert("description".to_string(), json!("Shared between completed A and failed B"));
+    entity_props.insert("source_ids".to_string(), json!([chunk_a_id.clone(), chunk_b_id.clone()]));
+    
+    state
+        .graph_storage
+        .upsert_node("SHARED_REPROCESS_ENTITY", entity_props)
+        .await
+        .expect("Should create shared entity");
+    
+    // 2. Create completed document A
+    let metadata_a = serde_json::json!({
+        "id": doc_a_id,
+        "title": "Completed Doc A",
+        "status": "completed",
+        "workspace_id": "default"
+    });
+    state.kv_storage.upsert(&[(format!("{}-metadata", doc_a_id), metadata_a)]).await.unwrap();
+    state.kv_storage.upsert(&[(format!("{}-content", doc_a_id), json!({"content": "Content A"}))]).await.unwrap();
+    state.kv_storage.upsert(&[(chunk_a_id.clone(), json!({"content": "Chunk A"}))]).await.unwrap();
+    
+    // 3. Create failed document B
+    let metadata_b = serde_json::json!({
+        "id": doc_b_id,
+        "title": "Failed Doc B",
+        "status": "failed",  // KEY: This is the failed document
+        "workspace_id": "default"
+    });
+    state.kv_storage.upsert(&[(format!("{}-metadata", doc_b_id), metadata_b)]).await.unwrap();
+    state.kv_storage.upsert(&[(format!("{}-content", doc_b_id), json!({"content": "Content B"}))]).await.unwrap();
+    state.kv_storage.upsert(&[(chunk_b_id.clone(), json!({"content": "Chunk B"}))]).await.unwrap();
+    
+    // 4. Call reprocess endpoint
+    let request = json!({ "max_documents": 10 });
+    
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/reprocess")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    // 5. Verify shared entity is PRESERVED (still referenced by doc A)
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let shared_entity = nodes_after.iter()
+        .find(|n| n.id == "SHARED_REPROCESS_ENTITY");
+    
+    assert!(
+        shared_entity.is_some(),
+        "Shared entity should be preserved after reprocessing doc B (still referenced by doc A)"
+    );
+    
+    // 6. Verify source_ids was updated to only contain doc A's reference
+    let source_ids: Vec<String> = shared_entity.unwrap().properties
+        .get("source_ids")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default();
+    
+    assert!(
+        source_ids.iter().any(|s| s.contains(doc_a_id)),
+        "Entity should still reference completed doc A: {:?}",
+        source_ids
+    );
+    assert!(
+        !source_ids.iter().any(|s| s.contains(doc_b_id)),
+        "Entity should no longer reference failed doc B (cleaned for reprocess): {:?}",
+        source_ids
+    );
+    
+    println!("✅ GAP-08 SHARED ENTITY FIX VERIFIED: reprocess cleaned B's reference while preserving A's");
+}
