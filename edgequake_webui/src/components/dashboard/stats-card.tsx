@@ -89,6 +89,9 @@ export function StatsCard({
 
   return (
     <Card 
+      data-testid="stats-card"
+      data-variant={variant}
+      data-value={value}
       className={cn(
         'relative overflow-hidden transition-all duration-200 border-0 shadow-sm',
         'hover:shadow-md hover:-translate-y-0.5',
@@ -104,7 +107,10 @@ export function StatsCard({
               {title}
             </p>
             <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-bold tracking-tight tabular-nums">
+              <p 
+                className="text-2xl font-bold tracking-tight tabular-nums"
+                data-testid="stats-value"
+              >
                 {typeof value === 'number' ? value.toLocaleString() : value}
               </p>
               {trend && trend.value !== 0 && (

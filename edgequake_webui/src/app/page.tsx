@@ -16,7 +16,7 @@ import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
 import { SkipLink } from '@/components/shared/skip-link';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
-import { getDocuments, getGraph } from '@/lib/api/edgequake';
+import { getDocuments, getGraph, getWorkspaceStats } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, GitMerge, Network, Users } from 'lucide-react';
@@ -50,9 +50,19 @@ export default function Home() {
     enabled: hasContext,
   });
 
-  const documentCount = documentsData?.total || documentsData?.items?.length || 0;
-  const entityCount = graphData?.metadata?.node_count || 0;
-  const relationshipCount = graphData?.metadata?.edge_count || 0;
+  // WHY: Use getWorkspaceStats() for consistent entity/relationship counts with Workspace page
+  // getGraph() returns all graph nodes (including chunks, documents), while getWorkspaceStats()
+  // returns only extracted entities - which is what users expect to see on the dashboard
+  const { data: statsData, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['workspace-stats', selectedTenantId, selectedWorkspaceId],
+    queryFn: () => getWorkspaceStats(selectedWorkspaceId!),
+    staleTime: 30000,
+    enabled: hasContext,
+  });
+
+  const documentCount = statsData?.document_count ?? documentsData?.total ?? documentsData?.items?.length ?? 0;
+  const entityCount = statsData?.entity_count ?? 0;
+  const relationshipCount = statsData?.relationship_count ?? 0;
   const recentDocuments = documentsData?.items || [];
   const entityTypes = new Set(graphData?.nodes?.map(n => n.node_type) || []).size;
 
@@ -84,21 +94,21 @@ export default function Home() {
                 value={documentCount}
                 description={t('dashboard.stats.documentsDesc', 'Uploaded documents')}
                 icon={FileText}
-                isLoading={isLoadingDocs}
+                isLoading={isLoadingStats || isLoadingDocs}
               />
               <StatsCard
                 title={t('dashboard.stats.entities', 'Entities')}
                 value={entityCount}
                 description={t('dashboard.stats.entitiesDesc', 'Extracted entities')}
                 icon={Users}
-                isLoading={isLoadingGraph}
+                isLoading={isLoadingStats}
               />
               <StatsCard
                 title={t('dashboard.stats.relationships', 'Relationships')}
                 value={relationshipCount}
                 description={t('dashboard.stats.relationshipsDesc', 'Entity connections')}
                 icon={GitMerge}
-                isLoading={isLoadingGraph}
+                isLoading={isLoadingStats}
               />
               <StatsCard
                 title={t('dashboard.stats.entityTypes', 'Entity Types')}

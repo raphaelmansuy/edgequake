@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EdgeQuake Debug - LocalStorage Inspector</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        h1 { color: #4ec9b0; }
+        h2 { color: #569cd6; margin-top: 30px; }
+        pre { background: #2d2d2d; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .key { color: #9cdcfe; }
+        .value { color: #ce9178; }
+        button { background: #007acc; color: white; border: none; padding: 10px 20px; margin: 10px 5px; cursor: pointer; border-radius: 3px; }
+        button:hover { background: #005a9e; }
+        .error { color: #f48771; }
+        .success { color: #4ec9b0; }
+        .section { margin: 20px 0; padding: 15px; background: #252526; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>EdgeQuake Debug - LocalStorage & API Inspector</h1>
+    
+    <div class="section">
+        <h2>localStorage Contents</h2>
+        <pre id="localStorage-output"></pre>
+    </div>
+
+    <div class="section">
+        <h2>Tenant Store State</h2>
+        <pre id="tenant-store-output"></pre>
+    </div>
+
+    <div class="section">
+        <h2>Cache Version</h2>
+        <pre id="cache-version-output"></pre>
+    </div>
+
+    <div class="section">
+        <h2>API Test: Workspace Stats</h2>
+        <button onclick="testWorkspaceStats()">Fetch Workspace Stats</button>
+        <pre id="api-output"></pre>
+    </div>
+
+    <div class="section">
+        <h2>Actions</h2>
+        <button onclick="clearCache()">Clear Cache</button>
+        <button onclick="clearAll()">Clear Everything</button>
+        <button onclick="refreshPage()">Reload Page</button>
+    </div>
+
+    <div class="section">
+        <h2>Console Logs</h2>
+        <pre id="console-output"></pre>
+    </div>
+
+    <script>
+        // Display localStorage
+        function displayLocalStorage() {
+            const output = document.getElementById('localStorage-output');
+            const items = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                items[key] = localStorage.getItem(key);
+            }
+            output.textContent = JSON.stringify(items, null, 2);
+        }
+
+        // Display tenant store
+        function displayTenantStore() {
+            const output = document.getElementById('tenant-store-output');
+            const stored = localStorage.getItem('edgequake-tenant-store');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    output.textContent = JSON.stringify(parsed, null, 2);
+                    output.className = 'success';
+                } catch (e) {
+                    output.textContent = 'Error parsing: ' + e.message;
+                    output.className = 'error';
+                }
+            } else {
+                output.textContent = 'No tenant store found';
+                output.className = 'error';
+            }
+        }
+
+        // Display cache version
+        function displayCacheVersion() {
+            const output = document.getElementById('cache-version-output');
+            const stored = localStorage.getItem('edgequake-cache-version');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    output.textContent = JSON.stringify(parsed, null, 2);
+                    output.className = 'success';
+                } catch (e) {
+                    output.textContent = 'Error parsing: ' + e.message;
+                    output.className = 'error';
+                }
+            } else {
+                output.textContent = 'No cache version found';
+                output.className = 'error';
+            }
+        }
+
+        // Test workspace stats API
+        async function testWorkspaceStats() {
+            const output = document.getElementById('api-output');
+            output.textContent = 'Loading...';
+
+            try {
+                // Get tenant store
+                const stored = localStorage.getItem('edgequake-tenant-store');
+                const tenantStore = stored ? JSON.parse(stored) : null;
+                const workspaceId = tenantStore?.state?.selectedWorkspaceId;
+                const tenantId = tenantStore?.state?.selectedTenantId;
+
+                if (!workspaceId) {
+                    output.textContent = 'Error: No workspace ID found in tenant store';
+                    output.className = 'error';
+                    return;
+                }
+
+                // Make API call
+                const url = `http://localhost:8080/api/v1/workspaces/${workspaceId}/stats`;
+                const headers = {};
+                if (tenantId) headers['X-Tenant-ID'] = tenantId;
+                if (workspaceId) headers['X-Workspace-ID'] = workspaceId;
+
+                console.log('Fetching:', url);
+                console.log('Headers:', headers);
+
+                const response = await fetch(url, { headers });
+                const data = await response.json();
+
+                output.textContent = JSON.stringify({
+                    url,
+                    headers,
+                    status: response.status,
+                    data
+                }, null, 2);
+                output.className = response.ok ? 'success' : 'error';
+            } catch (error) {
+                output.textContent = 'Error: ' + error.message;
+                output.className = 'error';
+            }
+        }
+
+        // Clear cache
+        function clearCache() {
+            localStorage.removeItem('edgequake-cache-version');
+            alert('Cache version cleared. Reload the page.');
+            displayCacheVersion();
+        }
+
+        // Clear all
+        function clearAll() {
+            if (confirm('Clear ALL localStorage? This will log you out.')) {
+                localStorage.clear();
+                alert('Everything cleared. Reload the page.');
+                displayLocalStorage();
+                displayTenantStore();
+                displayCacheVersion();
+            }
+        }
+
+        // Refresh page
+        function refreshPage() {
+            window.location.reload();
+        }
+
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const logs = [];
+
+        function captureLog(type, args) {
+            const message = Array.from(args).map(arg => {
+                if (typeof arg === 'object') return JSON.stringify(arg, null, 2);
+                return String(arg);
+            }).join(' ');
+            logs.push(`[${type}] ${message}`);
+            document.getElementById('console-output').textContent = logs.slice(-20).join('\n');
+        }
+
+        console.log = function(...args) {
+            captureLog('LOG', args);
+            originalLog.apply(console, args);
+        };
+
+        console.error = function(...args) {
+            captureLog('ERROR', args);
+            originalError.apply(console, args);
+        };
+
+        console.warn = function(...args) {
+            captureLog('WARN', args);
+            originalWarn.apply(console, args);
+        };
+
+        // Initialize
+        displayLocalStorage();
+        displayTenantStore();
+        displayCacheVersion();
+
+        // Auto-refresh every 5 seconds
+        setInterval(() => {
+            displayLocalStorage();
+            displayTenantStore();
+            displayCacheVersion();
+        }, 5000);
+    </script>
+</body>
+</html>
