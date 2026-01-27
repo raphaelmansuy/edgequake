@@ -44,6 +44,7 @@
     "dashboard": "Dashboard",
     "graph": "Knowledge Graph",
     "documents": "Documents",
+    "pipeline": "Pipeline",
     "query": "Query",
     "workspace": "Workspace",
     "costs": "Costs",

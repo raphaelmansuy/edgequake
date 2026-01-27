@@ -690,9 +690,15 @@ pub struct SkippedFile {
 // Reprocess DTOs
 // ============================================================================
 
-/// Request to reprocess failed documents.
+/// Request to reprocess documents.
+/// Can filter by document_id (specific document), track_id (batch), or neither (all failed).
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct ReprocessFailedRequest {
+    /// Optional document ID to reprocess a specific document.
+    /// If provided, reprocesses this document regardless of its status.
+    #[serde(default)]
+    pub document_id: Option<String>,
+
     /// Optional track ID to reprocess. If not provided, all failed documents are reprocessed.
     #[serde(default)]
     pub track_id: Option<String>,
@@ -700,6 +706,10 @@ pub struct ReprocessFailedRequest {
     /// Maximum number of documents to reprocess.
     #[serde(default = "default_max_reprocess")]
     pub max_documents: usize,
+
+    /// Force reprocess even if document is not failed. Default: false.
+    #[serde(default)]
+    pub force: bool,
 }
 
 /// Response from reprocess operation.
