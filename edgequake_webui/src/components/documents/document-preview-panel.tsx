@@ -308,6 +308,23 @@ export function DocumentPreviewPanel({
               </span>
             </div>
           )}
+
+          {/* OODA-33: File Size Display */}
+          {document.file_size !== undefined && document.file_size > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <HardDrive className="h-3.5 w-3.5" />
+                {t('documents.preview.fileSize', 'File Size')}
+              </span>
+              <span className="text-sm font-medium">
+                {document.file_size < 1024
+                  ? `${document.file_size} B`
+                  : document.file_size < 1024 * 1024
+                    ? `${(document.file_size / 1024).toFixed(1)} KB`
+                    : `${(document.file_size / (1024 * 1024)).toFixed(2)} MB`}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
