@@ -285,6 +285,66 @@ impl TaskStorage for PostgresTaskStorage {
             total: row.get::<i64, _>("total") as u64,
         })
     }
+
+    async fn get_queue_metrics(&self) -> TaskResult<QueueMetrics> {
+        // Get basic counts and wait time metrics in one query
+        let row = sqlx::query(
+            r#"
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
+                COUNT(*) FILTER (WHERE status = 'processing') as processing_count,
+                COALESCE(AVG(EXTRACT(EPOCH FROM (started_at - created_at))) 
+                    FILTER (WHERE started_at IS NOT NULL), 0) as avg_wait_seconds,
+                COALESCE(MAX(EXTRACT(EPOCH FROM (NOW() - created_at))) 
+                    FILTER (WHERE status = 'pending'), 0) as max_wait_seconds,
+                COUNT(*) FILTER (
+                    WHERE status = 'indexed' 
+                    AND completed_at > NOW() - INTERVAL '5 minutes'
+                ) as recent_completed
+            FROM tasks
+            "#,
+        )
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| TaskError::StorageError(format!("Failed to get queue metrics: {}", e)))?;
+
+        let pending_count = row.get::<i64, _>("pending_count") as u64;
+        let processing_count = row.get::<i64, _>("processing_count") as u64;
+        let avg_wait_time_seconds = row.get::<f64, _>("avg_wait_seconds");
+        let max_wait_time_seconds = row.get::<f64, _>("max_wait_seconds");
+        let recent_completed = row.get::<i64, _>("recent_completed") as u64;
+
+        // Calculate throughput (docs per minute over last 5 minutes)
+        let throughput_per_minute = recent_completed as f64 / 5.0;
+
+        // Estimate queue time
+        let estimated_queue_time_seconds = if throughput_per_minute > 0.0 {
+            (pending_count as f64 / throughput_per_minute) * 60.0
+        } else if avg_wait_time_seconds > 0.0 {
+            pending_count as f64 * avg_wait_time_seconds
+        } else {
+            0.0
+        };
+
+        // Worker utilization (assuming 4 max workers)
+        let max_workers = 4u32;
+        let active_workers = processing_count.min(max_workers as u64) as u32;
+        let worker_utilization = ((active_workers as f64 / max_workers as f64) * 100.0) as u8;
+
+        Ok(QueueMetrics {
+            pending_count,
+            processing_count,
+            active_workers,
+            max_workers,
+            worker_utilization,
+            avg_wait_time_seconds,
+            max_wait_time_seconds,
+            throughput_per_minute,
+            estimated_queue_time_seconds,
+            rate_limited: false, // TODO: Track rate limiting separately
+            timestamp: chrono::Utc::now(),
+        })
+    }
 }
 
 #[cfg(feature = "postgres")]

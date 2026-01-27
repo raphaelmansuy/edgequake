@@ -177,6 +177,41 @@ export interface HeartbeatEvent {
   server_time: string;
 }
 
+/**
+ * Chunk-level progress event for granular extraction visibility.
+ *
+ * @implements SPEC-001/Objective-A: Chunk-Level Progress Visibility
+ *
+ * WHY: The real progression of document ingestion is chunks processed
+ * vs chunks remaining. This event provides granular visibility into
+ * the map-reduce extraction phase where each chunk is processed.
+ */
+export interface ChunkProgressEvent {
+  type: "ChunkProgress";
+  data: {
+    /** Document being processed */
+    document_id: string;
+    /** Task tracking ID */
+    task_id: string;
+    /** Current chunk index (0-based) */
+    chunk_index: number;
+    /** Total chunks in document */
+    total_chunks: number;
+    /** Preview of current chunk (first 80 chars) */
+    chunk_preview: string;
+    /** Time taken for this chunk (milliseconds) */
+    time_ms: number;
+    /** Estimated time remaining (seconds) */
+    eta_seconds: number;
+    /** Cumulative input tokens */
+    tokens_in: number;
+    /** Cumulative output tokens */
+    tokens_out: number;
+    /** Cumulative cost (USD) */
+    cost_usd: number;
+  };
+}
+
 export type WebSocketProgressMessage =
   | IngestionStartedEvent
   | StageStartedEvent
@@ -184,7 +219,8 @@ export type WebSocketProgressMessage =
   | StageCompletedEvent
   | IngestionCompletedEvent
   | IngestionFailedEvent
-  | HeartbeatEvent;
+  | HeartbeatEvent
+  | ChunkProgressEvent;
 
 // ============================================================================
 // Client Command Types

@@ -8,24 +8,24 @@
 
 ### What's Already Working ✅
 
-| Feature | Implementation | Evidence |
-|---------|----------------|----------|
-| Rebuild Embeddings | workspaces.rs:1343 | Full handler with workspace isolation |
-| Rebuild KG | workspaces.rs:1729 | Full handler with optional embedding rebuild |
-| Workspace Isolation | clear_workspace() | Scoped by workspace_id |
-| Dimension Handling | Auto-detect from model config | OODA-225 implemented |
-| Cache Eviction | vector_registry.evict() | Prevents stale dimension issues |
-| Frontend Buttons | RebuildEmbeddingsButton | Card UI with confirmation |
-| Progress Dialog | PipelineStatusDialog | Polls for status |
+| Feature             | Implementation                | Evidence                                     |
+| ------------------- | ----------------------------- | -------------------------------------------- |
+| Rebuild Embeddings  | workspaces.rs:1343            | Full handler with workspace isolation        |
+| Rebuild KG          | workspaces.rs:1729            | Full handler with optional embedding rebuild |
+| Workspace Isolation | clear_workspace()             | Scoped by workspace_id                       |
+| Dimension Handling  | Auto-detect from model config | OODA-225 implemented                         |
+| Cache Eviction      | vector_registry.evict()       | Prevents stale dimension issues              |
+| Frontend Buttons    | RebuildEmbeddingsButton       | Card UI with confirmation                    |
+| Progress Dialog     | PipelineStatusDialog          | Polls for status                             |
 
 ### What Needs Improvement ⚠️
 
-| Gap | Impact | Effort | Priority |
-|-----|--------|--------|----------|
-| E2E tests with Ollama | Testing reliability | Medium | P1 |
-| Status update during rebuild | UX clarity | Low | P2 |
-| Confirmation dialog impact preview | User confidence | Low | P2 |
-| Error detail display | Debug support | Medium | P2 |
+| Gap                                | Impact              | Effort | Priority |
+| ---------------------------------- | ------------------- | ------ | -------- |
+| E2E tests with Ollama              | Testing reliability | Medium | P1       |
+| Status update during rebuild       | UX clarity          | Low    | P2       |
+| Confirmation dialog impact preview | User confidence     | Low    | P2       |
+| Error detail display               | Debug support       | Medium | P2       |
 
 ---
 
@@ -43,6 +43,7 @@
 "I want to upgrade my extraction quality without losing data"
 
 The system needs to:
+
 1. Preserve source documents
 2. Clear derived data (entities, relationships, embeddings)
 3. Reprocess with new configuration
@@ -55,6 +56,7 @@ The system needs to:
 ### Decision 1: E2E Tests Priority
 
 **Focus**: Create comprehensive E2E tests using Ollama models for:
+
 - Rebuild embeddings with dimension change
 - Rebuild KG with model change
 - Error scenarios (provider unavailable)
@@ -63,14 +65,16 @@ The system needs to:
 ### Decision 2: Enhance Confirmation Dialog
 
 Add impact preview to RebuildEmbeddingsButton:
+
 ```tsx
-"This will reprocess {X} documents ({Y} chunks) using {newModel}."
+"This will reprocess {X} documents ({Y} chunks) using {newModel}.";
 ```
 
 ### Decision 3: Add Status Updates During Rebuild
 
 The rebuild process should show stages:
-1. "Clearing vectors..." 
+
+1. "Clearing vectors..."
 2. "Updating configuration..."
 3. "Queueing documents..."
 4. "Processing..." (then normal pipeline stages)
@@ -79,11 +83,11 @@ The rebuild process should show stages:
 
 ## Risk Assessment
 
-| Risk | Probability | Mitigation |
-|------|-------------|------------|
-| Ollama not available in CI | High | Skip tests gracefully |
-| Long test runtime | Medium | Use small test documents |
-| Flaky tests from timing | Low | Add proper waits and retries |
+| Risk                       | Probability | Mitigation                   |
+| -------------------------- | ----------- | ---------------------------- |
+| Ollama not available in CI | High        | Skip tests gracefully        |
+| Long test runtime          | Medium      | Use small test documents     |
+| Flaky tests from timing    | Low         | Add proper waits and retries |
 
 ---
 
@@ -92,6 +96,7 @@ The rebuild process should show stages:
 ### Phase 1: E2E Test Suite (This Iteration)
 
 Create `edgequake_webui/e2e/rebuild-operations.spec.ts`:
+
 1. Test rebuild embeddings flow
 2. Test rebuild KG flow
 3. Test dimension change scenario

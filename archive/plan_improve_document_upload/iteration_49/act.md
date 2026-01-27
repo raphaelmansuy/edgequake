@@ -5,6 +5,7 @@
 **Finding**: Dark mode colors are mostly consistent!
 
 Analyzed color usage:
+
 - File type icons use `-500` colors which work in both modes
 - Processing status bar uses `text-blue-600 dark:text-blue-400`
 - NEW badge uses `text-green-600 dark:text-green-400`

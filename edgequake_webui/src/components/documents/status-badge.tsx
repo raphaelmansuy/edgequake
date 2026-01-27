@@ -16,21 +16,21 @@
 
 import { Badge } from '@/components/ui/badge';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  Brain,
-  CheckCircle,
-  Clock,
-  Cpu,
-  Database,
-  Loader2,
-  Scissors,
-  StopCircle,
-  XCircle,
+    Brain,
+    CheckCircle,
+    Clock,
+    Cpu,
+    Database,
+    Loader2,
+    Scissors,
+    StopCircle,
+    XCircle,
 } from 'lucide-react';
 import { memo, useMemo } from 'react';
 

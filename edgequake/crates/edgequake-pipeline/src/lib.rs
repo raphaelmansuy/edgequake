@@ -65,7 +65,9 @@ pub mod merger;
 pub mod pipeline;
 pub mod progress;
 pub mod prompts;
+pub mod sanitizer;
 pub mod summarizer;
+pub mod validation;
 
 pub use cache::{
     generate_cache_key, generate_cache_key_multi, CacheEntry, CacheStats, CacheType,
@@ -73,7 +75,8 @@ pub use cache::{
 };
 pub use chunker::{
     calculate_line_numbers, CharacterBasedChunking, ChunkResult, Chunker, ChunkerConfig,
-    ChunkingStrategy, TextChunk, TokenBasedChunking,
+    ChunkingStrategy, ParagraphBoundaryChunking, SentenceBoundaryChunking, TextChunk,
+    TokenBasedChunking,
 };
 pub use error::{PipelineError, Result};
 pub use extractor::{
@@ -86,7 +89,8 @@ pub use lineage::{
 };
 pub use merger::{KnowledgeGraphMerger, MergeStats, MergerConfig};
 pub use pipeline::{
-    CostBreakdownStats, Pipeline, PipelineConfig, ProcessingResult, ProcessingStats,
+    ChunkProgressCallback, ChunkProgressUpdate, CostBreakdownStats, Pipeline, PipelineConfig,
+    ProcessingResult, ProcessingStats,
 };
 pub use progress::{
     default_model_pricing, CostBreakdown, CostTracker, IngestionError, IngestionProgress,
@@ -98,4 +102,9 @@ pub use prompts::{
     JsonExtractionParser, SummarizationPrompts, TupleParser, DEFAULT_COMPLETION_DELIMITER,
     DEFAULT_TUPLE_DELIMITER, SUPPORTED_LANGUAGES,
 };
+pub use sanitizer::{EmojiMode, SanitizeConfig, SanitizeReport, Sanitizer};
 pub use summarizer::{DescriptionSummarizer, LLMSummarizer, SimpleSummarizer, SummarizerConfig};
+pub use validation::{
+    validate_document_content, validate_document_filename, DocumentValidator, ValidationCode,
+    ValidationConfig, ValidationIssue, ValidationResult,
+};

@@ -5,6 +5,7 @@
 **Focus**: Enhanced tooltip on cost cell showing breakdown
 
 **Current State**:
+
 - CostCell shows a formatted cost value
 - No detailed breakdown in table view (only in preview)
 - Users must click to see full cost details

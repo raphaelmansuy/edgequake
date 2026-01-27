@@ -30,6 +30,35 @@ pub enum PipelineEvent {
         is_busy: bool,
         job_name: Option<String>,
     },
+    /// Chunk-level progress update for a document.
+    ///
+    /// @implements SPEC-001/Objective-A: Chunk-Level Progress Visibility
+    ///
+    /// WHY: This event provides real-time chunk-level progress to WebSocket
+    /// clients, enabling the frontend to show granular progress like:
+    /// "Chunk 12/35 (34%) - ETA: 53s"
+    ChunkProgress {
+        /// Document being processed.
+        document_id: String,
+        /// Task tracking ID.
+        task_id: String,
+        /// Current chunk index (0-based).
+        chunk_index: u32,
+        /// Total chunks in document.
+        total_chunks: u32,
+        /// Preview of current chunk (first 80 chars).
+        chunk_preview: String,
+        /// Time taken for this chunk (milliseconds).
+        time_ms: u64,
+        /// Estimated time remaining (seconds).
+        eta_seconds: u64,
+        /// Cumulative input tokens.
+        tokens_in: u64,
+        /// Cumulative output tokens.
+        tokens_out: u64,
+        /// Cumulative cost (USD).
+        cost_usd: f64,
+    },
 }
 
 /// A single pipeline message with timestamp and level.
@@ -321,6 +350,54 @@ impl PipelineState {
     pub async fn reset(&self) {
         let mut inner = self.inner.write().await;
         *inner = PipelineStateInner::default();
+    }
+
+    /// Emit a chunk-level progress event.
+    ///
+    /// @implements SPEC-001/Objective-A: Chunk-Level Progress Visibility
+    ///
+    /// WHY: This method sends real-time chunk progress to WebSocket subscribers,
+    /// enabling the frontend to display granular progress like:
+    /// "Chunk 12/35 (34%) - ETA: 53s - Cost: $0.0089"
+    ///
+    /// # Arguments
+    ///
+    /// * `document_id` - ID of the document being processed
+    /// * `task_id` - Task tracking ID
+    /// * `chunk_index` - Current chunk index (0-based)
+    /// * `total_chunks` - Total chunks in document
+    /// * `chunk_preview` - Preview text of current chunk (first ~80 chars)
+    /// * `time_ms` - Time taken for this chunk (milliseconds)
+    /// * `eta_seconds` - Estimated time remaining (seconds)
+    /// * `tokens_in` - Cumulative input tokens
+    /// * `tokens_out` - Cumulative output tokens
+    /// * `cost_usd` - Cumulative cost (USD)
+    #[allow(clippy::too_many_arguments)]
+    pub fn emit_chunk_progress(
+        &self,
+        document_id: String,
+        task_id: String,
+        chunk_index: u32,
+        total_chunks: u32,
+        chunk_preview: String,
+        time_ms: u64,
+        eta_seconds: u64,
+        tokens_in: u64,
+        tokens_out: u64,
+        cost_usd: f64,
+    ) {
+        let _ = self.tx.send(PipelineEvent::ChunkProgress {
+            document_id,
+            task_id,
+            chunk_index,
+            total_chunks,
+            chunk_preview,
+            time_ms,
+            eta_seconds,
+            tokens_in,
+            tokens_out,
+            cost_usd,
+        });
     }
 }
 

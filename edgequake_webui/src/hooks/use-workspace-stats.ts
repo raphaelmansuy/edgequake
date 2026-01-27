@@ -8,11 +8,11 @@
  * @enforces BR0402 - Clear warning before destructive operations with impact preview
  */
 
-'use client';
+"use client";
 
-import { getDocuments } from '@/lib/api/edgequake';
-import { useTenantStore } from '@/stores/use-tenant-store';
-import { useQuery } from '@tanstack/react-query';
+import { getDocuments } from "@/lib/api/edgequake";
+import { useTenantStore } from "@/stores/use-tenant-store";
+import { useQuery } from "@tanstack/react-query";
 
 /**
  * Workspace statistics for rebuild impact preview.
@@ -45,7 +45,7 @@ export function useWorkspaceStats(): WorkspaceStats {
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['workspace-stats', selectedTenantId, selectedWorkspaceId],
+    queryKey: ["workspace-stats", selectedTenantId, selectedWorkspaceId],
     queryFn: async () => {
       if (!selectedWorkspaceId) {
         return null;
@@ -65,7 +65,9 @@ export function useWorkspaceStats(): WorkspaceStats {
   // Estimate ~3 seconds per document for processing
   const SECONDS_PER_DOCUMENT = 3;
   const totalDocuments = data?.total ?? 0;
-  const estimatedTimeMinutes = Math.ceil((totalDocuments * SECONDS_PER_DOCUMENT) / 60);
+  const estimatedTimeMinutes = Math.ceil(
+    (totalDocuments * SECONDS_PER_DOCUMENT) / 60,
+  );
 
   return {
     totalDocuments,
@@ -90,10 +92,10 @@ export function useWorkspaceStats(): WorkspaceStats {
  */
 export function formatEstimatedTime(minutes: number): string {
   if (minutes < 1) {
-    return 'less than a minute';
+    return "less than a minute";
   }
   if (minutes === 1) {
-    return '~1 minute';
+    return "~1 minute";
   }
   if (minutes < 60) {
     return `~${minutes} minutes`;
@@ -101,7 +103,7 @@ export function formatEstimatedTime(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
   if (hours === 1) {
-    return remainingMinutes > 0 ? `~1 hour ${remainingMinutes} min` : '~1 hour';
+    return remainingMinutes > 0 ? `~1 hour ${remainingMinutes} min` : "~1 hour";
   }
   return remainingMinutes > 0
     ? `~${hours} hours ${remainingMinutes} min`

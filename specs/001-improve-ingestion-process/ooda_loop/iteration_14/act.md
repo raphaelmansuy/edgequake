@@ -5,6 +5,7 @@
 ### Backend Implementation (documents.rs:3145)
 
 #### Flow
+
 1. Find all documents with status="failed"
 2. For each failed document:
    a. Clean up partial graph data (OODA-08)
@@ -14,6 +15,7 @@
 3. Return count of failed found vs requeued
 
 #### Key Features
+
 - **Cleanup before requeue** (line 3204-3225):
   - Calls `cleanup_document_graph_data()`
   - Removes partial entities/relationships
@@ -33,6 +35,7 @@
 ### Frontend Implementation (reprocess-failed-button.tsx)
 
 #### Features
+
 1. Hidden when failedCount = 0
 2. Optional confirmation dialog
 3. Toast notifications with:
@@ -43,26 +46,30 @@
 
 ### Edge Case Analysis
 
-| Edge Case | Handling |
-|-----------|----------|
-| No failed documents | Button hidden (failedCount=0) |
-| Partial graph data | Cleaned up before requeue |
-| No content available | Skipped (not requeued) |
-| Rate limit retry | Will succeed with backoff |
-| Permanent failures | Will fail again with error |
+| Edge Case            | Handling                      |
+| -------------------- | ----------------------------- |
+| No failed documents  | Button hidden (failedCount=0) |
+| Partial graph data   | Cleaned up before requeue     |
+| No content available | Skipped (not requeued)        |
+| Rate limit retry     | Will succeed with backoff     |
+| Permanent failures   | Will fail again with error    |
 
 ### Test Coverage
+
 - E2E test in `e2e_document_deletion.rs:1569`
 - Verifies cleanup before requeueing (GAP-08)
 
 ## No Critical Issues Found
+
 Implementation handles edge cases correctly.
 
 ## Files Reviewed
+
 - `edgequake-api/src/handlers/documents.rs` (reprocess_failed)
 - `edgequake_webui/src/components/documents/reprocess-failed-button.tsx`
 - `edgequake-api/tests/e2e_document_deletion.rs`
 
 ## Next Steps
+
 - Continue with Iteration 15
 - Focus on security and rate limiting

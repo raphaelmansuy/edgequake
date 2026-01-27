@@ -8,20 +8,20 @@
 
 ### Current State vs Desired State
 
-| Aspect | Current | Desired | Gap |
-|--------|---------|---------|-----|
-| Status granularity | 2 states (processing, completed/failed) | 6 states (chunking, extracting, embedding, indexing, completed, failed) | 4 missing |
-| Status storage | Final status only | Stage-by-stage | Need incremental updates |
-| Frontend display | Shows "Processing" | Shows current stage | Already prepared ✅ |
-| API response | Returns status | Returns status | ✅ Ready |
+| Aspect             | Current                                 | Desired                                                                 | Gap                      |
+| ------------------ | --------------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
+| Status granularity | 2 states (processing, completed/failed) | 6 states (chunking, extracting, embedding, indexing, completed, failed) | 4 missing                |
+| Status storage     | Final status only                       | Stage-by-stage                                                          | Need incremental updates |
+| Frontend display   | Shows "Processing"                      | Shows current stage                                                     | Already prepared ✅      |
+| API response       | Returns status                          | Returns status                                                          | ✅ Ready                 |
 
 ### Risk Assessment
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Performance degradation from frequent KV updates | Medium | Low | Batch updates, async fire-and-forget |
-| Status race conditions | Low | Medium | Document-level locking not needed (single processor per doc) |
-| Backward compatibility | Low | Low | New states gracefully fallback in old clients |
+| Risk                                             | Probability | Impact | Mitigation                                                   |
+| ------------------------------------------------ | ----------- | ------ | ------------------------------------------------------------ |
+| Performance degradation from frequent KV updates | Medium      | Low    | Batch updates, async fire-and-forget                         |
+| Status race conditions                           | Low         | Medium | Document-level locking not needed (single processor per doc) |
+| Backward compatibility                           | Low         | Low    | New states gracefully fallback in old clients                |
 
 ---
 
@@ -36,6 +36,7 @@
 ### What's the simplest change?
 
 Modify `update_document_status()` to be called at each stage transition:
+
 - Before chunking → status: "chunking"
 - After chunking, before extraction → status: "extracting"
 - After extraction, before embedding → status: "embedding"
@@ -94,6 +95,7 @@ updated.insert("processing_stage".to_string(), json!("chunking"));
 **Selected: Option A (Minimal Change)**
 
 Rationale:
+
 1. Frontend already supports the new status values
 2. Minimal code changes in backend
 3. Backward compatible (old clients see "chunking" as unknown, fallback to "processing")
@@ -105,7 +107,7 @@ Rationale:
 
 1. In `process_text_insert()`, add status updates:
    - Line ~598: Before chunking → "chunking"
-   - Line ~621: After chunk storage → "extracting" 
+   - Line ~621: After chunk storage → "extracting"
    - Line ~625: After extraction → "embedding"
    - Line ~948: Before graph storage → "indexing"
 

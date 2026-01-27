@@ -3,8 +3,9 @@
 ## Current State Analysis
 
 ### Current Row Styling
+
 ```tsx
-<TableRow 
+<TableRow
   className={cn(
     "cursor-pointer transition-colors duration-150",
     "hover:bg-primary/5 dark:hover:bg-primary/10",
@@ -15,20 +16,25 @@
 ```
 
 ### User Pain Point
+
 - Failed documents blend in with others
 - Hard to spot failures at a glance
 - No visual urgency for documents needing attention
 
 ### Enhancement Opportunity
+
 Add visual emphasis to failed documents:
+
 - Red/orange left border
 - Subtle background tint
 - Error icon in row
 
 ### Design Options
+
 1. **Left border**: 3px solid red border
 2. **Background tint**: Very subtle red background
 3. **Row icon**: Small error indicator
 
 ### Selected Approach
+
 Use left border + subtle background for failed rows.

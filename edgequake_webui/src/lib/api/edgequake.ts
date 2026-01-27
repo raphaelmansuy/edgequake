@@ -34,6 +34,7 @@ import type {
   QueryRequest,
   QueryResponse,
   QueryStreamChunk,
+  QueueMetrics,
   Relationship,
   Tenant,
   TrackStatusResponse,
@@ -78,11 +79,11 @@ export async function logout(): Promise<void> {
 }
 
 export async function refreshToken(
-  refreshToken: string
+  refreshToken: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
   return api.post<{ access_token: string; refresh_token: string }>(
     "/auth/refresh",
-    { refresh_token: refreshToken }
+    { refresh_token: refreshToken },
   );
 }
 
@@ -177,7 +178,7 @@ export async function createTenant(data: CreateTenantRequest): Promise<Tenant> {
 
 export async function getWorkspaces(tenantId: string): Promise<Workspace[]> {
   const response = await api.get<WorkspaceListResponse | Workspace[]>(
-    `/tenants/${tenantId}/workspaces`
+    `/tenants/${tenantId}/workspaces`,
   );
   // Handle both paginated response and legacy array format
   if (Array.isArray(response)) {
@@ -195,7 +196,7 @@ export async function getWorkspaces(tenantId: string): Promise<Workspace[]> {
  */
 export async function getWorkspace(
   _tenantId: string,
-  workspaceId: string
+  workspaceId: string,
 ): Promise<Workspace> {
   // Backend route: GET /api/v1/workspaces/{workspace_id}
   return api.get<Workspace>(`/workspaces/${workspaceId}`);
@@ -207,13 +208,13 @@ export async function getWorkspace(
  */
 export async function getWorkspaceBySlug(
   tenantId: string,
-  slug: string
+  slug: string,
 ): Promise<Workspace> {
   return api.get<Workspace>(`/tenants/${tenantId}/workspaces/by-slug/${slug}`);
 }
 
 export async function getWorkspaceStats(
-  workspaceId: string
+  workspaceId: string,
 ): Promise<WorkspaceStats> {
   return api.get<WorkspaceStats>(`/workspaces/${workspaceId}/stats`);
 }
@@ -229,7 +230,7 @@ export async function getWorkspaceStats(
  */
 export async function createWorkspace(
   tenantId: string,
-  data: CreateWorkspaceRequest
+  data: CreateWorkspaceRequest,
 ): Promise<Workspace> {
   return api.post<Workspace>(`/tenants/${tenantId}/workspaces`, data);
 }
@@ -272,7 +273,7 @@ export interface UpdateWorkspaceRequest {
 export async function updateWorkspace(
   _tenantId: string,
   workspaceId: string,
-  data: UpdateWorkspaceRequest
+  data: UpdateWorkspaceRequest,
 ): Promise<Workspace> {
   // Backend route: PUT /api/v1/workspaces/{workspace_id}
   return api.put<Workspace>(`/workspaces/${workspaceId}`, data);
@@ -331,11 +332,11 @@ export interface RebuildEmbeddingsResponse {
  */
 export async function rebuildEmbeddings(
   workspaceId: string,
-  request: RebuildEmbeddingsRequest
+  request: RebuildEmbeddingsRequest,
 ): Promise<RebuildEmbeddingsResponse> {
   return api.post<RebuildEmbeddingsResponse>(
     `/workspaces/${workspaceId}/rebuild-embeddings`,
-    request
+    request,
   );
 }
 
@@ -390,11 +391,11 @@ export interface RebuildKnowledgeGraphResponse {
  */
 export async function rebuildKnowledgeGraph(
   workspaceId: string,
-  request: RebuildKnowledgeGraphRequest
+  request: RebuildKnowledgeGraphRequest,
 ): Promise<RebuildKnowledgeGraphResponse> {
   return api.post<RebuildKnowledgeGraphResponse>(
     `/workspaces/${workspaceId}/rebuild-knowledge-graph`,
-    request
+    request,
   );
 }
 
@@ -447,11 +448,11 @@ export interface ReprocessAllResponse {
  */
 export async function reprocessAllDocuments(
   workspaceId: string,
-  request: ReprocessAllRequest = {}
+  request: ReprocessAllRequest = {},
 ): Promise<ReprocessAllResponse> {
   return api.post<ReprocessAllResponse>(
     `/workspaces/${workspaceId}/reprocess-documents`,
-    request
+    request,
   );
 }
 
@@ -465,7 +466,7 @@ export interface DocumentsListResult extends PaginatedResponse<Document> {
 }
 
 export async function getDocuments(
-  params?: PaginationParams & { status?: string }
+  params?: PaginationParams & { status?: string },
 ): Promise<DocumentsListResult> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", String(params.page));
@@ -479,7 +480,7 @@ export async function getDocuments(
 
   // API now returns { documents: [...], total, page, page_size, total_pages, has_more, status_counts }
   const response = await api.get<ListDocumentsResponse>(
-    `/documents${query ? `?${query}` : ""}`
+    `/documents${query ? `?${query}` : ""}`,
   );
 
   return {
@@ -506,7 +507,7 @@ export async function getDocument(documentId: string): Promise<Document> {
 }
 
 export async function uploadDocument(
-  data: UploadDocumentRequest
+  data: UploadDocumentRequest,
 ): Promise<UploadDocumentResponse> {
   return api.post<UploadDocumentResponse>("/documents", data);
 }
@@ -538,11 +539,11 @@ export async function deleteAllDocuments(): Promise<{ deleted_count: number }> {
  */
 export async function reprocessDocument(
   documentId: string,
-  force: boolean = true
+  force: boolean = true,
 ): Promise<{ track_id: string; message: string; count: number }> {
   return api.post<{ track_id: string; message: string; count: number }>(
     "/documents/reprocess",
-    { document_id: documentId, force, max_documents: 1 }
+    { document_id: documentId, force, max_documents: 1 },
   );
 }
 
@@ -552,26 +553,38 @@ export async function reprocessDocument(
  * @param path Optional path to scan (defaults to configured input directory)
  */
 export async function scanDocuments(
-  path?: string
+  path?: string,
 ): Promise<{ track_id: string; message: string }> {
   return api.post<{ track_id: string; message: string }>(
     "/documents/scan",
-    path ? { path } : {}
+    path ? { path } : {},
   );
+}
+
+/**
+ * Response from reprocess failed documents endpoint.
+ *
+ * @implements OODA-37 - Fixed response type to match backend ReprocessFailedResponse
+ */
+export interface ReprocessFailedResponse {
+  /** Track ID for the reprocess batch */
+  track_id: string;
+  /** Number of failed documents found */
+  failed_found: number;
+  /** Number of documents queued for reprocessing */
+  requeued: number;
+  /** List of document IDs being reprocessed */
+  document_ids: string[];
 }
 
 /**
  * Reprocess all failed documents.
  * Retries processing of documents that previously failed.
+ *
+ * @returns ReprocessFailedResponse with track_id, counts, and document_ids
  */
-export async function reprocessFailedDocuments(): Promise<{
-  track_id: string;
-  message: string;
-  count: number;
-}> {
-  return api.post<{ track_id: string; message: string; count: number }>(
-    "/documents/reprocess"
-  );
+export async function reprocessFailedDocuments(): Promise<ReprocessFailedResponse> {
+  return api.post<ReprocessFailedResponse>("/documents/reprocess");
 }
 
 // ============================================================================
@@ -583,7 +596,7 @@ export async function query(request: QueryRequest): Promise<QueryResponse> {
 }
 
 export async function* queryStream(
-  request: QueryRequest
+  request: QueryRequest,
 ): AsyncGenerator<QueryStreamChunk, void, unknown> {
   yield* streamClient<QueryStreamChunk>("/query/stream", {
     method: "POST",
@@ -615,7 +628,7 @@ export interface GetGraphOptions {
 }
 
 export async function getGraph(
-  options?: GetGraphOptions
+  options?: GetGraphOptions,
 ): Promise<KnowledgeGraph> {
   const searchParams = new URLSearchParams();
 
@@ -640,7 +653,7 @@ export async function getGraphLabels(): Promise<{
   relationship_types: string[];
 }> {
   return api.get<{ entity_types: string[]; relationship_types: string[] }>(
-    "/graph/labels"
+    "/graph/labels",
   );
 }
 
@@ -664,10 +677,10 @@ export async function getGraphStats(): Promise<{
  */
 export async function searchLabels(
   query: string,
-  limit = 20
+  limit = 20,
 ): Promise<{ labels: string[] }> {
   return api.get<{ labels: string[] }>(
-    `/graph/labels/search?q=${encodeURIComponent(query)}&limit=${limit}`
+    `/graph/labels/search?q=${encodeURIComponent(query)}&limit=${limit}`,
   );
 }
 
@@ -786,7 +799,7 @@ export interface GetGraphStreamOptions {
  * ```
  */
 export async function* graphStream(
-  options?: GetGraphStreamOptions
+  options?: GetGraphStreamOptions,
 ): AsyncGenerator<GraphStreamEvent, void, unknown> {
   const searchParams = new URLSearchParams();
   if (options?.maxNodes)
@@ -800,7 +813,7 @@ export async function* graphStream(
     `/graph/stream${query ? `?${query}` : ""}`,
     {
       method: "GET",
-    }
+    },
   );
 }
 
@@ -809,7 +822,7 @@ export async function* graphStream(
 // ============================================================================
 
 export async function getEntities(
-  params?: PaginationParams & { entity_type?: string; search?: string }
+  params?: PaginationParams & { entity_type?: string; search?: string },
 ): Promise<PaginatedResponse<Entity>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", String(params.page));
@@ -820,7 +833,7 @@ export async function getEntities(
 
   const query = searchParams.toString();
   return api.get<PaginatedResponse<Entity>>(
-    `/graph/entities${query ? `?${query}` : ""}`
+    `/graph/entities${query ? `?${query}` : ""}`,
   );
 }
 
@@ -830,7 +843,7 @@ export async function getEntity(entityId: string): Promise<Entity> {
 
 export async function updateEntity(
   entityId: string,
-  data: Partial<Entity>
+  data: Partial<Entity>,
 ): Promise<Entity> {
   return api.put<Entity>(`/graph/entities/${entityId}`, data);
 }
@@ -840,18 +853,18 @@ export async function deleteEntity(entityId: string): Promise<void> {
 }
 
 export async function mergeEntities(
-  request: MergeEntitiesRequest
+  request: MergeEntitiesRequest,
 ): Promise<MergeEntitiesResponse> {
   return api.post<MergeEntitiesResponse>("/graph/entities/merge", request);
 }
 
 export async function getEntityNeighborhood(
   entityId: string,
-  depth?: number
+  depth?: number,
 ): Promise<{ nodes: GraphNode[]; edges: GraphEdge[] }> {
   const query = depth ? `?depth=${depth}` : "";
   return api.get<{ nodes: GraphNode[]; edges: GraphEdge[] }>(
-    `/graph/entities/${entityId}/neighborhood${query}`
+    `/graph/entities/${entityId}/neighborhood${query}`,
   );
 }
 
@@ -860,7 +873,7 @@ export async function getEntityNeighborhood(
 // ============================================================================
 
 export async function getRelationships(
-  params?: PaginationParams & { relationship_type?: string }
+  params?: PaginationParams & { relationship_type?: string },
 ): Promise<PaginatedResponse<Relationship>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", String(params.page));
@@ -871,25 +884,25 @@ export async function getRelationships(
 
   const query = searchParams.toString();
   return api.get<PaginatedResponse<Relationship>>(
-    `/graph/relationships${query ? `?${query}` : ""}`
+    `/graph/relationships${query ? `?${query}` : ""}`,
   );
 }
 
 export async function getRelationship(
-  relationshipId: string
+  relationshipId: string,
 ): Promise<Relationship> {
   return api.get<Relationship>(`/graph/relationships/${relationshipId}`);
 }
 
 export async function updateRelationship(
   relationshipId: string,
-  data: Partial<Relationship>
+  data: Partial<Relationship>,
 ): Promise<Relationship> {
   return api.put<Relationship>(`/graph/relationships/${relationshipId}`, data);
 }
 
 export async function deleteRelationship(
-  relationshipId: string
+  relationshipId: string,
 ): Promise<void> {
   return api.delete<void>(`/graph/relationships/${relationshipId}`);
 }
@@ -913,7 +926,7 @@ export async function getTasksList(params?: {
 
   const query = searchParams.toString();
   return api.get<import("@/types").TaskListResponse>(
-    `/tasks${query ? `?${query}` : ""}`
+    `/tasks${query ? `?${query}` : ""}`,
   );
 }
 
@@ -953,7 +966,7 @@ export async function cancelPipeline(): Promise<void> {
 }
 
 export async function getTaskStatus(
-  taskId: string
+  taskId: string,
 ): Promise<import("@/types").TaskResponse> {
   return api.get<import("@/types").TaskResponse>(`/tasks/${taskId}`);
 }
@@ -963,7 +976,7 @@ export async function cancelTask(taskId: string): Promise<void> {
 }
 
 export async function retryTask(
-  taskId: string
+  taskId: string,
 ): Promise<import("@/types").TaskResponse> {
   return api.post<import("@/types").TaskResponse>(`/tasks/${taskId}/retry`);
 }
@@ -977,7 +990,7 @@ export async function retryTask(
  * Returns all documents uploaded with a specific track_id, along with status summary.
  */
 export async function getTrackStatus(
-  trackId: string
+  trackId: string,
 ): Promise<TrackStatusResponse> {
   return api.get<TrackStatusResponse>(`/documents/track/${trackId}`);
 }
@@ -1002,7 +1015,7 @@ export interface TrackProgressResponse {
 }
 
 export async function getTrackProgress(
-  trackId: string
+  trackId: string,
 ): Promise<TrackProgressResponse> {
   return api.get<TrackProgressResponse>(`/ingestion/${trackId}/progress`);
 }
@@ -1011,7 +1024,7 @@ export async function getTrackProgress(
  * Get progress for multiple tracks at once.
  */
 export async function getMultipleTrackProgress(
-  trackIds: string[]
+  trackIds: string[],
 ): Promise<TrackProgressResponse[]> {
   return api.post<TrackProgressResponse[]>("/ingestion/progress", {
     track_ids: trackIds,
@@ -1026,10 +1039,10 @@ export async function getMultipleTrackProgress(
  * Get document lineage showing all chunks extracted from a document.
  */
 export async function getDocumentLineage(
-  documentId: string
+  documentId: string,
 ): Promise<import("@/types/lineage").DocumentLineageResponse> {
   return api.get<import("@/types/lineage").DocumentLineageResponse>(
-    `/documents/${documentId}/lineage`
+    `/documents/${documentId}/lineage`,
   );
 }
 
@@ -1037,7 +1050,7 @@ export async function getDocumentLineage(
  * Get chunk detail including entities and relationships extracted from it.
  */
 export async function getChunkDetail(
-  chunkId: string
+  chunkId: string,
 ): Promise<import("@/types/lineage").ChunkDetail> {
   return api.get<import("@/types/lineage").ChunkDetail>(`/chunks/${chunkId}`);
 }
@@ -1046,10 +1059,10 @@ export async function getChunkDetail(
  * Get entity provenance showing which chunks contributed to an entity.
  */
 export async function getEntityProvenance(
-  entityId: string
+  entityId: string,
 ): Promise<import("@/types/lineage").EntityProvenanceResponse> {
   return api.get<import("@/types/lineage").EntityProvenanceResponse>(
-    `/entities/${entityId}/provenance`
+    `/entities/${entityId}/provenance`,
   );
 }
 
@@ -1057,10 +1070,10 @@ export async function getEntityProvenance(
  * Get lineage for a specific chunk.
  */
 export async function getChunkLineage(
-  chunkId: string
+  chunkId: string,
 ): Promise<import("@/types/lineage").ChunkLineage> {
   return api.get<import("@/types/lineage").ChunkLineage>(
-    `/chunks/${chunkId}/lineage`
+    `/chunks/${chunkId}/lineage`,
   );
 }
 
@@ -1081,10 +1094,10 @@ export async function getWorkspaceCostSummary(): Promise<
  * Get detailed cost breakdown for a specific document.
  */
 export async function getDocumentCost(
-  documentId: string
+  documentId: string,
 ): Promise<import("@/types/cost").CostBreakdown> {
   return api.get<import("@/types/cost").CostBreakdown>(
-    `/documents/${documentId}/cost`
+    `/documents/${documentId}/cost`,
   );
 }
 
@@ -1092,10 +1105,10 @@ export async function getDocumentCost(
  * Get cost breakdown for a specific ingestion track.
  */
 export async function getIngestionCost(
-  trackId: string
+  trackId: string,
 ): Promise<import("@/types/cost").CostBreakdown> {
   return api.get<import("@/types/cost").CostBreakdown>(
-    `/ingestion/${trackId}/cost`
+    `/ingestion/${trackId}/cost`,
   );
 }
 
@@ -1112,7 +1125,7 @@ export async function getBudgetStatus(): Promise<
  * Update budget limits.
  */
 export async function updateBudget(
-  budget: Partial<import("@/types/cost").BudgetInfo>
+  budget: Partial<import("@/types/cost").BudgetInfo>,
 ): Promise<import("@/types/cost").BudgetInfo> {
   return api.patch<import("@/types/cost").BudgetInfo>("/costs/budget", budget);
 }
@@ -1134,7 +1147,7 @@ export interface CostHistoryPoint {
 }
 
 export async function getCostHistory(
-  params?: CostHistoryParams
+  params?: CostHistoryParams,
 ): Promise<CostHistoryPoint[]> {
   const searchParams = new URLSearchParams();
   if (params?.start_date) searchParams.set("start_date", params.start_date);
@@ -1143,7 +1156,7 @@ export async function getCostHistory(
 
   const query = searchParams.toString();
   return api.get<CostHistoryPoint[]>(
-    `/costs/history${query ? `?${query}` : ""}`
+    `/costs/history${query ? `?${query}` : ""}`,
   );
 }
 
@@ -1198,6 +1211,39 @@ export async function requestPipelineCancellation(): Promise<{
     // Fall back to cancelling individual tasks
     await cancelPipeline();
     return { status: "cancellation_requested" };
+  }
+}
+
+// ============================================================================
+// Queue Metrics (OODA-21: Objective B)
+// ============================================================================
+
+/**
+ * Get queue metrics for task queue visibility.
+ *
+ * @implements FEAT0570 - Queue metrics API
+ * @implements OODA-21 - Queue metrics frontend integration
+ *
+ * Returns worker utilization, throughput, wait times, and queue ETA.
+ */
+export async function getQueueMetrics(): Promise<QueueMetrics> {
+  try {
+    return await api.get<QueueMetrics>("/pipeline/queue-metrics");
+  } catch {
+    // Return default metrics if endpoint not available
+    return {
+      pending_count: 0,
+      processing_count: 0,
+      active_workers: 0,
+      max_workers: 1,
+      worker_utilization: 0,
+      avg_wait_time_seconds: 0,
+      max_wait_time_seconds: 0,
+      throughput_per_minute: 0,
+      estimated_queue_time_seconds: 0,
+      rate_limited: false,
+      timestamp: new Date().toISOString(),
+    };
   }
 }
 
@@ -1275,6 +1321,9 @@ export const edgequakeApi = {
   // Enhanced Pipeline (Phase 3)
   getEnhancedPipelineStatus,
   requestPipelineCancellation,
+
+  // Queue Metrics (OODA-21: Objective B)
+  getQueueMetrics,
 
   // Ingestion Progress (WebUI Spec WEBUI-005)
   getTrackProgress,

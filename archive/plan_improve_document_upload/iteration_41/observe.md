@@ -5,6 +5,7 @@
 **Focus**: Add expand/collapse all button for detail views
 
 **Current State**:
+
 - Preview panel shows document info
 - Some sections might be collapsible
 - No global expand/collapse toggle

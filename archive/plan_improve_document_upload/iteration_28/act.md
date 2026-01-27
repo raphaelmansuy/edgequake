@@ -3,11 +3,13 @@
 ## Implementation Complete ✅
 
 ### Changes Made
+
 1. Updated localStorage key from `edgequake:documents:sort` to `edgequake:documents:prefs`
 2. Added statusFilter to persistence
 3. Updated initialization to read statusFilter from localStorage
 
 ### Storage Format
+
 ```json
 {
   "statusFilter": "all",
@@ -17,9 +19,11 @@
 ```
 
 ### Verification
+
 - ✅ TypeScript compilation: No errors
 
 ### UX Benefits
+
 - Status filter persists across sessions
 - Users return to their preferred view
 - Consistent with sort persistence

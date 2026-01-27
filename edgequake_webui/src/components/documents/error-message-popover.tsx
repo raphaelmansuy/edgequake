@@ -13,27 +13,27 @@
 
 import { Button } from '@/components/ui/button';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from '@/components/ui/popover';
 import {
-  categorizeError,
-  getCategoryColor,
-  type CategorizedError,
+    categorizeError,
+    getCategoryColor,
+    type CategorizedError,
 } from '@/lib/error-categories';
 import {
-  AlertCircle,
-  Brain,
-  Check,
-  ClipboardCopy,
-  Cpu,
-  Database,
-  FileWarning,
-  Lightbulb,
-  RefreshCw,
-  RotateCcw,
-  Wifi,
+    AlertCircle,
+    Brain,
+    Check,
+    ClipboardCopy,
+    Cpu,
+    Database,
+    FileWarning,
+    Lightbulb,
+    RefreshCw,
+    RotateCcw,
+    Wifi,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

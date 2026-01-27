@@ -25,15 +25,17 @@ Based on First Principles analysis, the highest signal-value changes are:
 **Why**: Users need to see WHAT is happening, not just "processing"
 
 **Action**:
+
 1. Add new processing sub-states to `status-badge.tsx`
 2. Keep backward compatibility with existing 'processing' state
 3. Add appropriate icons and colors for each stage
 
 **Implementation**:
+
 ```typescript
 // New states to add
 'chunking'   → Scissors icon, blue
-'extracting' → Brain/Sparkles icon, purple  
+'extracting' → Brain/Sparkles icon, purple
 'embedding'  → Cpu icon, cyan
 'indexing'   → Database icon, green
 ```
@@ -45,6 +47,7 @@ Based on First Principles analysis, the highest signal-value changes are:
 **Why**: Users can't fix what they can't see
 
 **Action**:
+
 1. Add error message display when status is 'failed'
 2. Show in document table row with expandable details
 3. Add copy-to-clipboard for debugging
@@ -56,6 +59,7 @@ Based on First Principles analysis, the highest signal-value changes are:
 **Why**: Tests must use Ollama to be realistic
 
 **Action**:
+
 1. Create `edgequake_webui/e2e/documents/reprocess.spec.ts`
 2. Add Ollama model configuration
 3. Test basic reprocess flow
@@ -64,12 +68,12 @@ Based on First Principles analysis, the highest signal-value changes are:
 
 ## Changes for This Iteration
 
-| # | File | Change | Commit Message |
-|---|------|--------|----------------|
-| 1 | document-manager.tsx | ✅ Add Loader2 import | OODA-01: Fix Loader2 import |
-| 2 | status-badge.tsx | Add processing sub-states | OODA-01: Add processing sub-states |
-| 3 | document-manager.tsx | Show error in row | OODA-01: Display error messages |
-| 4 | e2e/documents/reprocess.spec.ts | Create test file | OODA-01: Add reprocess E2E test |
+| #   | File                            | Change                    | Commit Message                     |
+| --- | ------------------------------- | ------------------------- | ---------------------------------- |
+| 1   | document-manager.tsx            | ✅ Add Loader2 import     | OODA-01: Fix Loader2 import        |
+| 2   | status-badge.tsx                | Add processing sub-states | OODA-01: Add processing sub-states |
+| 3   | document-manager.tsx            | Show error in row         | OODA-01: Display error messages    |
+| 4   | e2e/documents/reprocess.spec.ts | Create test file          | OODA-01: Add reprocess E2E test    |
 
 ---
 

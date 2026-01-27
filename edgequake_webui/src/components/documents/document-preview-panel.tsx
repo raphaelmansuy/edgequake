@@ -21,44 +21,44 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { getDocument } from '@/lib/api/edgequake';
+import { categorizeError, getCategoryColor, type ErrorCategory } from '@/lib/error-categories';
 import type { Document } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
-    AlertCircle,
-    Calendar,
-    CheckCircle,
-    ChevronDown,
-    ChevronUp,
-    Clock,
-    Copy,
-    DollarSign,
-    ExternalLink,
-    Eye,
-    FileText,
-    HardDrive,
-    Loader2,
-    Network,
-    RefreshCw,
-    Trash2,
-    XCircle,
-    Zap,
-    Brain,
-    Cpu,
-    Database,
-    FileWarning,
-    Wifi,
+  AlertCircle,
+  Brain,
+  Calendar,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Copy,
+  Cpu,
+  Database,
+  DollarSign,
+  ExternalLink,
+  Eye,
+  FileText,
+  FileWarning,
+  HardDrive,
+  Loader2,
+  Network,
+  RefreshCw,
+  Trash2,
+  Wifi,
+  XCircle,
+  Zap,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { categorizeError, getCategoryColor, type ErrorCategory } from '@/lib/error-categories';
 
 const statusConfig = {
   pending: { icon: Clock, color: 'text-yellow-500', bg: 'bg-yellow-500/10', label: 'Pending' },

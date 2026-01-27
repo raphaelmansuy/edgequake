@@ -78,6 +78,56 @@ pub struct CancelPipelineResponse {
     pub message: String,
 }
 
+/// Queue metrics response for Objective B: Workspace-Level Task Queue Visibility.
+///
+/// ## Implements
+///
+/// - **FEAT0570**: Queue metrics API endpoint
+/// - **OODA-20**: Iteration 20 - Queue metrics REST API
+///
+/// ## WHY: Real-Time Queue Visibility
+///
+/// The Pipeline Monitor needs to display accurate queue state including:
+/// - How many documents are waiting (pending_count)
+/// - Current processing capacity (active_workers / max_workers)
+/// - Throughput rate (docs/min for capacity planning)
+/// - Wait time predictions (avg/max wait, ETA)
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct QueueMetricsResponse {
+    /// Number of pending tasks in the queue.
+    pub pending_count: u64,
+
+    /// Number of tasks currently being processed.
+    pub processing_count: u64,
+
+    /// Number of workers currently active.
+    pub active_workers: u32,
+
+    /// Maximum configured workers.
+    pub max_workers: u32,
+
+    /// Worker utilization percentage (0-100).
+    pub worker_utilization: u8,
+
+    /// Average wait time in seconds for recently started tasks.
+    pub avg_wait_time_seconds: f64,
+
+    /// Maximum wait time in seconds among pending tasks.
+    pub max_wait_time_seconds: f64,
+
+    /// Current throughput in documents per minute.
+    pub throughput_per_minute: f64,
+
+    /// Estimated time to clear the queue in seconds.
+    pub estimated_queue_time_seconds: f64,
+
+    /// Whether the system is currently rate limited.
+    pub rate_limited: bool,
+
+    /// When these metrics were captured (ISO 8601).
+    pub timestamp: String,
+}
+
 // ============================================================================
 // Unit Tests
 // ============================================================================
@@ -133,5 +183,28 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("success"));
         assert!(json.contains("Cancellation requested"));
+    }
+
+    #[test]
+    fn test_queue_metrics_response_serialization() {
+        let response = QueueMetricsResponse {
+            pending_count: 12,
+            processing_count: 3,
+            active_workers: 3,
+            max_workers: 4,
+            worker_utilization: 75,
+            avg_wait_time_seconds: 45.2,
+            max_wait_time_seconds: 120.5,
+            throughput_per_minute: 2.3,
+            estimated_queue_time_seconds: 312.0,
+            rate_limited: false,
+            timestamp: "2025-01-28T10:30:00Z".to_string(),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("pending_count"));
+        assert!(json.contains("worker_utilization"));
+        assert!(json.contains("throughput_per_minute"));
+        assert!(json.contains("75")); // worker_utilization value
     }
 }

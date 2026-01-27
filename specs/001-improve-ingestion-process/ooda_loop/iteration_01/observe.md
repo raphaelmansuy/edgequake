@@ -8,15 +8,15 @@
 
 ### 1. Frontend Architecture (edgequake_webui/src/components/documents/)
 
-| File | Purpose | Lines | Key Functions |
-|------|---------|-------|---------------|
-| document-manager.tsx | Main document management UI | 1094 | Upload, list, delete, reprocess |
-| reprocess-failed-button.tsx | Batch retry failed docs | 194 | `reprocessFailedDocuments()` |
-| reset-document-status-button.tsx | Individual doc actions | ~150 | `reprocessDocument()`, `retryTask()` |
-| pipeline-status-dialog.tsx | Progress monitoring | 326 | Shows stages, messages, progress |
-| status-badge.tsx | Document status display | 42 | pending/processing/completed/failed/cancelled |
-| batch-progress-card.tsx | Batch upload progress | - | Multi-file upload tracking |
-| ingestion-progress-panel.tsx | Detailed ingestion stages | - | Step-by-step progress |
+| File                             | Purpose                     | Lines | Key Functions                                 |
+| -------------------------------- | --------------------------- | ----- | --------------------------------------------- |
+| document-manager.tsx             | Main document management UI | 1094  | Upload, list, delete, reprocess               |
+| reprocess-failed-button.tsx      | Batch retry failed docs     | 194   | `reprocessFailedDocuments()`                  |
+| reset-document-status-button.tsx | Individual doc actions      | ~150  | `reprocessDocument()`, `retryTask()`          |
+| pipeline-status-dialog.tsx       | Progress monitoring         | 326   | Shows stages, messages, progress              |
+| status-badge.tsx                 | Document status display     | 42    | pending/processing/completed/failed/cancelled |
+| batch-progress-card.tsx          | Batch upload progress       | -     | Multi-file upload tracking                    |
+| ingestion-progress-panel.tsx     | Detailed ingestion stages   | -     | Step-by-step progress                         |
 
 ### 2. API Client (edgequake_webui/src/lib/api/edgequake.ts)
 
@@ -88,21 +88,25 @@ handlers/
 ### 5. Identified Issues
 
 #### 5.1 Critical Bug (FIXED)
+
 - **Location**: document-manager.tsx:677, 795
 - **Issue**: `Loader2` icon used but not imported from lucide-react
 - **Status**: ✅ Fixed in this session
 
 #### 5.2 Reprocess Flow Gaps
+
 1. **No progress visibility during reprocess** - User doesn't know what's happening
 2. **No step-by-step feedback** - Chunking, extraction, embedding stages not shown
 3. **Error messages lack context** - Generic "failed" without reason
 
 #### 5.3 Rebuild Operations
+
 - `rebuild_knowledge_graph()` in workspaces.rs clears KG but doesn't show progress
 - `reprocess_all_documents()` queues all docs but no per-doc status
 - No "rebuild embeddings only" functionality
 
 #### 5.4 UX/UI Issues
+
 1. Status badge shows only 5 states - no sub-states for processing
 2. Pipeline dialog shows aggregate counts but not per-document details
 3. Error messages stored in metadata but not displayed to user
@@ -111,18 +115,20 @@ handlers/
 ### 6. Document Status States
 
 Current states in status-badge.tsx:
+
 ```typescript
 const statusConfig = {
-  pending: { icon: Clock, color: 'bg-yellow-500', label: 'Pending' },
-  processing: { icon: Loader2, color: 'bg-blue-500', label: 'Processing' },
-  completed: { icon: CheckCircle, color: 'bg-green-500', label: 'Completed' },
-  indexed: { icon: CheckCircle, color: 'bg-green-500', label: 'Indexed' },
-  failed: { icon: XCircle, color: 'bg-red-500', label: 'Failed' },
-  cancelled: { icon: StopCircle, color: 'bg-orange-500', label: 'Cancelled' },
-}
+  pending: { icon: Clock, color: "bg-yellow-500", label: "Pending" },
+  processing: { icon: Loader2, color: "bg-blue-500", label: "Processing" },
+  completed: { icon: CheckCircle, color: "bg-green-500", label: "Completed" },
+  indexed: { icon: CheckCircle, color: "bg-green-500", label: "Indexed" },
+  failed: { icon: XCircle, color: "bg-red-500", label: "Failed" },
+  cancelled: { icon: StopCircle, color: "bg-orange-500", label: "Cancelled" },
+};
 ```
 
 **Missing states for better UX:**
+
 - `chunking` - Splitting document into chunks
 - `extracting` - Running LLM entity extraction
 - `embedding` - Generating embeddings
@@ -131,6 +137,7 @@ const statusConfig = {
 ### 7. Workspace Isolation Check
 
 From documents.rs line 58-180, workspace isolation is handled by:
+
 ```rust
 async fn get_workspace_vector_storage_strict(
     state: &AppState,
@@ -139,6 +146,7 @@ async fn get_workspace_vector_storage_strict(
 ```
 
 Key behaviors:
+
 - Production mode (PostgreSQL): STRICT - fails if workspace not found
 - Memory mode (tests): FALLBACK allowed to default storage
 - Workspace embedding dimension is preserved per-workspace
@@ -157,15 +165,15 @@ Need to verify existing test coverage and add Ollama-based tests.
 
 ## Key Files to Modify
 
-| Priority | File | Changes Needed |
-|----------|------|----------------|
-| P0 | document-manager.tsx | ~~Add Loader2 import~~ ✅ |
-| P1 | status-badge.tsx | Add processing sub-states |
-| P1 | pipeline-status-dialog.tsx | Enhance with per-doc details |
-| P1 | reprocess-failed-button.tsx | Improve error feedback |
-| P2 | edgequake.ts (API) | Add progress streaming |
-| P2 | documents.rs | Emit processing stage events |
-| P3 | workspaces.rs | Improve rebuild progress |
+| Priority | File                        | Changes Needed               |
+| -------- | --------------------------- | ---------------------------- |
+| P0       | document-manager.tsx        | ~~Add Loader2 import~~ ✅    |
+| P1       | status-badge.tsx            | Add processing sub-states    |
+| P1       | pipeline-status-dialog.tsx  | Enhance with per-doc details |
+| P1       | reprocess-failed-button.tsx | Improve error feedback       |
+| P2       | edgequake.ts (API)          | Add progress streaming       |
+| P2       | documents.rs                | Emit processing stage events |
+| P3       | workspaces.rs               | Improve rebuild progress     |
 
 ---
 

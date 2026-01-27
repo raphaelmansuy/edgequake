@@ -39,6 +39,7 @@ import {
 **File**: [edgequake_webui/src/components/documents/status-badge.tsx](../../edgequake_webui/src/components/documents/status-badge.tsx)
 
 **Changes**:
+
 1. Added 4 new processing sub-states: `chunking`, `extracting`, `embedding`, `indexing`
 2. Added icons for each state: Scissors, Brain, Cpu, Database
 3. Added color coding per state for visual distinction
@@ -46,24 +47,25 @@ import {
 5. Added `compact` and `tooltip` props for flexible usage
 
 **New Status Configuration**:
+
 ```typescript
 const statusConfig = {
   // Queue states
-  pending: { icon: Clock, color: 'bg-yellow-500', label: 'Pending' },
-  
+  pending: { icon: Clock, color: "bg-yellow-500", label: "Pending" },
+
   // Processing sub-states (OODA-01)
-  processing: { icon: Loader2, color: 'bg-blue-500', label: 'Processing' },
-  chunking: { icon: Scissors, color: 'bg-blue-400', label: 'Chunking' },
-  extracting: { icon: Brain, color: 'bg-purple-500', label: 'Extracting' },
-  embedding: { icon: Cpu, color: 'bg-cyan-500', label: 'Embedding' },
-  indexing: { icon: Database, color: 'bg-teal-500', label: 'Indexing' },
-  
+  processing: { icon: Loader2, color: "bg-blue-500", label: "Processing" },
+  chunking: { icon: Scissors, color: "bg-blue-400", label: "Chunking" },
+  extracting: { icon: Brain, color: "bg-purple-500", label: "Extracting" },
+  embedding: { icon: Cpu, color: "bg-cyan-500", label: "Embedding" },
+  indexing: { icon: Database, color: "bg-teal-500", label: "Indexing" },
+
   // Terminal states
-  completed: { icon: CheckCircle, color: 'bg-green-500', label: 'Completed' },
-  indexed: { icon: CheckCircle, color: 'bg-green-500', label: 'Indexed' },
-  failed: { icon: XCircle, color: 'bg-red-500', label: 'Failed' },
-  cancelled: { icon: StopCircle, color: 'bg-orange-500', label: 'Cancelled' },
-}
+  completed: { icon: CheckCircle, color: "bg-green-500", label: "Completed" },
+  indexed: { icon: CheckCircle, color: "bg-green-500", label: "Indexed" },
+  failed: { icon: XCircle, color: "bg-red-500", label: "Failed" },
+  cancelled: { icon: StopCircle, color: "bg-orange-500", label: "Cancelled" },
+};
 ```
 
 ---
@@ -77,9 +79,11 @@ const statusConfig = {
 ```tsx
 <TableCell className="font-medium">
   <div className="flex flex-col gap-0.5">
-    <span>{doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`}</span>
+    <span>
+      {doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`}
+    </span>
     {/* OODA-01: Show error message for failed documents */}
-    {doc.status === 'failed' && doc.error_message && (
+    {doc.status === "failed" && doc.error_message && (
       <span className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
         <AlertCircle className="h-3 w-3" />
         <span className="truncate max-w-[200px]" title={doc.error_message}>
@@ -100,6 +104,7 @@ const statusConfig = {
 **File**: [edgequake_webui/e2e/document-reprocess.spec.ts](../../edgequake_webui/e2e/document-reprocess.spec.ts)
 
 **Test Suites Created**:
+
 1. **Document Reprocessing** - Tests for reprocess functionality
 2. **Pipeline Status Dialog** - Tests for progress dialog
 3. **Rebuild Operations** - Tests for rebuild KG/embeddings
@@ -113,17 +118,19 @@ const statusConfig = {
 ## Verification
 
 ### Build Status
+
 ```bash
 # Changes can be verified with:
 cd edgequake_webui && pnpm run build
 ```
 
 ### Files Modified
-| File | Lines Changed |
-|------|---------------|
-| document-manager.tsx | +1 import, +11 error display |
-| status-badge.tsx | +70 lines (new features) |
-| document-reprocess.spec.ts | +304 lines (new file) |
+
+| File                       | Lines Changed                |
+| -------------------------- | ---------------------------- |
+| document-manager.tsx       | +1 import, +11 error display |
+| status-badge.tsx           | +70 lines (new features)     |
+| document-reprocess.spec.ts | +304 lines (new file)        |
 
 ---
 

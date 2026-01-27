@@ -52,10 +52,13 @@ test.describe("Rebuild Embeddings", () => {
   }) => {
     // Look for rebuild embeddings button or card
     const rebuildButton = page.locator(
-      'button:has-text("Rebuild Embedding"), [data-testid="rebuild-embeddings"], [class*="rebuild"]'
+      'button:has-text("Rebuild Embedding"), [data-testid="rebuild-embeddings"], [class*="rebuild"]',
     );
 
-    const hasButton = await rebuildButton.first().isVisible().catch(() => false);
+    const hasButton = await rebuildButton
+      .first()
+      .isVisible()
+      .catch(() => false);
 
     if (hasButton) {
       console.log("✓ Rebuild Embeddings button found");
@@ -64,7 +67,7 @@ test.describe("Rebuild Embeddings", () => {
       // Check if we're on the right page
       const pageContent = await page.content();
       console.log("Page may require authentication or workspace selection");
-      
+
       // Page should at least load
       const main = page.locator("main");
       await expect(main).toBeVisible();
@@ -74,9 +77,11 @@ test.describe("Rebuild Embeddings", () => {
   test("rebuild embeddings shows confirmation dialog when clicked", async ({
     page,
   }) => {
-    const rebuildButton = page.locator(
-      'button:has-text("Rebuild Embedding"), [data-testid="rebuild-embeddings"]'
-    ).first();
+    const rebuildButton = page
+      .locator(
+        'button:has-text("Rebuild Embedding"), [data-testid="rebuild-embeddings"]',
+      )
+      .first();
 
     const hasButton = await rebuildButton.isVisible().catch(() => false);
 
@@ -90,10 +95,12 @@ test.describe("Rebuild Embeddings", () => {
 
       if (hasDialog) {
         console.log("✓ Confirmation dialog appeared");
-        
+
         // Verify dialog has warning content
         const dialogText = await dialog.textContent();
-        expect(dialogText?.toLowerCase()).toMatch(/rebuild|warning|confirm|clear/i);
+        expect(dialogText?.toLowerCase()).toMatch(
+          /rebuild|warning|confirm|clear/i,
+        );
 
         // Close dialog
         const cancelButton = dialog.locator('button:has-text("Cancel")');
@@ -107,9 +114,11 @@ test.describe("Rebuild Embeddings", () => {
   test("rebuild embeddings dialog shows impact information", async ({
     page,
   }) => {
-    const rebuildButton = page.locator(
-      'button:has-text("Rebuild Embedding"), [data-testid="rebuild-embeddings"]'
-    ).first();
+    const rebuildButton = page
+      .locator(
+        'button:has-text("Rebuild Embedding"), [data-testid="rebuild-embeddings"]',
+      )
+      .first();
 
     const hasButton = await rebuildButton.isVisible().catch(() => false);
 
@@ -122,13 +131,13 @@ test.describe("Rebuild Embeddings", () => {
 
       if (hasDialog) {
         const dialogText = await dialog.textContent();
-        
+
         // Should mention documents or vectors
-        const hasImpactInfo = 
-          dialogText?.includes("document") || 
+        const hasImpactInfo =
+          dialogText?.includes("document") ||
           dialogText?.includes("vector") ||
           dialogText?.includes("embedding");
-        
+
         console.log(`Dialog content preview: ${dialogText?.substring(0, 200)}`);
         expect(hasImpactInfo).toBeTruthy();
 
@@ -151,10 +160,13 @@ test.describe("Rebuild Knowledge Graph", () => {
 
   test("rebuild knowledge graph button is visible", async ({ page }) => {
     const rebuildButton = page.locator(
-      'button:has-text("Rebuild Knowledge"), button:has-text("Rebuild Graph"), [data-testid="rebuild-kg"]'
+      'button:has-text("Rebuild Knowledge"), button:has-text("Rebuild Graph"), [data-testid="rebuild-kg"]',
     );
 
-    const hasButton = await rebuildButton.first().isVisible().catch(() => false);
+    const hasButton = await rebuildButton
+      .first()
+      .isVisible()
+      .catch(() => false);
 
     if (hasButton) {
       console.log("✓ Rebuild KG button found");
@@ -168,9 +180,11 @@ test.describe("Rebuild Knowledge Graph", () => {
   });
 
   test("rebuild KG shows confirmation dialog", async ({ page }) => {
-    const rebuildButton = page.locator(
-      'button:has-text("Rebuild Knowledge"), button:has-text("Rebuild Graph")'
-    ).first();
+    const rebuildButton = page
+      .locator(
+        'button:has-text("Rebuild Knowledge"), button:has-text("Rebuild Graph")',
+      )
+      .first();
 
     const hasButton = await rebuildButton.isVisible().catch(() => false);
 
@@ -183,7 +197,7 @@ test.describe("Rebuild Knowledge Graph", () => {
 
       if (hasDialog) {
         console.log("✓ KG rebuild confirmation dialog appeared");
-        
+
         // Close dialog
         const cancelButton = dialog.locator('button:has-text("Cancel")');
         if (await cancelButton.isVisible()) {
@@ -201,10 +215,13 @@ test.describe("Workspace Isolation", () => {
 
     // Look for workspace selector
     const workspaceSelector = page.locator(
-      '[data-testid="workspace-selector"], [class*="workspace-select"], select:has(option)'
+      '[data-testid="workspace-selector"], [class*="workspace-select"], select:has(option)',
     );
 
-    const hasSelector = await workspaceSelector.first().isVisible().catch(() => false);
+    const hasSelector = await workspaceSelector
+      .first()
+      .isVisible()
+      .catch(() => false);
 
     if (hasSelector) {
       console.log("✓ Workspace selector found");
@@ -221,10 +238,13 @@ test.describe("Workspace Isolation", () => {
 
     // Try to find workspace dropdown or selector in header
     const headerSelector = page.locator(
-      'header button:has-text("Workspace"), header [class*="select"], [data-testid="tenant-selector"]'
+      'header button:has-text("Workspace"), header [class*="select"], [data-testid="tenant-selector"]',
     );
 
-    const hasHeader = await headerSelector.first().isVisible().catch(() => false);
+    const hasHeader = await headerSelector
+      .first()
+      .isVisible()
+      .catch(() => false);
 
     if (hasHeader) {
       await headerSelector.first().click();
@@ -245,10 +265,13 @@ test.describe("Progress Tracking", () => {
 
     // Look for any processing indicator or pipeline button
     const pipelineButton = page.locator(
-      'button:has-text("Pipeline"), button:has(.animate-spin), [data-testid="pipeline-status"]'
+      'button:has-text("Pipeline"), button:has(.animate-spin), [data-testid="pipeline-status"]',
     );
 
-    const hasButton = await pipelineButton.first().isVisible().catch(() => false);
+    const hasButton = await pipelineButton
+      .first()
+      .isVisible()
+      .catch(() => false);
 
     if (hasButton) {
       await pipelineButton.first().click();
@@ -259,7 +282,7 @@ test.describe("Progress Tracking", () => {
 
       if (hasDialog) {
         console.log("✓ Pipeline status dialog opened");
-        
+
         // Look for status information
         const dialogContent = await dialog.textContent();
         console.log(`Pipeline dialog: ${dialogContent?.substring(0, 300)}`);
@@ -280,11 +303,23 @@ test.describe("Progress Tracking", () => {
     console.log(`Found ${badgeCount} badges on documents page`);
 
     // Check for specific processing states
-    const processingStates = ["Pending", "Processing", "Chunking", "Extracting", "Embedding", "Indexing", "Completed", "Failed"];
-    
+    const processingStates = [
+      "Pending",
+      "Processing",
+      "Chunking",
+      "Extracting",
+      "Embedding",
+      "Indexing",
+      "Completed",
+      "Failed",
+    ];
+
     for (const state of processingStates) {
       const stateBadge = page.locator(`text="${state}"`);
-      const hasState = await stateBadge.first().isVisible().catch(() => false);
+      const hasState = await stateBadge
+        .first()
+        .isVisible()
+        .catch(() => false);
       if (hasState) {
         console.log(`✓ Found "${state}" status badge`);
       }
@@ -306,7 +341,7 @@ test.describe("Ollama Integration", () => {
 
     // Look for provider configuration
     const providerSettings = page.locator(
-      'text*="Ollama", text*="ollama", [data-testid="provider-settings"]'
+      'text*="Ollama", text*="ollama", [data-testid="provider-settings"]',
     );
 
     const count = await providerSettings.count();
@@ -319,20 +354,26 @@ test.describe("Ollama Integration", () => {
 
     // Look for embedding model selection
     const embeddingSelect = page.locator(
-      '[data-testid="embedding-model-select"], select[name*="embedding"], [class*="embedding"] select'
+      '[data-testid="embedding-model-select"], select[name*="embedding"], [class*="embedding"] select',
     );
 
-    const hasSelect = await embeddingSelect.first().isVisible().catch(() => false);
+    const hasSelect = await embeddingSelect
+      .first()
+      .isVisible()
+      .catch(() => false);
 
     if (hasSelect) {
       // Check for Ollama options
       await embeddingSelect.first().click();
-      
+
       const ollamaOption = page.locator(
-        '[role="option"]:has-text("ollama"), option[value*="ollama"]'
+        '[role="option"]:has-text("ollama"), option[value*="ollama"]',
       );
-      const hasOllama = await ollamaOption.first().isVisible().catch(() => false);
-      
+      const hasOllama = await ollamaOption
+        .first()
+        .isVisible()
+        .catch(() => false);
+
       if (hasOllama) {
         console.log("✓ Ollama embedding option available");
       }
@@ -346,17 +387,19 @@ test.describe("Error Handling", () => {
   }) => {
     // This test would normally mock network failure
     // For now, just verify error handling UI exists
-    
+
     await page.goto("/workspace");
     await page.waitForLoadState("networkidle");
 
     // Look for error boundary or error display components
     const errorElements = page.locator(
-      '[class*="error"], [data-testid="error"], [role="alert"]'
+      '[class*="error"], [data-testid="error"], [role="alert"]',
     );
 
     const count = await errorElements.count();
-    console.log(`Found ${count} error-related elements (0 is good if no errors)`);
+    console.log(
+      `Found ${count} error-related elements (0 is good if no errors)`,
+    );
 
     // Page should be functional
     const main = page.locator("main");

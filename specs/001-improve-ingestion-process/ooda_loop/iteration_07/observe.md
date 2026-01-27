@@ -1,11 +1,13 @@
 # Iteration 07 - OBSERVE Phase
 
 ## Objective
+
 Verify backend status updates are working correctly and enhance document metadata visibility
 
 ## Current Status Flow
 
 From processor.rs analysis:
+
 1. **chunking** (line 603) - Before `pipeline.process()`
 2. **extracting** (line 635) - After chunks generated
 3. **embedding** (line 700) - Before vector storage
@@ -24,6 +26,7 @@ async fn update_document_status(
 ```
 
 Also has:
+
 ```rust
 async fn update_document_status_with_stats(
     &self,
@@ -44,6 +47,7 @@ async fn update_document_status_with_stats(
 ## Database Schema Check
 
 Need to verify:
+
 - documents table has `status` column
 - documents table has `error_message` column
 - Status values are properly constrained

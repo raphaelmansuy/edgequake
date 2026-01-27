@@ -26,6 +26,7 @@
 ### Code Changes Required
 
 #### rebuild-embeddings-button.tsx
+
 ```tsx
 // Button
 <Button data-testid="rebuild-embeddings-button" ...>
@@ -38,6 +39,7 @@
 ```
 
 #### rebuild-knowledge-graph-button.tsx
+
 ```tsx
 // Button
 <Button data-testid="rebuild-kg-button" ...>

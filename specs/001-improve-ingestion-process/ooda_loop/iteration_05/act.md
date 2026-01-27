@@ -7,6 +7,7 @@
 **File**: `src/components/documents/error-message-popover.tsx`
 
 Features:
+
 - **Popover UI**: Clean popover with error header
 - **Full Error Display**: No truncation in expanded view
 - **Copy to Clipboard**: Button with visual feedback (checkmark on success)
@@ -18,11 +19,11 @@ Features:
 
 ```tsx
 interface ErrorMessagePopoverProps {
-  message: string;           // Error message text
-  documentId?: string;       // For copy context
-  onRetry?: () => void;      // Retry callback
-  isRetrying?: boolean;      // Loading state
-  className?: string;        // Additional styles
+  message: string; // Error message text
+  documentId?: string; // For copy context
+  onRetry?: () => void; // Retry callback
+  isRetrying?: boolean; // Loading state
+  className?: string; // Additional styles
 }
 ```
 
@@ -54,6 +55,7 @@ interface ErrorMessagePopoverProps {
 ## Next Iteration Focus
 
 Iteration 06 will focus on:
+
 1. Create E2E tests for error display functionality
 2. Add error message to document detail dialog
 3. Enhance error categorization (LLM, embedding, storage errors)

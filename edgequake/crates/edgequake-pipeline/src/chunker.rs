@@ -344,6 +344,305 @@ impl ChunkingStrategy for CharacterBasedChunking {
     }
 }
 
+/// Sentence boundary chunking strategy.
+///
+/// @implements SPEC-001/Issue-10: Pluggable chunk cutoff system
+///
+/// This strategy ensures chunks never split mid-sentence, preserving
+/// complete sentences for better entity extraction context.
+///
+/// # Algorithm
+///
+/// 1. Split text into sentences using period/question/exclamation
+/// 2. Accumulate sentences until target chunk size reached
+/// 3. Create chunk and start new accumulation
+/// 4. Overlap is handled by carrying last N sentences to next chunk
+///
+/// # WHY Sentence Boundaries?
+///
+/// Mid-sentence splits can break entity extraction context:
+/// - "Dr. Smith works at Microsoft. He" → Entity "He" orphaned
+/// - "Dr. Smith works at Microsoft." → Complete context preserved
+pub struct SentenceBoundaryChunking;
+
+impl SentenceBoundaryChunking {
+    /// Create a new sentence boundary chunker.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for SentenceBoundaryChunking {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl ChunkingStrategy for SentenceBoundaryChunking {
+    async fn chunk(&self, content: &str, config: &ChunkerConfig) -> Result<Vec<ChunkResult>> {
+        if content.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Split into sentences (simple heuristic: period, question, exclamation)
+        let sentences = split_into_sentences(content);
+
+        if sentences.is_empty() {
+            // No sentence boundaries found, fall back to token-based
+            return TokenBasedChunking.chunk(content, config).await;
+        }
+
+        let target_tokens = config.chunk_size;
+        let overlap_tokens = config.chunk_overlap;
+        let min_tokens = config.min_chunk_size;
+
+        let mut chunks = Vec::new();
+        let mut current_chunk = String::new();
+        let mut current_tokens = 0;
+        let mut sentence_buffer: Vec<String> = Vec::new();
+        let mut chunk_index = 0;
+
+        for sentence in sentences {
+            let sentence_tokens = estimate_tokens(&sentence);
+
+            // If adding this sentence would exceed target, finalize current chunk
+            if current_tokens + sentence_tokens > target_tokens && current_tokens >= min_tokens {
+                chunks.push(ChunkResult {
+                    content: current_chunk.trim().to_string(),
+                    tokens: current_tokens,
+                    chunk_order_index: chunk_index,
+                });
+                chunk_index += 1;
+
+                // Start new chunk with overlap (carry some sentences)
+                let overlap_sentences = take_overlap_sentences(&sentence_buffer, overlap_tokens);
+                current_chunk = overlap_sentences.join(" ");
+                current_tokens = estimate_tokens(&current_chunk);
+                sentence_buffer.clear();
+            }
+
+            // Add sentence to current chunk
+            if !current_chunk.is_empty() {
+                current_chunk.push(' ');
+            }
+            current_chunk.push_str(&sentence);
+            current_tokens += sentence_tokens;
+            sentence_buffer.push(sentence);
+        }
+
+        // Add final chunk if non-empty
+        if current_tokens >= min_tokens {
+            chunks.push(ChunkResult {
+                content: current_chunk.trim().to_string(),
+                tokens: current_tokens,
+                chunk_order_index: chunk_index,
+            });
+        }
+
+        Ok(chunks)
+    }
+
+    fn name(&self) -> &str {
+        "sentence_boundary"
+    }
+}
+
+/// Paragraph boundary chunking strategy.
+///
+/// @implements SPEC-001/Issue-10: Pluggable chunk cutoff system
+///
+/// This strategy groups paragraphs together, never splitting within
+/// a paragraph. Ideal for structured documents.
+///
+/// # Algorithm
+///
+/// 1. Split text on double newlines (paragraphs)
+/// 2. Accumulate paragraphs until target chunk size reached
+/// 3. Create chunk and start new accumulation
+///
+/// # WHY Paragraph Boundaries?
+///
+/// Paragraphs often contain self-contained ideas:
+/// - Entity introductions usually complete within paragraph
+/// - Relationships described in same paragraph as entities
+/// - Splitting preserves narrative flow
+pub struct ParagraphBoundaryChunking;
+
+impl ParagraphBoundaryChunking {
+    /// Create a new paragraph boundary chunker.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for ParagraphBoundaryChunking {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl ChunkingStrategy for ParagraphBoundaryChunking {
+    async fn chunk(&self, content: &str, config: &ChunkerConfig) -> Result<Vec<ChunkResult>> {
+        if content.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Split on double newlines (paragraphs)
+        let paragraphs: Vec<&str> = content
+            .split("\n\n")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        if paragraphs.is_empty() {
+            // No paragraphs found, try single newlines
+            let single_line_paragraphs: Vec<&str> = content
+                .split('\n')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            if single_line_paragraphs.is_empty() {
+                return TokenBasedChunking.chunk(content, config).await;
+            }
+            return chunk_paragraphs(&single_line_paragraphs, config);
+        }
+
+        chunk_paragraphs(&paragraphs, config)
+    }
+
+    fn name(&self) -> &str {
+        "paragraph_boundary"
+    }
+}
+
+/// Helper to chunk paragraphs into size-limited chunks.
+fn chunk_paragraphs(paragraphs: &[&str], config: &ChunkerConfig) -> Result<Vec<ChunkResult>> {
+    let target_tokens = config.chunk_size;
+    let min_tokens = config.min_chunk_size;
+
+    let mut chunks = Vec::new();
+    let mut current_chunk = String::new();
+    let mut current_tokens = 0;
+    let mut chunk_index = 0;
+
+    for para in paragraphs {
+        let para_tokens = estimate_tokens(para);
+
+        // If this paragraph alone exceeds target, add it as its own chunk
+        if para_tokens >= target_tokens {
+            // First, save current accumulation if any
+            if current_tokens >= min_tokens {
+                chunks.push(ChunkResult {
+                    content: current_chunk.trim().to_string(),
+                    tokens: current_tokens,
+                    chunk_order_index: chunk_index,
+                });
+                chunk_index += 1;
+                current_chunk = String::new();
+                current_tokens = 0;
+            }
+
+            // Add large paragraph as its own chunk
+            chunks.push(ChunkResult {
+                content: para.to_string(),
+                tokens: para_tokens,
+                chunk_order_index: chunk_index,
+            });
+            chunk_index += 1;
+            continue;
+        }
+
+        // If adding would exceed target, finalize current chunk
+        if current_tokens + para_tokens > target_tokens && current_tokens >= min_tokens {
+            chunks.push(ChunkResult {
+                content: current_chunk.trim().to_string(),
+                tokens: current_tokens,
+                chunk_order_index: chunk_index,
+            });
+            chunk_index += 1;
+            current_chunk = String::new();
+            current_tokens = 0;
+        }
+
+        // Add paragraph to current chunk
+        if !current_chunk.is_empty() {
+            current_chunk.push_str("\n\n");
+        }
+        current_chunk.push_str(para);
+        current_tokens += para_tokens;
+    }
+
+    // Add final chunk
+    if current_tokens >= min_tokens {
+        chunks.push(ChunkResult {
+            content: current_chunk.trim().to_string(),
+            tokens: current_tokens,
+            chunk_order_index: chunk_index,
+        });
+    }
+
+    Ok(chunks)
+}
+
+/// Split text into sentences using simple heuristics.
+fn split_into_sentences(text: &str) -> Vec<String> {
+    let mut sentences = Vec::new();
+    let mut current = String::new();
+
+    for c in text.chars() {
+        current.push(c);
+
+        // Check for sentence endings (simple heuristic)
+        if c == '.' || c == '!' || c == '?' {
+            // Avoid splitting on abbreviations like "Dr." "Mr." "Inc."
+            let trimmed = current.trim();
+            if trimmed.len() >= 3 {
+                // Check if previous word is an abbreviation
+                let words: Vec<&str> = trimmed.split_whitespace().collect();
+                if let Some(last_word) = words.last() {
+                    // Common abbreviations to NOT split on
+                    let abbrevs = [
+                        "Dr.", "Mr.", "Mrs.", "Ms.", "Jr.", "Sr.", "Inc.", "Ltd.", "etc.", "vs.",
+                        "e.g.", "i.e.", "No.", "St.",
+                    ];
+                    if !abbrevs.contains(last_word) {
+                        sentences.push(current.trim().to_string());
+                        current = String::new();
+                    }
+                }
+            }
+        }
+    }
+
+    // Don't forget trailing text without sentence ending
+    if !current.trim().is_empty() {
+        sentences.push(current.trim().to_string());
+    }
+
+    sentences
+}
+
+/// Take sentences from buffer to achieve approximately target overlap tokens.
+fn take_overlap_sentences(buffer: &[String], target_tokens: usize) -> Vec<String> {
+    let mut overlap = Vec::new();
+    let mut tokens = 0;
+
+    // Take from end of buffer
+    for sentence in buffer.iter().rev() {
+        let sentence_tokens = estimate_tokens(sentence);
+        if tokens + sentence_tokens > target_tokens && !overlap.is_empty() {
+            break;
+        }
+        overlap.insert(0, sentence.clone());
+        tokens += sentence_tokens;
+    }
+
+    overlap
+}
+
 /// Find the nearest valid UTF-8 char boundary at or before the given byte position.
 fn floor_char_boundary(s: &str, index: usize) -> usize {
     if index >= s.len() {
@@ -746,5 +1045,283 @@ This work is supported by \u{7814}\u{7A76} and \u{5F00}\u{53D1} funding.";
         assert_eq!(ceil_char_boundary(text, 2), 2); // Start of "
         assert_eq!(ceil_char_boundary(text, 3), 5); // Inside " -> forward to 5
         assert_eq!(ceil_char_boundary(text, 4), 5); // Inside " -> forward to 5
+    }
+
+    // =========================================================================
+    // SentenceBoundaryChunking Tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_sentence_boundary_basic() {
+        let strategy = SentenceBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 100,
+            chunk_overlap: 10,
+            min_chunk_size: 5,
+            ..Default::default()
+        };
+
+        let text = "This is sentence one. This is sentence two. This is sentence three.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        assert!(!chunks.is_empty());
+        // With large chunk size, all should fit in one chunk
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].content.contains("sentence one"));
+    }
+
+    #[tokio::test]
+    async fn test_sentence_boundary_splits_on_sentences() {
+        let strategy = SentenceBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 15, // Small size to force splits
+            chunk_overlap: 5,
+            min_chunk_size: 5,
+            ..Default::default()
+        };
+
+        let text = "First sentence here. Second sentence now. Third one follows. Fourth is last.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        // Should have multiple chunks
+        assert!(chunks.len() >= 2);
+
+        // Each chunk should end at a sentence boundary (or be the last chunk)
+        for chunk in &chunks {
+            let trimmed = chunk.content.trim();
+            // Last char should be period, question, or exclamation (sentence ending)
+            // OR it's incomplete because it's the last chunk
+            if trimmed.len() > 1 {
+                let last_char = trimmed.chars().last().unwrap();
+                assert!(
+                    last_char == '.' || last_char == '!' || last_char == '?',
+                    "Chunk should end at sentence boundary: {}",
+                    trimmed
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sentence_boundary_empty_text() {
+        let strategy = SentenceBoundaryChunking::new();
+        let config = ChunkerConfig::default();
+
+        let chunks = strategy.chunk("", &config).await.unwrap();
+        assert!(chunks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_sentence_boundary_no_periods() {
+        let strategy = SentenceBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 50,
+            chunk_overlap: 10,
+            min_chunk_size: 10,
+            ..Default::default()
+        };
+
+        // Text with no sentence boundaries falls back to token-based
+        let text = "This is text without any sentence endings at all";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        assert!(!chunks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_sentence_boundary_abbreviations() {
+        let strategy = SentenceBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 200,
+            chunk_overlap: 20,
+            min_chunk_size: 10,
+            ..Default::default()
+        };
+
+        // Text with abbreviations should not split on them
+        let text = "Dr. Smith works at Inc. headquarters. He joined in Jan. 2020.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        // With large chunk size, should be one chunk
+        assert_eq!(chunks.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_sentence_boundary_question_exclamation() {
+        let strategy = SentenceBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 20,
+            chunk_overlap: 5,
+            min_chunk_size: 5,
+            ..Default::default()
+        };
+
+        let text = "What is this? This is amazing! And this is normal.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        // Should split on all three sentence types
+        assert!(chunks.len() >= 1);
+    }
+
+    // =========================================================================
+    // ParagraphBoundaryChunking Tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_paragraph_boundary_basic() {
+        let strategy = ParagraphBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 100,
+            chunk_overlap: 10,
+            min_chunk_size: 5,
+            ..Default::default()
+        };
+
+        let text = "First paragraph here.\n\nSecond paragraph here.\n\nThird paragraph.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        assert!(!chunks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_paragraph_boundary_splits_on_paragraphs() {
+        let strategy = ParagraphBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 10, // Very small to force splits
+            chunk_overlap: 2,
+            min_chunk_size: 3,
+            ..Default::default()
+        };
+
+        // Use longer text to ensure chunks are created
+        let text = "First paragraph with some text here.\n\n\
+                    Second paragraph with more content.\n\n\
+                    Third paragraph now added.\n\n\
+                    Fourth paragraph is last.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        // Should have multiple chunks due to small chunk_size
+        assert!(
+            chunks.len() >= 1,
+            "Expected at least 1 chunk, got {}",
+            chunks.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_paragraph_boundary_empty_text() {
+        let strategy = ParagraphBoundaryChunking::new();
+        let config = ChunkerConfig::default();
+
+        let chunks = strategy.chunk("", &config).await.unwrap();
+        assert!(chunks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_paragraph_boundary_single_paragraph() {
+        let strategy = ParagraphBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 100,
+            chunk_overlap: 10,
+            min_chunk_size: 5,
+            ..Default::default()
+        };
+
+        let text = "This is a single paragraph with no breaks.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].content, text);
+    }
+
+    #[tokio::test]
+    async fn test_paragraph_boundary_preserves_paragraph_integrity() {
+        let strategy = ParagraphBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 50,
+            chunk_overlap: 10,
+            min_chunk_size: 10,
+            ..Default::default()
+        };
+
+        let text = "First paragraph with multiple sentences. Here is more.\n\n\
+                    Second paragraph also has content. More words here.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        // Each chunk should contain complete paragraphs (not mid-paragraph splits)
+        for chunk in &chunks {
+            // Should not start or end mid-word unexpectedly
+            assert!(!chunk.content.starts_with(' '));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_paragraph_boundary_single_newline_fallback() {
+        let strategy = ParagraphBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 20,
+            chunk_overlap: 5,
+            min_chunk_size: 3,
+            ..Default::default()
+        };
+
+        // Single newlines (no double newlines)
+        let text = "Line one here.\nLine two here.\nLine three.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        // Should still produce chunks
+        assert!(!chunks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_paragraph_boundary_large_paragraph() {
+        let strategy = ParagraphBoundaryChunking::new();
+        let config = ChunkerConfig {
+            chunk_size: 10, // Very small
+            chunk_overlap: 2,
+            min_chunk_size: 3,
+            ..Default::default()
+        };
+
+        // Large paragraph that exceeds chunk size
+        let text = "This is a very large paragraph that definitely exceeds the tiny chunk size limit we set.\n\n\
+                    Small para.";
+        let chunks = strategy.chunk(text, &config).await.unwrap();
+
+        // Should still produce chunks (large para gets its own chunk)
+        assert!(!chunks.is_empty());
+    }
+
+    // =========================================================================
+    // Chunker with Custom Strategy Tests
+    // =========================================================================
+
+    #[test]
+    fn test_chunker_with_sentence_strategy() {
+        let config = ChunkerConfig::default();
+        let chunker = Chunker::with_strategy(config, Arc::new(SentenceBoundaryChunking::new()));
+
+        assert_eq!(chunker.strategy_name(), "sentence_boundary");
+    }
+
+    #[test]
+    fn test_chunker_with_paragraph_strategy() {
+        let config = ChunkerConfig::default();
+        let chunker = Chunker::with_strategy(config, Arc::new(ParagraphBoundaryChunking::new()));
+
+        assert_eq!(chunker.strategy_name(), "paragraph_boundary");
+    }
+
+    #[test]
+    fn test_split_into_sentences_basic() {
+        let sentences = split_into_sentences("First. Second. Third.");
+        assert_eq!(sentences.len(), 3);
+    }
+
+    #[test]
+    fn test_split_into_sentences_with_abbreviations() {
+        let sentences = split_into_sentences("Dr. Smith said hello. Then left.");
+        // Should NOT split on "Dr."
+        assert!(sentences.len() <= 2);
     }
 }

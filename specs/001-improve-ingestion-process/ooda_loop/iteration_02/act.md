@@ -118,8 +118,8 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.90s
 
 ### Files Modified
 
-| File | Lines Changed |
-|------|---------------|
+| File         | Lines Changed                |
+| ------------ | ---------------------------- |
 | processor.rs | +16 lines (4 status updates) |
 
 ---
@@ -127,6 +127,7 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.90s
 ## Frontend Integration
 
 The frontend StatusBadge component (modified in iteration 01) already supports these states:
+
 - `chunking` → Scissors icon, blue
 - `extracting` → Brain icon, purple
 - `embedding` → Cpu icon, cyan

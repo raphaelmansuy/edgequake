@@ -15,6 +15,7 @@
 **File**: `e2e/error-handling.spec.ts`
 
 Test suites:
+
 1. **Error Message Popover** (4 tests)
    - Documents page loads correctly
    - Error trigger can be clicked
@@ -55,6 +56,7 @@ Test suites:
 ## Next Iteration Focus
 
 Iteration 07 will focus on:
+
 1. Backend status update verification
 2. Add more processing sub-states to backend
 3. Ensure document metadata updates correctly

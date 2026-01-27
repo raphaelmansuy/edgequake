@@ -3,14 +3,17 @@
 ## Decision
 
 ### Implement Enhanced Skeleton
+
 Replace simple bars with structured skeleton rows matching table columns.
 
 ### Implement Enhanced Empty State
+
 Add upload button and improve messaging.
 
 ### Code Changes
 
 #### 1. Enhanced Loading Skeleton
+
 ```tsx
 {isLoading ? (
   <div className="border rounded-lg overflow-hidden">
@@ -30,16 +33,17 @@ Add upload button and improve messaging.
 ```
 
 #### 2. Enhanced Empty State
+
 ```tsx
 <div className="text-center py-16 text-muted-foreground">
   <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
   <p className="font-medium text-lg">No documents yet</p>
   <p className="text-sm mt-2 max-w-sm mx-auto">
-    Drag & drop files above or click to upload.
-    Build your knowledge graph from documents.
+    Drag & drop files above or click to upload. Build your knowledge graph from
+    documents.
   </p>
-  <Button 
-    variant="outline" 
+  <Button
+    variant="outline"
     className="mt-4"
     onClick={() => inputRef.current?.click()}
   >
@@ -50,4 +54,5 @@ Add upload button and improve messaging.
 ```
 
 ### Note
+
 Will need to check if `inputRef` is available or use dropzone's `open()` method.

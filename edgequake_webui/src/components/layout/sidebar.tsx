@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useSettingsStore } from '@/stores/use-settings-store';
-import { ChevronLeft, ChevronRight, DollarSign, FileText, FolderKanban, Home, Menu, MessageSquare, Network, Settings, Terminal, Activity } from 'lucide-react';
+import { Activity, ChevronLeft, ChevronRight, DollarSign, FileText, FolderKanban, Home, Menu, MessageSquare, Network, Settings, Terminal } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';

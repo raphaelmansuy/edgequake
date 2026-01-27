@@ -103,7 +103,7 @@ import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
-import { StatusBadge, type DocumentStatus } from './status-badge';
+import { StatusBadge } from './status-badge';
 import type { UploadingFile } from './types';
 
 /**
@@ -242,8 +242,9 @@ export function DocumentManager() {
   });
   
   // Pipeline status query
+  // OODA-37: Include workspace in queryKey for proper isolation
   const { data: pipelineStatus } = useQuery({
-    queryKey: ['pipeline-status'],
+    queryKey: ['pipeline-status', selectedTenantId, selectedWorkspaceId],
     queryFn: getPipelineStatus,
     refetchInterval: 2000,
   });

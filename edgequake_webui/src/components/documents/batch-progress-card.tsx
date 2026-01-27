@@ -86,8 +86,11 @@ export function BatchProgressCard({ trackId, onClose, onComplete }: BatchProgres
   if (isLoading || !trackStatus) {
     return (
       <Card className="border-primary/50 shadow-lg">
-        <CardContent className="p-4 flex items-center justify-center">
+        <CardContent className="p-4 flex flex-col items-center justify-center gap-2">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">
+            {t('documents.batch.loading', 'Loading batch status...')}
+          </p>
         </CardContent>
       </Card>
     );
