@@ -24,8 +24,8 @@ import { getEnhancedPipelineStatus, requestPipelineCancellation } from '@/lib/ap
 import type { PipelineMessage } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { Activity, AlertTriangle, CheckCircle, Info, Loader2, XCircle } from 'lucide-react';
-import { useState } from 'react';
+import { Activity, AlertTriangle, CheckCircle, Clock, Info, Loader2, XCircle } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -107,6 +107,45 @@ export function PipelineStatusDialog({
   const progress = data?.total_documents && data.total_documents > 0
     ? (data.processed_documents / data.total_documents) * 100
     : 0;
+
+  // OODA-08: Calculate ETA based on processing rate
+  const eta = useMemo(() => {
+    if (!data?.job_start || !data.processed_documents || data.processed_documents === 0) {
+      return null;
+    }
+    
+    const startTime = new Date(data.job_start).getTime();
+    const now = Date.now();
+    const elapsedMs = now - startTime;
+    const elapsedMinutes = elapsedMs / 60000;
+    
+    // Need at least 30 seconds of data for reasonable estimate
+    if (elapsedMinutes < 0.5) {
+      return t('pipeline.etaCalculating', 'Calculating...');
+    }
+    
+    const rate = data.processed_documents / elapsedMinutes;
+    const remaining = data.total_documents - data.processed_documents;
+    
+    if (remaining <= 0) {
+      return t('pipeline.etaComplete', 'Almost done');
+    }
+    
+    const etaMinutes = remaining / rate;
+    
+    if (etaMinutes < 1) {
+      return t('pipeline.etaLessThanMinute', 'Less than a minute');
+    }
+    if (etaMinutes < 60) {
+      return t('pipeline.etaMinutes', '~{{count}} min', { count: Math.ceil(etaMinutes) });
+    }
+    const hours = Math.floor(etaMinutes / 60);
+    const mins = Math.ceil(etaMinutes % 60);
+    if (mins === 0) {
+      return t('pipeline.etaHours', '~{{count}} hour(s)', { count: hours });
+    }
+    return t('pipeline.etaHoursMinutes', '~{{hours}}h {{mins}}m', { hours, mins });
+  }, [data?.job_start, data?.processed_documents, data?.total_documents, t]);
   
   // Use custom title or default
   const dialogTitle = title || t('pipeline.title', 'Pipeline Status');
@@ -167,6 +206,13 @@ export function PipelineStatusDialog({
                     <span className="font-medium">{Math.round(progress)}%</span>
                   </div>
                   <Progress value={progress} className="h-2" />
+                  {/* OODA-08: ETA display */}
+                  {eta && (
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>{t('pipeline.eta', 'ETA: {{time}}', { time: eta })}</span>
+                    </div>
+                  )}
                   {data.total_batches > 0 && (
                     <p className="text-xs text-muted-foreground text-center">
                       Batch {data.current_batch}/{data.total_batches}

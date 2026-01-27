@@ -132,6 +132,7 @@ export function ReprocessFailedButton({
       size="sm"
       onClick={showConfirmation ? undefined : handleReprocess}
       disabled={reprocessMutation.isPending}
+      data-testid="reprocess-failed-button"
     >
       {buttonContent}
     </Button>
@@ -169,13 +170,14 @@ export function ReprocessFailedButton({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={reprocessMutation.isPending}>
+          <AlertDialogCancel disabled={reprocessMutation.isPending} data-testid="reprocess-failed-cancel">
             {t('common.cancel', 'Cancel')}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={() => reprocessMutation.mutate()}
             disabled={reprocessMutation.isPending}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            data-testid="reprocess-failed-confirm"
           >
             {reprocessMutation.isPending ? (
               <>

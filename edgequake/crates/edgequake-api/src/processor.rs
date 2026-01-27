@@ -598,8 +598,9 @@ impl DocumentTaskProcessor {
             .info(format!("Chunking document {}...", document_id))
             .await;
 
-        // Update document status to processing
-        self.update_document_status(&document_id, "processing", None)
+        // OODA-02: Update document status to "chunking" for frontend visibility
+        // WHY: Users need to see exactly which processing stage their document is in
+        self.update_document_status(&document_id, "chunking", None)
             .await?;
 
         // Process through pipeline (using workspace-specific or default)
@@ -630,6 +631,11 @@ impl DocumentTaskProcessor {
                 document_id
             ))
             .await;
+
+        // OODA-02: Update status to "extracting" - LLM entity extraction in progress
+        // WHY: This is often the longest stage, users need visibility
+        self.update_document_status(&document_id, "extracting", None)
+            .await?;
 
         // Store chunks in KV storage
         let chunks: Vec<(String, serde_json::Value)> = result
@@ -689,6 +695,11 @@ impl DocumentTaskProcessor {
                 edgequake_tasks::TaskError::Process(error_msg)
             })?;
 
+        // OODA-02: Update status to "embedding" - generating vector embeddings
+        // WHY: Shows user that extraction is complete, now vectorizing
+        self.update_document_status(&document_id, "embedding", None)
+            .await?;
+
         // Store chunk embeddings in vector storage for semantic search
         let mut chunk_embeddings_stored = 0;
         for chunk in &result.chunks {
@@ -730,6 +741,11 @@ impl DocumentTaskProcessor {
             "Storing entities with tenant_id={:?}, workspace_id={:?}",
             tenant_id, workspace_id_meta
         );
+
+        // OODA-02: Update status to "indexing" - storing in graph and vector databases
+        // WHY: Final stage before completion, indicates DB writes in progress
+        self.update_document_status(&document_id, "indexing", None)
+            .await?;
 
         // Store entities and relationships in graph storage using batch operations
         // Collect all nodes for batch upsert

@@ -5,6 +5,7 @@
  * @implements SPEC-032: Knowledge graph rebuild on LLM model change
  * @implements OODA 256-280: Workspace-scoped rebuild endpoints
  * @iteration OODA #282 - WebUI for rebuild knowledge graph
+ * @iteration OODA #04 - UX improvement for rebuild confirmation dialogs
  *
  * @enforces BR0401 - Users can rebuild knowledge graph when changing models
  * @enforces BR0402 - Clear warning before destructive operations
@@ -32,6 +33,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { formatEstimatedTime, useWorkspaceStats } from '@/hooks/use-workspace-stats';
 import {
     rebuildKnowledgeGraph,
     reprocessAllDocuments,
@@ -40,7 +42,7 @@ import {
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Network, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Clock, FileText, Network, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -87,6 +89,9 @@ export function RebuildKnowledgeGraphButton({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isPipelineOpen, setIsPipelineOpen] = useState(false);
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResponse | null>(null);
+
+  // Fetch workspace stats for impact preview
+  const { totalDocuments, estimatedTimeMinutes, isLoading: statsLoading } = useWorkspaceStats();
 
   // Find selected workspace
   const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
@@ -224,6 +229,7 @@ export function RebuildKnowledgeGraphButton({
                   variant="outline"
                   disabled={!selectedWorkspaceId || isLoading}
                   className="gap-2 w-full sm:w-auto"
+                  data-testid="rebuild-kg-button"
                 >
                   {isLoading ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />
@@ -252,6 +258,30 @@ export function RebuildKnowledgeGraphButton({
                       <span className="font-semibold text-foreground block">
                         {selectedWorkspace?.name || 'Unknown Workspace'}
                       </span>
+                      
+                      {/* Impact preview section */}
+                      <div className="mt-3 rounded-md border bg-muted/50 p-3" data-testid="rebuild-kg-impact-preview">
+                        <div className="flex items-center gap-2 text-foreground font-medium mb-2">
+                          <FileText className="h-4 w-4" />
+                          {t('workspace.rebuild.confirm.impact', 'Impact:')}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-muted-foreground">{t('workspace.rebuild.confirm.documents', 'Documents:')}</span>
+                            <span className="font-mono font-medium text-foreground">
+                              {statsLoading ? '...' : totalDocuments}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">{t('workspace.rebuild.confirm.eta', 'Estimated:')}</span>
+                            <span className="font-medium text-foreground">
+                              {statsLoading ? '...' : formatEstimatedTime(estimatedTimeMinutes)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
                       {rebuildEmbeddings && (
                         <span className="block text-yellow-600 dark:text-yellow-500">
                           {t(
@@ -270,13 +300,14 @@ export function RebuildKnowledgeGraphButton({
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isLoading}>
+                  <AlertDialogCancel disabled={isLoading} data-testid="rebuild-kg-cancel">
                     {t('common.cancel', 'Cancel')}
                   </AlertDialogCancel>
                   <AlertDialogAction
                     onClick={handleRebuild}
                     disabled={isLoading}
                     className="bg-destructive hover:bg-destructive/90"
+                    data-testid="rebuild-kg-confirm"
                   >
                     {isLoading ? (
                       <>
@@ -320,6 +351,7 @@ export function RebuildKnowledgeGraphButton({
             variant="outline"
             disabled={!selectedWorkspaceId || isLoading}
             className="gap-2"
+            data-testid="rebuild-kg-button"
           >
             {isLoading ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -348,6 +380,30 @@ export function RebuildKnowledgeGraphButton({
                 <span className="font-semibold text-foreground block">
                   {selectedWorkspace?.name || 'Unknown Workspace'}
                 </span>
+                
+                {/* Impact preview section */}
+                <div className="mt-3 rounded-md border bg-muted/50 p-3" data-testid="rebuild-kg-impact-preview">
+                  <div className="flex items-center gap-2 text-foreground font-medium mb-2">
+                    <FileText className="h-4 w-4" />
+                    {t('workspace.rebuild.confirm.impact', 'Impact:')}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground">{t('workspace.rebuild.confirm.documents', 'Documents:')}</span>
+                      <span className="font-mono font-medium text-foreground">
+                        {statsLoading ? '...' : totalDocuments}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">{t('workspace.rebuild.confirm.eta', 'Estimated:')}</span>
+                      <span className="font-medium text-foreground">
+                        {statsLoading ? '...' : formatEstimatedTime(estimatedTimeMinutes)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
                 {rebuildEmbeddings && (
                   <span className="block text-yellow-600 dark:text-yellow-500">
                     {t(
@@ -366,13 +422,14 @@ export function RebuildKnowledgeGraphButton({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>
+            <AlertDialogCancel disabled={isLoading} data-testid="rebuild-kg-cancel">
               {t('common.cancel', 'Cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRebuild}
               disabled={isLoading}
               className="bg-destructive hover:bg-destructive/90"
+              data-testid="rebuild-kg-confirm"
             >
               {isLoading ? (
                 <>
