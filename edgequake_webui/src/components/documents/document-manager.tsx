@@ -68,9 +68,15 @@ import {
     AlertCircle,
     CheckCircle,
     Clock,
+    Copy,
     Eye,
+    File,
+    FileCode,
+    FileImage,
     FileSearch,
+    FileSpreadsheet,
     FileText,
+    FileType,
     Loader2,
     MoreVertical,
     RefreshCw,
@@ -100,6 +106,63 @@ import { ResetDocumentStatusButton } from './reset-document-status-button';
 import { StatusBadge, type DocumentStatus } from './status-badge';
 import type { UploadingFile } from './types';
 
+/**
+ * OODA-30: File type icon helper
+ * WHY: Visual distinction helps users quickly identify document types
+ */
+function getFileTypeIcon(fileName: string | undefined | null) {
+  if (!fileName) return { icon: File, color: 'text-muted-foreground' };
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'pdf':
+      return { icon: FileText, color: 'text-red-500' };
+    case 'doc':
+    case 'docx':
+      return { icon: FileType, color: 'text-blue-500' };
+    case 'xls':
+    case 'xlsx':
+    case 'csv':
+      return { icon: FileSpreadsheet, color: 'text-green-500' };
+    case 'md':
+    case 'markdown':
+      return { icon: FileCode, color: 'text-purple-500' };
+    case 'txt':
+      return { icon: FileText, color: 'text-gray-500' };
+    case 'html':
+    case 'htm':
+    case 'json':
+    case 'xml':
+      return { icon: FileCode, color: 'text-orange-500' };
+    case 'jpg':
+    case 'jpeg':
+    case 'png':
+    case 'gif':
+    case 'webp':
+      return { icon: FileImage, color: 'text-pink-500' };
+    default:
+      return { icon: File, color: 'text-muted-foreground' };
+  }
+}
+
+/**
+ * OODA-32: Highlight search matches in text
+ * WHY: Visual feedback shows which part of title matched the search
+ */
+function highlightMatches(text: string, query: string): React.ReactNode {
+  if (!query.trim()) return text;
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  return parts.map((part, i) =>
+    regex.test(part) ? (
+      <mark key={i} className="bg-yellow-200 dark:bg-yellow-700 px-0.5 rounded">
+        {part}
+      </mark>
+    ) : (
+      part
+    )
+  );
+}
+
 export function DocumentManager() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -120,7 +183,16 @@ export function DocumentManager() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // OODA-29: Initialize pageSize from localStorage for persistence
+  const [pageSize, setPageSize] = useState(() => {
+    if (typeof window === 'undefined') return 20;
+    try {
+      const stored = localStorage.getItem('edgequake:documents:prefs');
+      const parsed = stored ? JSON.parse(stored) : null;
+      const size = parsed?.pageSize;
+      return [10, 20, 50, 100].includes(size) ? size : 20;
+    } catch { return 20; }
+  });
   
   // Filter and sort state
   // OODA-24/28: Initialize from localStorage for persistence
@@ -725,11 +797,12 @@ export function DocumentManager() {
         statusFilter,
         sortField,
         sortDirection,
+        pageSize, // OODA-29: Also persist page size preference
       }));
     } catch {
       // Ignore localStorage errors (e.g., in incognito mode)
     }
-  }, [statusFilter, sortField, sortDirection]);
+  }, [statusFilter, sortField, sortDirection, pageSize]);
 
   /**
    * OODA-26: Update page title with document count
@@ -1151,7 +1224,20 @@ export function DocumentManager() {
                       </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex flex-col gap-0.5">
-                          <span>{doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`}</span>
+                          {/* OODA-30: File type icon for visual identification */}
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const { icon: FileIcon, color } = getFileTypeIcon(doc.file_name);
+                              return <FileIcon className={cn("h-4 w-4 shrink-0", color)} />;
+                            })()}
+                            {/* OODA-32: Highlight search matches */}
+                            <span className="truncate">
+                              {highlightMatches(
+                                doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`,
+                                searchQuery
+                              )}
+                            </span>
+                          </div>
                           {/* OODA-05: Enhanced error display with copy and retry */}
                           {doc.status === 'failed' && doc.error_message && (
                             <ErrorMessagePopover
@@ -1244,6 +1330,16 @@ export function DocumentManager() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {/* OODA-31: Copy document ID */}
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(doc.id);
+                                  toast.success(t('documents.actions.idCopied', 'Document ID copied'));
+                                }}
+                              >
+                                <Copy className="h-4 w-4 mr-2" />
+                                {t('documents.actions.copyId', 'Copy ID')}
+                              </DropdownMenuItem>
                               {doc.status === 'failed' && (
                                 <DropdownMenuItem asChild>
                                   <div className="p-0">
