@@ -43,6 +43,7 @@ import {
     GitBranch,
     Lightbulb,
     Plus,
+    Search,
     Send,
     Sparkles,
     StopCircle
