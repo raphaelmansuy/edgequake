@@ -903,8 +903,19 @@ export function DocumentManager() {
             placeholder={t('documents.search.placeholder', 'Search documents...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9"
+            className="pl-9 pr-8 h-9"
           />
+          {/* OODA-36: Clear search button */}
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-colors"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          )}
         </div>
         <DocumentFilters
           status={statusFilter}
@@ -1261,7 +1272,17 @@ export function DocumentManager() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {doc.created_at 
-                          ? formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })
+                          ? (
+                            <div className="flex items-center gap-1.5">
+                              {/* OODA-34: "New" indicator for documents created within 1 hour */}
+                              {new Date().getTime() - new Date(doc.created_at).getTime() < 3600000 && (
+                                <span className="text-xs font-medium text-green-600 dark:text-green-400 animate-pulse">
+                                  NEW
+                                </span>
+                              )}
+                              <span>{formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}</span>
+                            </div>
+                          )
                           : '-'}
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
