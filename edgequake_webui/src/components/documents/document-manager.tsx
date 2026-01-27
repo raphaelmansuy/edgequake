@@ -60,9 +60,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
     AlertCircle,
+    CheckCircle,
+    Clock,
     Eye,
     FileSearch,
     FileText,
+    Loader2,
     MoreVertical,
     RefreshCw,
     Search,
@@ -71,6 +74,7 @@ import {
     Trash2,
     Upload,
     X,
+    XCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -82,6 +86,7 @@ import { ClearDocumentsDialog } from './clear-documents-dialog';
 import { CostCell } from './cost-cell';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
+import { ErrorMessagePopover } from './error-message-popover';
 import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
@@ -969,7 +974,18 @@ export function DocumentManager() {
                         />
                       </TableCell>
                       <TableCell className="font-medium">
-                        {doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`}
+                        <div className="flex flex-col gap-0.5">
+                          <span>{doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`}</span>
+                          {/* OODA-05: Enhanced error display with copy and retry */}
+                          {doc.status === 'failed' && doc.error_message && (
+                            <ErrorMessagePopover
+                              message={doc.error_message}
+                              documentId={doc.id}
+                              onRetry={() => reprocessMutation.mutate(doc.id)}
+                              isRetrying={reprocessMutation.isPending}
+                            />
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={doc.status || 'completed'} />

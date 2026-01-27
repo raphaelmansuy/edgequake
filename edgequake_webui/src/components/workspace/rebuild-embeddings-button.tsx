@@ -5,6 +5,7 @@
  * @implements SPEC-032: Vector database rebuild on embedding model change
  * @implements SPEC-032 Focus Area 5: Rebuild with progress display
  * @iteration OODA #22 - WebUI for rebuild embeddings
+ * @iteration OODA #04 - UX improvement for rebuild confirmation dialogs
  *
  * @enforces BR0401 - Users can rebuild embeddings when changing models
  * @enforces BR0402 - Clear warning before destructive operations
@@ -32,6 +33,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { formatEstimatedTime, useWorkspaceStats } from '@/hooks/use-workspace-stats';
 import {
   rebuildEmbeddings,
   reprocessAllDocuments,
@@ -40,7 +42,7 @@ import {
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, RefreshCw, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Clock, FileText, RefreshCw, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -81,6 +83,9 @@ export function RebuildEmbeddingsButton({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isPipelineOpen, setIsPipelineOpen] = useState(false);
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResponse | null>(null);
+
+  // Fetch workspace stats for impact preview
+  const { totalDocuments, estimatedTimeMinutes, isLoading: statsLoading } = useWorkspaceStats();
 
   // Find selected workspace
   const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
@@ -179,6 +184,7 @@ export function RebuildEmbeddingsButton({
       variant="outline"
       disabled={!selectedWorkspaceId || isLoading}
       className="gap-2"
+      data-testid="rebuild-embeddings-button"
     >
       {isLoading ? (
         <RefreshCw className="h-4 w-4 animate-spin" />
@@ -212,6 +218,30 @@ export function RebuildEmbeddingsButton({
               <span className="block font-medium text-foreground">
                 {selectedWorkspace?.name || selectedWorkspaceId}
               </span>
+              
+              {/* Impact preview section */}
+              <div className="mt-3 rounded-md border bg-muted/50 p-3" data-testid="rebuild-impact-preview">
+                <div className="flex items-center gap-2 text-foreground font-medium mb-2">
+                  <FileText className="h-4 w-4" />
+                  {t('workspace.rebuild.confirm.impact', 'Impact:')}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground">{t('workspace.rebuild.confirm.documents', 'Documents:')}</span>
+                    <span className="font-mono font-medium text-foreground">
+                      {statsLoading ? '...' : totalDocuments}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">{t('workspace.rebuild.confirm.eta', 'Estimated:')}</span>
+                    <span className="font-medium text-foreground">
+                      {statsLoading ? '...' : formatEstimatedTime(estimatedTimeMinutes)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
               <div className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
                 <span className="block font-medium">
                   {t('workspace.rebuild.confirm.warning', 'Warning:')}
@@ -249,12 +279,13 @@ export function RebuildEmbeddingsButton({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>
+          <AlertDialogCancel data-testid="rebuild-embeddings-cancel">
             {t('common.cancel', 'Cancel')}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleRebuild}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            data-testid="rebuild-embeddings-confirm"
           >
             {isLoading ? (
               <>
