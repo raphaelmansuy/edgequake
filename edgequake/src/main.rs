@@ -111,7 +111,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|s| s.parse().ok())
             .unwrap_or_else(|| num_cpus::get().max(2)),
         auto_retry: true,
-        retry_delay_secs: 5,
+        initial_retry_delay_ms: 5000,
+        max_retry_delay_ms: 60000,
+        backoff_multiplier: 2.0,
     };
 
     // Create and start worker pool
