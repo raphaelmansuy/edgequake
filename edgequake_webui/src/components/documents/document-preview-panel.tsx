@@ -296,6 +296,28 @@ export function DocumentPreviewPanel({
             </div>
           )}
 
+          {/* OODA-46: Updated timestamp */}
+          {document.updated_at && document.updated_at !== document.created_at && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" />
+                {t('documents.preview.updated', 'Updated')}
+              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-sm font-medium cursor-help">
+                      {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {new Date(document.updated_at).toLocaleString()}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
+
           {/* Entities */}
           {(document.entity_count || document.chunk_count) && (
             <div className="flex items-center justify-between">

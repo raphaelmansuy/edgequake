@@ -989,7 +989,7 @@ export function DocumentManager() {
           "border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200",
           "flex items-center gap-4 px-4 py-3",
           isDragActive
-            ? 'border-primary bg-primary/5'
+            ? 'border-primary bg-primary/5 ring-2 ring-primary/20 animate-pulse'
             : 'border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/30'
         )}
       >
