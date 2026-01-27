@@ -72,14 +72,6 @@ export default function DashboardPage() {
   // Track if cache has been validated
   const hasValidatedCache = useRef(false);
 
-  // Debug logging
-  console.log('[Dashboard] Render:', { 
-    selectedTenantId, 
-    selectedWorkspaceId, 
-    _hasHydrated,
-    queryEnabled: _hasHydrated && !!selectedWorkspaceId
-  });
-
   // WHY: Validate and clear cache on mount if stale
   // This ensures fresh data is fetched when workspace/tenant changes
   // or after code updates (version change)
@@ -91,11 +83,6 @@ export default function DashboardPage() {
 
     // Validate cache and clear if stale
     validateAndClearCache(queryClient, selectedTenantId, selectedWorkspaceId);
-
-    console.info('[Dashboard] Cache validation complete', {
-      tenantId: selectedTenantId,
-      workspaceId: selectedWorkspaceId,
-    });
   }, [_hasHydrated, selectedTenantId, selectedWorkspaceId, queryClient]);
 
   // WHY: Force refetch stats when workspace changes
@@ -103,8 +90,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!_hasHydrated || !selectedWorkspaceId) return;
 
-    console.info('[Dashboard] Workspace changed, forcing stats refetch:', selectedWorkspaceId);
-    
     // Invalidate and refetch stats for the new workspace
     queryClient.invalidateQueries({
       queryKey: ['workspaceStats', selectedWorkspaceId],
@@ -134,59 +119,18 @@ export default function DashboardPage() {
   const { data: stats, isLoading: isLoadingStats, error: statsError, isError: isStatsError } = useQuery({
     queryKey: ['workspaceStats', selectedWorkspaceId],
     queryFn: async () => {
-      console.log('[Dashboard] ========================================');
-      console.log('[Dashboard] Fetching stats for workspace:', selectedWorkspaceId);
-      console.log('[Dashboard] Enabled:', _hasHydrated && !!selectedWorkspaceId);
-      
       if (!selectedWorkspaceId) {
         throw new Error('No workspace selected');
       }
       
-      const result = await getWorkspaceStats(selectedWorkspaceId);
-      
-      console.log('[Dashboard] RAW API Response:', JSON.stringify(result, null, 2));
-      console.log('[Dashboard] entity_count:', result.entity_count);
-      console.log('[Dashboard] relationship_count:', result.relationship_count);
-      console.log('[Dashboard] document_count:', result.document_count);
-      console.log('[Dashboard] ========================================');
-      
-      return result;
+      return await getWorkspaceStats(selectedWorkspaceId);
     },
     enabled: _hasHydrated && !!selectedWorkspaceId, // Wait for hydration!
     staleTime: 0, // Always fetch fresh stats to reflect latest document processing
     refetchOnMount: 'always', // Always refetch when component mounts
   });
 
-  // Debug: Log stats state
-  useEffect(() => {
-    const debugInfo = {
-      data: stats,
-      entity_count: stats?.entity_count,
-      relationship_count: stats?.relationship_count,
-      document_count: stats?.document_count,
-      isLoading: isLoadingStats,
-      isError: isStatsError,
-      error: statsError,
-      workspaceId: selectedWorkspaceId,
-      enabled: _hasHydrated && !!selectedWorkspaceId,
-    };
-    
-    console.log('[Dashboard] Stats state changed:', debugInfo);
-    
-    // Force alert to show stats
-    if (stats && !isLoadingStats) {
-      console.log('[Dashboard] 🚨 STATS RECEIVED:');
-      console.log('[Dashboard] - document_count:', stats.document_count);
-      console.log('[Dashboard] - entity_count:', stats.entity_count);
-      console.log('[Dashboard] - relationship_count:', stats.relationship_count);
-      
-      // Write to window for easy inspection
-      if (typeof window !== 'undefined') {
-        (window as any).__EDGEQUAKE_STATS__ = stats;
-        console.log('[Dashboard] Stats saved to window.__EDGEQUAKE_STATS__');
-      }
-    }
-  }, [stats, isLoadingStats, isStatsError, statsError, selectedWorkspaceId, _hasHydrated]);
+
 
   // Fetch recent documents for activity feed
   const { data: documentsData, isLoading: isLoadingDocs } = useQuery({
@@ -198,23 +142,10 @@ export default function DashboardPage() {
 
   const recentDocuments = documentsData?.items || [];
 
-  // DEBUG: Log values being passed to StatsCard
   const documentValue = stats?.document_count ?? 0;
   const entityValue = stats?.entity_count ?? 0;
   const relationshipValue = stats?.relationship_count ?? 0;
   const chunkValue = stats?.chunk_count ?? 0;
-
-  console.log('[Dashboard] VALUES BEING PASSED TO STATSCARDS:', {
-    stats,
-    documentValue,
-    entityValue,
-    relationshipValue,
-    chunkValue,
-    statsIsUndefined: stats === undefined,
-    statsIsNull: stats === null,
-    entity_count_property: stats?.entity_count,
-    relationship_count_property: stats?.relationship_count,
-  });
 
   return (
     <ScrollArea className="h-full">

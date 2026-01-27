@@ -386,8 +386,6 @@ export function QueryInterface() {
         conversationError.message.toLowerCase().includes('conversation'));
     
     if (is404Error) {
-      console.log('⚠️ Stale conversation detected on load, clearing:', activeConversationId);
-      
       // Clear the stale conversation ID
       store.setActiveConversation(null);
       
@@ -413,7 +411,6 @@ export function QueryInterface() {
     const firstPage = conversationsData?.pages?.[0];
     if (!activeConversationId && firstPage?.items && firstPage.items.length > 0) {
       const mostRecentConversation = firstPage.items[0];
-      console.log('Auto-loading most recent conversation:', mostRecentConversation.id);
       store.setActiveConversation(mostRecentConversation.id);
     }
   }, [activeConversationId, conversationsData, store]);
@@ -501,12 +498,6 @@ export function QueryInterface() {
   // Combine real messages with pending message (only when it has content)
   const messages = useMemo(() => {
     const serverMessages = (activeConversation?.messages ?? []).map(convertServerMessage);
-    console.log('📨 Messages loaded:', {
-      conversationId: activeConversationId,
-      serverMessageCount: serverMessages.length,
-      hasPending: !!pendingMessage,
-      pendingHasContent: !!(pendingMessage?.content)
-    });
     // Only include pendingMessage when it has actual content to avoid two bubbles
     // (LoadingMessage handles the empty "thinking" state)
     if (pendingMessage && pendingMessage.content) {
@@ -624,11 +615,9 @@ export function QueryInterface() {
           case 'conversation':
             // Server created/confirmed conversation and saved user message
             newConversationId = chunk.conversation_id;
-            console.log('✓ Conversation created/confirmed:', newConversationId);
             if (!conversationId && newConversationId) {
               // New conversation was created - update UI
               store.setActiveConversation(newConversationId);
-              console.log('✓ Active conversation set:', newConversationId);
             }
             break;
 
@@ -636,7 +625,6 @@ export function QueryInterface() {
             // Map sources from API format to QueryContext for UI display
             if ('sources' in chunk && chunk.sources) {
               context = mapSourcesToContext(chunk.sources);
-              console.log('✓ Context received:', context.entities.length, 'entities,', context.relationships.length, 'relationships');
             }
             break;
 
@@ -671,7 +659,6 @@ export function QueryInterface() {
             // SPEC-032: Capture LLM provider/model for lineage tracking
             llmProvider = chunk.llm_provider;
             llmModel = chunk.llm_model;
-            console.log('✓ Message saved on server:', assistantMessageId, {tokensUsed, durationMs, llmProvider, llmModel});
             break;
 
           case 'error':
@@ -695,8 +682,6 @@ export function QueryInterface() {
         
         // Give React Query a moment to refetch
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        console.log('✓ Conversation data refreshed:', newConversationId);
       }
 
       setStreamingState('complete');
@@ -714,8 +699,6 @@ export function QueryInterface() {
         (error instanceof Error && error.message.includes('not found') && error.message.toLowerCase().includes('conversation'));
       
       if (isConversationNotFound && conversationId) {
-        console.log('⚠️ Stale conversation detected, starting fresh:', conversationId);
-        
         // Clear the stale conversation and retry with a new one
         store.setActiveConversation(null);
         setPendingMessage(null);
@@ -816,7 +799,6 @@ export function QueryInterface() {
           (error instanceof Error && error.message.includes('not found') && error.message.toLowerCase().includes('conversation'));
         
         if (isConversationNotFound && conversationId) {
-          console.log('⚠️ Stale conversation detected (non-streaming), starting fresh:', conversationId);
           store.setActiveConversation(null);
           toast.warning(t('query.conversationExpired', 'Conversation expired'), {
             description: t('query.startingNewConversation', 'Starting a new conversation. Please submit your query again.'),

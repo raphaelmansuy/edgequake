@@ -75,41 +75,22 @@ export function isCacheStale(
 
   // Version mismatch = code update, clear cache
   if (context.version !== CACHE_VERSION) {
-    console.info(
-      "[CacheManager] Version mismatch:",
-      context.version,
-      "→",
-      CACHE_VERSION,
-    );
     return true;
   }
 
   // Tenant changed = clear cache
   if (context.tenantId !== currentTenantId) {
-    console.info(
-      "[CacheManager] Tenant changed:",
-      context.tenantId,
-      "→",
-      currentTenantId,
-    );
     return true;
   }
 
   // Workspace changed = clear cache
   if (context.workspaceId !== currentWorkspaceId) {
-    console.info(
-      "[CacheManager] Workspace changed:",
-      context.workspaceId,
-      "→",
-      currentWorkspaceId,
-    );
     return true;
   }
 
   // Cache older than 1 hour = stale
   const ONE_HOUR = 60 * 60 * 1000;
   if (Date.now() - context.timestamp > ONE_HOUR) {
-    console.info("[CacheManager] Cache expired (>1 hour)");
     return true;
   }
 
@@ -120,8 +101,6 @@ export function isCacheStale(
  * Clear all React Query caches
  */
 export function clearQueryCache(queryClient: QueryClient): void {
-  console.info("[CacheManager] Clearing all React Query caches");
-
   // Clear all queries
   queryClient.clear();
 
@@ -138,8 +117,6 @@ export function clearQueryCache(queryClient: QueryClient): void {
  */
 export function clearLocalStorageCache(): void {
   if (typeof window === "undefined") return;
-
-  console.info("[CacheManager] Clearing localStorage cache");
 
   // Keep these keys
   const keepKeys = [
@@ -160,7 +137,6 @@ export function clearLocalStorageCache(): void {
   }
 
   keysToRemove.forEach((key) => {
-    console.debug("[CacheManager] Removing localStorage key:", key);
     localStorage.removeItem(key);
   });
 }
