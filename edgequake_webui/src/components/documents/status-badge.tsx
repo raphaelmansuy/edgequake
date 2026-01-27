@@ -138,10 +138,18 @@ export const StatusBadge = memo(function StatusBadge({
   // OODA-11: Calculate stage progress for processing states
   const stageProgress = useMemo(() => getStageProgress(status), [status]);
 
+  /**
+   * OODA-17: Enhanced processing animation
+   * WHY: Pulse animation on entire badge provides clearer visual feedback
+   * that processing is ongoing, reducing user uncertainty.
+   */
   const badge = (
     <Badge 
       variant="outline" 
-      className={`gap-1 ${config.textColor} border-current cursor-default`}
+      className={`gap-1 ${config.textColor} border-current cursor-default ${
+        config.animate ? 'animate-pulse' : ''
+      }`}
+      data-testid="status-badge"
     >
       <Icon className={`h-3 w-3 ${config.animate ? 'animate-spin' : ''}`} />
       {!compact && config.label}

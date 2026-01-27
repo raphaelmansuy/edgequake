@@ -77,7 +77,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -457,7 +457,7 @@ export function DocumentManager() {
     },
   });
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open: openFileDialog } = useDropzone({
     onDrop,
     accept: {
       'text/plain': ['.txt'],
@@ -465,6 +465,7 @@ export function DocumentManager() {
       'application/json': ['.json'],
     },
     maxSize: MAX_FILE_SIZE, // 10MB limit
+    noClick: false, // Allow click on dropzone
   });
 
   // Filter documents client-side (fallback when backend doesn't support filtering)
@@ -639,6 +640,53 @@ export function DocumentManager() {
     router.push(`/graph?entity=${encodeURIComponent(doc.id)}`);
   }, [router]);
 
+  /**
+   * OODA-19: Keyboard shortcuts for power users
+   * WHY: Keyboard shortcuts improve efficiency and accessibility
+   * 
+   * Shortcuts:
+   * - Escape: Clear selection or close preview panel
+   * - Ctrl/Cmd + A: Select all documents
+   * - R: Refresh document list (when not in input)
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if in input field or textarea
+      const target = e.target as HTMLElement;
+      const tagName = target.tagName.toUpperCase();
+      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // Escape: Clear selection or close preview panel
+      if (e.key === 'Escape') {
+        if (previewPanelOpen) {
+          handlePreviewClose();
+        } else if (selectedIds.size > 0) {
+          setSelectedIds(new Set());
+        }
+        return;
+      }
+
+      // Ctrl/Cmd + A: Select all documents
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault(); // Prevent browser select all
+        handleSelectAll(true);
+        return;
+      }
+
+      // R: Refresh documents (single key, no modifier)
+      if (e.key.toLowerCase() === 'r' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        refetch();
+        toast.info(t('documents.refresh.triggered', 'Refreshing documents...'), { duration: 1000 });
+        return;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [previewPanelOpen, selectedIds.size, handlePreviewClose, handleSelectAll, refetch, t]);
+
   if (isError) {
     return (
       <div className="p-6">
@@ -768,9 +816,15 @@ export function DocumentManager() {
       {/* Bulk Actions Bar - Fixed below dropzone */}
       {selectedIds.size > 0 && (
         <div className="shrink-0 px-4 py-2 bg-muted/50 border-b flex items-center justify-between">
-          <span className="text-sm font-medium">
-            {t('documents.bulk.selected', { count: selectedIds.size }) || `${selectedIds.size} document(s) selected`}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium">
+              {t('documents.bulk.selected', { count: selectedIds.size }) || `${selectedIds.size} document(s) selected`}
+            </span>
+            {/* OODA-19: Keyboard hint */}
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Press <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Esc</kbd> to clear
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleBulkReprocess}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -923,16 +977,36 @@ export function DocumentManager() {
           </div>
           
           {isLoading ? (
-            <div className="space-y-2">
+            /* OODA-20: Enhanced loading skeleton matching table structure */
+            <div className="border rounded-lg overflow-hidden">
               {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+                <div key={i} className="flex items-center gap-4 px-4 py-3 border-b last:border-b-0 animate-pulse">
+                  <Skeleton className="h-4 w-4 shrink-0 rounded" />
+                  <Skeleton className="h-4 w-48 shrink-0" />
+                  <Skeleton className="h-5 w-20 rounded-full shrink-0" />
+                  <Skeleton className="h-4 w-8 shrink-0" />
+                  <Skeleton className="h-4 w-12 shrink-0" />
+                  <Skeleton className="h-4 w-24 shrink-0" />
+                  <Skeleton className="h-6 w-6 rounded-full shrink-0 ml-auto" />
+                </div>
               ))}
             </div>
           ) : documents.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p className="font-medium">No documents yet</p>
-              <p className="text-sm mt-1">Upload documents to build your knowledge graph</p>
+            /* OODA-20: Enhanced empty state with upload CTA */
+            <div className="text-center py-16 text-muted-foreground border rounded-lg bg-muted/5">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
+              <p className="font-medium text-lg text-foreground">No documents yet</p>
+              <p className="text-sm mt-2 max-w-sm mx-auto">
+                Drag & drop files above or click to upload. Build your knowledge graph from documents.
+              </p>
+              <Button 
+                variant="outline" 
+                className="mt-4"
+                onClick={openFileDialog}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Documents
+              </Button>
             </div>
           ) : (
             <div className="border rounded-lg overflow-hidden shadow-sm">
