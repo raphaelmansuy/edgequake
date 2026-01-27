@@ -3138,7 +3138,7 @@ fn collect_files(
     tag = "Documents",
     request_body = ReprocessFailedRequest,
     responses(
-        (status = 200, description = "Failed documents requeued", body = ReprocessFailedResponse),
+        (status = 200, description = "Documents requeued for processing", body = ReprocessFailedResponse),
         (status = 400, description = "Invalid request")
     )
 )]
@@ -3148,8 +3148,8 @@ pub async fn reprocess_failed(
     Json(request): Json<ReprocessFailedRequest>,
 ) -> ApiResult<Json<ReprocessFailedResponse>> {
     debug!(
-        "reprocess_failed called with tenant context: tenant_id={:?}, workspace_id={:?}",
-        tenant_ctx.tenant_id, tenant_ctx.workspace_id
+        "reprocess_failed called with tenant context: tenant_id={:?}, workspace_id={:?}, document_id={:?}, force={}",
+        tenant_ctx.tenant_id, tenant_ctx.workspace_id, request.document_id, request.force
     );
 
     // Generate new track ID for reprocess batch
@@ -3162,12 +3162,12 @@ pub async fn reprocess_failed(
     // Get all metadata keys
     let all_keys: Vec<String> = state.kv_storage.keys().await?;
 
-    let mut failed_docs = Vec::new();
+    let mut docs_to_reprocess = Vec::new();
     let mut requeued_ids = Vec::new();
 
-    // Find failed documents
+    // Find documents to reprocess
     for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
-        if failed_docs.len() >= request.max_documents {
+        if docs_to_reprocess.len() >= request.max_documents {
             break;
         }
 
@@ -3175,27 +3175,44 @@ pub async fn reprocess_failed(
             if let Some(obj) = value.as_object() {
                 let status = obj.get("status").and_then(|v| v.as_str());
                 let doc_track_id = obj.get("track_id").and_then(|v| v.as_str());
+                let doc_id = obj.get("id").and_then(|v| v.as_str());
 
-                // Check if document is failed
-                if status == Some("failed") {
-                    // If track_id filter specified, check it
-                    if let Some(ref filter_track) = request.track_id {
-                        if doc_track_id != Some(filter_track.as_str()) {
-                            continue;
-                        }
+                // If document_id filter is specified, only match that exact document
+                if let Some(ref filter_doc_id) = request.document_id {
+                    if doc_id != Some(filter_doc_id.as_str()) {
+                        continue;
                     }
+                    // When document_id is specified with force=true, allow any status
+                    // Otherwise, only reprocess if failed
+                    if !request.force && status != Some("failed") {
+                        continue;
+                    }
+                    if let Some(id) = doc_id {
+                        docs_to_reprocess.push((id.to_string(), key.replace("-metadata", "")));
+                    }
+                    break; // Found the specific document
+                }
 
-                    if let Some(doc_id) = obj.get("id").and_then(|v| v.as_str()) {
-                        failed_docs.push((doc_id.to_string(), key.replace("-metadata", "")));
+                // If track_id filter is specified, match by track_id
+                if let Some(ref filter_track) = request.track_id {
+                    if doc_track_id != Some(filter_track.as_str()) {
+                        continue;
+                    }
+                }
+
+                // Default behavior: only reprocess failed documents
+                if status == Some("failed") {
+                    if let Some(id) = doc_id {
+                        docs_to_reprocess.push((id.to_string(), key.replace("-metadata", "")));
                     }
                 }
             }
         }
     }
 
-    // Requeue failed documents
-    for (doc_id, _doc_key) in &failed_docs {
-        // OODA-08: Clean up partial graph data from failed attempt BEFORE requeueing
+    // Requeue documents for processing
+    for (doc_id, _doc_key) in &docs_to_reprocess {
+        // OODA-08: Clean up partial graph data from previous attempt BEFORE requeueing
         // WHY: Without cleanup, reprocessing creates duplicate entities and corrupts source_ids
         //
         // Scenario without cleanup:
@@ -3230,7 +3247,6 @@ pub async fn reprocess_failed(
                 );
             }
         }
-
         // Get document content
         let content_key = format!("{}-content", doc_id);
         if let Some(content_value) = state.kv_storage.get_by_id(&content_key).await? {
@@ -3296,7 +3312,7 @@ pub async fn reprocess_failed(
 
     Ok(Json(ReprocessFailedResponse {
         track_id: new_track_id,
-        failed_found: failed_docs.len(),
+        failed_found: docs_to_reprocess.len(),
         requeued: requeued_ids.len(),
         document_ids: requeued_ids,
     }))

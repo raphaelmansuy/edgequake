@@ -531,16 +531,18 @@ export async function deleteAllDocuments(): Promise<{ deleted_count: number }> {
 }
 
 /**
- * Reprocess a single document by its track ID.
- * Uses the batch reprocess endpoint with track_id filter.
- * @param trackId The track_id of the document to reprocess
+ * Reprocess a single document by its document ID.
+ * Uses the reprocess endpoint with document_id filter and force flag.
+ * @param documentId The ID of the document to reprocess
+ * @param force Whether to force reprocess even if document is not failed (default: true)
  */
 export async function reprocessDocument(
-  trackId: string
+  documentId: string,
+  force: boolean = true
 ): Promise<{ track_id: string; message: string; count: number }> {
   return api.post<{ track_id: string; message: string; count: number }>(
     "/documents/reprocess",
-    { track_id: trackId, max_documents: 1 }
+    { document_id: documentId, force, max_documents: 1 }
   );
 }
 

@@ -514,7 +514,7 @@ export function DocumentManager() {
   });
 
   const reprocessMutation = useMutation({
-    mutationFn: reprocessDocument,
+    mutationFn: (documentId: string) => reprocessDocument(documentId, true),
     onSuccess: () => {
       toast.success(t('documents.reprocess.success', 'Document queued for reprocessing'), {
         duration: 4000,

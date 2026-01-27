@@ -17,20 +17,13 @@ import {
     XCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { StatusBadge, normalizeStatus } from './status-badge';
 
 interface BatchProgressCardProps {
   trackId: string;
   onClose: () => void;
   onComplete?: () => void;
 }
-
-const statusConfig = {
-  pending: { icon: Clock, color: 'text-yellow-500', bgColor: 'bg-yellow-100', animate: false },
-  processing: { icon: Loader2, color: 'text-blue-500', bgColor: 'bg-blue-100', animate: true },
-  completed: { icon: CheckCircle, color: 'text-green-500', bgColor: 'bg-green-100', animate: false },
-  indexed: { icon: CheckCircle, color: 'text-green-500', bgColor: 'bg-green-100', animate: false },
-  failed: { icon: XCircle, color: 'text-red-500', bgColor: 'bg-red-100', animate: false },
-} as const;
 
 export function BatchProgressCard({ trackId, onClose, onComplete }: BatchProgressCardProps) {
   const { t } = useTranslation();
@@ -172,14 +165,25 @@ export function BatchProgressCard({ trackId, onClose, onComplete }: BatchProgres
           </p>
         )}
 
-        {/* Document List (scrollable) */}
+        {/* Pipeline Stages Legend - helps users understand progression */}
+        {status_summary.processing > 0 && (
+          <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+            <span>Chunking</span>
+            <span>→</span>
+            <span>Extracting</span>
+            <span>→</span>
+            <span>Embedding</span>
+            <span>→</span>
+            <span>Done</span>
+          </div>
+        )}
+
+        {/* Document List (scrollable) - Now with granular status badges */}
         {documents && documents.length > 0 && (
           <ScrollArea className="h-32 rounded-md border">
             <div className="p-2 space-y-1">
               {documents.map((doc) => {
-                const status = doc.status || 'completed';
-                const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.completed;
-                const Icon = config.icon;
+                const normalizedStatus = normalizeStatus(doc.status);
                 
                 return (
                   <div
@@ -190,7 +194,7 @@ export function BatchProgressCard({ trackId, onClose, onComplete }: BatchProgres
                       <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                       <span className="truncate">{doc.title || doc.file_name || doc.id.slice(0, 8)}</span>
                     </div>
-                    <Icon className={`h-3 w-3 ${config.color} ${config.animate ? 'animate-spin' : ''} shrink-0`} />
+                    <StatusBadge status={normalizedStatus} compact />
                   </div>
                 );
               })}

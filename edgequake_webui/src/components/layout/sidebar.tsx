@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useSettingsStore } from '@/stores/use-settings-store';
-import { ChevronLeft, ChevronRight, DollarSign, FileText, FolderKanban, Home, Menu, MessageSquare, Network, Settings, Terminal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, DollarSign, FileText, FolderKanban, Home, Menu, MessageSquare, Network, Settings, Terminal, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
@@ -36,6 +36,7 @@ const navItems = [
   { href: '/', icon: Home, labelKey: 'nav.dashboard' },
   { href: '/graph', icon: Network, labelKey: 'nav.graph' },
   { href: '/documents', icon: FileText, labelKey: 'nav.documents' },
+  { href: '/pipeline', icon: Activity, labelKey: 'nav.pipeline' },
   { href: '/query', icon: MessageSquare, labelKey: 'nav.query' },
   { href: '/workspace', icon: FolderKanban, labelKey: 'nav.workspace' },
   { href: '/costs', icon: DollarSign, labelKey: 'nav.costs' },
