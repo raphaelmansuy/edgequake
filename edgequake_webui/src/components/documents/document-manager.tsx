@@ -731,6 +731,16 @@ export function DocumentManager() {
     setPreviewPanelOpen(true);
   }, []);
 
+  /**
+   * OODA-40: Double-click to navigate to graph
+   * WHY: Power users expect double-click for primary navigation action
+   */
+  const handleDocumentDoubleClick = useCallback((doc: Document) => {
+    if (doc.status === 'completed') {
+      router.push(`/graph?entity=${encodeURIComponent(doc.id)}`);
+    }
+  }, [router]);
+
   const handlePreviewClose = useCallback(() => {
     setSelectedDocument(null);
     setPreviewPanelOpen(false);
@@ -850,7 +860,15 @@ export function DocumentManager() {
           {/* Header - Compact */}
           <header className="flex items-center justify-between gap-3 flex-wrap">
             <div className="space-y-0.5">
-              <h1 className="text-xl font-semibold tracking-tight">{t('documents.title')}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-semibold tracking-tight">{t('documents.title')}</h1>
+                {/* OODA-39: Document count badge */}
+                {totalCount > 0 && (
+                  <Badge variant="secondary" className="text-xs font-normal">
+                    {totalCount}
+                  </Badge>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
                 {t('documents.subtitle')}
               </p>
@@ -1225,6 +1243,7 @@ export function DocumentManager() {
                         doc.status === 'failed' && "bg-red-50/50 dark:bg-red-950/20 border-l-4 border-l-red-500"
                       )}
                       onClick={() => handleDocumentClick(doc)}
+                      onDoubleClick={() => handleDocumentDoubleClick(doc)}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
@@ -1405,6 +1424,14 @@ export function DocumentManager() {
       {/* Fixed Pagination Footer */}
       {documents.length > 0 && (
         <div className="shrink-0 px-4 py-3 border-t bg-background">
+          {/* OODA-37: Show filtered vs total count when filtering */}
+          {(searchQuery || statusFilter !== 'all') && (
+            <p className="text-xs text-muted-foreground mb-2 text-center">
+              Showing {documents.length} of {totalCount} documents
+              {statusFilter !== 'all' && ` (${statusFilter})`}
+              {searchQuery && ` matching "${searchQuery}"`}
+            </p>
+          )}
           <PaginationControls
             currentPage={currentPage}
             totalPages={totalPages}
