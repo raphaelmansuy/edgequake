@@ -54,7 +54,9 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     }
 
     // Step 2: Wait for dashboard to load and check initial state
-    await page.waitForSelector('[data-testid="stats-card"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="stats-card"]', {
+      timeout: 10000,
+    });
 
     // Get initial stats
     const initialEntityCount = await page
@@ -83,25 +85,26 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
 
     // Step 4: Upload a document to ensure stats change
     await page.goto("http://localhost:3000/documents");
-    await page.waitForSelector('[data-testid="upload-button"]', { timeout: 5000 });
+    await page.waitForSelector('[data-testid="upload-button"]', {
+      timeout: 5000,
+    });
 
     // Create a test file
     const testContent = "Test document content for cache invalidation test";
-    await page.setInputFiles(
-      'input[type="file"]',
-      {
-        name: "cache-test.txt",
-        mimeType: "text/plain",
-        buffer: Buffer.from(testContent),
-      },
-    );
+    await page.setInputFiles('input[type="file"]', {
+      name: "cache-test.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from(testContent),
+    });
 
     // Wait for upload to complete
     await page.waitForTimeout(2000);
 
     // Step 5: Go back to dashboard and check stats updated
     await page.goto("http://localhost:3000");
-    await page.waitForSelector('[data-testid="stats-card"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="stats-card"]', {
+      timeout: 10000,
+    });
 
     const updatedEntityCount = await page
       .locator('[data-testid="stats-card"]:has-text("Entities")')
@@ -119,12 +122,17 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
         version: "v0.9.0", // Old version
         timestamp: Date.now() - 3600000, // 1 hour ago
       };
-      localStorage.setItem("edgequake-cache-version", JSON.stringify(cacheContext));
+      localStorage.setItem(
+        "edgequake-cache-version",
+        JSON.stringify(cacheContext),
+      );
     });
 
     // Step 7: Reload page and verify cache is cleared
     await page.reload();
-    await page.waitForSelector('[data-testid="stats-card"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="stats-card"]', {
+      timeout: 10000,
+    });
 
     // Check that cache version was updated
     const newCacheContext = await page.evaluate(() => {
@@ -167,18 +175,26 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
       await page.waitForSelector('[data-testid="workspace-name-input"]', {
         timeout: 5000,
       });
-      await page.fill('[data-testid="workspace-name-input"]', "Test Workspace 2");
+      await page.fill(
+        '[data-testid="workspace-name-input"]',
+        "Test Workspace 2",
+      );
       await page.click('[data-testid="create-workspace-button"]');
       await page.waitForURL("**/", { timeout: 5000 });
     }
 
-    await page.waitForSelector('[data-testid="stats-card"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="stats-card"]', {
+      timeout: 10000,
+    });
 
     // Step 2: Monitor network requests
     const statsRequests: string[] = [];
 
     page.on("request", (request) => {
-      if (request.url().includes("/api/v1/workspaces/") && request.url().includes("/stats")) {
+      if (
+        request.url().includes("/api/v1/workspaces/") &&
+        request.url().includes("/stats")
+      ) {
         statsRequests.push(request.url());
         console.log("Stats API called:", request.url());
       }
@@ -186,10 +202,14 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
 
     // Step 3: Reload page multiple times
     await page.reload();
-    await page.waitForSelector('[data-testid="stats-card"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="stats-card"]', {
+      timeout: 10000,
+    });
 
     await page.reload();
-    await page.waitForSelector('[data-testid="stats-card"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="stats-card"]', {
+      timeout: 10000,
+    });
 
     // Step 4: Verify stats API was called on each reload
     console.log("Total stats API calls:", statsRequests.length);

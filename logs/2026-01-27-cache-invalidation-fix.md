@@ -7,6 +7,7 @@
 ## Problem Statement
 
 The Dashboard page was showing incorrect statistics (0/0) even though:
+
 - Backend API correctly returns stats (13 entities, 9 relationships)
 - Backend logs confirm successful API calls
 - localStorage contains correct workspace ID (676b8da6)
@@ -21,21 +22,24 @@ The Dashboard page was showing incorrect statistics (0/0) even though:
 Created a comprehensive cache management system with:
 
 **Features:**
+
 - **Version-based cache invalidation** - Increment version to force cache clear on code updates
 - **Context tracking** - Track tenant/workspace IDs to detect changes
 - **Timestamp validation** - Auto-expire cache older than 1 hour
 - **Selective clearing** - Preserve auth tokens while clearing stale data
 
 **Key Functions:**
+
 ```typescript
 export function validateAndClearCache(
   queryClient: QueryClient,
   tenantId: string | null,
   workspaceId: string | null,
-): void
+): void;
 ```
 
 **Cache is cleared when:**
+
 1. Version mismatch (code update): `v0.9.0` → `v1.0.0`
 2. Tenant changed: `tenant-a` → `tenant-b`
 3. Workspace changed: `workspace-1` → `workspace-2`
@@ -46,6 +50,7 @@ export function validateAndClearCache(
 Added three key mechanisms:
 
 #### A. Cache Validation on Mount
+
 ```typescript
 useEffect(() => {
   if (!_hasHydrated) return;
@@ -59,27 +64,39 @@ useEffect(() => {
 **Purpose:** Detect and clear stale cache on page load
 
 #### B. Force Refetch on Workspace Change
+
 ```typescript
 useEffect(() => {
   if (!_hasHydrated || !selectedWorkspaceId) return;
 
-  console.info('[Dashboard] Workspace changed, forcing stats refetch:', selectedWorkspaceId);
-  
-  queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
-  queryClient.refetchQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
+  console.info(
+    "[Dashboard] Workspace changed, forcing stats refetch:",
+    selectedWorkspaceId,
+  );
+
+  queryClient.invalidateQueries({
+    queryKey: ["workspaceStats", selectedWorkspaceId],
+  });
+  queryClient.refetchQueries({
+    queryKey: ["workspaceStats", selectedWorkspaceId],
+  });
 }, [selectedWorkspaceId, _hasHydrated, queryClient]);
 ```
 
 **Purpose:** Ensure fresh data when user switches workspaces
 
 #### C. Aggressive Query Configuration
+
 ```typescript
 const { data: stats, isLoading: isLoadingStats } = useQuery({
-  queryKey: ['workspaceStats', selectedWorkspaceId],
-  queryFn: () => selectedWorkspaceId ? getWorkspaceStats(selectedWorkspaceId) : Promise.reject(),
+  queryKey: ["workspaceStats", selectedWorkspaceId],
+  queryFn: () =>
+    selectedWorkspaceId
+      ? getWorkspaceStats(selectedWorkspaceId)
+      : Promise.reject(),
   enabled: _hasHydrated && !!selectedWorkspaceId,
   staleTime: 0, // Always fetch fresh
-  refetchOnMount: 'always', // Refetch every mount
+  refetchOnMount: "always", // Refetch every mount
 });
 ```
 
@@ -88,6 +105,7 @@ const { data: stats, isLoading: isLoadingStats } = useQuery({
 ### 3. Zustand Store Enhancement (`src/stores/use-tenant-store.ts`)
 
 Already has hydration tracking via `_hasHydrated` state:
+
 - Prevents race conditions where queries run before localStorage hydrates
 - Ensures cache validation only runs after Zustand is ready
 
@@ -96,14 +114,16 @@ Already has hydration tracking via `_hasHydrated` state:
 ### Automated Verification
 
 Run the verification script:
+
 ```bash
 node verify_cache_fix.js
 ```
 
 Expected output:
+
 ```
 ✓ Cache version constant
-✓ getCacheContext function  
+✓ getCacheContext function
 ✓ isCacheStale function
 ✓ clearQueryCache function
 ✓ validateAndClearCache function
@@ -116,6 +136,7 @@ Expected output:
 ### Manual Testing
 
 Run the testing guide:
+
 ```bash
 ./test_cache_invalidation.sh
 ```
@@ -125,14 +146,19 @@ Run the testing guide:
 1. Open http://localhost:3000 in browser
 2. Open DevTools → Console
 3. Run this command to simulate stale cache:
+
 ```javascript
-localStorage.setItem('edgequake-cache-version', JSON.stringify({
-  tenantId: 'old-id',
-  workspaceId: 'old-id',
-  version: 'v0.9.0',
-  timestamp: Date.now() - 3600000
-}))
+localStorage.setItem(
+  "edgequake-cache-version",
+  JSON.stringify({
+    tenantId: "old-id",
+    workspaceId: "old-id",
+    version: "v0.9.0",
+    timestamp: Date.now() - 3600000,
+  }),
+);
 ```
+
 4. Reload page (F5)
 5. Check Console for:
    - `[CacheManager] Version mismatch: v0.9.0 → v1.0.0`
@@ -161,6 +187,7 @@ localStorage.setItem('edgequake-cache-version', JSON.stringify({
 ### E2E Testing
 
 Run Playwright test:
+
 ```bash
 cd edgequake_webui
 npx playwright test e2e/dashboard-cache-invalidation.spec.ts
@@ -171,17 +198,20 @@ npx playwright test e2e/dashboard-cache-invalidation.spec.ts
 When fix is working correctly, you should see:
 
 ### On Page Load
+
 ```
 [Dashboard] Render: { selectedTenantId: '...', selectedWorkspaceId: '...', _hasHydrated: true }
 [Dashboard] Cache validation complete { tenantId: '...', workspaceId: '...' }
 ```
 
 ### On Workspace Change
+
 ```
 [Dashboard] Workspace changed, forcing stats refetch: 676b8da6-d203-4530-89a5-8c9100c78b47
 ```
 
 ### On Stale Cache Detection
+
 ```
 [CacheManager] Version mismatch: v0.9.0 → v1.0.0
 [CacheManager] Cache is stale, clearing all caches { tenantId: '...', workspaceId: '...' }
@@ -195,11 +225,13 @@ When fix is working correctly, you should see:
 ### Expected API Calls
 
 Every page load should show:
+
 ```
 GET /api/v1/workspaces/{id}/stats → 200 OK
 ```
 
 Response should contain:
+
 ```json
 {
   "workspace_id": "676b8da6-d203-4530-89a5-8c9100c78b47",
@@ -215,6 +247,7 @@ Response should contain:
 ### Request Headers
 
 Should include:
+
 ```
 X-Tenant-ID: {tenant-id}
 X-Workspace-ID: 676b8da6-d203-4530-89a5-8c9100c78b47
@@ -226,6 +259,7 @@ X-User-ID: {user-id}
 ### Cache Version Entry
 
 Check `Application → Local Storage → edgequake-cache-version`:
+
 ```json
 {
   "tenantId": "current-tenant-id",
@@ -238,6 +272,7 @@ Check `Application → Local Storage → edgequake-cache-version`:
 ### Tenant Store Entry
 
 Check `Application → Local Storage → edgequake-tenant-store`:
+
 ```json
 {
   "state": {
@@ -278,11 +313,13 @@ Check `Application → Local Storage → edgequake-tenant-store`:
 ## Backend Verification
 
 ### Health Check
+
 ```bash
 curl http://localhost:8080/health
 ```
 
 Expected response:
+
 ```json
 {
   "status": "healthy",
@@ -300,11 +337,13 @@ Expected response:
 ```
 
 ### Workspace Stats
+
 ```bash
 curl "http://localhost:8080/api/v1/workspaces/676b8da6-d203-4530-89a5-8c9100c78b47/stats"
 ```
 
 Expected response:
+
 ```json
 {
   "workspace_id": "676b8da6-d203-4530-89a5-8c9100c78b47",
@@ -322,17 +361,20 @@ Expected response:
 ✅ **Primary Goal:** Dashboard shows correct stats (13 entities, 9 relationships)
 
 ✅ **Cache Invalidation:**
+
 - Stale cache detected and cleared automatically
 - Cache cleared on version mismatch
 - Cache cleared on tenant/workspace change
 - Cache cleared when older than 1 hour
 
 ✅ **Fresh Data Fetching:**
+
 - Stats API called on every page load
 - Stats API called when workspace changes
 - No stale 0/0 stats displayed
 
 ✅ **Developer Experience:**
+
 - Clear console logs for debugging
 - Easy to verify via DevTools
 - Comprehensive test suite

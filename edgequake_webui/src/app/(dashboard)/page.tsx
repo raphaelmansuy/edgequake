@@ -131,16 +131,62 @@ export default function DashboardPage() {
   // This ensures stats are always current, especially after document uploads
   // OODA-ITERATION-04-HYDRATION-FIX: Query now waits for Zustand hydration
   // This prevents racing condition where query runs before workspace ID is loaded from localStorage
-  const { data: stats, isLoading: isLoadingStats } = useQuery({
+  const { data: stats, isLoading: isLoadingStats, error: statsError, isError: isStatsError } = useQuery({
     queryKey: ['workspaceStats', selectedWorkspaceId],
-    queryFn: () =>
-      selectedWorkspaceId
-        ? getWorkspaceStats(selectedWorkspaceId)
-        : Promise.reject(new Error('No workspace selected')),
+    queryFn: async () => {
+      console.log('[Dashboard] ========================================');
+      console.log('[Dashboard] Fetching stats for workspace:', selectedWorkspaceId);
+      console.log('[Dashboard] Enabled:', _hasHydrated && !!selectedWorkspaceId);
+      
+      if (!selectedWorkspaceId) {
+        throw new Error('No workspace selected');
+      }
+      
+      const result = await getWorkspaceStats(selectedWorkspaceId);
+      
+      console.log('[Dashboard] RAW API Response:', JSON.stringify(result, null, 2));
+      console.log('[Dashboard] entity_count:', result.entity_count);
+      console.log('[Dashboard] relationship_count:', result.relationship_count);
+      console.log('[Dashboard] document_count:', result.document_count);
+      console.log('[Dashboard] ========================================');
+      
+      return result;
+    },
     enabled: _hasHydrated && !!selectedWorkspaceId, // Wait for hydration!
     staleTime: 0, // Always fetch fresh stats to reflect latest document processing
     refetchOnMount: 'always', // Always refetch when component mounts
   });
+
+  // Debug: Log stats state
+  useEffect(() => {
+    const debugInfo = {
+      data: stats,
+      entity_count: stats?.entity_count,
+      relationship_count: stats?.relationship_count,
+      document_count: stats?.document_count,
+      isLoading: isLoadingStats,
+      isError: isStatsError,
+      error: statsError,
+      workspaceId: selectedWorkspaceId,
+      enabled: _hasHydrated && !!selectedWorkspaceId,
+    };
+    
+    console.log('[Dashboard] Stats state changed:', debugInfo);
+    
+    // Force alert to show stats
+    if (stats && !isLoadingStats) {
+      console.log('[Dashboard] 🚨 STATS RECEIVED:');
+      console.log('[Dashboard] - document_count:', stats.document_count);
+      console.log('[Dashboard] - entity_count:', stats.entity_count);
+      console.log('[Dashboard] - relationship_count:', stats.relationship_count);
+      
+      // Write to window for easy inspection
+      if (typeof window !== 'undefined') {
+        (window as any).__EDGEQUAKE_STATS__ = stats;
+        console.log('[Dashboard] Stats saved to window.__EDGEQUAKE_STATS__');
+      }
+    }
+  }, [stats, isLoadingStats, isStatsError, statsError, selectedWorkspaceId, _hasHydrated]);
 
   // Fetch recent documents for activity feed
   const { data: documentsData, isLoading: isLoadingDocs } = useQuery({
@@ -151,6 +197,24 @@ export default function DashboardPage() {
   });
 
   const recentDocuments = documentsData?.items || [];
+
+  // DEBUG: Log values being passed to StatsCard
+  const documentValue = stats?.document_count ?? 0;
+  const entityValue = stats?.entity_count ?? 0;
+  const relationshipValue = stats?.relationship_count ?? 0;
+  const chunkValue = stats?.chunk_count ?? 0;
+
+  console.log('[Dashboard] VALUES BEING PASSED TO STATSCARDS:', {
+    stats,
+    documentValue,
+    entityValue,
+    relationshipValue,
+    chunkValue,
+    statsIsUndefined: stats === undefined,
+    statsIsNull: stats === null,
+    entity_count_property: stats?.entity_count,
+    relationship_count_property: stats?.relationship_count,
+  });
 
   return (
     <ScrollArea className="h-full">
@@ -174,7 +238,7 @@ export default function DashboardPage() {
         <section aria-label="Statistics" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard
             title={t('dashboard.stats.documents', 'Documents')}
-            value={stats?.document_count ?? 0}
+            value={documentValue}
             description={t('dashboard.stats.documentsDesc', 'Uploaded documents')}
             icon={FileText}
             variant="documents"
@@ -182,7 +246,7 @@ export default function DashboardPage() {
           />
           <StatsCard
             title={t('dashboard.stats.entities', 'Entities')}
-            value={stats?.entity_count ?? 0}
+            value={entityValue}
             description={t('dashboard.stats.entitiesDesc', 'Extracted entities')}
             icon={Users}
             variant="entities"
@@ -190,7 +254,7 @@ export default function DashboardPage() {
           />
           <StatsCard
             title={t('dashboard.stats.relationships', 'Relationships')}
-            value={stats?.relationship_count ?? 0}
+            value={relationshipValue}
             description={t('dashboard.stats.relationshipsDesc', 'Entity connections')}
             icon={GitBranch}
             variant="relationships"
@@ -198,7 +262,7 @@ export default function DashboardPage() {
           />
           <StatsCard
             title={t('dashboard.stats.chunks', 'Chunks')}
-            value={stats?.chunk_count ?? 0}
+            value={chunkValue}
             description={t('dashboard.stats.chunksDesc', 'Text segments')}
             icon={Tags}
             variant="types"
