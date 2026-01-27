@@ -49,10 +49,16 @@ import {
     Trash2,
     XCircle,
     Zap,
+    Brain,
+    Cpu,
+    Database,
+    FileWarning,
+    Wifi,
 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { categorizeError, getCategoryColor, type ErrorCategory } from '@/lib/error-categories';
 
 const statusConfig = {
   pending: { icon: Clock, color: 'text-yellow-500', bg: 'bg-yellow-500/10', label: 'Pending' },
@@ -63,6 +69,20 @@ const statusConfig = {
 } as const;
 
 type DocumentStatus = keyof typeof statusConfig;
+
+/**
+ * OODA-21: Get icon component for error category
+ */
+function getCategoryIconComponent(category: ErrorCategory) {
+  switch (category) {
+    case 'llm': return Brain;
+    case 'embedding': return Cpu;
+    case 'storage': return Database;
+    case 'pipeline': return FileWarning;
+    case 'network': return Wifi;
+    default: return AlertCircle;
+  }
+}
 
 interface DocumentPreviewPanelProps {
   /** The document to preview */
@@ -130,6 +150,15 @@ export function DocumentPreviewPanel({
     enabled: !!document?.id,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  /**
+   * OODA-21: Error categorization for better error display
+   * WHY: Categorized errors with suggestions help users understand and resolve issues
+   */
+  const errorInfo = useMemo(() => {
+    if (!document?.error_message) return null;
+    return categorizeError(document.error_message);
+  }, [document?.error_message]);
 
   const handleCopyId = useCallback(async () => {
     if (!document) return;
@@ -420,22 +449,72 @@ export function DocumentPreviewPanel({
         </Card>
       </div>
 
-      {/* Error Info */}
-      {isFailed && document.error_message && (
-        <>
-          <Separator />
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium text-destructive flex items-center gap-1.5">
-              <AlertCircle className="h-4 w-4" />
-              {t('documents.preview.error', 'Processing Error')}
-            </h4>
-            <Card className="bg-destructive/5 border-destructive/20">
-              <CardContent className="p-3">
-                <p className="text-xs text-destructive">{document.error_message}</p>
-              </CardContent>
-            </Card>
-          </div>
-        </>
+      {/* Error Info - OODA-21: Enhanced with categorization */}
+      {isFailed && errorInfo && (
+        (() => {
+          const CategoryIcon = getCategoryIconComponent(errorInfo.category);
+          const categoryColors = getCategoryColor(errorInfo.category);
+          return (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className={`text-sm font-medium flex items-center gap-1.5 ${categoryColors.text}`}>
+                    <CategoryIcon className="h-4 w-4" />
+                    {errorInfo.categoryLabel}
+                  </h4>
+                  {errorInfo.isTransient && (
+                    <Badge variant="outline" className="text-[10px] text-green-600 border-green-200">
+                      Retryable
+                    </Badge>
+                  )}
+                </div>
+                
+                <Card className={`${categoryColors.bg} ${categoryColors.border} border`}>
+                  <CardContent className="p-3 space-y-2">
+                    {/* Summary */}
+                    <p className={`text-sm font-medium ${categoryColors.text}`}>
+                      {errorInfo.summary}
+                    </p>
+                    
+                    {/* Suggestion */}
+                    <p className="text-xs text-muted-foreground">
+                      💡 {errorInfo.suggestion}
+                    </p>
+                    
+                    {/* Technical Details (collapsed) */}
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                        Technical details
+                      </summary>
+                      <code className="block mt-1 p-2 bg-muted/50 rounded text-[10px] break-all">
+                        {errorInfo.originalMessage}
+                      </code>
+                    </details>
+                  </CardContent>
+                </Card>
+                
+                {/* Retry button for transient errors */}
+                {errorInfo.isTransient && onReprocess && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => document?.track_id && onReprocess(document.track_id)}
+                    disabled={isReprocessing}
+                  >
+                    {isReprocessing ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    {t('documents.actions.retryNow', 'Retry Now')}
+                  </Button>
+                )}
+              </div>
+            </>
+          );
+        })()
       )}
 
       <Separator />

@@ -45,6 +45,12 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
     cancelTask,
     deleteAllDocuments,
     deleteDocument,
@@ -1078,14 +1084,63 @@ export function DocumentManager() {
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleDocumentClick(doc)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          {/* OODA-22: Quick action buttons */}
+                          
+                          {/* Preview button (always visible) */}
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleDocumentClick(doc)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Preview</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          
+                          {/* View in Graph button (for completed documents) */}
+                          {(doc.status === 'completed' || doc.status === 'indexed') && (
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleViewInGraph(doc)}
+                                  >
+                                    <Sparkles className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>View in Graph</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          
+                          {/* Retry button (for failed documents) */}
+                          {doc.status === 'failed' && (
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                    onClick={() => reprocessMutation.mutate(doc.id)}
+                                  >
+                                    <RefreshCw className={`h-4 w-4 ${reprocessMutation.isPending ? 'animate-spin' : ''}`} />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Retry</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8">
