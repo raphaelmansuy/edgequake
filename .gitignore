@@ -54,6 +54,9 @@ node_modules/
 .bun/
 bun.lockb
 
+# Playwright MCP artifacts
+.playwright-mcp/
+
 # Database and storage
 *.db
 *.sqlite
