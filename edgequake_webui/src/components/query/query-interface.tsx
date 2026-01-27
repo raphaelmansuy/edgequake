@@ -22,26 +22,8 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
-    SheetTrigger,
-} from '@/components/ui/sheet';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import {
     useConversation,
     useConversations,
@@ -58,21 +40,12 @@ import { useTenantStore } from '@/stores/use-tenant-store';
 import type { QueryContext, ServerMessage } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-    BookOpen,
-    Brain,
-    Gauge,
     GitBranch,
-    Info,
     Lightbulb,
     Plus,
-    Search,
     Send,
-    Settings2,
-    Sliders,
     Sparkles,
-    StopCircle,
-    Thermometer,
-    Zap
+    StopCircle
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -82,6 +55,8 @@ import { ConversationHistoryPanelV2 } from './conversation-history-panel-v2';
 import { MobileHistoryPanel } from './mobile-history-panel';
 import { ProviderModelSelector } from './provider-model-selector';
 import { QueryModeSelector } from './query-mode-selector';
+import { QuerySettingsSheet } from './query-settings-sheet';
+import { LoadingMessage, NonStreamingLoadingIndicator } from './query-loading-indicators';
 import { parseCOTContent } from './thinking-display';
 
 // Streaming state for better UX
@@ -108,126 +83,6 @@ interface Message {
   /** LLM model used (lineage tracking). @implements SPEC-032 */
   llmModel?: string;
 }
-
-// ============================================================================
-// Delightful Loading Indicator - Shows minimal, smooth placeholder while waiting
-// ============================================================================
-
-const LoadingMessage = memo(function LoadingMessage() {
-  const { t } = useTranslation();
-  
-  return (
-    <div className="flex justify-start mb-4 animate-fade-in">
-      <div className="flex items-start gap-3 max-w-[85%]">
-        <Avatar className="h-8 w-8 shrink-0 mt-1">
-          <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary">
-            <Sparkles className="h-4 w-4 text-primary-foreground" />
-          </AvatarFallback>
-        </Avatar>
-
-        <div className="min-w-0 flex-1">
-          <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3">
-            <div className="flex items-center gap-3">
-              {/* Simple status indicator - subtle dot that pulses */}
-              <div className="relative flex items-center gap-2">
-                <span className="inline-flex h-2 w-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-sm text-muted-foreground">
-                  {t('query.processing', 'Processing your query...')}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-});
-
-// ============================================================================
-// Non-Streaming Loading Indicator - Delightful multi-phase animation
-// Shows a sophisticated loading experience with visual progression
-// ============================================================================
-
-const NonStreamingLoadingIndicator = memo(function NonStreamingLoadingIndicator() {
-  const { t } = useTranslation();
-  const [phase, setPhase] = useState(0);
-  
-  const phases = [
-    { icon: Search, text: t('query.loading.searching', 'Searching knowledge graph...') },
-    { icon: Brain, text: t('query.loading.analyzing', 'Analyzing relevant context...') },
-    { icon: Sparkles, text: t('query.loading.generating', 'Generating response...') },
-  ];
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPhase((prev) => (prev + 1) % phases.length);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [phases.length]);
-
-  const CurrentIcon = phases[phase].icon;
-  const currentText = phases[phase].text;
-
-  return (
-    <div className="flex justify-start mb-4 animate-fade-in">
-      <div className="flex items-start gap-3 max-w-[85%]">
-        <Avatar className="h-9 w-9 shrink-0 mt-1 ring-2 ring-primary/20 shadow-sm">
-          <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary">
-            <Sparkles className="h-4 w-4 text-primary-foreground" />
-          </AvatarFallback>
-        </Avatar>
-
-        <div className="min-w-0 flex-1 space-y-3">
-          {/* Header */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium text-foreground">EdgeQuake</span>
-          </div>
-          
-          {/* Loading Card */}
-          <div className="bg-card border border-border/60 rounded-2xl rounded-tl-sm px-4 py-4 shadow-[0_1px_4px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_4px_rgba(0,0,0,0.1)]">
-            {/* Phase indicator with smooth transition */}
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                {/* Animated ring around icon */}
-                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-primary/30 to-primary/10 animate-pulse" />
-                <div className="relative flex items-center justify-center h-8 w-8 rounded-full bg-primary/10">
-                  <CurrentIcon className="h-4 w-4 text-primary animate-pulse" />
-                </div>
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-foreground transition-all duration-300">
-                  {currentText}
-                </div>
-                
-                {/* Progress bar - no animation to avoid visual artifacts */}
-                <div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden">
-                  <div className="h-full w-full bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full" />
-                </div>
-              </div>
-            </div>
-
-            {/* Phase dots */}
-            <div className="flex items-center justify-center gap-2 mt-3">
-              {phases.map((_, i) => (
-                <span
-                  key={i}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === phase 
-                      ? 'w-4 bg-primary' 
-                      : i < phase 
-                        ? 'w-1.5 bg-primary/40' 
-                        : 'w-1.5 bg-muted-foreground/20'
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-});
 
 // ============================================================================
 // Empty State with suggestions and graph stats
@@ -929,189 +784,16 @@ export function QueryInterface() {
             />
 
             {/* Settings */}
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Settings2 className="h-4 w-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="w-[400px] sm:w-[480px] flex flex-col p-0">
-                <SheetHeader className="px-6 py-4 border-b shrink-0">
-                  <SheetTitle className="flex items-center gap-2 text-base">
-                    <Sliders className="h-4 w-4 text-primary" />
-                    {t('query.settings.title', 'Query Settings')}
-                  </SheetTitle>
-                  <SheetDescription className="text-xs">
-                    {t('query.settings.description', 'Configure how the AI processes and responds to your queries.')}
-                  </SheetDescription>
-                </SheetHeader>
-                
-                <ScrollArea className="flex-1">
-                  <div className="px-6 py-4 space-y-5">
-                  {/* Response Mode Section */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-3.5 w-3.5 text-amber-500" />
-                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('query.settings.responseMode', 'Response Mode')}</h3>
-                    </div>
-                    
-                    <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
-                      {/* Stream Toggle */}
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label htmlFor="stream-toggle" className="text-sm font-medium cursor-pointer">
-                            {t('query.settings.streaming', 'Streaming')}
-                          </Label>
-                          <p className="text-[11px] text-muted-foreground leading-tight">
-                            {t('query.settings.streamingDescription', 'Show response as it generates')}
-                          </p>
-                        </div>
-                        <Switch
-                          id="stream-toggle"
-                          checked={querySettings.stream}
-                          onCheckedChange={(stream) => setQuerySettings({ stream })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Retrieval Section */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="h-3.5 w-3.5 text-blue-500" />
-                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('query.settings.retrieval', 'Retrieval')}</h3>
-                    </div>
-                    
-                    <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
-                      {/* Top K */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Label className="text-sm font-medium">
-                              {t('query.settings.topK', 'Top K Results')}
-                            </Label>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <Info className="h-3 w-3 text-muted-foreground" />
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-[200px]">
-                                  <p className="text-xs">{t('query.settings.topKHint', 'Number of relevant chunks to retrieve from the knowledge graph')}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <Badge variant="secondary" className="font-mono text-[10px] h-5 px-1.5">
-                            {querySettings.topK}
-                          </Badge>
-                        </div>
-                        <Slider
-                          value={[querySettings.topK]}
-                          onValueChange={([topK]) => setQuerySettings({ topK })}
-                          min={1}
-                          max={50}
-                          step={1}
-                          className="w-full"
-                        />
-                        <div className="flex justify-between text-[10px] text-muted-foreground">
-                          <span>1 (Precise)</span>
-                          <span>50 (Comprehensive)</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Generation Section */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Brain className="h-3.5 w-3.5 text-purple-500" />
-                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('query.settings.generation', 'Generation')}</h3>
-                    </div>
-                    
-                    <div className="rounded-lg border p-3 space-y-4 bg-muted/20">
-                      {/* Temperature */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Thermometer className="h-3 w-3 text-muted-foreground" />
-                            <Label className="text-sm font-medium">
-                              {t('query.settings.temperature', 'Temperature')}
-                            </Label>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <Info className="h-3 w-3 text-muted-foreground" />
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-[200px]">
-                                  <p className="text-xs">{t('query.settings.temperatureHint', 'Controls randomness. Lower = more focused, higher = more creative')}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <Badge variant="secondary" className="font-mono text-[10px] h-5 px-1.5">
-                            {querySettings.temperature.toFixed(1)}
-                          </Badge>
-                        </div>
-                        <Slider
-                          value={[querySettings.temperature]}
-                          onValueChange={([temperature]) => setQuerySettings({ temperature })}
-                          min={0}
-                          max={2}
-                          step={0.1}
-                          className="w-full"
-                        />
-                        <div className="flex justify-between text-[10px] text-muted-foreground">
-                          <span>0 (Precise)</span>
-                          <span>2 (Creative)</span>
-                        </div>
-                      </div>
-
-                      {/* Max Tokens */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Gauge className="h-3 w-3 text-muted-foreground" />
-                            <Label className="text-sm font-medium">
-                              {t('query.settings.maxTokens', 'Max Tokens')}
-                            </Label>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <Info className="h-3 w-3 text-muted-foreground" />
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-[200px]">
-                                  <p className="text-xs">{t('query.settings.maxTokensHint', 'Maximum length of the generated response')}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <Badge variant="secondary" className="font-mono text-[10px] h-5 px-1.5">
-                            {querySettings.maxTokens}
-                          </Badge>
-                        </div>
-                        <Slider
-                          value={[querySettings.maxTokens]}
-                          onValueChange={([maxTokens]) => setQuerySettings({ maxTokens })}
-                          min={256}
-                          max={4096}
-                          step={256}
-                          className="w-full"
-                        />
-                        <div className="flex justify-between text-[10px] text-muted-foreground">
-                          <span>256 (Short)</span>
-                          <span>4096 (Long)</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  </div>
-                </ScrollArea>
-              </SheetContent>
-            </Sheet>
+            <QuerySettingsSheet
+              settings={{
+                stream: querySettings.stream,
+                topK: querySettings.topK,
+                temperature: querySettings.temperature,
+                maxTokens: querySettings.maxTokens,
+              }}
+              onSettingsChange={(updates) => setQuerySettings(updates)}
+              disabled={isLoading}
+            />
           </div>
         </header>
 

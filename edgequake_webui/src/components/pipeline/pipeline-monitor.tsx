@@ -24,38 +24,38 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChunkProgress } from '@/hooks';
 import {
-    getDocuments,
-    getEnhancedPipelineStatus,
-    getQueueMetrics,
-    getTasksList,
-    requestPipelineCancellation,
+  getDocuments,
+  getEnhancedPipelineStatus,
+  getQueueMetrics,
+  getTasksList,
+  requestPipelineCancellation,
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { PipelineMessage, QueueMetrics, TaskResponse } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
-    Activity,
-    AlertCircle,
-    AlertTriangle,
-    ArrowLeft,
-    Brain,
-    Building2,
-    CheckCircle,
-    ChevronDown,
-    Clock,
-    Cpu,
-    DollarSign,
-    FileText,
-    Gauge,
-    Layers,
-    Loader2,
-    RefreshCw,
-    StopCircle,
-    Timer,
-    Users,
-    XCircle,
-    Zap
+  Activity,
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  Brain,
+  Building2,
+  CheckCircle,
+  ChevronDown,
+  Clock,
+  Cpu,
+  DollarSign,
+  FileText,
+  Gauge,
+  Layers,
+  Loader2,
+  RefreshCw,
+  StopCircle,
+  Timer,
+  Users,
+  XCircle,
+  Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { createContext, useContext, useMemo } from 'react';
@@ -148,12 +148,12 @@ function formatTaskType(taskType: string): string {
 function MessageItem({ message, documentMap }: { message: PipelineMessage; documentMap: Map<string, string> }) {
   const config = levelConfig[message.level as keyof typeof levelConfig] || levelConfig.info;
   const Icon = config.icon;
-  
+
   // Format message to replace UUIDs with document names
   const formattedMessage = useMemo(() => {
     // UUID regex pattern
     const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-    
+
     return message.message.replace(uuidPattern, (uuid) => {
       const docName = documentMap.get(uuid.toLowerCase());
       if (docName) {
@@ -164,7 +164,7 @@ function MessageItem({ message, documentMap }: { message: PipelineMessage; docum
       return `doc-${uuid.slice(0, 8)}`;
     });
   }, [message.message, documentMap]);
-  
+
   return (
     <div className={`flex items-start gap-2 py-1.5 px-2 rounded text-xs ${config.bgColor}`}>
       <Icon className={`h-3 w-3 mt-0.5 shrink-0 ${config.color}`} />
@@ -189,7 +189,7 @@ function MessageItem({ message, documentMap }: { message: PipelineMessage; docum
  */
 function ChunkProgressCard() {
   const { chunkProgress, hasActiveProgress } = useChunkProgress();
-  
+
   // Convert Map to array for rendering
   const activeProgress = useMemo(() => {
     return Array.from(chunkProgress.values())
@@ -199,32 +199,32 @@ function ChunkProgressCard() {
       })
       .sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime());
   }, [chunkProgress]);
-  
+
   // Format cost for display
   const formatCost = (cost: number) => {
     if (cost < 0.0001) return '< $0.0001';
     if (cost < 0.01) return `$${cost.toFixed(4)}`;
     return `$${cost.toFixed(3)}`;
   };
-  
+
   // Format ETA for display
   const formatEta = (seconds: number) => {
     if (seconds < 60) return `${seconds}s`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
     return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
   };
-  
+
   // Format tokens for display
   const formatTokens = (tokens: number) => {
     if (tokens < 1000) return tokens.toString();
     if (tokens < 1000000) return `${(tokens / 1000).toFixed(1)}K`;
     return `${(tokens / 1000000).toFixed(2)}M`;
   };
-  
+
   if (activeProgress.length === 0) {
     return null; // Don't show if no active chunk progress
   }
-  
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -260,7 +260,7 @@ function ChunkProgressCard() {
                     {progress.percentComplete}%
                   </Badge>
                 </div>
-                
+
                 {/* Chunk progress bar */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -275,7 +275,7 @@ function ChunkProgressCard() {
                   </div>
                   <Progress value={progress.percentComplete} className="h-2" />
                 </div>
-                
+
                 {/* Current chunk preview */}
                 {progress.chunkPreview && (
                   <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
@@ -283,7 +283,7 @@ function ChunkProgressCard() {
                     "{progress.chunkPreview.slice(0, 80)}..."
                   </div>
                 )}
-                
+
                 {/* Metrics row */}
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div className="flex items-center gap-1 text-muted-foreground">
@@ -321,21 +321,21 @@ function ChunkProgressCard() {
 function PipelineStagesCard() {
   const { selectedTenantId, selectedWorkspaceId } = usePipelineWorkspace();
   const queryClient = useQueryClient();
-  
+
   const { data: documents } = useQuery({
     queryKey: scopedQueryKey('documents', selectedTenantId, selectedWorkspaceId),
     queryFn: () => getDocuments({ page: 1, page_size: 100 }),
     refetchInterval: 3000,
     select: (data) => data.items,
   });
-  
+
   // Also fetch pipeline status for cancel functionality
   const { data: status } = useQuery({
     queryKey: scopedQueryKey('enhanced-pipeline-status', selectedTenantId, selectedWorkspaceId),
     queryFn: getEnhancedPipelineStatus,
     refetchInterval: 2000,
   });
-  
+
   const cancelMutation = useMutation({
     mutationFn: requestPipelineCancellation,
     onSuccess: () => {
@@ -346,14 +346,14 @@ function PipelineStagesCard() {
       toast.error(`Cancel failed: ${error instanceof Error ? error.message : 'Unknown'}`);
     },
   });
-  
+
   // Count documents by phase (simplified from 4 stages to 4 phases)
   const phaseCounts = useMemo(() => {
     if (!documents) return { pending: 0, processing: 0, completed: 0, failed: 0 };
-    
+
     return documents.reduce<Record<string, number>>((acc, doc) => {
       const status = normalizeStatus(doc.status);
-      
+
       // Map all processing-related statuses to 'processing'
       // isProcessingStatus already includes: processing, chunking, extracting, embedding, indexing
       if (isProcessingStatus(status)) {
@@ -368,10 +368,10 @@ function PipelineStagesCard() {
       return acc;
     }, { pending: 0, processing: 0, completed: 0, failed: 0 });
   }, [documents]);
-  
+
   const totalDocs = documents?.length || 0;
   const isActive = phaseCounts.processing > 0 || phaseCounts.pending > 0;
-  
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -421,17 +421,15 @@ function PipelineStagesCard() {
             const count = phaseCounts[phase.key] || 0;
             const Icon = phase.icon;
             const isActivePhase = count > 0;
-            
+
             return (
               <div
                 key={phase.key}
-                className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
-                  isActivePhase ? phase.bgColor : 'bg-muted/50 border-muted'
-                }`}
+                className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${isActivePhase ? phase.bgColor : 'bg-muted/50 border-muted'
+                  }`}
               >
-                <Icon className={`h-6 w-6 ${isActivePhase ? phase.color : 'text-muted-foreground'} ${
-                  phase.key === 'processing' && isActivePhase ? 'animate-pulse' : ''
-                }`} />
+                <Icon className={`h-6 w-6 ${isActivePhase ? phase.color : 'text-muted-foreground'} ${phase.key === 'processing' && isActivePhase ? 'animate-pulse' : ''
+                  }`} />
                 <span className={`text-sm font-medium mt-2 ${isActivePhase ? phase.color : 'text-muted-foreground'}`}>
                   {phase.label}
                 </span>
@@ -442,7 +440,7 @@ function PipelineStagesCard() {
             );
           })}
         </div>
-        
+
         {/* Progress bar showing overall completion */}
         {totalDocs > 0 && (
           <div className="mt-4">
@@ -450,8 +448,8 @@ function PipelineStagesCard() {
               <span>Pipeline Progress</span>
               <span>{phaseCounts.completed} / {totalDocs} completed</span>
             </div>
-            <Progress 
-              value={totalDocs > 0 ? (phaseCounts.completed / totalDocs) * 100 : 0} 
+            <Progress
+              value={totalDocs > 0 ? (phaseCounts.completed / totalDocs) * 100 : 0}
               className="h-2"
             />
           </div>
@@ -471,20 +469,20 @@ function PipelineStagesCard() {
  */
 function ActivityLogCard() {
   const { selectedTenantId, selectedWorkspaceId } = usePipelineWorkspace();
-  
+
   const { data: status } = useQuery({
     queryKey: scopedQueryKey('enhanced-pipeline-status', selectedTenantId, selectedWorkspaceId),
     queryFn: getEnhancedPipelineStatus,
     refetchInterval: 2000,
   });
-  
+
   // Fetch documents to build ID → Name lookup
   const { data: documentsData } = useQuery({
     queryKey: scopedQueryKey('documents', selectedTenantId, selectedWorkspaceId),
     queryFn: () => getDocuments({ page: 1, page_size: 100 }),
     refetchInterval: 5000,
   });
-  
+
   // Build document ID → name map
   const documentMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -496,9 +494,9 @@ function ActivityLogCard() {
     }
     return map;
   }, [documentsData?.items]);
-  
+
   const messages = status?.history_messages || [];
-  
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -541,7 +539,7 @@ function ActivityLogCard() {
  */
 function QueueMetricsCard() {
   const { selectedTenantId, selectedWorkspaceId } = usePipelineWorkspace();
-  
+
   const { data: metrics, isLoading } = useQuery<QueueMetrics>({
     queryKey: scopedQueryKey('queue-metrics', selectedTenantId, selectedWorkspaceId),
     queryFn: getQueueMetrics,
@@ -667,14 +665,14 @@ function QueueMetricsCard() {
  */
 function ProcessingDocumentsCard() {
   const { selectedTenantId, selectedWorkspaceId } = usePipelineWorkspace();
-  
+
   const { data: documents, isLoading } = useQuery({
     queryKey: scopedQueryKey('documents', selectedTenantId, selectedWorkspaceId),
     queryFn: () => getDocuments({ page: 1, page_size: 50 }),
     refetchInterval: 2000,
     select: (data) => data.items.filter((d) => isProcessingStatus(normalizeStatus(d.status))),
   });
-  
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -739,7 +737,7 @@ function ProcessingDocumentsCard() {
  */
 function TaskQueueCard() {
   const { selectedTenantId, selectedWorkspaceId } = usePipelineWorkspace();
-  
+
   const { data: tasks, isLoading } = useQuery({
     queryKey: scopedQueryKey('tasks', selectedTenantId, selectedWorkspaceId),
     queryFn: () => getTasksList({ page_size: 50 }),
@@ -890,40 +888,40 @@ export function PipelineMonitor() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { selectedTenantId, selectedWorkspaceId, workspaces } = useTenantStore();
-  
+
   // Get workspace name for display
   const currentWorkspace = workspaces.find(w => w.id === selectedWorkspaceId);
   const workspaceName = currentWorkspace?.name || 'All Workspaces';
-  
+
   // Create context value for child components
   const workspaceContext: PipelineWorkspaceContext = {
     selectedTenantId,
     selectedWorkspaceId,
     workspaceName,
   };
-  
+
   // Handler for refresh button using scoped queries
   const handleRefresh = () => {
-    queryClient.invalidateQueries({ 
-      queryKey: scopedQueryKey('enhanced-pipeline-status', selectedTenantId, selectedWorkspaceId) 
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey('enhanced-pipeline-status', selectedTenantId, selectedWorkspaceId)
     });
-    queryClient.invalidateQueries({ 
-      queryKey: scopedQueryKey('documents', selectedTenantId, selectedWorkspaceId) 
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey('documents', selectedTenantId, selectedWorkspaceId)
     });
-    queryClient.invalidateQueries({ 
-      queryKey: scopedQueryKey('tasks', selectedTenantId, selectedWorkspaceId) 
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey('tasks', selectedTenantId, selectedWorkspaceId)
     });
-    queryClient.invalidateQueries({ 
-      queryKey: scopedQueryKey('queue-metrics', selectedTenantId, selectedWorkspaceId) 
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey('queue-metrics', selectedTenantId, selectedWorkspaceId)
     });
     toast.success('Refreshed');
   };
-  
+
   return (
     <PipelineWorkspaceContext.Provider value={workspaceContext}>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-[calc(100vh-theme(spacing.20))]">
         {/* Fixed Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+        <div className="flex-shrink-0 sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
           <div className="container mx-auto px-6 py-4 max-w-7xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -957,34 +955,34 @@ export function PipelineMonitor() {
             </div>
           </div>
         </div>
-        
+
         {/* Scrollable Content */}
-        <ScrollArea className="flex-1">
-          <div className="container mx-auto p-4 sm:p-6 max-w-7xl">
+        <div className="flex-1 overflow-y-auto">
+          <div className="container mx-auto p-4 sm:p-6 max-w-7xl pb-8">
             {/* Pipeline Stages Overview - CRITICAL INFO AT TOP */}
             <PipelineStagesCard />
-            
+
             {/* Chunk-Level Progress (Real-time) - ACTIVE PROCESSING */}
             <div className="mt-4 sm:mt-6">
               <ChunkProgressCard />
             </div>
-            
+
             {/* Processing Documents - ACTIVE WORK */}
             <div className="mt-4 sm:mt-6">
               <ProcessingDocumentsCard />
             </div>
-            
+
             {/* Secondary Info Grid - RESPONSIVE LAYOUT */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mt-4 sm:mt-6">
               {/* Queue Metrics - Operational */}
               <QueueMetricsCard />
-              
+
               {/* Activity Log - History */}
               <ActivityLogCard />
             </div>
-            
+
             {/* Collapsible Advanced Details - SPEC-001/Issue-12 */}
-            <details className="mt-4 sm:mt-6 group">
+            <details className="mt-4 sm:mt-6 mb-4 group">
               <summary className="cursor-pointer list-none flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
                 <span>Advanced Details</span>
@@ -994,7 +992,7 @@ export function PipelineMonitor() {
               </div>
             </details>
           </div>
-        </ScrollArea>
+        </div>
       </div>
     </PipelineWorkspaceContext.Provider>
   );
