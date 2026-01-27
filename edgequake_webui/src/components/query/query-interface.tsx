@@ -19,8 +19,6 @@
  */
 'use client';
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,6 +38,7 @@ import { useTenantStore } from '@/stores/use-tenant-store';
 import type { QueryContext, ServerMessage } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+    BookOpen,
     GitBranch,
     Lightbulb,
     Plus,
@@ -55,9 +54,9 @@ import { ChatMessage } from './chat-message';
 import { ConversationHistoryPanelV2 } from './conversation-history-panel-v2';
 import { MobileHistoryPanel } from './mobile-history-panel';
 import { ProviderModelSelector } from './provider-model-selector';
+import { LoadingMessage, NonStreamingLoadingIndicator } from './query-loading-indicators';
 import { QueryModeSelector } from './query-mode-selector';
 import { QuerySettingsSheet } from './query-settings-sheet';
-import { LoadingMessage, NonStreamingLoadingIndicator } from './query-loading-indicators';
 import { parseCOTContent } from './thinking-display';
 
 // Streaming state for better UX
