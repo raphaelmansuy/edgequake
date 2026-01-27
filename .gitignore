@@ -95,6 +95,9 @@ config.ini
 
 open-webui/
 
+# Exploration and scratch work
+zz-explore/
+
 # OS files
 Thumbs.db
 ehthumbs.db
