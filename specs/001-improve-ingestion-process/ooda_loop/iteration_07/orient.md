@@ -3,13 +3,16 @@
 ## Gap Analysis
 
 ### Critical Issue Found
+
 The database constraint `valid_document_status` only allows:
+
 - `pending`
 - `processing`
 - `indexed`
 - `failed`
 
 But processor.rs now sets:
+
 - `chunking`
 - `extracting`
 - `embedding`
@@ -27,6 +30,7 @@ But processor.rs now sets:
 ### Recommended Approach
 
 **Option 1: Update constraint** with all valid status values:
+
 - `pending` - Document uploaded, waiting for processing
 - `processing` - Generic processing (fallback)
 - `chunking` - Text being split into chunks

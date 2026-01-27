@@ -5,9 +5,10 @@
 **Finding**: CostCell already has a comprehensive tooltip implemented!
 
 The tooltip includes:
+
 - Cost breakdown header
 - Document title
-- Input/output/total tokens  
+- Input/output/total tokens
 - LLM and embedding model info
 - Color-coded display
 

@@ -5,6 +5,7 @@
 **Finding**: Upload progress display already implemented comprehensively!
 
 Features already exist:
+
 - File size display (KB)
 - Phase display (Reading, Uploading, Extracting)
 - Progress bar with percentage via Progress component

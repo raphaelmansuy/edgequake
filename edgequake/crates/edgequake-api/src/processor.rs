@@ -27,7 +27,7 @@ use std::sync::Arc;
 
 use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
-use edgequake_pipeline::{LLMExtractor, Pipeline};
+use edgequake_pipeline::{ChunkProgressCallback, ChunkProgressUpdate, LLMExtractor, Pipeline};
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{PipelineState, Task, TaskProcessor, TaskResult, TaskType, TextInsertData};
 use serde_json::json;
@@ -603,8 +603,34 @@ impl DocumentTaskProcessor {
         self.update_document_status(&document_id, "chunking", None)
             .await?;
 
-        // Process through pipeline (using workspace-specific or default)
-        let result = match pipeline.process(&document_id, &data.text).await {
+        // SPEC-001/Objective-A: Create chunk progress callback for real-time updates
+        // WHY: Users need to see granular progress like "Chunk 12/35 (34%) - ETA: 53s"
+        let task_id = task.track_id.clone();
+        let doc_id_for_callback = document_id.clone();
+        let pipeline_state_for_callback = self.pipeline_state.clone();
+        let chunk_progress_callback: ChunkProgressCallback =
+            Arc::new(move |update: ChunkProgressUpdate| {
+                // Emit real-time WebSocket event for chunk progress
+                pipeline_state_for_callback.emit_chunk_progress(
+                    doc_id_for_callback.clone(),
+                    task_id.clone(),
+                    update.chunk_index as u32,
+                    update.total_chunks as u32,
+                    update.chunk_preview.clone(),
+                    update.processing_time_ms,
+                    update.eta_seconds,
+                    update.cumulative_input_tokens,
+                    update.cumulative_output_tokens,
+                    update.cumulative_cost_usd,
+                );
+            });
+
+        // Process through pipeline with chunk-level progress callback
+        // WHY: This enables real-time visibility into extraction progress per chunk
+        let result = match pipeline
+            .process_with_progress(&document_id, &data.text, Some(chunk_progress_callback))
+            .await
+        {
             Ok(result) => result,
             Err(e) => {
                 let error_msg = format!("Pipeline processing failed: {}", e);

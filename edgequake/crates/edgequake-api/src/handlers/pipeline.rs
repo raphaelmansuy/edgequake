@@ -26,6 +26,7 @@ use crate::state::AppState;
 // Re-export DTOs from pipeline_types for backwards compatibility
 pub use crate::handlers::pipeline_types::{
     CancelPipelineResponse, EnhancedPipelineStatusResponse, PipelineMessageResponse,
+    QueueMetricsResponse,
 };
 
 /// Get enhanced pipeline status with history messages.
@@ -104,5 +105,51 @@ pub async fn cancel_pipeline(
         message:
             "Pipeline cancellation has been requested. Processing will stop after current document."
                 .to_string(),
+    }))
+}
+
+/// Get queue metrics for task queue visibility.
+///
+/// ## Implements
+///
+/// - **FEAT0570**: Queue metrics API endpoint
+/// - **OODA-20**: Iteration 20 - Queue metrics REST API
+///
+/// ## WHY: Objective B Requirement
+///
+/// The Pipeline Monitor UI needs real-time visibility into the task queue:
+/// - Queue depth (pending_count)
+/// - Worker utilization
+/// - Throughput rate
+/// - Wait time estimates
+#[utoipa::path(
+    get,
+    path = "/api/v1/pipeline/queue-metrics",
+    tag = "Pipeline",
+    responses(
+        (status = 200, description = "Queue metrics retrieved", body = QueueMetricsResponse)
+    )
+)]
+pub async fn get_queue_metrics(
+    State(state): State<AppState>,
+) -> ApiResult<Json<QueueMetricsResponse>> {
+    let metrics = state
+        .task_storage
+        .get_queue_metrics()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get queue metrics: {}", e)))?;
+
+    Ok(Json(QueueMetricsResponse {
+        pending_count: metrics.pending_count,
+        processing_count: metrics.processing_count,
+        active_workers: metrics.active_workers,
+        max_workers: metrics.max_workers,
+        worker_utilization: metrics.worker_utilization,
+        avg_wait_time_seconds: metrics.avg_wait_time_seconds,
+        max_wait_time_seconds: metrics.max_wait_time_seconds,
+        throughput_per_minute: metrics.throughput_per_minute,
+        estimated_queue_time_seconds: metrics.estimated_queue_time_seconds,
+        rate_limited: metrics.rate_limited,
+        timestamp: metrics.timestamp.to_rfc3339(),
     }))
 }

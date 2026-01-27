@@ -15,12 +15,12 @@
  */
 
 export type ErrorCategory =
-  | 'llm'
-  | 'embedding'
-  | 'storage'
-  | 'pipeline'
-  | 'network'
-  | 'unknown';
+  | "llm"
+  | "embedding"
+  | "storage"
+  | "pipeline"
+  | "network"
+  | "unknown";
 
 export interface CategorizedError {
   /** The error category */
@@ -47,7 +47,7 @@ interface ErrorPattern {
 const ERROR_PATTERNS: ErrorPattern[] = [
   // LLM Rate Limit Errors
   {
-    category: 'llm',
+    category: "llm",
     patterns: [
       /rate.?limit/i,
       /too.?many.?requests/i,
@@ -57,11 +57,11 @@ const ERROR_PATTERNS: ErrorPattern[] = [
       /RPM.*limit/i,
     ],
     isTransient: true,
-    suggestion: 'Wait a few minutes and try again, or reduce batch size.',
+    suggestion: "Wait a few minutes and try again, or reduce batch size.",
   },
   // LLM API Errors
   {
-    category: 'llm',
+    category: "llm",
     patterns: [
       /api.?key/i,
       /authentication/i,
@@ -72,11 +72,11 @@ const ERROR_PATTERNS: ErrorPattern[] = [
       /llm.*error/i,
     ],
     isTransient: false,
-    suggestion: 'Check your API key configuration and LLM provider status.',
+    suggestion: "Check your API key configuration and LLM provider status.",
   },
   // LLM Context Length Errors
   {
-    category: 'llm',
+    category: "llm",
     patterns: [
       /context.*length/i,
       /too.*long/i,
@@ -86,11 +86,11 @@ const ERROR_PATTERNS: ErrorPattern[] = [
     ],
     isTransient: false,
     suggestion:
-      'The document may be too large. Try splitting it into smaller parts.',
+      "The document may be too large. Try splitting it into smaller parts.",
   },
   // Embedding Errors
   {
-    category: 'embedding',
+    category: "embedding",
     patterns: [
       /embedding/i,
       /dimension.*mismatch/i,
@@ -101,11 +101,11 @@ const ERROR_PATTERNS: ErrorPattern[] = [
     ],
     isTransient: false,
     suggestion:
-      'Check embedding model configuration. Dimensions must match storage.',
+      "Check embedding model configuration. Dimensions must match storage.",
   },
   // Storage/Database Errors
   {
-    category: 'storage',
+    category: "storage",
     patterns: [
       /database/i,
       /postgres/i,
@@ -117,11 +117,11 @@ const ERROR_PATTERNS: ErrorPattern[] = [
       /transaction/i,
     ],
     isTransient: true,
-    suggestion: 'Database may be temporarily unavailable. Try again shortly.',
+    suggestion: "Database may be temporarily unavailable. Try again shortly.",
   },
   // Pipeline/Parsing Errors
   {
-    category: 'pipeline',
+    category: "pipeline",
     patterns: [
       /parse.*error/i,
       /invalid.*format/i,
@@ -137,11 +137,11 @@ const ERROR_PATTERNS: ErrorPattern[] = [
     ],
     isTransient: false,
     suggestion:
-      'The document format may not be supported. Check the file and try again.',
+      "The document format may not be supported. Check the file and try again.",
   },
   // Network Errors
   {
-    category: 'network',
+    category: "network",
     patterns: [
       /timeout/i,
       /timed.?out/i,
@@ -153,17 +153,17 @@ const ERROR_PATTERNS: ErrorPattern[] = [
       /unreachable/i,
     ],
     isTransient: true,
-    suggestion: 'Network connection issue. Check connectivity and try again.',
+    suggestion: "Network connection issue. Check connectivity and try again.",
   },
 ];
 
 const CATEGORY_LABELS: Record<ErrorCategory, string> = {
-  llm: 'LLM Provider',
-  embedding: 'Embedding',
-  storage: 'Database',
-  pipeline: 'Processing',
-  network: 'Network',
-  unknown: 'Unknown',
+  llm: "LLM Provider",
+  embedding: "Embedding",
+  storage: "Database",
+  pipeline: "Processing",
+  network: "Network",
+  unknown: "Unknown",
 };
 
 /**
@@ -197,11 +197,11 @@ export function categorizeError(message: string): CategorizedError {
 
   // Default to unknown
   return {
-    category: 'unknown',
+    category: "unknown",
     categoryLabel: CATEGORY_LABELS.unknown,
     summary: extractSummary(message),
     isTransient: false,
-    suggestion: 'Check the error details and try again.',
+    suggestion: "Check the error details and try again.",
     originalMessage: message,
   };
 }
@@ -212,17 +212,17 @@ export function categorizeError(message: string): CategorizedError {
  */
 function extractSummary(message: string): string {
   // Take first line or first 100 chars
-  const firstLine = message.split('\n')[0];
+  const firstLine = message.split("\n")[0];
   const cleaned = firstLine
-    .replace(/^(Error|Exception|Panic):\s*/i, '')
-    .replace(/at\s+\S+:\d+:\d+/g, '')
+    .replace(/^(Error|Exception|Panic):\s*/i, "")
+    .replace(/at\s+\S+:\d+:\d+/g, "")
     .trim();
 
   if (cleaned.length > 100) {
-    return cleaned.slice(0, 97) + '...';
+    return cleaned.slice(0, 97) + "...";
   }
 
-  return cleaned || 'An error occurred';
+  return cleaned || "An error occurred";
 }
 
 /**
@@ -230,65 +230,67 @@ function extractSummary(message: string): string {
  */
 export function getCategoryIcon(category: ErrorCategory): string {
   switch (category) {
-    case 'llm':
-      return 'Brain';
-    case 'embedding':
-      return 'Cpu';
-    case 'storage':
-      return 'Database';
-    case 'pipeline':
-      return 'FileWarning';
-    case 'network':
-      return 'Wifi';
-    case 'unknown':
+    case "llm":
+      return "Brain";
+    case "embedding":
+      return "Cpu";
+    case "storage":
+      return "Database";
+    case "pipeline":
+      return "FileWarning";
+    case "network":
+      return "Wifi";
+    case "unknown":
     default:
-      return 'AlertCircle';
+      return "AlertCircle";
   }
 }
 
 /**
  * Get color class for error category
  */
-export function getCategoryColor(
-  category: ErrorCategory
-): { bg: string; text: string; border: string } {
+export function getCategoryColor(category: ErrorCategory): {
+  bg: string;
+  text: string;
+  border: string;
+} {
   switch (category) {
-    case 'llm':
+    case "llm":
       return {
-        bg: 'bg-purple-50 dark:bg-purple-950/50',
-        text: 'text-purple-700 dark:text-purple-400',
-        border: 'border-purple-200 dark:border-purple-800',
+        bg: "bg-purple-50 dark:bg-purple-950/50",
+        text: "text-purple-700 dark:text-purple-400",
+        border: "border-purple-200 dark:border-purple-800",
       };
-    case 'embedding':
+    case "embedding":
       return {
-        bg: 'bg-blue-50 dark:bg-blue-950/50',
-        text: 'text-blue-700 dark:text-blue-400',
-        border: 'border-blue-200 dark:border-blue-800',
+        bg: "bg-blue-50 dark:bg-blue-950/50",
+        text: "text-blue-700 dark:text-blue-400",
+        border: "border-blue-200 dark:border-blue-800",
       };
-    case 'storage':
+    case "storage":
       return {
-        bg: 'bg-orange-50 dark:bg-orange-950/50',
-        text: 'text-orange-700 dark:text-orange-400',
-        border: 'border-orange-200 dark:border-orange-800',
+        bg: "bg-orange-50 dark:bg-orange-950/50",
+        text: "text-orange-700 dark:text-orange-400",
+        border: "border-orange-200 dark:border-orange-800",
       };
-    case 'pipeline':
+    case "pipeline":
       return {
-        bg: 'bg-yellow-50 dark:bg-yellow-950/50',
-        text: 'text-yellow-700 dark:text-yellow-400',
-        border: 'border-yellow-200 dark:border-yellow-800',
+        bg: "bg-yellow-50 dark:bg-yellow-950/50",
+        text: "text-yellow-700 dark:text-yellow-400",
+        border: "border-yellow-200 dark:border-yellow-800",
       };
-    case 'network':
+    case "network":
       return {
-        bg: 'bg-cyan-50 dark:bg-cyan-950/50',
-        text: 'text-cyan-700 dark:text-cyan-400',
-        border: 'border-cyan-200 dark:border-cyan-800',
+        bg: "bg-cyan-50 dark:bg-cyan-950/50",
+        text: "text-cyan-700 dark:text-cyan-400",
+        border: "border-cyan-200 dark:border-cyan-800",
       };
-    case 'unknown':
+    case "unknown":
     default:
       return {
-        bg: 'bg-red-50 dark:bg-red-950/50',
-        text: 'text-red-700 dark:text-red-400',
-        border: 'border-red-200 dark:border-red-800',
+        bg: "bg-red-50 dark:bg-red-950/50",
+        text: "text-red-700 dark:text-red-400",
+        border: "border-red-200 dark:border-red-800",
       };
   }
 }

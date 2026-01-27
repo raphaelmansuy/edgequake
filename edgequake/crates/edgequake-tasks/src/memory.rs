@@ -145,6 +145,96 @@ impl TaskStorage for MemoryTaskStorage {
 
         Ok(stats)
     }
+
+    async fn get_queue_metrics(&self) -> TaskResult<QueueMetrics> {
+        use crate::types::TaskStatus;
+        use chrono::Utc;
+
+        let tasks = self.tasks.read().unwrap();
+        let now = Utc::now();
+
+        let mut pending_count = 0u64;
+        let mut processing_count = 0u64;
+        let mut wait_times: Vec<f64> = Vec::new();
+        let mut max_wait_time: f64 = 0.0;
+        let mut recent_completed = 0u64;
+
+        // 5-minute window for throughput calculation
+        let five_minutes_ago = now - chrono::Duration::minutes(5);
+
+        for task in tasks.values() {
+            match task.status {
+                TaskStatus::Pending => {
+                    pending_count += 1;
+                    // Calculate wait time for pending tasks
+                    let wait = (now - task.created_at).num_seconds() as f64;
+                    if wait > max_wait_time {
+                        max_wait_time = wait;
+                    }
+                }
+                TaskStatus::Processing => {
+                    processing_count += 1;
+                    // Calculate wait time (time before processing started)
+                    if let Some(started) = task.started_at {
+                        let wait = (started - task.created_at).num_seconds() as f64;
+                        wait_times.push(wait);
+                    }
+                }
+                TaskStatus::Indexed => {
+                    // Count recently completed for throughput
+                    if let Some(completed) = task.completed_at {
+                        if completed > five_minutes_ago {
+                            recent_completed += 1;
+                        }
+                        // Include in wait time average
+                        if let Some(started) = task.started_at {
+                            let wait = (started - task.created_at).num_seconds() as f64;
+                            wait_times.push(wait);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Calculate averages
+        let avg_wait_time_seconds = if wait_times.is_empty() {
+            0.0
+        } else {
+            wait_times.iter().sum::<f64>() / wait_times.len() as f64
+        };
+
+        // Throughput: documents per minute over last 5 minutes
+        let throughput_per_minute = recent_completed as f64 / 5.0;
+
+        // Estimate queue time based on throughput
+        let estimated_queue_time_seconds = if throughput_per_minute > 0.0 {
+            (pending_count as f64 / throughput_per_minute) * 60.0
+        } else if avg_wait_time_seconds > 0.0 {
+            pending_count as f64 * avg_wait_time_seconds
+        } else {
+            0.0
+        };
+
+        // Worker utilization (assuming 4 max workers)
+        let max_workers = 4u32;
+        let active_workers = processing_count.min(max_workers as u64) as u32;
+        let worker_utilization = ((active_workers as f64 / max_workers as f64) * 100.0) as u8;
+
+        Ok(QueueMetrics {
+            pending_count,
+            processing_count,
+            active_workers,
+            max_workers,
+            worker_utilization,
+            avg_wait_time_seconds,
+            max_wait_time_seconds: max_wait_time,
+            throughput_per_minute,
+            estimated_queue_time_seconds,
+            rate_limited: false, // TODO: Track rate limiting separately
+            timestamp: now,
+        })
+    }
 }
 
 #[cfg(test)]

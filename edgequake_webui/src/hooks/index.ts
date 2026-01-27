@@ -5,6 +5,10 @@
  */
 
 export {
+  useChunkProgress,
+  type ChunkProgressState,
+} from "./use-chunk-progress";
+export {
   costKeys,
   useBudgetStatus,
   useCostHistory,

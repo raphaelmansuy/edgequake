@@ -53,12 +53,14 @@ test.describe("Error Message Popover", () => {
       await expect(popover).toBeVisible();
 
       // Error summary is now visible at top (OODA-09)
-      const errorSummary = page.locator('[data-testid="error-message-summary"]');
+      const errorSummary = page.locator(
+        '[data-testid="error-message-summary"]',
+      );
       await expect(errorSummary).toBeVisible();
 
       // Technical details are in a collapsible <details> element
       // Expand it to verify content
-      const detailsSummary = popover.locator('summary');
+      const detailsSummary = popover.locator("summary");
       await detailsSummary.click();
       await page.waitForTimeout(200);
 
@@ -89,8 +91,11 @@ test.describe("Error Message Popover", () => {
       await page.waitForTimeout(500);
 
       // Check for success toast
-      const toast = page.locator('[data-sonner-toast]');
-      const hasToast = await toast.first().isVisible().catch(() => false);
+      const toast = page.locator("[data-sonner-toast]");
+      const hasToast = await toast
+        .first()
+        .isVisible()
+        .catch(() => false);
 
       if (hasToast) {
         console.log("✓ Copy toast appeared");
@@ -134,7 +139,7 @@ test.describe("Reprocess Failed Button", () => {
     page,
   }) => {
     const reprocessButton = page.locator(
-      '[data-testid="reprocess-failed-button"]'
+      '[data-testid="reprocess-failed-button"]',
     );
     const count = await reprocessButton.count();
 
@@ -152,7 +157,7 @@ test.describe("Reprocess Failed Button", () => {
 
   test("reprocess button opens confirmation dialog", async ({ page }) => {
     const reprocessButton = page.locator(
-      '[data-testid="reprocess-failed-button"]'
+      '[data-testid="reprocess-failed-button"]',
     );
     const count = await reprocessButton.count();
 
@@ -165,8 +170,12 @@ test.describe("Reprocess Failed Button", () => {
       await expect(dialog).toBeVisible();
 
       // Verify dialog has confirm and cancel
-      const cancelButton = page.locator('[data-testid="reprocess-failed-cancel"]');
-      const confirmButton = page.locator('[data-testid="reprocess-failed-confirm"]');
+      const cancelButton = page.locator(
+        '[data-testid="reprocess-failed-cancel"]',
+      );
+      const confirmButton = page.locator(
+        '[data-testid="reprocess-failed-confirm"]',
+      );
 
       await expect(cancelButton).toBeVisible();
       await expect(confirmButton).toBeVisible();
@@ -179,7 +188,7 @@ test.describe("Reprocess Failed Button", () => {
 
   test("cancel closes confirmation dialog", async ({ page }) => {
     const reprocessButton = page.locator(
-      '[data-testid="reprocess-failed-button"]'
+      '[data-testid="reprocess-failed-button"]',
     );
     const count = await reprocessButton.count();
 
@@ -192,7 +201,9 @@ test.describe("Reprocess Failed Button", () => {
       await expect(dialog).toBeVisible();
 
       // Cancel
-      const cancelButton = page.locator('[data-testid="reprocess-failed-cancel"]');
+      const cancelButton = page.locator(
+        '[data-testid="reprocess-failed-cancel"]',
+      );
       await cancelButton.click();
 
       // Dialog should close
@@ -229,7 +240,10 @@ test.describe("Document Status Display", () => {
 
     for (const status of statusTypes) {
       const statusBadge = page.locator(`text="${status}"`);
-      const hasStatus = await statusBadge.first().isVisible().catch(() => false);
+      const hasStatus = await statusBadge
+        .first()
+        .isVisible()
+        .catch(() => false);
       if (hasStatus) {
         console.log(`✓ Found "${status}" badge`);
       }
@@ -269,7 +283,10 @@ test.describe("Document Status Display", () => {
 
       // Look for spinner animation nearby
       const spinner = page.locator(".animate-spin");
-      const hasSpinner = await spinner.first().isVisible().catch(() => false);
+      const hasSpinner = await spinner
+        .first()
+        .isVisible()
+        .catch(() => false);
 
       if (hasSpinner) {
         console.log("✓ Processing animation visible");
@@ -295,7 +312,10 @@ test.describe("Bulk Operations", () => {
     if (hasTable) {
       // Look for header checkbox (select all)
       const headerCheckbox = page.locator('thead input[type="checkbox"]');
-      const hasHeader = await headerCheckbox.first().isVisible().catch(() => false);
+      const hasHeader = await headerCheckbox
+        .first()
+        .isVisible()
+        .catch(() => false);
 
       if (hasHeader) {
         console.log("✓ Select all checkbox found");
@@ -320,7 +340,10 @@ test.describe("Bulk Operations", () => {
 
       // Look for bulk action bar
       const bulkBar = page.locator('text*="selected"');
-      const hasBulk = await bulkBar.first().isVisible().catch(() => false);
+      const hasBulk = await bulkBar
+        .first()
+        .isVisible()
+        .catch(() => false);
 
       if (hasBulk) {
         console.log("✓ Bulk action bar appeared");

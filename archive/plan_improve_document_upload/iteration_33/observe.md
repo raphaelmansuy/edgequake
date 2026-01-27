@@ -5,6 +5,7 @@
 **Focus**: Show document file size in table or preview
 
 **Current State**:
+
 - Document size is stored in the Document type but not displayed
 - Users cannot assess document sizes at a glance
 - Helpful for estimating processing time/cost

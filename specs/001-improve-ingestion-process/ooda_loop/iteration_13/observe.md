@@ -1,9 +1,11 @@
 # Observe - Iteration 13: Rebuild Embeddings Flow Verification
 
 ## User Objective
+
 "Ensure Rebuild embedding works - think about all the edge cases"
 
 ## Edge Cases to Consider
+
 1. **Empty workspace** - No documents to rebuild
 2. **Large workspace** - Many documents, memory/time concerns
 3. **Mixed status** - Some completed, some failed, some processing
@@ -15,10 +17,12 @@
 9. **Already rebuilding** - Prevent duplicate rebuild requests
 
 ## Files to Examine
+
 - Backend: `edgequake-api/src/handlers/workspaces.rs` - rebuild_embeddings
 - Frontend: `rebuild-embeddings-button.tsx`
 
 ## Expected Behavior
+
 1. Clear existing vectors for workspace
 2. Re-generate embeddings for all document chunks
 3. Handle errors gracefully with clear feedback
@@ -26,4 +30,5 @@
 5. Allow cancellation if possible
 
 ## Next Step
+
 Review backend rebuild_embeddings implementation for edge case handling

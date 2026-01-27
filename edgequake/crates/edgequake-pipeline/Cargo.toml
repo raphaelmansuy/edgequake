@@ -22,6 +22,8 @@ tracing.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 futures = "0.3"
 regex = "1.10"
+# Unicode normalization for text sanitization (SPEC-001/Issue-9)
+unicode-normalization = "0.1"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

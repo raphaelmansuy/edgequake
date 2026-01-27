@@ -2,6 +2,8 @@
 
 use crate::{error::TaskResult, types::Task, types::TaskStatus, types::TaskType};
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Trait for task storage backends
@@ -24,6 +26,17 @@ pub trait TaskStorage: Send + Sync {
 
     /// Get task statistics
     async fn get_statistics(&self) -> TaskResult<TaskStatistics>;
+
+    /// Get queue metrics for task queue visibility.
+    ///
+    /// @implements SPEC-001/Objective-B: Workspace-Level Task Queue Visibility
+    ///
+    /// Returns metrics including:
+    /// - Pending/processing counts
+    /// - Average and max wait times
+    /// - Throughput (docs/minute)
+    /// - Worker utilization
+    async fn get_queue_metrics(&self) -> TaskResult<QueueMetrics>;
 }
 
 /// Task filter criteria
@@ -86,6 +99,79 @@ pub struct TaskStatistics {
     pub failed: u64,
     pub cancelled: u64,
     pub total: u64,
+}
+
+/// Queue-level metrics for workspace processing visibility.
+///
+/// @implements SPEC-001/Objective-B: Workspace-Level Task Queue Visibility
+///
+/// WHY: Users need visibility into the task queue to understand:
+/// - How many documents are waiting
+/// - How long they'll have to wait
+/// - What the system throughput is
+///
+/// ```text
+/// ┌────────────────────────────────────────────────────────────────┐
+/// │ WORKSPACE: default-workspace                                   │
+/// ├────────────────────────────────────────────────────────────────┤
+/// │ Documents:  Pending: 12  Processing: 3  Completed: 156        │
+/// │             Failed: 2    Cancelled: 0                          │
+/// ├────────────────────────────────────────────────────────────────┤
+/// │ Throughput: 2.3 docs/min | Avg wait: 1m 42s                   │
+/// └────────────────────────────────────────────────────────────────┘
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueueMetrics {
+    /// Documents waiting to be processed.
+    pub pending_count: u64,
+
+    /// Documents currently being processed.
+    pub processing_count: u64,
+
+    /// Active concurrent workers (tasks currently processing).
+    pub active_workers: u32,
+
+    /// Maximum concurrent workers allowed.
+    pub max_workers: u32,
+
+    /// Worker utilization percentage (0-100).
+    pub worker_utilization: u8,
+
+    /// Average wait time in seconds (time from created to started).
+    pub avg_wait_time_seconds: f64,
+
+    /// Maximum wait time in queue (oldest pending task).
+    pub max_wait_time_seconds: f64,
+
+    /// Documents processed per minute (rolling average).
+    pub throughput_per_minute: f64,
+
+    /// Estimated time for new document to start processing.
+    pub estimated_queue_time_seconds: f64,
+
+    /// Whether rate limiting is currently active.
+    pub rate_limited: bool,
+
+    /// Timestamp of this metrics snapshot.
+    pub timestamp: DateTime<Utc>,
+}
+
+impl Default for QueueMetrics {
+    fn default() -> Self {
+        Self {
+            pending_count: 0,
+            processing_count: 0,
+            active_workers: 0,
+            max_workers: 4, // Default max workers
+            worker_utilization: 0,
+            avg_wait_time_seconds: 0.0,
+            max_wait_time_seconds: 0.0,
+            throughput_per_minute: 0.0,
+            estimated_queue_time_seconds: 0.0,
+            rate_limited: false,
+            timestamp: Utc::now(),
+        }
+    }
 }
 
 /// Type alias for shared storage

@@ -168,13 +168,15 @@ export class ProgressWebSocket {
       case "stage_completed":
       case "ingestion_completed":
       case "ingestion_failed":
+      case "ChunkProgress":
+        // SPEC-001/Objective-A: Chunk-level progress events for granular visibility
         this.emit("progress", message);
         this.options.onMessage?.(message);
         break;
       default:
         console.warn(
           "[ProgressWebSocket] Unknown message type:",
-          (message as { type?: string }).type
+          (message as { type?: string }).type,
         );
     }
   }
@@ -219,7 +221,7 @@ export class ProgressWebSocket {
     // This is expected when backend is not running
     if (process.env.NODE_ENV === "development") {
       console.warn(
-        "[ProgressWebSocket] Connection unavailable - backend may not be running"
+        "[ProgressWebSocket] Connection unavailable - backend may not be running",
       );
     }
     this.emit("error", error);

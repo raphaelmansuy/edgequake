@@ -5,6 +5,7 @@
 **Focus**: Enhance skeleton loading to match actual content better
 
 **Current State**:
+
 - Loading skeleton exists
 - Need to verify it matches table structure accurately
 

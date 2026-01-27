@@ -38,11 +38,13 @@ interface ErrorMessagePopoverProps {
 ### Code Changes
 
 **error-message-popover.tsx**:
+
 - Import Popover components
 - Use useState for copy feedback
 - Implement clipboard API
 - Style with tailwind
 
 **document-manager.tsx**:
+
 - Replace inline error JSX with ErrorMessagePopover
 - Pass error message and retry callback

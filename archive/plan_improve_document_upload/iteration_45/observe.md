@@ -5,6 +5,7 @@
 **Focus**: Add confirmation before retry for transient errors
 
 **Current State**:
+
 - Retry button triggers action immediately
 - Could benefit from confirmation for expensive operations
 

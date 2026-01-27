@@ -82,7 +82,13 @@ export interface Document {
   title?: string | null;
   content?: string;
   source_type?: "file" | "text" | "url";
-  status?: "pending" | "processing" | "completed" | "failed" | "indexed" | "cancelled";
+  status?:
+    | "pending"
+    | "processing"
+    | "completed"
+    | "failed"
+    | "indexed"
+    | "cancelled";
   error_message?: string;
   file_name?: string;
   file_size?: number;
@@ -229,6 +235,37 @@ export interface EnhancedPipelineStatus {
   completed_tasks: number;
   /** Number of failed tasks. */
   failed_tasks: number;
+}
+
+/**
+ * Queue metrics for Objective B: Workspace-Level Task Queue Visibility.
+ *
+ * @implements FEAT0570 - Queue metrics API
+ * @implements OODA-21 - Queue metrics frontend integration
+ */
+export interface QueueMetrics {
+  /** Number of pending tasks in the queue. */
+  pending_count: number;
+  /** Number of tasks currently being processed. */
+  processing_count: number;
+  /** Number of workers currently active. */
+  active_workers: number;
+  /** Maximum configured workers. */
+  max_workers: number;
+  /** Worker utilization percentage (0-100). */
+  worker_utilization: number;
+  /** Average wait time in seconds for recently started tasks. */
+  avg_wait_time_seconds: number;
+  /** Maximum wait time in seconds among pending tasks. */
+  max_wait_time_seconds: number;
+  /** Current throughput in documents per minute. */
+  throughput_per_minute: number;
+  /** Estimated time to clear the queue in seconds. */
+  estimated_queue_time_seconds: number;
+  /** Whether the system is currently rate limited. */
+  rate_limited: boolean;
+  /** When these metrics were captured (ISO 8601). */
+  timestamp: string;
 }
 
 export interface DocumentChunk {

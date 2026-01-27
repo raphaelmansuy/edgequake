@@ -5,17 +5,19 @@
 //! - **FEAT0910**: Worker pool with configurable concurrency
 //! - **FEAT0911**: Task processor trait abstraction
 //! - **FEAT0912**: Graceful shutdown with task completion
+//! - **SPEC-001/Issue-8**: Exponential backoff for retries
 //!
 //! ## Use Cases
 //!
 //! - **UC2601**: System spawns workers to process queued tasks
-//! - **UC2602**: System retries failed tasks with backoff
+//! - **UC2602**: System retries failed tasks with exponential backoff
 //! - **UC2603**: System shuts down gracefully completing in-flight work
 //!
 //! ## Enforces
 //!
 //! - **BR0910**: Worker count bounded to prevent resource exhaustion
 //! - **BR0911**: In-flight tasks must complete before shutdown
+//! - **BR0912**: Retry delays use exponential backoff (2^n * base_delay)
 //!
 //! ## WHY Worker Pool Architecture?
 //!
@@ -25,6 +27,7 @@
 //! - **Task isolation**: One failing task doesn't affect others
 //! - **Graceful shutdown**: In-flight tasks complete before termination
 //! - **Retry logic**: Transient failures (network, rate limits) auto-recover
+//! - **Exponential backoff**: Prevents hammering failing services
 //!
 //! Default worker count is `num_cpus` because embedding generation is CPU-bound.
 //! For IO-bound workloads (e.g., LLM API calls), consider increasing.
@@ -53,8 +56,18 @@ pub struct WorkerPoolConfig {
     /// Whether to retry failed tasks automatically
     pub auto_retry: bool,
 
-    /// Delay before retrying failed tasks (seconds)
-    pub retry_delay_secs: u64,
+    /// Initial delay before retrying failed tasks (milliseconds)
+    ///
+    /// @implements SPEC-001/Issue-8: Exponential backoff base delay
+    pub initial_retry_delay_ms: u64,
+
+    /// Maximum retry delay (milliseconds) to prevent runaway backoff
+    ///
+    /// @implements SPEC-001/Issue-8: Capped exponential backoff
+    pub max_retry_delay_ms: u64,
+
+    /// Backoff multiplier (default: 2.0 for exponential backoff)
+    pub backoff_multiplier: f64,
 }
 
 impl Default for WorkerPoolConfig {
@@ -65,12 +78,42 @@ impl Default for WorkerPoolConfig {
             // min(2) ensures we can still process tasks on single-core VMs.
             num_workers: num_cpus::get().max(2),
             auto_retry: true,
-            // WHY 5 seconds: Balances quick recovery from transient failures
-            // (network timeouts, rate limits) without hammering failing services.
-            // Exponential backoff should be added for production (future work).
-            retry_delay_secs: 5,
+            // WHY 1000ms: Starting delay for exponential backoff.
+            // With multiplier of 2.0: 1s -> 2s -> 4s -> 8s -> 16s (capped at max)
+            initial_retry_delay_ms: 1000,
+            // WHY 60s max: Prevents retries from taking forever.
+            // 60s is long enough to recover from transient issues but
+            // short enough to fail fast on permanent failures.
+            max_retry_delay_ms: 60_000,
+            // WHY 2.0: Standard exponential backoff multiplier.
+            // Each retry waits 2x longer than the previous.
+            backoff_multiplier: 2.0,
         }
     }
+}
+
+/// Calculate exponential backoff delay for a given retry attempt.
+///
+/// @implements SPEC-001/Issue-8: Exponential backoff calculation
+///
+/// Formula: min(initial_delay * multiplier^attempt, max_delay)
+///
+/// # Arguments
+/// * `attempt` - Zero-based retry attempt number (0 = first retry)
+/// * `initial_delay_ms` - Base delay in milliseconds
+/// * `max_delay_ms` - Maximum delay cap in milliseconds
+/// * `multiplier` - Backoff multiplier (typically 2.0)
+///
+/// # Returns
+/// Delay in milliseconds for this retry attempt
+fn calculate_backoff_delay(
+    attempt: u32,
+    initial_delay_ms: u64,
+    max_delay_ms: u64,
+    multiplier: f64,
+) -> u64 {
+    let delay = initial_delay_ms as f64 * multiplier.powi(attempt as i32);
+    (delay as u64).min(max_delay_ms)
 }
 
 /// Worker pool for processing tasks
@@ -154,21 +197,29 @@ impl WorkerPool {
 
                                             // Auto-retry if enabled and retries remaining
                                             if config.auto_retry && task.can_retry() {
-                                                warn!(
-                                                    "Task {} will be retried (attempt {}/{})",
-                                                    task.track_id,
-                                                    task.retry_count + 1,
-                                                    task.max_retries
+                                                // Calculate exponential backoff delay
+                                                let retry_delay_ms = calculate_backoff_delay(
+                                                    task.retry_count as u32,
+                                                    config.initial_retry_delay_ms,
+                                                    config.max_retry_delay_ms,
+                                                    config.backoff_multiplier,
                                                 );
 
-                                                // Schedule retry after delay
+                                                warn!(
+                                                    "Task {} will be retried (attempt {}/{}) after {}ms",
+                                                    task.track_id,
+                                                    task.retry_count + 1,
+                                                    task.max_retries,
+                                                    retry_delay_ms
+                                                );
+
+                                                // Schedule retry after exponential backoff delay
                                                 let retry_task = task.clone();
                                                 let retry_queue = Arc::clone(&queue);
-                                                let retry_delay = config.retry_delay_secs;
 
                                                 tokio::spawn(async move {
                                                     tokio::time::sleep(
-                                                        tokio::time::Duration::from_secs(retry_delay)
+                                                        tokio::time::Duration::from_millis(retry_delay_ms)
                                                     ).await;
 
                                                     if let Err(e) = retry_queue.send(retry_task).await {

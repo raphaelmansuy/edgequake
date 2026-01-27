@@ -8,48 +8,48 @@
 
 ### 1. Reprocess Document Functionality
 
-| Current State | Desired State | Gap |
-|---------------|---------------|-----|
-| `reprocessDocument()` sends track_id | Works but no progress feedback | Need processing stage events |
-| Backend cleans graph data before retry | Correct behavior | ✓ Good |
-| Status updates to "pending" | Need "reprocessing" state | Missing intermediate state |
-| No per-document error details | Show error reason to user | Need error message storage/display |
+| Current State                          | Desired State                  | Gap                                |
+| -------------------------------------- | ------------------------------ | ---------------------------------- |
+| `reprocessDocument()` sends track_id   | Works but no progress feedback | Need processing stage events       |
+| Backend cleans graph data before retry | Correct behavior               | ✓ Good                             |
+| Status updates to "pending"            | Need "reprocessing" state      | Missing intermediate state         |
+| No per-document error details          | Show error reason to user      | Need error message storage/display |
 
 ### 2. Rebuild Embeddings
 
-| Current State | Desired State | Gap |
-|---------------|---------------|-----|
-| No dedicated "rebuild embeddings" endpoint | Isolated embedding regeneration | Missing endpoint |
-| Workspace dimension stored | Use during rebuild | ✓ Available |
-| No dimension change handling | Graceful migration | Missing migration logic |
-| No provider switching support | OpenAI↔Ollama without corruption | Needs testing/validation |
+| Current State                              | Desired State                    | Gap                      |
+| ------------------------------------------ | -------------------------------- | ------------------------ |
+| No dedicated "rebuild embeddings" endpoint | Isolated embedding regeneration  | Missing endpoint         |
+| Workspace dimension stored                 | Use during rebuild               | ✓ Available              |
+| No dimension change handling               | Graceful migration               | Missing migration logic  |
+| No provider switching support              | OpenAI↔Ollama without corruption | Needs testing/validation |
 
 ### 3. Rebuild Knowledge Graph
 
-| Current State | Desired State | Gap |
-|---------------|---------------|-----|
-| `rebuild_knowledge_graph()` clears all | Works but destructive | ✓ Intentional |
-| Queues docs for reprocess | Need progress tracking | Missing batch progress |
-| UX unclear about rebuild impact | Explicit warnings | Need confirmation dialogs |
-| No partial rebuild option | Consider future enhancement | Out of scope for now |
+| Current State                          | Desired State               | Gap                       |
+| -------------------------------------- | --------------------------- | ------------------------- |
+| `rebuild_knowledge_graph()` clears all | Works but destructive       | ✓ Intentional             |
+| Queues docs for reprocess              | Need progress tracking      | Missing batch progress    |
+| UX unclear about rebuild impact        | Explicit warnings           | Need confirmation dialogs |
+| No partial rebuild option              | Consider future enhancement | Out of scope for now      |
 
 ### 4. UX/UI for Document Processing
 
-| Current State | Desired State | Gap |
-|---------------|---------------|-----|
-| Single "processing" state | Multi-stage visibility | Need 4-5 sub-states |
-| Aggregate pipeline stats | Per-document details | Need document-level view |
-| No ETA calculation | Time estimates | Need processing time tracking |
-| No stage transitions shown | Real-time updates | Need SSE/WebSocket |
+| Current State              | Desired State          | Gap                           |
+| -------------------------- | ---------------------- | ----------------------------- |
+| Single "processing" state  | Multi-stage visibility | Need 4-5 sub-states           |
+| Aggregate pipeline stats   | Per-document details   | Need document-level view      |
+| No ETA calculation         | Time estimates         | Need processing time tracking |
+| No stage transitions shown | Real-time updates      | Need SSE/WebSocket            |
 
 ### 5. Error Handling
 
-| Current State | Desired State | Gap |
-|---------------|---------------|-----|
-| `status: failed` in metadata | Need `error_message` field | Partially exists, need display |
-| Generic "Failed" badge | Show error category + reason | Need error parsing |
-| No actionable suggestions | Guide user to fix | Need error→action mapping |
-| Errors not easily copyable | Debug-friendly display | Need copy button + details |
+| Current State                | Desired State                | Gap                            |
+| ---------------------------- | ---------------------------- | ------------------------------ |
+| `status: failed` in metadata | Need `error_message` field   | Partially exists, need display |
+| Generic "Failed" badge       | Show error category + reason | Need error parsing             |
+| No actionable suggestions    | Guide user to fix            | Need error→action mapping      |
+| Errors not easily copyable   | Debug-friendly display       | Need copy button + details     |
 
 ---
 
@@ -84,18 +84,19 @@ Document Processing = Sum of:
 
 ## Risk Assessment
 
-| Approach | Benefit | Risk | Mitigation |
-|----------|---------|------|------------|
-| Add processing sub-states | Better UX | Breaking change for filters | Backward-compatible mapping |
-| Store error details | Debug support | Privacy (leak internal errors) | Sanitize error messages |
-| SSE for progress | Real-time | Connection overhead | Reuse existing stream infra |
-| Ollama E2E tests | Realistic testing | Slow CI | Run in separate job |
+| Approach                  | Benefit           | Risk                           | Mitigation                  |
+| ------------------------- | ----------------- | ------------------------------ | --------------------------- |
+| Add processing sub-states | Better UX         | Breaking change for filters    | Backward-compatible mapping |
+| Store error details       | Debug support     | Privacy (leak internal errors) | Sanitize error messages     |
+| SSE for progress          | Real-time         | Connection overhead            | Reuse existing stream infra |
+| Ollama E2E tests          | Realistic testing | Slow CI                        | Run in separate job         |
 
 ---
 
 ## Solution Options
 
 ### Option A: Incremental Enhancement (RECOMMENDED)
+
 1. Enhance status badge with sub-states
 2. Display error messages from metadata
 3. Add document-level progress in pipeline dialog
@@ -106,6 +107,7 @@ Document Processing = Sum of:
 **Value**: High
 
 ### Option B: Full Rewrite with WebSocket
+
 1. Replace polling with WebSocket
 2. Real-time per-stage updates
 3. Complete error framework
@@ -115,6 +117,7 @@ Document Processing = Sum of:
 **Value**: Very High
 
 ### Option C: Minimal Fix
+
 1. Just fix Loader2 import ✅
 2. Display existing error field
 3. No new features
@@ -130,6 +133,7 @@ Document Processing = Sum of:
 **Selected: Option A (Incremental Enhancement)**
 
 Rationale:
+
 1. Uses existing infrastructure (minimal code changes)
 2. Backward compatible (old clients still work)
 3. Delivers immediate value (users see better progress)
@@ -141,30 +145,30 @@ Rationale:
 
 ```typescript
 // Enhanced status with processing sub-states
-type DocumentStatus = 
-  | 'pending'      // Waiting in queue
-  | 'chunking'     // Splitting document
-  | 'extracting'   // LLM entity extraction
-  | 'embedding'    // Generating vectors
-  | 'indexing'     // Storing in databases
-  | 'completed'    // Successfully processed
-  | 'indexed'      // Alias for completed (backward compat)
-  | 'failed'       // Error occurred
-  | 'cancelled';   // User cancelled
+type DocumentStatus =
+  | "pending" // Waiting in queue
+  | "chunking" // Splitting document
+  | "extracting" // LLM entity extraction
+  | "embedding" // Generating vectors
+  | "indexing" // Storing in databases
+  | "completed" // Successfully processed
+  | "indexed" // Alias for completed (backward compat)
+  | "failed" // Error occurred
+  | "cancelled"; // User cancelled
 ```
 
 ---
 
 ## Priority Matrix
 
-| Task | Impact | Effort | Priority |
-|------|--------|--------|----------|
-| Display error messages | High | Low | P1 |
-| Add processing sub-states | High | Medium | P1 |
-| Ollama E2E tests | Medium | Medium | P2 |
-| Per-doc progress in dialog | Medium | Low | P2 |
-| ETA calculation | Low | Medium | P3 |
-| Error→action mapping | Medium | High | P3 |
+| Task                       | Impact | Effort | Priority |
+| -------------------------- | ------ | ------ | -------- |
+| Display error messages     | High   | Low    | P1       |
+| Add processing sub-states  | High   | Medium | P1       |
+| Ollama E2E tests           | Medium | Medium | P2       |
+| Per-doc progress in dialog | Medium | Low    | P2       |
+| ETA calculation            | Low    | Medium | P3       |
+| Error→action mapping       | Medium | High   | P3       |
 
 ---
 

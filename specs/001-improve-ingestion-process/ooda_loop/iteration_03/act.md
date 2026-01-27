@@ -38,10 +38,10 @@
 
 ```typescript
 // Check if Ollama is running
-async function isOllamaAvailable(): Promise<boolean>
+async function isOllamaAvailable(): Promise<boolean>;
 
-// Check if backend is running  
-async function isBackendAvailable(): Promise<boolean>
+// Check if backend is running
+async function isBackendAvailable(): Promise<boolean>;
 ```
 
 ## Success Criteria Met
@@ -55,6 +55,7 @@ async function isBackendAvailable(): Promise<boolean>
 ## Next Iteration Focus
 
 Iteration 04 will focus on:
+
 1. UX improvements for confirmation dialogs
 2. Adding impact preview ("This will affect X documents")
 3. Implementing better error messages

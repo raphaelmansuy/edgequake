@@ -64,10 +64,16 @@ export function ReprocessFailedButton({
   const reprocessMutation = useMutation({
     mutationFn: reprocessFailedDocuments,
     onSuccess: (data) => {
+      // OODA-37: Fixed to use correct backend response fields
+      const requeuedCount = data.requeued ?? data.failed_found ?? failedCount;
+      const message = requeuedCount > 0 
+        ? t('documents.reprocessAll.startedDesc', 'Retrying {{count}} failed document(s)...', { count: requeuedCount })
+        : t('documents.reprocessAll.noDocuments', 'No failed documents found to reprocess');
+      
       toast.success(
         t('documents.reprocessAll.started', 'Reprocessing started'),
         {
-          description: data.message || t('documents.reprocessAll.startedDesc', 'Retrying {{count}} failed document(s)...', { count: data.count || failedCount }),
+          description: message,
           duration: 5000,
           action: {
             label: t('documents.viewStatus', 'View Status'),

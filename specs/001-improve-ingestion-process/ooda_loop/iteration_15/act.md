@@ -5,11 +5,13 @@
 ### 1. Fixed Playwright Selector Syntax Errors
 
 #### document-reprocess.spec.ts
+
 - Fixed `tr:has(text="Failed")` → `page.locator('tr').filter({ hasText: 'Failed' })`
 - Fixed `text*="ollama"` → `page.getByText(/ollama|gemma/i)`
 - Fixed `:has(text="...")` (invalid CSS) → `.filter({ hasText: '...' })`
 
 #### error-handling.spec.ts
+
 - Updated test to expand `<details>` element before checking content
 - Added check for `error-message-summary` (new OODA-09 feature)
 - Added click on `<summary>` to expand technical details
@@ -17,6 +19,7 @@
 ### 2. E2E Test Execution
 
 All tests now pass:
+
 ```
 document-reprocess.spec.ts: 12 passed
 error-handling.spec.ts: 12 passed
@@ -26,6 +29,7 @@ Total: 24 passed (25.2s)
 ## Test Coverage Summary
 
 ### document-reprocess.spec.ts
+
 1. Documents page shows status badges with correct states ✓
 2. Failed document shows error message in row ✓
 3. Reprocess button appears for failed documents ✓
@@ -40,6 +44,7 @@ Total: 24 passed (25.2s)
 12. Document processing with Ollama model ✓
 
 ### error-handling.spec.ts
+
 1. Error trigger can be clicked if failed documents exist ✓
 2. Copy button shows feedback when clicked ✓
 3. Retry button triggers reprocess ✓
@@ -54,9 +59,11 @@ Total: 24 passed (25.2s)
 12. Selecting documents enables bulk actions ✓
 
 ## Files Modified
+
 - `e2e/document-reprocess.spec.ts` (3 selector fixes)
 - `e2e/error-handling.spec.ts` (details expansion fix)
 
 ## Next Steps
+
 - Continue with additional iterations
 - Consider adding more edge case tests

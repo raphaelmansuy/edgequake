@@ -3,6 +3,7 @@
 ## Analysis
 
 Retry buttons should NOT require confirmation because:
+
 1. Retry is a low-risk operation (re-runs existing process)
 2. Users expect immediate action for retry
 3. Confirmation adds unnecessary friction

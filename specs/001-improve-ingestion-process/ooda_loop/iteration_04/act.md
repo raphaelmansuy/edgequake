@@ -5,12 +5,14 @@
 ### 1. Added data-testid Attributes for E2E Testing
 
 **rebuild-embeddings-button.tsx**:
+
 - `data-testid="rebuild-embeddings-button"` on trigger button
 - `data-testid="rebuild-embeddings-cancel"` on cancel button
 - `data-testid="rebuild-embeddings-confirm"` on confirm button
 - `data-testid="rebuild-impact-preview"` on impact section
 
 **rebuild-knowledge-graph-button.tsx**:
+
 - `data-testid="rebuild-kg-button"` on trigger button (both variants)
 - `data-testid="rebuild-kg-cancel"` on cancel button
 - `data-testid="rebuild-kg-confirm"` on confirm button
@@ -21,6 +23,7 @@
 **File**: `src/hooks/use-workspace-stats.ts`
 
 Features:
+
 - Fetches document count for current workspace
 - Calculates estimated processing time (3s per doc)
 - Provides `formatEstimatedTime()` helper
@@ -29,10 +32,12 @@ Features:
 ### 3. Added Impact Preview Section to Confirmation Dialogs
 
 Both rebuild buttons now show:
+
 - **Document count**: "Documents: 42"
 - **Time estimate**: "Estimated: ~3 minutes"
 
 Display is styled with:
+
 - Border and muted background
 - FileText icon for impact header
 - Clock icon for time estimate
@@ -62,6 +67,7 @@ Display is styled with:
 ## Next Iteration Focus
 
 Iteration 05 will focus on:
+
 1. Enhance error display with copy-to-clipboard functionality
 2. Add error details expansion for failed documents
 3. Improve error message formatting

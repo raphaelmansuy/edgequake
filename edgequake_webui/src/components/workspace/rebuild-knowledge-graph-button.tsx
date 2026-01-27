@@ -13,32 +13,32 @@
 
 'use client';
 
-import { PipelineStatusDialog } from '@/components/documents/pipeline-status-dialog';
+import { PipelineStatusDialog, type ClearStats } from '@/components/documents/pipeline-status-dialog';
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from '@/components/ui/card';
 import { formatEstimatedTime, useWorkspaceStats } from '@/hooks/use-workspace-stats';
 import {
-    rebuildKnowledgeGraph,
-    reprocessAllDocuments,
-    type RebuildKnowledgeGraphResponse,
-    type ReprocessAllResponse,
+  rebuildKnowledgeGraph,
+  reprocessAllDocuments,
+  type RebuildKnowledgeGraphResponse,
+  type ReprocessAllResponse,
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -89,6 +89,8 @@ export function RebuildKnowledgeGraphButton({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isPipelineOpen, setIsPipelineOpen] = useState(false);
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResponse | null>(null);
+  // OODA-26: Store clear stats from rebuild response
+  const [clearStats, setClearStats] = useState<ClearStats | null>(null);
 
   // Fetch workspace stats for impact preview
   const { totalDocuments, estimatedTimeMinutes, isLoading: statsLoading } = useWorkspaceStats();
@@ -154,7 +156,14 @@ export function RebuildKnowledgeGraphButton({
     },
     onError: (error: Error) => {
       toast.error(
-        t('workspace.rebuild.reprocessError', `Failed to queue documents: ${error.message}`)
+        t('workspace.rebuild.reprocessError', 'Failed to queue documents'),
+        {
+          description: error.message,
+          action: {
+            label: t('common.retry', 'Retry'),
+            onClick: () => reprocessMutation.mutate(),
+          },
+        }
       );
     },
   });
@@ -171,6 +180,13 @@ export function RebuildKnowledgeGraphButton({
       });
     },
     onSuccess: (response) => {
+      // OODA-26: Store clear stats for display in pipeline dialog
+      setClearStats({
+        nodesCleared: response.nodes_cleared,
+        edgesCleared: response.edges_cleared,
+        vectorsCleared: rebuildEmbeddings ? response.vectors_cleared : undefined,
+      });
+      
       const clearedInfo = rebuildEmbeddings
         ? `${response.nodes_cleared} nodes, ${response.edges_cleared} edges, ${response.vectors_cleared} vectors cleared`
         : `${response.nodes_cleared} nodes, ${response.edges_cleared} edges cleared`;
@@ -194,7 +210,14 @@ export function RebuildKnowledgeGraphButton({
     },
     onError: (error: Error) => {
       toast.error(
-        t('workspace.rebuild.graphError', `Failed to rebuild knowledge graph: ${error.message}`)
+        t('workspace.rebuild.graphError', 'Failed to rebuild knowledge graph'),
+        {
+          description: error.message,
+          action: {
+            label: t('common.retry', 'Retry'),
+            onClick: () => rebuildMutation.mutate(),
+          },
+        }
       );
     },
   });
@@ -337,6 +360,7 @@ export function RebuildKnowledgeGraphButton({
                 )
               : undefined
           }
+          clearStats={clearStats ?? undefined}
         />
       </>
     );
@@ -457,6 +481,7 @@ export function RebuildKnowledgeGraphButton({
               )
             : undefined
         }
+        clearStats={clearStats ?? undefined}
       />
     </>
   );

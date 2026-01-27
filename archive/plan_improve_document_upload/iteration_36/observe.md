@@ -5,6 +5,7 @@
 **Focus**: Add clear (X) button to search input
 
 **Current State**:
+
 - Search input has no quick-clear button
 - Users must select all text and delete
 - Common UX pattern missing

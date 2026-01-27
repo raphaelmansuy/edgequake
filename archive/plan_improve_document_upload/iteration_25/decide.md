@@ -3,11 +3,13 @@
 ## Decision
 
 ### Add Visual Emphasis to Failed Rows
+
 Use red left border and subtle background tint.
 
 ### Code Change
+
 ```tsx
-<TableRow 
+<TableRow
   className={cn(
     "cursor-pointer transition-colors duration-150",
     "hover:bg-primary/5 dark:hover:bg-primary/10",
@@ -20,12 +22,14 @@ Use red left border and subtle background tint.
 ```
 
 ### Visual Effect
-| Theme | Background | Border |
-|-------|------------|--------|
+
+| Theme | Background      | Border        |
+| ----- | --------------- | ------------- |
 | Light | Subtle red tint | 4px solid red |
-| Dark | Subtle red tint | 4px solid red |
+| Dark  | Subtle red tint | 4px solid red |
 
 ### Rationale
+
 - Immediately identifies failed documents
 - Non-distracting for completed documents
 - Consistent with red = error convention

@@ -332,6 +332,8 @@ fn api_v1_routes() -> Router<AppState> {
         // Pipeline (Phase 3)
         .route("/pipeline/status", get(handlers::get_pipeline_status))
         .route("/pipeline/cancel", post(handlers::cancel_pipeline))
+        // OODA-20: Queue metrics for Objective B (Workspace-Level Task Queue Visibility)
+        .route("/pipeline/queue-metrics", get(handlers::get_queue_metrics))
         // Cost Tracking (Phase 5)
         .route("/pipeline/costs/pricing", get(handlers::get_model_pricing))
         .route("/pipeline/costs/estimate", post(handlers::estimate_cost))

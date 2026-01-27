@@ -3,13 +3,14 @@
 ## Keyboard Shortcut Plan
 
 ### Core Shortcuts
-| Key | Action | Condition |
-|-----|--------|-----------|
-| `Escape` | Clear selection | Has selection |
-| `Escape` | Close preview panel | Panel open |
-| `Ctrl/Cmd + A` | Select all | Not in input |
-| `R` | Refresh documents | Not in input |
-| `Delete` | Delete selected | Has selection |
+
+| Key            | Action              | Condition     |
+| -------------- | ------------------- | ------------- |
+| `Escape`       | Clear selection     | Has selection |
+| `Escape`       | Close preview panel | Panel open    |
+| `Ctrl/Cmd + A` | Select all          | Not in input  |
+| `R`            | Refresh documents   | Not in input  |
+| `Delete`       | Delete selected     | Has selection |
 
 ### Implementation Details
 
@@ -28,10 +29,12 @@
    - Check `tagName === 'INPUT' || tagName === 'TEXTAREA'`
 
 ### Visual Feedback
+
 - Add keyboard hint in bulk action bar: "Press Esc to clear"
 - Consider future: help dialog with all shortcuts
 
 ## Risk Assessment
+
 - Low risk: Standard keyboard handling
 - No visual changes except hints
 - Easy to disable if issues arise

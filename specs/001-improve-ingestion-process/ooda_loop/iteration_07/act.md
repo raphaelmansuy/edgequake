@@ -7,6 +7,7 @@
 **File**: `edgequake/migrations/017_add_processing_substates.sql`
 
 Features:
+
 - Drops existing `valid_document_status` constraint
 - Creates new constraint with all processing sub-states
 - Maintains backward compatibility with 'indexed' status
@@ -14,22 +15,23 @@ Features:
 
 ### Valid Status Values
 
-| Status | Use Case |
-|--------|----------|
-| `pending` | Document uploaded, waiting |
-| `processing` | Generic processing (fallback) |
-| `chunking` | Text splitting stage |
-| `extracting` | LLM entity extraction |
-| `embedding` | Vector embedding generation |
-| `indexing` | Graph/vector database storage |
-| `completed` | Successfully processed |
-| `indexed` | Legacy (kept for compatibility) |
-| `failed` | Processing error |
-| `cancelled` | User cancelled |
+| Status       | Use Case                        |
+| ------------ | ------------------------------- |
+| `pending`    | Document uploaded, waiting      |
+| `processing` | Generic processing (fallback)   |
+| `chunking`   | Text splitting stage            |
+| `extracting` | LLM entity extraction           |
+| `embedding`  | Vector embedding generation     |
+| `indexing`   | Graph/vector database storage   |
+| `completed`  | Successfully processed          |
+| `indexed`    | Legacy (kept for compatibility) |
+| `failed`     | Processing error                |
+| `cancelled`  | User cancelled                  |
 
 ### 2. Verified Backend Status Updates
 
 processor.rs already sets correct status values at each stage:
+
 - Line 603: `chunking` before pipeline.process()
 - Line 635: `extracting` after chunks generated
 - Line 700: `embedding` before vector storage
@@ -39,6 +41,7 @@ processor.rs already sets correct status values at each stage:
 ### 3. Migration Compatibility
 
 Migration handles:
+
 - Missing constraint (won't error)
 - Existing constraint (drops first)
 - Legacy 'indexed' status (preserved)
@@ -56,6 +59,7 @@ Migration handles:
 ## Next Iteration Focus
 
 Iteration 08 will focus on:
+
 1. Test the full pipeline end-to-end
 2. Verify status updates in UI
 3. Add retry count tracking

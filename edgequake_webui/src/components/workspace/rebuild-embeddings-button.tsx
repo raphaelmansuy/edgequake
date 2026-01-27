@@ -13,7 +13,7 @@
 
 'use client';
 
-import { PipelineStatusDialog } from '@/components/documents/pipeline-status-dialog';
+import { PipelineStatusDialog, type ClearStats } from '@/components/documents/pipeline-status-dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,6 +83,8 @@ export function RebuildEmbeddingsButton({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isPipelineOpen, setIsPipelineOpen] = useState(false);
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResponse | null>(null);
+  // OODA-26: Store clear stats from rebuild response
+  const [clearStats, setClearStats] = useState<ClearStats | null>(null);
 
   // Fetch workspace stats for impact preview
   const { totalDocuments, estimatedTimeMinutes, isLoading: statsLoading } = useWorkspaceStats();
@@ -127,7 +129,14 @@ export function RebuildEmbeddingsButton({
     },
     onError: (error: Error) => {
       toast.error(
-        t('workspace.rebuild.reprocessError', `Failed to queue documents: ${error.message}`)
+        t('workspace.rebuild.reprocessError', 'Failed to queue documents'),
+        {
+          description: error.message,
+          action: {
+            label: t('common.retry', 'Retry'),
+            onClick: () => reprocessMutation.mutate(),
+          },
+        }
       );
     },
   });
@@ -141,6 +150,11 @@ export function RebuildEmbeddingsButton({
       return rebuildEmbeddings(selectedWorkspaceId, { force: true });
     },
     onSuccess: (response) => {
+      // OODA-26: Store clear stats for display in pipeline dialog
+      setClearStats({
+        vectorsCleared: response.vectors_cleared,
+      });
+      
       // Show both document and chunk count for better insight
       const chunkInfo = response.chunks_to_process > 0 
         ? ` (${response.chunks_to_process} chunks)` 
@@ -167,7 +181,14 @@ export function RebuildEmbeddingsButton({
     },
     onError: (error: Error) => {
       toast.error(
-        t('workspace.rebuild.error', `Failed to rebuild embeddings: ${error.message}`)
+        t('workspace.rebuild.error', 'Failed to rebuild embeddings'),
+        {
+          description: error.message,
+          action: {
+            label: t('common.retry', 'Retry'),
+            onClick: () => rebuildMutation.mutate(),
+          },
+        }
       );
     },
   });
@@ -349,6 +370,7 @@ export function RebuildEmbeddingsButton({
         <PipelineStatusDialog
           open={isPipelineOpen}
           onOpenChange={setIsPipelineOpen}
+          clearStats={clearStats ?? undefined}
         />
       </>
     );
@@ -363,6 +385,7 @@ export function RebuildEmbeddingsButton({
       <PipelineStatusDialog
         open={isPipelineOpen}
         onOpenChange={setIsPipelineOpen}
+        clearStats={clearStats ?? undefined}
       />
     </>
   );

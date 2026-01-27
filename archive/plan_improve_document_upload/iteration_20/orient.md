@@ -3,7 +3,9 @@
 ## Analysis
 
 ### Skeleton Design
+
 Enhance skeleton to match table structure:
+
 - Checkbox column: small square
 - Title column: longer bar
 - Status column: badge-sized bar
@@ -13,16 +15,20 @@ Enhance skeleton to match table structure:
 - Actions column: small circle
 
 ### Empty State Design
+
 Make empty state more actionable:
+
 - Keep existing icon and text
 - Add explicit "Upload files" button
 - Mention drag & drop capability
 - Reference keyboard shortcut for power users
 
 ### Implementation Approach
+
 Create a skeleton row component for better maintainability.
 
 ### Code Structure
+
 ```tsx
 // Skeleton row that matches table structure
 const SkeletonRow = () => (
@@ -39,6 +45,7 @@ const SkeletonRow = () => (
 ```
 
 ## Risk Assessment
+
 - Low risk: Visual-only changes
 - No logic changes
 - Easy to revert if needed
