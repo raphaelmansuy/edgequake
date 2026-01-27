@@ -60,12 +60,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
     AlertCircle,
-    CheckCircle,
-    Clock,
     Eye,
     FileSearch,
     FileText,
-    Loader2,
     MoreVertical,
     RefreshCw,
     Search,
@@ -74,7 +71,6 @@ import {
     Trash2,
     Upload,
     X,
-    XCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -90,38 +86,8 @@ import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
-
-// Track upload progress and errors for files
-interface UploadingFile {
-  file: File;
-  progress: number;
-  status: 'pending' | 'reading' | 'uploading' | 'extracting' | 'success' | 'error';
-  error?: string;
-  phase?: string; // Human-readable phase description
-}
-
-const statusConfig = {
-  pending: { icon: Clock, color: 'bg-yellow-500', label: 'Pending', animate: false },
-  processing: { icon: Loader2, color: 'bg-blue-500', label: 'Processing', animate: true },
-  completed: { icon: CheckCircle, color: 'bg-green-500', label: 'Completed', animate: false },
-  indexed: { icon: CheckCircle, color: 'bg-green-500', label: 'Indexed', animate: false },
-  failed: { icon: XCircle, color: 'bg-red-500', label: 'Failed', animate: false },
-  cancelled: { icon: StopCircle, color: 'bg-orange-500', label: 'Cancelled', animate: false },
-} as const;
-
-type DocumentStatus = keyof typeof statusConfig;
-
-function StatusBadge({ status }: { status: DocumentStatus }) {
-  const config = statusConfig[status] || statusConfig.completed;
-  const Icon = config.icon;
-
-  return (
-    <Badge variant="outline" className="gap-1">
-      <Icon className={`h-3 w-3 ${config.animate ? 'animate-spin' : ''}`} />
-      {config.label}
-    </Badge>
-  );
-}
+import { StatusBadge, type DocumentStatus } from './status-badge';
+import type { UploadingFile } from './types';
 
 export function DocumentManager() {
   const { t } = useTranslation();
