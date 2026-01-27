@@ -123,9 +123,24 @@ export function DocumentManager() {
   const [pageSize, setPageSize] = useState(20);
   
   // Filter and sort state
+  // OODA-24: Initialize from localStorage for persistence
   const [statusFilter, setStatusFilter] = useState<DocStatus>('all');
-  const [sortField, setSortField] = useState<SortField>('created_at');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [sortField, setSortField] = useState<SortField>(() => {
+    if (typeof window === 'undefined') return 'created_at';
+    try {
+      const stored = localStorage.getItem('edgequake:documents:sort');
+      const parsed = stored ? JSON.parse(stored) : null;
+      return (parsed?.field as SortField) || 'created_at';
+    } catch { return 'created_at'; }
+  });
+  const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
+    if (typeof window === 'undefined') return 'desc';
+    try {
+      const stored = localStorage.getItem('edgequake:documents:sort');
+      const parsed = stored ? JSON.parse(stored) : null;
+      return (parsed?.direction as SortDirection) || 'desc';
+    } catch { return 'desc'; }
+  });
   
   // Pipeline status dialog state
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
@@ -693,6 +708,21 @@ export function DocumentManager() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [previewPanelOpen, selectedIds.size, handlePreviewClose, handleSelectAll, refetch, t]);
 
+  /**
+   * OODA-24: Persist sort preferences to localStorage
+   * WHY: Users expect their sort preferences to persist across sessions
+   */
+  useEffect(() => {
+    try {
+      localStorage.setItem('edgequake:documents:sort', JSON.stringify({
+        field: sortField,
+        direction: sortDirection,
+      }));
+    } catch {
+      // Ignore localStorage errors (e.g., in incognito mode)
+    }
+  }, [sortField, sortDirection]);
+
   if (isError) {
     return (
       <div className="p-6">
@@ -785,6 +815,42 @@ export function DocumentManager() {
           statusCounts={statusCounts}
         />
       </div>
+
+      {/* OODA-23: Compact Processing Status Summary */}
+      {pipelineStatus && (pipelineStatus.running_tasks > 0 || pipelineStatus.queued_tasks > 0) && (
+        <div 
+          className="flex items-center gap-4 px-3 py-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+          onClick={() => setPipelineDialogOpen(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && setPipelineDialogOpen(true)}
+        >
+          <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+              {pipelineStatus.running_tasks > 0 
+                ? t('pipeline.processing', 'Processing {{count}} document(s)', { count: pipelineStatus.running_tasks })
+                : t('pipeline.queued', '{{count}} document(s) queued', { count: pipelineStatus.queued_tasks })
+              }
+            </p>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-blue-600 dark:text-blue-400">
+            {pipelineStatus.queued_tasks > 0 && pipelineStatus.running_tasks > 0 && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {pipelineStatus.queued_tasks} queued
+              </span>
+            )}
+            {pipelineStatus.completed_tasks > 0 && (
+              <span className="flex items-center gap-1">
+                <CheckCircle className="h-3 w-3 text-green-600" />
+                {pipelineStatus.completed_tasks} done
+              </span>
+            )}
+            <span className="text-blue-500">Click for details →</span>
+          </div>
+        </div>
+      )}
 
       {/* Compact Upload Zone - Inline dropzone, no card wrapper */}
       <div
