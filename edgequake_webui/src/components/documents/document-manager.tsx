@@ -123,22 +123,29 @@ export function DocumentManager() {
   const [pageSize, setPageSize] = useState(20);
   
   // Filter and sort state
-  // OODA-24: Initialize from localStorage for persistence
-  const [statusFilter, setStatusFilter] = useState<DocStatus>('all');
+  // OODA-24/28: Initialize from localStorage for persistence
+  const [statusFilter, setStatusFilter] = useState<DocStatus>(() => {
+    if (typeof window === 'undefined') return 'all';
+    try {
+      const stored = localStorage.getItem('edgequake:documents:prefs');
+      const parsed = stored ? JSON.parse(stored) : null;
+      return (parsed?.statusFilter as DocStatus) || 'all';
+    } catch { return 'all'; }
+  });
   const [sortField, setSortField] = useState<SortField>(() => {
     if (typeof window === 'undefined') return 'created_at';
     try {
-      const stored = localStorage.getItem('edgequake:documents:sort');
+      const stored = localStorage.getItem('edgequake:documents:prefs');
       const parsed = stored ? JSON.parse(stored) : null;
-      return (parsed?.field as SortField) || 'created_at';
+      return (parsed?.sortField as SortField) || 'created_at';
     } catch { return 'created_at'; }
   });
   const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
     if (typeof window === 'undefined') return 'desc';
     try {
-      const stored = localStorage.getItem('edgequake:documents:sort');
+      const stored = localStorage.getItem('edgequake:documents:prefs');
       const parsed = stored ? JSON.parse(stored) : null;
-      return (parsed?.direction as SortDirection) || 'desc';
+      return (parsed?.sortDirection as SortDirection) || 'desc';
     } catch { return 'desc'; }
   });
   
@@ -710,18 +717,39 @@ export function DocumentManager() {
 
   /**
    * OODA-24: Persist sort preferences to localStorage
-   * WHY: Users expect their sort preferences to persist across sessions
+   * WHY: Users expect their filter/sort preferences to persist across sessions
    */
   useEffect(() => {
     try {
-      localStorage.setItem('edgequake:documents:sort', JSON.stringify({
-        field: sortField,
-        direction: sortDirection,
+      localStorage.setItem('edgequake:documents:prefs', JSON.stringify({
+        statusFilter,
+        sortField,
+        sortDirection,
       }));
     } catch {
       // Ignore localStorage errors (e.g., in incognito mode)
     }
-  }, [sortField, sortDirection]);
+  }, [statusFilter, sortField, sortDirection]);
+
+  /**
+   * OODA-26: Update page title with document count
+   * WHY: Users can see document count without switching tabs
+   */
+  useEffect(() => {
+    const baseTitle = 'Documents - EdgeQuake';
+    const count = totalCount || 0;
+    const processing = pipelineStatus?.running_tasks || 0;
+    
+    if (processing > 0) {
+      document.title = `⏳ Processing (${processing}) | Documents (${count}) - EdgeQuake`;
+    } else if (count > 0) {
+      document.title = `Documents (${count}) - EdgeQuake`;
+    } else {
+      document.title = baseTitle;
+    }
+    
+    return () => { document.title = baseTitle; };
+  }, [totalCount, pipelineStatus?.running_tasks]);
 
   if (isError) {
     return (
@@ -1108,7 +1136,9 @@ export function DocumentManager() {
                         "cursor-pointer transition-colors duration-150",
                         "hover:bg-primary/5 dark:hover:bg-primary/10",
                         selectedDocument?.id === doc.id && "bg-primary/10 dark:bg-primary/15 ring-1 ring-primary/20",
-                        index % 2 === 0 ? "bg-background" : "bg-muted/20"
+                        index % 2 === 0 ? "bg-background" : "bg-muted/20",
+                        // OODA-25: Failed documents highlight
+                        doc.status === 'failed' && "bg-red-50/50 dark:bg-red-950/20 border-l-4 border-l-red-500"
                       )}
                       onClick={() => handleDocumentClick(doc)}
                     >
