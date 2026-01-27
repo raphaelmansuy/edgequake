@@ -95,11 +95,6 @@ export function useWorkspaceTenantValidator(options?: {
                 (w) => w.tenant_id === selectedTenantId,
               );
               if (firstWorkspace) {
-                console.info(
-                  "[WorkspaceTenantValidator] Auto-correcting to workspace:",
-                  firstWorkspace.id,
-                );
-
                 // Invalidate queries for OLD workspace before switching
                 queryClient.invalidateQueries({
                   queryKey: ["workspaceStats", selectedWorkspaceId],
@@ -117,9 +112,6 @@ export function useWorkspaceTenantValidator(options?: {
                 return;
               } else {
                 // No valid workspace found, reset context
-                console.warn(
-                  "[WorkspaceTenantValidator] No valid workspace found for tenant, resetting",
-                );
                 reset();
                 return;
               }
@@ -153,11 +145,6 @@ export function useWorkspaceTenantValidator(options?: {
               (w) => w.tenant_id === selectedTenantId,
             );
             if (validWorkspace) {
-              console.info(
-                "[WorkspaceTenantValidator] Auto-correcting to valid workspace:",
-                validWorkspace.id,
-              );
-
               // Invalidate queries for OLD workspace before switching
               queryClient.invalidateQueries({
                 queryKey: ["workspaceStats", selectedWorkspaceId],
@@ -173,9 +160,6 @@ export function useWorkspaceTenantValidator(options?: {
                 queryKey: ["workspaceStats", validWorkspace.id],
               });
             } else {
-              console.warn(
-                "[WorkspaceTenantValidator] No valid workspace found, resetting",
-              );
               reset();
             }
           }
@@ -190,11 +174,6 @@ export function useWorkspaceTenantValidator(options?: {
             (w) => w.tenant_id === selectedTenantId,
           );
           if (firstWorkspace) {
-            console.info(
-              "[WorkspaceTenantValidator] Auto-correcting after error to:",
-              firstWorkspace.id,
-            );
-
             // Invalidate queries for OLD workspace before switching
             queryClient.invalidateQueries({
               queryKey: ["workspaceStats", selectedWorkspaceId],
@@ -210,9 +189,6 @@ export function useWorkspaceTenantValidator(options?: {
               queryKey: ["workspaceStats", firstWorkspace.id],
             });
           } else {
-            console.warn(
-              "[WorkspaceTenantValidator] No valid workspace available, resetting",
-            );
             reset();
           }
         }
