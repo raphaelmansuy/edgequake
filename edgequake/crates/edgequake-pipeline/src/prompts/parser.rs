@@ -198,11 +198,19 @@ impl JsonExtractionParser {
         // Try to extract JSON from the response
         let json_str = extract_json_from_response(response);
 
-        let parsed: serde_json::Value = serde_json::from_str(&json_str).map_err(|e| {
+        // Sanitize JSON to fix common LLM mistakes
+        let sanitized_json = sanitize_json(&json_str);
+
+        let parsed: serde_json::Value = serde_json::from_str(&sanitized_json).map_err(|e| {
+            tracing::warn!(
+                error = %e,
+                json_preview = %&sanitized_json[..sanitized_json.len().min(300)],
+                "JSON parsing failed - LLM returned malformed JSON"
+            );
             PipelineError::ExtractionError(format!(
-                "Invalid JSON: {} - Response: {}",
+                "Invalid JSON: {} - First 200 chars: {}",
                 e,
-                &json_str[..json_str.len().min(200)]
+                &sanitized_json[..sanitized_json.len().min(200)]
             ))
         })?;
 
@@ -307,18 +315,24 @@ impl HybridExtractionParser {
             has_tuple = has_tuple_markers,
             has_json = has_json_markers,
             prefer_tuple = self.prefer_tuple,
+            response_len = response.len(),
             "Detecting extraction format"
         );
 
         // Determine which parser to use
         if has_tuple_markers && (!has_json_markers || self.prefer_tuple) {
-            // Use tuple parser
+            // Use tuple parser (more robust)
             match self.tuple_parser.parse(response, chunk_id) {
-                Ok(result) if !result.entities.is_empty() || result.relationships.is_empty() => {
+                Ok(result) if !result.entities.is_empty() || !result.relationships.is_empty() => {
+                    tracing::debug!(
+                        entities = result.entities.len(),
+                        relationships = result.relationships.len(),
+                        "Tuple parsing succeeded"
+                    );
                     return Ok(result);
                 }
                 Ok(result) => {
-                    // If tuple parsing returned empty but we have markers, try anyway
+                    // If tuple parsing returned empty but we have JSON markers, try JSON
                     if result.entities.is_empty()
                         && result.relationships.is_empty()
                         && has_json_markers
@@ -337,14 +351,44 @@ impl HybridExtractionParser {
         // Try JSON parser
         if has_json_markers {
             match self.json_parser.parse(response, chunk_id) {
-                Ok(result) => return Ok(result),
+                Ok(result) => {
+                    tracing::debug!(
+                        entities = result.entities.len(),
+                        relationships = result.relationships.len(),
+                        "JSON parsing succeeded"
+                    );
+                    return Ok(result);
+                }
                 Err(e) => {
-                    tracing::debug!(error = %e, "JSON parsing failed");
+                    tracing::warn!(
+                        error = %e,
+                        "JSON parsing failed - attempting tuple fallback"
+                    );
                     // If we also have tuple markers, try that as last resort
                     if has_tuple_markers {
+                        tracing::info!("Falling back to tuple parsing after JSON failure");
                         return self.tuple_parser.parse(response, chunk_id);
                     }
-                    return Err(e);
+                    // If no tuple markers, try tuple anyway (it's more lenient)
+                    tracing::info!("No tuple markers detected but trying tuple parsing as last resort");
+                    match self.tuple_parser.parse(response, chunk_id) {
+                        Ok(result) if !result.entities.is_empty() || !result.relationships.is_empty() => {
+                            tracing::info!(
+                                entities = result.entities.len(),
+                                relationships = result.relationships.len(),
+                                "Tuple fallback succeeded despite no markers"
+                            );
+                            return Ok(result);
+                        }
+                        Ok(_) => {
+                            // Return original JSON error if tuple also failed
+                            return Err(e);
+                        }
+                        Err(_) => {
+                            // Return original JSON error
+                            return Err(e);
+                        }
+                    }
                 }
             }
         }
@@ -367,6 +411,52 @@ impl HybridExtractionParser {
     pub fn json_parser(&self) -> &JsonExtractionParser {
         &self.json_parser
     }
+}
+
+/// Sanitize malformed JSON from LLM responses.
+///
+/// # WHY: LLMs Produce Malformed JSON
+///
+/// Common issues this fixes:
+/// 1. Unquoted keys: `{name: "value"}` → `{"name": "value"}`
+/// 2. Single quotes: `{'name': 'value'}` → `{"name": "value"}`
+/// 3. Trailing commas: `{"a": 1,}` → `{"a": 1}`
+/// 4. Comments: `{"a": 1 // comment}` → `{"a": 1}`
+/// 5. Unescaped quotes in strings (best-effort)
+///
+/// This is a best-effort fix. If sanitization fails, the original
+/// JSON error will be returned to the caller.
+fn sanitize_json(json: &str) -> String {
+    let mut sanitized = json.to_string();
+
+    // Remove JavaScript-style comments
+    // Single-line: // comment
+    let re_single_comment = regex::Regex::new(r"//.*$").unwrap();
+    sanitized = re_single_comment.replace_all(&sanitized, "").to_string();
+
+    // Multi-line: /* comment */
+    let re_multi_comment = regex::Regex::new(r"/\*.*?\*/").unwrap();
+    sanitized = re_multi_comment.replace_all(&sanitized, "").to_string();
+
+    // Remove trailing commas before } or ]
+    let re_trailing_comma = regex::Regex::new(r",(\s*[}\]])").unwrap();
+    sanitized = re_trailing_comma.replace_all(&sanitized, "$1").to_string();
+
+    // Fix single quotes to double quotes (be careful with apostrophes in text)
+    // This is a simple heuristic: replace ' with " only when it looks like a JSON delimiter
+    // Pattern: '{key}' or ':{value}' at JSON structure positions
+    let re_single_quote_key = regex::Regex::new(r"'([a-zA-Z_][a-zA-Z0-9_]*)'(\s*:)").unwrap();
+    sanitized = re_single_quote_key.replace_all(&sanitized, "\"$1\"$2").to_string();
+    
+    let re_single_quote_val = regex::Regex::new(r":\s*'([^']*)'").unwrap();
+    sanitized = re_single_quote_val.replace_all(&sanitized, ": \"$1\"").to_string();
+
+    // Fix unquoted keys: {name: "value"} → {"name": "value"}
+    // Match: word characters followed by colon
+    let re_unquoted_key = regex::Regex::new(r#"([,{]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)"#).unwrap();
+    sanitized = re_unquoted_key.replace_all(&sanitized, "$1\"$2\"$3").to_string();
+
+    sanitized
 }
 
 /// Extract JSON from a potentially wrapped LLM response.

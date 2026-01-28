@@ -650,33 +650,89 @@ where
             ChatMessage::user(user_prompt),
         ];
 
-        // Make LLM call using chat interface
-        let response = self
-            .llm_provider
-            .chat(&messages, None)
-            .await
-            .map_err(|e| PipelineError::ExtractionError(format!("LLM error: {}", e)))?;
+        // Retry logic with exponential backoff
+        const MAX_RETRIES: u32 = 3;
+        let mut last_error = None;
 
-        // Parse response using hybrid parser
-        let mut result = self.parser.parse(&response.content, &chunk.id)?;
+        for attempt in 1..=MAX_RETRIES {
+            // Make LLM call using chat interface
+            let response = match self.llm_provider.chat(&messages, None).await {
+                Ok(resp) => resp,
+                Err(e) => {
+                    tracing::warn!(
+                        attempt = attempt,
+                        max_retries = MAX_RETRIES,
+                        error = %e,
+                        chunk_id = %chunk.id,
+                        "LLM call failed, retrying..."
+                    );
+                    last_error = Some(PipelineError::ExtractionError(format!("LLM error: {}", e)));
+                    if attempt < MAX_RETRIES {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100 * 2_u64.pow(attempt - 1))).await;
+                        continue;
+                    } else {
+                        return Err(last_error.unwrap());
+                    }
+                }
+            };
 
-        // Add token usage from response
-        result.input_tokens = response.prompt_tokens;
-        result.output_tokens = response.completion_tokens;
-        result.extraction_time_ms = start.elapsed().as_millis() as u64;
+            // Parse response using hybrid parser (with built-in fallbacks)
+            match self.parser.parse(&response.content, &chunk.id) {
+                Ok(mut result) => {
+                    // Add token usage from response
+                    result.input_tokens = response.prompt_tokens;
+                    result.output_tokens = response.completion_tokens;
+                    result.extraction_time_ms = start.elapsed().as_millis() as u64;
 
-        // Add source chunk line info to metadata
-        result
-            .metadata
-            .insert("extractor".to_string(), serde_json::json!("sota"));
-        result
-            .metadata
-            .insert("language".to_string(), serde_json::json!(self.language));
-        result
-            .metadata
-            .insert("model".to_string(), serde_json::json!(response.model));
+                    // Add source chunk line info to metadata
+                    result
+                        .metadata
+                        .insert("extractor".to_string(), serde_json::json!("sota"));
+                    result
+                        .metadata
+                        .insert("language".to_string(), serde_json::json!(self.language));
+                    result
+                        .metadata
+                        .insert("model".to_string(), serde_json::json!(response.model));
+                    result
+                        .metadata
+                        .insert("parse_attempts".to_string(), serde_json::json!(attempt));
 
-        Ok(result)
+                    if attempt > 1 {
+                        tracing::info!(
+                            attempt = attempt,
+                            chunk_id = %chunk.id,
+                            entities = result.entities.len(),
+                            "Extraction succeeded after retry"
+                        );
+                    }
+
+                    return Ok(result);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        attempt = attempt,
+                        max_retries = MAX_RETRIES,
+                        error = %e,
+                        chunk_id = %chunk.id,
+                        response_preview = %&response.content[..response.content.len().min(200)],
+                        "Parsing failed - malformed LLM response"
+                    );
+                    last_error = Some(e);
+
+                    if attempt < MAX_RETRIES {
+                        // Exponential backoff: 100ms, 200ms, 400ms
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100 * 2_u64.pow(attempt - 1))).await;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // All retries exhausted
+        Err(last_error.unwrap_or_else(|| {
+            PipelineError::ExtractionError("Unknown extraction error after retries".to_string())
+        }))
     }
 
     fn name(&self) -> &str {
