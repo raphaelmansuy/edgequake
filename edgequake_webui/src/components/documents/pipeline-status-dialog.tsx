@@ -1,22 +1,22 @@
 'use client';
 
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -53,6 +53,10 @@ interface PipelineStatusDialogProps {
   subtitle?: string;
   /** OODA-26: Clear phase statistics from rebuild operation */
   clearStats?: ClearStats;
+  /** CRITICAL: Tenant ID for multi-tenancy isolation */
+  tenantId?: string;
+  /** CRITICAL: Workspace ID for multi-tenancy isolation */
+  workspaceId?: string;
 }
 
 const levelConfig = {
@@ -429,15 +433,18 @@ export function PipelineStatusDialog({
   title,
   subtitle,
   clearStats,
+  tenantId,
+  workspaceId,
 }: PipelineStatusDialogProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // Use enhanced pipeline status with history messages (Phase 3)
+  // CRITICAL: Include tenantId and workspaceId for multi-tenancy isolation
   const { data, isLoading } = useQuery({
-    queryKey: ['enhanced-pipeline-status'],
-    queryFn: getEnhancedPipelineStatus,
+    queryKey: ['enhanced-pipeline-status', tenantId, workspaceId],
+    queryFn: () => getEnhancedPipelineStatus(tenantId, workspaceId),
     refetchInterval: open ? 2000 : false, // Poll every 2s when dialog is open
     enabled: open,
   });
@@ -726,13 +733,22 @@ export function PipelineStatusDialog({
 
 /**
  * Pipeline Status Indicator for the header
+ * 
+ * @param tenantId - CRITICAL: Tenant ID for multi-tenancy isolation
+ * @param workspaceId - CRITICAL: Workspace ID for multi-tenancy isolation
  */
-export function PipelineStatusIndicator() {
+export function PipelineStatusIndicator({ 
+  tenantId, 
+  workspaceId 
+}: { 
+  tenantId?: string; 
+  workspaceId?: string; 
+}) {
   const { t } = useTranslation();
   
   const { data } = useQuery({
-    queryKey: ['enhanced-pipeline-status'],
-    queryFn: getEnhancedPipelineStatus,
+    queryKey: ['enhanced-pipeline-status', tenantId, workspaceId],
+    queryFn: () => getEnhancedPipelineStatus(tenantId, workspaceId),
     refetchInterval: 5000, // Poll every 5s
   });
 

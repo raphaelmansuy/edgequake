@@ -637,24 +637,38 @@ where
         let start = std::time::Instant::now();
 
         // Pre-validate chunk size to fail fast on oversized chunks
-        // WHY: Large chunks (>4000 tokens ~16KB) likely exceed LLM timeout (120s)
+        // WHY: Large chunks (>1500 tokens ~6KB) likely exceed LLM timeout (120s)
+        // Based on LightRAG research: 1200-1500 tokens is optimal for reliability
         // This prevents wasting API calls and provides immediate, actionable feedback
         let chunk_size_bytes = chunk.content.len();
         let estimated_tokens = chunk_size_bytes / 4; // Rough estimate: 1 token ≈ 4 chars
-        const MAX_CHUNK_TOKENS: usize = 4000;
-        
+        const MAX_CHUNK_TOKENS: usize = 1500; // Reduced from 4000 based on research
+
         if estimated_tokens > MAX_CHUNK_TOKENS {
+            // Calculate adaptive chunk size based on estimated document size
+            let recommended_chunk_size = if chunk_size_bytes > 100_000 {
+                600 // >100KB: minimal chunks
+            } else if chunk_size_bytes > 50_000 {
+                800 // 50-100KB: reduced chunks
+            } else {
+                1200 // <50KB: standard chunks
+            };
+
             let error_msg = format!(
                 "Chunk too large for LLM processing. Chunk size: {}KB (~{} tokens, max: {}). \
                 Suggestions:\n\
-                1. Split document into smaller files (<50KB each)\n\
-                2. Reduce chunk size in pipeline config (current default: ~1200 chars)\n\
-                3. Use a local LLM with higher timeout (e.g., Ollama with 300s timeout)\n\
-                Chunk ID: {}",
+                1. Use adaptive chunking: Set chunk_size={} for this document size\n\
+                2. Split document into smaller files (<50KB each)\n\
+                3. Current config uses chunk_size=1200 which is too large for {}KB documents\n\
+                4. Alternative: Use Ollama with 300s timeout instead of OpenAI (120s)\n\
+                Chunk ID: {} | Document size: ~{}KB",
                 chunk_size_bytes / 1024,
                 estimated_tokens,
                 MAX_CHUNK_TOKENS,
-                chunk.id
+                recommended_chunk_size,
+                chunk_size_bytes / 1024,
+                chunk.id,
+                chunk_size_bytes / 1024
             );
             tracing::error!(
                 chunk_id = %chunk.id,
@@ -691,8 +705,9 @@ where
                 Ok(resp) => resp,
                 Err(e) => {
                     let error_str = e.to_string().to_lowercase();
-                    let is_timeout = error_str.contains("timeout") || error_str.contains("timed out");
-                    
+                    let is_timeout =
+                        error_str.contains("timeout") || error_str.contains("timed out");
+
                     tracing::warn!(
                         attempt = attempt,
                         max_retries = MAX_RETRIES,
@@ -703,31 +718,48 @@ where
                         is_timeout = is_timeout,
                         "LLM call failed, retrying..."
                     );
-                    
+
                     // Build enhanced error message with diagnostic info
                     let enhanced_error = if is_timeout {
+                        // Calculate adaptive chunk size recommendation
+                        let recommended_chunk_size = if chunk_size_bytes > 100_000 {
+                            600 // >100KB: minimal chunks
+                        } else if chunk_size_bytes > 50_000 {
+                            800 // 50-100KB: reduced chunks
+                        } else {
+                            1200 // <50KB: standard chunks
+                        };
+
                         format!(
-                            "LLM timeout after 120s. Chunk: {}KB (~{} tokens). \
-                            Document appears too large for current timeout settings. \
+                            "LLM timeout after 120s. Chunk: {}KB (~{} tokens, max: {}). \
+                            Document appears too large for current settings. \
                             Suggestions:\n\
-                            1. Split document into smaller files (<50KB each)\n\
-                            2. Increase LLM timeout to 300s (set LLM_TIMEOUT_SECS env variable)\n\
-                            3. Use local model like Ollama with higher limits\n\
-                            Chunk ID: {} | Attempt: {}/{} | Original error: {}",
+                            1. BEST: Use adaptive chunking with chunk_size={} (recommended for {}KB documents)\n\
+                            2. Split document into smaller files (<50KB each)\n\
+                            3. Switch to Ollama provider (300s timeout vs OpenAI 120s)\n\
+                            4. Alternative: Increase LLM_TIMEOUT_SECS env variable (not recommended)\n\
+                            Chunk ID: {} | Attempt: {}/{} | Document size: ~{}KB | Original error: {}",
                             chunk_size_bytes / 1024,
                             estimated_tokens,
+                            MAX_CHUNK_TOKENS,
+                            recommended_chunk_size,
+                            chunk_size_bytes / 1024,
                             chunk.id,
                             attempt,
                             MAX_RETRIES,
+                            chunk_size_bytes / 1024,
                             e
                         )
                     } else {
                         format!("LLM error: {}", e)
                     };
-                    
+
                     last_error = Some(PipelineError::ExtractionError(enhanced_error));
                     if attempt < MAX_RETRIES {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100 * 2_u64.pow(attempt - 1))).await;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(
+                            100 * 2_u64.pow(attempt - 1),
+                        ))
+                        .await;
                         continue;
                     } else {
                         return Err(last_error.unwrap());
@@ -781,7 +813,10 @@ where
 
                     if attempt < MAX_RETRIES {
                         // Exponential backoff: 100ms, 200ms, 400ms
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100 * 2_u64.pow(attempt - 1))).await;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(
+                            100 * 2_u64.pow(attempt - 1),
+                        ))
+                        .await;
                         continue;
                     }
                 }

@@ -15,30 +15,30 @@
 
 import { PipelineStatusDialog, type ClearStats } from '@/components/documents/pipeline-status-dialog';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from '@/components/ui/card';
 import { formatEstimatedTime, useWorkspaceStats } from '@/hooks/use-workspace-stats';
 import {
-  rebuildKnowledgeGraph,
-  reprocessAllDocuments,
-  type RebuildKnowledgeGraphResponse,
-  type ReprocessAllResponse,
+    rebuildKnowledgeGraph,
+    reprocessAllDocuments,
+    type RebuildKnowledgeGraphResponse,
+    type ReprocessAllResponse,
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -85,7 +85,7 @@ export function RebuildKnowledgeGraphButton({
 }: RebuildKnowledgeGraphButtonProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { selectedWorkspaceId, workspaces } = useTenantStore();
+  const { selectedTenantId, selectedWorkspaceId, workspaces } = useTenantStore();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isPipelineOpen, setIsPipelineOpen] = useState(false);
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResponse | null>(null);
@@ -361,6 +361,8 @@ export function RebuildKnowledgeGraphButton({
               : undefined
           }
           clearStats={clearStats ?? undefined}
+          tenantId={selectedTenantId}
+          workspaceId={selectedWorkspaceId}
         />
       </>
     );
@@ -482,6 +484,8 @@ export function RebuildKnowledgeGraphButton({
             : undefined
         }
         clearStats={clearStats ?? undefined}
+        tenantId={selectedTenantId}
+        workspaceId={selectedWorkspaceId}
       />
     </>
   );

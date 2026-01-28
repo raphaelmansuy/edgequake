@@ -13,6 +13,12 @@ use utoipa::ToSchema;
 /// Query parameters for listing tasks.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ListTasksQuery {
+    /// Filter by tenant ID (REQUIRED for multi-tenancy isolation).
+    pub tenant_id: Option<String>,
+
+    /// Filter by workspace ID (REQUIRED for workspace-level isolation).
+    pub workspace_id: Option<String>,
+
     /// Filter by task status.
     pub status: Option<String>,
 
@@ -41,6 +47,12 @@ pub struct ListTasksQuery {
 pub struct TaskResponse {
     /// Task tracking ID.
     pub track_id: String,
+
+    /// Tenant ID for multi-tenancy isolation.
+    pub tenant_id: String,
+
+    /// Workspace ID for workspace-level isolation.
+    pub workspace_id: String,
 
     /// Type of task.
     pub task_type: String,
@@ -158,6 +170,8 @@ impl From<edgequake_tasks::Task> for TaskResponse {
     fn from(task: edgequake_tasks::Task) -> Self {
         Self {
             track_id: task.track_id,
+            tenant_id: task.tenant_id.to_string(),
+            workspace_id: task.workspace_id.to_string(),
             task_type: task.task_type.to_string(),
             status: task.status.to_string(),
             created_at: task.created_at.to_rfc3339(),

@@ -20,17 +20,21 @@ The EdgeQuake database migrations had **THREE critical issues**:
 ## Solution Implemented
 
 ### 1. Cleaned Up Duplicate Files
+
 - **REMOVED:** `014_add_tenant_workspace_to_tasks.sql`
 - **REMOVED:** `015_add_tenant_workspace_to_tasks.sql`
 - **CREATED:** `019_add_tenant_workspace_to_tasks.sql` (bulletproof version)
 
 ### 2. Fixed Column Reference
+
 Changed from:
+
 ```sql
 (payload->>'tenant_id')::UUID  -- WRONG - column doesn't exist
 ```
 
 To:
+
 ```sql
 (task_data->>'tenant_id')::UUID  -- CORRECT - matches 002 migration
 ```
@@ -40,6 +44,7 @@ To:
 The new `019_add_tenant_workspace_to_tasks.sql` includes:
 
 #### Safety Features:
+
 - ✅ **Idempotent**: Can run multiple times safely (uses `IF NOT EXISTS`)
 - ✅ **Non-Destructive**: Adds columns with NULL first, migrates data, then adds constraints
 - ✅ **Validated**: Checks for NULL values before adding NOT NULL constraints
@@ -49,6 +54,7 @@ The new `019_add_tenant_workspace_to_tasks.sql` includes:
 - ✅ **Error Handling**: Exception blocks for optional policies
 
 #### Migration Steps:
+
 1. **Add Columns** - tenant_id and workspace_id (NULL initially)
 2. **Migrate Data** - Extract from task_data JSON or use default tenant
 3. **Validate** - Check all rows have tenant/workspace before continuing
@@ -62,6 +68,7 @@ The new `019_add_tenant_workspace_to_tasks.sql` includes:
 ### Before Deploying to Production:
 
 1. **Test on Fresh Database:**
+
    ```bash
    docker rm -f edgequake-postgres && docker volume rm docker_postgres-data
    make backend-bg
@@ -69,30 +76,33 @@ The new `019_add_tenant_workspace_to_tasks.sql` includes:
    ```
 
 2. **Test on Database with Existing Tasks:**
+
    ```sql
    -- Create test tasks WITHOUT tenant_id/workspace_id
    INSERT INTO tasks (track_id, task_type, status, task_data, metadata)
    VALUES ('test-1', 'upload', 'pending', '{}', '{}');
-   
+
    -- Run migration
    \i 019_add_tenant_workspace_to_tasks.sql
-   
+
    -- Verify default tenant was assigned
    SELECT track_id, tenant_id, workspace_id FROM tasks WHERE track_id = 'test-1';
    ```
 
 3. **Test Idempotency:**
+
    ```sql
    -- Run migration again - should not fail
    \i 019_add_tenant_workspace_to_tasks.sql
    ```
 
 4. **Test RLS Policies:**
+
    ```sql
    -- Set tenant context
    SET app.current_tenant_id = '00000000-0000-0000-0000-000000000002';
    SET app.current_workspace_id = 'b6ef94c5-c621-4dff-b0fc-7562dfc9cabb';
-   
+
    -- Should only see tasks from this tenant/workspace
    SELECT * FROM tasks;
    ```
@@ -140,11 +150,13 @@ ALTER TABLE tasks DISABLE ROW LEVEL SECURITY;
 ## Security Impact
 
 **Before Fix:**
+
 - Tasks visible across all tenants (CRITICAL vulnerability)
 - Statistics showed counts from all tenants
 - No database-level tenant isolation
 
 **After Fix:**
+
 - ✅ Tasks isolated by tenant_id AND workspace_id
 - ✅ Statistics filtered per tenant/workspace
 - ✅ Row Level Security enforces isolation at database level
@@ -153,12 +165,14 @@ ALTER TABLE tasks DISABLE ROW LEVEL SECURITY;
 ## Performance Impact
 
 **New Indexes Added:**
+
 - `idx_tasks_tenant_workspace` - Composite (tenant_id, workspace_id, created_at DESC)
 - `idx_tasks_tenant_id` - Single column (tenant_id)
 - `idx_tasks_workspace_id` - Single column (workspace_id)
 - `idx_tasks_tenant_workspace_status` - Composite (tenant_id, workspace_id, status)
 
 **Expected Impact:**
+
 - Index creation time: ~1-5 seconds per 10,000 tasks
 - Query performance: **IMPROVED** (proper filtering now possible)
 - Storage overhead: ~1-2% additional disk space
@@ -166,6 +180,7 @@ ALTER TABLE tasks DISABLE ROW LEVEL SECURITY;
 ## Related Changes
 
 This migration works together with the code fix:
+
 - **Backend:** Updated `get_statistics()` to accept and use TaskFilter
 - **Storage:** PostgreSQL and Memory implementations filter by tenant/workspace
 - **API Handlers:** Pass tenant context to statistics queries

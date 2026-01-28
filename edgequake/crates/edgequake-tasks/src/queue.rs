@@ -186,10 +186,26 @@ mod tests {
     use super::*;
     use crate::types::TaskType;
 
+    const TEST_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
+    const TEST_WORKSPACE_ID: &str = "00000000-0000-0000-0000-000000000002";
+
+    fn test_tenant_id() -> uuid::Uuid {
+        uuid::Uuid::parse_str(TEST_TENANT_ID).unwrap()
+    }
+
+    fn test_workspace_id() -> uuid::Uuid {
+        uuid::Uuid::parse_str(TEST_WORKSPACE_ID).unwrap()
+    }
+
     #[tokio::test]
     async fn test_channel_queue_send_receive() {
         let queue = ChannelTaskQueue::new(10);
-        let task = Task::new(TaskType::Upload, serde_json::json!({"file": "test.pdf"}));
+        let task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Upload,
+            serde_json::json!({"file": "test.pdf"}),
+        );
         let track_id = task.track_id.clone();
 
         queue.send(task).await.unwrap();
@@ -202,8 +218,18 @@ mod tests {
     async fn test_channel_queue_capacity() {
         let queue = ChannelTaskQueue::new(2);
 
-        let task1 = Task::new(TaskType::Insert, serde_json::json!({}));
-        let task2 = Task::new(TaskType::Insert, serde_json::json!({}));
+        let task1 = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            serde_json::json!({}),
+        );
+        let task2 = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            serde_json::json!({}),
+        );
 
         queue.send(task1).await.unwrap();
         queue.send(task2).await.unwrap();
@@ -227,7 +253,12 @@ mod tests {
 
         // Send many tasks
         for i in 0..100 {
-            let task = Task::new(TaskType::Insert, serde_json::json!({"index": i}));
+            let task = Task::new(
+                test_tenant_id(),
+                test_workspace_id(),
+                TaskType::Insert,
+                serde_json::json!({"index": i}),
+            );
             queue.send(task).await.unwrap();
         }
 
