@@ -433,7 +433,9 @@ impl Pipeline {
                         // Truncate chunk preview to 100 chars (OODA-02: Fixed UTF-8 char boundary panic)
                         let chunk_preview = if chunk.content.len() > 100 {
                             // Use char_indices() to ensure we don't split multi-byte UTF-8 characters
-                            let truncate_at = chunk.content.char_indices()
+                            let truncate_at = chunk
+                                .content
+                                .char_indices()
                                 .nth(97)
                                 .map(|(idx, _)| idx)
                                 .unwrap_or(chunk.content.len());

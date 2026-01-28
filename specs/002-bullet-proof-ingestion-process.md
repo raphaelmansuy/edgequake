@@ -40,6 +40,7 @@ Your mission is to **investigate, identify root causes, and implement a bulletpr
 Failure to re-read causes alignment drift → catastrophic safety issues → user frustration → system unreliability.
 
 **Before each iteration, execute**:
+
 ```bash
 cat /Users/raphaelmansuy/Github/03-working/edgequake/specs/002-bullet-proof-ingestion-process.md
 ```
@@ -79,6 +80,7 @@ specs/002-bullet-proof-ingestion-process/ooda_loop/
 ### Iteration Output Structure
 
 Each `observe.md` **MUST** contain:
+
 1. **Current System State**
    - Backend health check output
    - Ollama service status
@@ -99,6 +101,7 @@ Each `observe.md` **MUST** contain:
    - Network latency
 
 Each `orient.md` **MUST** contain:
+
 1. **First Principles Analysis**
    - What is the fundamental requirement? (e.g., "Transform text → knowledge graph")
    - What are the immutable constraints? (e.g., LLM API rate limits, memory limits)
@@ -117,6 +120,7 @@ Each `orient.md` **MUST** contain:
    - Option C: Description, pros, cons, estimated effort
 
 Each `decide.md` **MUST** contain:
+
 1. **Chosen Solution** (with clear rationale)
 2. **Implementation Plan**
    - File changes with line number ranges
@@ -127,6 +131,7 @@ Each `decide.md` **MUST** contain:
 4. **Rollback Plan** (if changes fail)
 
 Each `act.md` **MUST** contain:
+
 1. **Changes Made**
    - File paths with line numbers
    - Code diffs (before/after snippets)
@@ -157,6 +162,7 @@ Each `act.md` **MUST** contain:
 ### First Principles Thinking Framework
 
 For every decision, ask:
+
 1. **What is the fundamental truth?** (e.g., "LLM calls are slow and can fail")
 2. **What can we eliminate?** (e.g., "Do we need synchronous processing?")
 3. **What can we simplify?** (e.g., "Can we chunk documents instead of processing whole?")
@@ -166,6 +172,7 @@ For every decision, ask:
 ### Error Investigation Process
 
 When encountering errors:
+
 1. **Reproduce** the exact error with minimal test case
 2. **Isolate** the failing component (API → Pipeline → LLM → Storage)
 3. **Trace** the execution path with line-by-line code reading
@@ -177,6 +184,7 @@ When encountering errors:
 ### Testing Strategy
 
 For each change:
+
 1. **Unit Tests**: Isolated component testing
 2. **Integration Tests**: End-to-end pipeline with mock LLM
 3. **Manual Tests**: Real document upload with real LLM
@@ -186,12 +194,14 @@ For each change:
 ### Deliverables
 
 **Immediate** (First 10 Iterations):
+
 - [ ] Reproduce the hang issue with 121KB document
 - [ ] Identify exact line where processing stalls
 - [ ] Implement timeout/progress logging
 - [ ] Verify small document (86KB) processes successfully
 
 **Short-Term** (Iterations 11-30):
+
 - [ ] Fix root cause of large document hang
 - [ ] Add streaming progress indicators
 - [ ] Implement graceful timeout handling
@@ -199,6 +209,7 @@ For each change:
 - [ ] Document configuration best practices
 
 **Long-Term** (Iterations 31-50+):
+
 - [ ] Implement chunked processing for large documents
 - [ ] Add comprehensive error handling
 - [ ] Create monitoring dashboard
@@ -209,16 +220,16 @@ For each change:
 
 Track these metrics every iteration:
 
-| Metric                          | Target          | Current | Status |
-| ------------------------------- | --------------- | ------- | ------ |
-| 86KB doc processing time        | < 2 minutes     | ?       | ❌     |
-| 121KB doc processing time       | < 5 minutes     | HANGS   | ❌     |
-| Ollama success rate             | 100%            | 0%      | ❌     |
-| OpenAI success rate             | 100%            | ?       | ❌     |
-| Entity extraction accuracy      | > 90%           | ?       | ❌     |
-| Timeout error rate              | 0%              | ?       | ❌     |
-| Test coverage                   | > 80%           | ?       | ❌     |
-| Documentation completeness      | 100%            | 50%     | 🟡     |
+| Metric                     | Target      | Current | Status |
+| -------------------------- | ----------- | ------- | ------ |
+| 86KB doc processing time   | < 2 minutes | ?       | ❌     |
+| 121KB doc processing time  | < 5 minutes | HANGS   | ❌     |
+| Ollama success rate        | 100%        | 0%      | ❌     |
+| OpenAI success rate        | 100%        | ?       | ❌     |
+| Entity extraction accuracy | > 90%       | ?       | ❌     |
+| Timeout error rate         | 0%          | ?       | ❌     |
+| Test coverage              | > 80%       | ?       | ❌     |
+| Documentation completeness | 100%        | 50%     | 🟡     |
 
 ### Communication Rules
 
@@ -239,6 +250,7 @@ Track these metrics every iteration:
 ### Archive Strategy
 
 After every 10 iterations:
+
 1. Create `summary_XX.md` consolidating insights
 2. Update success metrics table
 3. Document lessons learned
@@ -249,22 +261,26 @@ After every 10 iterations:
 ## Initial Observations (Pre-Iteration)
 
 **Test Documents**:
+
 - `aws_2601.08734v1.extracted.md`: 86,408 bytes (84KB)
 - `scienti_2601.16282v1.extracted.md`: 123,909 bytes (121KB)
 
 **System State** (2026-01-28 14:45):
+
 - Backend: Running (PID 36558) with Ollama provider
 - Ollama: Running (localhost:11434) with 50+ models
 - Frontend: Running (port 3000)
 - Database: PostgreSQL (edgequake-postgres container)
 
 **Observed Issues**:
+
 1. Upload request for 121KB document **hangs indefinitely** (no response, no timeout)
 2. Previous timeout fix (120s → 600s) may not be applied correctly
 3. No progress indicators during processing
 4. Backend logs show successful processing of small test docs but fail on production docs
 
 **Hypothesis**:
+
 - Timeout may not be applied at HTTP layer (only LLM layer)
 - Document chunking may be failing for large docs
 - Ollama may be slower than expected for entity extraction
@@ -275,18 +291,21 @@ After every 10 iterations:
 ## Iteration Checklist
 
 Before starting each iteration:
+
 - [ ] Read mission file: `cat specs/002-bullet-proof-ingestion-process.md`
 - [ ] Check previous iteration's `act.md` for context
 - [ ] Verify system state (health checks, logs)
 - [ ] Plan investigation focus (max 2 hours per iteration)
 
 During iteration:
+
 - [ ] Create all 4 files (`observe.md`, `orient.md`, `decide.md`, `act.md`)
 - [ ] Run tests and document results
 - [ ] Commit changes with `OODA-XX:` prefix
 - [ ] Update success metrics table
 
 After iteration:
+
 - [ ] Verify changes didn't break existing functionality
 - [ ] Document any new questions/blockers
 - [ ] Plan next iteration focus

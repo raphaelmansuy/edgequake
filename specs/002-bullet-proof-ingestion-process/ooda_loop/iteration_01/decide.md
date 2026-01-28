@@ -19,14 +19,17 @@
 ### Alternative Solutions Rejected
 
 #### Auto-Force Async Mode
+
 - **Why Rejected**: Requires frontend changes, breaks API contract for sync mode
 - **When to Revisit**: After implementing task polling UI (Iteration 5-8)
 
 #### Optimize Ollama Speed
+
 - **Why Rejected**: Unknown problem scope, no guarantee of success
 - **When to Revisit**: After gathering per-chunk timing data (Iteration 3-5)
 
 #### Streaming Progress
+
 - **Why Rejected**: Too complex for immediate fix, requires infrastructure changes
 - **When to Revisit**: Long-term improvement (Iteration 15+)
 
@@ -35,9 +38,11 @@
 ### File Changes
 
 #### File 1: `edgequake/crates/edgequake-api/src/handlers/documents.rs`
+
 **Location**: Lines 645-660 (synchronous processing section)
 
 **Before**:
+
 ```rust
 // SPEC-032: Use workspace-specific pipeline with workspace LLM configuration
 // This ensures the workspace's LLM model is used for entity extraction
@@ -50,6 +55,7 @@ let result = workspace_pipeline
 ```
 
 **After**:
+
 ```rust
 // SPEC-032: Use workspace-specific pipeline with workspace LLM configuration
 // This ensures the workspace's LLM model is used for entity extraction
@@ -115,6 +121,7 @@ tracing::info!(
 **Line Range**: 645-660 → 645-700 (approximately 55 lines added)
 
 **Why This Approach**:
+
 1. **Minimal Changes**: Only wraps existing call, no restructuring
 2. **Clear Error Message**: Guides users to async mode
 3. **Detailed Logging**: Start/end logs with timing
@@ -127,6 +134,7 @@ None - all changes in existing file.
 ### Tests to Write/Modify
 
 #### Test 1: Timeout Enforcement (New)
+
 **File**: `edgequake/crates/edgequake-api/tests/document_upload_timeout.rs`
 
 ```rust
@@ -141,6 +149,7 @@ async fn test_synchronous_upload_timeout_enforcement() {
 **Priority**: High (validates fix)
 
 #### Test 2: Small Document Success (Existing)
+
 **File**: `edgequake/crates/edgequake-api/tests/integration_tests.rs`
 
 **Modification**: Add assertion that small documents (< 10KB) complete in < 30 seconds
@@ -152,7 +161,7 @@ async fn test_small_document_upload_fast() {
     let start = std::time::Instant::now();
     let response = upload_document(content).await;
     let duration = start.elapsed();
-    
+
     assert!(duration.as_secs() < 30, "Small doc took too long");
     assert_eq!(response.status, "processed");
 }
@@ -161,7 +170,9 @@ async fn test_small_document_upload_fast() {
 **Priority**: Medium (regression check)
 
 #### Test 3: Manual Test - 86KB Document (Critical)
+
 **Command**:
+
 ```bash
 cd /Users/raphaelmansuy/Github/03-working/edgequake/zz-explore/test_docs
 cat aws_2601.08734v1.extracted.md | \
@@ -174,6 +185,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Expected Outcome**:
+
 - ✅ Completes successfully in < 120 seconds
 - ✅ Returns 201 with document_id
 - ✅ Backend logs show processing time
@@ -181,7 +193,9 @@ curl -X POST http://localhost:8080/api/v1/documents \
 **Priority**: CRITICAL (validates fix with real data)
 
 #### Test 4: Manual Test - 121KB Document (Expected Timeout)
+
 **Command**:
+
 ```bash
 cd /Users/raphaelmansuy/Github/03-working/edgequake/zz-explore/test_docs
 cat scienti_2601.16282v1.extracted.md | \
@@ -194,6 +208,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Expected Outcome**:
+
 - ❌ Fails with timeout error after ~120 seconds
 - ❌ Returns 408 or 500 with clear error message
 - ✅ Error message suggests using async mode
@@ -204,9 +219,10 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ### Documentation Updates
 
 #### File: `docs/api/document-upload.md`
+
 **Section to Add**: "Synchronous vs Asynchronous Processing"
 
-```markdown
+````markdown
 ## Processing Modes
 
 ### Synchronous Processing (Default)
@@ -217,6 +233,7 @@ For small to medium documents (< 50KB), the API processes documents synchronousl
 **Best For**: Interactive uploads, documents < 50KB
 
 Example:
+
 ```json
 POST /api/v1/documents
 {
@@ -224,6 +241,7 @@ POST /api/v1/documents
   "content": "Document text here..."
 }
 ```
+````
 
 ### Asynchronous Processing (Recommended for Large Documents)
 
@@ -233,6 +251,7 @@ For large documents (> 50KB), use asynchronous mode to avoid timeout errors.
 **Best For**: Batch uploads, documents > 50KB, PDFs
 
 Example:
+
 ```json
 POST /api/v1/documents
 {
@@ -243,6 +262,7 @@ POST /api/v1/documents
 ```
 
 Response:
+
 ```json
 {
   "document_id": "...",
@@ -252,6 +272,7 @@ Response:
 ```
 
 Poll task status:
+
 ```
 GET /api/v1/tasks/{task_id}
 ```
@@ -261,6 +282,7 @@ GET /api/v1/tasks/{task_id}
 If a synchronous upload exceeds 120 seconds, you'll receive:
 
 **HTTP 408 Request Timeout**
+
 ```json
 {
   "code": "TIMEOUT",
@@ -269,7 +291,8 @@ If a synchronous upload exceeds 120 seconds, you'll receive:
 ```
 
 **Action**: Retry with `"async_processing": true`
-```
+
+````
 
 **Priority**: High (user-facing documentation)
 
@@ -318,15 +341,17 @@ If a synchronous upload exceeds 120 seconds, you'll receive:
 ```rust
 // Change timeout from 120s to 300s
 const SYNC_PROCESSING_TIMEOUT_SECS: u64 = 300;
-```
+````
 
 **Test**: Retry failed document upload
 **Time**: < 5 minutes
 
 ### Scenario 2: Timeout Not Working
+
 **Symptoms**: Requests still hang indefinitely, no timeout error
 
 **Action**:
+
 ```bash
 cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake
 git revert HEAD  # Revert timeout commit
@@ -338,9 +363,11 @@ make backend-bg  # Restart backend
 **Time**: < 10 minutes
 
 ### Scenario 3: Breaking Changes
+
 **Symptoms**: Test suite fails, compilation errors
 
 **Action**:
+
 ```bash
 git revert HEAD
 cargo test --all
@@ -352,6 +379,7 @@ cargo test --all
 ## Implementation Checklist
 
 ### Pre-Implementation
+
 - [x] Re-read mission file
 - [x] Understand current code structure
 - [x] Identify exact line numbers for changes
@@ -359,6 +387,7 @@ cargo test --all
 - [x] Define success criteria
 
 ### Implementation
+
 - [ ] Add timeout wrapper in documents.rs (lines 645-660)
 - [ ] Add detailed logging (start/end/error)
 - [ ] Add const for timeout value
@@ -366,6 +395,7 @@ cargo test --all
 - [ ] Verify code compiles
 
 ### Testing
+
 - [ ] Run `cargo build --package edgequake-api`
 - [ ] Run `cargo test --package edgequake-api`
 - [ ] Manual test: 86KB document (expect success)
@@ -373,12 +403,14 @@ cargo test --all
 - [ ] Check backend logs for timing data
 
 ### Documentation
+
 - [ ] Update API documentation
 - [ ] Update act.md with results
 - [ ] Commit with OODA-01 prefix
 - [ ] Update success metrics table
 
 ### Validation
+
 - [ ] Verify timeout enforced (curl test)
 - [ ] Verify small docs still work (regression)
 - [ ] Verify error message helpful
@@ -389,7 +421,7 @@ cargo test --all
 
 After completing this iteration, focus on:
 
-1. **Analyze Timeout Results**: 
+1. **Analyze Timeout Results**:
    - Did 86KB doc complete in time?
    - What was actual processing time?
    - Did 121KB doc timeout as expected?

@@ -46,17 +46,20 @@
 ## Lessons/Insights
 
 ### What Worked ✅
+
 - **First Principles Analysis**: Quickly identified missing HTTP timeout
 - **OODA Methodology**: Structured approach prevented scope creep
 - **Incremental Implementation**: Small, testable changes reduced risk
 - **Clear Error Messages**: Guides users to solution (async mode)
 
 ### What Didn't Work ❌
+
 - **Performance Underestimation**: 86KB document taking > 120s was unexpected
 - **Incomplete Testing**: Should have tested small docs for regression
 - **Ollama Speed Unknown**: Need better understanding of model performance
 
 ### Key Insights 💡
+
 1. **Multiple Timeout Layers Needed**: HTTP (120s) + Pipeline (600s) + LLM (60s per chunk)
 2. **Non-Linear Scaling**: Document processing doesn't scale linearly with size
 3. **Provider Differences**: Ollama may be significantly slower than OpenAI
@@ -65,28 +68,32 @@
 ## Metrics
 
 ### Success Criteria (Iteration 01)
-| Criterion | Target | Actual | Status |
-|-----------|--------|--------|--------|
-| Timeout Enforcement | 120s ± 5s | 120.03s | ✅ |
-| Error Message Quality | Mentions async mode | Yes | ✅ |
-| HTTP Status Code | 408 | 408 | ✅ |
-| Logging Detail | Start/end logs | Yes | ✅ |
-| No Compilation Errors | Build succeeds | Yes | ✅ |
+
+| Criterion             | Target              | Actual  | Status |
+| --------------------- | ------------------- | ------- | ------ |
+| Timeout Enforcement   | 120s ± 5s           | 120.03s | ✅     |
+| Error Message Quality | Mentions async mode | Yes     | ✅     |
+| HTTP Status Code      | 408                 | 408     | ✅     |
+| Logging Detail        | Start/end logs      | Yes     | ✅     |
+| No Compilation Errors | Build succeeds      | Yes     | ✅     |
 
 ### Performance Metrics
-| Document Size | Expected | Actual | Status |
-|---------------|----------|--------|--------|
-| 875 bytes | < 30s | 25.1s | ✅ (previous test) |
-| 86KB | < 120s | > 120s (timeout) | ❌ |
-| 121KB | < 300s | NOT TESTED | ⏸️ |
+
+| Document Size | Expected | Actual           | Status             |
+| ------------- | -------- | ---------------- | ------------------ |
+| 875 bytes     | < 30s    | 25.1s            | ✅ (previous test) |
+| 86KB          | < 120s   | > 120s (timeout) | ❌                 |
+| 121KB         | < 300s   | NOT TESTED       | ⏸️                 |
 
 ### Time Tracking
+
 - **Estimated**: 40 minutes
 - **Actual**: 65 minutes
 - **Variance**: +25 minutes (62% over)
 - **Reason**: Documentation more detailed than planned
 
 ## Files Changed
+
 - `edgequake-api/src/error.rs`: Added Timeout variant
 - `edgequake-api/src/handlers/documents.rs`: Added timeout wrapper
 - `specs/002-bullet-proof-ingestion-process.md`: Mission specification
@@ -95,6 +102,7 @@
 **Commit SHA**: 51cca5fe
 
 ## References
+
 - Mission Spec: `specs/002-bullet-proof-ingestion-process.md`
 - Backend Logs: `/tmp/edgequake-ooda01.log`
 - Test Documents: `zz-explore/test_docs/`

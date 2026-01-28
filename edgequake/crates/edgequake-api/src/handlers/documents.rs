@@ -674,7 +674,7 @@ pub async fn upload_document(
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(SYNC_PROCESSING_TIMEOUT_SECS),
-            workspace_pipeline.process(&document_id, &request.content)
+            workspace_pipeline.process(&document_id, &request.content),
         )
         .await
         .map_err(|_elapsed| {
