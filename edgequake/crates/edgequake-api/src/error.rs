@@ -118,6 +118,11 @@ pub enum ApiError {
     #[error("Rate limited")]
     RateLimited,
 
+    /// Request timeout.
+    /// @implements OODA-01: HTTP-level timeout for document processing
+    #[error("Request timeout: {0}")]
+    Timeout(String),
+
     /// Not implemented.
     #[error("Not implemented: {feature}")]
     NotImplemented {
@@ -162,6 +167,7 @@ impl ApiError {
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
+            Self::Timeout(_) => StatusCode::REQUEST_TIMEOUT,
             Self::NotImplemented { .. } => StatusCode::NOT_IMPLEMENTED,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::ConfigError(_) => StatusCode::UNPROCESSABLE_ENTITY,
@@ -182,6 +188,7 @@ impl ApiError {
             Self::Conflict(_) => "CONFLICT",
             Self::ValidationError(_) => "VALIDATION_ERROR",
             Self::RateLimited => "RATE_LIMITED",
+            Self::Timeout(_) => "REQUEST_TIMEOUT",
             Self::NotImplemented { .. } => "NOT_IMPLEMENTED",
             Self::Internal(_) => "INTERNAL_ERROR",
             Self::ConfigError(_) => "CONFIG_ERROR",

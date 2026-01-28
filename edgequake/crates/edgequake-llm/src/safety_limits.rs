@@ -115,7 +115,9 @@ impl SafetyLimitsConfig {
     pub fn new(max_tokens: usize, timeout_secs: u64) -> Self {
         Self {
             max_tokens: max_tokens.clamp(1, ABSOLUTE_MAX_TOKENS),
-            timeout: Duration::from_secs(timeout_secs.clamp(MINIMUM_TIMEOUT_SECS, MAXIMUM_TIMEOUT_SECS)),
+            timeout: Duration::from_secs(
+                timeout_secs.clamp(MINIMUM_TIMEOUT_SECS, MAXIMUM_TIMEOUT_SECS),
+            ),
             log_enforcement: true,
         }
     }
@@ -216,10 +218,10 @@ impl<P> SafetyLimitedProvider<P> {
     /// Returns new options with max_tokens clamped to config limit.
     fn apply_token_limit(&self, options: &CompletionOptions) -> CompletionOptions {
         let mut opts = options.clone();
-        
+
         let requested = opts.max_tokens.unwrap_or(self.config.max_tokens);
         let effective = requested.min(self.config.max_tokens);
-        
+
         if requested != effective && self.config.log_enforcement {
             tracing::warn!(
                 requested_tokens = requested,
@@ -227,7 +229,7 @@ impl<P> SafetyLimitedProvider<P> {
                 "Safety limit: max_tokens clamped to configured limit"
             );
         }
-        
+
         opts.max_tokens = Some(effective);
         opts
     }
@@ -252,7 +254,7 @@ impl<P: LLMProvider + Send + Sync> LLMProvider for SafetyLimitedProvider<P> {
             max_tokens: Some(self.config.max_tokens),
             ..Default::default()
         };
-        
+
         self.complete_with_options(prompt, &options).await
     }
 
@@ -262,7 +264,7 @@ impl<P: LLMProvider + Send + Sync> LLMProvider for SafetyLimitedProvider<P> {
         options: &CompletionOptions,
     ) -> Result<LLMResponse> {
         let safe_options = self.apply_token_limit(options);
-        
+
         // Apply timeout
         let result = tokio::time::timeout(
             self.config.timeout,
@@ -293,12 +295,12 @@ impl<P: LLMProvider + Send + Sync> LLMProvider for SafetyLimitedProvider<P> {
             max_tokens: Some(self.config.max_tokens),
             ..Default::default()
         };
-        
+
         let safe_options = match options {
             Some(opts) => self.apply_token_limit(opts),
             None => default_options,
         };
-        
+
         // Apply timeout
         let result = tokio::time::timeout(
             self.config.timeout,
@@ -324,11 +326,7 @@ impl<P: LLMProvider + Send + Sync> LLMProvider for SafetyLimitedProvider<P> {
     async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>> {
         // For streaming, we can't easily enforce token limits on the response
         // But we can apply timeout to the initial connection
-        let result = tokio::time::timeout(
-            self.config.timeout,
-            self.inner.stream(prompt),
-        )
-        .await;
+        let result = tokio::time::timeout(self.config.timeout, self.inner.stream(prompt)).await;
 
         match result {
             Ok(inner_result) => inner_result,
@@ -350,7 +348,7 @@ impl<P: LLMProvider + Send + Sync> LLMProvider for SafetyLimitedProvider<P> {
         options: &CompletionOptions,
     ) -> Result<BoxStream<'static, Result<String>>> {
         let safe_options = self.apply_token_limit(options);
-        
+
         let result = tokio::time::timeout(
             self.config.timeout,
             self.inner.stream_with_options(prompt, &safe_options),
@@ -423,11 +421,7 @@ impl<P: EmbeddingProvider + Send + Sync> EmbeddingProvider for SafetyLimitedEmbe
     }
 
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        let result = tokio::time::timeout(
-            self.config.timeout,
-            self.inner.embed(texts),
-        )
-        .await;
+        let result = tokio::time::timeout(self.config.timeout, self.inner.embed(texts)).await;
 
         match result {
             Ok(inner_result) => inner_result,
@@ -471,10 +465,10 @@ impl SafetyLimitedProviderWrapper {
     /// Apply max_tokens limit to options.
     fn apply_token_limit(&self, options: &CompletionOptions) -> CompletionOptions {
         let mut opts = options.clone();
-        
+
         let requested = opts.max_tokens.unwrap_or(self.config.max_tokens);
         let effective = requested.min(self.config.max_tokens);
-        
+
         if requested != effective && self.config.log_enforcement {
             tracing::warn!(
                 requested_tokens = requested,
@@ -482,7 +476,7 @@ impl SafetyLimitedProviderWrapper {
                 "Safety limit: max_tokens clamped to configured limit"
             );
         }
-        
+
         opts.max_tokens = Some(effective);
         opts
     }
@@ -507,7 +501,7 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
             max_tokens: Some(self.config.max_tokens),
             ..Default::default()
         };
-        
+
         self.complete_with_options(prompt, &options).await
     }
 
@@ -517,7 +511,7 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
         options: &CompletionOptions,
     ) -> Result<LLMResponse> {
         let safe_options = self.apply_token_limit(options);
-        
+
         let result = tokio::time::timeout(
             self.config.timeout,
             self.inner.complete_with_options(prompt, &safe_options),
@@ -547,12 +541,12 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
             max_tokens: Some(self.config.max_tokens),
             ..Default::default()
         };
-        
+
         let safe_options = match options {
             Some(opts) => self.apply_token_limit(opts),
             None => default_options,
         };
-        
+
         let result = tokio::time::timeout(
             self.config.timeout,
             self.inner.chat(messages, Some(&safe_options)),
@@ -575,11 +569,7 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
     }
 
     async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>> {
-        let result = tokio::time::timeout(
-            self.config.timeout,
-            self.inner.stream(prompt),
-        )
-        .await;
+        let result = tokio::time::timeout(self.config.timeout, self.inner.stream(prompt)).await;
 
         match result {
             Ok(inner_result) => inner_result,
@@ -601,7 +591,7 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
         options: &CompletionOptions,
     ) -> Result<BoxStream<'static, Result<String>>> {
         let safe_options = self.apply_token_limit(options);
-        
+
         let result = tokio::time::timeout(
             self.config.timeout,
             self.inner.stream_with_options(prompt, &safe_options),
@@ -662,11 +652,7 @@ impl EmbeddingProvider for SafetyLimitedEmbeddingProviderWrapper {
     }
 
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        let result = tokio::time::timeout(
-            self.config.timeout,
-            self.inner.embed(texts),
-        )
-        .await;
+        let result = tokio::time::timeout(self.config.timeout, self.inner.embed(texts)).await;
 
         match result {
             Ok(inner_result) => inner_result,
