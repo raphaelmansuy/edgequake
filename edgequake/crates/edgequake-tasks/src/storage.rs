@@ -24,8 +24,11 @@ pub trait TaskStorage: Send + Sync {
     /// List tasks with filters and pagination
     async fn list_tasks(&self, filter: TaskFilter, pagination: Pagination) -> TaskResult<TaskList>;
 
-    /// Get task statistics
-    async fn get_statistics(&self) -> TaskResult<TaskStatistics>;
+    /// Get task statistics filtered by tenant/workspace
+    ///
+    /// WHY: Task statistics must respect tenant isolation to prevent cross-tenant data leakage.
+    /// Without filtering, a user in tenant A could see processing counts from tenant B.
+    async fn get_statistics(&self, filter: TaskFilter) -> TaskResult<TaskStatistics>;
 
     /// Get queue metrics for task queue visibility.
     ///
@@ -42,6 +45,8 @@ pub trait TaskStorage: Send + Sync {
 /// Task filter criteria
 #[derive(Debug, Clone, Default)]
 pub struct TaskFilter {
+    pub tenant_id: Option<uuid::Uuid>,
+    pub workspace_id: Option<uuid::Uuid>,
     pub status: Option<TaskStatus>,
     pub task_type: Option<TaskType>,
 }

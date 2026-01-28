@@ -119,7 +119,7 @@ impl TaskStorage for MemoryTaskStorage {
         })
     }
 
-    async fn get_statistics(&self) -> TaskResult<TaskStatistics> {
+    async fn get_statistics(&self, filter: TaskFilter) -> TaskResult<TaskStatistics> {
         use crate::types::TaskStatus;
 
         let tasks = self.tasks.read().unwrap();
@@ -130,10 +130,38 @@ impl TaskStorage for MemoryTaskStorage {
             indexed: 0,
             failed: 0,
             cancelled: 0,
-            total: tasks.len() as u64,
+            total: 0,
         };
 
+        // WHY: Apply same filtering logic as list_tasks to maintain tenant isolation
         for task in tasks.values() {
+            // Skip tasks that don't match filters
+            if let Some(tenant_id) = filter.tenant_id {
+                if task.tenant_id != tenant_id {
+                    continue;
+                }
+            }
+
+            if let Some(workspace_id) = filter.workspace_id {
+                if task.workspace_id != workspace_id {
+                    continue;
+                }
+            }
+
+            if let Some(status) = &filter.status {
+                if &task.status != status {
+                    continue;
+                }
+            }
+
+            if let Some(task_type) = &filter.task_type {
+                if &task.task_type != task_type {
+                    continue;
+                }
+            }
+
+            // Count this task
+            stats.total += 1;
             match task.status {
                 TaskStatus::Pending => stats.pending += 1,
                 TaskStatus::Processing => stats.processing += 1,
@@ -242,10 +270,23 @@ mod tests {
     use super::*;
     use crate::types::{TaskStatus, TaskType};
 
+    const TEST_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
+    const TEST_WORKSPACE_ID: &str = "00000000-0000-0000-0000-000000000002";
+
+    fn test_tenant_id() -> uuid::Uuid {
+        uuid::Uuid::parse_str(TEST_TENANT_ID).unwrap()
+    }
+
+    fn test_workspace_id() -> uuid::Uuid {
+        uuid::Uuid::parse_str(TEST_WORKSPACE_ID).unwrap()
+    }
+
     #[tokio::test]
     async fn test_create_and_get_task() {
         let storage = MemoryTaskStorage::new();
         let task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
             TaskType::Upload,
             serde_json::json!({"file_path": "/tmp/test.pdf"}),
         );
@@ -260,7 +301,12 @@ mod tests {
     #[tokio::test]
     async fn test_update_task() {
         let storage = MemoryTaskStorage::new();
-        let mut task = Task::new(TaskType::Insert, serde_json::json!({"text": "test"}));
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            serde_json::json!({"text": "test"}),
+        );
 
         storage.create_task(&task).await.unwrap();
 
@@ -274,7 +320,12 @@ mod tests {
     #[tokio::test]
     async fn test_delete_task() {
         let storage = MemoryTaskStorage::new();
-        let task = Task::new(TaskType::Scan, serde_json::json!({"directory": "/data"}));
+        let task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Scan,
+            serde_json::json!({"directory": "/data"}),
+        );
 
         storage.create_task(&task).await.unwrap();
         storage.delete_task(&task.track_id).await.unwrap();
@@ -290,6 +341,8 @@ mod tests {
         // Create multiple tasks
         for i in 0..5 {
             let mut task = Task::new(
+                test_tenant_id(),
+                test_workspace_id(),
                 TaskType::Upload,
                 serde_json::json!({"file": format!("file{}.pdf", i)}),
             );
@@ -301,6 +354,8 @@ mod tests {
 
         // Filter by processing status
         let filter = TaskFilter {
+            tenant_id: None,
+            workspace_id: None,
             status: Some(TaskStatus::Processing),
             task_type: None,
         };
@@ -319,18 +374,36 @@ mod tests {
         let storage = MemoryTaskStorage::new();
 
         // Create tasks with different statuses
-        let mut task1 = Task::new(TaskType::Upload, serde_json::json!({}));
+        let task1 = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Upload,
+            serde_json::json!({}),
+        );
         storage.create_task(&task1).await.unwrap();
 
-        let mut task2 = Task::new(TaskType::Insert, serde_json::json!({}));
+        let mut task2 = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            serde_json::json!({}),
+        );
         task2.mark_processing();
         storage.create_task(&task2).await.unwrap();
 
-        let mut task3 = Task::new(TaskType::Scan, serde_json::json!({}));
+        let mut task3 = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Scan,
+            serde_json::json!({}),
+        );
         task3.mark_success(serde_json::json!({"result": "ok"}));
         storage.create_task(&task3).await.unwrap();
 
-        let stats = storage.get_statistics().await.unwrap();
+        let stats = storage
+            .get_statistics(TaskFilter::default())
+            .await
+            .unwrap();
 
         assert_eq!(stats.total, 3);
         assert_eq!(stats.pending, 1);

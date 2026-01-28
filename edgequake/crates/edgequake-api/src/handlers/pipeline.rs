@@ -45,9 +45,12 @@ pub async fn get_pipeline_status(
     let snapshot = state.pipeline_state.get_status().await;
 
     // Get task statistics
+    // WHY: Pipeline status shows global statistics across all tenants.
+    // This is intentional as pipeline is a shared resource.
+    // Per-tenant statistics are available via /api/v1/tasks endpoint.
     let stats = state
         .task_storage
-        .get_statistics()
+        .get_statistics(edgequake_tasks::storage::TaskFilter::default())
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
 

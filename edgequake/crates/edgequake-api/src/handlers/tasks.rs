@@ -82,6 +82,14 @@ pub async fn list_tasks(
     Query(params): Query<ListTasksQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     let filter = TaskFilter {
+        tenant_id: params
+            .tenant_id
+            .as_deref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok()),
+        workspace_id: params
+            .workspace_id
+            .as_deref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok()),
         status: params
             .status
             .as_deref()
@@ -109,14 +117,15 @@ pub async fn list_tasks(
 
     let task_list = state
         .task_storage
-        .list_tasks(filter, pagination)
+        .list_tasks(filter.clone(), pagination)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to list tasks: {}", e)))?;
 
-    // Get statistics
+    // Get statistics with the same filter to ensure tenant isolation
+    // WHY: Statistics must respect the same tenant/workspace filters as the task list
     let stats = state
         .task_storage
-        .get_statistics()
+        .get_statistics(filter)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
 

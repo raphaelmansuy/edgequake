@@ -40,13 +40,15 @@ impl TaskStorage for PostgresTaskStorage {
         sqlx::query(
             r#"
             INSERT INTO tasks (
-                track_id, task_type, status, created_at, updated_at,
+                track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
                 started_at, completed_at, error_message, retry_count,
                 max_retries, task_data, metadata, progress, result
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             "#,
         )
         .bind(&task.track_id)
+        .bind(&task.tenant_id)
+        .bind(&task.workspace_id)
         .bind(task.task_type.to_string())
         .bind(task.status.to_string())
         .bind(task.created_at)
@@ -71,7 +73,7 @@ impl TaskStorage for PostgresTaskStorage {
         let row = sqlx::query(
             r#"
             SELECT 
-                track_id, task_type, status, created_at, updated_at,
+                track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
                 started_at, completed_at, error_message, retry_count,
                 max_retries, task_data, metadata, progress, result
             FROM tasks
@@ -86,6 +88,8 @@ impl TaskStorage for PostgresTaskStorage {
         if let Some(row) = row {
             let task = Task {
                 track_id: row.get("track_id"),
+                tenant_id: row.get("tenant_id"),
+                workspace_id: row.get("workspace_id"),
                 task_type: row
                     .get::<String, _>("task_type")
                     .parse()
@@ -170,21 +174,31 @@ impl TaskStorage for PostgresTaskStorage {
         // Build query with filters
         let mut query = String::from(
             "SELECT 
-                track_id, task_type, status, created_at, updated_at,
+                track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
                 started_at, completed_at, error_message, retry_count,
                 max_retries, task_data, metadata, progress, result
             FROM tasks WHERE 1=1",
         );
 
+        let mut param_count = 0;
+
+        // CRITICAL: Filter by tenant_id and workspace_id for multi-tenancy isolation
+        if filter.tenant_id.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND tenant_id = ${}", param_count));
+        }
+        if filter.workspace_id.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND workspace_id = ${}", param_count));
+        }
+
         if filter.status.is_some() {
-            query.push_str(" AND status = $1");
+            param_count += 1;
+            query.push_str(&format!(" AND status = ${}", param_count));
         }
         if filter.task_type.is_some() {
-            query.push_str(if filter.status.is_some() {
-                " AND task_type = $2"
-            } else {
-                " AND task_type = $1"
-            });
+            param_count += 1;
+            query.push_str(&format!(" AND task_type = ${}", param_count));
         }
 
         // Add sorting
@@ -205,8 +219,16 @@ impl TaskStorage for PostgresTaskStorage {
             pagination.page_size, offset
         ));
 
-        // Execute query
+        // Execute query with dynamic binding
         let mut query_builder = sqlx::query(&query);
+
+        // Bind parameters in the same order as they appear in the query
+        if let Some(tenant_id) = &filter.tenant_id {
+            query_builder = query_builder.bind(tenant_id);
+        }
+        if let Some(workspace_id) = &filter.workspace_id {
+            query_builder = query_builder.bind(workspace_id);
+        }
         if let Some(status) = &filter.status {
             query_builder = query_builder.bind(status.to_string());
         }
@@ -224,6 +246,8 @@ impl TaskStorage for PostgresTaskStorage {
             .filter_map(|row| {
                 Some(Task {
                     track_id: row.get("track_id"),
+                    tenant_id: row.get("tenant_id"),
+                    workspace_id: row.get("workspace_id"),
                     task_type: row.get::<String, _>("task_type").parse().ok()?,
                     status: row.get::<String, _>("status").parse().ok()?,
                     created_at: row.get("created_at"),
@@ -259,8 +283,10 @@ impl TaskStorage for PostgresTaskStorage {
         })
     }
 
-    async fn get_statistics(&self) -> TaskResult<TaskStatistics> {
-        let row = sqlx::query(
+    async fn get_statistics(&self, filter: TaskFilter) -> TaskResult<TaskStatistics> {
+        // WHY: Build dynamic SQL to support tenant/workspace filtering
+        // Without this, statistics would leak across tenant boundaries
+        let mut query = String::from(
             r#"
             SELECT
                 COUNT(*) FILTER (WHERE status = 'pending') as pending,
@@ -270,11 +296,59 @@ impl TaskStorage for PostgresTaskStorage {
                 COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
                 COUNT(*) as total
             FROM tasks
+            WHERE 1=1
             "#,
-        )
-        .fetch_one(&*self.pool)
-        .await
-        .map_err(|e| TaskError::StorageError(format!("Failed to get statistics: {}", e)))?;
+        );
+
+        let mut param_count = 0;
+
+        // Add tenant filter if present
+        if filter.tenant_id.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND tenant_id = ${}", param_count));
+        }
+
+        // Add workspace filter if present
+        if filter.workspace_id.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND workspace_id = ${}", param_count));
+        }
+
+        // Add status filter if present
+        if filter.status.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND status = ${}", param_count));
+        }
+
+        // Add task_type filter if present
+        if filter.task_type.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND task_type = ${}", param_count));
+        }
+
+        // Build and bind query
+        let mut sqlx_query = sqlx::query(&query);
+
+        if let Some(tenant_id) = filter.tenant_id {
+            sqlx_query = sqlx_query.bind(tenant_id);
+        }
+
+        if let Some(workspace_id) = filter.workspace_id {
+            sqlx_query = sqlx_query.bind(workspace_id);
+        }
+
+        if let Some(status) = filter.status {
+            sqlx_query = sqlx_query.bind(status.to_string());
+        }
+
+        if let Some(task_type) = filter.task_type {
+            sqlx_query = sqlx_query.bind(task_type.to_string());
+        }
+
+        let row = sqlx_query
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| TaskError::StorageError(format!("Failed to get statistics: {}", e)))?;
 
         Ok(TaskStatistics {
             pending: row.get::<i64, _>("pending") as u64,
@@ -352,18 +426,36 @@ impl PostgresTaskStorage {
     async fn get_total_count(&self, filter: TaskFilter) -> TaskResult<u64> {
         let mut query = String::from("SELECT COUNT(*) FROM tasks WHERE 1=1");
 
+        let mut param_count = 0;
+
+        // CRITICAL: Filter by tenant_id and workspace_id for multi-tenancy isolation
+        if filter.tenant_id.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND tenant_id = ${}", param_count));
+        }
+        if filter.workspace_id.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND workspace_id = ${}", param_count));
+        }
+
         if filter.status.is_some() {
-            query.push_str(" AND status = $1");
+            param_count += 1;
+            query.push_str(&format!(" AND status = ${}", param_count));
         }
         if filter.task_type.is_some() {
-            query.push_str(if filter.status.is_some() {
-                " AND task_type = $2"
-            } else {
-                " AND task_type = $1"
-            });
+            param_count += 1;
+            query.push_str(&format!(" AND task_type = ${}", param_count));
         }
 
         let mut query_builder = sqlx::query(&query);
+
+        // Bind parameters in the same order as they appear in the query
+        if let Some(tenant_id) = &filter.tenant_id {
+            query_builder = query_builder.bind(tenant_id);
+        }
+        if let Some(workspace_id) = &filter.workspace_id {
+            query_builder = query_builder.bind(workspace_id);
+        }
         if let Some(status) = &filter.status {
             query_builder = query_builder.bind(status.to_string());
         }
