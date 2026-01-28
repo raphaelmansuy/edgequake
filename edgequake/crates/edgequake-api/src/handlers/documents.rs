@@ -650,9 +650,60 @@ pub async fn upload_document(
         let workspace_pipeline = state
             .create_workspace_pipeline(&workspace_id_for_storage)
             .await;
-        let result = workspace_pipeline
-            .process(&document_id, &request.content)
-            .await?;
+
+        // OODA-01: Add HTTP-level timeout to prevent indefinite hangs
+        // WHY: Large documents (100KB+) can take 5-10 minutes to process,
+        // but HTTP clients expect responses within 60-120 seconds.
+        // Without this timeout, requests hang indefinitely causing poor UX.
+        //
+        // Timeout Strategy:
+        // - 120 seconds (2 minutes): Conservative limit for synchronous mode
+        // - For larger documents, users should use async_processing: true
+        // - Timeout applies to ENTIRE pipeline, not just individual LLM calls
+        //
+        // See: specs/002-bullet-proof-ingestion-process.md
+        const SYNC_PROCESSING_TIMEOUT_SECS: u64 = 120;
+
+        let processing_start = std::time::Instant::now();
+        debug!(
+            document_id = %document_id,
+            content_length = request.content.len(),
+            timeout_secs = SYNC_PROCESSING_TIMEOUT_SECS,
+            "Starting synchronous document processing"
+        );
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(SYNC_PROCESSING_TIMEOUT_SECS),
+            workspace_pipeline.process(&document_id, &request.content)
+        )
+        .await
+        .map_err(|_elapsed| {
+            let processing_time = processing_start.elapsed();
+            warn!(
+                document_id = %document_id,
+                timeout_secs = SYNC_PROCESSING_TIMEOUT_SECS,
+                processing_time_secs = processing_time.as_secs(),
+                content_length = request.content.len(),
+                "Document processing timeout - consider using async mode for large documents"
+            );
+            ApiError::Timeout(format!(
+                "Document processing exceeded {} seconds. For large documents (>50KB), \
+                 use async_processing: true to avoid timeouts. \
+                 Current document size: {} bytes",
+                SYNC_PROCESSING_TIMEOUT_SECS,
+                request.content.len()
+            ))
+        })??;
+
+        let processing_time = processing_start.elapsed();
+        debug!(
+            document_id = %document_id,
+            processing_time_secs = processing_time.as_secs(),
+            processing_time_ms = processing_time.as_millis(),
+            chunk_count = result.chunks.len(),
+            entity_count = result.stats.entity_count,
+            "Document processing completed successfully"
+        );
 
         // Store chunks in KV storage
         let chunks: Vec<(String, serde_json::Value)> = result
