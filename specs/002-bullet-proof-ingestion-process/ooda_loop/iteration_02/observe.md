@@ -11,6 +11,7 @@ Re-read mission file (`specs/002-bullet-proof-ingestion-process.md`) at start of
 ## System State
 
 ### Backend Configuration
+
 - **Provider**: OpenAI (gpt-4o-mini)
 - **Storage**: In-memory (testing mode)
 - **Port**: 8080
@@ -18,6 +19,7 @@ Re-read mission file (`specs/002-bullet-proof-ingestion-process.md`) at start of
 - **Worker Pool**: 16 workers active
 
 ### Previous State (Iteration 01)
+
 - HTTP timeout implemented (120s)
 - Small document (875B) tested successfully (25.1s)
 - Large document (86KB) timed out at 120.03s (expected)
@@ -30,11 +32,13 @@ Re-read mission file (`specs/002-bullet-proof-ingestion-process.md`) at start of
 **Purpose**: Verify timeout addition didn't break normal use cases
 
 **Execution**:
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/documents -d @/tmp/test_1kb.json
 ```
 
 **Result**: ✅ PASS
+
 - Processing time: 14.814 seconds (well under 120s)
 - Entity count: 4
 - Relationship count: 4
@@ -48,6 +52,7 @@ curl -X POST http://localhost:8080/api/v1/documents -d @/tmp/test_1kb.json
 **Purpose**: Validate async processing bypasses timeout for large documents
 
 **Execution**:
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/documents \
   -H "X-Tenant-ID: 37385d41-2351-43cd-81d9-50434a61112a" \
@@ -58,6 +63,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 **Result**: ❌ FAILED (Critical Bug Discovered)
 
 **Task Details**:
+
 - Task ID: insert-46ec5c1f-9a20-47cb-b1bb-84e8c6a99f9e
 - Initial Response: 201 Created, status "pending"
 - Task Status: "processing" → stuck at "chunking"
@@ -65,6 +71,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 - Document Status: "chunking" (never advanced)
 
 **Log Analysis**:
+
 ```
 2026-01-28T08:01:48.214986Z  INFO Worker 1 processing task: insert-46ec5c1f-9a20-47cb-b1bb-84e8c6a99f9e
 thread 'tokio-runtime-worker' (14230101) panicked at pipeline.rs:435:60:
@@ -73,12 +80,14 @@ byte index 97 is not a char boundary; it is inside '↔' (bytes 95..98) of `s AC
 ```
 
 **Root Cause**: UTF-8 character boundary violation in chunk preview truncation
+
 - Line 435: `&chunk.content[..97]` panics when byte 97 is inside multi-byte character
 - Unicode character '↔' (U+2194 LEFT RIGHT ARROW) is 3 bytes (E2 86 94)
 - Truncating at byte 97 splits the character, causing panic
 - Worker crashes silently, task stuck in "processing" forever
 
-**Impact**: 
+**Impact**:
+
 - ✅ Async mode works (task created, worker started)
 - ❌ Worker crashes on first chunk with multi-byte characters
 - ❌ Task never completes or fails (stuck forever)
@@ -89,6 +98,7 @@ byte index 97 is not a char boundary; it is inside '↔' (bytes 95..98) of `s AC
 **Purpose**: Validate fix for UTF-8 panic
 
 **Fix Applied**:
+
 ```rust
 // BEFORE (pipeline.rs:435):
 let chunk_preview = if chunk.content.len() > 100 {
@@ -111,6 +121,7 @@ let chunk_preview = if chunk.content.len() > 100 {
 ```
 
 **Execution**:
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/documents \
   -H "X-Tenant-ID: aa11bb22-1111-2222-3333-444444444444" \
@@ -121,6 +132,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 **Result**: ✅ SUCCESS
 
 **Task Details**:
+
 - Task ID: insert-48c78969-db33-43c6-b6cd-58839b7eb6d4
 - Document ID: e3dd6998-c4e4-4b68-b70d-08f371cf2de3
 - Processing time: ~85 seconds (1:25)
@@ -129,6 +141,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 - Completed: 2026-01-28T08:25:46
 
 **Results**:
+
 - Chunk count: 21
 - Entity count: 274
 - Relationship count: 200
@@ -145,6 +158,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 **Location**: `edgequake-pipeline/src/pipeline.rs:435`
 
 **Symptoms**:
+
 - Task status stuck at "processing" or "chunking"
 - No error message returned to user
 - No visible failure in API responses
@@ -156,6 +170,7 @@ Byte-level string slicing `&chunk.content[..97]` violates UTF-8 character bounda
 
 **Fix**:
 Use `char_indices()` to find character boundary before truncating:
+
 ```rust
 let truncate_at = chunk.content.char_indices()
     .nth(97)
@@ -165,6 +180,7 @@ format!("{}...", &chunk.content[..truncate_at])
 ```
 
 **Testing**:
+
 - ✅ 86KB document with '↔' character processes successfully
 - ✅ No panic in logs
 - ✅ Task completes normally
@@ -177,6 +193,7 @@ format!("{}...", &chunk.content[..truncate_at])
 **Observation**: Task shows status "indexed" instead of "completed" after processing finishes
 
 **Details**:
+
 - Task has `completed_at` timestamp
 - Task has `result` data (entity/relationship counts)
 - Progress shows 100% complete
@@ -191,12 +208,14 @@ format!("{}...", &chunk.content[..truncate_at])
 ## Performance Observations
 
 ### Small Documents (1KB)
+
 - Processing time: ~15 seconds
 - Entity extraction: 4 entities, 4 relationships
 - Cost: $0.000211 (474 tokens)
 - Efficiency: Excellent for rapid testing
 
 ### Large Documents (86KB) - Async Mode
+
 - Processing time: ~85 seconds
 - Entity extraction: 274 entities, 200 relationships
 - Chunks: 21
@@ -205,12 +224,13 @@ format!("{}...", &chunk.content[..truncate_at])
 - Conclusion: Async mode successfully handles large documents
 
 ### Scaling Analysis
-| Document Size | Mode | Processing Time | Entities | Status |
-|---------------|------|-----------------|----------|--------|
-| 1KB | Sync | 14.8s | 4 | ✅ PASS |
-| 86KB | Sync | >120s timeout | N/A | ❌ TIMEOUT |
-| 86KB | Async | 85s | 274 | ✅ PASS |
-| 121KB | Async | NOT TESTED | N/A | ⏸️ PENDING |
+
+| Document Size | Mode  | Processing Time | Entities | Status     |
+| ------------- | ----- | --------------- | -------- | ---------- |
+| 1KB           | Sync  | 14.8s           | 4        | ✅ PASS    |
+| 86KB          | Sync  | >120s timeout   | N/A      | ❌ TIMEOUT |
+| 86KB          | Async | 85s             | 274      | ✅ PASS    |
+| 121KB         | Async | NOT TESTED      | N/A      | ⏸️ PENDING |
 
 **Insight**: 86KB/1KB = 86x size increase → 85s/15s = 5.7x time increase (sub-linear scaling!)
 
@@ -219,6 +239,7 @@ format!("{}...", &chunk.content[..truncate_at])
 ## Log Analysis
 
 ### Backend Logs
+
 - Worker pool started: 16 workers
 - Task queued successfully
 - Worker 1 picked up task
@@ -227,6 +248,7 @@ format!("{}...", &chunk.content[..truncate_at])
 - OpenAI API calls successful (1444 prompt tokens, 797 completion tokens observed)
 
 ### Missing Logs
+
 - Per-chunk progress updates (not captured during async processing)
 - Detailed timing breakdown (chunking vs extraction vs embedding)
 - Token usage per chunk
@@ -237,6 +259,7 @@ format!("{}...", &chunk.content[..truncate_at])
 ## Test Files Used
 
 ### Small Document (test_1kb.json)
+
 ```json
 {
   "title": "Small Test 1KB",
@@ -245,6 +268,7 @@ format!("{}...", &chunk.content[..truncate_at])
 ```
 
 ### Large Document (aws_2601.08734v1.extracted.md)
+
 - Path: `/Users/raphaelmansuy/Github/03-working/edgequake/zz-explore/test_docs/`
 - Size: 86,408 bytes
 - Title: "TerraFormer: Automated Infrastructure-as-Code with LLMs"

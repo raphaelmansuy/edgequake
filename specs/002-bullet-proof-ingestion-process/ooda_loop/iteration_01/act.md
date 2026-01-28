@@ -15,6 +15,7 @@
 **Change**: Added `ApiError::Timeout` variant
 
 **Before**:
+
 ```rust
     /// Rate limited.
     #[error("Rate limited")]
@@ -29,6 +30,7 @@
 ```
 
 **After**:
+
 ```rust
     /// Rate limited.
     #[error("Rate limited")]
@@ -56,6 +58,7 @@
 **Change**: Wrapped `workspace_pipeline.process()` call with `tokio::time::timeout`
 
 **Before**:
+
 ```rust
         // SPEC-032: Use workspace-specific pipeline with workspace LLM configuration
         // This ensures the workspace's LLM model is used for entity extraction
@@ -68,6 +71,7 @@
 ```
 
 **After**:
+
 ```rust
         // SPEC-032: Use workspace-specific pipeline with workspace LLM configuration
         // This ensures the workspace's LLM model is used for entity extraction
@@ -130,7 +134,8 @@
         );
 ```
 
-**Rationale**: 
+**Rationale**:
+
 - Prevents indefinite hangs by enforcing 120-second limit
 - Provides detailed logging for debugging
 - Clear error message guides users to async mode
@@ -153,13 +158,16 @@
 ## Tests Run
 
 ### Compilation Test
+
 ```bash
 cargo build --package edgequake-api
 ```
+
 **Result**: ✅ PASS (1m 06s)
 **Output**: `Finished 'dev' profile [unoptimized + debuginfo] target(s)`
 
 ### Manual Test 1: 86KB Document Timeout
+
 ```bash
 time curl -X POST http://localhost:8080/api/v1/documents \
   -H "Content-Type: application/json" \
@@ -170,6 +178,7 @@ time curl -X POST http://localhost:8080/api/v1/documents \
 **Result**: ✅ EXPECTED TIMEOUT
 
 **Response**:
+
 ```json
 {
   "code": "REQUEST_TIMEOUT",
@@ -181,20 +190,22 @@ time curl -X POST http://localhost:8080/api/v1/documents \
 **Time**: 120.029048 seconds (exactly 120s as configured)
 
 **Backend Logs**:
+
 ```
-2026-01-28T07:25:36.990837Z DEBUG Starting synchronous document processing 
-  document_id=5a63156e-9e24-46d4-bb49-d09174d971a3 
-  content_length=86408 
+2026-01-28T07:25:36.990837Z DEBUG Starting synchronous document processing
+  document_id=5a63156e-9e24-46d4-bb49-d09174d971a3
+  content_length=86408
   timeout_secs=120
 
-2026-01-28T07:27:36.992363Z WARN Document processing timeout - consider using async mode for large documents 
-  document_id=5a63156e-9e24-46d4-bb49-d09174d971a3 
-  timeout_secs=120 
-  processing_time_secs=120 
+2026-01-28T07:27:36.992363Z WARN Document processing timeout - consider using async mode for large documents
+  document_id=5a63156e-9e24-46d4-bb49-d09174d971a3
+  timeout_secs=120
+  processing_time_secs=120
   content_length=86408
 ```
 
 **Analysis**:
+
 - ✅ Timeout enforced correctly (120.03s ≈ 120s)
 - ✅ Clear error message with actionable guidance
 - ✅ HTTP 408 status code
@@ -205,22 +216,24 @@ time curl -X POST http://localhost:8080/api/v1/documents \
 
 ### Success Criteria - Met ✅
 
-| Criterion | Metric | Target | Actual | Status |
-|-----------|--------|--------|--------|--------|
-| **Timeout Enforcement** | Request fails after timeout | 120s ± 5s | 120.03s | ✅ |
-| **Error Message Quality** | Message mentions async mode | 100% | Yes | ✅ |
-| **HTTP Status Code** | Returns 408 | 408 | 408 | ✅ |
-| **Logging Detail** | Start/end logs present | 100% | Yes | ✅ |
-| **No Compilation Errors** | Build succeeds | 100% | Yes | ✅ |
+| Criterion                 | Metric                      | Target    | Actual  | Status |
+| ------------------------- | --------------------------- | --------- | ------- | ------ |
+| **Timeout Enforcement**   | Request fails after timeout | 120s ± 5s | 120.03s | ✅     |
+| **Error Message Quality** | Message mentions async mode | 100%      | Yes     | ✅     |
+| **HTTP Status Code**      | Returns 408                 | 408       | 408     | ✅     |
+| **Logging Detail**        | Start/end logs present      | 100%      | Yes     | ✅     |
+| **No Compilation Errors** | Build succeeds              | 100%      | Yes     | ✅     |
 
 ### Performance Metrics
 
 #### Pre-Implementation Baseline
+
 - 875-byte test doc: 25.1 seconds (from previous test)
 - 86KB doc: UNKNOWN (hangs indefinitely)
 - 121KB doc: UNKNOWN (hangs indefinitely)
 
 #### Post-Implementation Results
+
 - 875-byte test doc: NOT TESTED (assume < 30s, needs verification)
 - **86KB doc: > 120 seconds (TIMEOUT)**
 - 121KB doc: NOT TESTED (expect > 120s timeout)
@@ -228,15 +241,18 @@ time curl -X POST http://localhost:8080/api/v1/documents \
 ## Issues Discovered
 
 ### Issue 1: 86KB Document Processing Too Slow
+
 **Severity**: HIGH
 
-**Evidence**: 
+**Evidence**:
+
 - Document size: 86,408 bytes (84KB)
 - Expected processing time: < 120 seconds
 - Actual: > 120 seconds (timeout triggered)
 - Previous small test (875 bytes): 25.1 seconds
 
 **Calculation**:
+
 ```
 Small doc: 875 bytes → 25.1s processing
 Large doc: 86,408 bytes → ? seconds
@@ -248,18 +264,21 @@ This suggests NON-LINEAR complexity in processing.
 ```
 
 **Root Cause Hypothesis**:
+
 1. **Ollama Model Speed**: gemma3:12b may be slow for entity extraction
 2. **Chunking Not Parallelizing**: Despite parallel extraction code, only 1 LLM call logged
 3. **Embedding Generation**: Batch embedding may be slow
 4. **Context Window**: Large chunks may exceed efficient context size
 
 **Next Steps** (Iteration 02):
+
 1. Add per-chunk timing logs to identify bottleneck
 2. Monitor Ollama CPU/memory usage during processing
 3. Test with smaller timeout (60s) on medium docs (30KB)
 4. Test with OpenAI provider for comparison
 
 ### Issue 2: No Regression Testing on Small Documents
+
 **Severity**: MEDIUM
 
 **Evidence**: Did not test that small documents (< 10KB) still complete quickly
@@ -267,6 +286,7 @@ This suggests NON-LINEAR complexity in processing.
 **Impact**: Risk of timeout being too aggressive for legitimate use cases
 
 **Next Steps** (Iteration 02):
+
 1. Test with 1KB, 5KB, 10KB documents
 2. Measure actual processing times
 3. Adjust timeout if needed (e.g., 60s for smaller docs)
@@ -274,6 +294,7 @@ This suggests NON-LINEAR complexity in processing.
 ## Documentation Updates
 
 ### Created Files
+
 - `specs/002-bullet-proof-ingestion-process.md`: Mission specification (324 lines)
 - `specs/002-bullet-proof-ingestion-process/ooda_loop/iteration_01/observe.md` (213 lines)
 - `specs/002-bullet-proof-ingestion-process/ooda_loop/iteration_01/orient.md` (313 lines)
@@ -281,6 +302,7 @@ This suggests NON-LINEAR complexity in processing.
 - `specs/002-bullet-proof-ingestion-process/ooda_loop/iteration_01/act.md` (THIS FILE)
 
 ### Updated Files
+
 - `logs/2026-01-28-14-10-timeout-fix-verification-log.md`: Added OODA-01 reference
 
 ## Commit Details
@@ -288,6 +310,7 @@ This suggests NON-LINEAR complexity in processing.
 **Commit SHA**: 51cca5fe
 
 **Commit Message**:
+
 ```
 OODA-01: Add HTTP-level timeout for synchronous document processing
 
@@ -348,6 +371,7 @@ Files: documents.rs (timeout wrapper), error.rs (Timeout variant)
 ## Lessons Learned
 
 ### What Went Well ✅
+
 1. **First Principles Analysis**: Identified root cause (missing HTTP timeout) quickly
 2. **OODA Methodology**: Structured approach prevented scope creep
 3. **Detailed Logging**: Makes debugging much easier
@@ -355,12 +379,14 @@ Files: documents.rs (timeout wrapper), error.rs (Timeout variant)
 5. **Incremental Implementation**: Small, testable changes
 
 ### What Could Be Improved ❌
+
 1. **Performance Underestimated**: 86KB document taking > 120s was unexpected
 2. **Incomplete Testing**: Should have tested small docs for regression
 3. **Ollama Performance Unknown**: Need better understanding of model speed
 4. **No Baseline Metrics**: Should measure before/after more rigorously
 
 ### Key Insights 💡
+
 1. **Timeout Layers**: Need timeouts at MULTIPLE levels (HTTP, pipeline, LLM)
 2. **Non-Linear Scaling**: Document processing doesn't scale linearly with size
 3. **Provider Differences**: Ollama may be significantly slower than OpenAI
