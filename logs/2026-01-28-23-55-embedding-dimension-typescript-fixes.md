@@ -13,8 +13,9 @@ Fixed critical embedding dimension mismatch causing 261 entities to fail storage
 ### 1. Backend: Embedding Dimension Mismatch (CRITICAL)
 
 **Symptoms**:
+
 ```
-WARN edgequake_api::processor: Failed to store entity embedding entity:Xiaodong Ellen Tan: 
+WARN edgequake_api::processor: Failed to store entity embedding entity:Xiaodong Ellen Tan:
 Invalid query: Embedding dimension mismatch: expected 768, got 1536
 ```
 
@@ -23,6 +24,7 @@ Invalid query: Embedding dimension mismatch: expected 768, got 1536
 - Documents processed but entities not searchable
 
 **Root Cause**:
+
 - Workspace created with Ollama configuration (nomic-embed-text, 768 dimensions)
 - OpenAI API key present in environment → OpenAI provider used at runtime
 - OpenAI provider auto-detects dimension from model name (1536 for text-embedding-3-small)
@@ -31,6 +33,7 @@ Invalid query: Embedding dimension mismatch: expected 768, got 1536
 ### 2. Frontend: 20 TypeScript Compilation Errors
 
 **Files affected**:
+
 1. `src/components/documents/document-manager.tsx` (3 errors)
 2. `src/components/pipeline/pipeline-monitor.tsx` (8 errors)
 3. `src/components/workspace/rebuild-embeddings-button.tsx` (4 errors)
@@ -75,11 +78,13 @@ let provider = OpenAIProvider::new(api_key)
 ## Verification
 
 ### Backend Build
+
 ```
 ✓ Backend built successfully in 1m 11s
 ```
 
 ### Frontend Build
+
 ```
 ✓ TypeScript check passed
 ✓ Compiled successfully in 5.6s
@@ -89,11 +94,13 @@ let provider = OpenAIProvider::new(api_key)
 ## Impact
 
 **Before**:
+
 - ❌ 261 entities rejected (dimension mismatch)
 - ❌ Frontend won't compile
 - ❌ Cannot deploy
 
 **After**:
+
 - ✅ Embeddings match workspace dimension
 - ✅ Frontend compiles without errors
 - ✅ Ready for deployment
@@ -101,10 +108,12 @@ let provider = OpenAIProvider::new(api_key)
 ## Files Modified
 
 ### Backend (2 files)
+
 - `edgequake/crates/edgequake-llm/src/providers/openai.rs`
 - `edgequake/crates/edgequake-llm/src/factory.rs`
 
 ### Frontend (5 files)
+
 - `edgequake_webui/src/components/documents/document-manager.tsx`
 - `edgequake_webui/src/components/pipeline/pipeline-monitor.tsx`
 - `edgequake_webui/src/components/workspace/rebuild-embeddings-button.tsx`
@@ -112,4 +121,5 @@ let provider = OpenAIProvider::new(api_key)
 - `edgequake_webui/src/lib/api/edgequake.ts`
 
 ---
+
 **Session completed successfully - all issues resolved**

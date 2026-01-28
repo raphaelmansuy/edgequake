@@ -1211,11 +1211,13 @@ export async function getEnhancedPipelineStatus(
   try {
     // Try enhanced endpoint first with tenant/workspace context
     const params = new URLSearchParams();
-    if (tenant_id) params.append('tenant_id', tenant_id);
-    if (workspace_id) params.append('workspace_id', workspace_id);
+    if (tenant_id) params.append("tenant_id", tenant_id);
+    if (workspace_id) params.append("workspace_id", workspace_id);
     const query = params.toString();
 
-    return await api.get<EnhancedPipelineStatus>(`/pipeline/status${query ? `?${query}` : ""}`);
+    return await api.get<EnhancedPipelineStatus>(
+      `/pipeline/status${query ? `?${query}` : ""}`,
+    );
   } catch {
     // Fall back to basic status derived from tasks with tenant/workspace filtering
     const result = await getTasksList({
