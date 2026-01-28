@@ -44,10 +44,11 @@ use futures::stream::BoxStream;
 /// - 8192 is a reasonable middle ground
 pub const DEFAULT_MAX_TOKENS: usize = 8192;
 
-/// Default request timeout in seconds (120).
+/// Default request timeout in seconds (600 = 10 minutes).
 ///
-/// 2 minutes is long enough for:
-/// - Complex entity extraction
+/// 10 minutes is long enough for:
+/// - Complex entity extraction from large documents (100KB+)
+/// - Scientific papers with many entities and relationships
 /// - Long document summarization
 /// - Multi-turn conversations
 ///
@@ -55,7 +56,11 @@ pub const DEFAULT_MAX_TOKENS: usize = 8192;
 /// - Hung connections
 /// - Infinite generation loops
 /// - Network failures
-pub const DEFAULT_TIMEOUT_SECS: u64 = 120;
+///
+/// **WHY 600 seconds**: Testing showed 124KB scientific papers timeout at 120s
+/// during entity extraction. The circuit breaker correctly trips after 3 timeouts,
+/// but the underlying issue is insufficient timeout for large documents.
+pub const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
 /// Absolute maximum tokens allowed (32768).
 ///

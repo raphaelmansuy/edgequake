@@ -476,16 +476,18 @@ impl Task {
         self.updated_at = Utc::now();
         self.error_message = Some(error.message.clone());
 
+        // Set error FIRST so check_circuit_breaker can modify it
+        self.error = Some(error.clone());
+
         // Track consecutive timeouts for circuit breaker
         if error.is_timeout() {
             self.consecutive_timeout_failures += 1;
-            self.check_circuit_breaker();
+            self.check_circuit_breaker(); // Modifies self.error if circuit breaker trips
         } else {
             // Non-timeout failures reset the counter
             self.consecutive_timeout_failures = 0;
         }
 
-        self.error = Some(error);
         self.retry_count += 1;
     }
 
@@ -812,5 +814,275 @@ mod tests {
         task.mark_failed_with_details(error);
 
         assert!(!task.can_retry()); // Should not be retryable
+    }
+
+    // ============================================
+    // Circuit Breaker Tests
+    // ============================================
+
+    #[test]
+    fn test_consecutive_timeout_increments() {
+        // GIVEN: A new task
+        let data = serde_json::json!({"test": "data"});
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
+
+        // WHEN: Task fails with timeout error
+        let error = TaskFailureInfo::timeout("llm_extraction", "LLM request timed out after 300s");
+        task.mark_failed_with_details(error);
+
+        // THEN: Consecutive timeout counter increments to 1
+        assert_eq!(task.consecutive_timeout_failures, 1);
+        assert!(!task.circuit_breaker_tripped);
+        assert_eq!(task.status, TaskStatus::Failed);
+    }
+
+    #[test]
+    fn test_consecutive_timeout_resets_on_success() {
+        // GIVEN: A task with 2 consecutive timeouts
+        let data = serde_json::json!({"test": "data"});
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
+
+        task.mark_failed_with_details(TaskFailureInfo::timeout("step1", "timeout 1"));
+        task.mark_failed_with_details(TaskFailureInfo::timeout("step2", "timeout 2"));
+        assert_eq!(task.consecutive_timeout_failures, 2);
+
+        // WHEN: Task succeeds
+        task.mark_success(serde_json::json!({"result": "ok"}));
+
+        // THEN: Counter resets to 0
+        assert_eq!(task.consecutive_timeout_failures, 0);
+        assert_eq!(task.status, TaskStatus::Indexed);
+        assert!(!task.circuit_breaker_tripped);
+    }
+
+    #[test]
+    fn test_consecutive_timeout_resets_on_non_timeout_failure() {
+        // GIVEN: A task with 2 consecutive timeouts
+        let data = serde_json::json!({"test": "data"});
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
+
+        task.mark_failed_with_details(TaskFailureInfo::timeout("step1", "timeout 1"));
+        task.mark_failed_with_details(TaskFailureInfo::timeout("step2", "timeout 2"));
+        assert_eq!(task.consecutive_timeout_failures, 2);
+
+        // WHEN: Task fails with non-timeout error (network error)
+        let network_error = TaskFailureInfo::new(
+            "Connection refused",
+            "network",
+            "Network error",
+            "Check network connectivity",
+            true, // Retryable
+        );
+        task.mark_failed_with_details(network_error);
+
+        // THEN: Counter resets to 0 (network errors transient)
+        assert_eq!(task.consecutive_timeout_failures, 0);
+        assert!(!task.circuit_breaker_tripped);
+    }
+
+    #[test]
+    fn test_circuit_breaker_trips_at_threshold() {
+        // GIVEN: A task with circuit breaker threshold = 3
+        let data = serde_json::json!({"test": "data"});
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
+        task.max_retries = 10; // High retry limit to isolate circuit breaker
+
+        // WHEN: Task fails with 3 consecutive timeouts
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 1"));
+        assert_eq!(task.consecutive_timeout_failures, 1);
+        assert!(!task.circuit_breaker_tripped);
+
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 2"));
+        assert_eq!(task.consecutive_timeout_failures, 2);
+        assert!(!task.circuit_breaker_tripped);
+
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 3"));
+
+        // THEN: Circuit breaker trips at 3rd consecutive timeout
+        assert_eq!(task.consecutive_timeout_failures, 3);
+        assert!(task.circuit_breaker_tripped);
+        assert_eq!(task.status, TaskStatus::Failed);
+    }
+
+    #[test]
+    fn test_can_retry_respects_circuit_breaker() {
+        // GIVEN: A task with circuit breaker tripped
+        let data = serde_json::json!({"test": "data"});
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
+        task.max_retries = 10; // High retry limit
+
+        // Trigger circuit breaker
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 1"));
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 2"));
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 3"));
+
+        assert!(task.circuit_breaker_tripped);
+        assert_eq!(task.retry_count, 3);
+
+        // WHEN: Checking if task can retry
+        let can_retry = task.can_retry();
+
+        // THEN: Task cannot retry (circuit breaker prevents retry)
+        assert!(!can_retry);
+    }
+
+    #[test]
+    fn test_is_timeout_detection() {
+        // Test various timeout error messages
+        let timeout_cases = vec![
+            "LLM request timed out after 300s",
+            "Operation timed out",
+            "Request timeout",
+            "TIMEOUT: exceeded 120s limit",
+            "Embedding timeout after 30s",
+        ];
+
+        for msg in timeout_cases {
+            let failure = TaskFailureInfo::timeout("test", msg);
+            assert!(failure.is_timeout(), "Should detect '{}' as timeout", msg);
+        }
+
+        // Test non-timeout error messages
+        let non_timeout_cases = vec![
+            "Connection refused",
+            "Invalid API key",
+            "Rate limit exceeded",
+            "Server error 500",
+            "Document parsing failed",
+        ];
+
+        for msg in non_timeout_cases {
+            let failure = TaskFailureInfo::new(msg, "test", "error", "retry", true);
+            assert!(
+                !failure.is_timeout(),
+                "Should NOT detect '{}' as timeout",
+                msg
+            );
+        }
+    }
+
+    #[test]
+    fn test_circuit_breaker_error_message_enhancement() {
+        // GIVEN: A task approaching circuit breaker threshold
+        let data = serde_json::json!({"test": "data"});
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
+
+        // WHEN: Task fails with 3rd consecutive timeout
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 1"));
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 2"));
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 3"));
+
+        // THEN: Error message enhanced with circuit breaker info
+        let error = task.error.expect("Task should have structured error");
+        assert!(
+            error.message.contains("Circuit breaker"),
+            "Error message should mention circuit breaker: {}",
+            error.message
+        );
+        assert!(
+            error.message.contains("3 consecutive timeout"),
+            "Error message should mention consecutive timeouts: {}",
+            error.message
+        );
+        assert!(!error.retryable, "Error should be marked as non-retryable");
+    }
+
+    #[test]
+    fn test_mixed_failures_do_not_trip_circuit_breaker() {
+        // GIVEN: A task with mixed failure types
+        let data = serde_json::json!({"test": "data"});
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
+        task.max_retries = 15; // High retry limit
+
+        // WHEN: Task fails with alternating timeout and network errors
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 1"));
+        assert_eq!(task.consecutive_timeout_failures, 1);
+
+        task.mark_failed_with_details(TaskFailureInfo::new(
+            "Network error",
+            "network",
+            "Connection refused",
+            "retry",
+            true,
+        ));
+        assert_eq!(task.consecutive_timeout_failures, 0); // Reset on non-timeout
+
+        task.mark_failed_with_details(TaskFailureInfo::timeout("llm", "timeout 2"));
+        assert_eq!(task.consecutive_timeout_failures, 1);
+
+        task.mark_failed_with_details(TaskFailureInfo::new(
+            "Rate limit exceeded",
+            "llm",
+            "Too many requests",
+            "wait and retry",
+            true,
+        ));
+        assert_eq!(task.consecutive_timeout_failures, 0); // Reset on non-timeout
+
+        // THEN: Circuit breaker never trips (no 3 consecutive timeouts)
+        assert!(!task.circuit_breaker_tripped);
+        assert!(task.can_retry());
+    }
+
+    #[test]
+    fn test_circuit_breaker_with_max_retries_exhausted() {
+        // GIVEN: A task with low max_retries but circuit breaker threshold not reached
+        let data = serde_json::json!({"test": "data"});
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
+        task.max_retries = 2; // Lower than circuit breaker threshold (3)
+
+        // WHEN: Task fails 2 times with non-timeout errors
+        task.mark_failed_with_details(TaskFailureInfo::new(
+            "Error 1", "step1", "fail", "retry", true,
+        ));
+        task.mark_failed_with_details(TaskFailureInfo::new(
+            "Error 2", "step2", "fail", "retry", true,
+        ));
+
+        // THEN: Task cannot retry (max_retries exhausted, not circuit breaker)
+        assert_eq!(task.retry_count, 2);
+        assert_eq!(task.consecutive_timeout_failures, 0);
+        assert!(!task.circuit_breaker_tripped);
+        assert!(!task.can_retry()); // max_retries exhausted
     }
 }
