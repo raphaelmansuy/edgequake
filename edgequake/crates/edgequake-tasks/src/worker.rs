@@ -190,13 +190,24 @@ impl WorkerPool {
                                         Err(e) => {
                                             let error_msg = format!("{}", e);
                                             task.mark_failed(error_msg.clone());
-                                            error!(
-                                                "Worker {} failed to process task {}: {}",
-                                                worker_id, task.track_id, error_msg
-                                            );
 
-                                            // Auto-retry if enabled and retries remaining
-                                            if config.auto_retry && task.can_retry() {
+                                            // Log circuit breaker status
+                                            if task.circuit_breaker_tripped {
+                                                error!(
+                                                    "Worker {} task {} permanently failed: Circuit breaker tripped after {} consecutive timeouts",
+                                                    worker_id,
+                                                    task.track_id,
+                                                    task.consecutive_timeout_failures
+                                                );
+                                            } else {
+                                                error!(
+                                                    "Worker {} failed to process task {}: {} (consecutive timeouts: {})",
+                                                    worker_id, task.track_id, error_msg, task.consecutive_timeout_failures
+                                                );
+                                            }
+
+                                            // Auto-retry if enabled, retries remaining, and circuit breaker not tripped
+                                            if config.auto_retry && task.can_retry() && !task.circuit_breaker_tripped {
                                                 // Calculate exponential backoff delay
                                                 let retry_delay_ms = calculate_backoff_delay(
                                                     task.retry_count as u32,
@@ -334,7 +345,12 @@ mod tests {
         // Create and enqueue tasks
         let mut task_ids = Vec::new();
         for i in 0..5 {
-            let task = Task::new(test_tenant_id(), test_workspace_id(), TaskType::Insert, serde_json::json!({"index": i}));
+            let task = Task::new(
+                test_tenant_id(),
+                test_workspace_id(),
+                TaskType::Insert,
+                serde_json::json!({"index": i}),
+            );
             task_ids.push(task.track_id.clone());
             storage.create_task(&task).await.unwrap();
             queue.send(task).await.unwrap();
