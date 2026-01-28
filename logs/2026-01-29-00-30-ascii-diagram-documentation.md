@@ -38,8 +38,9 @@
 **Key architectural insight documented**: INPUT management (chunking) and OUTPUT management (max_tokens) are separate concerns that both require adaptive strategies. A small INPUT chunk (1500 tokens) can generate a large OUTPUT response (9000+ tokens) when content has high entity density (academic papers, technical documentation).
 
 **Why ASCII diagrams**: Visual representation makes complex architectural concepts immediately clear. Developers can see the data flow and understand:
+
 - Document → chunks (INPUT side)
-- Chunk → LLM → JSON response (OUTPUT side)  
+- Chunk → LLM → JSON response (OUTPUT side)
 - Retry flow with progressive token increase
 
 **Documentation value**: Answers the natural question "Why do we have this issue? We chunk the document, right?" directly in the code where the fix is implemented. Reduces onboarding time for new developers and prevents future confusion.

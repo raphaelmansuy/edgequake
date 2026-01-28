@@ -24,38 +24,38 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChunkProgress } from '@/hooks';
 import {
-  getDocuments,
-  getEnhancedPipelineStatus,
-  getQueueMetrics,
-  getTasksList,
-  requestPipelineCancellation,
+    getDocuments,
+    getEnhancedPipelineStatus,
+    getQueueMetrics,
+    getTasksList,
+    requestPipelineCancellation,
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { PipelineMessage, QueueMetrics, TaskResponse } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  Activity,
-  AlertCircle,
-  AlertTriangle,
-  ArrowLeft,
-  Brain,
-  Building2,
-  CheckCircle,
-  ChevronDown,
-  Clock,
-  Cpu,
-  DollarSign,
-  FileText,
-  Gauge,
-  Layers,
-  Loader2,
-  RefreshCw,
-  StopCircle,
-  Timer,
-  Users,
-  XCircle,
-  Zap
+    Activity,
+    AlertCircle,
+    AlertTriangle,
+    ArrowLeft,
+    Brain,
+    Building2,
+    CheckCircle,
+    ChevronDown,
+    Clock,
+    Cpu,
+    DollarSign,
+    FileText,
+    Gauge,
+    Layers,
+    Loader2,
+    RefreshCw,
+    StopCircle,
+    Timer,
+    Users,
+    XCircle,
+    Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { createContext, useContext, useMemo } from 'react';
