@@ -229,9 +229,9 @@ impl Default for EdgeQuakeConfig {
             response_model_name: None,
             embedding_model_name: "text-embedding-3-small".to_string(),
             embedding_dim: 1536,
-            max_token_for_text_unit: 4000,
-            max_token_for_global_context: 4000,
-            max_token_for_local_context: 4000,
+            max_token_for_text_unit: 100000, // Very large budget (user request)
+            max_token_for_global_context: 100000, // Very large budget (user request)
+            max_token_for_local_context: 100000, // Very large budget (user request)
             chunk_token_size: 1200,
             chunk_overlap_token_size: 100,
             log_level: LogLevel::Info,
@@ -616,6 +616,55 @@ impl EdgeQuake {
     pub async fn insert(&self, content: &str, document_id: Option<&str>) -> Result<InsertResult> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
+        }
+
+        // Edge case: Empty document
+        // WHY: Skip processing empty content to save resources
+        let content_trimmed = content.trim();
+        if content_trimmed.is_empty() {
+            let doc_id = document_id
+                .map(String::from)
+                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+            tracing::warn!(
+                doc_id = %doc_id,
+                "Skipping empty document - no content to process"
+            );
+
+            return Ok(InsertResult {
+                document_id: doc_id,
+                success: true,
+                chunks_created: 0,
+                entities_extracted: 0,
+                relationships_extracted: 0,
+                processing_time_ms: 0,
+                error: None,
+            });
+        }
+
+        // Edge case: Extremely large document (>10MB)
+        // WHY: Documents over 10MB are likely to cause OOM or extreme timeouts
+        const MAX_DOCUMENT_SIZE_BYTES: usize = 10 * 1024 * 1024; // 10MB
+        if content.len() > MAX_DOCUMENT_SIZE_BYTES {
+            let doc_id = document_id
+                .map(String::from)
+                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+            let size_mb = content.len() as f64 / (1024.0 * 1024.0);
+            tracing::error!(
+                doc_id = %doc_id,
+                size_bytes = content.len(),
+                size_mb = %format!("{:.2}", size_mb),
+                max_size_mb = MAX_DOCUMENT_SIZE_BYTES / (1024 * 1024),
+                "Document exceeds maximum size limit"
+            );
+
+            return Err(Error::validation(format!(
+                "Document too large: {:.2}MB. Maximum allowed: {}MB. \
+                Please split the document into smaller files.",
+                size_mb,
+                MAX_DOCUMENT_SIZE_BYTES / (1024 * 1024)
+            )));
         }
 
         let doc_id = document_id
