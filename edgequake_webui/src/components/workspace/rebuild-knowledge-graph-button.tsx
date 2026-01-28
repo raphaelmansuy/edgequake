@@ -361,8 +361,8 @@ export function RebuildKnowledgeGraphButton({
               : undefined
           }
           clearStats={clearStats ?? undefined}
-          tenantId={selectedTenantId}
-          workspaceId={selectedWorkspaceId}
+          tenantId={selectedTenantId ?? undefined}
+          workspaceId={selectedWorkspaceId ?? undefined}
         />
       </>
     );
@@ -484,8 +484,8 @@ export function RebuildKnowledgeGraphButton({
             : undefined
         }
         clearStats={clearStats ?? undefined}
-        tenantId={selectedTenantId}
-        workspaceId={selectedWorkspaceId}
+        tenantId={selectedTenantId ?? undefined}
+        workspaceId={selectedWorkspaceId ?? undefined}
       />
     </>
   );

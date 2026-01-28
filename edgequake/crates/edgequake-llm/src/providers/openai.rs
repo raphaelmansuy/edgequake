@@ -70,6 +70,20 @@ impl OpenAIProvider {
         self
     }
 
+    /// Set the embedding model with a specific dimension.
+    ///
+    /// Use this to override auto-detection when workspace configuration specifies a dimension.
+    /// @implements SPEC-032: Respect workspace embedding dimension configuration
+    pub fn with_embedding_model_and_dimension(
+        mut self,
+        model: impl Into<String>,
+        dimension: usize,
+    ) -> Self {
+        self.embedding_model = model.into();
+        self.embedding_dimension = dimension;
+        self
+    }
+
     /// Get the context length for a model.
     fn context_length_for_model(model: &str) -> usize {
         match model {

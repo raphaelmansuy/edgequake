@@ -371,8 +371,8 @@ export function RebuildEmbeddingsButton({
           open={isPipelineOpen}
           onOpenChange={setIsPipelineOpen}
           clearStats={clearStats ?? undefined}
-          tenantId={selectedTenantId}
-          workspaceId={selectedWorkspaceId}
+          tenantId={selectedTenantId ?? undefined}
+          workspaceId={selectedWorkspaceId ?? undefined}
         />
       </>
     );
@@ -388,8 +388,8 @@ export function RebuildEmbeddingsButton({
         open={isPipelineOpen}
         onOpenChange={setIsPipelineOpen}
         clearStats={clearStats ?? undefined}
-        tenantId={selectedTenantId}
-        workspaceId={selectedWorkspaceId}
+        tenantId={selectedTenantId ?? undefined}
+        workspaceId={selectedWorkspaceId ?? undefined}
       />
     </>
   );

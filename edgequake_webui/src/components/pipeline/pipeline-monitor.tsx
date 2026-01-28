@@ -332,7 +332,7 @@ function PipelineStagesCard() {
   // Also fetch pipeline status for cancel functionality
   const { data: status } = useQuery({
     queryKey: scopedQueryKey('enhanced-pipeline-status', selectedTenantId, selectedWorkspaceId),
-    queryFn: getEnhancedPipelineStatus,
+    queryFn: () => getEnhancedPipelineStatus(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined),
     refetchInterval: 2000,
   });
 
@@ -472,7 +472,7 @@ function ActivityLogCard() {
 
   const { data: status } = useQuery({
     queryKey: scopedQueryKey('enhanced-pipeline-status', selectedTenantId, selectedWorkspaceId),
-    queryFn: getEnhancedPipelineStatus,
+    queryFn: () => getEnhancedPipelineStatus(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined),
     refetchInterval: 2000,
   });
 

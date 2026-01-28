@@ -288,9 +288,11 @@ impl ProviderFactory {
                     ));
                 }
 
-                // OpenAI provider with specific embedding model
-                // Note: OpenAI dimension is auto-detected from model name
-                let provider = OpenAIProvider::new(api_key).with_embedding_model(model);
+                // OpenAI provider with specific embedding model and dimension
+                // @implements SPEC-032/OODA-227: Pass dimension to provider (respect workspace config)
+                // WHY: Use workspace-specified dimension instead of auto-detection to avoid dimension mismatches
+                let provider = OpenAIProvider::new(api_key)
+                    .with_embedding_model_and_dimension(model, dimension);
                 Ok(Arc::new(provider))
             }
             ProviderType::Ollama => {

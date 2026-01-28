@@ -255,7 +255,7 @@ export function DocumentManager() {
   // CRITICAL: Pass tenant_id and workspace_id to getPipelineStatus for multi-tenancy isolation
   const { data: pipelineStatus } = useQuery({
     queryKey: ['pipeline-status', selectedTenantId, selectedWorkspaceId],
-    queryFn: () => getPipelineStatus(selectedTenantId, selectedWorkspaceId),
+    queryFn: () => getPipelineStatus(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined),
     refetchInterval: 2000,
   });
 
@@ -900,8 +900,8 @@ export function DocumentManager() {
             <PipelineStatusDialog
               open={pipelineDialogOpen}
               onOpenChange={setPipelineDialogOpen}
-              tenantId={selectedTenantId}
-              workspaceId={selectedWorkspaceId}
+              tenantId={selectedTenantId ?? undefined}
+              workspaceId={selectedWorkspaceId ?? undefined}
             />
             
             {/* Reprocess Failed Button (GAP-UI-002) */}
