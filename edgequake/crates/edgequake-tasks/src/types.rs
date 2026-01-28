@@ -100,6 +100,34 @@ pub struct Task {
     /// Maximum retries allowed
     pub max_retries: i32,
 
+    /// Number of consecutive timeout failures (for circuit breaker).
+    ///
+    /// @implements CIRCUIT_BREAKER: Track consecutive timeouts
+    ///
+    /// WHY: Timeouts indicate document is too large or LLM is overloaded.
+    /// After 3 consecutive timeouts, we should fail permanently rather than
+    /// waste resources retrying. Non-timeout failures (network errors, etc.)
+    /// don't count toward this limit because they may resolve on retry.
+    ///
+    /// Reset to 0 on:
+    /// - Successful processing
+    /// - Non-timeout failure (network error, validation error, etc.)
+    ///
+    /// Increment on:
+    /// - LLM timeout error
+    /// - Embedding timeout error
+    ///
+    /// Circuit breaker trips when: consecutive_timeout_failures >= 3
+    pub consecutive_timeout_failures: i32,
+
+    /// Whether circuit breaker has permanently failed this task.
+    ///
+    /// @implements CIRCUIT_BREAKER: Permanent failure flag
+    ///
+    /// WHY: Prevents infinite retries on documents that consistently timeout.
+    /// Once tripped, task is marked Failed and won't be retried again.
+    pub circuit_breaker_tripped: bool,
+
     /// Task-specific payload
     pub task_data: serde_json::Value,
 
@@ -298,6 +326,32 @@ impl TaskFailureInfo {
         )
     }
 
+    /// Create a timeout error (LLM or embedding).
+    ///
+    /// @implements CIRCUIT_BREAKER: Timeout classification
+    ///
+    /// WHY: Timeouts need special handling via circuit breaker pattern.
+    /// Consecutive timeouts indicate structural problem (doc too large,
+    /// LLM overloaded) that won't resolve by retrying.
+    pub fn timeout(step: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self::new(
+            "Operation timed out",
+            step,
+            reason,
+            "Document may be too large. Try: 1) Use smaller chunk size, 2) Split document, 3) Use provider with longer timeout",
+            false, // Not retryable after circuit breaker trips
+        )
+    }
+
+    /// Check if this error represents a timeout.
+    ///
+    /// @implements CIRCUIT_BREAKER: Timeout detection
+    pub fn is_timeout(&self) -> bool {
+        self.message.to_lowercase().contains("timeout")
+            || self.reason.to_lowercase().contains("timeout")
+            || self.reason.to_lowercase().contains("timed out")
+    }
+
     /// Create an embedding error.
     pub fn embedding(reason: impl Into<String>) -> Self {
         Self::new(
@@ -368,6 +422,8 @@ impl Task {
             error: None,
             retry_count: 0,
             max_retries: 3,
+            consecutive_timeout_failures: 0,
+            circuit_breaker_tripped: false,
             task_data,
             metadata: None,
             progress: None,
@@ -390,6 +446,8 @@ impl Task {
         self.result = Some(result);
         self.error = None;
         self.error_message = None;
+        // Reset timeout counter on success
+        self.consecutive_timeout_failures = 0;
     }
 
     /// Mark task as failed with simple error message (backward compatible)
@@ -397,8 +455,18 @@ impl Task {
         self.status = TaskStatus::Failed;
         self.completed_at = Some(Utc::now());
         self.updated_at = Utc::now();
-        self.error_message = Some(error);
+        self.error_message = Some(error.clone());
         self.retry_count += 1;
+
+        // Check if this is a timeout error
+        let error_lower = error.to_lowercase();
+        if error_lower.contains("timeout") || error_lower.contains("timed out") {
+            self.consecutive_timeout_failures += 1;
+            self.check_circuit_breaker();
+        } else {
+            // Non-timeout failures reset the counter
+            self.consecutive_timeout_failures = 0;
+        }
     }
 
     /// Mark task as failed with detailed error information (Phase 1 enhancement)
@@ -407,8 +475,50 @@ impl Task {
         self.completed_at = Some(Utc::now());
         self.updated_at = Utc::now();
         self.error_message = Some(error.message.clone());
+
+        // Track consecutive timeouts for circuit breaker
+        if error.is_timeout() {
+            self.consecutive_timeout_failures += 1;
+            self.check_circuit_breaker();
+        } else {
+            // Non-timeout failures reset the counter
+            self.consecutive_timeout_failures = 0;
+        }
+
         self.error = Some(error);
         self.retry_count += 1;
+    }
+
+    /// Check circuit breaker and trip if threshold exceeded.
+    ///
+    /// @implements CIRCUIT_BREAKER: Threshold check
+    ///
+    /// WHY: After 3 consecutive timeouts, permanently fail the task.
+    /// Prevents wasting resources on documents that consistently timeout.
+    fn check_circuit_breaker(&mut self) {
+        const CIRCUIT_BREAKER_THRESHOLD: i32 = 3;
+
+        if self.consecutive_timeout_failures >= CIRCUIT_BREAKER_THRESHOLD {
+            self.circuit_breaker_tripped = true;
+
+            // Enhance error message to indicate circuit breaker tripped
+            if let Some(ref mut error) = self.error {
+                error.message = format!(
+                    "Circuit breaker tripped: {} consecutive timeouts. Task permanently failed.",
+                    self.consecutive_timeout_failures
+                );
+                error.retryable = false;
+            } else {
+                self.error_message = Some(format!(
+                    "Circuit breaker tripped after {} consecutive timeouts. \
+                    Document is too large for current LLM timeout settings. \
+                    Suggestions: 1) Use smaller chunk size (adaptive chunking), \
+                    2) Split document into smaller files, \
+                    3) Switch to provider with longer timeout (Ollama: 300s vs OpenAI: 120s)",
+                    self.consecutive_timeout_failures
+                ));
+            }
+        }
     }
 
     /// Mark task as cancelled
@@ -447,7 +557,20 @@ impl Task {
     }
 
     /// Check if task can be retried
+    ///
+    /// @implements CIRCUIT_BREAKER: Retry eligibility check
+    ///
+    /// Returns false if:
+    /// - Circuit breaker is tripped (3+ consecutive timeouts)
+    /// - Retry limit exceeded
+    /// - Error marked as not retryable
+    /// - Task is not in Failed status
     pub fn can_retry(&self) -> bool {
+        // Circuit breaker prevents retries
+        if self.circuit_breaker_tripped {
+            return false;
+        }
+
         let is_retryable = self.error.as_ref().map(|e| e.retryable).unwrap_or(true);
         self.status == TaskStatus::Failed && self.retry_count < self.max_retries && is_retryable
     }

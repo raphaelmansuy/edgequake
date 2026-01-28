@@ -631,7 +631,7 @@ impl EdgeQuake {
         let adaptive_chunk_size = calculate_adaptive_chunk_size(doc_size_bytes);
         let adaptive_overlap = (adaptive_chunk_size as f32 * 0.083) as usize; // ~8% overlap (LightRAG best practice)
         let doc_size_kb = doc_size_bytes / 1024;
-        
+
         tracing::info!(
             doc_id = %doc_id,
             doc_size_bytes = doc_size_bytes,
@@ -658,7 +658,7 @@ impl EdgeQuake {
             .llm_provider
             .as_ref()
             .ok_or_else(|| Error::config("LLM provider not set"))?;
-        
+
         let embedding = self
             .embedding_provider
             .as_ref()

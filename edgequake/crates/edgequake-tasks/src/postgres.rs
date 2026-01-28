@@ -41,9 +41,10 @@ impl TaskStorage for PostgresTaskStorage {
             r#"
             INSERT INTO tasks (
                 track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
-                started_at, completed_at, error_message, retry_count,
-                max_retries, task_data, metadata, progress, result
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                started_at, completed_at, error_message, error, retry_count,
+                max_retries, consecutive_timeout_failures, circuit_breaker_tripped,
+                task_data, metadata, progress, result
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
             "#,
         )
         .bind(&task.track_id)
@@ -56,8 +57,11 @@ impl TaskStorage for PostgresTaskStorage {
         .bind(task.started_at)
         .bind(task.completed_at)
         .bind(&task.error_message)
+        .bind(serde_json::to_value(&task.error)?)
         .bind(task.retry_count)
         .bind(task.max_retries)
+        .bind(task.consecutive_timeout_failures)
+        .bind(task.circuit_breaker_tripped)
         .bind(&task.task_data)
         .bind(&task.metadata)
         .bind(serde_json::to_value(&task.progress)?)
@@ -74,8 +78,9 @@ impl TaskStorage for PostgresTaskStorage {
             r#"
             SELECT 
                 track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
-                started_at, completed_at, error_message, retry_count,
-                max_retries, task_data, metadata, progress, result
+                started_at, completed_at, error_message, error, retry_count,
+                max_retries, consecutive_timeout_failures, circuit_breaker_tripped,
+                task_data, metadata, progress, result
             FROM tasks
             WHERE track_id = $1
             "#,
@@ -108,6 +113,8 @@ impl TaskStorage for PostgresTaskStorage {
                     .and_then(|v| serde_json::from_value(v).ok()),
                 retry_count: row.get("retry_count"),
                 max_retries: row.get("max_retries"),
+                consecutive_timeout_failures: row.get("consecutive_timeout_failures"),
+                circuit_breaker_tripped: row.get("circuit_breaker_tripped"),
                 task_data: row.get("task_data"),
                 metadata: row.get("metadata"),
                 progress: row
@@ -130,9 +137,12 @@ impl TaskStorage for PostgresTaskStorage {
                 started_at = $4,
                 completed_at = $5,
                 error_message = $6,
-                retry_count = $7,
-                progress = $8,
-                result = $9
+                error = $7,
+                retry_count = $8,
+                consecutive_timeout_failures = $9,
+                circuit_breaker_tripped = $10,
+                progress = $11,
+                result = $12
             WHERE track_id = $1
             "#,
         )
@@ -142,7 +152,10 @@ impl TaskStorage for PostgresTaskStorage {
         .bind(task.started_at)
         .bind(task.completed_at)
         .bind(&task.error_message)
+        .bind(serde_json::to_value(&task.error)?)
         .bind(task.retry_count)
+        .bind(task.consecutive_timeout_failures)
+        .bind(task.circuit_breaker_tripped)
         .bind(serde_json::to_value(&task.progress)?)
         .bind(&task.result)
         .execute(&*self.pool)
@@ -175,8 +188,9 @@ impl TaskStorage for PostgresTaskStorage {
         let mut query = String::from(
             "SELECT 
                 track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
-                started_at, completed_at, error_message, retry_count,
-                max_retries, task_data, metadata, progress, result
+                started_at, completed_at, error_message, error, retry_count,
+                max_retries, consecutive_timeout_failures, circuit_breaker_tripped,
+                task_data, metadata, progress, result
             FROM tasks WHERE 1=1",
         );
 
@@ -260,6 +274,8 @@ impl TaskStorage for PostgresTaskStorage {
                         .and_then(|v| serde_json::from_value(v).ok()),
                     retry_count: row.get("retry_count"),
                     max_retries: row.get("max_retries"),
+                    consecutive_timeout_failures: row.get("consecutive_timeout_failures"),
+                    circuit_breaker_tripped: row.get("circuit_breaker_tripped"),
                     task_data: row.get("task_data"),
                     metadata: row.get("metadata"),
                     progress: row
