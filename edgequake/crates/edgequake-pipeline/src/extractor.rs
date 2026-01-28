@@ -695,20 +695,150 @@ where
             ChatMessage::user(user_prompt),
         ];
 
-        // Calculate adaptive max_tokens based on chunk size
-        // WHY: Long documents (100KB+) generate many entities requiring more tokens
-        // Strategy: Progressive limits based on document size
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // WHY DO WE NEED ADAPTIVE MAX_TOKENS? (INPUT vs OUTPUT Token Management)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        //
+        // PROBLEM: Document chunking (INPUT) ≠ Response size management (OUTPUT)
+        //
+        // ┌─────────────────────────────────────────────────────────────────────────┐
+        // │ INPUT SIDE (Document Chunking) - Already Working ✅                      │
+        // └─────────────────────────────────────────────────────────────────────────┘
+        //
+        //   137KB Document (1234 lines)
+        //         │
+        //         ├─> Chunk 1: ~5KB (~1200 tokens) ──┐
+        //         ├─> Chunk 2: ~5KB (~1200 tokens) ──┤
+        //         ├─> Chunk 3: ~5KB (~1200 tokens) ──┤─> Process each chunk
+        //         ├─> Chunk 4: ~5KB (~1200 tokens) ──┤   separately with LLM
+        //         └─> Chunk 5: ~5KB (~1200 tokens) ──┘
+        //
+        //   INPUT chunking prevents LLM from being overwhelmed by large documents.
+        //   Orchestrator uses adaptive INPUT chunk sizes: 600-1200 tokens based on doc size.
+        //
+        // ┌─────────────────────────────────────────────────────────────────────────┐
+        // │ OUTPUT SIDE (LLM Response) - The ACTUAL Problem We Fix Here! ❌ → ✅     │
+        // └─────────────────────────────────────────────────────────────────────────┘
+        //
+        //   Single 5KB Chunk (~1500 tokens INPUT)
+        //         │
+        //         ├─> LLM Entity Extraction
+        //         │
+        //         └─> JSON Response (OUTPUT): {
+        //               "entities": [
+        //                 {"name": "SARAH_CHEN", "type": "PERSON", ...},
+        //                 {"name": "NEURAL_NETWORK", "type": "CONCEPT", ...},
+        //                 {"name": "GRADIENT_DESCENT", "type": "METHOD", ...},
+        //                 ... 50+ more entities ...
+        //               ],
+        //               "relationships": [
+        //                 {"source": "SARAH_CHEN", "target": "NEURAL_NETWORK", ...},
+        //                 ... 100+ more relationships ...
+        //               ]
+        //             }
+        //
+        //   OUTPUT Response Size: ~9,000 tokens (6x larger than INPUT!)
+        //                         ▲
+        //                         │
+        //                 EXCEEDED 8192 TOKEN LIMIT!
+        //                         │
+        //   Result: JSON truncated mid-array → "EOF while parsing a list at line 984"
+        //
+        // ┌─────────────────────────────────────────────────────────────────────────┐
+        // │ KEY INSIGHT: Small INPUT ≠ Small OUTPUT                                  │
+        // └─────────────────────────────────────────────────────────────────────────┘
+        //
+        //   • Academic papers/technical docs have HIGH entity density
+        //   • Single 1500-token chunk can generate 50+ entities + 100+ relationships
+        //   • Complex JSON structure multiplies output size (IDs, types, descriptions)
+        //   • SafetyLimitedProvider DEFAULT_MAX_TOKENS=8192 was TOO LOW for OUTPUT
+        //
+        // ┌─────────────────────────────────────────────────────────────────────────┐
+        // │ SOLUTION: Adaptive max_tokens for OUTPUT Responses                      │
+        // └─────────────────────────────────────────────────────────────────────────┘
+        //
+        //   We calculate base_max_tokens based on CHUNK COMPLEXITY (not just size):
+        //
+        //     <25KB chunks  → 4096 tokens  (simple content, few entities)
+        //     25-75KB       → 8192 tokens  (medium complexity)
+        //     75-125KB      → 12288 tokens (high entity density)
+        //     >125KB        → 16384 tokens (very complex, many entities)
+        //
+        //   PLUS progressive retry logic:
+        //   • Detect truncation via finish_reason="length" or JSON parse errors
+        //   • Double max_tokens on retry (up to 32768 maximum)
+        //   • Retry up to 3 times with exponential backoff
+        //
+        //   Result: Adaptive OUTPUT limits match ACTUAL response complexity!
+        //
+        // ═══════════════════════════════════════════════════════════════════════════
+        
         let base_max_tokens = if chunk_size_bytes < 25_000 {
-            4096 // <25KB: small documents
+            4096 // <25KB: small documents, likely simple content
         } else if chunk_size_bytes < 75_000 {
-            8192 // 25-75KB: medium documents
+            8192 // 25-75KB: medium documents, moderate entity density
         } else if chunk_size_bytes < 125_000 {
-            12288 // 75-125KB: large documents
+            12288 // 75-125KB: large documents, high entity density
         } else {
-            16384 // >125KB: very large documents
+            16384 // >125KB: very large documents, very high entity density
         };
 
-        // Retry logic with exponential backoff AND progressive max_tokens increase
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // RETRY STRATEGY: Progressive max_tokens Increase on Truncation Detection
+        // ═══════════════════════════════════════════════════════════════════════════════
+        //
+        // ┌─────────────────────────────────────────────────────────────────────────┐
+        // │ Adaptive Retry Flow (Exponential Backoff + Progressive Token Increase)   │
+        // └─────────────────────────────────────────────────────────────────────────┘
+        //
+        //   Attempt 1: base_max_tokens (e.g., 8192)
+        //      │
+        //      ├─> LLM Call
+        //      │
+        //      ├─> Check finish_reason
+        //      │   │
+        //      │   ├─> "stop" → Success ✅ Parse JSON
+        //      │   │
+        //      │   └─> "length" → Truncated! ❌
+        //      │       │
+        //      │       └─> Sleep 100ms, Retry with 16384 tokens
+        //      │
+        //   Attempt 2: 2x tokens (16384)
+        //      │
+        //      ├─> LLM Call
+        //      │
+        //      ├─> Parse JSON
+        //      │   │
+        //      │   ├─> Success ✅ Return result
+        //      │   │
+        //      │   └─> "EOF while parsing" ❌
+        //      │       │
+        //      │       └─> Detected JSON truncation → Sleep 200ms, Retry with 32768
+        //      │
+        //   Attempt 3: 4x tokens (32768 MAX)
+        //      │
+        //      ├─> LLM Call
+        //      │
+        //      ├─> Parse JSON
+        //      │   │
+        //      │   ├─> Success ✅ Return result
+        //      │   │
+        //      │   └─> Still truncated ❌
+        //      │       │
+        //      │       └─> ERROR: Document too complex, suggest splitting
+        //
+        // WHY PROGRESSIVE INCREASE?
+        // • Start conservative to save API costs (smaller tokens = cheaper)
+        // • Only increase when PROVEN necessary (truncation detected)
+        // • Cap at 32768 to prevent runaway costs
+        // • Exponential backoff (100ms → 200ms → 400ms) prevents API rate limits
+        //
+        // TRUNCATION DETECTION:
+        // 1. finish_reason="length" → LLM hit max_tokens limit (lines 807-830)
+        // 2. JSON parse errors (EOF, unclosed) → Response truncated mid-JSON (lines 897-928)
+        //
+        // ═══════════════════════════════════════════════════════════════════════════
+        
         const MAX_RETRIES: u32 = 3;
         let mut last_error = None;
         let mut current_max_tokens = base_max_tokens;
