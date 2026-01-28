@@ -636,6 +636,37 @@ where
     async fn extract(&self, chunk: &TextChunk) -> Result<ExtractionResult> {
         let start = std::time::Instant::now();
 
+        // Pre-validate chunk size to fail fast on oversized chunks
+        // WHY: Large chunks (>4000 tokens ~16KB) likely exceed LLM timeout (120s)
+        // This prevents wasting API calls and provides immediate, actionable feedback
+        let chunk_size_bytes = chunk.content.len();
+        let estimated_tokens = chunk_size_bytes / 4; // Rough estimate: 1 token ≈ 4 chars
+        const MAX_CHUNK_TOKENS: usize = 4000;
+        
+        if estimated_tokens > MAX_CHUNK_TOKENS {
+            let error_msg = format!(
+                "Chunk too large for LLM processing. Chunk size: {}KB (~{} tokens, max: {}). \
+                Suggestions:\n\
+                1. Split document into smaller files (<50KB each)\n\
+                2. Reduce chunk size in pipeline config (current default: ~1200 chars)\n\
+                3. Use a local LLM with higher timeout (e.g., Ollama with 300s timeout)\n\
+                Chunk ID: {}",
+                chunk_size_bytes / 1024,
+                estimated_tokens,
+                MAX_CHUNK_TOKENS,
+                chunk.id
+            );
+            tracing::error!(
+                chunk_id = %chunk.id,
+                chunk_size_bytes = chunk_size_bytes,
+                estimated_tokens = estimated_tokens,
+                max_tokens = MAX_CHUNK_TOKENS,
+                "{}",
+                error_msg
+            );
+            return Err(PipelineError::Validation(error_msg));
+        }
+
         // Build system and user prompts
         let system_prompt = self
             .prompts
@@ -659,14 +690,42 @@ where
             let response = match self.llm_provider.chat(&messages, None).await {
                 Ok(resp) => resp,
                 Err(e) => {
+                    let error_str = e.to_string().to_lowercase();
+                    let is_timeout = error_str.contains("timeout") || error_str.contains("timed out");
+                    
                     tracing::warn!(
                         attempt = attempt,
                         max_retries = MAX_RETRIES,
                         error = %e,
                         chunk_id = %chunk.id,
+                        chunk_size_kb = chunk_size_bytes / 1024,
+                        estimated_tokens = estimated_tokens,
+                        is_timeout = is_timeout,
                         "LLM call failed, retrying..."
                     );
-                    last_error = Some(PipelineError::ExtractionError(format!("LLM error: {}", e)));
+                    
+                    // Build enhanced error message with diagnostic info
+                    let enhanced_error = if is_timeout {
+                        format!(
+                            "LLM timeout after 120s. Chunk: {}KB (~{} tokens). \
+                            Document appears too large for current timeout settings. \
+                            Suggestions:\n\
+                            1. Split document into smaller files (<50KB each)\n\
+                            2. Increase LLM timeout to 300s (set LLM_TIMEOUT_SECS env variable)\n\
+                            3. Use local model like Ollama with higher limits\n\
+                            Chunk ID: {} | Attempt: {}/{} | Original error: {}",
+                            chunk_size_bytes / 1024,
+                            estimated_tokens,
+                            chunk.id,
+                            attempt,
+                            MAX_RETRIES,
+                            e
+                        )
+                    } else {
+                        format!("LLM error: {}", e)
+                    };
+                    
+                    last_error = Some(PipelineError::ExtractionError(enhanced_error));
                     if attempt < MAX_RETRIES {
                         tokio::time::sleep(tokio::time::Duration::from_millis(100 * 2_u64.pow(attempt - 1))).await;
                         continue;
