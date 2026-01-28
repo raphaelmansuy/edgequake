@@ -34,7 +34,7 @@
 //! | [`GleaningExtractor`] | Iterative re-extraction | High-stakes domains |
 
 use async_trait::async_trait;
-use edgequake_llm::traits::ChatMessage;
+use edgequake_llm::traits::{ChatMessage, CompletionOptions};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -695,13 +695,42 @@ where
             ChatMessage::user(user_prompt),
         ];
 
-        // Retry logic with exponential backoff
+        // Calculate adaptive max_tokens based on chunk size
+        // WHY: Long documents (100KB+) generate many entities requiring more tokens
+        // Strategy: Progressive limits based on document size
+        let base_max_tokens = if chunk_size_bytes < 25_000 {
+            4096 // <25KB: small documents
+        } else if chunk_size_bytes < 75_000 {
+            8192 // 25-75KB: medium documents
+        } else if chunk_size_bytes < 125_000 {
+            12288 // 75-125KB: large documents
+        } else {
+            16384 // >125KB: very large documents
+        };
+
+        // Retry logic with exponential backoff AND progressive max_tokens increase
         const MAX_RETRIES: u32 = 3;
         let mut last_error = None;
+        let mut current_max_tokens = base_max_tokens;
 
         for attempt in 1..=MAX_RETRIES {
-            // Make LLM call using chat interface
-            let response = match self.llm_provider.chat(&messages, None).await {
+            // Create completion options with adaptive max_tokens
+            let options = CompletionOptions {
+                max_tokens: Some(current_max_tokens),
+                temperature: Some(0.0), // Deterministic for extraction
+                ..Default::default()
+            };
+
+            tracing::debug!(
+                attempt = attempt,
+                chunk_id = %chunk.id,
+                chunk_size_kb = chunk_size_bytes / 1024,
+                max_tokens = current_max_tokens,
+                "Making LLM call with adaptive max_tokens"
+            );
+
+            // Make LLM call using chat interface with options
+            let response = match self.llm_provider.chat(&messages, Some(&options)).await {
                 Ok(resp) => resp,
                 Err(e) => {
                     let error_str = e.to_string().to_lowercase();
@@ -767,6 +796,48 @@ where
                 }
             };
 
+            // Check if response was truncated (finish_reason = "length")
+            let was_truncated = response
+                .finish_reason
+                .as_ref()
+                .map(|r| r.contains("length"))
+                .unwrap_or(false);
+
+            if was_truncated {
+                tracing::warn!(
+                    attempt = attempt,
+                    chunk_id = %chunk.id,
+                    current_max_tokens = current_max_tokens,
+                    completion_tokens = response.completion_tokens,
+                    "LLM response truncated (finish_reason=length), will retry with higher limit"
+                );
+
+                // Double max_tokens for retry (up to 32768 max)
+                if attempt < MAX_RETRIES && current_max_tokens < 32768 {
+                    current_max_tokens = (current_max_tokens * 2).min(32768);
+                    last_error = Some(PipelineError::ExtractionError(format!(
+                        "JSON truncated at {} tokens. Retrying with {} tokens (attempt {}/{})",
+                        response.completion_tokens,
+                        current_max_tokens,
+                        attempt + 1,
+                        MAX_RETRIES
+                    )));
+                    tokio::time::sleep(tokio::time::Duration::from_millis(
+                        100 * 2_u64.pow(attempt - 1),
+                    ))
+                    .await;
+                    continue;
+                } else {
+                    return Err(PipelineError::ExtractionError(format!(
+                        "JSON still truncated after {} retries. Max tokens reached: {}. \
+                        Document may be too large for entity extraction. \
+                        Suggestion: Split document into smaller chunks or use a model with larger context window.",
+                        MAX_RETRIES,
+                        current_max_tokens
+                    )));
+                }
+            }
+
             // Parse response using hybrid parser (with built-in fallbacks)
             match self.parser.parse(&response.content, &chunk.id) {
                 Ok(mut result) => {
@@ -788,6 +859,9 @@ where
                     result
                         .metadata
                         .insert("parse_attempts".to_string(), serde_json::json!(attempt));
+                    result
+                        .metadata
+                        .insert("max_tokens_used".to_string(), serde_json::json!(current_max_tokens));
 
                     if attempt > 1 {
                         tracing::info!(
@@ -801,14 +875,40 @@ where
                     return Ok(result);
                 }
                 Err(e) => {
+                    let error_msg = e.to_string().to_lowercase();
+                    let is_json_truncation = error_msg.contains("eof")
+                        || error_msg.contains("unexpected end")
+                        || error_msg.contains("unclosed");
+
                     tracing::warn!(
                         attempt = attempt,
                         max_retries = MAX_RETRIES,
                         error = %e,
                         chunk_id = %chunk.id,
+                        is_json_truncation = is_json_truncation,
+                        current_max_tokens = current_max_tokens,
                         response_preview = %&response.content[..response.content.len().min(200)],
                         "Parsing failed - malformed LLM response"
                     );
+
+                    // If likely JSON truncation, increase max_tokens and retry
+                    if is_json_truncation && attempt < MAX_RETRIES && current_max_tokens < 32768 {
+                        current_max_tokens = (current_max_tokens * 2).min(32768);
+                        tracing::info!(
+                            chunk_id = %chunk.id,
+                            attempt = attempt + 1,
+                            max_retries = MAX_RETRIES,
+                            new_max_tokens = current_max_tokens,
+                            "Detected JSON truncation, increasing max_tokens and retrying"
+                        );
+                        last_error = Some(e);
+                        tokio::time::sleep(tokio::time::Duration::from_millis(
+                            100 * 2_u64.pow(attempt - 1),
+                        ))
+                        .await;
+                        continue;
+                    }
+
                     last_error = Some(e);
 
                     if attempt < MAX_RETRIES {
