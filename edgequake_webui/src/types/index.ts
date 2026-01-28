@@ -601,6 +601,8 @@ export interface TaskError {
 
 export interface TaskResponse {
   track_id: string;
+  tenant_id: string;
+  workspace_id: string;
   task_type: string;
   status: "pending" | "processing" | "indexed" | "failed" | "cancelled";
   created_at: string;

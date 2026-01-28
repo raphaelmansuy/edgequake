@@ -400,10 +400,7 @@ mod tests {
         task3.mark_success(serde_json::json!({"result": "ok"}));
         storage.create_task(&task3).await.unwrap();
 
-        let stats = storage
-            .get_statistics(TaskFilter::default())
-            .await
-            .unwrap();
+        let stats = storage.get_statistics(TaskFilter::default()).await.unwrap();
 
         assert_eq!(stats.total, 3);
         assert_eq!(stats.pending, 1);

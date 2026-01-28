@@ -303,6 +303,17 @@ mod tests {
         types::{Task, TaskStatus, TaskType},
     };
 
+    const TEST_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
+    const TEST_WORKSPACE_ID: &str = "00000000-0000-0000-0000-000000000002";
+
+    fn test_tenant_id() -> uuid::Uuid {
+        uuid::Uuid::parse_str(TEST_TENANT_ID).unwrap()
+    }
+
+    fn test_workspace_id() -> uuid::Uuid {
+        uuid::Uuid::parse_str(TEST_WORKSPACE_ID).unwrap()
+    }
+
     #[tokio::test]
     async fn test_worker_pool_processes_tasks() {
         let queue = Arc::new(ChannelTaskQueue::new(10));
@@ -312,7 +323,9 @@ mod tests {
         let config = WorkerPoolConfig {
             num_workers: 2,
             auto_retry: false,
-            retry_delay_secs: 1,
+            initial_retry_delay_ms: 100,
+            max_retry_delay_ms: 5000,
+            backoff_multiplier: 2.0,
         };
 
         let mut pool = WorkerPool::new(config, queue.clone(), storage.clone(), processor);
@@ -321,7 +334,7 @@ mod tests {
         // Create and enqueue tasks
         let mut task_ids = Vec::new();
         for i in 0..5 {
-            let task = Task::new(TaskType::Insert, serde_json::json!({"index": i}));
+            let task = Task::new(test_tenant_id(), test_workspace_id(), TaskType::Insert, serde_json::json!({"index": i}));
             task_ids.push(task.track_id.clone());
             storage.create_task(&task).await.unwrap();
             queue.send(task).await.unwrap();
@@ -348,7 +361,9 @@ mod tests {
         let config = WorkerPoolConfig {
             num_workers: 2,
             auto_retry: false,
-            retry_delay_secs: 1,
+            initial_retry_delay_ms: 100,
+            max_retry_delay_ms: 5000,
+            backoff_multiplier: 2.0,
         };
 
         let mut pool = WorkerPool::new(config, queue, storage, processor);

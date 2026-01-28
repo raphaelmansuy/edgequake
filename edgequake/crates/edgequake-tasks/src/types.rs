@@ -64,6 +64,12 @@ pub struct Task {
     /// Unique track ID: {type}-{uuid}
     pub track_id: String,
 
+    /// Tenant ID for multi-tenancy isolation
+    pub tenant_id: Uuid,
+
+    /// Workspace ID for workspace-level isolation
+    pub workspace_id: Uuid,
+
     /// Type of task
     pub task_type: TaskType,
 
@@ -339,12 +345,19 @@ impl TaskFailureInfo {
 
 impl Task {
     /// Create a new task
-    pub fn new(task_type: TaskType, task_data: serde_json::Value) -> Self {
+    pub fn new(
+        tenant_id: Uuid,
+        workspace_id: Uuid,
+        task_type: TaskType,
+        task_data: serde_json::Value,
+    ) -> Self {
         let now = Utc::now();
         let track_id = generate_track_id(task_type);
 
         Self {
             track_id,
+            tenant_id,
+            workspace_id,
             task_type,
             status: TaskStatus::Pending,
             created_at: now,
@@ -491,6 +504,18 @@ pub struct ReindexData {
 mod tests {
     use super::*;
 
+    // Test helper constants for tenant/workspace IDs
+    const TEST_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
+    const TEST_WORKSPACE_ID: &str = "00000000-0000-0000-0000-000000000002";
+
+    fn test_tenant_id() -> uuid::Uuid {
+        uuid::Uuid::parse_str(TEST_TENANT_ID).unwrap()
+    }
+
+    fn test_workspace_id() -> uuid::Uuid {
+        uuid::Uuid::parse_str(TEST_WORKSPACE_ID).unwrap()
+    }
+
     #[test]
     fn test_task_creation() {
         let data = serde_json::json!({
@@ -498,7 +523,12 @@ mod tests {
             "workspace_id": "default"
         });
 
-        let task = Task::new(TaskType::Upload, data);
+        let task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Upload,
+            data,
+        );
 
         assert_eq!(task.status, TaskStatus::Pending);
         assert_eq!(task.task_type, TaskType::Upload);
@@ -510,7 +540,12 @@ mod tests {
     #[test]
     fn test_task_lifecycle() {
         let data = serde_json::json!({"test": "data"});
-        let mut task = Task::new(TaskType::Insert, data);
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
 
         assert_eq!(task.status, TaskStatus::Pending);
 
@@ -527,7 +562,12 @@ mod tests {
     #[test]
     fn test_task_retry_logic() {
         let data = serde_json::json!({});
-        let mut task = Task::new(TaskType::Upload, data);
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Upload,
+            data,
+        );
 
         assert!(!task.is_terminal());
 
@@ -548,7 +588,7 @@ mod tests {
     #[test]
     fn test_task_progress() {
         let data = serde_json::json!({});
-        let mut task = Task::new(TaskType::Scan, data);
+        let mut task = Task::new(test_tenant_id(), test_workspace_id(), TaskType::Scan, data);
 
         task.update_progress("parsing_files".to_string(), 4, 25);
         assert!(task.progress.is_some());
@@ -610,7 +650,12 @@ mod tests {
     #[test]
     fn test_task_failed_with_details() {
         let data = serde_json::json!({});
-        let mut task = Task::new(TaskType::Insert, data);
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
 
         let error = TaskFailureInfo::extraction("API rate limit exceeded");
         task.mark_failed_with_details(error);
@@ -627,7 +672,12 @@ mod tests {
     #[test]
     fn test_non_retryable_error() {
         let data = serde_json::json!({});
-        let mut task = Task::new(TaskType::Insert, data);
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            data,
+        );
 
         let error = TaskFailureInfo::new(
             "Permanent error",

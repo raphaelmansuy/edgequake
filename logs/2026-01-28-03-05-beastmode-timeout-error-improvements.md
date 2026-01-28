@@ -10,12 +10,15 @@
 ## Problem Summary
 
 ### User Report
+
 Document `agentdog_2601.18491v1.extracted.md` (ID: `f9576e9c-5e5a-4d66-9277-110856b133e3`) consistently failed with:
+
 ```
 Pipeline processing failed: Entity extraction error: LLM error: Request timed out
 ```
 
 User requested:
+
 1. Investigate root cause in depth
 2. Decide mitigations and implement fixes
 3. Improve reliability and error messages
@@ -25,6 +28,7 @@ User requested:
 ### Root Cause Analysis
 
 #### Issue 1: Document Size vs LLM Timeout
+
 - **Failing document**: 153,359 bytes (153KB)
 - **Successful document**: 2,790 bytes (2.7KB)
 - **Size ratio**: 55x larger
@@ -32,6 +36,7 @@ User requested:
 - **Conclusion**: Large documents exceed LLM processing capacity within timeout window
 
 #### Issue 2: Poor Error Context
+
 - **Old error**: "Pipeline processing failed: Entity extraction error: LLM error: Request timed out"
 - **Missing information**:
   - Document/chunk size
@@ -41,12 +46,15 @@ User requested:
   - Actionable suggestions for user
 
 #### Issue 3: No Preventive Validation
+
 - Large chunks sent to LLM without pre-checks
 - Wasted API calls and time waiting for timeouts
 - No early detection of oversized content
 
 #### Issue 4: Retry System Working Correctly
+
 Investigation revealed:
+
 - Task system DOES enforce `max_retries=3` (types.rs line 370)
 - `can_retry()` correctly checks `retry_count < max_retries` (types.rs line 450)
 - Worker respects retry limits (worker.rs line 199)
@@ -62,6 +70,7 @@ Investigation revealed:
 **File**: `edgequake/crates/edgequake-pipeline/src/extractor.rs`
 
 **Changes**:
+
 ```rust
 // Pre-validate chunk size to fail fast on oversized chunks
 // WHY: Large chunks (>4000 tokens ~16KB) likely exceed LLM timeout (120s)
@@ -88,6 +97,7 @@ if estimated_tokens > MAX_CHUNK_TOKENS {
 ```
 
 **Impact**:
+
 - **Fail-fast**: Detects oversized chunks before calling LLM
 - **Cost savings**: Prevents wasted API calls ($0.0014 per failed document)
 - **Time savings**: Immediate error instead of 120s timeout wait
@@ -98,13 +108,14 @@ if estimated_tokens > MAX_CHUNK_TOKENS {
 **File**: `edgequake/crates/edgequake-pipeline/src/extractor.rs`
 
 **Changes**:
+
 ```rust
 let response = match self.llm_provider.chat(&messages, None).await {
     Ok(resp) => resp,
     Err(e) => {
         let error_str = e.to_string().to_lowercase();
         let is_timeout = error_str.contains("timeout") || error_str.contains("timed out");
-        
+
         // Build enhanced error message with diagnostic info
         let enhanced_error = if is_timeout {
             format!(
@@ -125,7 +136,7 @@ let response = match self.llm_provider.chat(&messages, None).await {
         } else {
             format!("LLM error: {}", e)
         };
-        
+
         last_error = Some(PipelineError::ExtractionError(enhanced_error));
         ...
     }
@@ -133,9 +144,10 @@ let response = match self.llm_provider.chat(&messages, None).await {
 ```
 
 **New error message example**:
+
 ```
-LLM timeout after 120s. Chunk: 153KB (~38339 tokens). 
-Document appears too large for current timeout settings. 
+LLM timeout after 120s. Chunk: 153KB (~38339 tokens).
+Document appears too large for current timeout settings.
 Suggestions:
 1. Split document into smaller files (<50KB each)
 2. Increase LLM timeout to 300s (set LLM_TIMEOUT_SECS env variable)
@@ -144,6 +156,7 @@ Chunk ID: chunk-12345 | Attempt: 3/3 | Original error: Request timed out
 ```
 
 **Impact**:
+
 - **Diagnostic visibility**: Shows chunk size, token estimate, attempt count
 - **Root cause clarity**: Explicitly states "document too large"
 - **Actionable guidance**: 3 concrete solutions with specific parameters
@@ -154,6 +167,7 @@ Chunk ID: chunk-12345 | Attempt: 3/3 | Original error: Request timed out
 **File**: `edgequake/crates/edgequake-pipeline/src/extractor.rs`
 
 **Changes**:
+
 ```rust
 tracing::warn!(
     attempt = attempt,
@@ -168,6 +182,7 @@ tracing::warn!(
 ```
 
 **Impact**:
+
 - **Ops visibility**: Easy to grep logs for timeout patterns
 - **Debugging**: Token estimates help tune chunk sizes
 - **Monitoring**: Can alert on high timeout rates
@@ -177,24 +192,28 @@ tracing::warn!(
 ## Validation & Testing
 
 ### Build Verification ✅
+
 ```bash
 cargo build --release
 # Result: ✅ Compiled successfully with no warnings
 ```
 
 ### Backend Deployment ✅
+
 ```bash
 make stop && make dev-bg
 # Result: ✅ All services started successfully
 ```
 
 ### Service Health Check ✅
+
 ```bash
 curl http://localhost:8080/health | jq .
 # Result: ✅ Backend healthy, LLM provider: ollama
 ```
 
 ### Document Status Verification ✅
+
 ```bash
 curl "http://localhost:8080/api/v1/documents" | jq '.documents[] | select(.title | contains("agentdog"))'
 # Results:
@@ -209,18 +228,21 @@ curl "http://localhost:8080/api/v1/documents" | jq '.documents[] | select(.title
 ## Impact Assessment
 
 ### User Experience Improvements
+
 1. **Clear Failure Reasons**: Users immediately understand why their document failed
 2. **Actionable Solutions**: 3 concrete remediation options provided
 3. **No Infinite Loops**: Retry system already working correctly (max 3 attempts)
 4. **Cost Transparency**: Error messages mention timeout settings users can adjust
 
 ### System Reliability Improvements
+
 1. **Fail-Fast Validation**: Oversized chunks rejected before LLM call
 2. **Resource Conservation**: No wasted API calls on guaranteed-to-timeout content
 3. **Better Observability**: Enhanced logging for ops monitoring
 4. **Documented Limits**: MAX_CHUNK_TOKENS constant clearly defines boundaries
 
 ### Developer Experience Improvements
+
 1. **WHY Comments**: Code includes rationale for each design decision
 2. **Clear Constants**: MAX_CHUNK_TOKENS, MAX_RETRIES, timeout durations documented
 3. **Structured Errors**: Timeout errors distinguished from other LLM failures
@@ -231,9 +253,11 @@ curl "http://localhost:8080/api/v1/documents" | jq '.documents[] | select(.title
 ## Recommendations for Future Enhancements
 
 ### 1. Adaptive Chunking (Not Implemented)
+
 **Rationale**: Current chunking uses fixed window size (~1200 chars). Large documents could benefit from dynamic sizing.
 
 **Proposal**:
+
 ```rust
 fn calculate_optimal_chunk_size(doc_size: usize) -> usize {
     if doc_size > 50_000 {
@@ -247,9 +271,11 @@ fn calculate_optimal_chunk_size(doc_size: usize) -> usize {
 ```
 
 ### 2. Circuit Breaker for Consecutive Timeouts (Not Implemented)
+
 **Rationale**: If multiple documents timeout consecutively, the system might be misconfigured or experiencing provider issues.
 
 **Proposal**:
+
 ```rust
 // In types.rs
 pub struct Task {
@@ -269,23 +295,27 @@ if task.consecutive_timeout_failures >= 3 {
 ```
 
 ### 3. Document Size Warnings in UI (Not Implemented)
+
 **Rationale**: Prevent user frustration by warning before upload.
 
 **Proposal**:
+
 ```typescript
 // In upload component
 if (file.size > 50_000) {
-    showWarning(
-        "Large document detected. May fail due to LLM timeout. " +
-        "Consider splitting into smaller files (<50KB each)."
-    );
+  showWarning(
+    "Large document detected. May fail due to LLM timeout. " +
+      "Consider splitting into smaller files (<50KB each).",
+  );
 }
 ```
 
 ### 4. Configurable Chunk Size (Not Implemented)
+
 **Rationale**: Different use cases need different chunk sizes.
 
 **Proposal**: Add `chunk_size` parameter to pipeline config:
+
 ```rust
 pub struct PipelineConfig {
     pub chunk_size: usize,  // Default: 1200
@@ -299,6 +329,7 @@ pub struct PipelineConfig {
 ## Metrics & Monitoring
 
 ### Before Changes
+
 - **Error clarity**: ❌ Generic "Request timed out"
 - **User guidance**: ❌ No suggestions provided
 - **Fail-fast**: ❌ Full 120s timeout wait
@@ -306,6 +337,7 @@ pub struct PipelineConfig {
 - **User frustration**: 😤 High (no actionable feedback)
 
 ### After Changes
+
 - **Error clarity**: ✅ Detailed with size/token info
 - **User guidance**: ✅ 3 concrete solutions
 - **Fail-fast**: ✅ Immediate rejection for oversized chunks
@@ -313,6 +345,7 @@ pub struct PipelineConfig {
 - **User frustration**: 😊 Low (clear path to resolution)
 
 ### Cost Savings (Estimated)
+
 - **Per avoided timeout**: $0.0014 + 120s time
 - **Monthly (if 100 large docs attempted)**: $0.14 + 3.3 hours
 - **Annual**: $1.68 + 40 hours
@@ -326,6 +359,7 @@ edgequake/crates/edgequake-pipeline/src/extractor.rs  (+61 lines)
 ```
 
 **Diff summary**:
+
 - Added chunk size pre-validation (31 lines)
 - Enhanced timeout error messages (30 lines)
 - Fixed unused_assignments warning
@@ -380,17 +414,20 @@ Previous: 9658122d (JSON sanitization fixes)
 ## Lessons Learned
 
 ### Investigation Process
+
 1. **Don't assume infinite retry**: The retry system was working correctly; user perception was due to multiple attempts being visible
 2. **Check document size early**: 153KB vs 2.7KB was the smoking gun
 3. **Verify timeout settings**: 120s is insufficient for large documents with complex extraction
 
 ### Implementation Insights
+
 1. **Fail-fast is better**: Immediate validation prevents wasted API calls and time
 2. **Context matters**: Error messages should include diagnostic data (size, tokens, retries)
 3. **Suggest solutions**: Users need actionable guidance, not just error descriptions
 4. **WHY comments**: Future maintainers benefit from rationale documentation
 
 ### Testing Approach
+
 1. **Verify retry limits**: Confirmed `can_retry()` enforces `max_retries=3`
 2. **Check existing errors**: Old errors persist until document reprocessed
 3. **Build validation**: No warnings = clean implementation

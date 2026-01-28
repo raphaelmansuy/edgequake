@@ -584,7 +584,10 @@ pub async fn upload_document(
             .workspace_id
             .clone()
             .unwrap_or_else(|| "default".to_string());
-        let tenant_id = tenant_ctx.tenant_id.clone();
+        let tenant_id = tenant_ctx
+            .tenant_id
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
 
         let task_data = TextInsertData {
             text: request.content.clone(),
@@ -598,7 +601,14 @@ pub async fn upload_document(
             })),
         };
 
-        let task = Task::new(TaskType::Insert, serde_json::to_value(task_data).unwrap());
+        let task = Task::new(
+            uuid::Uuid::parse_str(&tenant_id)
+                .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
+            uuid::Uuid::parse_str(&workspace_id)
+                .map_err(|_| ApiError::ValidationError("Invalid workspace ID".to_string()))?,
+            TaskType::Insert,
+            serde_json::to_value(task_data).unwrap(),
+        );
         let task_id = task.track_id.clone();
 
         // Store task
@@ -3037,7 +3047,10 @@ pub async fn scan_directory(
                 .workspace_id
                 .clone()
                 .unwrap_or_else(|| "default".to_string());
-            let tenant_id = tenant_ctx.tenant_id.clone();
+            let tenant_id = tenant_ctx
+                .tenant_id
+                .clone()
+                .unwrap_or_else(|| "default".to_string());
 
             let task_data = TextInsertData {
                 text: content,
@@ -3052,7 +3065,14 @@ pub async fn scan_directory(
                 })),
             };
 
-            let task = Task::new(TaskType::Insert, serde_json::to_value(task_data).unwrap());
+            let task = Task::new(
+                uuid::Uuid::parse_str(&tenant_id)
+                    .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
+                uuid::Uuid::parse_str(&workspace_id)
+                    .map_err(|_| ApiError::ValidationError("Invalid workspace ID".to_string()))?,
+                TaskType::Insert,
+                serde_json::to_value(task_data).unwrap(),
+            );
 
             state
                 .task_storage
@@ -3274,7 +3294,10 @@ pub async fn reprocess_failed(
                     .workspace_id
                     .clone()
                     .unwrap_or_else(|| "default".to_string());
-                let tenant_id = tenant_ctx.tenant_id.clone();
+                let tenant_id = tenant_ctx
+                    .tenant_id
+                    .clone()
+                    .unwrap_or_else(|| "default".to_string());
 
                 let title = doc_id.clone();
                 let task_data = TextInsertData {
@@ -3291,7 +3314,15 @@ pub async fn reprocess_failed(
                     })),
                 };
 
-                let task = Task::new(TaskType::Insert, serde_json::to_value(task_data).unwrap());
+                let task = Task::new(
+                    uuid::Uuid::parse_str(&tenant_id)
+                        .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
+                    uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
+                        ApiError::ValidationError("Invalid workspace ID".to_string())
+                    })?,
+                    TaskType::Insert,
+                    serde_json::to_value(task_data).unwrap(),
+                );
 
                 state
                     .task_storage
@@ -3470,7 +3501,10 @@ pub async fn recover_stuck(
                     .workspace_id
                     .clone()
                     .unwrap_or_else(|| "default".to_string());
-                let tenant_id = tenant_ctx.tenant_id.clone();
+                let tenant_id = tenant_ctx
+                    .tenant_id
+                    .clone()
+                    .unwrap_or_else(|| "default".to_string());
 
                 let task_data = TextInsertData {
                     text: content.to_string(),
@@ -3486,7 +3520,15 @@ pub async fn recover_stuck(
                     })),
                 };
 
-                let task = Task::new(TaskType::Insert, serde_json::to_value(task_data).unwrap());
+                let task = Task::new(
+                    uuid::Uuid::parse_str(&tenant_id)
+                        .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
+                    uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
+                        ApiError::ValidationError("Invalid workspace ID".to_string())
+                    })?,
+                    TaskType::Insert,
+                    serde_json::to_value(task_data).unwrap(),
+                );
 
                 state
                     .task_storage

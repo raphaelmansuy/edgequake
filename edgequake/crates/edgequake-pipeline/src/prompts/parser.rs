@@ -370,9 +370,13 @@ impl HybridExtractionParser {
                         return self.tuple_parser.parse(response, chunk_id);
                     }
                     // If no tuple markers, try tuple anyway (it's more lenient)
-                    tracing::info!("No tuple markers detected but trying tuple parsing as last resort");
+                    tracing::info!(
+                        "No tuple markers detected but trying tuple parsing as last resort"
+                    );
                     match self.tuple_parser.parse(response, chunk_id) {
-                        Ok(result) if !result.entities.is_empty() || !result.relationships.is_empty() => {
+                        Ok(result)
+                            if !result.entities.is_empty() || !result.relationships.is_empty() =>
+                        {
                             tracing::info!(
                                 entities = result.entities.len(),
                                 relationships = result.relationships.len(),
@@ -446,15 +450,21 @@ fn sanitize_json(json: &str) -> String {
     // This is a simple heuristic: replace ' with " only when it looks like a JSON delimiter
     // Pattern: '{key}' or ':{value}' at JSON structure positions
     let re_single_quote_key = regex::Regex::new(r"'([a-zA-Z_][a-zA-Z0-9_]*)'(\s*:)").unwrap();
-    sanitized = re_single_quote_key.replace_all(&sanitized, "\"$1\"$2").to_string();
-    
+    sanitized = re_single_quote_key
+        .replace_all(&sanitized, "\"$1\"$2")
+        .to_string();
+
     let re_single_quote_val = regex::Regex::new(r":\s*'([^']*)'").unwrap();
-    sanitized = re_single_quote_val.replace_all(&sanitized, ": \"$1\"").to_string();
+    sanitized = re_single_quote_val
+        .replace_all(&sanitized, ": \"$1\"")
+        .to_string();
 
     // Fix unquoted keys: {name: "value"} → {"name": "value"}
     // Match: word characters followed by colon
     let re_unquoted_key = regex::Regex::new(r#"([,{]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)"#).unwrap();
-    sanitized = re_unquoted_key.replace_all(&sanitized, "$1\"$2\"$3").to_string();
+    sanitized = re_unquoted_key
+        .replace_all(&sanitized, "$1\"$2\"$3")
+        .to_string();
 
     sanitized
 }

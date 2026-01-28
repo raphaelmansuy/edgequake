@@ -912,12 +912,18 @@ export async function deleteRelationship(
 // ============================================================================
 
 export async function getTasksList(params?: {
+  tenant_id?: string;
+  workspace_id?: string;
   status?: string;
   task_type?: string;
   page?: number;
   page_size?: number;
 }): Promise<import("@/types").TaskListResponse> {
   const searchParams = new URLSearchParams();
+  // CRITICAL: Include tenant_id and workspace_id for multi-tenancy isolation
+  if (params?.tenant_id) searchParams.set("tenant_id", params.tenant_id);
+  if (params?.workspace_id)
+    searchParams.set("workspace_id", params.workspace_id);
   if (params?.status) searchParams.set("status", params.status);
   if (params?.task_type) searchParams.set("task_type", params.task_type);
   if (params?.page) searchParams.set("page", String(params.page));
@@ -930,10 +936,34 @@ export async function getTasksList(params?: {
   );
 }
 
-export async function getPipelineStatus(): Promise<PipelineStatus> {
+export async function getPipelineStatus(
+  tenant_id?: string,
+  workspace_id?: string,
+): Promise<PipelineStatus> {
   try {
+    // CRITICAL: Log tenant/workspace context for debugging isolation
+    console.log("[getPipelineStatus] DEBUG:", {
+      tenant_id,
+      workspace_id,
+      timestamp: new Date().toISOString(),
+    });
+
     // Use the tasks list endpoint to derive pipeline status
-    const result = await getTasksList({ page_size: 50 });
+    // CRITICAL: Pass tenant_id and workspace_id for proper isolation
+    const result = await getTasksList({
+      tenant_id,
+      workspace_id,
+      page_size: 50,
+    });
+
+    console.log("[getPipelineStatus] Result:", {
+      is_busy: result.statistics.processing > 0,
+      running_tasks: result.statistics.processing,
+      queued_tasks: result.statistics.pending,
+      tasks_count: result.tasks.length,
+      first_task_tenant: result.tasks[0]?.tenant_id,
+      first_task_workspace: result.tasks[0]?.workspace_id,
+    });
 
     return {
       is_busy: result.statistics.processing > 0,
@@ -944,7 +974,8 @@ export async function getPipelineStatus(): Promise<PipelineStatus> {
       tasks: result.tasks,
       statistics: result.statistics,
     };
-  } catch {
+  } catch (error) {
+    console.error("[getPipelineStatus] Error:", error);
     // Return empty status if endpoint fails
     return {
       is_busy: false,
@@ -1167,14 +1198,32 @@ export async function getCostHistory(
 /**
  * Get enhanced pipeline status with history messages.
  * Falls back to basic status if enhanced endpoint not available.
+ *
+ * @param tenant_id - Tenant ID for isolation (optional, will use current context if not provided)
+ * @param workspace_id - Workspace ID for isolation (optional, will use current context if not provided)
+ *
+ * CRITICAL: Always pass tenant_id and workspace_id to ensure multi-tenancy isolation
  */
-export async function getEnhancedPipelineStatus(): Promise<EnhancedPipelineStatus> {
+export async function getEnhancedPipelineStatus(
+  tenant_id?: string,
+  workspace_id?: string,
+): Promise<EnhancedPipelineStatus> {
   try {
-    // Try enhanced endpoint first
-    return await api.get<EnhancedPipelineStatus>("/pipeline/status");
+    // Try enhanced endpoint first with tenant/workspace context
+    const params: Record<string, string> = {};
+    if (tenant_id) params.tenant_id = tenant_id;
+    if (workspace_id) params.workspace_id = workspace_id;
+
+    return await api.get<EnhancedPipelineStatus>("/pipeline/status", {
+      params,
+    });
   } catch {
-    // Fall back to basic status derived from tasks
-    const result = await getTasksList({ page_size: 50 });
+    // Fall back to basic status derived from tasks with tenant/workspace filtering
+    const result = await getTasksList({
+      tenant_id,
+      workspace_id,
+      page_size: 50,
+    });
 
     return {
       is_busy: result.statistics.processing > 0,

@@ -170,6 +170,15 @@ export function DocumentManager() {
   
   // Get tenant context for query key
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+
+  // CRITICAL DEBUG: Log tenant/workspace changes
+  useEffect(() => {
+    console.log('[DocumentManager] Tenant/Workspace context:', {
+      selectedTenantId,
+      selectedWorkspaceId,
+      timestamp: new Date().toISOString(),
+    });
+  }, [selectedTenantId, selectedWorkspaceId]);
   
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -243,9 +252,10 @@ export function DocumentManager() {
   
   // Pipeline status query
   // OODA-37: Include workspace in queryKey for proper isolation
+  // CRITICAL: Pass tenant_id and workspace_id to getPipelineStatus for multi-tenancy isolation
   const { data: pipelineStatus } = useQuery({
     queryKey: ['pipeline-status', selectedTenantId, selectedWorkspaceId],
-    queryFn: getPipelineStatus,
+    queryFn: () => getPipelineStatus(selectedTenantId, selectedWorkspaceId),
     refetchInterval: 2000,
   });
 
@@ -890,6 +900,8 @@ export function DocumentManager() {
             <PipelineStatusDialog
               open={pipelineDialogOpen}
               onOpenChange={setPipelineDialogOpen}
+              tenantId={selectedTenantId}
+              workspaceId={selectedWorkspaceId}
             />
             
             {/* Reprocess Failed Button (GAP-UI-002) */}

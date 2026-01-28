@@ -1602,8 +1602,12 @@ pub async fn rebuild_embeddings(
                         })),
                     };
 
-                    let task =
-                        Task::new(TaskType::Insert, serde_json::to_value(&task_data).unwrap());
+                    let task = Task::new(
+                        workspace.tenant_id,
+                        workspace_id,
+                        TaskType::Insert,
+                        serde_json::to_value(&task_data).unwrap(),
+                    );
 
                     // Store and queue task
                     if state.task_storage.create_task(&task).await.is_ok() {
@@ -1942,8 +1946,12 @@ pub async fn rebuild_knowledge_graph(
                         })),
                     };
 
-                    let task =
-                        Task::new(TaskType::Insert, serde_json::to_value(&task_data).unwrap());
+                    let task = Task::new(
+                        workspace.tenant_id,
+                        workspace_id,
+                        TaskType::Insert,
+                        serde_json::to_value(&task_data).unwrap(),
+                    );
 
                     // Store and queue task
                     if state.task_storage.create_task(&task).await.is_ok() {
@@ -2207,7 +2215,12 @@ pub async fn reprocess_all_documents(
                     })),
                 };
 
-                let task = Task::new(TaskType::Insert, serde_json::to_value(&task_data).unwrap());
+                let task = Task::new(
+                    workspace.tenant_id,
+                    workspace_id,
+                    TaskType::Insert,
+                    serde_json::to_value(&task_data).unwrap(),
+                );
 
                 // Store and queue task
                 if let Err(e) = state.task_storage.create_task(&task).await {
