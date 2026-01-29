@@ -148,10 +148,47 @@ pub struct ProcessingResult {
 }
 
 /// Statistics from pipeline processing.
+///
+/// ┌─────────────────────────────────────────────────────────────────────────────┐
+/// │                    CHUNK-LEVEL RESILIENCE STATS                             │
+/// └─────────────────────────────────────────────────────────────────────────────┘
+///
+/// WHY TRACK FAILED CHUNKS?
+/// ────────────────────────
+/// 1. TRANSPARENCY: Users need to know if their document was partially processed
+/// 2. RETRY CAPABILITY: Failed chunk IDs can be used for targeted retry
+/// 3. MONITORING: Track failure patterns over time for system health
+/// 4. DEBUGGING: Chunk errors help diagnose LLM/network issues
+///
+/// ```text
+///   ProcessingStats
+///       │
+///       ├── chunk_count: 10              (total chunks attempted)
+///       ├── successful_chunks: 8         (chunks that succeeded)
+///       ├── failed_chunks: 2             (chunks that failed)
+///       ├── chunk_errors: [...]          (error details per failed chunk)
+///       │
+///       └── success_rate = 8/10 = 80%
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProcessingStats {
     /// Number of chunks created.
     pub chunk_count: usize,
+
+    /// Number of chunks successfully extracted.
+    /// WHY: Allows calculating success rate = successful_chunks / chunk_count
+    #[serde(default)]
+    pub successful_chunks: usize,
+
+    /// Number of chunks that failed extraction after all retries.
+    /// WHY: Non-zero value triggers partial success handling in UI
+    #[serde(default)]
+    pub failed_chunks: usize,
+
+    /// Error messages for each failed chunk (chunk_id -> error).
+    /// WHY: Enables targeted retry and detailed error reporting
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk_errors: Option<Vec<ChunkErrorInfo>>,
 
     /// Number of entities extracted.
     pub entity_count: usize,
@@ -223,6 +260,26 @@ pub struct ProcessingStats {
     /// Cost breakdown by operation (extraction, embedding, etc.).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_breakdown: Option<CostBreakdownStats>,
+}
+
+/// Information about a failed chunk for error reporting.
+///
+/// WHY SEPARATE FROM ChunkFailure?
+/// ────────────────────────────────
+/// ChunkFailure is internal (full details for retry logic).
+/// ChunkErrorInfo is external (serializable summary for API/UI).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkErrorInfo {
+    /// Chunk ID (for correlation with source document).
+    pub chunk_id: String,
+    /// Chunk index (0-based position in document).
+    pub chunk_index: usize,
+    /// Error message (user-friendly).
+    pub error_message: String,
+    /// Whether this was a timeout vs other error.
+    pub was_timeout: bool,
+    /// Number of retry attempts made.
+    pub retry_attempts: u32,
 }
 
 /// Cost breakdown by operation.
@@ -475,6 +532,346 @@ impl Pipeline {
 
         // Collect results, propagating first error
         results.into_iter().collect()
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //                    RESILIENT PARALLEL EXTRACTION (MAP-REDUCE)
+    // ═══════════════════════════════════════════════════════════════════════════
+    //
+    // WHY RESILIENT EXTRACTION?
+    // ────────────────────────────
+    // The original extract_parallel_with_progress fails fast on the first error.
+    // This is problematic for large documents where:
+    // - A single chunk timeout shouldn't discard 99 successful extractions
+    // - Users expect partial results with clear reporting of failures
+    // - Retry logic should be at chunk level, not document level
+    //
+    // ARCHITECTURE (MAP-REDUCE PATTERN):
+    // ────────────────────────────────────────────────────────────────────────────
+    //
+    //   ┌─────────────────────────────────────────────────────────────────────────┐
+    //   │                           MAP PHASE                                     │
+    //   │  (Parallel chunk processing with per-chunk retry and timeout)          │
+    //   └─────────────────────────────────────────────────────────────────────────┘
+    //
+    //   Document (N chunks)
+    //        │
+    //        ▼
+    //   ┌────┬────┬────┬────┬────┐
+    //   │ C1 │ C2 │ C3 │ C4 │ CN │   (chunks distributed to workers)
+    //   └─┬──┴─┬──┴─┬──┴─┬──┴─┬──┘
+    //     │    │    │    │    │
+    //     ▼    ▼    ▼    ▼    ▼      (parallel LLM calls with semaphore)
+    //   ┌───┐┌───┐┌───┐┌───┐┌───┐
+    //   │ E ││ E ││ E ││ E ││ E │    (each E = extract_with_retry)
+    //   │ x ││ x ││ x ││ x ││ x │
+    //   │ t ││ t ││ t ││ t ││ t │
+    //   │ r ││ r ││ r ││ r ││ r │
+    //   │ a ││ a ││ a ││ a ││ a │
+    //   │ c ││ c ││ c ││ c ││ c │
+    //   │ t ││ t ││ t ││ t ││ t │
+    //   └─┬─┘└─┬─┘└─┬─┘└─┬─┘└─┬─┘
+    //     │    │    │    │    │
+    //     ▼    ▼    ▼    ▼    ▼      (each returns ChunkExtractionOutcome)
+    //   ┌───┐┌───┐┌───┐┌───┐┌───┐
+    //   │ ✓ ││ ✗ ││ ✓ ││ ✓ ││ ✓ │    (✓ = Success, ✗ = Failed)
+    //   └───┘└───┘└───┘└───┘└───┘
+    //
+    //   ┌─────────────────────────────────────────────────────────────────────────┐
+    //   │                          REDUCE PHASE                                   │
+    //   │  (Aggregate successes and failures into ResilientExtractionResult)     │
+    //   └─────────────────────────────────────────────────────────────────────────┘
+    //
+    //   All outcomes collected
+    //        │
+    //        ▼
+    //   ┌────────────────────────────────────────────────────────────────────────┐
+    //   │  Partition: successes = [C1, C3, C4, CN], failures = [C2]             │
+    //   │  Sort by chunk_index (maintain document order)                        │
+    //   │  Calculate stats: 4/5 = 80% success rate                              │
+    //   └────────────────────────────────────────────────────────────────────────┘
+    //        │
+    //        ▼
+    //   ResilientExtractionResult {
+    //       successful_extractions: [4 results],
+    //       failed_chunks: [1 failure with details],
+    //       total_chunks: 5,
+    //       success_rate: 0.80
+    //   }
+    //
+    // RETRY STRATEGY (PER CHUNK):
+    // ────────────────────────────────────────────────────────────────────────────
+    //
+    //   ┌─────────────────────────────────────────────────────────────────────────┐
+    //   │  Attempt 1: base_timeout = 60s (or config.chunk_extraction_timeout)    │
+    //   │       │                                                                │
+    //   │       ├─> Success ✓ → Return ChunkExtractionOutcome::Success           │
+    //   │       │                                                                │
+    //   │       └─> Failure → Wait (exponential backoff: 1s, 2s, 4s)             │
+    //   │                                                                        │
+    //   │  Attempt 2: retry with 2x delay                                        │
+    //   │       │                                                                │
+    //   │       ├─> Success ✓ → Return ChunkExtractionOutcome::Success           │
+    //   │       │                                                                │
+    //   │       └─> Failure → Wait (double delay)                                │
+    //   │                                                                        │
+    //   │  Attempt 3: final attempt                                              │
+    //   │       │                                                                │
+    //   │       ├─> Success ✓ → Return ChunkExtractionOutcome::Success           │
+    //   │       │                                                                │
+    //   │       └─> Failure → Return ChunkExtractionOutcome::Failed              │
+    //   │                     (with ChunkFailure containing all details)         │
+    //   └─────────────────────────────────────────────────────────────────────────┘
+    //
+
+    /// Extract entities from chunks with resilient error handling.
+    ///
+    /// Unlike `extract_parallel`, this method does NOT fail fast on errors.
+    /// Instead, it processes all chunks and returns both successes and failures,
+    /// allowing partial results to be used.
+    ///
+    /// ## Implements
+    /// - **FEAT0020**: Chunk-level resilience and error isolation
+    /// - **UC2305**: System continues processing when individual chunks fail
+    ///
+    /// ## Returns
+    /// `ResilientExtractionResult` containing:
+    /// - All successful extractions (sorted by chunk order)
+    /// - All failures with detailed error information
+    /// - Statistics for monitoring and alerting
+    pub async fn resilient_extract_parallel(
+        &self,
+        chunks: &[TextChunk],
+        extractor: &Arc<dyn EntityExtractor>,
+        progress_callback: Option<ChunkProgressCallback>,
+    ) -> crate::error::ResilientExtractionResult {
+        use crate::error::{ChunkExtractionOutcome, ChunkFailure, ResilientExtractionResult};
+
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(
+            self.config.max_concurrent_extractions,
+        ));
+
+        let total_chunks = chunks.len();
+        let timeout_secs = self.config.chunk_extraction_timeout_secs;
+        let max_retries = self.config.chunk_max_retries;
+        let initial_delay_ms = self.config.initial_retry_delay_ms;
+
+        // Atomic counters for cumulative tracking
+        let cumulative_time_ms = Arc::new(AtomicU64::new(0));
+        let cumulative_input_tokens = Arc::new(AtomicU64::new(0));
+        let cumulative_output_tokens = Arc::new(AtomicU64::new(0));
+        let completed_chunks = Arc::new(AtomicU32::new(0));
+
+        // Get model pricing for cost calculation
+        let pricing = crate::progress::default_model_pricing();
+        let model_name = extractor.model_name();
+        let model_pricing = pricing
+            .get(model_name)
+            .cloned()
+            .unwrap_or_else(|| crate::progress::ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006));
+        let model_pricing = Arc::new(model_pricing);
+
+        // ═══════════════════════════════════════════════════════════════════════
+        //                           MAP PHASE
+        // ═══════════════════════════════════════════════════════════════════════
+        // Create futures for all chunks. Each future handles its own retry logic
+        // and returns ChunkExtractionOutcome (never propagates error upward).
+
+        let futures: Vec<_> = chunks
+            .iter()
+            .enumerate()
+            .map(|(chunk_index, chunk)| {
+                let semaphore = semaphore.clone();
+                let extractor = extractor.clone();
+                let chunk = chunk.clone();
+                let progress_callback = progress_callback.clone();
+                let cumulative_time_ms = cumulative_time_ms.clone();
+                let cumulative_input_tokens = cumulative_input_tokens.clone();
+                let cumulative_output_tokens = cumulative_output_tokens.clone();
+                let completed_chunks = completed_chunks.clone();
+                let model_pricing = model_pricing.clone();
+
+                async move {
+                    let chunk_start = std::time::Instant::now();
+
+                    // Acquire permit (released on drop)
+                    let _permit = match semaphore.acquire().await {
+                        Ok(p) => p,
+                        Err(e) => {
+                            return ChunkExtractionOutcome::Failed(ChunkFailure {
+                                chunk_index,
+                                chunk_id: chunk.id.clone(),
+                                error: format!("Semaphore acquisition failed: {}", e),
+                                retry_attempts: 0,
+                                was_timeout: false,
+                                processing_time_ms: chunk_start.elapsed().as_millis() as u64,
+                            });
+                        }
+                    };
+
+                    // ─────────────────────────────────────────────────────────────
+                    // PER-CHUNK RETRY LOOP
+                    // ─────────────────────────────────────────────────────────────
+                    // WHY RETRY AT CHUNK LEVEL?
+                    // - Transient errors (rate limits, network blips) are common
+                    // - Retrying specific chunks is more efficient than whole doc
+                    // - Exponential backoff prevents overwhelming the LLM provider
+
+                    let mut last_error = String::new();
+                    let mut was_timeout = false;
+
+                    for attempt in 1..=max_retries {
+                        // Apply timeout to the extraction call
+                        let extraction_future = extractor.extract(&chunk);
+                        let timeout_duration = tokio::time::Duration::from_secs(timeout_secs);
+
+                        match tokio::time::timeout(timeout_duration, extraction_future).await {
+                            Ok(Ok(result)) => {
+                                // ═══════════════════════════════════════════════════
+                                // SUCCESS PATH
+                                // ═══════════════════════════════════════════════════
+                                let time_ms = result.extraction_time_ms;
+                                let in_tokens = result.input_tokens;
+                                let out_tokens = result.output_tokens;
+
+                                cumulative_time_ms.fetch_add(time_ms, Ordering::Relaxed);
+                                cumulative_input_tokens
+                                    .fetch_add(in_tokens as u64, Ordering::Relaxed);
+                                cumulative_output_tokens
+                                    .fetch_add(out_tokens as u64, Ordering::Relaxed);
+                                let completed =
+                                    completed_chunks.fetch_add(1, Ordering::Relaxed) + 1;
+
+                                // Emit progress update if callback is provided
+                                if let Some(ref callback) = progress_callback {
+                                    let total_time = cumulative_time_ms.load(Ordering::Relaxed);
+                                    let total_in = cumulative_input_tokens.load(Ordering::Relaxed);
+                                    let total_out =
+                                        cumulative_output_tokens.load(Ordering::Relaxed);
+
+                                    let avg_time_ms = if completed > 0 {
+                                        total_time as f64 / completed as f64
+                                    } else {
+                                        0.0
+                                    };
+                                    let remaining = total_chunks.saturating_sub(completed as usize);
+                                    let eta_seconds =
+                                        ((avg_time_ms * remaining as f64) / 1000.0) as u64;
+
+                                    let cumulative_cost = model_pricing
+                                        .calculate_cost(total_in as usize, total_out as usize);
+
+                                    let chunk_preview = if chunk.content.len() > 100 {
+                                        let truncate_at = chunk
+                                            .content
+                                            .char_indices()
+                                            .nth(97)
+                                            .map(|(idx, _)| idx)
+                                            .unwrap_or(chunk.content.len());
+                                        format!("{}...", &chunk.content[..truncate_at])
+                                    } else {
+                                        chunk.content.clone()
+                                    };
+
+                                    let chunk_cost =
+                                        model_pricing.calculate_cost(in_tokens, out_tokens);
+
+                                    callback(ChunkProgressUpdate {
+                                        chunk_index,
+                                        total_chunks,
+                                        chunk_preview,
+                                        processing_time_ms: time_ms,
+                                        input_tokens: in_tokens,
+                                        output_tokens: out_tokens,
+                                        chunk_cost_usd: chunk_cost,
+                                        cumulative_input_tokens: total_in,
+                                        cumulative_output_tokens: total_out,
+                                        cumulative_cost_usd: cumulative_cost,
+                                        avg_time_per_chunk_ms: avg_time_ms,
+                                        eta_seconds,
+                                    });
+                                }
+
+                                return ChunkExtractionOutcome::Success {
+                                    chunk_index,
+                                    result,
+                                };
+                            }
+                            Ok(Err(e)) => {
+                                // Extraction error (not timeout)
+                                last_error = format!("{}", e);
+                                was_timeout = false;
+                                tracing::warn!(
+                                    chunk_index = chunk_index,
+                                    chunk_id = %chunk.id,
+                                    attempt = attempt,
+                                    max_retries = max_retries,
+                                    error = %e,
+                                    "Chunk extraction failed, will retry"
+                                );
+                            }
+                            Err(_) => {
+                                // Timeout
+                                last_error = format!(
+                                    "Timeout after {}s (attempt {}/{})",
+                                    timeout_secs, attempt, max_retries
+                                );
+                                was_timeout = true;
+                                tracing::warn!(
+                                    chunk_index = chunk_index,
+                                    chunk_id = %chunk.id,
+                                    attempt = attempt,
+                                    max_retries = max_retries,
+                                    timeout_secs = timeout_secs,
+                                    "Chunk extraction timed out, will retry"
+                                );
+                            }
+                        }
+
+                        // Exponential backoff before retry
+                        if attempt < max_retries {
+                            let delay_ms = initial_delay_ms * 2_u64.pow(attempt - 1);
+                            tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                        }
+                    }
+
+                    // ═══════════════════════════════════════════════════════════════
+                    // FAILURE PATH (all retries exhausted)
+                    // ═══════════════════════════════════════════════════════════════
+                    // WHY RETURN FAILURE INSTEAD OF ERROR?
+                    // - Allows other chunks to continue processing
+                    // - Caller can decide what to do with partial results
+                    // - Failure details are preserved for retry/debugging
+
+                    // Still update completed count for accurate progress
+                    completed_chunks.fetch_add(1, Ordering::Relaxed);
+
+                    ChunkExtractionOutcome::Failed(ChunkFailure {
+                        chunk_index,
+                        chunk_id: chunk.id.clone(),
+                        error: last_error,
+                        retry_attempts: max_retries,
+                        was_timeout,
+                        processing_time_ms: chunk_start.elapsed().as_millis() as u64,
+                    })
+                }
+            })
+            .collect();
+
+        // ═══════════════════════════════════════════════════════════════════════
+        //                          REDUCE PHASE
+        // ═══════════════════════════════════════════════════════════════════════
+        // Execute all futures concurrently, then aggregate results.
+        // Note: buffer_unordered allows completing in any order while
+        // respecting the semaphore limit.
+
+        let outcomes: Vec<ChunkExtractionOutcome> = stream::iter(futures)
+            .buffer_unordered(self.config.max_concurrent_extractions)
+            .collect()
+            .await;
+
+        // Aggregate into final result
+        ResilientExtractionResult::from_outcomes(outcomes)
     }
 
     /// Process a document through the pipeline.
@@ -945,6 +1342,434 @@ impl Pipeline {
         }
 
         // Step 3: Generate embeddings (same as process() - no progress callback needed)
+        if let Some(provider) = &self.embedding_provider {
+            stats.embedding_model = Some(provider.model().to_string());
+            stats.embedding_provider = Some(provider.name().to_string());
+            stats.embedding_dimensions = Some(provider.dimension());
+
+            // Chunk embeddings
+            if self.config.enable_chunk_embeddings {
+                let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+                if !texts.is_empty() {
+                    let embeddings = provider
+                        .embed(&texts)
+                        .await
+                        .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
+                    for (chunk, embedding) in chunks.iter_mut().zip(embeddings) {
+                        chunk.embedding = Some(embedding);
+                    }
+                }
+            }
+
+            // Entity embeddings
+            if self.config.enable_entity_embeddings {
+                let mut all_entity_texts: Vec<String> = Vec::new();
+                let mut entity_indices: Vec<(usize, usize)> = Vec::new();
+
+                for (ext_idx, extraction) in extractions.iter().enumerate() {
+                    for (ent_idx, entity) in extraction.entities.iter().enumerate() {
+                        all_entity_texts.push(format!("{}: {}", entity.name, entity.description));
+                        entity_indices.push((ext_idx, ent_idx));
+                    }
+                }
+
+                if !all_entity_texts.is_empty() {
+                    let all_embeddings = provider
+                        .embed(&all_entity_texts)
+                        .await
+                        .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
+                    for (embedding, (ext_idx, ent_idx)) in
+                        all_embeddings.into_iter().zip(entity_indices)
+                    {
+                        extractions[ext_idx].entities[ent_idx].embedding = Some(embedding);
+                    }
+                }
+            }
+
+            // Relationship embeddings
+            if self.config.enable_relationship_embeddings {
+                let mut all_relationship_texts: Vec<String> = Vec::new();
+                let mut relationship_indices: Vec<(usize, usize)> = Vec::new();
+
+                for (ext_idx, extraction) in extractions.iter().enumerate() {
+                    for (rel_idx, r) in extraction.relationships.iter().enumerate() {
+                        all_relationship_texts.push(format!(
+                            "{}\t{}->{}\n{}",
+                            r.keywords.join(", "),
+                            r.source,
+                            r.target,
+                            r.description
+                        ));
+                        relationship_indices.push((ext_idx, rel_idx));
+                    }
+                }
+
+                if !all_relationship_texts.is_empty() {
+                    let all_embeddings = provider
+                        .embed(&all_relationship_texts)
+                        .await
+                        .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
+                    for (embedding, (ext_idx, rel_idx)) in
+                        all_embeddings.into_iter().zip(relationship_indices)
+                    {
+                        extractions[ext_idx].relationships[rel_idx].embedding = Some(embedding);
+                    }
+                }
+            }
+
+            // Calculate embedding costs
+            let mut total_embed_tokens = 0usize;
+            if self.config.enable_chunk_embeddings {
+                let chunk_text_len: usize = chunks.iter().map(|c| c.content.len()).sum();
+                total_embed_tokens += chunk_text_len / 4;
+            }
+            if self.config.enable_entity_embeddings {
+                for extraction in &extractions {
+                    for entity in &extraction.entities {
+                        total_embed_tokens += (entity.name.len() + entity.description.len()) / 4;
+                    }
+                }
+            }
+            if self.config.enable_relationship_embeddings {
+                for extraction in &extractions {
+                    for rel in &extraction.relationships {
+                        total_embed_tokens +=
+                            (rel.source.len() + rel.target.len() + rel.description.len()) / 4;
+                    }
+                }
+            }
+
+            let embed_model_name = provider.model();
+            let pricing = crate::progress::default_model_pricing();
+            let embed_pricing = pricing.get(embed_model_name).cloned().unwrap_or_else(|| {
+                crate::progress::ModelPricing::new("text-embedding-3-small", 0.00002, 0.0)
+            });
+
+            let embedding_cost = embed_pricing.calculate_cost(total_embed_tokens, 0);
+            stats.cost_usd += embedding_cost;
+
+            if let Some(ref mut breakdown) = stats.cost_breakdown {
+                breakdown.embedding_cost_usd = embedding_cost;
+                breakdown.embedding_tokens = total_embed_tokens;
+            } else {
+                let breakdown = CostBreakdownStats {
+                    embedding_cost_usd: embedding_cost,
+                    embedding_tokens: total_embed_tokens,
+                    ..CostBreakdownStats::default()
+                };
+                stats.cost_breakdown = Some(breakdown);
+            }
+        }
+
+        stats.processing_time_ms = start.elapsed().as_millis() as u64;
+
+        // Step 4: Build lineage if enabled
+        let lineage = if self.config.enable_lineage_tracking {
+            let job_id = uuid::Uuid::new_v4().to_string();
+            let mut builder = LineageBuilder::new(document_id, document_id, &job_id);
+
+            for chunk in &chunks {
+                let metadata =
+                    ExtractionMetadata::new(stats.llm_model.as_deref().unwrap_or("unknown"));
+                builder.record_chunk(
+                    &chunk.id,
+                    chunk.index,
+                    chunk.start_line,
+                    chunk.end_line,
+                    chunk.start_offset,
+                    chunk.end_offset,
+                    metadata,
+                );
+            }
+
+            for extraction in &extractions {
+                for entity in &extraction.entities {
+                    let entity_id = format!("{}_{}", extraction.source_chunk_id, entity.name);
+                    let span = SourceSpan::new(0, 0, 0, 0);
+                    builder.record_entity(
+                        &entity_id,
+                        &entity.name,
+                        &extraction.source_chunk_id,
+                        span,
+                        &entity.description,
+                    );
+                }
+                for rel in &extraction.relationships {
+                    let rel_id = format!(
+                        "{}_{}_{}",
+                        extraction.source_chunk_id, rel.source, rel.target
+                    );
+                    let span = SourceSpan::new(0, 0, 0, 0);
+                    builder.record_relationship(
+                        &rel_id,
+                        &rel.source,
+                        &rel.target,
+                        &rel.relation_type,
+                        &extraction.source_chunk_id,
+                        span,
+                        &rel.description,
+                    );
+                }
+            }
+
+            Some(builder.build())
+        } else {
+            None
+        };
+
+        Ok(ProcessingResult {
+            document_id: document_id.to_string(),
+            chunks,
+            extractions,
+            stats,
+            lineage,
+        })
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //                    RESILIENT DOCUMENT PROCESSING
+    // ═══════════════════════════════════════════════════════════════════════════
+    //
+    // WHY PROCESS_WITH_RESILIENCE?
+    // ────────────────────────────────
+    // This method uses the resilient extraction strategy to ensure:
+    // - Partial failures don't discard successful extractions
+    // - Failed chunks are tracked for reporting and potential retry
+    // - Users can see exactly which parts of their document were processed
+    //
+    // DECISION TREE FOR FAILURE HANDLING:
+    // ────────────────────────────────────────────────────────────────────────────
+    //
+    //   After extraction completes:
+    //        │
+    //        ▼
+    //   ┌─────────────────────────────────────────────────────────────────────────┐
+    //   │  Is success_rate == 1.0? (100% success)                                │
+    //   └───────────────────────────────┬─────────────────────────────────────────┘
+    //                │                  │
+    //       YES      │                  │ NO
+    //                ▼                  ▼
+    //   ┌─────────────────┐   ┌─────────────────────────────────────────────────┐
+    //   │ Return normal   │   │  Is success_rate > 0.0? (at least 1 success)   │
+    //   │ ProcessingResult│   └───────────────────────┬─────────────────────────┘
+    //   └─────────────────┘             │             │
+    //                          YES      │             │ NO (all failed)
+    //                                   ▼             ▼
+    //                   ┌───────────────────┐   ┌─────────────────────────────┐
+    //                   │ Return partial    │   │ Return error with all       │
+    //                   │ result with       │   │ failure details             │
+    //                   │ stats.failed_     │   │                             │
+    //                   │ chunks populated  │   │ PipelineError::Extraction   │
+    //                   └───────────────────┘   │ Error("All N chunks failed")|
+    //                                           └─────────────────────────────┘
+    //
+
+    /// Process a document with resilient chunk-level error handling.
+    ///
+    /// Unlike `process` and `process_with_progress`, this method does NOT fail
+    /// the entire document if individual chunks fail. Instead, it:
+    /// - Extracts as many chunks as possible
+    /// - Reports failures in `stats.chunk_errors`
+    /// - Allows partial results to be used
+    ///
+    /// ## Implements
+    /// - **FEAT0020**: Chunk-level resilience and error isolation
+    /// - **UC2305**: System continues processing when individual chunks fail
+    ///
+    /// ## Failure Behavior
+    /// - If ALL chunks fail, returns `Err(PipelineError::ExtractionError)`
+    /// - If SOME chunks fail, returns `Ok(ProcessingResult)` with:
+    ///   - `stats.failed_chunks > 0`
+    ///   - `stats.chunk_errors` populated with failure details
+    ///   - Only successful extractions in `extractions`
+    ///
+    /// ## Example
+    /// ```ignore
+    /// let result = pipeline.process_with_resilience("doc1", content, Some(callback)).await?;
+    /// if result.stats.failed_chunks > 0 {
+    ///     println!("{} chunks failed, processing partial result", result.stats.failed_chunks);
+    /// }
+    /// ```
+    pub async fn process_with_resilience(
+        &self,
+        document_id: &str,
+        content: &str,
+        progress_callback: Option<ChunkProgressCallback>,
+    ) -> Result<ProcessingResult> {
+        let start = std::time::Instant::now();
+        let mut stats = ProcessingStats::default();
+
+        // Step 1: Chunk the document
+        let mut chunks = self.chunker.chunk(content, document_id)?;
+        stats.chunk_count = chunks.len();
+
+        // Track chunking strategy and average chunk size
+        stats.chunking_strategy =
+            Some(format!("sliding_window_{}", self.config.chunker.chunk_size));
+        if !chunks.is_empty() {
+            let total_chars: usize = chunks.iter().map(|c| c.content.len()).sum();
+            stats.avg_chunk_size = Some(total_chars / chunks.len());
+        }
+
+        // Step 2: Extract entities and relationships WITH RESILIENCE
+        let mut extractions = Vec::new();
+        let mut entity_types_set = std::collections::HashSet::new();
+        let mut relationship_types_set = std::collections::HashSet::new();
+        let mut keywords_set = std::collections::HashSet::new();
+        let mut total_input_tokens = 0usize;
+        let mut total_output_tokens = 0usize;
+
+        if self.config.enable_entity_extraction || self.config.enable_relationship_extraction {
+            if let Some(extractor) = &self.extractor {
+                // Capture LLM model and provider names
+                stats.llm_model = Some(extractor.model_name().to_string());
+                stats.llm_provider = Some(extractor.provider_name().to_string());
+
+                // ═══════════════════════════════════════════════════════════════
+                // USE RESILIENT EXTRACTION (map-reduce pattern)
+                // ═══════════════════════════════════════════════════════════════
+                let resilient_result = self
+                    .resilient_extract_parallel(&chunks, extractor, progress_callback)
+                    .await;
+
+                // Log the result summary
+                tracing::info!(
+                    document_id = %document_id,
+                    total_chunks = resilient_result.total_chunks,
+                    successful = resilient_result.successful_extractions.len(),
+                    failed = resilient_result.failed_chunks.len(),
+                    success_rate = %format!("{:.1}%", resilient_result.success_rate() * 100.0),
+                    "Resilient extraction completed"
+                );
+
+                // ═══════════════════════════════════════════════════════════════
+                // HANDLE COMPLETE FAILURE CASE
+                // ═══════════════════════════════════════════════════════════════
+                // WHY: If ALL chunks failed, there's no useful result to return.
+                // Better to return an error with all failure details.
+                if resilient_result.is_complete_failure() {
+                    let failure_summary: Vec<String> = resilient_result
+                        .failed_chunks
+                        .iter()
+                        .map(|f| format!("Chunk {}: {}", f.chunk_index, f.error))
+                        .collect();
+
+                    return Err(crate::error::PipelineError::ExtractionError(format!(
+                        "All {} chunks failed extraction. Failures: {}",
+                        resilient_result.total_chunks,
+                        failure_summary.join("; ")
+                    )));
+                }
+
+                // ═══════════════════════════════════════════════════════════════
+                // POPULATE STATS WITH FAILURE INFO
+                // ═══════════════════════════════════════════════════════════════
+                stats.successful_chunks = resilient_result.successful_extractions.len();
+                stats.failed_chunks = resilient_result.failed_chunks.len();
+
+                if !resilient_result.failed_chunks.is_empty() {
+                    stats.chunk_errors = Some(
+                        resilient_result
+                            .failed_chunks
+                            .iter()
+                            .map(|f| ChunkErrorInfo {
+                                chunk_id: f.chunk_id.clone(),
+                                chunk_index: f.chunk_index,
+                                error_message: f.error.clone(),
+                                was_timeout: f.was_timeout,
+                                retry_attempts: f.retry_attempts,
+                            })
+                            .collect(),
+                    );
+
+                    tracing::warn!(
+                        document_id = %document_id,
+                        failed_count = resilient_result.failed_chunks.len(),
+                        "Some chunks failed extraction, continuing with partial results"
+                    );
+                }
+
+                // Take successful extractions
+                extractions = resilient_result.successful_extractions;
+
+                // Link entities and relationships to their source chunks
+                for extraction in &mut extractions {
+                    let chunk_id = extraction.source_chunk_id.clone();
+                    tracing::debug!(
+                        "Linking {} entities and {} relationships to chunk {}",
+                        extraction.entities.len(),
+                        extraction.relationships.len(),
+                        chunk_id
+                    );
+                    for entity in &mut extraction.entities {
+                        entity.add_source_chunk_id(&chunk_id);
+                    }
+                    for rel in &mut extraction.relationships {
+                        if rel.source_chunk_id.is_none() {
+                            rel.source_chunk_id = Some(chunk_id.clone());
+                        }
+                    }
+                }
+
+                // Aggregate statistics from all successful extractions
+                for extraction in &extractions {
+                    stats.entity_count += extraction.entities.len();
+                    stats.relationship_count += extraction.relationships.len();
+                    stats.llm_calls += 1;
+                    total_input_tokens += extraction.input_tokens;
+                    total_output_tokens += extraction.output_tokens;
+
+                    for entity in &extraction.entities {
+                        entity_types_set.insert(entity.entity_type.clone());
+                    }
+                    for rel in &extraction.relationships {
+                        relationship_types_set.insert(rel.relation_type.clone());
+                        for keyword in &rel.keywords {
+                            keywords_set.insert(keyword.clone());
+                        }
+                    }
+                }
+
+                stats.total_tokens = total_input_tokens + total_output_tokens;
+                stats.input_tokens = total_input_tokens;
+                stats.output_tokens = total_output_tokens;
+
+                // Calculate extraction cost
+                let model_name = extractor.model_name();
+                let pricing = crate::progress::default_model_pricing();
+                let model_pricing = pricing.get(model_name).cloned().unwrap_or_else(|| {
+                    crate::progress::ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006)
+                });
+
+                let extraction_cost =
+                    model_pricing.calculate_cost(total_input_tokens, total_output_tokens);
+                stats.cost_usd += extraction_cost;
+
+                let cost_breakdown = CostBreakdownStats {
+                    extraction_cost_usd: extraction_cost,
+                    extraction_input_tokens: total_input_tokens,
+                    extraction_output_tokens: total_output_tokens,
+                    ..CostBreakdownStats::default()
+                };
+                stats.cost_breakdown = Some(cost_breakdown);
+            }
+        }
+
+        // Store collected types and keywords
+        if !entity_types_set.is_empty() {
+            stats.entity_types = Some(entity_types_set.into_iter().collect());
+        }
+        if !relationship_types_set.is_empty() {
+            stats.relationship_types = Some(relationship_types_set.into_iter().collect());
+        }
+        if !keywords_set.is_empty() {
+            let mut keywords: Vec<String> = keywords_set.into_iter().collect();
+            keywords.sort();
+            keywords.truncate(50);
+            stats.keywords = Some(keywords);
+        }
+
+        // Step 3: Generate embeddings (same logic as process_with_progress)
         if let Some(provider) = &self.embedding_provider {
             stats.embedding_model = Some(provider.model().to_string());
             stats.embedding_provider = Some(provider.name().to_string());
