@@ -26,6 +26,7 @@
 ### What Problem Does EdgeQuake PDF Solve?
 
 **The Challenge**: Most RAG systems require clean, structured text input. However, real-world knowledge often exists in PDF documents with:
+
 - Complex table structures
 - Multi-column layouts
 - Mixed text encodings
@@ -33,12 +34,14 @@
 - Inconsistent reading order
 
 **Why Existing Tools Fail**:
+
 - **PyPDF2**: Simple text extraction, no structure preservation
 - **pdfplumber**: Good for tables but slow, Python-only
 - **Camelot**: Requires exact table borders, brittle
 - **Marker**: Excellent but lacks customization, black-box LLM calls
 
 **EdgeQuake's Approach**:
+
 1. **Block-Based Representation**: Inspired by Marker's schema
 2. **Spatial Analysis**: Y-coordinate clustering for rows, X-coordinate for columns
 3. **Graceful Degradation**: Extract partial content when pages fail
@@ -48,6 +51,7 @@
 ### When to Use PDF Extraction
 
 **Use EdgeQuake PDF when**:
+
 - ✅ You need structured Markdown from academic papers
 - ✅ Your PDFs contain tables (financial reports, research data)
 - ✅ Multi-column layouts must preserve reading order
@@ -55,6 +59,7 @@
 - ✅ Integration with EdgeQuake's RAG pipeline
 
 **Alternatives**:
+
 - ⚠️ **Pre-extracted text available**: Skip PDF processing entirely
 - ⚠️ **Scanned documents (images)**: Use Vision models or OCR first
 - ⚠️ **Highly complex layouts**: May require manual review
@@ -198,6 +203,7 @@ WHY THIS DESIGN:
 **Purpose**: Abstract PDF parsing library (currently `lopdf`)
 
 **Trait**:
+
 ```rust
 pub trait PdfBackend {
     fn extract_document(&self, pdf_bytes: &[u8]) -> Result<Document>;
@@ -205,6 +211,7 @@ pub trait PdfBackend {
 ```
 
 **Implementations**:
+
 - `LopdfBackend`: Production backend using lopdf crate
 - `MockBackend`: Testing backend with deterministic output
 
@@ -259,6 +266,7 @@ pub enum BlockType {
 ```
 
 **Why blocks?**
+
 - **Semantic meaning**: Not just "text at (x,y)" but "this is a table header"
 - **Hierarchical**: Tables contain cells, lists contain items
 - **Metadata-rich**: Confidence scores, fonts, bounding boxes
@@ -287,6 +295,7 @@ impl ProcessorChain {
 ```
 
 **Why chain?**
+
 - **Composable**: Enable/disable processors via config
 - **Testable**: Each processor isolated
 - **Debuggable**: Inspect document state between stages
@@ -306,16 +315,16 @@ use std::sync::Arc;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create LLM provider (required for optional enhancement)
     let provider = Arc::new(MockProvider::new());
-    
+
     // Initialize extractor
     let extractor = PdfExtractor::new(provider);
-    
+
     // Load PDF bytes
     let pdf_bytes = std::fs::read("research-paper.pdf")?;
-    
+
     // Extract to Markdown
     let markdown = extractor.extract_to_markdown(&pdf_bytes).await?;
-    
+
     println!("Extracted Markdown:\n{}", markdown);
     Ok(())
 }
@@ -334,32 +343,32 @@ use std::sync::Arc;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let provider = Arc::new(MockProvider::new());
     let extractor = PdfExtractor::new(provider);
-    
+
     let pdf_bytes = std::fs::read("document.pdf")?;
-    
+
     // Get full extraction result
     let result = extractor.extract_full(&pdf_bytes).await?;
-    
+
     // Access metadata
     println!("Pages: {}", result.page_count);
     println!("Title: {}", result.metadata.title);
     println!("Status: {}", result.status_summary());
-    
+
     // Access per-page content
     for page in &result.pages {
         println!("Page {}: {} chars", page.page_number + 1, page.text.len());
     }
-    
+
     // Access extracted images
     for img in &result.images {
         println!("Image {}: {} ({})", img.id, img.mime_type, img.description.as_deref().unwrap_or("no description"));
     }
-    
+
     // Check for errors (graceful degradation)
     for error in &result.page_errors {
         eprintln!("Warning: Page {} failed - {}", error.page, error.error);
     }
-    
+
     Ok(())
 }
 ```
@@ -376,7 +385,7 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let provider = Arc::new(MockProvider::new());
-    
+
     // Customize extraction config
     let config = PdfConfig {
         mode: ExtractionMode::Text, // vs Vision, Hybrid
@@ -387,12 +396,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         include_page_numbers: true,
         ..Default::default()
     };
-    
+
     let extractor = PdfExtractor::with_config(provider, config);
-    
+
     let pdf_bytes = std::fs::read("document.pdf")?;
     let markdown = extractor.extract_to_markdown(&pdf_bytes).await?;
-    
+
     println!("{}", markdown);
     Ok(())
 }
@@ -535,12 +544,12 @@ use std::sync::Arc;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let provider = Arc::new(MockProvider::new());
     let extractor = PdfExtractor::new(provider);
-    
+
     let pdf_bytes = std::fs::read("financial-report.pdf")?;
-    
+
     // Extract Document for block-level access
     let doc = extractor.extract_document(&pdf_bytes).await?;
-    
+
     // Find all tables
     for page in &doc.pages {
         for block in &page.blocks {
@@ -548,7 +557,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Table on page {}", page.number);
                 println!("  Cells: {}", block.children.len());
                 println!("  Bounding box: {:?}", block.bbox);
-                
+
                 // Access cells
                 for cell in &block.children {
                     println!("    Cell: {}", cell.text);
@@ -556,7 +565,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    
+
     Ok(())
 }
 ```
@@ -679,6 +688,7 @@ EdgeQuake uses the **XY-Cut algorithm** to detect columns:
 Once columns are detected, `ReadingOrderDetector` establishes block sequence:
 
 **Algorithm**:
+
 1. **Single column**: Top-to-bottom by Y1-coordinate
 2. **Multi-column**: Process each column top-to-bottom, left-to-right column order
 
@@ -730,19 +740,19 @@ let processed_doc = chain.process(raw_doc)?;
 
 ### Available Processors
 
-| Processor | Purpose | Configuration |
-|-----------|---------|---------------|
-| `MarginFilterProcessor` | Remove headers/footers | `top_margin: 0.1, bottom_margin: 0.1` |
-| `StyleDetectionProcessor` | Detect bold/italic/fonts | None |
-| `HeaderDetectionProcessor` | Identify section headers | `font_size_threshold: 2.0` (2pt above average) |
-| `ListDetectionProcessor` | Detect bullets/numbers | `patterns: ["•", "-", "*", r"\d+\."]` |
-| `TableDetectionProcessor` | Detect spatial tables | `min_rows: 3, max_gap: 150.0` |
-| `CaptionDetectionProcessor` | Find "Table 1", "Figure 2" | `patterns: ["Table", "Figure", "Fig"]` |
-| `CodeBlockDetectionProcessor` | Identify code (monospace) | `monospace_fonts: ["Courier", "Monaco"]` |
-| `BlockMergeProcessor` | Merge adjacent paragraphs | `max_gap: 20.0` |
-| `GarbledTextFilterProcessor` | Remove non-printable chars | None |
-| `HyphenContinuationProcessor` | Join hyphenated words | None |
-| `LlmEnhanceProcessor` | LLM-powered cleanup | `provider: Arc<dyn LLMProvider>` |
+| Processor                     | Purpose                    | Configuration                                  |
+| ----------------------------- | -------------------------- | ---------------------------------------------- |
+| `MarginFilterProcessor`       | Remove headers/footers     | `top_margin: 0.1, bottom_margin: 0.1`          |
+| `StyleDetectionProcessor`     | Detect bold/italic/fonts   | None                                           |
+| `HeaderDetectionProcessor`    | Identify section headers   | `font_size_threshold: 2.0` (2pt above average) |
+| `ListDetectionProcessor`      | Detect bullets/numbers     | `patterns: ["•", "-", "*", r"\d+\."]`          |
+| `TableDetectionProcessor`     | Detect spatial tables      | `min_rows: 3, max_gap: 150.0`                  |
+| `CaptionDetectionProcessor`   | Find "Table 1", "Figure 2" | `patterns: ["Table", "Figure", "Fig"]`         |
+| `CodeBlockDetectionProcessor` | Identify code (monospace)  | `monospace_fonts: ["Courier", "Monaco"]`       |
+| `BlockMergeProcessor`         | Merge adjacent paragraphs  | `max_gap: 20.0`                                |
+| `GarbledTextFilterProcessor`  | Remove non-printable chars | None                                           |
+| `HyphenContinuationProcessor` | Join hyphenated words      | None                                           |
+| `LlmEnhanceProcessor`         | LLM-powered cleanup        | `provider: Arc<dyn LLMProvider>`               |
 
 ### Graceful Degradation
 
@@ -761,6 +771,7 @@ pub struct ExtractionResult {
 ```
 
 **Usage**:
+
 ```rust
 let result = extractor.extract(&pdf_bytes).await?;
 
@@ -778,6 +789,7 @@ println!("Extracted {} / {} pages", result.pages.len(), result.page_count);
 **Source**: [`edgequake-pdf/src/extractor.rs:90-110`](../../../edgequake/crates/edgequake-pdf/src/extractor.rs#L90-L110)
 
 **Why this design?**
+
 - **Real-world PDFs are messy**: Corrupt fonts, bad encodings, malformed content
 - **Partial data better than none**: 9/10 pages extracted > complete failure
 - **User choice**: Application decides acceptable failure rate
@@ -799,16 +811,16 @@ use std::sync::Arc;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Use real LLM provider
     let provider = Arc::new(OpenAIProvider::new("your-api-key")?);
-    
+
     // Enable LLM enhancement
     let mut config = PdfConfig::default();
     config.enable_llm_enhance = true;
-    
+
     let extractor = PdfExtractor::with_config(provider, config);
-    
+
     let pdf_bytes = std::fs::read("noisy-scan.pdf")?;
     let markdown = extractor.extract_to_markdown(&pdf_bytes).await?;
-    
+
     // LLM cleaned up OCR errors, normalized formatting
     println!("{}", markdown);
     Ok(())
@@ -816,6 +828,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 **What LLM Enhancement Does**:
+
 - Fix OCR errors (common character misrecognitions)
 - Normalize formatting (inconsistent spacing, capitalization)
 - Clean garbled text (encoding issues)
@@ -835,12 +848,14 @@ let extractor = PdfExtractor::with_config(provider, config);
 ```
 
 **How it works**:
+
 1. Render PDF pages to images (150 DPI by default)
 2. Send images to vision model (GPT-4V, Claude-3, etc.)
 3. Extract structured content from model response
 4. Fall back to text extraction if vision fails (Hybrid mode)
 
 **Use cases**:
+
 - Forms with complex layouts
 - Documents with significant graphical elements
 - Scanned documents (low-quality OCR)
@@ -861,6 +876,7 @@ let config = PdfConfig {
 ```
 
 **Trade-offs**:
+
 - ✅ 3-5x faster extraction
 - ✅ No LLM costs
 - ❌ Lower quality structure detection
@@ -878,6 +894,7 @@ let config = PdfConfig {
 ```
 
 **Trade-offs**:
+
 - ✅ Best structure preservation
 - ✅ Automatic fallback to vision
 - ✅ Only uses LLM when needed
@@ -894,32 +911,33 @@ use tokio::task::JoinSet;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let provider = Arc::new(MockProvider::new());
     let extractor = Arc::new(PdfExtractor::new(provider));
-    
+
     let pdf_files = vec!["doc1.pdf", "doc2.pdf", "doc3.pdf"];
     let mut tasks = JoinSet::new();
-    
+
     for pdf_file in pdf_files {
         let extractor = Arc::clone(&extractor);
         let pdf_file = pdf_file.to_string();
-        
+
         tasks.spawn(async move {
             let bytes = std::fs::read(&pdf_file)?;
             extractor.extract_to_markdown(&bytes).await
         });
     }
-    
+
     while let Some(result) = tasks.join_next().await {
         match result? {
             Ok(markdown) => println!("Success: {} chars", markdown.len()),
             Err(e) => eprintln!("Error: {}", e),
         }
     }
-    
+
     Ok(())
 }
 ```
 
 **Concurrency considerations**:
+
 - CPU-bound: PDF parsing (lopdf)
 - IO-bound: LLM API calls
 - **Recommended**: Parallelize at document level, not page level (reduces LLM call overhead)
@@ -933,23 +951,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### 1. No Text Extracted
 
 **Symptoms**:
+
 ```rust
 let result = extractor.extract_full(&pdf_bytes).await?;
 assert!(result.markdown.is_empty()); // Empty!
 ```
 
 **Causes**:
+
 - PDF contains only images (scanned document)
 - PDF uses unsupported font encoding
 - PDF content stream is corrupted
 
 **Solutions**:
+
 1. Enable vision mode:
+
    ```rust
    config.mode = ExtractionMode::Vision;
    ```
 
 2. Enable image OCR:
+
    ```rust
    config.image_ocr.enabled = true;
    ```
@@ -966,12 +989,15 @@ assert!(result.markdown.is_empty()); // Empty!
 **Symptoms**: Table content extracted as plain text, not Markdown table.
 
 **Causes**:
+
 - Multi-column page (detector skips these)
 - Table has <3 rows (below threshold)
 - Large gap between columns (>150pt, detected as multi-column layout)
 
 **Solutions**:
+
 1. Check column count:
+
    ```rust
    let doc = extractor.extract_document(&pdf_bytes)?;
    for page in &doc.pages {
@@ -982,9 +1008,10 @@ assert!(result.markdown.is_empty()); // Empty!
    ```
 
 2. Use `TextTableReconstructionProcessor` (parses text patterns):
+
    ```rust
    use edgequake_pdf::processors::TextTableReconstructionProcessor;
-   
+
    let mut chain = ProcessorChain::builder()
        .add(TableDetectionProcessor::new())
        .add(TextTableReconstructionProcessor::new()) // Fallback
@@ -1001,16 +1028,20 @@ assert!(result.markdown.is_empty()); // Empty!
 **Symptoms**: Text contains � or mojibake (incorrect characters).
 
 **Causes**:
+
 - PDF uses custom font encoding without ToUnicode map
 - Encoding detection heuristics failed
 
 **Solutions**:
+
 1. Enable LLM enhancement (can fix common errors):
+
    ```rust
    config.enhance_readability = true;
    ```
 
 2. Use vision model (bypasses text extraction):
+
    ```rust
    config.mode = ExtractionMode::Vision;
    ```
@@ -1027,18 +1058,22 @@ assert!(result.markdown.is_empty()); // Empty!
 **Symptoms**: Extraction takes >30 seconds for 100-page document.
 
 **Causes**:
+
 - LLM enhancement enabled (slow API calls)
 - Vision model enabled (image rendering + API calls)
 - Complex layout with many tables
 
 **Solutions**:
+
 1. Disable enhancements:
+
    ```rust
    config.enhance_readability = false;
    config.enhance_tables = false;
    ```
 
 2. Use Text mode:
+
    ```rust
    config.mode = ExtractionMode::Text;
    ```
@@ -1049,6 +1084,7 @@ assert!(result.markdown.is_empty()); // Empty!
    ```
 
 **Benchmarks**:
+
 - Text mode: ~1 page/sec (CPU-bound)
 - Hybrid mode: ~0.3-0.5 pages/sec (depends on quality)
 - Vision mode: ~0.1 pages/sec (rendering + API)
@@ -1059,21 +1095,22 @@ assert!(result.markdown.is_empty()); // Empty!
 
 ### EdgeQuake vs Alternatives
 
-| Feature | EdgeQuake | PyPDF2 | pdfplumber | Camelot | Marker |
-|---------|-----------|--------|------------|---------|--------|
-| Language | Rust | Python | Python | Python | Python |
-| Structure Preservation | ✅ Block-based | ❌ Raw text | ⚠️ Basic | ❌ Tables only | ✅ Excellent |
-| Table Detection | ✅ Spatial + Text | ❌ | ✅ | ✅ | ✅ |
-| Multi-Column | ✅ XY-Cut | ❌ | ⚠️ Heuristic | ❌ | ✅ |
-| Graceful Degradation | ✅ Per-page errors | ❌ | ❌ | ❌ | ⚠️ |
-| LLM Enhancement | ✅ Optional | ❌ | ❌ | ❌ | ✅ Required |
-| Vision Models | ✅ Optional | ❌ | ❌ | ❌ | ✅ |
-| Speed (100 pages) | ~100 sec | ~10 sec | ~300 sec | ~200 sec | ~150 sec |
-| Memory (100 pages) | ~200 MB | ~50 MB | ~400 MB | ~300 MB | ~500 MB |
-| API Costs (100 pages) | $0-5 | $0 | $0 | $0 | $2-10 |
-| Customization | ✅ Processor chain | ❌ | ⚠️ Limited | ❌ | ❌ Black box |
+| Feature                | EdgeQuake          | PyPDF2      | pdfplumber   | Camelot        | Marker       |
+| ---------------------- | ------------------ | ----------- | ------------ | -------------- | ------------ |
+| Language               | Rust               | Python      | Python       | Python         | Python       |
+| Structure Preservation | ✅ Block-based     | ❌ Raw text | ⚠️ Basic     | ❌ Tables only | ✅ Excellent |
+| Table Detection        | ✅ Spatial + Text  | ❌          | ✅           | ✅             | ✅           |
+| Multi-Column           | ✅ XY-Cut          | ❌          | ⚠️ Heuristic | ❌             | ✅           |
+| Graceful Degradation   | ✅ Per-page errors | ❌          | ❌           | ❌             | ⚠️           |
+| LLM Enhancement        | ✅ Optional        | ❌          | ❌           | ❌             | ✅ Required  |
+| Vision Models          | ✅ Optional        | ❌          | ❌           | ❌             | ✅           |
+| Speed (100 pages)      | ~100 sec           | ~10 sec     | ~300 sec     | ~200 sec       | ~150 sec     |
+| Memory (100 pages)     | ~200 MB            | ~50 MB      | ~400 MB      | ~300 MB        | ~500 MB      |
+| API Costs (100 pages)  | $0-5               | $0          | $0           | $0             | $2-10        |
+| Customization          | ✅ Processor chain | ❌          | ⚠️ Limited   | ❌             | ❌ Black box |
 
 **When to use EdgeQuake**:
+
 - ✅ Need structure preservation (tables, headers, lists)
 - ✅ Multi-column academic papers
 - ✅ Graceful degradation required
@@ -1081,6 +1118,7 @@ assert!(result.markdown.is_empty()); // Empty!
 - ✅ Want LLM enhancement but not required
 
 **When to use alternatives**:
+
 - **PyPDF2**: Simple text extraction, speed critical, Python ecosystem
 - **pdfplumber**: Complex table extraction, willing to wait
 - **Camelot**: Table-only extraction, bordered tables

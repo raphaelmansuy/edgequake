@@ -22,6 +22,7 @@
 **File**: [`docs/deep-dives/pdf-processing.md`](../../../docs/deep-dives/pdf-processing.md)
 
 **Statistics**:
+
 - **Lines**: 940
 - **ASCII Diagrams**: 4
 - **Code Examples**: 8 (verified against source)
@@ -29,6 +30,7 @@
 - **Word Count**: ~7,500 words
 
 **Sections Created**:
+
 1. ✅ **Introduction** (80 lines)
    - Problem statement
    - Why existing tools fail
@@ -98,6 +100,7 @@
 **Location**: [Architecture section](../../../docs/deep-dives/pdf-processing.md#architecture)
 
 **Shows**:
+
 - 5-stage pipeline (Backend → Layout → Structure → LLM → Render)
 - 10 processor chain steps
 - Input/output at each stage
@@ -110,6 +113,7 @@
 **Location**: [Table Detection section](../../../docs/deep-dives/pdf-processing.md#table-detection)
 
 **Shows**:
+
 - 5-step algorithm (Group Y → Sort X → Find Extent → Validate → Create)
 - Example with 2x3 table (Name, Age, City)
 - Threshold values (0.5 overlap, 150pt gap, 0.8 alignment)
@@ -122,6 +126,7 @@
 **Location**: [Layout Analysis section](../../../docs/deep-dives/pdf-processing.md#layout-analysis)
 
 **Shows**:
+
 - Recursive splitting (X-axis projection → Find gaps → Split → Recurse)
 - Column detection with 10% threshold
 - Reading order establishment
@@ -147,6 +152,7 @@
 **Verified Against**: `edgequake-pdf/src/lib.rs:52-67`
 
 **API Check**:
+
 - ✅ `PdfExtractor::new(provider)` - correct signature
 - ✅ `extract_to_markdown(&pdf_bytes)` - async, returns `Result<String>`
 - ✅ Returns `String` not `ExtractionResult`
@@ -158,6 +164,7 @@
 **Verified Against**: `edgequake-pdf/src/extractor.rs:308-340`
 
 **API Check**:
+
 - ✅ `extract_full(&pdf_bytes)` - correct method name (was `extract` in original draft)
 - ✅ `ExtractionResult` fields match actual struct
 - ✅ `page_errors: Vec<PageError>` not `Vec<(usize, String)>`
@@ -169,6 +176,7 @@
 **Verified Against**: `edgequake-pdf/src/config.rs:189-260`
 
 **API Check**:
+
 - ✅ `ExtractionMode::Text` (not `Fast` or `HighQuality`)
 - ✅ `enhance_tables`, `enhance_readability` fields exist
 - ✅ `max_pages: Option<usize>` correct type
@@ -180,6 +188,7 @@
 **Verified Against**: `edgequake-pdf/src/extractor.rs:224-240`
 
 **API Check**:
+
 - ✅ `extract_document(&pdf_bytes)` - async, returns `Result<Document>`
 - ✅ `BlockType::Table` enum variant exists
 - ✅ `block.children` for table cells
@@ -191,6 +200,7 @@
 **Verified Against**: `edgequake-pdf/src/config.rs:20-30`
 
 **API Check**:
+
 - ✅ `ExtractionMode::Vision` enum variant
 - ✅ `config.mode` field exists
 - ✅ Hybrid mode with `quality_threshold`
@@ -202,6 +212,7 @@
 **Verified Against**: `edgequake-pdf/src/config.rs:220-230`
 
 **API Check**:
+
 - ✅ `enhance_readability` field
 - ✅ `enhance_tables` field
 - ✅ Uses real `OpenAIProvider` (not Mock)
@@ -213,6 +224,7 @@
 **Verified Against**: Tokio patterns
 
 **API Check**:
+
 - ✅ `Arc<PdfExtractor>` for shared ownership
 - ✅ `JoinSet` for parallel tasks
 - ✅ Async/await pattern
@@ -224,6 +236,7 @@
 **Verified Against**: `edgequake-pdf/src/config.rs`
 
 **API Check**:
+
 - ✅ `mode = ExtractionMode::Vision`
 - ✅ `image_ocr.enabled = true`
 - ✅ `page_errors` iteration
@@ -243,6 +256,7 @@
 **Compilation Status**: All examples use correct API
 
 **Files Referenced**:
+
 - `edgequake-pdf/src/lib.rs` ✅
 - `edgequake-pdf/src/extractor.rs` ✅
 - `edgequake-pdf/src/config.rs` ✅
@@ -256,6 +270,7 @@
 **No Speculative Content**: ✅
 
 **First Principles Explanations**: ✅
+
 - WHY Y-coordinate clustering (0.5 overlap threshold)
 - WHY 150pt gap threshold (distinguishes tables from columns)
 - WHY block-based schema (semantic meaning, hierarchical)
@@ -263,6 +278,7 @@
 - WHY graceful degradation (real PDFs are messy)
 
 **Comparison Table Accurate**: ✅
+
 - EdgeQuake vs PyPDF2/pdfplumber/Camelot/Marker
 - Features verified against actual capabilities
 
@@ -274,7 +290,8 @@
 
 ✅ **50+ Iterations Goal**: 19/50 (38% progress, on track)
 
-✅ **4 Files per Iteration**: 
+✅ **4 Files per Iteration**:
+
 - `observe.md` ✅
 - `orient.md` ✅
 - `decide.md` ✅
@@ -295,16 +312,19 @@
 ### Quality Metrics
 
 **Signal-to-Noise Ratio**: 9/10
+
 - Dense technical content
 - Every claim sourced
 - Minimal introductory fluff
 
 **Actionability**: 10/10
+
 - User can extract PDF in 5 minutes after reading Quick Start
 - Troubleshooting section addresses real issues
 - Code examples immediately usable
 
 **Completeness**: 9/10
+
 - Covers all major features
 - Missing: OCR details (out of scope, complex topic)
 - Missing: Vision model internals (separate deep dive candidate)
@@ -350,12 +370,14 @@ Signal: 10/10 (critical feature, poorly documented)
 ### User Journey Improvement
 
 **Before**:
+
 1. User discovers EdgeQuake
 2. User wants to ingest PDF
 3. **BLOCKED**: No PDF documentation
 4. User gives up or uses basic text extraction
 
 **After**:
+
 1. User discovers EdgeQuake
 2. User wants to ingest PDF
 3. User reads `docs/deep-dives/pdf-processing.md`
@@ -366,11 +388,13 @@ Signal: 10/10 (critical feature, poorly documented)
 ### Documentation Coverage
 
 **Before Iteration 19**:
+
 - PDF crate: 0% documented (internal docs only)
 - Table detection: 0% explained
 - Layout analysis: 0% explained
 
 **After Iteration 19**:
+
 - PDF crate: 80% documented (missing OCR, vision internals)
 - Table detection: 100% explained
 - Layout analysis: 90% explained
@@ -378,6 +402,7 @@ Signal: 10/10 (critical feature, poorly documented)
 ### Competitive Advantage
 
 EdgeQuake now has:
+
 - ✅ Better PDF docs than Marker (black box)
 - ✅ More comprehensive than PyPDF2 (no docs)
 - ✅ Clearer than pdfplumber (fragmented docs)
@@ -408,6 +433,7 @@ EdgeQuake now has:
 ### Process Improvements
 
 **For Next Iteration**:
+
 1. ✅ Read source code DURING OBSERVE, not ACT
 2. ✅ Verify features exist before DECIDE
 3. ⚠️ Consider creating test crate for examples
@@ -422,6 +448,7 @@ EdgeQuake now has:
 **Rationale**: Users have deep dive, now need practical tutorial
 
 **Deliverables**:
+
 1. Create `docs/tutorials/pdf-ingestion.md`
 2. Update `docs/tutorials/document-ingestion.md` (add PDF examples)
 3. Update `docs/troubleshooting/common-issues.md` (add PDF section)
@@ -437,6 +464,7 @@ EdgeQuake now has:
 **Time Spent**: ~4 hours (Observe: 1h, Orient: 0.5h, Decide: 1h, Act: 1.5h)
 
 **Lines Written**: 2,310 total
+
 - PDF Deep Dive: 940
 - OODA files: 1,370
 

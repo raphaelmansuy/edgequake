@@ -9,7 +9,8 @@
 
 **Priority**: P0 CRITICAL - All 4 root files must be created this iteration.
 
-**Rationale**: 
+**Rationale**:
+
 - Documentation infrastructure complete (44+ files, 10,000+ lines)
 - Missing root files block discoverability and adoption
 - Mission mandate explicitly requires README.md at project root
@@ -79,6 +80,7 @@
    - Author information
 
 **Verification**:
+
 - ✅ All links verified against docs/ structure
 - ✅ Make commands tested
 - ✅ ASCII diagram renders correctly
@@ -91,6 +93,7 @@
 **Content**: Apache License 2.0
 
 **Sections**:
+
 1. Full Apache 2.0 license text (standard)
 2. Copyright notice: "Copyright 2024-2026 Raphaël MANSUY"
 3. License header template for code files
@@ -98,6 +101,7 @@
 **Source**: https://www.apache.org/licenses/LICENSE-2.0.txt
 
 **Verification**:
+
 - ✅ GitHub recognizes license
 - ✅ License badge in README works
 - ✅ Copyright year range correct
@@ -141,6 +145,7 @@
    - Refer to AGENTS.md for full guidelines
 
 **Verification**:
+
 - ✅ Raphaël MANSUY information accurate
 - ✅ edgecode description clear
 - ✅ Contact information correct
@@ -153,6 +158,7 @@
 **Content**: Contributor Covenant v2.1
 
 **Sections**:
+
 1. Our Pledge
 2. Our Standards
 3. Enforcement Responsibilities
@@ -162,6 +168,7 @@
 7. Attribution
 
 **Customization**:
+
 - Project name: EdgeQuake
 - Contact: Raphaël MANSUY
 - Email: [to be determined or use GitHub issues]
@@ -169,6 +176,7 @@
 **Source**: https://www.contributor-covenant.org/version/2/1/code_of_conduct/
 
 **Verification**:
+
 - ✅ Standard Contributor Covenant text
 - ✅ Contact information correct
 - ✅ GitHub recognizes code of conduct
@@ -225,11 +233,13 @@
 ### User Journey Improvement
 
 **Before** (current):
+
 ```
 GitHub → edgequake/ → no README → confusion → search docs/ → maybe find docs/README.md
 ```
 
 **After** (this iteration):
+
 ```
 GitHub → EdgeQuake README → clear value prop → quick start → documentation → success
 ```
@@ -297,6 +307,7 @@ None identified.
 **Iteration 22 Focus**: WebUI documentation
 
 **Rationale**: Frontend documentation needs improvement
+
 - React 19 + TypeScript architecture
 - Component structure
 - State management
@@ -304,6 +315,7 @@ None identified.
 - Real-time streaming
 
 **Files to Create/Update**:
+
 - docs/architecture/webui.md
 - docs/tutorials/frontend-development.md
 - docs/deep-dives/streaming.md
@@ -318,7 +330,7 @@ OODA-21: Add critical root documentation files
 Created 4 essential files for project discoverability and adoption:
 
 - README.md (600 lines): High-signal entry point with quick start
-- LICENSE (200 lines): Apache 2.0 with copyright notice  
+- LICENSE (200 lines): Apache 2.0 with copyright notice
 - CONTRIBUTING.md (350 lines): edgecode automation + Spec-Driven Development
 - CODE_OF_CONDUCT.md (150 lines): Contributor Covenant v2.1
 

@@ -139,6 +139,7 @@ PDF extraction can fail or produce poor quality results due to PDF structure, en
 **Symptom**: After PDF upload, `chunk_count = 0` or chunks are empty
 
 **Diagnosis**:
+
 ```bash
 # Check document details
 curl http://localhost:8080/api/v1/documents/doc-uuid
@@ -153,6 +154,7 @@ curl http://localhost:8080/api/v1/documents/doc-uuid
 **Cause**: PDF is image-based (scanned document, no embedded text layer)
 
 **Solution 1** - Enable Vision Mode:
+
 ```bash
 # Re-upload with vision mode
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -162,6 +164,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Solution 2** - Try Hybrid Mode (automatic detection):
+
 ```bash
 # Hybrid mode automatically detects low-quality pages
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -172,6 +175,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 **Cost Warning**: Vision mode costs ~$0.001-0.01 per page with OpenAI GPT-4o-mini.
 
 **Verification**:
+
 - Check `chunk_count > 0` in response
 - Check `extraction_mode` shows `"Vision"` or `"Hybrid"`
 - Download chunks to verify content extracted
@@ -185,12 +189,14 @@ curl -X POST http://localhost:8080/api/v1/documents \
 **Symptom**: Tables appear as scrambled text or not detected at all
 
 **Before** (text mode):
+
 ```
 Header1 Header2 Header3 Data1a Data1b
 Data1c Data2a Data2b Data2c Data3a
 ```
 
 **Diagnosis**:
+
 ```bash
 # Check table detection
 curl http://localhost:8080/api/v1/documents/doc-uuid
@@ -206,6 +212,7 @@ curl http://localhost:8080/api/v1/documents/doc-uuid
 **Cause**: Complex table layout (merged cells, nested structures, no clear borders)
 
 **Solution 1** - Enable Table Enhancement:
+
 ```bash
 # LLM-based table refinement
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -215,6 +222,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Solution 2** - Combine with Multi-Column Detection:
+
 ```bash
 # For academic papers with tables in columns
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -226,24 +234,28 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **After** (enhanced):
+
 ```markdown
 | Header 1 | Header 2 | Header 3 |
-|----------|----------|----------|
+| -------- | -------- | -------- |
 | Data 1a  | Data 1b  | Data 1c  |
 | Data 2a  | Data 2b  | Data 2c  |
 | Data 3a  | Data 3b  | Data 3c  |
 ```
 
 **Trade-offs**:
+
 - Processing time: 2x slower
 - Cost: ~$0.0001 per table
 - Accuracy: Significantly improved for complex tables
 
 **Limitations**:
+
 - Very complex tables (5+ levels of merged cells) may still fail
 - Tables without any borders are harder to detect
 
 **Verification**:
+
 - Check `tables_detected > 0` in response
 - Inspect chunk content for proper markdown table format
 - Verify cell alignments correct
@@ -257,6 +269,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 **Symptom**: Text from different columns interleaved incorrectly
 
 **Example Problem**:
+
 ```
 # PDF has 2 columns:
 Column 1: "The experiment showed that X leads to Y..."
@@ -267,6 +280,7 @@ Column 2: "In conclusion, we recommend Z..."
 ```
 
 **Diagnosis**:
+
 ```bash
 # Download chunks and check text order
 curl http://localhost:8080/api/v1/documents/doc-uuid/chunks
@@ -277,6 +291,7 @@ curl http://localhost:8080/api/v1/documents/doc-uuid/chunks
 **Cause**: PDF has multi-column layout (academic papers, newspapers, magazines)
 
 **Solution** - Enable Column Detection:
+
 ```bash
 # Detect and respect column boundaries
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -291,12 +306,14 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Configuration Options**:
+
 - `detect_columns`: Enable multi-column detection (default: `true`)
 - `column_gap_threshold`: Minimum gap in points between columns (default: 20.0)
   - Increase for wider column gaps
   - Decrease for narrower column gaps
 
 **Verification**:
+
 - Read first few chunks - text should flow naturally
 - Check column boundaries respected
 - Verify reading order left-to-right within each column
@@ -312,11 +329,13 @@ curl -X POST http://localhost:8080/api/v1/documents \
 **Symptom**: `�` or `?` characters appear instead of actual text
 
 **Examples**:
+
 - `"Caf�"` instead of `"Café"`
 - `"Na�ve"` instead of `"Naïve"`
 - `"????"` instead of Chinese/Arabic text
 
 **Diagnosis**:
+
 ```bash
 # Check extracted content for garbled characters
 curl http://localhost:8080/api/v1/documents/doc-uuid/chunks | jq -r '.chunks[0].content'
@@ -327,6 +346,7 @@ curl http://localhost:8080/api/v1/documents/doc-uuid/chunks | jq -r '.chunks[0].
 **Cause**: PDF uses custom fonts or non-standard encoding not supported by text extraction
 
 **Solution 1** - Enable Vision Mode:
+
 ```bash
 # LLM vision reads the actual glyphs
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -335,6 +355,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Solution 2** - Check PDF Font Embedding:
+
 ```bash
 # Use pdffonts to check font embedding (requires poppler-utils)
 pdffonts document.pdf
@@ -344,11 +365,13 @@ pdffonts document.pdf
 ```
 
 **Workaround**: If vision mode too expensive, consider:
+
 1. Re-generate PDF with embedded fonts
 2. Convert PDF to another format (DOCX) then back to PDF
 3. Use OCR tool (Tesseract) to create new PDF with text layer
 
 **Verification**:
+
 - Check special characters render correctly
 - Verify non-English text (if applicable)
 - Compare extracted text with PDF visual
@@ -362,17 +385,19 @@ pdffonts document.pdf
 **Symptom**: Some chunks are very short, empty, or contain garbage
 
 **Example**:
+
 ```json
 {
   "chunks": [
-    {"content": "Page 1", "token_count": 2},  // Too short
-    {"content": "", "token_count": 0},        // Empty
-    {"content": "||||||||", "token_count": 8}  // Garbage
+    { "content": "Page 1", "token_count": 2 }, // Too short
+    { "content": "", "token_count": 0 }, // Empty
+    { "content": "||||||||", "token_count": 8 } // Garbage
   ]
 }
 ```
 
 **Diagnosis**:
+
 ```bash
 # Count empty or short chunks
 curl http://localhost:8080/api/v1/documents/doc-uuid/chunks | \
@@ -382,12 +407,14 @@ curl http://localhost:8080/api/v1/documents/doc-uuid/chunks | \
 ```
 
 **Causes**:
+
 1. PDF has headers/footers (page numbers, logos)
 2. Complex layout confuses chunking
 3. Embedded images without captions
 4. Poor quality scan
 
 **Solution 1** - Enable Readability Enhancement:
+
 ```bash
 # LLM cleans up extracted text
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -396,6 +423,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Solution 2** - Normalize Spacing:
+
 ```bash
 # Fix concatenated words and spacing issues
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -404,6 +432,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Solution 3** - Adjust Chunking:
+
 ```bash
 # Increase chunk size to merge small fragments
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -413,6 +442,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Verification**:
+
 - Check average chunk token count (should be 100-500 tokens)
 - Verify no empty chunks
 - Inspect chunks for coherent content
@@ -424,6 +454,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 **Symptom**: PDF upload returns 500 error or times out
 
 **Common Errors**:
+
 ```json
 {
   "error": "Request timeout",
@@ -439,6 +470,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Diagnosis**:
+
 ```bash
 # Check file size
 ls -lh document.pdf
@@ -452,14 +484,15 @@ tail -f /tmp/edgequake-backend.log
 
 **Common Causes**:
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| 413 Payload Too Large | File > 50MB | Split PDF or increase limit |
-| 408 Timeout | Processing > 60s | Use vision mode or increase timeout |
-| 500 Internal Error | Corrupted PDF | Repair with pdftk or ghostscript |
-| 500 Memory Error | Large PDF + Vision | Process in batches with `max_pages` |
+| Error                 | Cause              | Solution                            |
+| --------------------- | ------------------ | ----------------------------------- |
+| 413 Payload Too Large | File > 50MB        | Split PDF or increase limit         |
+| 408 Timeout           | Processing > 60s   | Use vision mode or increase timeout |
+| 500 Internal Error    | Corrupted PDF      | Repair with pdftk or ghostscript    |
+| 500 Memory Error      | Large PDF + Vision | Process in batches with `max_pages` |
 
 **Solution 1** - Test with Page Limit:
+
 ```bash
 # Process first 10 pages to verify config
 curl -X POST http://localhost:8080/api/v1/documents \
@@ -470,6 +503,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Solution 2** - Increase Server Timeouts:
+
 ```bash
 # Increase timeout in config (if you control server)
 REQUEST_TIMEOUT=300  # 5 minutes
@@ -480,6 +514,7 @@ pdftk large.pdf cat 51-100 output part2.pdf
 ```
 
 **Solution 3** - Repair Corrupted PDF:
+
 ```bash
 # Using ghostscript to repair
 gs -o repaired.pdf -sDEVICE=pdfwrite -dPDFSETTINGS=/prepress original.pdf
@@ -489,6 +524,7 @@ pdftk original.pdf output repaired.pdf
 ```
 
 **Verification**:
+
 - Check upload returns 200 OK
 - Verify `status: "completed"` in response
 - Check no error logs in backend
@@ -538,12 +574,14 @@ PDF Upload Issue?
 Common configurations for different PDF types:
 
 **Digital PDF (good quality)**:
+
 ```bash
 # Default settings - no config needed
 curl -F "file=@digital.pdf" http://localhost:8080/api/v1/documents
 ```
 
 **Scanned Document**:
+
 ```bash
 curl -F "file=@scanned.pdf" \
      -F 'config={"mode": "Vision", "vision_dpi": 150}' \
@@ -551,6 +589,7 @@ curl -F "file=@scanned.pdf" \
 ```
 
 **Academic Paper (multi-column)**:
+
 ```bash
 curl -F "file=@paper.pdf" \
      -F 'config={"layout": {"detect_columns": true}}' \
@@ -558,6 +597,7 @@ curl -F "file=@paper.pdf" \
 ```
 
 **Financial Report (complex tables)**:
+
 ```bash
 curl -F "file=@financials.pdf" \
      -F 'config={"enhance_tables": true}' \
@@ -565,6 +605,7 @@ curl -F "file=@financials.pdf" \
 ```
 
 **Unknown Quality (auto-detect)**:
+
 ```bash
 curl -F "file=@unknown.pdf" \
      -F 'config={"mode": "Hybrid", "quality_threshold": 0.7}' \
@@ -572,6 +613,7 @@ curl -F "file=@unknown.pdf" \
 ```
 
 **Critical Document (maximum accuracy)**:
+
 ```bash
 curl -F "file=@critical.pdf" \
      -F 'config={

@@ -70,12 +70,14 @@ curl -X POST "http://localhost:8080/api/v1/documents" \
 ```
 
 **What Gets Extracted**:
+
 - ✅ Text (with layout preservation)
 - ✅ Tables (with structure detected)
 - ✅ Metadata (pages, author, title)
 - ✅ Multi-column layouts (academic papers)
 
 **Response**:
+
 ```json
 {
   "id": "doc-uuid",
@@ -96,33 +98,39 @@ curl -X POST "http://localhost:8080/api/v1/documents" \
 EdgeQuake supports three extraction modes:
 
 **Text Mode** (default, fastest):
+
 ```bash
 # Automatic text extraction from digital PDFs
 curl -X POST http://localhost:8080/api/v1/documents \
   -F "file=@doc.pdf"
 ```
+
 - Use for: Good quality digital PDFs
 - Processing: 2-5 seconds
 - Cost: Free
 
 **Vision Mode** (scanned documents):
+
 ```bash
 # LLM-based OCR for scanned/image PDFs
 curl -X POST http://localhost:8080/api/v1/documents \
   -F "file=@scanned_book.pdf" \
   -F 'config={"mode": "Vision"}'
 ```
+
 - Use for: Scanned documents, poor quality PDFs
 - Processing: 20-50 seconds
 - Cost: ~$0.001-0.01 per page
 
 **Hybrid Mode** (automatic quality detection):
+
 ```bash
 # Automatic fallback to vision for low-quality pages
 curl -X POST http://localhost:8080/api/v1/documents \
   -F "file=@mixed_quality.pdf" \
   -F 'config={"mode": "Hybrid", "quality_threshold": 0.7}'
 ```
+
 - Use for: Unknown PDF quality
 - Processing: Variable (2-50 seconds)
 - Cost: Only low-quality pages incur LLM cost
@@ -140,6 +148,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Before** (text mode):
+
 ```
 Column1 Header Column2 Header
 Data1a Data1b Data2a
@@ -147,9 +156,10 @@ Data2b Data3a Data3b
 ```
 
 **After** (enhanced):
+
 ```markdown
 | Column 1 Header | Column 2 Header |
-|-----------------|-----------------|
+| --------------- | --------------- |
 | Data 1a         | Data 1b         |
 | Data 2a         | Data 2b         |
 | Data 3a         | Data 3b         |
@@ -164,20 +174,24 @@ Data2b Data3a Data3b
 When EdgeQuake processes PDFs, chunks are created based on document structure:
 
 **Text Content**:
+
 - Paragraphs → Individual chunks
 - Sections → Detected via headings
 - Reading order → Preserved with layout analysis
 
 **Tables**:
+
 - Entire table → Single chunk
 - Preserves cell relationships
 - Includes caption if present
 
 **Figures**:
+
 - Caption → Separate chunk
 - Image description (if vision mode enabled)
 
 **Example** (12-page research paper):
+
 ```
 Page 1:  Abstract                  → 1 chunk
 Page 2-3: Introduction (4 paras)    → 4 chunks
@@ -199,16 +213,19 @@ Total: 24 chunks from 12 pages
 Entities extracted from PDFs include document-specific elements:
 
 **From Content**:
+
 - Authors, researchers, organizations
 - Methods, concepts, metrics
 - Locations, datasets
 
 **From Metadata**:
+
 - PDF title → Document entity
 - Author field → Person entities
 - Creation date → Temporal entity
 
 **Example** (from PDF metadata):
+
 ```
 Dr. Jane Smith (PERSON) → AuthorOf → "AI Safety Paper" (DOCUMENT)
 "AI Safety Paper" (DOCUMENT) → PublishedBy → MIT (ORGANIZATION)
@@ -216,6 +233,7 @@ MIT (ORGANIZATION) → LocatedIn → Boston (LOCATION)
 ```
 
 **Relationship Graph**:
+
 ```
 Jane Smith ───AuthorOf──▶ Paper ───Cites──▶ Related Work
      │                       │
@@ -237,6 +255,7 @@ curl http://localhost:8080/api/v1/documents/doc-uuid
 ```
 
 **Response**:
+
 ```json
 {
   "id": "doc-uuid",
@@ -251,11 +270,13 @@ curl http://localhost:8080/api/v1/documents/doc-uuid
 ```
 
 **Quality Indicators**:
+
 - ✅ `chunk_count` matches expected (roughly 2-3 chunks per page)
 - ✅ `tables_detected > 0` if PDF has tables
 - ✅ `entity_count > 0` indicates successful extraction
 
 **If chunk_count = 0**:
+
 1. Try Vision mode: `{"mode": "Vision"}`
 2. Check if PDF is encrypted/protected
 3. See [PDF Troubleshooting](../troubleshooting/common-issues.md#pdf-extraction-issues)
@@ -268,18 +289,18 @@ Common configuration options:
 
 ```json
 {
-  "mode": "Text",                      // Text | Vision | Hybrid
-  "enhance_tables": false,             // Enable LLM table refinement
-  "quality_threshold": 0.5,            // Hybrid mode threshold
+  "mode": "Text", // Text | Vision | Hybrid
+  "enhance_tables": false, // Enable LLM table refinement
+  "quality_threshold": 0.5, // Hybrid mode threshold
   "layout": {
-    "detect_columns": true,            // Multi-column detection
-    "detect_tables": true,             // Table detection
-    "column_gap_threshold": 20.0       // Column separation (points)
+    "detect_columns": true, // Multi-column detection
+    "detect_tables": true, // Table detection
+    "column_gap_threshold": 20.0 // Column separation (points)
   },
-  "vision_dpi": 150,                   // DPI for vision mode
-  "max_pages": null,                   // Limit pages (null = all)
-  "normalize_spacing": true,           // Fix concatenated words
-  "extract_figure_captions": true      // Extract figure captions
+  "vision_dpi": 150, // DPI for vision mode
+  "max_pages": null, // Limit pages (null = all)
+  "normalize_spacing": true, // Fix concatenated words
+  "extract_figure_captions": true // Extract figure captions
 }
 ```
 
@@ -288,16 +309,19 @@ Common configuration options:
 ### When to Read the Full PDF Tutorial
 
 **Read this section** if:
+
 - First time with EdgeQuake
 - Quick reference for PDF upload
 
 **Read [PDF Ingestion Tutorial](pdf-ingestion.md)** if:
+
 - Complex PDFs (tables, scans, multi-column)
 - Need detailed configuration guidance
 - Troubleshooting extraction issues
 - Understanding quality metrics
 
 **Read [PDF Processing Deep Dive](../deep-dives/pdf-processing.md)** if:
+
 - Understanding internal algorithms
 - XY-Cut layout analysis details
 - Table detection clustering logic
@@ -308,14 +332,17 @@ Common configuration options:
 ### PDF Troubleshooting Quick Reference
 
 **No text extracted**:
+
 - ✅ Try `{"mode": "Vision"}` for scanned PDFs
 - ✅ Check PDF is not encrypted
 
 **Tables not detected**:
+
 - ✅ Enable `{"enhance_tables": true}`
 - ✅ Verify tables have clear borders
 
 **Wrong text order**:
+
 - ✅ Enable `{"layout": {"detect_columns": true}}`
 - ✅ Academic papers benefit from column detection
 
