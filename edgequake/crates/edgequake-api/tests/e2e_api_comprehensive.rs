@@ -283,12 +283,15 @@ mod document_tests {
             "async_processing": true
         });
 
+        // Must provide tenant/workspace headers for multi-tenancy isolation
         let response = app
             .oneshot(
                 Request::builder()
                     .method("POST")
                     .uri("/api/v1/documents")
                     .header("Content-Type", "application/json")
+                    .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                    .header("X-Workspace-ID", "00000000-0000-0000-0000-000000000002")
                     .body(Body::from(serde_json::to_string(&request).unwrap()))
                     .unwrap(),
             )

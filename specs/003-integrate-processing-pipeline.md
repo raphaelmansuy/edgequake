@@ -259,6 +259,12 @@ Ensure to use business oriented information in the UI --> documentant name / chu
 
 ---
 
+Ensure we have perfect multi-tenant isolation in all features.
+Ensure all edge cases are covered and tested.
+
+Try to improve the test coverage where possible. 
+Try to improve the testing and compilation speed where possible.
+
 ## ⚠️ CRITICAL SAFETY MANDATE ⚠️
 
 **YOU MUST RE-READ THIS ENTIRE MISSION FILE AT THE START OF EVERY OODA ITERATION.**

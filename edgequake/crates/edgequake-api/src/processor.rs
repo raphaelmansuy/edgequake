@@ -1309,7 +1309,10 @@ mod tests {
             pipeline_state,
         );
 
-        let mut task = Task::new(TaskType::Scan, json!({}));
+        // Use test UUIDs for tenant and workspace
+        let test_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+        let mut task = Task::new(test_tenant, test_workspace, TaskType::Scan, json!({}));
 
         let result = processor.process(&mut task).await;
 
@@ -1336,7 +1339,10 @@ mod tests {
             pipeline_state,
         );
 
-        let mut task = Task::new(TaskType::Reindex, json!({}));
+        // Use test UUIDs for tenant and workspace
+        let test_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+        let mut task = Task::new(test_tenant, test_workspace, TaskType::Reindex, json!({}));
 
         let result = processor.process(&mut task).await;
 
@@ -1368,7 +1374,10 @@ mod tests {
             "invalid_field": "this is not TextInsertData"
         });
 
-        let mut task = Task::new(TaskType::Insert, invalid_data);
+        // Use test UUIDs for tenant and workspace
+        let test_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+        let mut task = Task::new(test_tenant, test_workspace, TaskType::Insert, invalid_data);
 
         let result = processor.process(&mut task).await;
 
@@ -1525,8 +1534,12 @@ mod tests {
         // Test that each unsupported task type goes through the right path
         let types = [TaskType::Scan, TaskType::Reindex];
 
+        // Use test UUIDs for tenant and workspace
+        let test_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+
         for task_type in types {
-            let mut task = Task::new(task_type.clone(), json!({}));
+            let mut task = Task::new(test_tenant, test_workspace, task_type.clone(), json!({}));
 
             let result = processor.process(&mut task).await;
 
