@@ -26,31 +26,34 @@
 
 ### Performance Benchmarks
 
-| Metric                    | EdgeQuake        | Traditional RAG | Improvement |
-| ------------------------- | ---------------- | --------------- | ----------- |
-| Entity Extraction         | ~2-3x more       | Baseline        | 3x          |
-| Query Latency (hybrid)    | < 200ms          | ~1000ms         | 5x faster   |
-| Document Processing       | 25s (10k tokens) | ~60s            | 2.4x faster |
-| Concurrent Users          | 1000+            | ~100            | 10x         |
-| Memory Usage (per doc)    | 2MB              | ~8MB            | 4x better   |
+| Metric                 | EdgeQuake        | Traditional RAG | Improvement |
+| ---------------------- | ---------------- | --------------- | ----------- |
+| Entity Extraction      | ~2-3x more       | Baseline        | 3x          |
+| Query Latency (hybrid) | < 200ms          | ~1000ms         | 5x faster   |
+| Document Processing    | 25s (10k tokens) | ~60s            | 2.4x faster |
+| Concurrent Users       | 1000+            | ~100            | 10x         |
+| Memory Usage (per doc) | 2MB              | ~8MB            | 4x better   |
 
 ---
 
 ## Features
 
 ### 🚀 High Performance
+
 - **Async-First**: Tokio-based runtime for maximum concurrency
 - **Zero-Copy**: Efficient memory management with Rust ownership
 - **Parallel Processing**: Multi-threaded entity extraction and embeddings
 - **Fast Storage**: PostgreSQL AGE for graph + pgvector for embeddings
 
 ### 🕸️ Knowledge Graph
+
 - **Entity Extraction**: Automatic detection of people, organizations, locations, concepts
 - **Relationship Mapping**: LLM-powered relationship identification
 - **Community Detection**: Graph clustering for hierarchical knowledge
 - **Graph Visualization**: Interactive Sigma.js-powered frontend
 
 ### 📄 Advanced PDF Processing
+
 - **Text Mode**: Fast extraction for text-based PDFs
 - **Vision Mode**: OCR for scanned documents and images
 - **Hybrid Mode**: Automatic quality assessment and fallback
@@ -58,6 +61,7 @@
 - **Multi-Column Layout**: Accurate reading order detection
 
 ### 🔍 5 Query Modes
+
 1. **Naive**: Simple vector similarity (fastest, ~50ms)
 2. **Local**: Entity-centric with local graph context (~150ms)
 3. **Global**: Community-based semantic search (~200ms)
@@ -65,12 +69,14 @@
 5. **Mix**: Weighted combination with configurable ratios (~300ms)
 
 ### 🌐 REST API
+
 - **OpenAPI 3.0**: Full Swagger documentation at `/swagger-ui`
 - **Streaming**: Server-Sent Events (SSE) for real-time responses
 - **Versioned**: `/api/v1/*` with backward compatibility
 - **Health Checks**: Kubernetes-ready `/health`, `/ready`, `/live`
 
 ### 🎯 React 19 Frontend
+
 - **Real-Time Streaming**: Token-by-token generation display
 - **Graph Visualization**: Interactive network graph with zoom/pan
 - **Document Upload**: Drag-and-drop with progress tracking
@@ -118,6 +124,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **Response**:
+
 ```json
 {
   "id": "doc-123",
@@ -142,16 +149,21 @@ curl -X POST http://localhost:8080/api/v1/query \
 ```
 
 **Response**:
+
 ```json
 {
   "answer": "The main concepts are: knowledge graphs, entity extraction, and hybrid retrieval...",
   "sources": [
-    {"chunk_id": "chunk-1", "similarity": 0.92},
-    {"chunk_id": "chunk-5", "similarity": 0.87}
+    { "chunk_id": "chunk-1", "similarity": 0.92 },
+    { "chunk_id": "chunk-5", "similarity": 0.87 }
   ],
   "entities": ["KNOWLEDGE_GRAPH", "ENTITY_EXTRACTION"],
   "relationships": [
-    {"source": "KNOWLEDGE_GRAPH", "target": "ENTITY_EXTRACTION", "type": "ENABLES"}
+    {
+      "source": "KNOWLEDGE_GRAPH",
+      "target": "ENTITY_EXTRACTION",
+      "type": "ENABLES"
+    }
   ]
 }
 ```
@@ -162,52 +174,52 @@ curl -X POST http://localhost:8080/api/v1/query \
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│                              EdgeQuake System                               │
+│                              EdgeQuake System                              │
 └────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Frontend (React 19 + TypeScript)                                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │  Document    │  │    Query     │  │    Graph     │  │   Settings   │   │
-│  │   Upload     │  │  Interface   │  │ Visualization│  │   Config     │   │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘   │
-│         │                 │                 │                 │            │
-│         └─────────────────┴─────────────────┴─────────────────┘            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  Document    │  │    Query     │  │    Graph     │  │   Settings   │     │
+│  │   Upload     │  │  Interface   │  │ Visualization│  │   Config     │     │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘     │
+│         │                 │                 │                 │             │
+│         └─────────────────┴─────────────────┴─────────────────┘             │
 │                                    │                                        │
 │                                    ▼                                        │
-│  ┌────────────────────────────────────────────────────────────────────┐   │
-│  │                         REST API (Axum)                             │   │
-│  │  /api/v1/documents  •  /api/v1/query  •  /api/v1/graph             │   │
-│  │  OpenAPI 3.0 Spec  •  SSE Streaming  •  Health Checks              │   │
-│  └────────────────────────────────────────────────────────────────────┘   │
+│  ┌────────────────────────────────────────────────────────────────────┐     │
+│  │                         REST API (Axum)                            │     │
+│  │  /api/v1/documents  •  /api/v1/query  •  /api/v1/graph             │     │
+│  │  OpenAPI 3.0 Spec  •  SSE Streaming  •  Health Checks              │     │
+│  └────────────────────────────────────────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Backend (Rust - 11 Crates)                                                 │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │  edgequake-core          │  Orchestration & Pipeline              │  │
-│  │  edgequake-llm           │  OpenAI, Ollama, Mock providers         │  │
-│  │  edgequake-storage       │  PostgreSQL AGE, Memory adapters        │  │
-│  │  edgequake-api           │  REST API server                        │  │
-│  │  edgequake-pipeline      │  Document ingestion pipeline            │  │
-│  │  edgequake-query         │  Query engine (5 modes)                 │  │
-│  │  edgequake-pdf           │  PDF extraction (text/vision/hybrid)    │  │
-│  │  edgequake-auth          │  Authentication & authorization         │  │
-│  │  edgequake-audit         │  Compliance & audit logging             │  │
-│  │  edgequake-tasks         │  Background job processing              │  │
-│  │  edgequake-rate-limiter  │  Rate limiting middleware               │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │  edgequake-core          │  Orchestration & Pipeline                 │   │
+│  │  edgequake-llm           │  OpenAI, Ollama, Mock providers           │   │
+│  │  edgequake-storage       │  PostgreSQL AGE, Memory adapters          │   │
+│  │  edgequake-api           │  REST API server                          │   │
+│  │  edgequake-pipeline      │  Document ingestion pipeline              │   │
+│  │  edgequake-query         │  Query engine (5 modes)                   │   │
+│  │  edgequake-pdf           │  PDF extraction (text/vision/hybrid)      │   │
+│  │  edgequake-auth          │  Authentication & authorization           │   │
+│  │  edgequake-audit         │  Compliance & audit logging               │   │
+│  │  edgequake-tasks         │  Background job processing                │   │
+│  │  edgequake-rate-limiter  │  Rate limiting middleware                 │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
 │                                    │                                        │
-│                    ┌───────────────┴───────────────┐                       │
+│                    ┌───────────────┴───────────────┐                        │
 │                    ▼                               ▼                        │
-│  ┌─────────────────────────────┐   ┌──────────────────────────────────┐   │
-│  │   LLM Providers              │   │   Storage Backends               │   │
-│  │  • OpenAI (gpt-4o-mini)      │   │  • PostgreSQL 15+ (AGE + vector)│   │
-│  │  • Ollama (gemma3, llama3)   │   │  • In-Memory (dev/testing)      │   │
-│  │  • Mock (testing, free)      │   │  • Graph: Property graph model  │   │
-│  │  Auto-detection via env      │   │  • Vector: 1536-dim embeddings  │   │
-│  └─────────────────────────────┘   └──────────────────────────────────┘   │
+│  ┌─────────────────────────────┐   ┌──────────────────────────────────┐     │
+│  │   LLM Providers              │   │   Storage Backends              │     │
+│  │  • OpenAI (gpt-4o-mini)      │   │  • PostgreSQL 15+ (AGE + vector)│     │
+│  │  • Ollama (gemma3, llama3)   │   │  • In-Memory (dev/testing)      │     │
+│  │  • Mock (testing, free)      │   │  • Graph: Property graph model  │     │
+│  │  Auto-detection via env      │   │  • Vector: 1536-dim embeddings  │     │
+│  └─────────────────────────────┘   └──────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                     Data Flow: Document → Chunks → Entities → Graph
@@ -224,42 +236,42 @@ Explore the full documentation at [docs/README.md](docs/README.md)
 
 ### 🚀 Getting Started (15 minutes)
 
-| Guide                                                 | Description                | Time   |
-| ----------------------------------------------------- | -------------------------- | ------ |
+| Guide                                                      | Description                | Time   |
+| ---------------------------------------------------------- | -------------------------- | ------ |
 | [Installation](docs/getting-started/installation.md)       | Prerequisites and setup    | 5 min  |
 | [Quick Start](docs/getting-started/quick-start.md)         | First ingestion and query  | 10 min |
 | [First Ingestion](docs/getting-started/first-ingestion.md) | Understanding the pipeline | 15 min |
 
 ### 📖 Tutorials (Hands-On)
 
-| Tutorial                                                       | Description                      | Time   |
-| -------------------------------------------------------------- | -------------------------------- | ------ |
-| [Building Your First RAG App](docs/tutorials/first-rag-app.md)      | End-to-end tutorial              | 30 min |
-| [PDF Ingestion](docs/tutorials/pdf-ingestion.md)                     | PDF upload and configuration     | 20 min |
-| [Multi-Tenant Setup](docs/tutorials/multi-tenant-setup.md)           | Workspace isolation              | 25 min |
-| [Document Ingestion](docs/tutorials/document-ingestion.md)           | Upload and processing workflows  | 20 min |
+| Tutorial                                                       | Description                     | Time   |
+| -------------------------------------------------------------- | ------------------------------- | ------ |
+| [Building Your First RAG App](docs/tutorials/first-rag-app.md) | End-to-end tutorial             | 30 min |
+| [PDF Ingestion](docs/tutorials/pdf-ingestion.md)               | PDF upload and configuration    | 20 min |
+| [Multi-Tenant Setup](docs/tutorials/multi-tenant-setup.md)     | Workspace isolation             | 25 min |
+| [Document Ingestion](docs/tutorials/document-ingestion.md)     | Upload and processing workflows | 20 min |
 
 ### 🏗️ Architecture (How It Works)
 
-| Document                                | Description                           |
-| --------------------------------------- | ------------------------------------- |
-| [Overview](docs/architecture/overview.md)          | System design and components          |
-| [Data Flow](docs/architecture/data-flow.md)        | How documents flow through the system |
-| [Crate Reference](docs/architecture/crates/)       | 11 Rust crates explained              |
+| Document                                     | Description                           |
+| -------------------------------------------- | ------------------------------------- |
+| [Overview](docs/architecture/overview.md)    | System design and components          |
+| [Data Flow](docs/architecture/data-flow.md)  | How documents flow through the system |
+| [Crate Reference](docs/architecture/crates/) | 11 Rust crates explained              |
 
 ### 💡 Core Concepts (Theory)
 
-| Concept                                            | Description                       |
-| -------------------------------------------------- | --------------------------------- |
-| [Graph-RAG](docs/concepts/graph-rag.md)                   | Why knowledge graphs enhance RAG  |
-| [Entity Extraction](docs/concepts/entity-extraction.md)   | LLM-based entity recognition      |
-| [Knowledge Graph](docs/concepts/knowledge-graph.md)       | Nodes, edges, and communities     |
-| [Hybrid Retrieval](docs/concepts/hybrid-retrieval.md)     | Combining vector and graph search |
+| Concept                                                 | Description                       |
+| ------------------------------------------------------- | --------------------------------- |
+| [Graph-RAG](docs/concepts/graph-rag.md)                 | Why knowledge graphs enhance RAG  |
+| [Entity Extraction](docs/concepts/entity-extraction.md) | LLM-based entity recognition      |
+| [Knowledge Graph](docs/concepts/knowledge-graph.md)     | Nodes, edges, and communities     |
+| [Hybrid Retrieval](docs/concepts/hybrid-retrieval.md)   | Combining vector and graph search |
 
 ### 🔬 Deep Dives (Advanced)
 
-| Article                                                    | Description                           |
-| ---------------------------------------------------------- | ------------------------------------- |
+| Article                                                         | Description                           |
+| --------------------------------------------------------------- | ------------------------------------- |
 | [LightRAG Algorithm](docs/deep-dives/lightrag-algorithm.md)     | The algorithm that powers EdgeQuake   |
 | [PDF Processing](docs/deep-dives/pdf-processing.md)             | Text/Vision/Hybrid extraction         |
 | [Entity Normalization](docs/deep-dives/entity-normalization.md) | Deduplication and merging             |
@@ -270,41 +282,41 @@ Explore the full documentation at [docs/README.md](docs/README.md)
 
 ### 📊 Comparisons
 
-| Comparison                                                | Key Insights                       |
-| --------------------------------------------------------- | ---------------------------------- |
+| Comparison                                                     | Key Insights                       |
+| -------------------------------------------------------------- | ---------------------------------- |
 | [vs LightRAG (Python)](docs/comparisons/vs-lightrag-python.md) | Performance and design differences |
 | [vs GraphRAG](docs/comparisons/vs-graphrag.md)                 | Microsoft's approach comparison    |
 | [vs Traditional RAG](docs/comparisons/vs-traditional-rag.md)   | Why graphs matter                  |
 
 ### 🔌 API Reference
 
-| API                                   | Description             |
-| ------------------------------------- | ----------------------- |
-| [REST API](docs/api-reference/rest-api.md)   | HTTP endpoints          |
-| [Rust SDK](docs/api-reference/rust-sdk.md)   | Native Rust integration |
+| API                                        | Description             |
+| ------------------------------------------ | ----------------------- |
+| [REST API](docs/api-reference/rest-api.md) | HTTP endpoints          |
+| [Rust SDK](docs/api-reference/rust-sdk.md) | Native Rust integration |
 
 ### 🛠️ Operations (Production)
 
-| Guide                                        | Description           |
-| -------------------------------------------- | --------------------- |
+| Guide                                             | Description           |
+| ------------------------------------------------- | --------------------- |
 | [Deployment](docs/operations/deployment.md)       | Production deployment |
 | [Configuration](docs/operations/configuration.md) | All config options    |
 | [Monitoring](docs/operations/monitoring.md)       | Observability setup   |
 
 ### 🐛 Troubleshooting
 
-| Guide                                                | Description                   |
-| ---------------------------------------------------- | ----------------------------- |
-| [Common Issues](docs/troubleshooting/common-issues.md)     | Debugging guide               |
-| [PDF Extraction](docs/troubleshooting/pdf-extraction.md)   | PDF-specific troubleshooting  |
+| Guide                                                    | Description                  |
+| -------------------------------------------------------- | ---------------------------- |
+| [Common Issues](docs/troubleshooting/common-issues.md)   | Debugging guide              |
+| [PDF Extraction](docs/troubleshooting/pdf-extraction.md) | PDF-specific troubleshooting |
 
 ### 🔗 Integrations
 
-| Integration                                      | Description                          |
-| ------------------------------------------------ | ------------------------------------ |
+| Integration                                           | Description                          |
+| ----------------------------------------------------- | ------------------------------------ |
 | [OpenWebUI](docs/integrations/open-webui.md)          | Chat interface with Ollama emulation |
-| [LangChain](docs/integrations/langchain.md)            | Retriever and agent integration      |
-| [Custom Clients](docs/integrations/custom-clients.md)  | Python, TypeScript, Rust, Go clients |
+| [LangChain](docs/integrations/langchain.md)           | Retriever and agent integration      |
+| [Custom Clients](docs/integrations/custom-clients.md) | Python, TypeScript, Rust, Go clients |
 
 ### 📓 More Resources
 
@@ -411,7 +423,7 @@ We are committed to providing a welcoming and inclusive environment. Please read
 
 ### Founder
 
-**Raphaël MANSUY** 🇫🇷 🇭🇰 — Proud PR Citizen of France and Hong Kong, building the future of intelligent document retrieval systems from both continents.
+**Raphaël MANSUY** 🇫🇷 - 🇭🇰🇨🇳 — Proud Citizen of France and PR of Hong Kong, building the future of intelligent document retrieval systems and context graph systems.
 
 ---
 
@@ -433,6 +445,13 @@ Unless required by applicable law or agreed to in writing, software distributed 
 EdgeQuake is inspired by and builds upon the excellent work of:
 
 - **LightRAG Research Paper** ([arxiv.org/abs/2410.05779](https://arxiv.org/abs/2410.05779)): We are grateful to the authors of the foundational LightRAG algorithm which powers the core knowledge graph extraction and retrieval capabilities in EdgeQuake. Their innovative approach to entity extraction, relationship mapping, and hybrid retrieval has been instrumental in our framework's design.
+
+  **Special thanks to the LightRAG authors:**
+  - Zirui Guo
+  - Lianghao Xia
+  - Yanhua Yu
+  - Tu Ao
+  - Chao Huang
 - **GraphRAG**: Microsoft's knowledge graph approach and research contributions to the RAG field
 - **Rust Community**: For the amazing async ecosystem (Tokio, Axum, SQLx) that enables EdgeQuake's high performance
 - **React Community**: For React 19 and the modern frontend stack that powers our interactive UI
@@ -441,17 +460,17 @@ EdgeQuake is inspired by and builds upon the excellent work of:
 
 ## Quick Links
 
-| Resource                                                  | URL                                                    |
-| --------------------------------------------------------- | ------------------------------------------------------ |
-| 📚 Full Documentation                                     | [docs/README.md](docs/README.md)                       |
-| 🚀 Quick Start Guide                                      | [docs/getting-started/quick-start.md](docs/getting-started/quick-start.md) |
-| 🔧 Agent Workflow                                         | [AGENTS.md](AGENTS.md)                                 |
-| 🤝 Contributing                                           | [CONTRIBUTING.md](CONTRIBUTING.md)                     |
-| 📜 Code of Conduct                                        | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)              |
-| 📄 License                                                | [LICENSE](LICENSE)                                     |
-| 🐛 Report Issues                                          | [GitHub Issues](https://github.com/raphaelmansuy/edgequake/issues) |
-| 💬 Discussions                                            | [GitHub Discussions](https://github.com/raphaelmansuy/edgequake/discussions) |
-| 🌐 Repository                                             | [github.com/raphaelmansuy/edgequake](https://github.com/raphaelmansuy/edgequake) |
+| Resource              | URL                                                                              |
+| --------------------- | -------------------------------------------------------------------------------- |
+| 📚 Full Documentation | [docs/README.md](docs/README.md)                                                 |
+| 🚀 Quick Start Guide  | [docs/getting-started/quick-start.md](docs/getting-started/quick-start.md)       |
+| 🔧 Agent Workflow     | [AGENTS.md](AGENTS.md)                                                           |
+| 🤝 Contributing       | [CONTRIBUTING.md](CONTRIBUTING.md)                                               |
+| 📜 Code of Conduct    | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)                                         |
+| 📄 License            | [LICENSE](LICENSE)                                                               |
+| 🐛 Report Issues      | [GitHub Issues](https://github.com/raphaelmansuy/edgequake/issues)               |
+| 💬 Discussions        | [GitHub Discussions](https://github.com/raphaelmansuy/edgequake/discussions)     |
+| 🌐 Repository         | [github.com/raphaelmansuy/edgequake](https://github.com/raphaelmansuy/edgequake) |
 
 ---
 
