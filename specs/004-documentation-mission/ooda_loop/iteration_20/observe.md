@@ -10,6 +10,7 @@
 ✅ **CRITICAL MANDATE COMPLETED**: Re-read `specs/004-documentation-mission.md` (200 lines)
 
 **Key Requirements Confirmed**:
+
 - Continue from iteration 19 (never restart)
 - 50+ iterations minimum (currently 20/50 = 40%)
 - Create 4 files per iteration (observe, orient, decide, act)
@@ -24,6 +25,7 @@
 ### Existing Files
 
 **Tutorials** (5 files):
+
 - ✅ `docs/tutorials/document-ingestion.md` (519 lines) - General ingestion, no PDF specifics
 - ✅ `docs/tutorials/first-rag-app.md` - Basic RAG workflow
 - ✅ `docs/tutorials/migration-from-lightrag.md` - Migration guide
@@ -31,12 +33,15 @@
 - ✅ `docs/tutorials/query-optimization.md` - Query tuning
 
 **Deep Dives** (12 files):
+
 - ✅ `docs/deep-dives/pdf-processing.md` (940 lines) - Created in iteration 19
 
 **Troubleshooting** (1 file):
+
 - ✅ `docs/troubleshooting/common-issues.md` (488 lines) - No PDF section
 
 **Getting Started** (2 files):
+
 - ✅ `docs/getting-started/installation.md`
 - ✅ `docs/getting-started/quick-start.md`
 
@@ -81,6 +86,7 @@ User Journey: Upload PDF for RAG
 ```
 
 **Pain Points**:
+
 - Gap between deep dive (theory) and practical usage
 - No example API calls for PDF upload
 - No guidance on configuration choices
@@ -104,6 +110,7 @@ User Journey: Upload PDF for RAG
 ```
 
 **Benefits**:
+
 - Clear path from "I have a PDF" to "RAG working"
 - Practical examples bridge theory (deep dive) to practice
 - Reduced support burden (common issues covered)
@@ -115,6 +122,7 @@ User Journey: Upload PDF for RAG
 ### docs/tutorials/document-ingestion.md
 
 **Current Content** (519 lines):
+
 - Ingestion pipeline diagram ✅
 - Chunking strategies ✅
 - Entity extraction ✅
@@ -122,6 +130,7 @@ User Journey: Upload PDF for RAG
 - Monitoring and troubleshooting ✅
 
 **Missing Content**:
+
 - ❌ No PDF-specific examples
 - ❌ No mention of table detection
 - ❌ No PDF configuration options
@@ -134,12 +143,14 @@ User Journey: Upload PDF for RAG
 ### docs/troubleshooting/common-issues.md
 
 **Current Content** (488 lines):
+
 - Server startup issues ✅
 - Document processing stuck ✅
 - Query performance issues ✅
 - Connection errors ✅
 
 **Missing Content**:
+
 - ❌ No PDF extraction failures
 - ❌ No table detection issues
 - ❌ No encoding problems
@@ -166,6 +177,7 @@ User Journey: Upload PDF for RAG
 **Tutorial Quality**: ❌ Poor - No PDF-specific docs
 
 **Example**:
+
 ```python
 # No PDF configuration shown in docs
 from lightrag import LightRAG
@@ -180,6 +192,7 @@ rag.insert("document.pdf")  # Just works?
 **Tutorial Quality**: ⚠️ Basic - Quick start only
 
 **Example**:
+
 ```python
 from marker import convert
 markdown = convert("paper.pdf")
@@ -189,6 +202,7 @@ markdown = convert("paper.pdf")
 ### EdgeQuake Opportunity
 
 ✅ **Best of both worlds**:
+
 - Advanced PDF processing (table detection, layout analysis)
 - Comprehensive documentation (deep dive + tutorial)
 - Practical examples with configuration options
@@ -207,6 +221,7 @@ markdown = convert("paper.pdf")
 **Endpoint**: `POST /api/v1/workspaces/{workspace}/upload`
 
 **Parameters**:
+
 ```rust
 // From reading source code
 FormData {
@@ -219,6 +234,7 @@ FormData {
 ```
 
 **Response**:
+
 ```json
 {
   "document_id": "doc_xyz789",
@@ -233,6 +249,7 @@ FormData {
 ```
 
 **Missing from Docs**:
+
 - No tutorial showing this endpoint
 - No example curl/httpie commands
 - No configuration parameter documentation
@@ -242,6 +259,7 @@ FormData {
 **Endpoint**: `POST /api/v1/documents`
 
 **Body**:
+
 ```json
 {
   "content": "<base64 or text>",
@@ -259,13 +277,13 @@ FormData {
 
 ### Files to Reference
 
-| File | Purpose | Lines | Tutorial Relevance |
-|------|---------|-------|-------------------|
-| `edgequake-pdf/src/lib.rs` | Public API | 128 | Example usage patterns |
-| `edgequake-pdf/src/extractor.rs` | Main extraction | 605 | Configuration options |
-| `edgequake-pdf/src/config.rs` | PdfConfig struct | 804 | All config parameters |
-| `edgequake-api/src/routes/documents.rs` | Upload endpoint | ~500 | API examples |
-| `edgequake-core/examples/production_pipeline.rs` | End-to-end | ~200 | Integration example |
+| File                                             | Purpose          | Lines | Tutorial Relevance     |
+| ------------------------------------------------ | ---------------- | ----- | ---------------------- |
+| `edgequake-pdf/src/lib.rs`                       | Public API       | 128   | Example usage patterns |
+| `edgequake-pdf/src/extractor.rs`                 | Main extraction  | 605   | Configuration options  |
+| `edgequake-pdf/src/config.rs`                    | PdfConfig struct | 804   | All config parameters  |
+| `edgequake-api/src/routes/documents.rs`          | Upload endpoint  | ~500  | API examples           |
+| `edgequake-core/examples/production_pipeline.rs` | End-to-end       | ~200  | Integration example    |
 
 ### Key Features to Document
 
@@ -287,11 +305,13 @@ From iteration 19 deep dive:
 **Goal**: Extract structured data from research papers
 
 **Needs**:
+
 - Quick start tutorial ✅ (we'll create)
 - Table detection examples ✅
 - Quality verification ✅
 
 **Pain Points**:
+
 - Don't know PDF capabilities exist ❌ (solved by tutorial)
 - Unclear how to configure ❌ (solved by examples)
 
@@ -300,11 +320,13 @@ From iteration 19 deep dive:
 **Goal**: Build document processing pipeline
 
 **Needs**:
+
 - Production integration examples
 - Error handling patterns
 - Performance tuning
 
 **Pain Points**:
+
 - No integration examples ❌ (partially solved by tutorial)
 - No error handling guide ❌ (solved by troubleshooting update)
 
@@ -313,10 +335,12 @@ From iteration 19 deep dive:
 **Goal**: Compare RAG frameworks
 
 **Needs**:
+
 - Algorithm deep dive ✅ (iteration 19)
 - Comparison with alternatives ✅ (iteration 19)
 
 **Pain Points**:
+
 - Already solved by iteration 19 deep dive ✅
 
 ---
@@ -328,6 +352,7 @@ From iteration 19 deep dive:
 **1. Create `docs/tutorials/pdf-ingestion.md`** (~400 lines)
 
 **Sections**:
+
 1. Introduction (50 lines)
    - When to use PDF extraction
    - Prerequisites
@@ -358,6 +383,7 @@ From iteration 19 deep dive:
 **2. Update `docs/tutorials/document-ingestion.md`** (~150 lines added)
 
 **New Section**: "Working with PDF Documents" (after Step 1)
+
 - Brief overview
 - Link to pdf-ingestion.md
 - Quick example
@@ -365,6 +391,7 @@ From iteration 19 deep dive:
 **3. Update `docs/troubleshooting/common-issues.md`** (~120 lines added)
 
 **New Section**: "PDF Extraction Issues"
+
 - No text extracted
 - Table detection failed
 - Encoding problems
@@ -432,6 +459,7 @@ From iteration 19 deep dive:
 ## Observations Summary
 
 **Critical Gaps Identified**:
+
 1. No practical PDF tutorial (theory exists, practice missing)
 2. No PDF examples in general ingestion tutorial
 3. No PDF troubleshooting section

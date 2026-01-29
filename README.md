@@ -452,6 +452,7 @@ EdgeQuake is inspired by and builds upon the excellent work of:
   - [Yanhua Yu](https://arxiv.org/search/cs?searchtype=author&query=Yu,+Y)
   - [Tu Ao](https://arxiv.org/search/cs?searchtype=author&query=Ao,+T)
   - [Chao Huang](https://arxiv.org/search/cs?searchtype=author&query=Huang,+C)
+
 - **GraphRAG** ([arxiv.org/abs/2308.03281](https://arxiv.org/abs/2308.03281)): Microsoft's knowledge graph approach and research contributions to the RAG field. See the paper by:
   - [Shuai Wang](https://www.microsoft.com/en-us/research/people/shuaiw/)
   - [Yingqiang Ge](https://www.microsoft.com/en-us/research/people/yinge/)

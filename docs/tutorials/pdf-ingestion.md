@@ -10,6 +10,7 @@ EdgeQuake extracts text, tables, and metadata from PDF documents using advanced 
 - Query PDF content (5 minutes)
 
 **Prerequisites**:
+
 - EdgeQuake server running (see [Quick Start](../quick-start.md))
 - A PDF file to upload
 - `curl` or `httpie` installed
@@ -19,21 +20,25 @@ EdgeQuake extracts text, tables, and metadata from PDF documents using advanced 
 ## When to Read This
 
 **Read this tutorial** if:
+
 - First time uploading PDFs
 - Need quick reference for configuration options
 - Want to verify extraction quality
 
 **Read [PDF Processing Deep Dive](../deep-dives/pdf-processing.md)** if:
+
 - Understanding extraction internals
 - Advanced table detection algorithms
 - Contributing to PDF crate
 
 **Read [Troubleshooting Guide](../troubleshooting/common-issues.md#pdf-extraction-issues)** if:
+
 - Extraction fails or produces poor quality
 - Tables not detected correctly
 - Need detailed error solutions
 
 **Theory vs Practice**:
+
 - This tutorial: "How do I upload and configure?"
 - Deep dive: "How does table detection work internally?"
 - Both are valuable - start here, dig deeper as needed.
@@ -54,11 +59,13 @@ curl -X POST \
 ```
 
 **What Happens**:
+
 ```
 Upload → Parse PDF → Extract text → Detect tables → Build chunks → Index → Ready
 ```
 
 **Response**:
+
 ```json
 {
   "id": "doc-uuid-1234",
@@ -74,6 +81,7 @@ Upload → Parse PDF → Extract text → Detect tables → Build chunks → Ind
 ```
 
 **Key Fields**:
+
 - `id`: Use this to reference the document in queries
 - `status`: `completed` means extraction succeeded
 - `chunk_count`: Number of text chunks created (paragraphs, tables)
@@ -91,6 +99,7 @@ curl http://localhost:3100/api/v1/documents/doc-uuid-1234
 ```
 
 **Response**:
+
 ```json
 {
   "id": "doc-uuid-1234",
@@ -105,6 +114,7 @@ curl http://localhost:3100/api/v1/documents/doc-uuid-1234
 ```
 
 **Look for**:
+
 - ✅ `status: "indexed"` - ready to query
 - ✅ `chunk_count > 0` - text extracted successfully
 - ✅ `entity_count > 0` - knowledge graph built
@@ -128,6 +138,7 @@ curl -X POST \
 ```
 
 **Response**:
+
 ```json
 {
   "answer": "The key findings show that...",
@@ -203,6 +214,7 @@ EdgeQuake supports three extraction modes: Text, Vision, and Hybrid. Choose the 
 ### When to Use What
 
 **Text Mode** (default, fastest):
+
 - ✅ Good quality digital PDFs
 - ✅ Standard fonts and encoding
 - ✅ Simple to moderately complex layouts
@@ -210,6 +222,7 @@ EdgeQuake supports three extraction modes: Text, Vision, and Hybrid. Choose the 
 - **Cost**: Free (no LLM API calls)
 
 **Vision Mode** (slowest, most accurate):
+
 - ⚠️ Scanned documents (images)
 - ⚠️ Poor quality PDFs
 - ⚠️ No text layer (image-only PDFs)
@@ -218,12 +231,14 @@ EdgeQuake supports three extraction modes: Text, Vision, and Hybrid. Choose the 
 - **Cost**: ~$0.001-0.01 per page (LLM vision API)
 
 **Hybrid Mode** (automatic fallback):
+
 - ⚠️ Mixed quality (some pages good, some poor)
 - ⚠️ Unsure about PDF quality
 - **Processing Time**: Variable (2-50 seconds)
 - **Cost**: Only vision pages incur LLM cost
 
 **Table Enhancement**:
+
 - ⚠️ Complex table layouts
 - ⚠️ Merged cells
 - ⚠️ Nested tables
@@ -264,6 +279,7 @@ curl -X POST \
 ```
 
 **Configuration Fields**:
+
 - `mode`: `"Text"`, `"Vision"`, or `"Hybrid"`
 - `vision_dpi`: DPI for rendering (150 = good quality, 200 = higher accuracy but slower)
 
@@ -290,6 +306,7 @@ curl -X POST \
 ```
 
 **Configuration Fields**:
+
 - `quality_threshold`: If text extraction confidence < this value, use vision (0.0-1.0)
 - Default: `0.5` (switch to vision for confidence < 50%)
 
@@ -314,6 +331,7 @@ curl -X POST \
 ```
 
 **Configuration Fields**:
+
 - `enhance_tables`: Enable LLM refinement for tables (default: `false`)
 - `ai_temperature`: LLM temperature for table enhancement (0.0-1.0, default: 0.1)
 
@@ -340,6 +358,7 @@ curl -X POST \
 ```
 
 **Configuration Fields**:
+
 - `layout.detect_columns`: Enable multi-column detection (default: `true`)
 - `layout.column_gap_threshold`: Minimum gap in points for column separation (default: 20.0)
 
@@ -385,26 +404,26 @@ Complete reference of available configuration options:
 
 ```json
 {
-  "mode": "Text",                      // Text | Vision | Hybrid
-  "output_format": "Markdown",         // Markdown | Json | Html | Chunks
-  "ocr_threshold": 0.8,                // OCR confidence threshold (0.0-1.0)
-  "max_pages": null,                   // Limit pages to process (null = all)
-  "include_page_numbers": true,        // Include page numbers in output
-  "extract_images": true,              // Extract embedded images
-  "enhance_tables": false,             // LLM table refinement
-  "ai_temperature": 0.1,               // LLM temperature (0.0 = deterministic)
-  "normalize_spacing": true,           // Fix concatenated words
-  "consolidate_headers": true,         // Merge broken headers
-  "extract_figure_captions": true,     // Extract figure captions
-  "enhance_readability": false,        // AI full-page enhancement
-  "vision_dpi": 150,                   // DPI for vision mode (150-300)
-  "quality_threshold": 0.5,            // Hybrid mode threshold
+  "mode": "Text", // Text | Vision | Hybrid
+  "output_format": "Markdown", // Markdown | Json | Html | Chunks
+  "ocr_threshold": 0.8, // OCR confidence threshold (0.0-1.0)
+  "max_pages": null, // Limit pages to process (null = all)
+  "include_page_numbers": true, // Include page numbers in output
+  "extract_images": true, // Extract embedded images
+  "enhance_tables": false, // LLM table refinement
+  "ai_temperature": 0.1, // LLM temperature (0.0 = deterministic)
+  "normalize_spacing": true, // Fix concatenated words
+  "consolidate_headers": true, // Merge broken headers
+  "extract_figure_captions": true, // Extract figure captions
+  "enhance_readability": false, // AI full-page enhancement
+  "vision_dpi": 150, // DPI for vision mode (150-300)
+  "quality_threshold": 0.5, // Hybrid mode threshold
   "layout": {
-    "detect_columns": true,            // Multi-column detection
-    "detect_tables": true,             // Table detection
-    "detect_equations": true,          // Equation detection
-    "column_gap_threshold": 20.0,      // Column gap in points
-    "use_xy_cut": true                 // XY-Cut algorithm for layout
+    "detect_columns": true, // Multi-column detection
+    "detect_tables": true, // Table detection
+    "detect_equations": true, // Equation detection
+    "column_gap_threshold": 20.0, // Column gap in points
+    "use_xy_cut": true // XY-Cut algorithm for layout
   }
 }
 ```
@@ -421,18 +440,20 @@ After upload, check `chunk_count` to verify extraction succeeded:
 
 ```json
 {
-  "chunk_count": 45,     // Number of semantic chunks created
-  "entity_count": 23,    // Number of entities extracted
+  "chunk_count": 45, // Number of semantic chunks created
+  "entity_count": 23, // Number of entities extracted
   "relationship_count": 18
 }
 ```
 
 **What Affects Chunk Count**:
+
 - PDF length (more pages → more chunks)
 - Layout complexity (tables, figures → separate chunks)
 - Text density (dense text → more chunks)
 
 **Typical Ranges**:
+
 - 10-page report: 20-40 chunks
 - 50-page book: 100-200 chunks
 - 100-page thesis: 300-500 chunks
@@ -451,6 +472,7 @@ curl http://localhost:3100/api/v1/documents/doc-uuid-1234
 ```
 
 **Response**:
+
 ```json
 {
   "id": "doc-uuid-1234",
@@ -481,6 +503,7 @@ curl http://localhost:3100/api/v1/documents/doc-uuid-1234
 ```
 
 **Key Metadata**:
+
 - `tables_detected`: Number of tables found
 - `figures`: Number of figures/images
 - `extraction_mode`: Mode used (Text, Vision, Hybrid)
@@ -491,11 +514,13 @@ curl http://localhost:3100/api/v1/documents/doc-uuid-1234
 ### When to Retry with Different Config
 
 **If chunk_count < expected**:
+
 1. Check if PDF is scanned → Try Vision mode
 2. Check if tables malformed → Enable `enhance_tables`
 3. Check if text order wrong → Enable `detect_columns`
 
 **Example Iteration**:
+
 ```bash
 # First try: Default text mode
 curl -F "file=@doc.pdf" http://localhost:3100/api/v1/documents
@@ -517,6 +542,7 @@ curl -F "file=@doc.pdf" \
 **Scenario**: 50-page annual report with text + tables
 
 **Approach**:
+
 ```bash
 # Start with default
 curl -X POST \
@@ -526,10 +552,12 @@ curl -X POST \
 ```
 
 **Check results**:
+
 - If `tables_detected > 0` and chunks look good → ✅ Done
 - If tables malformed → Re-upload with `enhance_tables: true`
 
 **Large Document Tip**: Use `max_pages` to test on first 10 pages:
+
 ```bash
 curl -F "file=@report.pdf" \
      -F 'config={"max_pages": 10}' \
@@ -543,6 +571,7 @@ curl -F "file=@report.pdf" \
 **Scenario**: Research paper with two-column layout, figures, equations
 
 **Approach**:
+
 ```bash
 # Enable column detection
 curl -X POST \
@@ -556,6 +585,7 @@ curl -X POST \
 ```
 
 **Tips**:
+
 - Column detection ensures text reads left-to-right within columns
 - Figure captions extracted separately for better context
 - Equations may not extract perfectly (vision mode helps)
@@ -567,6 +597,7 @@ curl -X POST \
 **Scenario**: 200-page scanned book, faded text, skewed pages
 
 **Approach**:
+
 ```bash
 # Vision mode for scanned documents
 curl -X POST \
@@ -593,6 +624,7 @@ curl -X POST \
 **Scenario**: Quarterly report with merged cells, nested tables, footnotes
 
 **Approach**:
+
 ```bash
 # Enable table enhancement
 curl -X POST \
@@ -606,6 +638,7 @@ curl -X POST \
 ```
 
 **Expected Results**:
+
 - Tables preserved in markdown format
 - Merged cells handled correctly
 - Footnotes linked to table cells
@@ -617,6 +650,7 @@ curl -X POST \
 **Scenario**: PDF in Spanish, Chinese, Arabic
 
 **Approach**:
+
 ```bash
 # Vision mode with LLM handles non-English better
 curl -X POST \
@@ -627,6 +661,7 @@ curl -X POST \
 ```
 
 **LLM Language Support**:
+
 - OpenAI GPT-4o: 100+ languages
 - Ollama: Depends on model (check model docs)
 
@@ -640,26 +675,29 @@ curl -X POST \
 
 ### Quick Fixes Table
 
-| Issue | Solution | Config |
-|-------|----------|--------|
-| No text extracted | Enable vision mode | `{"mode": "Vision"}` |
-| Tables broken | Enable table enhancement | `{"enhance_tables": true}` |
-| Wrong text order | Enable multi-column | `{"layout": {"detect_columns": true}}` |
-| chunk_count = 0 | Try vision mode | `{"mode": "Vision"}` |
-| Upload fails | Check file size/format | PDF only, < 50MB |
-| Encoding errors (�) | Use vision mode | `{"mode": "Vision"}` |
+| Issue               | Solution                 | Config                                 |
+| ------------------- | ------------------------ | -------------------------------------- |
+| No text extracted   | Enable vision mode       | `{"mode": "Vision"}`                   |
+| Tables broken       | Enable table enhancement | `{"enhance_tables": true}`             |
+| Wrong text order    | Enable multi-column      | `{"layout": {"detect_columns": true}}` |
+| chunk_count = 0     | Try vision mode          | `{"mode": "Vision"}`                   |
+| Upload fails        | Check file size/format   | PDF only, < 50MB                       |
+| Encoding errors (�) | Use vision mode          | `{"mode": "Vision"}`                   |
 
 ### Most Common Issues
 
 **1. No text extracted (chunk_count = 0)**:
+
 - **Cause**: PDF is image-based (scanned)
 - **Solution**: `{"mode": "Vision"}`
 
 **2. Tables not detected**:
+
 - **Cause**: Complex table layout
 - **Solution**: `{"enhance_tables": true}`
 
 **3. Text order scrambled**:
+
 - **Cause**: Multi-column layout
 - **Solution**: `{"layout": {"detect_columns": true}}`
 
@@ -671,6 +709,7 @@ curl -X POST \
 - Upload fails repeatedly
 
 **Next Steps**:
+
 - Read [PDF Processing Deep Dive](../deep-dives/pdf-processing.md) for internals
 - Check [Troubleshooting Guide](../troubleshooting/common-issues.md#pdf-extraction-issues) for detailed solutions
 - File GitHub issue with PDF sample
@@ -680,16 +719,19 @@ curl -X POST \
 ## Next Steps
 
 ### Beginner Path
+
 1. ✅ Uploaded first PDF (this tutorial)
 2. ➡️ Read [Document Ingestion](document-ingestion.md) for chunking details
 3. ➡️ Read [Query Optimization](query-optimization.md) for RAG techniques
 
 ### Advanced Path
+
 1. ✅ Mastered PDF configuration (this tutorial)
 2. ➡️ Read [PDF Processing Deep Dive](../deep-dives/pdf-processing.md) for algorithms
 3. ➡️ Read [Contributing Guide](../contributing/development-setup.md) to improve PDF crate
 
 ### Troubleshooting Path
+
 1. ⚠️ Encountered PDF extraction issues
 2. ➡️ Read [Common Issues](../troubleshooting/common-issues.md#pdf-extraction-issues)
 3. ➡️ File GitHub issue if problem persists

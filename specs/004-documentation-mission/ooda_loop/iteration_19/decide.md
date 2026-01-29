@@ -10,6 +10,7 @@
 **CREATE**: `docs/deep-dives/pdf-processing.md` (~900 lines)
 
 **RATIONALE**: PDF processing is EdgeQuake's competitive advantage but completely undocumented. This deep dive will enable users to:
+
 1. Extract structured content from PDFs
 2. Understand table detection capabilities
 3. Handle character encoding issues
@@ -26,24 +27,28 @@
 # PDF Processing Deep Dive
 
 ## 1. Introduction (80 lines)
+
 - What problem does EdgeQuake PDF solve?
 - Why existing tools fail
 - EdgeQuake's approach
 - When to use PDF extraction
 
 ## 2. Architecture (150 lines)
+
 - Processing pipeline diagram
 - Key components
 - Data flow
 - Design decisions (WHY)
 
 ## 3. Basic Usage (120 lines)
+
 - Quick start example
 - API overview
 - Common patterns
 - Error handling
 
 ## 4. Table Detection (180 lines)
+
 - How it works (algorithm)
 - Coordinate clustering
 - Column detection
@@ -51,6 +56,7 @@
 - ASCII flow diagram
 
 ## 5. Character Encoding (160 lines)
+
 - Supported encodings
 - Auto-detection
 - Normalization
@@ -58,6 +64,7 @@
 - Decision tree diagram
 
 ## 6. Quality Metrics (130 lines)
+
 - Extraction confidence
 - Table accuracy
 - Encoding confidence
@@ -65,12 +72,14 @@
 - Scoring model diagram
 
 ## 7. Advanced Topics (150 lines)
+
 - Custom extraction settings
 - Performance tuning
 - Pipeline integration
 - Batch processing
 
 ## 8. Troubleshooting (100 lines)
+
 - Common issues
 - Encoding problems
 - Table detection failures
@@ -78,12 +87,14 @@
 - Debug techniques
 
 ## 9. Comparison (50 lines)
+
 - vs PyPDF2
 - vs pdfplumber
 - vs Camelot
 - EdgeQuake advantages
 
 ## 10. References (30 lines)
+
 - Source code links
 - Test examples
 - Related docs
@@ -510,15 +521,15 @@ use edgequake_pdf::PdfExtractor;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize extractor
     let extractor = PdfExtractor::new();
-    
+
     // Extract from file
     let result = extractor.extract_from_file("document.pdf").await?;
-    
+
     // Access extracted content
     println!("Extracted text:\n{}", result.text);
     println!("Quality score: {:.2}", result.metadata.confidence);
     println!("Pages processed: {}", result.metadata.page_count);
-    
+
     Ok(())
 }
 ```
@@ -540,18 +551,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_pages: Some(100),
         encoding_hints: vec!["UTF-8", "Latin-1"],
     };
-    
+
     // Create extractor with config
     let extractor = PdfExtractor::with_config(config);
-    
+
     // Extract
     let result = extractor.extract_from_file("complex.pdf").await?;
-    
+
     // Check quality
     if result.metadata.confidence < 0.60 {
         eprintln!("Warning: Low quality extraction!");
     }
-    
+
     Ok(())
 }
 ```
@@ -567,7 +578,7 @@ use edgequake_pdf::PdfExtractor;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let extractor = PdfExtractor::new();
     let result = extractor.extract_from_file("tables.pdf").await?;
-    
+
     // Access detected tables
     for (i, table) in result.tables.iter().enumerate() {
         println!("Table {}: {} rows, {} cols, confidence={:.2}",
@@ -575,11 +586,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                  table.rows.len(),
                  table.cols.len(),
                  table.confidence);
-        
+
         // Print as Markdown
         println!("{}", table.to_markdown());
     }
-    
+
     Ok(())
 }
 ```
@@ -594,7 +605,7 @@ use edgequake_pdf::{PdfExtractor, PdfError};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let extractor = PdfExtractor::new();
-    
+
     match extractor.extract_from_file("document.pdf").await {
         Ok(result) => {
             println!("Success! Extracted {} chars", result.text.len());
@@ -612,7 +623,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("Unknown error: {}", e);
         }
     }
-    
+
     Ok(())
 }
 ```
@@ -628,7 +639,7 @@ use edgequake_pdf::PdfExtractor;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let extractor = PdfExtractor::new();
     let result = extractor.extract_from_file("document.pdf").await?;
-    
+
     // Check overall quality
     let quality = result.metadata.confidence;
     match quality {
@@ -637,17 +648,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         q if q >= 0.60 => println!("⚠ Fair extraction - review recommended"),
         _ => println!("✗ Poor extraction - manual review required"),
     }
-    
+
     // Check encoding quality
     if result.metadata.encoding_confidence < 0.80 {
         eprintln!("Warning: Low encoding confidence, text may be garbled");
     }
-    
+
     // Check for empty pages
     if result.metadata.empty_pages > 0 {
         println!("Info: {} empty pages skipped", result.metadata.empty_pages);
     }
-    
+
     Ok(())
 }
 ```
@@ -665,17 +676,17 @@ use tokio::fs;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let extractor = PdfExtractor::new();
     let pdf_dir = Path::new("pdfs/");
-    
+
     // Read directory
     let mut entries = fs::read_dir(pdf_dir).await?;
-    
+
     // Process each PDF
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
-        
+
         if path.extension().map(|s| s == "pdf").unwrap_or(false) {
             println!("Processing: {:?}", path);
-            
+
             match extractor.extract_from_file(&path).await {
                 Ok(result) => {
                     println!("  ✓ {} chars, quality={:.2}",
@@ -688,7 +699,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    
+
     Ok(())
 }
 ```
@@ -710,21 +721,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_llm(/* LLM config */)
         .with_storage(/* Storage config */)
         .build()?;
-    
+
     // Ingest PDF document
     let doc_id = pipeline
         .ingest_file("research-paper.pdf")
         .await?;
-    
+
     println!("Ingested document: {}", doc_id);
-    
+
     // Query the document
     let results = pipeline
         .query("What are the main findings?")
         .await?;
-    
+
     println!("Answer: {}", results.answer);
-    
+
     Ok(())
 }
 ```
@@ -774,6 +785,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Success Criteria
 
 **Quantitative**:
+
 - ✅ 900+ lines of content
 - ✅ 4+ ASCII diagrams
 - ✅ 10+ code examples
@@ -781,6 +793,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - ✅ 100% claim verification
 
 **Qualitative**:
+
 - ✅ User can extract PDF in <5 minutes after reading
 - ✅ User understands table detection algorithm
 - ✅ User can troubleshoot encoding issues
@@ -788,6 +801,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - ✅ Competitive advantages highlighted
 
 **Process**:
+
 - ✅ No speculative content
 - ✅ All claims traced to source code
 - ✅ First principles thinking applied
@@ -798,6 +812,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Git Commit Plan
 
 **Commit Message**:
+
 ```
 OODA-19: Add PDF Processing deep dive
 
@@ -816,6 +831,7 @@ Closes gap: Users now understand PDF extraction capabilities
 ## Next Iteration Preview
 
 **Iteration 20** will:
+
 1. Create `docs/tutorials/pdf-ingestion.md`
 2. Update `docs/tutorials/document-ingestion.md` with PDF examples
 3. Update `docs/troubleshooting/common-issues.md` with PDF section

@@ -59,6 +59,7 @@ Report bugs using GitHub Issues:
    - Environment (OS, Rust version, etc.)
 
 **Example:**
+
 ```
 Title: PDF extraction fails with multi-column layouts
 
@@ -87,6 +88,7 @@ Suggest features using GitHub Discussions:
    - Examples or mockups (if applicable)
 
 **Example:**
+
 ```
 Title: Support for streaming document uploads
 
@@ -152,6 +154,7 @@ For major features or architectural changes:
 ### If You're Contributing Code Manually
 
 1. **Follow Rust style guidelines:**
+
    ```bash
    cargo fmt
    cargo clippy
@@ -163,6 +166,7 @@ For major features or architectural changes:
    - E2E tests for user-facing features
 
 3. **Run the full test suite:**
+
    ```bash
    cargo test
    ```
@@ -172,6 +176,7 @@ For major features or architectural changes:
    - Keep AGENTS.md up to date if changing workflows
 
 5. **Use conventional commits:**
+
    ```
    <type>(<scope>): <subject>
 
@@ -181,6 +186,7 @@ For major features or architectural changes:
    ```
 
    Example:
+
    ```
    feat(pdf): add table detection enhancement
 
@@ -232,13 +238,14 @@ For major features or architectural changes:
 - **Tests**: Every public API should have tests
 
 Example:
+
 ```rust
 /// Extracts entities from a text chunk using LLM
-/// 
+///
 /// # Arguments
 /// * `text` - The text to extract entities from
 /// * `entity_types` - Types of entities to extract
-/// 
+///
 /// # Returns
 /// Vector of extracted entities with confidence scores
 pub async fn extract_entities(
@@ -268,13 +275,17 @@ mod tests {
 - **Props**: Use TypeScript interfaces
 
 Example:
+
 ```typescript
 interface DocumentUploadProps {
   onSuccess: (docId: string) => void;
   maxSizeMB?: number;
 }
 
-export function DocumentUpload({ onSuccess, maxSizeMB = 100 }: DocumentUploadProps) {
+export function DocumentUpload({
+  onSuccess,
+  maxSizeMB = 100,
+}: DocumentUploadProps) {
   // Component implementation
 }
 ```
@@ -340,16 +351,19 @@ make test-flaky       # Detect flaky tests
 1. **Fork the repository**
 
 2. **Create a feature branch:**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
 
 3. **Make your changes and commit:**
+
    ```bash
    git commit -m "feat: add your feature"
    ```
 
 4. **Push to your fork:**
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -376,6 +390,7 @@ make test-flaky       # Detect flaky tests
 ### For Major Contributions
 
 Email or direct message **Raphaël MANSUY** via:
+
 - LinkedIn: [raphaelmansuy](https://www.linkedin.com/in/raphaelmansuy)
 - GitHub: [@raphaelmansuy](https://github.com/raphaelmansuy)
 

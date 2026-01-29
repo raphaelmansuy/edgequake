@@ -10,6 +10,7 @@
 **We will create a focused PDF ingestion tutorial (430 lines) that bridges the theory (iteration 19 deep dive) to practice, enabling 80% of users to successfully upload and query PDFs within 25 minutes.**
 
 **Scope**:
+
 1. Create `docs/tutorials/pdf-ingestion.md` (430 lines)
 2. Update `docs/tutorials/document-ingestion.md` (add 150 lines)
 3. Update `docs/troubleshooting/common-issues.md` (add 120 lines)
@@ -26,12 +27,14 @@
 # PDF Ingestion Tutorial
 
 ## Introduction (50 lines)
+
 - What you'll learn
 - Prerequisites
 - Time estimate (25 minutes)
 - When to use this tutorial vs deep dive
 
 ## Quick Start: Your First PDF Upload (100 lines)
+
 - Simplest possible example (curl)
 - Verify upload succeeded
 - Query the PDF content
@@ -39,6 +42,7 @@
 - ASCII Diagram: Upload flow
 
 ## Configuration Options (100 lines)
+
 - Decision tree: When to use each option
 - Basic config example
 - Table enhancement example
@@ -46,18 +50,21 @@
 - Performance tuning
 
 ## Verifying Extraction Quality (80 lines)
+
 - Check quality metrics
 - Interpret quality scores
 - When quality is "good enough"
 - When to adjust config
 
 ## Common Patterns (70 lines)
+
 - Multi-page reports
 - Mixed content (text + tables)
 - Poor quality scans
 - Non-English documents
 
 ## Troubleshooting Quick Reference (30 lines)
+
 - Link to detailed troubleshooting
 - Most common issues
 - When to enable what
@@ -78,12 +85,14 @@ EdgeQuake extracts text, tables, and metadata from PDF documents using advanced
 layout analysis. This tutorial shows you how to upload PDFs and configure extraction.
 
 **What You'll Learn**:
+
 - Upload a PDF document (5 minutes)
 - Configure extraction options (10 minutes)
 - Verify extraction quality (5 minutes)
 - Query PDF content (5 minutes)
 
 **Prerequisites**:
+
 - EdgeQuake server running (see quick-start.md)
 - A PDF file to upload
 - curl or httpie installed
@@ -91,12 +100,14 @@ layout analysis. This tutorial shows you how to upload PDFs and configure extrac
 **Time Estimate**: 25 minutes
 
 **When to Read This**:
+
 - First time uploading PDFs → **Read this tutorial**
 - Understanding extraction internals → See [PDF Processing Deep Dive](../deep-dives/pdf-processing.md)
 - Advanced table detection → See deep dive
 - Troubleshooting → See [Common Issues](../troubleshooting/common-issues.md)
 
 **Theory vs Practice**:
+
 - This tutorial: "How do I upload and configure?"
 - Deep dive: "How does table detection work internally?"
 - Both are valuable - start here, dig deeper as needed.
@@ -114,7 +125,7 @@ layout analysis. This tutorial shows you how to upload PDFs and configure extrac
 
 #### 2.1 Simplest Upload (40 lines)
 
-```markdown
+````markdown
 ## Quick Start: Your First PDF Upload
 
 ### Step 1: Upload the PDF
@@ -125,13 +136,16 @@ curl -X POST \
   -F "file=@/path/to/paper.pdf" \
   http://localhost:8080/api/v1/workspaces/default/upload
 ```
+````
 
 **What Happens**:
+
 ```
 Upload → Extract text → Extract tables → Build knowledge graph → Return
 ```
 
 **Response**:
+
 ```json
 {
   "document_id": "doc_1234",
@@ -143,10 +157,12 @@ Upload → Extract text → Extract tables → Build knowledge graph → Return
 ```
 
 **Key Fields**:
+
 - `document_id`: Use this to query the document
 - `status`: `completed` means success
 - `extraction_quality`: 0.8+ is good, 0.9+ is excellent
-```
+
+````
 
 #### 2.2 Verify Upload (30 lines)
 
@@ -156,16 +172,18 @@ Upload → Extract text → Extract tables → Build knowledge graph → Return
 ```bash
 # Check document status
 curl http://localhost:8080/api/v1/workspaces/default/documents/doc_1234
-```
+````
 
 **Look for**:
+
 - ✅ `status: "indexed"` - ready to query
 - ✅ `chunks_created > 0` - text extracted
 - ✅ `entities_extracted > 0` - knowledge graph built
 - ⚠️ `status: "failed"` - see troubleshooting
 
 **Tip**: If extraction quality < 0.7, consider enabling enhancements (see Configuration).
-```
+
+````
 
 #### 2.3 Query Content (30 lines)
 
@@ -178,23 +196,23 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{"query": "What are the key findings?", "mode": "hybrid"}' \
   http://localhost:8080/api/v1/workspaces/default/query
-```
+````
 
 **Response**:
+
 ```json
 {
   "answer": "The key findings are...",
-  "sources": [
-    {"document_id": "doc_1234", "page": 3, "relevance": 0.94}
-  ]
+  "sources": [{ "document_id": "doc_1234", "page": 3, "relevance": 0.94 }]
 }
 ```
 
 **Success**: You've uploaded, indexed, and queried a PDF in < 5 minutes! 🎉
-```
 
-**Lines**: 100  
-**Examples**: 3 (upload, verify, query)  
+````
+
+**Lines**: 100
+**Examples**: 3 (upload, verify, query)
 **ASCII**: 0 (simple text flow)
 
 ---
@@ -234,11 +252,11 @@ curl -X POST \
 - ⚠️ Newspaper-style layout
 - ⚠️ Academic papers (two-column)
 - **Trade-off**: Slight overhead, better text order
-```
+````
 
 #### 3.2 Config Examples (60 lines)
 
-```markdown
+````markdown
 ### Example 1: Basic Configuration
 
 ```bash
@@ -247,6 +265,7 @@ curl -X POST \
   -F 'config={"enhance_tables": false, "vision_mode": false}' \
   http://localhost:8080/api/v1/workspaces/default/upload
 ```
+````
 
 **Use for**: 80% of digital PDFs
 
@@ -296,10 +315,11 @@ curl -X POST \
 **Use for**: Critical documents where accuracy > speed
 
 **Trade-off**: 10x slower, LLM API cost
-```
 
-**Lines**: 100  
-**Examples**: 4 (basic, tables, vision, full)  
+````
+
+**Lines**: 100
+**Examples**: 4 (basic, tables, vision, full)
 **ASCII**: 0
 
 ---
@@ -338,8 +358,9 @@ curl -X POST \
     "layout_analysis": 0.88
   }
 }
-```
-```
+````
+
+````
 
 #### 4.2 Quality Improvement (40 lines)
 
@@ -375,11 +396,12 @@ curl -F "file=@doc.pdf" http://...
 
 # Second try: 0.85 (good) ✅
 curl -F "file=@doc.pdf" -F 'config={"enhance_tables": true}' http://...
-```
-```
+````
 
-**Lines**: 80  
-**Examples**: 2 (quality breakdown JSON, iteration)  
+````
+
+**Lines**: 80
+**Examples**: 2 (quality breakdown JSON, iteration)
 **ASCII**: 0
 
 ---
@@ -404,7 +426,7 @@ curl -F "file=@annual_report.pdf" http://localhost:8080/api/v1/workspaces/defaul
 curl -F "file=@annual_report.pdf" \
      -F 'config={"enhance_tables": true}' \
      http://localhost:8080/api/v1/workspaces/default/upload
-```
+````
 
 **Tip**: Large documents benefit from batching (see API reference).
 
@@ -415,6 +437,7 @@ curl -F "file=@annual_report.pdf" \
 **Scenario**: Research paper with figures, tables, equations
 
 **Approach**:
+
 ```bash
 # Enable multi-column for academic papers
 curl -F "file=@research_paper.pdf" \
@@ -431,6 +454,7 @@ curl -F "file=@research_paper.pdf" \
 **Scenario**: Scanned book, faded text, skewed pages
 
 **Approach**:
+
 ```bash
 # Vision mode for scanned documents
 curl -F "file=@scanned_book.pdf" \
@@ -447,6 +471,7 @@ curl -F "file=@scanned_book.pdf" \
 **Scenario**: PDF in Spanish, Chinese, Arabic
 
 **Approach**:
+
 ```bash
 # Vision mode handles non-English better
 curl -F "file=@spanish_doc.pdf" \
@@ -455,10 +480,11 @@ curl -F "file=@spanish_doc.pdf" \
 ```
 
 **Tip**: Ensure LLM supports target language (OpenAI supports 100+ languages).
-```
 
-**Lines**: 70  
-**Examples**: 4 (reports, mixed, scans, non-English)  
+````
+
+**Lines**: 70
+**Examples**: 4 (reports, mixed, scans, non-English)
 **ASCII**: 0
 
 ---
@@ -491,7 +517,7 @@ curl -F "file=@spanish_doc.pdf" \
 - Read [PDF Processing Deep Dive](../deep-dives/pdf-processing.md) for internals
 - Check [Common Issues](../troubleshooting/common-issues.md) for detailed troubleshooting
 - File GitHub issue with PDF sample
-```
+````
 
 **Lines**: 30  
 **Examples**: 1 (table)  
@@ -562,6 +588,7 @@ Total time: 2-5 seconds (default) | 20-50 seconds (enhanced)
 **Lines**: ~35 lines
 
 **Annotations**:
+
 - Clear step numbers (1-8)
 - Time estimate at bottom
 - Shows quality score calculation
@@ -574,6 +601,7 @@ Total time: 2-5 seconds (default) | 20-50 seconds (enhanced)
 ### Insertion Point
 
 **Current structure** (from observe.md):
+
 ```
 1. Introduction
 2. Step 1: Understanding Chunks
@@ -588,7 +616,7 @@ Total time: 2-5 seconds (default) | 20-50 seconds (enhanced)
 
 ### Content Plan (150 lines)
 
-```markdown
+````markdown
 ## Working with PDF Documents
 
 EdgeQuake has advanced PDF extraction capabilities using layout analysis and
@@ -603,8 +631,10 @@ curl -X POST \
   -F "file=@research_paper.pdf" \
   http://localhost:8080/api/v1/workspaces/default/upload
 ```
+````
 
 **What Gets Extracted**:
+
 - ✅ Text (with layout preservation)
 - ✅ Tables (with structure)
 - ✅ Metadata (title, author, pages)
@@ -613,11 +643,13 @@ curl -X POST \
 ### PDF Configuration Options
 
 **Basic Upload** (80% of cases):
+
 ```bash
 curl -F "file=@doc.pdf" http://localhost:8080/api/v1/workspaces/default/upload
 ```
 
 **Enhanced Table Detection** (complex tables):
+
 ```bash
 curl -F "file=@doc.pdf" \
      -F 'config={"enhance_tables": true}' \
@@ -625,6 +657,7 @@ curl -F "file=@doc.pdf" \
 ```
 
 **Vision Mode** (scanned PDFs):
+
 ```bash
 curl -F "file=@doc.pdf" \
      -F 'config={"vision_mode": true}' \
@@ -634,11 +667,13 @@ curl -F "file=@doc.pdf" \
 ### PDF-Specific Chunking Strategies
 
 When EdgeQuake processes PDFs, chunks are created based on:
+
 - Paragraphs (text flow)
 - Tables (entire table = one chunk)
 - Sections (detected via headings)
 
 **Example** (research paper):
+
 - Page 1: Abstract → 1 chunk
 - Page 2-3: Introduction (3 paragraphs) → 3 chunks
 - Page 4: Table 1 → 1 chunk
@@ -649,12 +684,14 @@ When EdgeQuake processes PDFs, chunks are created based on:
 ### PDF Entity Extraction
 
 Entities extracted from PDFs include:
+
 - **People**: Authors, researchers mentioned
 - **Organizations**: Universities, companies
 - **Concepts**: Domain terms, methods, metrics
 - **Relationships**: "AuthorOf", "AffiliatedWith", "Cites"
 
 **Example** (from PDF metadata):
+
 ```
 Dr. Jane Smith (PERSON) → WorksAt → MIT (ORGANIZATION)
 MIT (ORGANIZATION) → Published → "AI Safety" (CONCEPT)
@@ -663,6 +700,7 @@ MIT (ORGANIZATION) → Published → "AI Safety" (CONCEPT)
 ### PDF Quality Metrics
 
 After upload, check `extraction_quality`:
+
 - **0.9-1.0**: Excellent - no action needed
 - **0.8-0.9**: Good - use as-is
 - **0.7-0.8**: Fair - consider `enhance_tables`
@@ -673,16 +711,19 @@ After upload, check `extraction_quality`:
 ### When to Read the Full PDF Tutorial
 
 **Read this section** if:
+
 - First time uploading PDFs
 - Quick reference needed
 
 **Read [PDF Ingestion Tutorial](pdf-ingestion.md)** if:
+
 - Complex PDFs (tables, scans)
 - Need detailed configuration
 - Troubleshooting extraction issues
 - Understanding quality metrics
 
 **Read [PDF Processing Deep Dive](../deep-dives/pdf-processing.md)** if:
+
 - Understanding internal algorithms
 - Custom table detection logic
 - Contributing to PDF crate
@@ -690,14 +731,17 @@ After upload, check `extraction_quality`:
 ### PDF Troubleshooting Quick Reference
 
 **No text extracted**:
+
 - ✅ Try `vision_mode: true`
 - ✅ Check PDF has text layer (not just images)
 
 **Tables not detected**:
+
 - ✅ Try `enhance_tables: true`
 - ✅ Check table has clear borders
 
 **Wrong text order**:
+
 - ✅ Try `multi_column: true`
 - ✅ Academic papers need this
 
@@ -708,11 +752,12 @@ After upload, check `extraction_quality`:
 ## Step 1: Understanding Chunks
 
 [Existing content continues...]
+
 ```
 
-**Lines**: 150  
-**Examples**: 5 (basic, enhanced, vision, chunking, entities)  
-**ASCII**: 0  
+**Lines**: 150
+**Examples**: 5 (basic, enhanced, vision, chunking, entities)
+**ASCII**: 0
 **Links**: 3 (tutorial, deep dive, troubleshooting)
 
 ---
@@ -723,12 +768,14 @@ After upload, check `extraction_quality`:
 
 **Current structure** (from observe.md):
 ```
+
 1. Server Startup Issues
 2. Document Processing Issues
 3. Query Issues
 4. Performance Issues
 5. Database Issues
-```
+
+````
 
 **Insert after**: Document Processing Issues (new section 3)
 
@@ -751,11 +798,12 @@ After upload, check `extraction_quality`:
 curl -F "file=@scanned_doc.pdf" \
      -F 'config={"vision_mode": true, "llm_provider": "openai"}' \
      http://localhost:8080/api/v1/workspaces/default/upload
-```
+````
 
 **Cost**: ~$0.001-0.01 per page (OpenAI GPT-4 Vision)
 
 **Verification**:
+
 - Check `extraction_quality` > 0.7
 - Check `chunks_created` > 0
 
@@ -768,6 +816,7 @@ curl -F "file=@scanned_doc.pdf" \
 **Cause**: Complex table layout (merged cells, nested tables)
 
 **Solution**:
+
 ```bash
 # Enable LLM-enhanced table detection
 curl -F "file=@financial_report.pdf" \
@@ -776,10 +825,12 @@ curl -F "file=@financial_report.pdf" \
 ```
 
 **Verification**:
+
 - Check `tables_detected` > 0
 - Check `quality_breakdown.table_detection` > 0.8
 
 **Limitations**:
+
 - Very complex tables (5+ merged cells) may still fail
 - Tables without borders harder to detect
 
@@ -790,6 +841,7 @@ curl -F "file=@financial_report.pdf" \
 **Symptom**: Text from different columns interleaved
 
 **Example**:
+
 ```
 # PDF layout:
 Column 1: "The results show..."
@@ -802,6 +854,7 @@ Column 2: "In conclusion..."
 **Cause**: PDF has multi-column layout (newspapers, academic papers)
 
 **Solution**:
+
 ```bash
 # Enable multi-column detection
 curl -F "file=@research_paper.pdf" \
@@ -810,6 +863,7 @@ curl -F "file=@research_paper.pdf" \
 ```
 
 **Verification**:
+
 - Read first few chunks - text should be in correct order
 
 ---
@@ -821,6 +875,7 @@ curl -F "file=@research_paper.pdf" \
 **Cause**: PDF uses custom fonts or non-standard encoding
 
 **Solution**:
+
 ```bash
 # LLM enhancement handles encoding issues
 curl -F "file=@doc.pdf" \
@@ -831,6 +886,7 @@ curl -F "file=@doc.pdf" \
 **Alternative**: If vision mode too slow/expensive, check PDF font embedding
 
 **Verification**:
+
 - Check extracted text for correct characters
 
 ---
@@ -840,24 +896,28 @@ curl -F "file=@doc.pdf" \
 **Symptom**: `extraction_quality < 0.7` after upload
 
 **Diagnosis**:
+
 1. Check `quality_breakdown` in response
 2. Identify weak component (text, tables, layout)
 
 **Solutions**:
 
 **Low text extraction** (< 0.7):
+
 ```bash
 # Try vision mode
 curl -F "file=@doc.pdf" -F 'config={"vision_mode": true}' http://...
 ```
 
 **Low table detection** (< 0.7):
+
 ```bash
 # Try enhanced tables
 curl -F "file=@doc.pdf" -F 'config={"enhance_tables": true}' http://...
 ```
 
 **Low layout analysis** (< 0.7):
+
 ```bash
 # Try multi-column + enhancements
 curl -F "file=@doc.pdf" \
@@ -872,6 +932,7 @@ curl -F "file=@doc.pdf" \
 ### When to Use Which Enhancement
 
 **Decision tree**:
+
 ```
 Is quality < 0.8?
   ├─ Yes: Check quality_breakdown
@@ -882,6 +943,7 @@ Is quality < 0.8?
 ```
 
 **Trade-offs**:
+
 - `vision_mode`: 10x slower, $0.001-0.01/page
 - `enhance_tables`: 2x slower, $0.0001/page
 - `multi_column`: Minimal overhead, free
@@ -916,11 +978,12 @@ println!("Tables: {}", result.tables.len());
 ## Query Issues
 
 [Existing content continues...]
+
 ```
 
-**Lines**: 120  
-**Examples**: 6 (vision, tables, multi-column, encoding, quality, Rust API)  
-**ASCII**: 1 (decision tree)  
+**Lines**: 120
+**Examples**: 6 (vision, tables, multi-column, encoding, quality, Rust API)
+**ASCII**: 1 (decision tree)
 **Links**: 1 (deep dive)
 
 ---
@@ -1062,16 +1125,16 @@ println!("Tables: {}", result.tables.len());
 
 ## Risk Mitigation
 
-**Risk**: Tutorial too long, users feel overwhelmed  
+**Risk**: Tutorial too long, users feel overwhelmed
 **Mitigation**: Clear section headers, "Read this section if..." callouts
 
-**Risk**: Examples don't work  
+**Risk**: Examples don't work
 **Mitigation**: Verify against actual API before commit
 
-**Risk**: Duplicate content with deep dive  
+**Risk**: Duplicate content with deep dive
 **Mitigation**: Tutorial = "How", Deep dive = "Why"
 
-**Risk**: Troubleshooting incomplete  
+**Risk**: Troubleshooting incomplete
 **Mitigation**: Focus on 80% of issues, link to GitHub for edge cases
 
 ---
@@ -1099,3 +1162,4 @@ println!("Tables: {}", result.tables.len());
 **Confidence**: 98% - Detailed plan ready, all content mapped
 
 **Next**: ACT phase to implement all 3 files and verify
+```

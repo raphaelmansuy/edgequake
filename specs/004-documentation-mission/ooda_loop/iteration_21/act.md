@@ -104,6 +104,7 @@ Successfully created 4 critical root-level documentation files as specified in I
     - Final encouragement to get started
 
 **Verification Checklist**:
+
 - ✅ All links verified to exist in docs/ structure
 - ✅ Make commands tested against Makefile
 - ✅ ASCII diagram renders correctly
@@ -145,6 +146,7 @@ Successfully created 4 critical root-level documentation files as specified in I
    - Full license header template
 
 **Verification**:
+
 - ✅ Text matches official Apache 2.0 from apache.org
 - ✅ Copyright attribution correct
 - ✅ Year range appropriate (2024-2026)
@@ -255,6 +257,7 @@ Successfully created 4 critical root-level documentation files as specified in I
     - "Thank you!" message
 
 **Verification**:
+
 - ✅ edgecode explanation accurate
 - ✅ Specification-Driven Development approach clear
 - ✅ Contact information correct
@@ -325,6 +328,7 @@ Successfully created 4 critical root-level documentation files as specified in I
    - Contact information
 
 **Verification**:
+
 - ✅ Contributor Covenant v2.1 text accurate
 - ✅ Contact method appropriate (GitHub Issues)
 - ✅ Raphaël MANSUY attribution correct
@@ -334,13 +338,13 @@ Successfully created 4 critical root-level documentation files as specified in I
 
 ## File Statistics
 
-| File                | Lines | Size    | Type           |
-| ------------------- | ----- | ------- | -------------- |
-| README.md           | 462   | 23 KB   | Markdown       |
-| LICENSE             | 201   | 11 KB   | Text           |
-| CONTRIBUTING.md     | 440   | 11 KB   | Markdown       |
-| CODE_OF_CONDUCT.md  | 134   | 5.5 KB  | Markdown       |
-| **Total**           | 1,237 | 50.5 KB | **Total**      |
+| File               | Lines | Size    | Type      |
+| ------------------ | ----- | ------- | --------- |
+| README.md          | 462   | 23 KB   | Markdown  |
+| LICENSE            | 201   | 11 KB   | Text      |
+| CONTRIBUTING.md    | 440   | 11 KB   | Markdown  |
+| CODE_OF_CONDUCT.md | 134   | 5.5 KB  | Markdown  |
+| **Total**          | 1,237 | 50.5 KB | **Total** |
 
 ---
 
@@ -349,6 +353,7 @@ Successfully created 4 critical root-level documentation files as specified in I
 ### Markdown Verification
 
 ✅ **README.md**:
+
 - All links resolve to existing files (verified against docs/ structure)
 - Badges render correctly
 - ASCII diagrams render correctly with proper spacing
@@ -357,6 +362,7 @@ Successfully created 4 critical root-level documentation files as specified in I
 - No broken internal links
 
 ✅ **CONTRIBUTING.md**:
+
 - Clear structure with hierarchical headings
 - Code examples syntactically correct
 - Links to AGENTS.md, CODE_OF_CONDUCT.md valid
@@ -364,12 +370,14 @@ Successfully created 4 critical root-level documentation files as specified in I
 - Contact information accurate
 
 ✅ **CODE_OF_CONDUCT.md**:
+
 - Follows Contributor Covenant v2.1 standard
 - Contact method appropriate
 - Enforcement guidelines clear
 - Attribution complete
 
 ✅ **LICENSE**:
+
 - Full Apache 2.0 text included
 - Copyright notice present
 - Year range appropriate (2024-2026)
@@ -377,16 +385,19 @@ Successfully created 4 critical root-level documentation files as specified in I
 ### Content Verification
 
 ✅ **Architecture Diagram**: Verified against source code
+
 - 11 crates accurately listed (from Cargo.toml)
 - Storage backends match configured options
 - LLM providers match implementation
 
 ✅ **Make Commands**: Verified against Makefile (lines 1-250)
+
 - 30+ commands accurately referenced
 - Descriptions match actual functionality
 - Syntax correct
 
 ✅ **Documentation Links**: All verified to exist
+
 - docs/README.md ✓
 - docs/getting-started/ ✓
 - docs/tutorials/ ✓
@@ -398,6 +409,7 @@ Successfully created 4 critical root-level documentation files as specified in I
 - docs/troubleshooting/ ✓
 
 ✅ **Performance Benchmarks**: Realistic values
+
 - Entity extraction: 2-3x improvement confirmed
 - Query latency: <200ms achievable with hybrid mode
 - Document processing: 25s measured in tests
@@ -407,17 +419,20 @@ Successfully created 4 critical root-level documentation files as specified in I
 ### Format Verification
 
 ✅ **Badges**:
+
 - Rust: https://img.shields.io/badge/rust-1.78+-orange.svg
 - License: https://img.shields.io/badge/license-Apache%202.0-blue.svg
 - Build: https://img.shields.io/badge/build-passing-brightgreen.svg
 - Documentation: https://img.shields.io/badge/docs-available-blue.svg
 
 ✅ **Links**:
+
 - All relative links use proper markdown format: [text](path/file.md)
 - No broken URLs
 - GitHub profile links use @username format
 
 ✅ **Code Examples**:
+
 - curl examples show proper syntax
 - JSON responses well-formatted
 - Command syntax correct
@@ -426,18 +441,18 @@ Successfully created 4 critical root-level documentation files as specified in I
 
 ## Verification Results Summary
 
-| Category           | Status | Notes                                    |
-| ------------------ | ------ | ---------------------------------------- |
-| File Creation      | ✅     | All 4 files created successfully         |
-| Line Count         | ✅     | Total 1,237 lines (within targets)       |
-| Markdown Format    | ✅     | All files render correctly               |
-| Link Validation    | ✅     | All links verified to exist              |
-| Content Accuracy   | ✅     | Verified against source code             |
-| Badge Rendering    | ✅     | All 4 badges render correctly            |
-| Architecture       | ✅     | Diagram matches actual system            |
-| Copyright Notice   | ✅     | "Copyright 2024-2026 Raphaël MANSUY"    |
-| edgecode Info      | ✅     | Accurate description and status          |
-| Code Examples      | ✅     | All syntactically correct                |
+| Category         | Status | Notes                                |
+| ---------------- | ------ | ------------------------------------ |
+| File Creation    | ✅     | All 4 files created successfully     |
+| Line Count       | ✅     | Total 1,237 lines (within targets)   |
+| Markdown Format  | ✅     | All files render correctly           |
+| Link Validation  | ✅     | All links verified to exist          |
+| Content Accuracy | ✅     | Verified against source code         |
+| Badge Rendering  | ✅     | All 4 badges render correctly        |
+| Architecture     | ✅     | Diagram matches actual system        |
+| Copyright Notice | ✅     | "Copyright 2024-2026 Raphaël MANSUY" |
+| edgecode Info    | ✅     | Accurate description and status      |
+| Code Examples    | ✅     | All syntactically correct            |
 
 ---
 
@@ -492,6 +507,7 @@ Successfully created 4 critical root-level documentation files as specified in I
 ## User Journey Improvement
 
 ### Before
+
 ```
 GitHub Landing Page
     ↓
@@ -505,6 +521,7 @@ Success (if persistent)
 ```
 
 ### After
+
 ```
 GitHub Landing Page
     ↓
@@ -528,6 +545,7 @@ Upload document → Query → Success
 > "Ensure we have a high signal README.md at the root of the project that links to all major documentation sections."
 
 **Status**: ✅ **COMPLETE**
+
 - README.md: 462 lines
 - Links to 20+ documentation sections
 - High signal content (value prop, quick start, architecture)
@@ -536,6 +554,7 @@ Upload document → Query → Success
 > "Ensure we have an Apache2 license file at the root of the project."
 
 **Status**: ✅ **COMPLETE**
+
 - LICENSE: 201 lines
 - Apache 2.0 standard text
 - Copyright: "Copyright 2024-2026 Raphaël MANSUY"
@@ -543,6 +562,7 @@ Upload document → Query → Success
 > "Ensure we have contributing guidelines at the root of the project that explain that the project is 100% automated by a SOTA coding agent called edgecode created by Raphaël MANSUY."
 
 **Status**: ✅ **COMPLETE**
+
 - CONTRIBUTING.md: 440 lines
 - edgecode SOTA coding agent explained
 - Specification-Driven Development approach detailed
@@ -553,6 +573,7 @@ Upload document → Query → Success
 > "Ensure we have a code of conduct file at the root of the project."
 
 **Status**: ✅ **COMPLETE**
+
 - CODE_OF_CONDUCT.md: 134 lines
 - Contributor Covenant v2.1
 - Enforcement guidelines included
@@ -569,11 +590,13 @@ Upload document → Query → Success
 **Rationale**: Frontend documentation needs improvement after root files are established.
 
 **Files to Create/Update**:
+
 1. `docs/architecture/webui.md` - React 19 + TypeScript architecture
 2. `docs/tutorials/frontend-development.md` - Frontend development guide
 3. `docs/deep-dives/streaming.md` - Real-time streaming implementation
 
 **Expected Output**: 500+ lines documenting:
+
 - Component structure
 - State management (Zustand)
 - API integration patterns
@@ -591,6 +614,7 @@ Upload document → Query → Success
 **Total Lines Added**: 1,237 lines
 
 **Affected Components**:
+
 - Root project documentation
 - GitHub discoverability
 - Contribution process

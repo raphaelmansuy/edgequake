@@ -10,6 +10,7 @@
 ### Current State
 
 **Existing Documentation** (43 files):
+
 - ✅ Getting Started: installation.md, quick-start.md
 - ✅ Architecture: overview.md, data-flow.md, crates/README.md
 - ✅ Concepts: graph-rag.md, entity-extraction.md, knowledge-graph.md, hybrid-retrieval.md
@@ -54,6 +55,7 @@ According to `specs/004-documentation-mission.md`:
 **Purpose**: Advanced PDF extraction with table detection, structure preservation, and multi-format support
 
 **Key Files Analyzed**:
+
 - `src/lib.rs` (85 lines) - Public API
 - `src/extractor.rs` (400+ lines) - Main extraction engine
 - `src/pipeline/mod.rs` (300+ lines) - Processing pipeline
@@ -62,6 +64,7 @@ According to `specs/004-documentation-mission.md`:
 - `tests/` - Comprehensive test suite
 
 **Cargo.toml Dependencies**:
+
 ```toml
 [dependencies]
 lopdf = "0.34"              # PDF parsing
@@ -149,6 +152,7 @@ encoding_rs = "0.8"         # Character encodings
 ### Test Coverage
 
 **Test Files Found**:
+
 - `tests/basic_tests.rs` - Basic extraction
 - `tests/edge_cases_tests.rs` - Edge cases
 - `tests/encodings_tests.rs` - Encoding handling
@@ -156,6 +160,7 @@ encoding_rs = "0.8"         # Character encodings
 - `tests/integration_tests.rs` - End-to-end
 
 **Test Data**:
+
 - 50+ test PDFs in `test-data/`
 - Real-world academic papers
 - Multi-page documents
@@ -177,6 +182,7 @@ encoding_rs = "0.8"         # Character encodings
 ### Comparison with Mission Spec
 
 **Mission requires**:
+
 - ✅ Code-first approach (we have the code)
 - ✅ ASCII diagrams (architecture discovered)
 - ✅ First Principles Thinking (understand WHY table detection works)
@@ -189,17 +195,18 @@ encoding_rs = "0.8"         # Character encodings
 
 ### Key Files to Document
 
-| File | Lines | Purpose | Priority |
-|------|-------|---------|----------|
-| `edgequake-pdf/src/lib.rs` | 85 | Public API | HIGH |
-| `edgequake-pdf/src/extractor.rs` | 400+ | Core extraction | HIGH |
-| `edgequake-pdf/src/table_detector.rs` | 250+ | Table detection | HIGH |
-| `edgequake-pdf/src/encodings/mod.rs` | 200+ | Encoding handling | MEDIUM |
-| `edgequake-pdf/src/pipeline/mod.rs` | 300+ | Processing pipeline | MEDIUM |
+| File                                  | Lines | Purpose             | Priority |
+| ------------------------------------- | ----- | ------------------- | -------- |
+| `edgequake-pdf/src/lib.rs`            | 85    | Public API          | HIGH     |
+| `edgequake-pdf/src/extractor.rs`      | 400+  | Core extraction     | HIGH     |
+| `edgequake-pdf/src/table_detector.rs` | 250+  | Table detection     | HIGH     |
+| `edgequake-pdf/src/encodings/mod.rs`  | 200+  | Encoding handling   | MEDIUM   |
+| `edgequake-pdf/src/pipeline/mod.rs`   | 300+  | Processing pipeline | MEDIUM   |
 
 ### Existing Internal Docs
 
 Found in `edgequake/crates/edgequake-pdf/docs/`:
+
 - `ARCHITECTURE.md` - Internal architecture
 - `TABLE_DETECTION.md` - Technical table detection
 - `EXTRACTION_ENGINE.md` - Engine internals

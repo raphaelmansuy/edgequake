@@ -3,6 +3,7 @@
 ## Session Summary
 
 ### Actions Performed
+
 1. **OODA-04**: Implemented multi-tenant queue metrics isolation
    - Added `get_queue_metrics_filtered(tenant_id, workspace_id)` to TaskStorage trait
    - Updated PostgreSQL and Memory storage implementations
@@ -29,17 +30,20 @@
    - No critical architectural issues found
 
 ### Decisions Made
+
 - Multi-tenancy enforcement via HTTP headers (X-Tenant-ID, X-Workspace-ID)
 - Test UUIDs: tenant=00000000-0000-0000-0000-000000000001, workspace=00000000-0000-0000-0000-000000000002
 - Button order follows standard dialog conventions (default action on right)
 
 ### Commits
+
 1. `6b34aa19` - OODA-04: Multi-tenant queue metrics isolation
 2. `d8b3f946` - Fix test failures from OODA-04 changes
 3. `dc801844` - OODA-05: Pipeline status button order
 4. `8e7772fa` - Fix doctests and add first principles analysis
 
 ### Test Results
+
 - ✅ 424 edgequake-api library tests pass
 - ✅ 773+ total edgequake-api tests pass (including e2e)
 - ✅ 40 edgequake-tasks tests pass
@@ -47,6 +51,7 @@
 - ✅ TypeScript compilation successful
 
 ### Lessons/Insights
+
 - Multi-tenancy enforcement requires updating all HTTP request helpers in tests
 - Task::new signature change cascades to all test files using Task creation
 - Dialog UX conventions: default action right, secondary left, focus on default
