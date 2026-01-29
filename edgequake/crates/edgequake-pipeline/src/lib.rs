@@ -78,7 +78,9 @@ pub use chunker::{
     ChunkingStrategy, ParagraphBoundaryChunking, SentenceBoundaryChunking, TextChunk,
     TokenBasedChunking,
 };
-pub use error::{PipelineError, Result};
+pub use error::{
+    ChunkExtractionOutcome, ChunkFailure, PipelineError, ResilientExtractionResult, Result,
+};
 pub use extractor::{
     EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult, GleaningConfig,
     GleaningExtractor, LLMExtractor, SOTAExtractor, SimpleExtractor,

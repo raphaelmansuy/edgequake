@@ -286,6 +286,9 @@ mod processing_stats_integration_tests {
             input_tokens: 3500,
             output_tokens: 1200,
             cost_usd: 0.00245,
+            successful_chunks: 5,
+            failed_chunks: 0,
+            chunk_errors: None,
             cost_breakdown: Some(CostBreakdownStats {
                 extraction_cost_usd: 0.00180,
                 extraction_input_tokens: 2500,
@@ -329,6 +332,9 @@ mod processing_stats_integration_tests {
             input_tokens: 2000,
             output_tokens: 800,
             cost_usd: 0.00156,
+            successful_chunks: 3,
+            failed_chunks: 0,
+            chunk_errors: None,
             cost_breakdown: Some(CostBreakdownStats {
                 extraction_cost_usd: 0.00120,
                 extraction_input_tokens: 1500,
@@ -739,6 +745,9 @@ mod cost_reporting_tests {
             input_tokens: 3000,
             output_tokens: 1000,
             cost_usd: 0.00200,
+            successful_chunks: 3,
+            failed_chunks: 0,
+            chunk_errors: None,
             cost_breakdown: Some(CostBreakdownStats {
                 extraction_cost_usd: 0.00140, // 70%
                 extraction_input_tokens: 2000,
