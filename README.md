@@ -409,13 +409,9 @@ We are committed to providing a welcoming and inclusive environment. Please read
 - **LinkedIn**: [@raphaelmansuy](https://www.linkedin.com/in/raphaelmansuy)
 - **Twitter/X**: [@raphaelmansuy](https://twitter.com/raphaelmansuy)
 
-### Author
+### Founder
 
-**Raphaël MANSUY**  
-Creator of EdgeQuake and edgecode SOTA coding agent
-
-- GitHub: [@raphaelmansuy](https://github.com/raphaelmansuy)
-- LinkedIn: [raphaelmansuy](https://www.linkedin.com/in/raphaelmansuy)
+**Raphaël MANSUY** 🇫🇷 🇭🇰 — Proud PR Citizen of France and Hong Kong, building the future of intelligent document retrieval systems from both continents.
 
 ---
 
@@ -436,10 +432,10 @@ Unless required by applicable law or agreed to in writing, software distributed 
 
 EdgeQuake is inspired by and builds upon the excellent work of:
 
-- **LightRAG**: The foundational algorithm ([arxiv.org/abs/2410.05779](https://arxiv.org/abs/2410.05779))
-- **GraphRAG**: Microsoft's knowledge graph approach
-- **Rust Community**: For the amazing async ecosystem (Tokio, Axum, SQLx)
-- **React Community**: For React 19 and the modern frontend stack
+- **LightRAG Research Paper** ([arxiv.org/abs/2410.05779](https://arxiv.org/abs/2410.05779)): We are grateful to the authors of the foundational LightRAG algorithm which powers the core knowledge graph extraction and retrieval capabilities in EdgeQuake. Their innovative approach to entity extraction, relationship mapping, and hybrid retrieval has been instrumental in our framework's design.
+- **GraphRAG**: Microsoft's knowledge graph approach and research contributions to the RAG field
+- **Rust Community**: For the amazing async ecosystem (Tokio, Axum, SQLx) that enables EdgeQuake's high performance
+- **React Community**: For React 19 and the modern frontend stack that powers our interactive UI
 
 ---
 
