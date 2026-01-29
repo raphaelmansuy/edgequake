@@ -13,7 +13,7 @@
  */
 
 import { getWebSocketClient } from "@/lib/websocket";
-import type { ChunkProgressEvent, ChunkFailureEvent } from "@/types/ingestion";
+import type { ChunkFailureEvent, ChunkProgressEvent } from "@/types/ingestion";
 import { useCallback, useEffect, useState } from "react";
 
 /**
@@ -143,7 +143,8 @@ export function useChunkProgress(): UseChunkProgressResult {
         lastUpdated: new Date(),
         // Preserve existing failure info
         failedChunks: existing?.failedChunks ?? [],
-        successfulChunks: data.chunk_index + 1 - (existing?.failedChunks.length ?? 0),
+        successfulChunks:
+          data.chunk_index + 1 - (existing?.failedChunks.length ?? 0),
       });
 
       return next;
@@ -205,7 +206,11 @@ export function useChunkProgress(): UseChunkProgressResult {
 
     // Register handler for chunk progress events
     const handleProgress = (message: unknown) => {
-      if (typeof message !== "object" || message === null || !("type" in message)) {
+      if (
+        typeof message !== "object" ||
+        message === null ||
+        !("type" in message)
+      ) {
         return;
       }
 

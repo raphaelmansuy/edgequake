@@ -140,6 +140,7 @@ interface ChunkProgressEvent {
 ### WebSocket Handler (websocket.rs)
 
 Currently emits via `ProgressBroadcaster`:
+
 - `Connected` / `StatusSnapshot`
 - `DocumentProgress` / `DocumentCompleted` / `DocumentFailed`
 - `ChunkProgress` (via emit_chunk_progress)
@@ -152,17 +153,17 @@ No table currently exists for storing failed chunks for retry.
 
 ## Integration Points Identified
 
-| Component | File | Current Method | Target Method | Change Type |
-|-----------|------|----------------|---------------|-------------|
-| Async processor | processor.rs | process_with_progress | process_with_resilience | Simple swap |
-| Sync handler | documents.rs | process | process_with_resilience | Simple swap |
-| WebSocket events | websocket.rs | ChunkProgress only | + ChunkFailed | New event |
-| PipelineState | pipeline_state.rs | emit_chunk_progress | + emit_chunk_failure | New method |
-| Frontend types | ingestion.ts | ChunkProgressEvent | + ChunkFailureEvent | New type |
-| Frontend hook | use-chunk-progress.ts | ChunkProgressState | + failedChunks | New field |
-| Database | N/A | N/A | failed_chunks table | New migration |
-| API | documents.rs | N/A | POST /retry-chunks | New endpoint |
-| Metrics | N/A | N/A | chunk_success/failure | New counters |
+| Component        | File                  | Current Method        | Target Method           | Change Type   |
+| ---------------- | --------------------- | --------------------- | ----------------------- | ------------- |
+| Async processor  | processor.rs          | process_with_progress | process_with_resilience | Simple swap   |
+| Sync handler     | documents.rs          | process               | process_with_resilience | Simple swap   |
+| WebSocket events | websocket.rs          | ChunkProgress only    | + ChunkFailed           | New event     |
+| PipelineState    | pipeline_state.rs     | emit_chunk_progress   | + emit_chunk_failure    | New method    |
+| Frontend types   | ingestion.ts          | ChunkProgressEvent    | + ChunkFailureEvent     | New type      |
+| Frontend hook    | use-chunk-progress.ts | ChunkProgressState    | + failedChunks          | New field     |
+| Database         | N/A                   | N/A                   | failed_chunks table     | New migration |
+| API              | documents.rs          | N/A                   | POST /retry-chunks      | New endpoint  |
+| Metrics          | N/A                   | N/A                   | chunk_success/failure   | New counters  |
 
 ## Observations Summary
 

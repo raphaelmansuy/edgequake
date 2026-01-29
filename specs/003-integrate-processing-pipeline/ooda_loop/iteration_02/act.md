@@ -11,6 +11,7 @@ Created the `FailedChunksCard` UI component and integrated it into the `Ingestio
 **File**: `edgequake_webui/src/components/documents/failed-chunks-card.tsx`
 
 Created a new component (~240 lines) that displays:
+
 - Summary badge showing success/failure counts and percentages
 - Expandable list of individual chunk failures
 - Timeout vs error type indicators (with icons)
@@ -18,6 +19,7 @@ Created a new component (~240 lines) that displays:
 - Individual retry buttons per failed chunk
 
 Features:
+
 - Uses shadcn/ui components (Card, Badge, Collapsible, Tooltip, Button)
 - Consistent styling with existing components
 - Dark mode support
@@ -33,16 +35,22 @@ Features:
 - Conditionally render `FailedChunksCard` after cost display when failed chunks exist
 
 ```tsx
-{/* SPEC-003: Display failed chunks if any */}
-{progress?.document_id && hasFailedChunks(progress.document_id) && (
-  <FailedChunksCard
-    documentId={progress.document_id}
-    failedChunks={getFailedChunks(progress.document_id)}
-    totalChunks={getProgress(progress.document_id)?.totalChunks ?? 0}
-    successfulChunks={getProgress(progress.document_id)?.successfulChunks ?? 0}
-    className="mt-3"
-  />
-)}
+{
+  /* SPEC-003: Display failed chunks if any */
+}
+{
+  progress?.document_id && hasFailedChunks(progress.document_id) && (
+    <FailedChunksCard
+      documentId={progress.document_id}
+      failedChunks={getFailedChunks(progress.document_id)}
+      totalChunks={getProgress(progress.document_id)?.totalChunks ?? 0}
+      successfulChunks={
+        getProgress(progress.document_id)?.successfulChunks ?? 0
+      }
+      className="mt-3"
+    />
+  );
+}
 ```
 
 ## UI Design

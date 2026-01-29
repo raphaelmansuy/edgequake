@@ -35,10 +35,7 @@
 //! This approach is superior to immediate high-load testing because it provides
 //! a complete performance profile rather than just pass/fail at max load.
 
-use axum::{
-    body::Body,
-    http::Request,
-};
+use axum::{body::Body, http::Request};
 use edgequake_api::{AppState, Server, ServerConfig};
 use serde_json::Value;
 use std::sync::{
@@ -74,11 +71,7 @@ struct PhaseMetrics {
 
 impl PhaseMetrics {
     /// Create metrics from upload results
-    fn from_results(
-        phase_name: &str,
-        results: &[UploadResult],
-        total_duration: Duration,
-    ) -> Self {
+    fn from_results(phase_name: &str, results: &[UploadResult], total_duration: Duration) -> Self {
         let success_results: Vec<_> = results.iter().filter(|r| r.success).collect();
         let mut durations: Vec<u64> = success_results.iter().map(|r| r.duration_ms).collect();
         durations.sort_unstable();
@@ -242,11 +235,7 @@ fn create_test_server() -> Server {
 }
 
 /// Upload a document and measure performance
-async fn upload_document(
-    app: axum::Router,
-    content: String,
-    title: String,
-) -> UploadResult {
+async fn upload_document(app: axum::Router, content: String, title: String) -> UploadResult {
     let start = Instant::now();
 
     let body = serde_json::json!({
@@ -521,7 +510,11 @@ async fn test_sustained_load() {
 
     while start.elapsed() < duration {
         let content = generate_test_content(ContentSize::Small);
-        let title = format!("sustained-{}-{}", chrono::Utc::now().timestamp_millis(), count);
+        let title = format!(
+            "sustained-{}-{}",
+            chrono::Utc::now().timestamp_millis(),
+            count
+        );
 
         let app = create_test_server().build_router();
         let result = upload_document(app, content, title).await;

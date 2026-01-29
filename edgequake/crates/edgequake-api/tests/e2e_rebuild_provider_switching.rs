@@ -106,11 +106,7 @@ async fn test_rebuild_embeddings_returns_updated_provider_config() {
     assert_eq!(workspace.embedding_dimension, 768);
 
     // Build app and call rebuild-embeddings with new config
-    let app = Server::new(
-        create_test_config(),
-        state.clone(),
-    )
-    .build_router();
+    let app = Server::new(create_test_config(), state.clone()).build_router();
 
     let rebuild_request = json!({
         "embedding_model": "mock-embed-v2",

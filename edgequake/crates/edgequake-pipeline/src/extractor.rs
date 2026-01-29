@@ -772,7 +772,7 @@ where
         //   Result: Adaptive OUTPUT limits match ACTUAL response complexity!
         //
         // ═══════════════════════════════════════════════════════════════════════════
-        
+
         let base_max_tokens = if chunk_size_bytes < 25_000 {
             4096 // <25KB: small documents, likely simple content
         } else if chunk_size_bytes < 75_000 {
@@ -838,7 +838,7 @@ where
         // 2. JSON parse errors (EOF, unclosed) → Response truncated mid-JSON (lines 897-928)
         //
         // ═══════════════════════════════════════════════════════════════════════════
-        
+
         const MAX_RETRIES: u32 = 3;
         let mut last_error = None;
         let mut current_max_tokens = base_max_tokens;
@@ -989,9 +989,10 @@ where
                     result
                         .metadata
                         .insert("parse_attempts".to_string(), serde_json::json!(attempt));
-                    result
-                        .metadata
-                        .insert("max_tokens_used".to_string(), serde_json::json!(current_max_tokens));
+                    result.metadata.insert(
+                        "max_tokens_used".to_string(),
+                        serde_json::json!(current_max_tokens),
+                    );
 
                     if attempt > 1 {
                         tracing::info!(
