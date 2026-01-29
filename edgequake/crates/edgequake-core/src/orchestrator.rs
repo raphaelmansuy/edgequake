@@ -347,7 +347,8 @@ impl EdgeQuakeConfig {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
+/// // Internal function - not part of public API
 /// let chunk_size = calculate_adaptive_chunk_size(30_000);  // 30KB → 1200 tokens
 /// let chunk_size = calculate_adaptive_chunk_size(80_000);  // 80KB → 800 tokens
 /// let chunk_size = calculate_adaptive_chunk_size(200_000); // 200KB → 600 tokens

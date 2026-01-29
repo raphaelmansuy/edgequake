@@ -36,6 +36,7 @@
 //! ```rust,no_run
 //! use edgequake_tasks::*;
 //! use std::sync::Arc;
+//! use uuid::Uuid;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create storage and queue
@@ -54,8 +55,12 @@
 //! // );
 //! // pool.start();
 //!
-//! // Create and enqueue a task
+//! // Create and enqueue a task with tenant/workspace context
+//! let tenant_id = Uuid::new_v4();
+//! let workspace_id = Uuid::new_v4();
 //! let task = types::Task::new(
+//!     tenant_id,
+//!     workspace_id,
 //!     types::TaskType::Upload,
 //!     serde_json::json!({"file_path": "/tmp/document.pdf"}),
 //! );

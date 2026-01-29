@@ -4,6 +4,9 @@
 
 Your mission is to integrate `process_with_resilience` into the API handler for production use, add metrics/telemetry for tracking chunk failure rates, implement a retry queue for failed chunks, and improve the UX/UI to provide real-time feedback during document ingestion and extraction.
 
+
+You must  speedup the tests and compilation where possible as it delays your development process significantly.
+
 ## Context
 
 - **Location**: `/Users/raphaelmansuy/Github/03-working/edgequake/`
@@ -264,6 +267,9 @@ Ensure all edge cases are covered and tested.
 
 Try to improve the test coverage where possible. 
 Try to improve the testing and compilation speed where possible.
+
+
+Add metrics tracking by tenant/workspace/document like document size.
 
 ## ⚠️ CRITICAL SAFETY MANDATE ⚠️
 
