@@ -44,14 +44,14 @@ Implemented chunk-level retry queue scaffolding with placeholder endpoints to en
 
 ## Current Status
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Retry DTOs | ✅ Complete | Full type definitions |
-| Retry Endpoints | ✅ Scaffolded | Return `implemented: false` |
-| Database Migration | ✅ Complete | Table schema with indexes |
-| Frontend API | ✅ Complete | Functions and types |
-| Frontend UI Wiring | ✅ Complete | Retry button calls API |
-| Full Retry Logic | ⏳ Pending | Requires chunk content storage |
+| Component          | Status        | Notes                          |
+| ------------------ | ------------- | ------------------------------ |
+| Retry DTOs         | ✅ Complete   | Full type definitions          |
+| Retry Endpoints    | ✅ Scaffolded | Return `implemented: false`    |
+| Database Migration | ✅ Complete   | Table schema with indexes      |
+| Frontend API       | ✅ Complete   | Functions and types            |
+| Frontend UI Wiring | ✅ Complete   | Retry button calls API         |
+| Full Retry Logic   | ⏳ Pending    | Requires chunk content storage |
 
 ## Commit
 
@@ -70,11 +70,13 @@ Implemented chunk-level retry queue scaffolding with placeholder endpoints to en
 ## Why Placeholder Approach
 
 Full chunk-level retry requires significant infrastructure:
+
 - Chunk content must be stored persistently (not just in memory)
 - Extraction must be callable on individual chunks
 - Results must merge with existing graph data
 
 By implementing the scaffolding first:
+
 1. Frontend integration can proceed immediately
 2. API contract is defined and stable
 3. Database schema is ready for data population

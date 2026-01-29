@@ -706,7 +706,7 @@ pub async fn upload_document(
                 total_chunks = result.stats.chunk_count,
                 "Document processed with partial success - some chunks failed extraction"
             );
-            
+
             // Emit WebSocket events for failed chunks
             if let Some(ref chunk_errors) = result.stats.chunk_errors {
                 for error_info in chunk_errors {

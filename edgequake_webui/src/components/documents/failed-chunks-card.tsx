@@ -15,32 +15,32 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from '@/components/ui/card';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { ChunkFailureInfo } from '@/hooks/use-chunk-progress';
 import { cn } from '@/lib/utils';
 import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  RefreshCw,
-  XCircle,
+    AlertTriangle,
+    ChevronDown,
+    ChevronUp,
+    Clock,
+    RefreshCw,
+    XCircle,
 } from 'lucide-react';
 import { useState } from 'react';
 

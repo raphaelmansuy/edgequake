@@ -255,7 +255,11 @@ async fn test_workspace_cascade_delete_clears_vectors() {
         vector[i] = 1.0;
         let doc_id = format!("doc_{}", i);
         storage
-            .upsert(&[(doc_id, vector, serde_json::json!({"workspace_id": workspace_id.to_string()}))])
+            .upsert(&[(
+                doc_id,
+                vector,
+                serde_json::json!({"workspace_id": workspace_id.to_string()}),
+            )])
             .await
             .unwrap();
     }
@@ -274,7 +278,11 @@ async fn test_workspace_cascade_delete_clears_vectors() {
     let storage_after = registry.get_or_create(config).await.unwrap();
     storage_after.initialize().await.unwrap();
     let results_after = storage_after.query(&search_vec, 100, None).await.unwrap();
-    assert_eq!(results_after.len(), 0, "Should have 0 vectors after cascade delete");
+    assert_eq!(
+        results_after.len(),
+        0,
+        "Should have 0 vectors after cascade delete"
+    );
 
     println!("✅ SPEC-028: Workspace cascade delete clears all vectors!");
 }
