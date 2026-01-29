@@ -25,10 +25,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useChunkProgress } from '@/hooks/use-chunk-progress';
 import { useIngestionProgress } from '@/hooks/use-ingestion-progress';
+import { retryFailedChunks } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
 import type { IngestionStage } from '@/types/ingestion';
 import { RefreshCw, X } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 interface IngestionProgressPanelProps {
   /** Track ID for the ingestion job */
@@ -67,6 +68,29 @@ export function IngestionProgressPanel({
   
   // SPEC-003: Get chunk-level progress including failed chunks
   const { getProgress, getFailedChunks, hasFailedChunks } = useChunkProgress();
+  
+  // OODA-03: State for chunk retry
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  // OODA-03: Handle chunk retry via API
+  const handleRetryChunks = useCallback(async (chunkIndices: number[]) => {
+    if (!progress?.document_id) return;
+    
+    setIsRetrying(true);
+    try {
+      const response = await retryFailedChunks(progress.document_id, chunkIndices);
+      // If not implemented, show a toast or log
+      if (!response.implemented) {
+        console.info('Chunk retry:', response.message);
+      }
+      // Refresh progress to pick up any changes
+      refetch();
+    } catch (error) {
+      console.error('Failed to retry chunks:', error);
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [progress?.document_id, refetch]);
 
   // Build stages from progress data
   const stages: Stage[] = useMemo(() => {
@@ -268,6 +292,8 @@ export function IngestionProgressPanel({
             failedChunks={getFailedChunks(progress.document_id)}
             totalChunks={getProgress(progress.document_id)?.totalChunks ?? 0}
             successfulChunks={getProgress(progress.document_id)?.successfulChunks ?? 0}
+            onRetry={handleRetryChunks}
+            isRetrying={isRetrying}
             className="mt-3"
           />
         )}

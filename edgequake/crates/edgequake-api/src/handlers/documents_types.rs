@@ -769,6 +769,96 @@ pub struct RecoverStuckResponse {
 }
 
 // ============================================================================
+// Retry Chunks DTOs
+// ============================================================================
+
+/// Request to retry failed chunks for a document.
+///
+/// @implements FEAT0401
+///
+/// # OODA-03: Chunk-Level Retry Queue
+///
+/// Allows retrying specific failed chunks without reprocessing the entire document.
+/// This is more efficient for large documents where only a few chunks failed.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct RetryChunksRequest {
+    /// Specific chunk indices to retry. If empty, retries all failed chunks for the document.
+    #[serde(default)]
+    pub chunk_indices: Vec<usize>,
+
+    /// Force retry even if chunk already succeeded. Default: false.
+    #[serde(default)]
+    pub force: bool,
+
+    /// Maximum number of retry attempts per chunk.
+    #[serde(default = "default_max_chunk_retries")]
+    pub max_retries: usize,
+}
+
+/// Default maximum retry attempts for chunks.
+pub fn default_max_chunk_retries() -> usize {
+    3
+}
+
+/// Response from retry chunks operation.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RetryChunksResponse {
+    /// Document ID.
+    pub document_id: String,
+
+    /// Number of chunks queued for retry.
+    pub chunks_queued: usize,
+
+    /// Specific chunk indices being retried.
+    pub chunk_indices: Vec<usize>,
+
+    /// Status message.
+    pub message: String,
+
+    /// Whether the feature is fully implemented.
+    /// When false, the endpoint accepts the request but retry is not yet processed.
+    pub implemented: bool,
+}
+
+/// Information about a failed chunk for retry purposes.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct FailedChunkInfo {
+    /// Chunk index within the document.
+    pub chunk_index: usize,
+
+    /// Chunk identifier (e.g., "doc-xxx-chunk-0").
+    pub chunk_id: String,
+
+    /// Error message from the failed extraction.
+    pub error_message: String,
+
+    /// Whether the failure was due to timeout.
+    pub was_timeout: bool,
+
+    /// Number of retry attempts so far.
+    pub retry_attempts: usize,
+
+    /// Current status: pending, retrying, succeeded, abandoned.
+    pub status: String,
+}
+
+/// Response listing failed chunks for a document.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ListFailedChunksResponse {
+    /// Document ID.
+    pub document_id: String,
+
+    /// List of failed chunks.
+    pub failed_chunks: Vec<FailedChunkInfo>,
+
+    /// Total number of chunks in the document.
+    pub total_chunks: usize,
+
+    /// Number of successful chunks.
+    pub successful_chunks: usize,
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 

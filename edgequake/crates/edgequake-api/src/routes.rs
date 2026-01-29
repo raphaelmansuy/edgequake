@@ -220,6 +220,15 @@ fn api_v1_routes() -> Router<AppState> {
             "/documents/{document_id}/deletion-impact",
             get(handlers::analyze_deletion_impact),
         )
+        // OODA-03: Chunk-level retry endpoints - MUST come before /documents/{document_id}
+        .route(
+            "/documents/{document_id}/retry-chunks",
+            post(handlers::retry_failed_chunks),
+        )
+        .route(
+            "/documents/{document_id}/failed-chunks",
+            get(handlers::list_failed_chunks),
+        )
         // Document by ID - comes last because {document_id} matches any path segment
         .route("/documents/{document_id}", get(handlers::get_document))
         .route(
