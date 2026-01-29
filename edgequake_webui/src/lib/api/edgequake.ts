@@ -588,6 +588,96 @@ export async function reprocessFailedDocuments(): Promise<ReprocessFailedRespons
 }
 
 // ============================================================================
+// Chunk Retry (OODA-03)
+// ============================================================================
+
+/**
+ * Response from retry chunks endpoint.
+ */
+export interface RetryChunksResponse {
+  /** Document ID */
+  document_id: string;
+  /** Number of chunks queued for retry */
+  chunks_queued: number;
+  /** Specific chunk indices being retried */
+  chunk_indices: number[];
+  /** Status message */
+  message: string;
+  /** Whether the feature is fully implemented */
+  implemented: boolean;
+}
+
+/**
+ * Information about a failed chunk.
+ */
+export interface FailedChunkApiInfo {
+  /** Chunk index within the document */
+  chunk_index: number;
+  /** Chunk identifier */
+  chunk_id: string;
+  /** Error message from the failed extraction */
+  error_message: string;
+  /** Whether the failure was due to timeout */
+  was_timeout: boolean;
+  /** Number of retry attempts so far */
+  retry_attempts: number;
+  /** Current status: pending, retrying, succeeded, abandoned */
+  status: string;
+}
+
+/**
+ * Response from list failed chunks endpoint.
+ */
+export interface ListFailedChunksResponse {
+  /** Document ID */
+  document_id: string;
+  /** List of failed chunks */
+  failed_chunks: FailedChunkApiInfo[];
+  /** Total number of chunks in the document */
+  total_chunks: number;
+  /** Number of successful chunks */
+  successful_chunks: number;
+}
+
+/**
+ * Retry failed chunks for a specific document.
+ *
+ * @implements OODA-03 - Chunk-level retry queue
+ *
+ * Note: This is a scaffolding endpoint. Full implementation pending.
+ * Currently returns a placeholder response with implemented=false.
+ *
+ * @param documentId The ID of the document
+ * @param chunkIndices Specific chunk indices to retry. If empty, retries all failed chunks.
+ * @param force Whether to force retry even if chunk already succeeded
+ */
+export async function retryFailedChunks(
+  documentId: string,
+  chunkIndices: number[] = [],
+  force: boolean = false,
+): Promise<RetryChunksResponse> {
+  return api.post<RetryChunksResponse>(
+    `/documents/${documentId}/retry-chunks`,
+    { chunk_indices: chunkIndices, force, max_retries: 3 },
+  );
+}
+
+/**
+ * List failed chunks for a document.
+ *
+ * @implements OODA-03 - Chunk-level retry queue
+ *
+ * @param documentId The ID of the document
+ */
+export async function listFailedChunks(
+  documentId: string,
+): Promise<ListFailedChunksResponse> {
+  return api.get<ListFailedChunksResponse>(
+    `/documents/${documentId}/failed-chunks`,
+  );
+}
+
+// ============================================================================
 // Query
 // ============================================================================
 
@@ -1330,6 +1420,8 @@ export const edgequakeApi = {
   reprocessDocument,
   scanDocuments,
   reprocessFailedDocuments,
+  retryFailedChunks,
+  listFailedChunks,
 
   // Query
   query,
