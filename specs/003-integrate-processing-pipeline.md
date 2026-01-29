@@ -147,4 +147,120 @@ Ensure Perfect Multi Tenant Isolation
 
 Ensure to use business oriented information in the UI --> documentant name / chunk index instead of internal ids. Id are ok but must be complemented with business oriented information.
 
-Ensure Perfect Multi Tenant Isolation
+## Ensure Perfect Multi Tenant Isolation
+
+## Extended Requirements (OODA-04+)
+
+### 1. Multi-Tenant Isolation for Live Indicators
+
+**Problem**: The live indicator shows activity from ALL tenants/workspaces. Users in one workspace see processing status from other workspaces.
+
+**Requirement**:
+
+- Live status indicator MUST only show activity for the current tenant/workspace
+- Queue metrics MUST be filtered by tenant/workspace
+- Pipeline status modal MUST only show documents from current workspace
+- Task Queue panel MUST be tenant-isolated
+
+### 2. Pipeline UX/UI Improvements
+
+**Problem**: Pipeline feedback is not clear enough about document-level and global progress.
+
+**Requirements**:
+
+- Show document name (not just ID) in progress messages
+- Display chunk progress: "Chunk 5/23 extracted"
+- Show extraction quality metrics: entity count, relationship count per chunk
+- Show estimated time remaining based on chunk processing rate
+- Display cost breakdown per document in real-time
+- Make progress visualization more intuitive (stage-based)
+
+### 3. Pipeline Status Modal Improvements
+
+**Problem**: Default action is "Cancel Pipeline" which is destructive.
+
+**Requirements**:
+
+- Default button MUST be "Close" (non-destructive)
+- "Cancel Pipeline" should require confirmation or be secondary
+- Show document names alongside IDs in messages
+- Show total progress bar for all pending documents
+
+### 4. Integration & Deletion Verification
+
+**Requirements**:
+
+- When uploading 3 documents to a workspace:
+  - All entities MUST be stored in Knowledge Graph
+  - All embeddings MUST be stored in vector storage
+  - Query API MUST return relevant results
+- When deleting documents:
+  - All entities/relationships MUST be properly removed or updated
+  - Embeddings MUST be deleted
+  - Query results MUST no longer include deleted content
+- Create automated test to verify this flow
+
+### 5. Test Validation
+
+**Requirements**:
+
+- All Rust tests MUST pass (`cargo test`)
+- All TypeScript tests MUST pass (`pnpm test`)
+- All E2E tests MUST pass (`playwright test`)
+- No regressions in existing functionality
+
+### 6. First Principles Improvements
+
+**Analysis Areas**:
+
+- Chunking strategy optimization
+- Parallel extraction efficiency
+- LLM call batching opportunities
+- Caching strategies for repeated entities
+- Error recovery mechanisms
+
+**Evaluation Criteria**:
+
+- Value: Does it improve user experience or system reliability?
+- Risk: Could it introduce regressions?
+- Effort: Is the implementation cost justified?
+
+### 7. Full Verification
+
+**Requirements**:
+
+- Manual E2E testing of complete ingestion flow
+- Verify multi-tenant isolation with multiple workspaces
+- Load testing with concurrent uploads
+- Documentation of all changes
+
+---
+
+## Current Progress
+
+### Completed (OODA 01-03)
+
+- [x] Backend integration of `process_with_resilience` (commit: 2b46ae90)
+- [x] WebSocket ChunkFailure events for real-time notification
+- [x] FailedChunksCard component (commit: d7bc0a41)
+- [x] Retry queue database migration (021_add_failed_chunks_table.sql)
+- [x] Retry API endpoint scaffolding (commit: 55d8d4c2)
+- [x] Frontend retry button wiring
+
+### In Progress (OODA 04+)
+
+- [ ] Multi-tenant isolation for live indicators
+- [ ] Pipeline UX/UI improvements
+- [ ] Pipeline status modal improvements
+- [ ] Integration & deletion verification
+- [ ] Test validation
+- [ ] First principles improvements
+- [ ] Full verification
+
+---
+
+## ⚠️ CRITICAL SAFETY MANDATE ⚠️
+
+**YOU MUST RE-READ THIS ENTIRE MISSION FILE AT THE START OF EVERY OODA ITERATION.**
+
+Failure to re-read causes alignment drift → catastrophic safety issues → user frustration → system unreliability.

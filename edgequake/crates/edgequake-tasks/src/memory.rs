@@ -174,7 +174,11 @@ impl TaskStorage for MemoryTaskStorage {
         Ok(stats)
     }
 
-    async fn get_queue_metrics(&self) -> TaskResult<QueueMetrics> {
+    async fn get_queue_metrics_filtered(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+        workspace_id: Option<uuid::Uuid>,
+    ) -> TaskResult<QueueMetrics> {
         use crate::types::TaskStatus;
         use chrono::Utc;
 
@@ -191,6 +195,19 @@ impl TaskStorage for MemoryTaskStorage {
         let five_minutes_ago = now - chrono::Duration::minutes(5);
 
         for task in tasks.values() {
+            // OODA-04: Filter by tenant_id and workspace_id for multi-tenant isolation
+            // WHY: Queue metrics MUST be scoped to the current tenant/workspace.
+            if let Some(tid) = tenant_id {
+                if task.tenant_id != tid {
+                    continue;
+                }
+            }
+            if let Some(wid) = workspace_id {
+                if task.workspace_id != wid {
+                    continue;
+                }
+            }
+
             match task.status {
                 TaskStatus::Pending => {
                     pending_count += 1;

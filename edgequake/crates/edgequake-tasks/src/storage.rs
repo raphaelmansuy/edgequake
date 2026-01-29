@@ -39,7 +39,33 @@ pub trait TaskStorage: Send + Sync {
     /// - Average and max wait times
     /// - Throughput (docs/minute)
     /// - Worker utilization
-    async fn get_queue_metrics(&self) -> TaskResult<QueueMetrics>;
+    ///
+    /// **DEPRECATED**: Use `get_queue_metrics_filtered` for tenant isolation.
+    async fn get_queue_metrics(&self) -> TaskResult<QueueMetrics> {
+        self.get_queue_metrics_filtered(None, None).await
+    }
+
+    /// Get queue metrics filtered by tenant and workspace.
+    ///
+    /// @implements OODA-04: Multi-tenant isolation for queue metrics
+    ///
+    /// WHY: Queue metrics MUST respect tenant isolation to prevent cross-tenant
+    /// data leakage. Without filtering, a user in workspace A could see the
+    /// processing activity of workspace B, violating privacy and causing confusion.
+    ///
+    /// # Arguments
+    ///
+    /// * `tenant_id` - Optional tenant filter. If None, metrics for all tenants.
+    /// * `workspace_id` - Optional workspace filter. If None, metrics for all workspaces.
+    ///
+    /// # Returns
+    ///
+    /// Queue metrics filtered to the specified tenant/workspace scope.
+    async fn get_queue_metrics_filtered(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+        workspace_id: Option<uuid::Uuid>,
+    ) -> TaskResult<QueueMetrics>;
 }
 
 /// Task filter criteria
