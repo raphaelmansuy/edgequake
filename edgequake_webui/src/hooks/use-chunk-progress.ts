@@ -3,6 +3,7 @@
  * @description Hook for tracking chunk-level progress via WebSocket.
  *
  * @implements SPEC-001/Objective-A: Chunk-Level Progress Visibility
+ * @implements SPEC-003: Chunk-level resilience with failure visibility
  * @implements UC0007 - User monitors document processing progress
  * @implements FEAT0019 - Chunk-level progress tracking
  *
@@ -12,8 +13,26 @@
  */
 
 import { getWebSocketClient } from "@/lib/websocket";
-import type { ChunkProgressEvent } from "@/types/ingestion";
+import type { ChunkProgressEvent, ChunkFailureEvent } from "@/types/ingestion";
 import { useCallback, useEffect, useState } from "react";
+
+/**
+ * Information about a single failed chunk.
+ *
+ * @implements SPEC-003: Chunk-level resilience with failure visibility
+ */
+export interface ChunkFailureInfo {
+  /** Failed chunk index (0-based) */
+  chunkIndex: number;
+  /** Error message describing the failure */
+  errorMessage: string;
+  /** Whether the failure was due to timeout */
+  wasTimeout: boolean;
+  /** Number of retry attempts before giving up */
+  retryAttempts: number;
+  /** Timestamp when failure was reported */
+  failedAt: Date;
+}
 
 /**
  * Chunk progress state for a single document.
@@ -43,6 +62,10 @@ export interface ChunkProgressState {
   costUsd: number;
   /** Timestamp of last update */
   lastUpdated: Date;
+  /** SPEC-003: List of failed chunks for this document */
+  failedChunks: ChunkFailureInfo[];
+  /** Number of successfully processed chunks */
+  successfulChunks: number;
 }
 
 /**
@@ -57,6 +80,10 @@ interface UseChunkProgressResult {
   hasActiveProgress: boolean;
   /** Clear all progress data */
   clearProgress: () => void;
+  /** SPEC-003: Get failed chunks for a document */
+  getFailedChunks: (documentId: string) => ChunkFailureInfo[];
+  /** SPEC-003: Check if a document has failed chunks */
+  hasFailedChunks: (documentId: string) => boolean;
 }
 
 /**
@@ -64,12 +91,15 @@ interface UseChunkProgressResult {
  *
  * Usage:
  * ```tsx
- * const { chunkProgress, getProgress, hasActiveProgress } = useChunkProgress();
+ * const { chunkProgress, getProgress, hasActiveProgress, getFailedChunks } = useChunkProgress();
  *
  * // Get progress for a specific document
  * const progress = getProgress("doc-123");
  * if (progress) {
  *   console.log(`${progress.chunkIndex}/${progress.totalChunks} (${progress.percentComplete}%)`);
+ *   if (progress.failedChunks.length > 0) {
+ *     console.log(`${progress.failedChunks.length} chunks failed`);
+ *   }
  * }
  * ```
  */
@@ -84,6 +114,7 @@ export function useChunkProgress(): UseChunkProgressResult {
 
     setProgressMap((prev) => {
       const next = new Map(prev);
+      const existing = next.get(data.document_id);
 
       // Calculate percent complete
       const percentComplete =
@@ -110,7 +141,59 @@ export function useChunkProgress(): UseChunkProgressResult {
         tokensOut: data.tokens_out,
         costUsd: data.cost_usd,
         lastUpdated: new Date(),
+        // Preserve existing failure info
+        failedChunks: existing?.failedChunks ?? [],
+        successfulChunks: data.chunk_index + 1 - (existing?.failedChunks.length ?? 0),
       });
+
+      return next;
+    });
+  }, []);
+
+  // SPEC-003: Handle incoming chunk failure events
+  const handleChunkFailure = useCallback((event: ChunkFailureEvent) => {
+    const { data } = event;
+
+    setProgressMap((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(data.document_id);
+
+      const failureInfo: ChunkFailureInfo = {
+        chunkIndex: data.chunk_index,
+        errorMessage: data.error_message,
+        wasTimeout: data.was_timeout,
+        retryAttempts: data.retry_attempts,
+        failedAt: new Date(),
+      };
+
+      if (existing) {
+        // Add to existing progress state
+        const updatedFailures = [...existing.failedChunks, failureInfo];
+        next.set(data.document_id, {
+          ...existing,
+          failedChunks: updatedFailures,
+          successfulChunks: existing.chunkIndex + 1 - updatedFailures.length,
+          lastUpdated: new Date(),
+        });
+      } else {
+        // Create new entry for document we haven't seen progress for yet
+        next.set(data.document_id, {
+          documentId: data.document_id,
+          taskId: data.task_id,
+          chunkIndex: 0,
+          totalChunks: data.total_chunks,
+          chunkPreview: "",
+          percentComplete: 0,
+          avgTimeMs: 0,
+          etaSeconds: 0,
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          lastUpdated: new Date(),
+          failedChunks: [failureInfo],
+          successfulChunks: 0,
+        });
+      }
 
       return next;
     });
@@ -122,28 +205,50 @@ export function useChunkProgress(): UseChunkProgressResult {
 
     // Register handler for chunk progress events
     const handleProgress = (message: unknown) => {
+      if (typeof message !== "object" || message === null || !("type" in message)) {
+        return;
+      }
+
+      const msgType = (message as { type: string }).type;
+
       // Type guard for chunk progress events
-      if (
-        typeof message === "object" &&
-        message !== null &&
-        "type" in message &&
-        (message as { type: string }).type === "ChunkProgress"
-      ) {
+      if (msgType === "ChunkProgress") {
         handleChunkProgress(message as ChunkProgressEvent);
+      }
+      // SPEC-003: Type guard for chunk failure events
+      else if (msgType === "ChunkFailure") {
+        handleChunkFailure(message as ChunkFailureEvent);
       }
     };
 
-    // Add listener for progress events (which includes ChunkProgress)
+    // Add listener for progress events (which includes ChunkProgress and ChunkFailure)
     client.on("progress", handleProgress);
 
     return () => {
       client.off("progress", handleProgress);
     };
-  }, [handleChunkProgress]);
+  }, [handleChunkProgress, handleChunkFailure]);
 
   // Get progress for a specific document
   const getProgress = useCallback(
     (documentId: string) => progressMap.get(documentId),
+    [progressMap],
+  );
+
+  // SPEC-003: Get failed chunks for a document
+  const getFailedChunks = useCallback(
+    (documentId: string): ChunkFailureInfo[] => {
+      return progressMap.get(documentId)?.failedChunks ?? [];
+    },
+    [progressMap],
+  );
+
+  // SPEC-003: Check if a document has failed chunks
+  const hasFailedChunks = useCallback(
+    (documentId: string): boolean => {
+      const failures = progressMap.get(documentId)?.failedChunks;
+      return failures !== undefined && failures.length > 0;
+    },
     [progressMap],
   );
 
@@ -163,6 +268,8 @@ export function useChunkProgress(): UseChunkProgressResult {
     getProgress,
     hasActiveProgress,
     clearProgress,
+    getFailedChunks,
+    hasFailedChunks,
   };
 }
 

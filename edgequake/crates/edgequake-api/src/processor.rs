@@ -625,13 +625,43 @@ impl DocumentTaskProcessor {
                 );
             });
 
-        // Process through pipeline with chunk-level progress callback
-        // WHY: This enables real-time visibility into extraction progress per chunk
+        // SPEC-003: Process through pipeline with RESILIENT chunk-level extraction
+        // WHY: Uses map-reduce pattern to continue processing even if some chunks fail
+        // This enables partial results instead of complete document failure
+        // @implements FEAT0020: Chunk-level resilience and error isolation
+        // @implements UC2305: System continues processing when individual chunks fail
         let result = match pipeline
-            .process_with_progress(&document_id, &data.text, Some(chunk_progress_callback))
+            .process_with_resilience(&document_id, &data.text, Some(chunk_progress_callback))
             .await
         {
-            Ok(result) => result,
+            Ok(result) => {
+                // SPEC-003: Log partial success if some chunks failed
+                if result.stats.failed_chunks > 0 {
+                    warn!(
+                        document_id = %document_id,
+                        successful_chunks = result.stats.successful_chunks,
+                        failed_chunks = result.stats.failed_chunks,
+                        total_chunks = result.stats.chunk_count,
+                        "Document processed with partial success - some chunks failed extraction"
+                    );
+
+                    // Emit WebSocket events for failed chunks
+                    if let Some(ref chunk_errors) = result.stats.chunk_errors {
+                        for error_info in chunk_errors {
+                            self.pipeline_state.emit_chunk_failure(
+                                document_id.clone(),
+                                task.track_id.clone(),
+                                error_info.chunk_index as u32,
+                                result.stats.chunk_count as u32,
+                                error_info.error_message.clone(),
+                                error_info.was_timeout,
+                                error_info.retry_attempts,
+                            );
+                        }
+                    }
+                }
+                result
+            }
             Err(e) => {
                 let error_msg = format!("Pipeline processing failed: {}", e);
                 error!("{}", error_msg);
