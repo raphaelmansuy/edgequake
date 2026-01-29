@@ -6,6 +6,7 @@
  * @implements UC0007 - User monitors document processing progress
  * @implements FEAT0602 - Real-time progress indicators
  * @implements FEAT0760 - Stage-based progress visualization
+ * @implements SPEC-003 - Chunk-level resilience with failure visibility
  *
  * @enforces BR0760 - Progress updates at least every 5 seconds
  * @enforces BR0761 - ETA shown when processing active
@@ -14,6 +15,7 @@
 'use client';
 
 import { CostBadge } from '@/components/documents/cost-badge';
+import { FailedChunksCard } from '@/components/documents/failed-chunks-card';
 import { EtaDisplay } from '@/components/progress/eta-display';
 import { LiveMessage } from '@/components/progress/live-message';
 import { StageIndicator, createDefaultStages, type Stage } from '@/components/progress/stage-indicator';
@@ -21,6 +23,7 @@ import { AnimatedProgress } from '@/components/shared/animated-progress';
 import { WebSocketStatusDot } from '@/components/shared/websocket-status';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useChunkProgress } from '@/hooks/use-chunk-progress';
 import { useIngestionProgress } from '@/hooks/use-ingestion-progress';
 import { cn } from '@/lib/utils';
 import type { IngestionStage } from '@/types/ingestion';
@@ -61,6 +64,9 @@ export function IngestionProgressPanel({
   className,
 }: IngestionProgressPanelProps) {
   const { progress, isLive, isLoading, cost, cancel, refetch } = useIngestionProgress(trackId);
+  
+  // SPEC-003: Get chunk-level progress including failed chunks
+  const { getProgress, getFailedChunks, hasFailedChunks } = useChunkProgress();
 
   // Build stages from progress data
   const stages: Stage[] = useMemo(() => {
@@ -254,6 +260,17 @@ export function IngestionProgressPanel({
             showBreakdown={cost > 0}
           />
         </div>
+
+        {/* SPEC-003: Display failed chunks if any */}
+        {progress?.document_id && hasFailedChunks(progress.document_id) && (
+          <FailedChunksCard
+            documentId={progress.document_id}
+            failedChunks={getFailedChunks(progress.document_id)}
+            totalChunks={getProgress(progress.document_id)?.totalChunks ?? 0}
+            successfulChunks={getProgress(progress.document_id)?.successfulChunks ?? 0}
+            className="mt-3"
+          />
+        )}
       </CardContent>
     </Card>
   );
