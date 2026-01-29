@@ -656,17 +656,11 @@ export function PipelineStatusDialog({
               )}
 
               {/* REQ-23: Close button that closes dialog WITHOUT stopping rebuild */}
+              {/* OODA-05: Reorder buttons - Close is default action (right side), Cancel is secondary (left side) */}
               <div className="flex gap-2">
+                {/* Cancel Button - secondary action on the left */}
                 <Button
                   variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  className="flex-1"
-                >
-                  {t('common.close', 'Close')}
-                </Button>
-                {/* Cancel Button - stops the rebuild */}
-                <Button
-                  variant="destructive"
                   onClick={handleCancelClick}
                   disabled={cancelMutation.isPending || data.cancellation_requested}
                   className="flex-1"
@@ -680,6 +674,15 @@ export function PipelineStatusDialog({
                     ? t('pipeline.cancelPending', 'Cancellation Pending...')
                     : t('pipeline.cancel', 'Cancel Pipeline')
                   }
+                </Button>
+                {/* Close Button - default action on the right */}
+                <Button
+                  variant="default"
+                  onClick={() => onOpenChange(false)}
+                  className="flex-1"
+                  autoFocus
+                >
+                  {t('common.close', 'Close')}
                 </Button>
               </div>
             </div>
