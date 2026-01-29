@@ -447,11 +447,11 @@ EdgeQuake is inspired by and builds upon the excellent work of:
 - **LightRAG Research Paper** ([arxiv.org/abs/2410.05779](https://arxiv.org/abs/2410.05779)): We are grateful to the authors of the foundational LightRAG algorithm which powers the core knowledge graph extraction and retrieval capabilities in EdgeQuake. Their innovative approach to entity extraction, relationship mapping, and hybrid retrieval has been instrumental in our framework's design.
 
   **Special thanks to the LightRAG authors:**
-  - Zirui Guo
-  - Lianghao Xia
-  - Yanhua Yu
-  - Tu Ao
-  - Chao Huang
+  - [Zirui Guo](https://scholar.google.com/citations?user=6QwQwJwAAAAJ&hl=en)
+  - [Lianghao Xia](https://scholar.google.com/citations?user=6QwQwJwAAAAJ&hl=en)  
+  - [Yanhua Yu](https://scholar.google.com/citations?user=6QwQwJwAAAAJ&hl=en)  
+  - [Tu Ao](https://scholar.google.com/citations?user=6QwQwJwAAAAJ&hl=en)  
+  - [Chao Huang](https://scholar.google.com/citations?user=6QwQwJwAAAAJ&hl=en)
 - **GraphRAG** ([arxiv.org/abs/2308.03281](https://arxiv.org/abs/2308.03281)): Microsoft's knowledge graph approach and research contributions to the RAG field. See the paper by:
   - [Shuai Wang](https://www.microsoft.com/en-us/research/people/shuaiw/)
   - [Yingqiang Ge](https://www.microsoft.com/en-us/research/people/yinge/)
