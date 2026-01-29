@@ -376,8 +376,19 @@ impl TaskStorage for PostgresTaskStorage {
         })
     }
 
-    async fn get_queue_metrics(&self) -> TaskResult<QueueMetrics> {
-        // Get basic counts and wait time metrics in one query
+    async fn get_queue_metrics_filtered(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+        workspace_id: Option<uuid::Uuid>,
+    ) -> TaskResult<QueueMetrics> {
+        // OODA-04: Add tenant/workspace filtering for multi-tenant isolation
+        //
+        // WHY: Queue metrics MUST be scoped to the current tenant/workspace.
+        // Without this filter, users see processing activity from ALL workspaces,
+        // which is a privacy violation and causes user confusion.
+        //
+        // The filter uses ($1::uuid IS NULL OR tenant_id = $1) pattern to make
+        // parameters optional - if None is passed, no filtering is applied.
         let row = sqlx::query(
             r#"
             SELECT
@@ -392,8 +403,12 @@ impl TaskStorage for PostgresTaskStorage {
                     AND completed_at > NOW() - INTERVAL '5 minutes'
                 ) as recent_completed
             FROM tasks
+            WHERE ($1::uuid IS NULL OR tenant_id = $1)
+              AND ($2::uuid IS NULL OR workspace_id = $2)
             "#,
         )
+        .bind(tenant_id)
+        .bind(workspace_id)
         .fetch_one(&*self.pool)
         .await
         .map_err(|e| TaskError::StorageError(format!("Failed to get queue metrics: {}", e)))?;

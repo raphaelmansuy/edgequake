@@ -1363,12 +1363,31 @@ export async function requestPipelineCancellation(): Promise<{
  *
  * @implements FEAT0570 - Queue metrics API
  * @implements OODA-21 - Queue metrics frontend integration
+ * @implements OODA-04 - Multi-tenant isolation for queue metrics
  *
  * Returns worker utilization, throughput, wait times, and queue ETA.
+ *
+ * **CRITICAL**: This function MUST receive tenant/workspace parameters to ensure
+ * queue metrics only show activity for the current workspace. Without these
+ * parameters, users could see processing activity from other tenants.
+ *
+ * @param tenantId - Optional tenant ID for filtering. If not provided, uses header context.
+ * @param workspaceId - Optional workspace ID for filtering. If not provided, uses header context.
  */
-export async function getQueueMetrics(): Promise<QueueMetrics> {
+export async function getQueueMetrics(
+  tenantId?: string,
+  workspaceId?: string,
+): Promise<QueueMetrics> {
   try {
-    return await api.get<QueueMetrics>("/pipeline/queue-metrics");
+    // Build query params for tenant/workspace isolation
+    const params = new URLSearchParams();
+    if (tenantId) params.append("tenant_id", tenantId);
+    if (workspaceId) params.append("workspace_id", workspaceId);
+    const query = params.toString();
+
+    return await api.get<QueueMetrics>(
+      `/pipeline/queue-metrics${query ? `?${query}` : ""}`,
+    );
   } catch {
     // Return default metrics if endpoint not available
     return {

@@ -24,38 +24,38 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChunkProgress } from '@/hooks';
 import {
-    getDocuments,
-    getEnhancedPipelineStatus,
-    getQueueMetrics,
-    getTasksList,
-    requestPipelineCancellation,
+  getDocuments,
+  getEnhancedPipelineStatus,
+  getQueueMetrics,
+  getTasksList,
+  requestPipelineCancellation,
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { PipelineMessage, QueueMetrics, TaskResponse } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
-    Activity,
-    AlertCircle,
-    AlertTriangle,
-    ArrowLeft,
-    Brain,
-    Building2,
-    CheckCircle,
-    ChevronDown,
-    Clock,
-    Cpu,
-    DollarSign,
-    FileText,
-    Gauge,
-    Layers,
-    Loader2,
-    RefreshCw,
-    StopCircle,
-    Timer,
-    Users,
-    XCircle,
-    Zap
+  Activity,
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  Brain,
+  Building2,
+  CheckCircle,
+  ChevronDown,
+  Clock,
+  Cpu,
+  DollarSign,
+  FileText,
+  Gauge,
+  Layers,
+  Loader2,
+  RefreshCw,
+  StopCircle,
+  Timer,
+  Users,
+  XCircle,
+  Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { createContext, useContext, useMemo } from 'react';
@@ -531,18 +531,26 @@ function ActivityLogCard() {
  * @implements FEAT0570 - Queue metrics display
  * @implements OODA-21 - Queue metrics frontend integration
  * @implements OODA-37 - Workspace-scoped queue metrics
+ * @implements OODA-04 - Multi-tenant isolation for queue metrics
  *
  * WHY: Users need visibility into queue state for capacity planning:
  * - Worker utilization shows processing capacity
  * - Throughput rate indicates processing speed
  * - Wait time estimates help set expectations
+ *
+ * CRITICAL: Queue metrics MUST be filtered by tenant/workspace to ensure
+ * users only see activity from their own workspace. Without this isolation,
+ * users could see "Live" indicator when other tenants are processing documents.
  */
 function QueueMetricsCard() {
   const { selectedTenantId, selectedWorkspaceId } = usePipelineWorkspace();
 
   const { data: metrics, isLoading } = useQuery<QueueMetrics>({
     queryKey: scopedQueryKey('queue-metrics', selectedTenantId, selectedWorkspaceId),
-    queryFn: getQueueMetrics,
+    queryFn: () => getQueueMetrics(
+      selectedTenantId ?? undefined,
+      selectedWorkspaceId ?? undefined,
+    ),
     refetchInterval: 3000,
   });
 
