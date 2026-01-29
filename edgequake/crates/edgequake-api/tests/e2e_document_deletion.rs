@@ -84,6 +84,9 @@ async fn upload_document_http(
                 .method("POST")
                 .uri("/api/v1/documents")
                 .header("Content-Type", "application/json")
+                // OODA-04: Tenant/workspace headers required for multi-tenancy isolation
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", "00000000-0000-0000-0000-000000000002")
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -1642,6 +1645,8 @@ async fn test_reprocess_cleans_partial_graph_data() {
                 .method("POST")
                 .uri("/api/v1/documents/reprocess")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", "00000000-0000-0000-0000-000000000002")
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -1744,6 +1749,8 @@ async fn test_recover_stuck_cleans_partial_graph_data() {
                 .method("POST")
                 .uri("/api/v1/documents/recover-stuck")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", "00000000-0000-0000-0000-000000000002")
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -1869,6 +1876,8 @@ async fn test_reprocess_preserves_shared_entities() {
                 .method("POST")
                 .uri("/api/v1/documents/reprocess")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", "00000000-0000-0000-0000-000000000002")
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -2577,6 +2586,8 @@ async fn test_reprocess_excludes_processing_documents() {
                 .method("POST")
                 .uri("/api/v1/documents/reprocess")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", "00000000-0000-0000-0000-000000000002")
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -2713,6 +2724,8 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
                 .method("POST")
                 .uri("/api/v1/documents/reprocess")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", "00000000-0000-0000-0000-000000000002")
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -4072,6 +4085,9 @@ async fn upload_document_async_mode(
                 .method("POST")
                 .uri("/api/v1/documents")
                 .header("Content-Type", "application/json")
+                // OODA-04: Tenant/workspace headers required for multi-tenancy isolation
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", "00000000-0000-0000-0000-000000000002")
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )

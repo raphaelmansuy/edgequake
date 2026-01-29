@@ -234,6 +234,8 @@ mod tests {
     fn test_task_response_serialization() {
         let response = TaskResponse {
             track_id: "task_123".to_string(),
+            tenant_id: "tenant-001".to_string(),
+            workspace_id: "workspace-001".to_string(),
             task_type: "indexing".to_string(),
             status: "processing".to_string(),
             created_at: "2026-01-07T12:00:00Z".to_string(),
@@ -250,6 +252,8 @@ mod tests {
         };
         let json = serde_json::to_value(&response).unwrap();
         assert_eq!(json["track_id"], "task_123");
+        assert_eq!(json["tenant_id"], "tenant-001");
+        assert_eq!(json["workspace_id"], "workspace-001");
         assert_eq!(json["status"], "processing");
         assert!(json.get("error").is_none());
     }
@@ -326,6 +330,8 @@ mod tests {
     fn test_task_response_with_error() {
         let response = TaskResponse {
             track_id: "task_456".to_string(),
+            tenant_id: "tenant-002".to_string(),
+            workspace_id: "workspace-002".to_string(),
             task_type: "indexing".to_string(),
             status: "failed".to_string(),
             created_at: "2026-01-07T12:00:00Z".to_string(),
