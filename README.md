@@ -452,7 +452,15 @@ EdgeQuake is inspired by and builds upon the excellent work of:
   - Yanhua Yu
   - Tu Ao
   - Chao Huang
-- **GraphRAG**: Microsoft's knowledge graph approach and research contributions to the RAG field
+- **GraphRAG** ([arxiv.org/abs/2308.03281](https://arxiv.org/abs/2308.03281)): Microsoft's knowledge graph approach and research contributions to the RAG field. See the paper by:
+  - [Shuai Wang](https://www.microsoft.com/en-us/research/people/shuaiw/)
+  - [Yingqiang Ge](https://www.microsoft.com/en-us/research/people/yinge/)
+  - [Ying Shen](https://www.microsoft.com/en-us/research/people/yingshen/)
+  - [Jianfeng Gao](https://www.microsoft.com/en-us/research/people/jfgao/)
+  - [Xiaodong Liu](https://www.microsoft.com/en-us/research/people/xiaodl/)
+  - [Yelong Shen](https://www.microsoft.com/en-us/research/people/yelongshen/)
+  - [Jianfeng Wang](https://www.microsoft.com/en-us/research/people/jianfw/)
+  - [Ming Zhou](https://www.microsoft.com/en-us/research/people/zhou/)
 - **Rust Community**: For the amazing async ecosystem (Tokio, Axum, SQLx) that enables EdgeQuake's high performance
 - **React Community**: For React 19 and the modern frontend stack that powers our interactive UI
 
