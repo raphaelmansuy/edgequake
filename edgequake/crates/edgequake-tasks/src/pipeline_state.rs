@@ -59,6 +59,32 @@ pub enum PipelineEvent {
         /// Cumulative cost (USD).
         cost_usd: f64,
     },
+    /// Chunk extraction failure notification.
+    ///
+    /// @implements SPEC-003: Chunk-level resilience with failure visibility
+    ///
+    /// WHY: When using process_with_resilience, some chunks may fail while
+    /// others succeed. This event notifies WebSocket clients about individual
+    /// chunk failures, enabling:
+    /// - UI display of which chunks failed
+    /// - Error details for debugging
+    /// - Potential retry functionality
+    ChunkFailure {
+        /// Document being processed.
+        document_id: String,
+        /// Task tracking ID.
+        task_id: String,
+        /// Failed chunk index (0-based).
+        chunk_index: u32,
+        /// Total chunks in document.
+        total_chunks: u32,
+        /// Error message describing the failure.
+        error_message: String,
+        /// Whether the failure was due to timeout.
+        was_timeout: bool,
+        /// Number of retry attempts before giving up.
+        retry_attempts: u32,
+    },
 }
 
 /// A single pipeline message with timestamp and level.
@@ -397,6 +423,46 @@ impl PipelineState {
             tokens_in,
             tokens_out,
             cost_usd,
+        });
+    }
+
+    /// Emit a chunk failure event.
+    ///
+    /// @implements SPEC-003: Chunk-level resilience with failure visibility
+    ///
+    /// WHY: This method sends real-time chunk failure notifications to WebSocket
+    /// subscribers, enabling the frontend to display which chunks failed and why.
+    /// This is part of the resilient extraction feature where partial failures
+    /// don't abort the entire document.
+    ///
+    /// # Arguments
+    ///
+    /// * `document_id` - ID of the document being processed
+    /// * `task_id` - Task tracking ID
+    /// * `chunk_index` - Failed chunk index (0-based)
+    /// * `total_chunks` - Total chunks in document
+    /// * `error_message` - Error description
+    /// * `was_timeout` - Whether failure was due to timeout
+    /// * `retry_attempts` - Number of retries attempted
+    #[allow(clippy::too_many_arguments)]
+    pub fn emit_chunk_failure(
+        &self,
+        document_id: String,
+        task_id: String,
+        chunk_index: u32,
+        total_chunks: u32,
+        error_message: String,
+        was_timeout: bool,
+        retry_attempts: u32,
+    ) {
+        let _ = self.tx.send(PipelineEvent::ChunkFailure {
+            document_id,
+            task_id,
+            chunk_index,
+            total_chunks,
+            error_message,
+            was_timeout,
+            retry_attempts,
         });
     }
 }

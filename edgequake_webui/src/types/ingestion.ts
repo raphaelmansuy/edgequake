@@ -212,6 +212,38 @@ export interface ChunkProgressEvent {
   };
 }
 
+/**
+ * Chunk extraction failure event for resilient processing visibility.
+ *
+ * @implements SPEC-003: Chunk-level resilience with failure visibility
+ *
+ * WHY: When using process_with_resilience, some chunks may fail while
+ * others succeed. This event notifies the frontend about individual
+ * chunk failures, enabling:
+ * - UI display of which chunks failed
+ * - Error details for debugging
+ * - Potential retry functionality
+ */
+export interface ChunkFailureEvent {
+  type: "ChunkFailure";
+  data: {
+    /** Document being processed */
+    document_id: string;
+    /** Task tracking ID */
+    task_id: string;
+    /** Failed chunk index (0-based) */
+    chunk_index: number;
+    /** Total chunks in document */
+    total_chunks: number;
+    /** Error message describing the failure */
+    error_message: string;
+    /** Whether the failure was due to timeout */
+    was_timeout: boolean;
+    /** Number of retry attempts before giving up */
+    retry_attempts: number;
+  };
+}
+
 export type WebSocketProgressMessage =
   | IngestionStartedEvent
   | StageStartedEvent
@@ -220,7 +252,8 @@ export type WebSocketProgressMessage =
   | IngestionCompletedEvent
   | IngestionFailedEvent
   | HeartbeatEvent
-  | ChunkProgressEvent;
+  | ChunkProgressEvent
+  | ChunkFailureEvent;
 
 // ============================================================================
 // Client Command Types

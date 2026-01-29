@@ -62,6 +62,29 @@ pub enum ProgressEvent {
     Connected { message: String },
     /// Cancellation requested.
     CancellationRequested,
+    /// Chunk extraction failure notification.
+    ///
+    /// @implements SPEC-003: Chunk-level resilience with failure visibility
+    ///
+    /// WHY: When using process_with_resilience, some chunks may fail while
+    /// others succeed. This event notifies WebSocket clients about individual
+    /// chunk failures for UI display and potential retry.
+    ChunkFailure {
+        /// Document being processed.
+        document_id: String,
+        /// Task tracking ID.
+        task_id: String,
+        /// Failed chunk index (0-based).
+        chunk_index: u32,
+        /// Total chunks in document.
+        total_chunks: u32,
+        /// Error message describing the failure.
+        error_message: String,
+        /// Whether the failure was due to timeout.
+        was_timeout: bool,
+        /// Number of retry attempts before giving up.
+        retry_attempts: u32,
+    },
 }
 
 // ============================================================================
@@ -164,6 +187,34 @@ impl ProgressBroadcaster {
     /// Broadcast cancellation requested event.
     pub fn cancellation_requested(&self) {
         self.broadcast(ProgressEvent::CancellationRequested);
+    }
+
+    /// Broadcast chunk failure event.
+    ///
+    /// @implements SPEC-003: Chunk-level resilience with failure visibility
+    ///
+    /// WHY: This enables the frontend to show which chunks failed during
+    /// document processing and why, supporting the resilient extraction feature.
+    #[allow(clippy::too_many_arguments)]
+    pub fn broadcast_chunk_failure(
+        &self,
+        document_id: String,
+        task_id: String,
+        chunk_index: u32,
+        total_chunks: u32,
+        error_message: String,
+        was_timeout: bool,
+        retry_attempts: u32,
+    ) {
+        self.broadcast(ProgressEvent::ChunkFailure {
+            document_id,
+            task_id,
+            chunk_index,
+            total_chunks,
+            error_message,
+            was_timeout,
+            retry_attempts,
+        });
     }
 }
 

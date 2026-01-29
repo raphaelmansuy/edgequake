@@ -674,7 +674,9 @@ pub async fn upload_document(
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(SYNC_PROCESSING_TIMEOUT_SECS),
-            workspace_pipeline.process(&document_id, &request.content),
+            // SPEC-003: Use resilient processing with chunk-level error isolation
+            // WHY: Map-reduce pattern continues processing even if some chunks fail
+            workspace_pipeline.process_with_resilience(&document_id, &request.content, None),
         )
         .await
         .map_err(|_elapsed| {
@@ -694,6 +696,32 @@ pub async fn upload_document(
                 request.content.len()
             ))
         })??;
+
+        // SPEC-003: Log partial success if some chunks failed
+        if result.stats.failed_chunks > 0 {
+            warn!(
+                document_id = %document_id,
+                successful_chunks = result.stats.successful_chunks,
+                failed_chunks = result.stats.failed_chunks,
+                total_chunks = result.stats.chunk_count,
+                "Document processed with partial success - some chunks failed extraction"
+            );
+            
+            // Emit WebSocket events for failed chunks
+            if let Some(ref chunk_errors) = result.stats.chunk_errors {
+                for error_info in chunk_errors {
+                    state.progress_broadcaster.broadcast_chunk_failure(
+                        document_id.clone(),
+                        document_id.clone(), // Use doc_id as track_id for sync
+                        error_info.chunk_index as u32,
+                        result.stats.chunk_count as u32,
+                        error_info.error_message.clone(),
+                        error_info.was_timeout,
+                        error_info.retry_attempts,
+                    );
+                }
+            }
+        }
 
         let processing_time = processing_start.elapsed();
         debug!(
