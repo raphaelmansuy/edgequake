@@ -108,7 +108,10 @@ interface UsePdfProgressOptions {
 // Constants
 // ============================================================================
 
-const PHASE_LABELS: Record<PipelinePhase, { label: string; description: string }> = {
+const PHASE_LABELS: Record<
+  PipelinePhase,
+  { label: string; description: string }
+> = {
   upload: {
     label: "Upload",
     description: "File upload and validation",
@@ -179,7 +182,7 @@ const PHASE_ORDER: PipelinePhase[] = [
  */
 export function usePdfProgress(
   trackId: string | null,
-  options: UsePdfProgressOptions = {}
+  options: UsePdfProgressOptions = {},
 ): UsePdfProgressResult {
   const {
     pollingInterval = 1000,
@@ -190,7 +193,7 @@ export function usePdfProgress(
   } = options;
 
   const queryClient = useQueryClient();
-  
+
   // OODA-23: WebSocket connection state
   const [wsConnected, setWsConnected] = useState(false);
   const [wsError, setWsError] = useState<Error | null>(null);
@@ -207,7 +210,7 @@ export function usePdfProgress(
     if (!trackId || !enabled || !preferWebSocket) return;
 
     const wsClient = getWebSocketClient();
-    
+
     // Connect if not already connected
     if (!wsClient.connected) {
       wsClient.connect();

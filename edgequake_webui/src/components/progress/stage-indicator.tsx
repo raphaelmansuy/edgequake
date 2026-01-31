@@ -38,9 +38,14 @@ interface StageIndicatorProps {
   className?: string;
 }
 
-// Stage labels for display
+/**
+ * Stage labels for display - aligned with UnifiedStage (SPEC-002).
+ * Includes both new unified stages and legacy aliases.
+ */
 const STAGE_LABELS: Record<IngestionStage, string> = {
-  pending: 'Pending',
+  // Unified stages (SPEC-002)
+  uploading: 'Uploading',
+  converting: 'Converting PDF',
   preprocessing: 'Pre-process',
   chunking: 'Chunking',
   extracting: 'Extracting',
@@ -48,6 +53,11 @@ const STAGE_LABELS: Record<IngestionStage, string> = {
   merging: 'Merging',
   summarizing: 'Summarizing',
   embedding: 'Embedding',
+  storing: 'Storing',
+  completed: 'Completed',
+  failed: 'Failed',
+  // Legacy aliases
+  pending: 'Pending',
   indexing: 'Indexing',
 };
 

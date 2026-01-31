@@ -17,19 +17,19 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  FileWarning,
-  Loader2,
-  RefreshCw,
-  X,
-  Zap,
+    AlertCircle,
+    ChevronDown,
+    ChevronUp,
+    FileWarning,
+    Loader2,
+    RefreshCw,
+    X,
+    Zap,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';

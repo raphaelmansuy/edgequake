@@ -12,6 +12,7 @@
 Phase 4 (Testing & Validation) has been successfully completed. All components created in Phases 1-3 have been thoroughly tested with unit tests, E2E tests, performance tests, and error injection tests.
 
 **Key Metrics**:
+
 - **182 new tests** created in Phase 4
 - **190 total tests** passing in frontend
 - **8 test files** added
@@ -22,23 +23,24 @@ Phase 4 (Testing & Validation) has been successfully completed. All components c
 
 ## Phase 4 OODA Iterations Summary
 
-| OODA | Description | Tests | Commit |
-|------|-------------|-------|--------|
-| 32 | Unit tests for progress tracking hooks | 18 | `bade51a2` |
-| 33 | ErrorBanner classification tests | 19 | `9e803f1b` |
-| 34 | ConnectionStatus state tests | 27 | `cce83dc5` |
-| 35 | UploadHistory filtering/search tests | 33 | `d429fadf` |
-| 36 | E2E tests with Playwright | 21 | `50dedc9e` |
-| 37 | Performance benchmark tests | 22 | `e069ca41` |
-| 38 | Error injection tests | 42 | `88c8314e` |
-| 39 | Phase 4 documentation | - | `499a5850` |
-| 40 | Final validation (this) | - | (pending) |
+| OODA | Description                            | Tests | Commit     |
+| ---- | -------------------------------------- | ----- | ---------- |
+| 32   | Unit tests for progress tracking hooks | 18    | `bade51a2` |
+| 33   | ErrorBanner classification tests       | 19    | `9e803f1b` |
+| 34   | ConnectionStatus state tests           | 27    | `cce83dc5` |
+| 35   | UploadHistory filtering/search tests   | 33    | `d429fadf` |
+| 36   | E2E tests with Playwright              | 21    | `50dedc9e` |
+| 37   | Performance benchmark tests            | 22    | `e069ca41` |
+| 38   | Error injection tests                  | 42    | `88c8314e` |
+| 39   | Phase 4 documentation                  | -     | `499a5850` |
+| 40   | Final validation (this)                | -     | (pending)  |
 
 ---
 
 ## Test Coverage by Category
 
 ### Unit Tests (161 tests)
+
 ```
 src/hooks/__tests__/
 └── use-pdf-progress.test.ts         18 tests ✅
@@ -52,12 +54,14 @@ src/components/documents/__tests__/
 ```
 
 ### E2E Tests (21 tests)
+
 ```
 e2e/
 └── pdf-upload-progress.spec.ts      21 tests ✅
 ```
 
 ### Existing Tests (29 tests)
+
 ```
 src/lib/utils/__tests__/source-mapper.test.ts    13 tests ✅
 src/lib/error-categories.test.ts                 16 tests ✅
@@ -68,6 +72,7 @@ src/lib/error-categories.test.ts                 16 tests ✅
 ## Test Categories
 
 ### 1. Progress Tracking (18 tests)
+
 - `calculateOverallPercent` - 5 tests
 - `findCurrentPhaseIndex` - 3 tests
 - `extractErrorCode` - 7 tests
@@ -75,6 +80,7 @@ src/lib/error-categories.test.ts                 16 tests ✅
 - `PHASE_LABELS` constant - 1 test
 
 ### 2. Error Classification (19 tests)
+
 - Timeout errors → warning
 - Rate limit errors → warning
 - Parse errors → error
@@ -84,6 +90,7 @@ src/lib/error-categories.test.ts                 16 tests ✅
 - Unknown error fallback
 
 ### 3. Connection Status (27 tests)
+
 - State determination priority
 - State transitions
 - Configuration mapping
@@ -91,6 +98,7 @@ src/lib/error-categories.test.ts                 16 tests ✅
 - Action button visibility
 
 ### 4. Upload History (33 tests)
+
 - Duration formatting (ms, seconds)
 - Success rate calculation
 - Filter by status
@@ -99,6 +107,7 @@ src/lib/error-categories.test.ts                 16 tests ✅
 - Count by type
 
 ### 5. Performance (22 tests)
+
 - Calculation efficiency thresholds
 - Concurrent upload handling
 - Memory efficiency
@@ -106,6 +115,7 @@ src/lib/error-categories.test.ts                 16 tests ✅
 - WebSocket throughput
 
 ### 6. Error Injection (42 tests)
+
 - Network failures
 - Timeout scenarios
 - Corrupt PDF handling
@@ -115,6 +125,7 @@ src/lib/error-categories.test.ts                 16 tests ✅
 - Recovery flows
 
 ### 7. E2E (21 tests)
+
 - Page structure
 - Upload dialog
 - Progress components
@@ -128,6 +139,7 @@ src/lib/error-categories.test.ts                 16 tests ✅
 ## Validation Evidence
 
 ### Full Test Suite
+
 ```
 $ pnpm test
 
@@ -148,6 +160,7 @@ $ pnpm test
 ```
 
 ### TypeScript Compilation
+
 ```
 $ pnpm tsc --noEmit
 # (no output = no errors)
@@ -157,22 +170,23 @@ $ pnpm tsc --noEmit
 
 ## Mission Success Criteria Check
 
-| Criteria | Status | Evidence |
-|----------|--------|----------|
-| 100% PDF → Markdown via edgequake-pdf | ⏳ | Backend integration (Phases 1-2) |
-| 6 distinct pipeline phases in UI | ✅ | PipelinePhase component |
-| Each phase shows current/total/ETA | ✅ | PhaseProgress interface |
-| Vision processing page-by-page | ⏳ | Backend integration needed |
-| Error messages with retry button | ✅ | ErrorBanner component |
-| WebSocket < 500ms latency | ✅ | usePdfProgress hook with WS |
-| Upload history with filter/search | ✅ | UploadHistory component |
-| 20+ new integration tests | ✅ | 182 new tests |
+| Criteria                              | Status | Evidence                         |
+| ------------------------------------- | ------ | -------------------------------- |
+| 100% PDF → Markdown via edgequake-pdf | ⏳     | Backend integration (Phases 1-2) |
+| 6 distinct pipeline phases in UI      | ✅     | PipelinePhase component          |
+| Each phase shows current/total/ETA    | ✅     | PhaseProgress interface          |
+| Vision processing page-by-page        | ⏳     | Backend integration needed       |
+| Error messages with retry button      | ✅     | ErrorBanner component            |
+| WebSocket < 500ms latency             | ✅     | usePdfProgress hook with WS      |
+| Upload history with filter/search     | ✅     | UploadHistory component          |
+| 20+ new integration tests             | ✅     | 182 new tests                    |
 
 ---
 
 ## Components Validated
 
 ### Frontend Components
+
 1. **PdfUploadProgress** - 6-phase progress timeline
 2. **PipelinePhase** - Individual phase display
 3. **ConnectionStatus** - WebSocket indicator
@@ -181,10 +195,12 @@ $ pnpm tsc --noEmit
 6. **ProgressOverview** - Overall progress summary
 
 ### Hooks
+
 1. **usePdfProgress** - Progress tracking with WebSocket/polling
 2. **useWebSocket** - WebSocket connection management
 
 ### Store
+
 1. **useIngestionStore** - Zustand store for ingestion state
 
 ---
@@ -213,6 +229,7 @@ edgequake_webui/
 ## Next Steps
 
 ### Remaining for Full Mission Completion
+
 1. **Backend Integration**: Complete Rust backend progress tracking
 2. **WebSocket Endpoint**: Implement `/ws/progress/:track_id`
 3. **edgequake-pdf Integration**: Verify PDF-to-Markdown flow
@@ -220,6 +237,7 @@ edgequake_webui/
 5. **Full E2E Validation**: Test with running backend services
 
 ### Future Enhancements
+
 1. Add test coverage reporting
 2. Integrate E2E tests into CI pipeline
 3. Add visual regression testing

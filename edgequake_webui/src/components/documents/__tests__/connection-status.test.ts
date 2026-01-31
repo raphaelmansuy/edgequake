@@ -10,13 +10,13 @@
  * - State transition behavior
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
 // ============================================================================
 // Types (matching connection-status.tsx)
 // ============================================================================
 
-export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
+export type ConnectionState = "connected" | "disconnected" | "reconnecting";
 
 // ============================================================================
 // State Determination Logic (extracted from component)
@@ -33,11 +33,11 @@ export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
  */
 function determineConnectionState(
   connected: boolean,
-  reconnecting: boolean
+  reconnecting: boolean,
 ): ConnectionState {
-  if (reconnecting) return 'reconnecting';
-  if (connected) return 'connected';
-  return 'disconnected';
+  if (reconnecting) return "reconnecting";
+  if (connected) return "connected";
+  return "disconnected";
 }
 
 // ============================================================================
@@ -54,21 +54,21 @@ interface StateConfig {
 function getStateConfig(state: ConnectionState): StateConfig {
   const configs: Record<ConnectionState, StateConfig> = {
     connected: {
-      label: 'Live',
-      description: 'Real-time updates active',
-      colorClass: 'text-green-500',
+      label: "Live",
+      description: "Real-time updates active",
+      colorClass: "text-green-500",
       hasPulse: true,
     },
     disconnected: {
-      label: 'Offline',
-      description: 'Using polling for updates',
-      colorClass: 'text-muted-foreground',
+      label: "Offline",
+      description: "Using polling for updates",
+      colorClass: "text-muted-foreground",
       hasPulse: false,
     },
     reconnecting: {
-      label: 'Connecting...',
-      description: 'Attempting to reconnect',
-      colorClass: 'text-amber-500',
+      label: "Connecting...",
+      description: "Attempting to reconnect",
+      colorClass: "text-amber-500",
       hasPulse: false,
     },
   };
@@ -79,185 +79,189 @@ function getStateConfig(state: ConnectionState): StateConfig {
 // Tests
 // ============================================================================
 
-describe('determineConnectionState', () => {
-  describe('priority handling', () => {
-    it('returns reconnecting when reconnecting is true (even if connected)', () => {
-      expect(determineConnectionState(true, true)).toBe('reconnecting');
+describe("determineConnectionState", () => {
+  describe("priority handling", () => {
+    it("returns reconnecting when reconnecting is true (even if connected)", () => {
+      expect(determineConnectionState(true, true)).toBe("reconnecting");
     });
 
-    it('returns connected when connected and not reconnecting', () => {
-      expect(determineConnectionState(true, false)).toBe('connected');
+    it("returns connected when connected and not reconnecting", () => {
+      expect(determineConnectionState(true, false)).toBe("connected");
     });
 
-    it('returns disconnected when neither connected nor reconnecting', () => {
-      expect(determineConnectionState(false, false)).toBe('disconnected');
+    it("returns disconnected when neither connected nor reconnecting", () => {
+      expect(determineConnectionState(false, false)).toBe("disconnected");
     });
 
-    it('returns reconnecting when reconnecting but not connected', () => {
+    it("returns reconnecting when reconnecting but not connected", () => {
       // WHY: This is a valid transitional state - attempting to connect
-      expect(determineConnectionState(false, true)).toBe('reconnecting');
+      expect(determineConnectionState(false, true)).toBe("reconnecting");
     });
   });
 
-  describe('state transitions', () => {
-    it('follows expected state machine transitions', () => {
+  describe("state transitions", () => {
+    it("follows expected state machine transitions", () => {
       // Initial state: disconnected
       let state = determineConnectionState(false, false);
-      expect(state).toBe('disconnected');
+      expect(state).toBe("disconnected");
 
       // User triggers connect → reconnecting
       state = determineConnectionState(false, true);
-      expect(state).toBe('reconnecting');
+      expect(state).toBe("reconnecting");
 
       // Connection established → connected
       state = determineConnectionState(true, false);
-      expect(state).toBe('connected');
+      expect(state).toBe("connected");
 
       // Connection lost, auto-reconnect → reconnecting
       state = determineConnectionState(false, true);
-      expect(state).toBe('reconnecting');
+      expect(state).toBe("reconnecting");
 
       // Give up → disconnected
       state = determineConnectionState(false, false);
-      expect(state).toBe('disconnected');
+      expect(state).toBe("disconnected");
     });
   });
 });
 
-describe('getStateConfig', () => {
-  describe('connected state', () => {
-    it('has Live label', () => {
-      const config = getStateConfig('connected');
-      expect(config.label).toBe('Live');
+describe("getStateConfig", () => {
+  describe("connected state", () => {
+    it("has Live label", () => {
+      const config = getStateConfig("connected");
+      expect(config.label).toBe("Live");
     });
 
-    it('has pulse animation', () => {
-      const config = getStateConfig('connected');
+    it("has pulse animation", () => {
+      const config = getStateConfig("connected");
       expect(config.hasPulse).toBe(true);
     });
 
-    it('uses green color', () => {
-      const config = getStateConfig('connected');
-      expect(config.colorClass).toContain('green');
+    it("uses green color", () => {
+      const config = getStateConfig("connected");
+      expect(config.colorClass).toContain("green");
     });
 
-    it('mentions real-time updates', () => {
-      const config = getStateConfig('connected');
-      expect(config.description).toContain('Real-time');
+    it("mentions real-time updates", () => {
+      const config = getStateConfig("connected");
+      expect(config.description).toContain("Real-time");
     });
   });
 
-  describe('disconnected state', () => {
-    it('has Offline label', () => {
-      const config = getStateConfig('disconnected');
-      expect(config.label).toBe('Offline');
+  describe("disconnected state", () => {
+    it("has Offline label", () => {
+      const config = getStateConfig("disconnected");
+      expect(config.label).toBe("Offline");
     });
 
-    it('has no pulse animation', () => {
-      const config = getStateConfig('disconnected');
+    it("has no pulse animation", () => {
+      const config = getStateConfig("disconnected");
       expect(config.hasPulse).toBe(false);
     });
 
-    it('uses muted color', () => {
-      const config = getStateConfig('disconnected');
-      expect(config.colorClass).toContain('muted');
+    it("uses muted color", () => {
+      const config = getStateConfig("disconnected");
+      expect(config.colorClass).toContain("muted");
     });
 
-    it('mentions polling fallback', () => {
-      const config = getStateConfig('disconnected');
-      expect(config.description).toContain('polling');
+    it("mentions polling fallback", () => {
+      const config = getStateConfig("disconnected");
+      expect(config.description).toContain("polling");
     });
   });
 
-  describe('reconnecting state', () => {
-    it('has Connecting label', () => {
-      const config = getStateConfig('reconnecting');
-      expect(config.label).toBe('Connecting...');
+  describe("reconnecting state", () => {
+    it("has Connecting label", () => {
+      const config = getStateConfig("reconnecting");
+      expect(config.label).toBe("Connecting...");
     });
 
-    it('has no pulse animation', () => {
+    it("has no pulse animation", () => {
       // WHY: Uses spinner animation instead
-      const config = getStateConfig('reconnecting');
+      const config = getStateConfig("reconnecting");
       expect(config.hasPulse).toBe(false);
     });
 
-    it('uses amber color', () => {
-      const config = getStateConfig('reconnecting');
-      expect(config.colorClass).toContain('amber');
+    it("uses amber color", () => {
+      const config = getStateConfig("reconnecting");
+      expect(config.colorClass).toContain("amber");
     });
 
-    it('mentions reconnect attempt', () => {
-      const config = getStateConfig('reconnecting');
-      expect(config.description).toContain('reconnect');
+    it("mentions reconnect attempt", () => {
+      const config = getStateConfig("reconnecting");
+      expect(config.description).toContain("reconnect");
     });
   });
 
-  describe('all states have required properties', () => {
-    const states: ConnectionState[] = ['connected', 'disconnected', 'reconnecting'];
+  describe("all states have required properties", () => {
+    const states: ConnectionState[] = [
+      "connected",
+      "disconnected",
+      "reconnecting",
+    ];
 
     states.forEach((state) => {
       it(`${state} has all required properties`, () => {
         const config = getStateConfig(state);
-        expect(config).toHaveProperty('label');
-        expect(config).toHaveProperty('description');
-        expect(config).toHaveProperty('colorClass');
-        expect(config).toHaveProperty('hasPulse');
-        expect(typeof config.label).toBe('string');
-        expect(typeof config.description).toBe('string');
-        expect(typeof config.colorClass).toBe('string');
-        expect(typeof config.hasPulse).toBe('boolean');
+        expect(config).toHaveProperty("label");
+        expect(config).toHaveProperty("description");
+        expect(config).toHaveProperty("colorClass");
+        expect(config).toHaveProperty("hasPulse");
+        expect(typeof config.label).toBe("string");
+        expect(typeof config.description).toBe("string");
+        expect(typeof config.colorClass).toBe("string");
+        expect(typeof config.hasPulse).toBe("boolean");
       });
     });
   });
 });
 
-describe('component behavior specifications', () => {
-  describe('compact mode', () => {
-    it('only shows pulsing dot in compact mode when connected', () => {
+describe("component behavior specifications", () => {
+  describe("compact mode", () => {
+    it("only shows pulsing dot in compact mode when connected", () => {
       // WHY: Compact mode reduces visual clutter, pulse indicates active connection
       const state = determineConnectionState(true, false);
       const config = getStateConfig(state);
       expect(config.hasPulse).toBe(true);
     });
 
-    it('shows static dot when disconnected in compact mode', () => {
+    it("shows static dot when disconnected in compact mode", () => {
       const state = determineConnectionState(false, false);
       const config = getStateConfig(state);
       expect(config.hasPulse).toBe(false);
     });
   });
 
-  describe('tooltip content', () => {
-    it('connected tooltip shows latency info', () => {
+  describe("tooltip content", () => {
+    it("connected tooltip shows latency info", () => {
       // WHY: Per mission spec, WebSocket updates should be < 500ms
       const state = determineConnectionState(true, false);
-      expect(state).toBe('connected');
+      expect(state).toBe("connected");
       // Component shows "Updates in <500ms" for connected state
     });
 
-    it('disconnected tooltip suggests reconnection', () => {
+    it("disconnected tooltip suggests reconnection", () => {
       const state = determineConnectionState(false, false);
-      expect(state).toBe('disconnected');
+      expect(state).toBe("disconnected");
       // Component shows "Click to reconnect"
     });
   });
 
-  describe('action buttons', () => {
-    it('shows Connect button when disconnected and showActions=true', () => {
+  describe("action buttons", () => {
+    it("shows Connect button when disconnected and showActions=true", () => {
       const state = determineConnectionState(false, false);
-      expect(state).toBe('disconnected');
+      expect(state).toBe("disconnected");
       // When showActions=true, Connect button is shown
     });
 
-    it('shows Disconnect button when connected and showActions=true', () => {
+    it("shows Disconnect button when connected and showActions=true", () => {
       const state = determineConnectionState(true, false);
-      expect(state).toBe('connected');
+      expect(state).toBe("connected");
       // When showActions=true, Disconnect button is shown
     });
 
-    it('hides all actions when reconnecting', () => {
+    it("hides all actions when reconnecting", () => {
       const state = determineConnectionState(false, true);
-      expect(state).toBe('reconnecting');
+      expect(state).toBe("reconnecting");
       // No action buttons during reconnection attempt
     });
   });

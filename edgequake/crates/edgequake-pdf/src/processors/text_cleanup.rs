@@ -20,6 +20,24 @@ use regex::Regex;
 
 use super::Processor;
 
+/// WHY: UTF-8 safe string truncation.
+///
+/// Direct byte slicing like `&s[..50]` can panic if byte 50 falls in the middle
+/// of a multi-byte character (e.g., box-drawing '─' is 3 bytes). This function
+/// finds the nearest valid char boundary at or before `max_bytes`.
+///
+/// OODA-04: Fix byte index panics in text_cleanup.rs (debug logging).
+fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 // =============================================================================
 // PostProcessor
 // =============================================================================
@@ -424,7 +442,7 @@ impl GarbledTextFilterProcessor {
             tracing::debug!(
                 "Filtering garbled text ({}% unusual short words): '{}'",
                 (ratio * 100.0) as i32,
-                &trimmed[..50.min(trimmed.len())]
+                safe_truncate(trimmed, 50)
             );
             return true;
         }
@@ -439,7 +457,7 @@ impl GarbledTextFilterProcessor {
         if isolated_letters >= 4 && ratio > 0.30 {
             tracing::debug!(
                 "Filtering text with isolated letters: '{}'",
-                &trimmed[..50.min(trimmed.len())]
+                safe_truncate(trimmed, 50)
             );
             return true;
         }
@@ -464,7 +482,7 @@ impl GarbledTextFilterProcessor {
         if non_word_fragments >= 2 {
             tracing::debug!(
                 "Filtering text with OCR fragments: '{}'",
-                &trimmed[..50.min(trimmed.len())]
+                safe_truncate(trimmed, 50)
             );
             return true;
         }

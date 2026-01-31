@@ -14,7 +14,7 @@ After implementing iteration_01 fix, uploaded the same PDF again:
 ## Backend Log Analysis
 
 ```
-2026-01-31T15:20:41.634964Z WARN request{method=POST uri=/api/v1/documents/pdf version=HTTP/1.1}: 
+2026-01-31T15:20:41.634964Z WARN request{method=POST uri=/api/v1/documents/pdf version=HTTP/1.1}:
 edgequake_api::handlers::pdf_upload: Duplicate PDF upload detected: existing_id=b482f592-d71f-47ec-b270-762b0f7d02a8
 ```
 
@@ -43,12 +43,12 @@ The OODA-01 fix at line 465 is only reached for **new** PDF uploads. For **dupli
 
 ## Evidence
 
-| Metric | Expected | Actual |
-|--------|----------|--------|
-| Progress endpoint status | 200 OK | 404 Not Found |
-| OODA-01 log message | Present | Absent |
-| Duplicate log message | Absent | Present |
-| Upload response status | "processing" | "duplicate" |
+| Metric                   | Expected     | Actual        |
+| ------------------------ | ------------ | ------------- |
+| Progress endpoint status | 200 OK       | 404 Not Found |
+| OODA-01 log message      | Present      | Absent        |
+| Duplicate log message    | Absent       | Present       |
+| Upload response status   | "processing" | "duplicate"   |
 
 ## Conclusion
 

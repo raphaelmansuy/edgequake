@@ -60,6 +60,7 @@ pub mod cache;
 pub mod chunker;
 pub mod error;
 pub mod extractor;
+pub mod ingestion_types;
 pub mod lineage;
 pub mod merger;
 pub mod pipeline;
@@ -84,6 +85,14 @@ pub use error::{
 pub use extractor::{
     EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult, GleaningConfig,
     GleaningExtractor, LLMExtractor, SOTAExtractor, SimpleExtractor,
+};
+// Re-export unified ingestion types for frontend compatibility
+pub use ingestion_types::{
+    error_codes, SourceType, UnifiedStage,
+    IngestionError as UnifiedIngestionError,
+    IngestionProgress as UnifiedIngestionProgress,
+    StageProgress as UnifiedStageProgress,
+    StageStatus as UnifiedStageStatus,
 };
 pub use lineage::{
     ChunkLineage, DescriptionVersion, DocumentLineage, EntityLineage, EntitySource,

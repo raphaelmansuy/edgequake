@@ -40,6 +40,7 @@ use edgequake_pdf::ProgressCallback;
 use edgequake_tasks::progress::PipelinePhase;
 use edgequake_tasks::PipelineState;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::runtime::Handle;
 
 /// Adapter that forwards PDF extraction progress to PipelineState and ProgressBroadcaster.
 ///
@@ -79,6 +80,12 @@ pub struct PipelineProgressCallback {
     filename: String,
     /// Total pages (set on extraction_start).
     total_pages: AtomicUsize,
+    /// OODA-04: Tokio runtime handle for spawning async tasks from sync context.
+    ///
+    /// WHY: PDF extraction runs in rayon thread pool (sync), but we need to spawn
+    /// async tasks for persistence. Capturing the handle at construction time allows
+    /// us to spawn on the correct runtime from any thread context.
+    runtime_handle: Handle,
 }
 
 impl PipelineProgressCallback {
@@ -89,6 +96,11 @@ impl PipelineProgressCallback {
     /// * `pipeline_state` - The pipeline state for emitting events
     /// * `pdf_id` - PDF document ID for event correlation
     /// * `task_id` - Task tracking ID for event correlation
+    ///
+    /// # Panics
+    ///
+    /// Panics if called outside of a Tokio runtime context. The callback must
+    /// be created from within an async context (e.g., a Tokio task or block_on).
     pub fn new(pipeline_state: PipelineState, pdf_id: String, task_id: String) -> Self {
         Self {
             pipeline_state,
@@ -97,6 +109,8 @@ impl PipelineProgressCallback {
             task_id,
             filename: String::new(),
             total_pages: AtomicUsize::new(0),
+            // OODA-04: Capture runtime handle at construction time
+            runtime_handle: Handle::current(),
         }
     }
 
@@ -157,12 +171,13 @@ impl ProgressCallback for PipelineProgressCallback {
         });
 
         // OODA-13: Persist to queryable storage (async via spawn)
+        // OODA-04: Use captured runtime handle to spawn from sync context
         let state = self.pipeline_state.clone();
         let track_id = self.task_id.clone();
         let pdf_id = self.pdf_id.clone();
         let filename = self.filename.clone();
         let pages = total_pages;
-        tokio::spawn(async move {
+        self.runtime_handle.spawn(async move {
             state
                 .start_pdf_progress(&track_id, &pdf_id, &filename)
                 .await;
@@ -229,11 +244,12 @@ impl ProgressCallback for PipelineProgressCallback {
         });
 
         // OODA-13: Persist to queryable storage (async via spawn)
+        // OODA-04: Use captured runtime handle to spawn from sync context
         let state = self.pipeline_state.clone();
         let track_id = self.task_id.clone();
         let page = page_num;
         let total_pages = total;
-        tokio::spawn(async move {
+        self.runtime_handle.spawn(async move {
             state
                 .update_pdf_phase(
                     &track_id,
@@ -273,12 +289,13 @@ impl ProgressCallback for PipelineProgressCallback {
         });
 
         // OODA-13: Update phase with error message (still tracks progress)
+        // OODA-04: Use captured runtime handle to spawn from sync context
         let state = self.pipeline_state.clone();
         let track_id = self.task_id.clone();
         let page = page_num;
         let total_pages = total;
         let err_msg = error.to_string();
-        tokio::spawn(async move {
+        self.runtime_handle.spawn(async move {
             state
                 .update_pdf_phase(
                     &track_id,
@@ -331,9 +348,10 @@ impl ProgressCallback for PipelineProgressCallback {
         });
 
         // OODA-13: Complete the PdfConversion phase in persistent storage
+        // OODA-04: Use captured runtime handle to spawn from sync context
         let state = self.pipeline_state.clone();
         let track_id = self.task_id.clone();
-        tokio::spawn(async move {
+        self.runtime_handle.spawn(async move {
             state
                 .complete_pdf_phase(&track_id, PipelinePhase::PdfConversion)
                 .await;

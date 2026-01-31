@@ -39,6 +39,7 @@ state
 ### Test Results
 
 **Initial Test (before iteration_02)**:
+
 - Upload PDF: POST returns 200 ✓
 - Progress poll: Still returned 404 ✗
 

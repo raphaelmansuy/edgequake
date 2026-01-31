@@ -142,8 +142,8 @@ use edgequake_core::ConversationServiceImpl;
 use edgequake_core::WorkspaceServiceImpl;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{
-    GraphStorage, KVStorage, PgVectorStorage, PgWorkspaceVectorRegistry,
-    PostgresAGEGraphStorage, PostgresKVStorage, VectorStorage,
+    GraphStorage, KVStorage, PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage,
+    PostgresKVStorage, VectorStorage,
 };
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;

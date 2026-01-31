@@ -1,6 +1,7 @@
 # OODA-18: Phase 2 Backend Implementation Summary
 
 ## Mission Re-Read ✅
+
 - [x] Re-read `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-upload-pdf.md`
 - [x] Confirmed objectives: 6 pipeline phases, edgequake-pdf first, real-time UI
 - [x] Current phase: Phase 2 Backend Implementation COMPLETE
@@ -9,16 +10,16 @@
 
 All Phase 2 backend implementation objectives have been achieved:
 
-| Objective | Status | OODA | Commit |
-|-----------|--------|------|--------|
-| Instrument PDF extractor with progress callbacks | ✅ | OODA-04 | (earlier) |
-| Instrument vision processor with page-level progress | ✅ | OODA-11 | (earlier) |
-| Add progress persistence to task storage | ✅ | OODA-12 | (earlier) |
-| Connect callbacks to persistent storage | ✅ | OODA-13 | 53910821 |
-| GET /documents/pdf/progress/{track_id} | ✅ | OODA-14 | c77f96ab |
-| WebSocket /ws/progress/{track_id} | ✅ | OODA-15 | d364e45b |
-| Wire processor to callbacks | ✅ | OODA-16 | a2522f7a |
-| Error recovery endpoints (retry, cancel) | ✅ | OODA-17 | 3115de7a |
+| Objective                                            | Status | OODA    | Commit    |
+| ---------------------------------------------------- | ------ | ------- | --------- |
+| Instrument PDF extractor with progress callbacks     | ✅     | OODA-04 | (earlier) |
+| Instrument vision processor with page-level progress | ✅     | OODA-11 | (earlier) |
+| Add progress persistence to task storage             | ✅     | OODA-12 | (earlier) |
+| Connect callbacks to persistent storage              | ✅     | OODA-13 | 53910821  |
+| GET /documents/pdf/progress/{track_id}               | ✅     | OODA-14 | c77f96ab  |
+| WebSocket /ws/progress/{track_id}                    | ✅     | OODA-15 | d364e45b  |
+| Wire processor to callbacks                          | ✅     | OODA-16 | a2522f7a  |
+| Error recovery endpoints (retry, cancel)             | ✅     | OODA-17 | 3115de7a  |
 
 ---
 
@@ -28,17 +29,17 @@ All Phase 2 backend implementation objectives have been achieved:
 
 #### PDF Progress Tracking
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/documents/pdf/progress/{track_id}` | Get current upload progress |
-| `POST` | `/api/v1/documents/pdf/{pdf_id}/retry` | Retry failed PDF processing |
-| `DELETE` | `/api/v1/documents/pdf/{pdf_id}/cancel` | Cancel in-progress PDF |
+| Method   | Path                                        | Description                 |
+| -------- | ------------------------------------------- | --------------------------- |
+| `GET`    | `/api/v1/documents/pdf/progress/{track_id}` | Get current upload progress |
+| `POST`   | `/api/v1/documents/pdf/{pdf_id}/retry`      | Retry failed PDF processing |
+| `DELETE` | `/api/v1/documents/pdf/{pdf_id}/cancel`     | Cancel in-progress PDF      |
 
 #### WebSocket Endpoints
 
-| Path | Description |
-|------|-------------|
-| `/ws/progress` | Global progress events (all uploads) |
+| Path                      | Description                           |
+| ------------------------- | ------------------------------------- |
+| `/ws/progress`            | Global progress events (all uploads)  |
 | `/ws/progress/{track_id}` | Filtered progress for specific upload |
 
 ---
@@ -121,7 +122,7 @@ pub enum ProgressEvent {
     ProgressSnapshot {
         pdf_progress: HashMap<String, PdfUploadProgress>,
     },
-    
+
     /// Per-page progress update
     PdfPageProgress {
         task_id: String,    // track_id
@@ -130,7 +131,7 @@ pub enum ProgressEvent {
         phase: String,      // "pdf_conversion"
         message: String,
     },
-    
+
     /// Chunk processing failure
     ChunkFailure {
         task_id: String,
@@ -236,12 +237,12 @@ pub enum ProgressEvent {
 
 ### Test Coverage
 
-| Component | Tests | Status |
-|-----------|-------|--------|
-| PipelineProgressCallback | 7 | ✅ |
-| PdfOperationResponse | 1 | ✅ |
-| progress.rs types | 6 | ✅ |
-| WebSocket handlers | Integration | ✅ |
+| Component                | Tests       | Status |
+| ------------------------ | ----------- | ------ |
+| PipelineProgressCallback | 7           | ✅     |
+| PdfOperationResponse     | 1           | ✅     |
+| progress.rs types        | 6           | ✅     |
+| WebSocket handlers       | Integration | ✅     |
 
 Total edgequake-api tests: **436 passing**
 
@@ -277,10 +278,10 @@ Total edgequake-api tests: **436 passing**
 
 ## Commits This Session
 
-| Commit | Description |
-|--------|-------------|
-| `53910821` | OODA-13: Connect callbacks to persistent progress storage |
-| `c77f96ab` | OODA-14: GET /documents/pdf/progress/{track_id} |
-| `d364e45b` | OODA-15: WebSocket /ws/progress/{track_id} |
+| Commit     | Description                                                 |
+| ---------- | ----------------------------------------------------------- |
+| `53910821` | OODA-13: Connect callbacks to persistent progress storage   |
+| `c77f96ab` | OODA-14: GET /documents/pdf/progress/{track_id}             |
+| `d364e45b` | OODA-15: WebSocket /ws/progress/{track_id}                  |
 | `a2522f7a` | OODA-16: Wire processor to callback with filename + cleanup |
-| `3115de7a` | OODA-17: Error recovery endpoints (retry, cancel) |
+| `3115de7a` | OODA-17: Error recovery endpoints (retry, cancel)           |
