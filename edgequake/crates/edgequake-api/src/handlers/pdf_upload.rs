@@ -65,6 +65,8 @@ pub struct PdfUploadOptions {
     pub title: Option<String>,
     /// Custom metadata (optional).
     pub metadata: Option<serde_json::Value>,
+    /// Batch tracking ID (optional).
+    pub track_id: Option<String>,
 }
 
 impl PdfUploadOptions {
@@ -93,6 +95,9 @@ pub struct PdfUploadResponse {
 
     /// Background task ID.
     pub task_id: String,
+
+    /// Batch tracking ID (if provided).
+    pub track_id: Option<String>,
 
     /// Human-readable message.
     pub message: String,
@@ -358,6 +363,11 @@ pub async fn upload_pdf_document(
                     }
                 }
             }
+            Some("track_id") => {
+                if let Ok(text) = field.text().await {
+                    options.track_id = Some(text);
+                }
+            }
             _ => {}
         }
     }
@@ -402,6 +412,7 @@ pub async fn upload_pdf_document(
             document_id: existing.document_id.map(|id| id.to_string()),
             status: "duplicate".to_string(),
             task_id: "".to_string(),
+            track_id: options.track_id.clone(),
             message: format!("PDF already uploaded with ID: {}", existing.pdf_id),
             estimated_time_seconds: 0,
             metadata: PdfMetadata {
@@ -457,6 +468,7 @@ pub async fn upload_pdf_document(
         document_id: None,
         status: "processing".to_string(),
         task_id: task_id.to_string(),
+        track_id: options.track_id,
         message: "PDF uploaded successfully. Processing in background.".to_string(),
         estimated_time_seconds: estimated_time,
         metadata: PdfMetadata {

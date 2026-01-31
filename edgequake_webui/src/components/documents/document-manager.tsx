@@ -315,6 +315,7 @@ export function DocumentManager() {
             const pdfResponse = await uploadPdfDocument(file, {
               title: file.name,
               enable_vision: true, // Enable vision extraction by default for PDFs
+              track_id: trackId, // Pass batch tracking ID
             });
             
             // Map PdfUploadResponse to compatible format
@@ -323,7 +324,7 @@ export function DocumentManager() {
               pdf_id: pdfResponse.pdf_id,
               duplicate_of: pdfResponse.duplicate_of,
               task_id: pdfResponse.task_id,
-              track_id: undefined, // PDF upload doesn't use track_id
+              track_id: pdfResponse.track_id, // Use track_id from response
             };
           } else {
             // Read text file content

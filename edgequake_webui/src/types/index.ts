@@ -326,6 +326,7 @@ export interface PdfUploadResponse {
   document_id?: string;
   status: string;
   task_id: string;
+  track_id?: string;
   message: string;
   estimated_time_seconds: number;
   metadata: PdfMetadata;
