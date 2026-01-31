@@ -58,11 +58,18 @@
 pub mod adapters;
 pub mod community;
 pub mod error;
+pub mod pdf_storage;
 pub mod traits;
 
 // Re-export community detection
 pub use community::{
     detect_communities, Community, CommunityAlgorithm, CommunityConfig, CommunityDetectionResult,
+};
+
+// Re-export PDF storage types
+pub use pdf_storage::{
+    calculate_pdf_checksum, validate_pdf_data, CreatePdfRequest, ExtractionMethod, ListPdfFilter,
+    PdfDocument, PdfDocumentStorage, PdfList, PdfProcessingStatus, UpdatePdfProcessingRequest,
 };
 
 // Re-export traits
@@ -82,5 +89,5 @@ pub use adapters::memory::{
 pub use adapters::postgres::{
     ConversationRow, FolderRow, MessageRow, PgVectorStorage, PgWorkspaceVectorRegistry,
     PostgresAGEGraphStorage, PostgresConfig, PostgresConversationStorage, PostgresKVStorage,
-    PostgresPool,
+    PostgresPdfStorage, PostgresPool,
 };

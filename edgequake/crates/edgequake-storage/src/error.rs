@@ -17,6 +17,10 @@ pub enum StorageError {
     #[error("Record already exists: {0}")]
     AlreadyExists(String),
 
+    /// Conflict detected (duplicate, constraint violation)
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
     /// Invalid query
     #[error("Invalid query: {0}")]
     InvalidQuery(String),
@@ -44,11 +48,36 @@ pub enum StorageError {
     /// Invalid configuration
     #[error("Invalid configuration: {0}")]
     InvalidConfig(String),
+
+    /// Invalid data
+    #[error("Invalid data: {0}")]
+    InvalidData(String),
 }
 
 impl From<serde_json::Error> for StorageError {
     fn from(err: serde_json::Error) -> Self {
         StorageError::Serialization(err.to_string())
+    }
+}
+
+#[cfg(feature = "postgres")]
+impl From<sqlx::Error> for StorageError {
+    fn from(err: sqlx::Error) -> Self {
+        match err {
+            sqlx::Error::RowNotFound => StorageError::NotFound("Row not found".to_string()),
+            sqlx::Error::Database(e) => {
+                // Check for unique constraint violations (duplicate keys)
+                if let Some(constraint) = e.constraint() {
+                    if constraint.contains("unique") || constraint.contains("pkey") {
+                        return StorageError::AlreadyExists(format!("Constraint violation: {}", constraint));
+                    }
+                }
+                StorageError::Database(e.to_string())
+            }
+            sqlx::Error::PoolTimedOut => StorageError::Connection("Connection pool timeout".to_string()),
+            sqlx::Error::PoolClosed => StorageError::Connection("Connection pool closed".to_string()),
+            _ => StorageError::Database(err.to_string()),
+        }
     }
 }
 

@@ -45,6 +45,9 @@ pub enum TaskType {
     Scan,
     /// Reindex documents
     Reindex,
+    /// PDF processing task (SPEC-007)
+    #[serde(rename = "pdf_processing")]
+    PdfProcessing,
 }
 
 impl fmt::Display for TaskType {
@@ -54,6 +57,7 @@ impl fmt::Display for TaskType {
             TaskType::Insert => write!(f, "insert"),
             TaskType::Scan => write!(f, "scan"),
             TaskType::Reindex => write!(f, "reindex"),
+            TaskType::PdfProcessing => write!(f, "pdf_processing"),
         }
     }
 }
@@ -597,6 +601,32 @@ pub struct DocumentUploadData {
     pub content_type: String,
     pub workspace_id: String,
     pub metadata: Option<serde_json::Value>,
+}
+
+/// PDF processing task payload
+///
+/// @implements SPEC-007: PDF Upload Support
+///
+/// This structure contains all information needed to process a PDF document:
+/// - Extract content (text or vision)
+/// - Convert to markdown
+/// - Ingest into knowledge graph
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PdfProcessingData {
+    /// PDF document ID
+    pub pdf_id: Uuid,
+
+    /// Workspace ID for isolation
+    pub workspace_id: Uuid,
+
+    /// Enable vision LLM processing
+    pub enable_vision: bool,
+
+    /// Vision provider to use (openai, ollama)
+    pub vision_provider: String,
+
+    /// Optional vision model override
+    pub vision_model: Option<String>,
 }
 
 /// Text insert task payload
