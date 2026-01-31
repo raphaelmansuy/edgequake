@@ -318,6 +318,7 @@ pub async fn upload_pdf_document(
         vision_model: None,
         title: None,
         metadata: None,
+        track_id: None,
     };
 
     while let Some(field) = multipart
