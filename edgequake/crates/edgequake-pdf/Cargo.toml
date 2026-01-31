@@ -15,6 +15,9 @@ path = "src/bin.rs"
 # Default features include lopdf backend for native PDF parsing
 default = ["lopdf"]
 lopdf = ["dep:lopdf"]
+# Vision mode with PDF page rendering (uses pdftoppm from poppler-utils)
+# Requires: brew install poppler (macOS) or apt-get install poppler-utils (Linux)
+vision = []
 
 [dependencies]
 # Workspace dependencies
