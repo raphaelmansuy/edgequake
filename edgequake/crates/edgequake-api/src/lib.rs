@@ -99,6 +99,7 @@ pub mod handlers;
 pub mod middleware;
 pub mod openapi;
 pub mod path_validation;
+pub mod pipeline_progress_callback;
 pub mod processor;
 pub mod provider_types;
 pub mod providers;
@@ -110,6 +111,7 @@ pub mod validation;
 
 // Re-export commonly used types
 pub use middleware::TenantContext;
+pub use pipeline_progress_callback::PipelineProgressCallback;
 
 pub use error::{ApiError, ApiResult};
 pub use middleware::{tenant_rate_limit, AuthConfig, AuthState, RateLimitConfig, RateLimitState};
