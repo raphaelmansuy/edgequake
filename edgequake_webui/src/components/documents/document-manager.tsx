@@ -58,6 +58,7 @@ import {
     getPipelineStatus,
     reprocessDocument,
     uploadDocument,
+    uploadPdfDocument,
 } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
 import { useTenantStore } from '@/stores/use-tenant-store';
@@ -299,9 +300,6 @@ export function DocumentManager() {
         );
 
         try {
-          // Read file content
-          const text = await file.text();
-          
           // Phase 2: Uploading to server
           setUploadingFiles((prev) =>
             prev.map((f, idx) =>
@@ -309,16 +307,39 @@ export function DocumentManager() {
             )
           );
 
-          // Upload to server with filename as title
-          // Using async processing - documents are queued and processed in background
-          // by the WorkerPool. Status updates via track_id polling.
-          const response = await uploadDocument({ 
-            content: text, 
-            source_type: 'text',
-            title: file.name, // Use filename as title
-            async_processing: true, // Use async processing (worker pool enabled)
-            track_id: trackId, // Track ID for grouping
-          });
+          let response: { document_id?: string; pdf_id?: string; duplicate_of?: string; task_id?: string; track_id?: string };
+
+          // Check if file is PDF - route to PDF upload endpoint
+          if (file.type === 'application/pdf') {
+            // Upload PDF file directly (multipart/form-data)
+            const pdfResponse = await uploadPdfDocument(file, {
+              title: file.name,
+              enable_vision: true, // Enable vision extraction by default for PDFs
+            });
+            
+            // Map PdfUploadResponse to compatible format
+            response = {
+              document_id: pdfResponse.document_id,
+              pdf_id: pdfResponse.pdf_id,
+              duplicate_of: pdfResponse.duplicate_of,
+              task_id: pdfResponse.task_id,
+              track_id: undefined, // PDF upload doesn't use track_id
+            };
+          } else {
+            // Read text file content
+            const text = await file.text();
+            
+            // Upload text document with async processing
+            const textResponse = await uploadDocument({ 
+              content: text, 
+              source_type: 'text',
+              title: file.name,
+              async_processing: true,
+              track_id: trackId,
+            });
+            
+            response = textResponse;
+          }
           
           // Check for duplicate (Phase 4)
           if (response.duplicate_of) {
@@ -465,7 +486,7 @@ export function DocumentManager() {
             });
           }
           if (e.code === 'file-invalid-type') {
-            return t('documents.upload.invalidType', 'File "{{name}}" has an unsupported format. Supported: TXT, MD, JSON.', {
+            return t('documents.upload.invalidType', 'File "{{name}}" has an unsupported format. Supported: TXT, MD, JSON, PDF.', {
               name: rejection.file.name,
             });
           }
@@ -574,6 +595,7 @@ export function DocumentManager() {
       'text/plain': ['.txt'],
       'text/markdown': ['.md'],
       'application/json': ['.json'],
+      'application/pdf': ['.pdf'],
     },
     maxSize: MAX_FILE_SIZE, // 10MB limit
     noClick: false, // Allow click on dropzone
@@ -1021,7 +1043,7 @@ export function DocumentManager() {
             <p className="text-sm font-medium text-primary">Drop files here</p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Drag & drop or <span className="text-primary font-medium">click to upload</span> • TXT, MD, JSON (max 10MB)
+              Drag & drop or <span className="text-primary font-medium">click to upload</span> • TXT, MD, JSON, PDF (max 10MB)
             </p>
           )}
         </div>

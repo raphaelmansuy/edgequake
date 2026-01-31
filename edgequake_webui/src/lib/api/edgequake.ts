@@ -30,6 +30,8 @@ import type {
   MergeEntitiesResponse,
   PaginatedResponse,
   PaginationParams,
+  PdfUploadOptions,
+  PdfUploadResponse,
   PipelineStatus,
   QueryRequest,
   QueryResponse,
@@ -517,6 +519,43 @@ export async function uploadFile(file: File): Promise<UploadDocumentResponse> {
   formData.append("file", file);
 
   return api.post<UploadDocumentResponse>("/documents/upload", formData, {
+    headers: {
+      // Let browser set Content-Type with boundary for multipart
+    },
+  });
+}
+
+/**
+ * Upload a PDF document for vision-based extraction.
+ * @param file The PDF file to upload
+ * @param options Upload options (vision settings, title, metadata)
+ * @returns PDF upload response with processing status
+ */
+export async function uploadPdfDocument(
+  file: File,
+  options?: PdfUploadOptions,
+): Promise<PdfUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  // Add optional parameters as form fields
+  if (options?.enable_vision !== undefined) {
+    formData.append("enable_vision", String(options.enable_vision));
+  }
+  if (options?.vision_provider) {
+    formData.append("vision_provider", options.vision_provider);
+  }
+  if (options?.vision_model) {
+    formData.append("vision_model", options.vision_model);
+  }
+  if (options?.title) {
+    formData.append("title", options.title);
+  }
+  if (options?.metadata) {
+    formData.append("metadata", JSON.stringify(options.metadata));
+  }
+
+  return api.post<PdfUploadResponse>("/documents/pdf", formData, {
     headers: {
       // Let browser set Content-Type with boundary for multipart
     },
