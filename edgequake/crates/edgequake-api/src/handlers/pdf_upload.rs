@@ -821,14 +821,22 @@ async fn create_pdf_processing_task(
         result: None,
     };
 
+    // Store task in database
     state
         .task_storage
         .create_task(&task)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
 
+    // Queue task for background processing (critical - missing this causes tasks to stay in pending)
+    state
+        .task_queue
+        .send(task)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+
     debug!(
-        "Created PDF processing task: id={}, pdf_id={}",
+        "Created and queued PDF processing task: id={}, pdf_id={}",
         track_id, pdf_id
     );
 

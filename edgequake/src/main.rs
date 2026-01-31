@@ -81,20 +81,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // OODA-10: Also attach progress broadcaster for WebSocket event delivery.
     let processor = if state.storage_mode.is_postgresql() {
         info!("🔒 Using STRICT workspace isolation mode (PostgreSQL storage)");
-        Arc::new(
-            DocumentTaskProcessor::with_workspace_support_strict(
-                Arc::clone(&state.pipeline),
-                Arc::clone(&state.llm_provider),
-                Arc::clone(&state.kv_storage),
-                Arc::clone(&state.vector_storage),
-                Arc::clone(&state.vector_registry),
-                Arc::clone(&state.graph_storage),
-                state.pipeline_state.clone(),
-                Arc::clone(&state.workspace_service),
-                Arc::clone(&state.models_config),
-            )
-            .with_progress_broadcaster(state.progress_broadcaster.clone()),
+        let mut proc = DocumentTaskProcessor::with_workspace_support_strict(
+            Arc::clone(&state.pipeline),
+            Arc::clone(&state.llm_provider),
+            Arc::clone(&state.kv_storage),
+            Arc::clone(&state.vector_storage),
+            Arc::clone(&state.vector_registry),
+            Arc::clone(&state.graph_storage),
+            state.pipeline_state.clone(),
+            Arc::clone(&state.workspace_service),
+            Arc::clone(&state.models_config),
         )
+        .with_progress_broadcaster(state.progress_broadcaster.clone());
+
+        // CRITICAL: Attach PDF storage for PDF processing tasks
+        if let Some(ref pdf_storage) = state.pdf_storage {
+            proc = proc.with_pdf_storage(Arc::clone(pdf_storage));
+            info!("📄 PDF storage attached to task processor");
+        }
+
+        Arc::new(proc)
     } else {
         info!("⚠️ Using non-strict workspace mode (in-memory storage)");
         Arc::new(
