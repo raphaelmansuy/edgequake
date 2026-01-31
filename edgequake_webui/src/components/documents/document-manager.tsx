@@ -96,6 +96,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { BatchProgressCard } from './batch-progress-card';
 import { ClearDocumentsDialog } from './clear-documents-dialog';
+import { ConnectionStatus } from './connection-status';
 import { CostCell } from './cost-cell';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
@@ -918,6 +919,8 @@ export function DocumentManager() {
                     {totalCount}
                   </Badge>
                 )}
+                {/* OODA-30: WebSocket connection status indicator */}
+                <ConnectionStatus compact={true} />
               </div>
               <p className="text-sm text-muted-foreground">
                 {t('documents.subtitle')}
