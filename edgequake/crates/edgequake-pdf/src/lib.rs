@@ -75,6 +75,7 @@ pub mod image_extraction;
 pub mod image_ocr;
 pub mod layout;
 pub mod processors;
+pub mod progress;
 pub mod renderers;
 pub mod rendering;
 pub mod schema;
@@ -124,6 +125,9 @@ pub use image_ocr::{ImageData, ImageOcrCapable, ImageOcrProcessor, ImageOcrResul
 
 // Re-export image extraction types
 pub use image_extraction::{ImageExtractor, PageImageStats};
+
+// Re-export progress callback types
+pub use progress::{CountingProgress, LoggingProgress, NoopProgress, ProgressCallback};
 
 // Pdfium backend removed from this crate. Use a separate optional crate if needed.
 
