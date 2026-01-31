@@ -1297,11 +1297,13 @@ impl DocumentTaskProcessor {
         // OODA-09: Create progress callback for real-time page-by-page feedback
         // WHY: Users need to see extraction progress like "Extracting page 5/10..."
         // OODA-10: Also attach progress broadcaster if available for WebSocket delivery
+        // OODA-16: Add filename for progress display
         let mut callback = PipelineProgressCallback::new(
             self.pipeline_state.clone(),
             data.pdf_id.to_string(),
             task.track_id.clone(),
-        );
+        )
+        .with_filename(pdf.filename.clone());
         if let Some(ref broadcaster) = self.progress_broadcaster {
             callback = callback.with_broadcaster(broadcaster.clone());
         }
@@ -1473,6 +1475,14 @@ impl DocumentTaskProcessor {
             pdf_id = %data.pdf_id,
             "PDF processing completed successfully"
         );
+
+        // OODA-16: Clean up progress tracking (fire-and-forget)
+        // WHY: Free memory for completed uploads. GET endpoint will return 404.
+        let state = self.pipeline_state.clone();
+        let track_id = task.track_id.clone();
+        tokio::spawn(async move {
+            state.remove_pdf_progress(&track_id).await;
+        });
 
         Ok(result)
     }
