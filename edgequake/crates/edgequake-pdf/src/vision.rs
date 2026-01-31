@@ -18,6 +18,7 @@
 //! - **BR1011**: Image resolution capped at 2048px
 
 use crate::error::PdfError;
+use crate::progress::ProgressCallback;
 use crate::schema::{Block, BlockType, BoundingBox, Document, ExtractionMethod, Page};
 use crate::Result;
 use async_trait::async_trait;
@@ -240,6 +241,65 @@ impl VisionExtractor {
         ))
     }
 
+    /// OODA-11: Extract document from PDF with progress callbacks.
+    ///
+    /// Like `extract_from_pdf` but emits page-by-page progress events via the
+    /// provided callback. Use this when you need real-time visibility into
+    /// vision extraction progress for UI display.
+    ///
+    /// # Arguments
+    /// * `pdf_bytes` - Raw PDF bytes to extract
+    /// * `progress` - Callback for progress notifications
+    ///
+    /// # Progress Events
+    /// - `on_extraction_start(total_pages)` - Called after rendering pages
+    /// - `on_page_start(page_num, total)` - Called before processing each page
+    /// - `on_page_complete(page_num, content_len)` - Called after successful extraction
+    /// - `on_page_error(page_num, error)` - Called if page extraction fails
+    /// - `on_extraction_complete(total, success_count)` - Called at the end
+    #[cfg(feature = "vision")]
+    pub async fn extract_from_pdf_with_progress<P>(
+        &self,
+        pdf_bytes: &[u8],
+        progress: Arc<P>,
+    ) -> Result<Document>
+    where
+        P: ProgressCallback,
+    {
+        info!("Extracting document from PDF using vision mode with progress");
+
+        // 1. Render pages to images
+        let renderer = crate::rendering::PageRenderer::new()?
+            .with_dpi(self.config.dpi)
+            .with_format(ImageFormat::Png);
+
+        let images = renderer.render_pages(pdf_bytes)?;
+        info!("Rendered {} pages to images", images.len());
+
+        // 2. Emit extraction start
+        progress.on_extraction_start(images.len());
+
+        // 3. Extract with progress callbacks
+        self.extract_from_images_with_progress(&images, progress).await
+    }
+
+    /// OODA-11: Stub for extract_from_pdf_with_progress when vision disabled.
+    #[cfg(not(feature = "vision"))]
+    pub async fn extract_from_pdf_with_progress<P>(
+        &self,
+        _pdf_bytes: &[u8],
+        _progress: Arc<P>,
+    ) -> Result<Document>
+    where
+        P: ProgressCallback,
+    {
+        Err(PdfError::Unsupported(
+            "Vision mode requires the 'vision' feature flag. \
+             Recompile edgequake-pdf with --features vision"
+                .into(),
+        ))
+    }
+
     /// Extract a document from pre-rendered page images.
     pub async fn extract_from_images(&self, images: &[PageImage]) -> Result<Document> {
         info!("Extracting document from {} page images", images.len());
@@ -251,6 +311,61 @@ impl VisionExtractor {
             let page = self.extract_page(image).await?;
             document.add_page(page);
         }
+
+        document.update_stats();
+        document.generate_toc();
+
+        Ok(document)
+    }
+
+    /// OODA-11: Extract document from images with progress callbacks.
+    ///
+    /// This is the core extraction loop with progress reporting. Used by
+    /// `extract_from_pdf_with_progress` and can be called directly if you
+    /// have pre-rendered images.
+    ///
+    /// # Error Handling
+    /// Unlike `extract_from_images`, this method continues on page errors
+    /// (emitting `on_page_error`) and reports the success count at completion.
+    pub async fn extract_from_images_with_progress<P>(
+        &self,
+        images: &[PageImage],
+        progress: Arc<P>,
+    ) -> Result<Document>
+    where
+        P: ProgressCallback,
+    {
+        info!(
+            "Extracting document from {} page images with progress",
+            images.len()
+        );
+
+        let mut document = Document::new();
+        document.method = ExtractionMethod::Vision;
+        let mut success_count = 0;
+        let total = images.len();
+
+        for (idx, image) in images.iter().enumerate() {
+            let page_num = idx + 1;
+            progress.on_page_start(page_num, total);
+
+            match self.extract_page(image).await {
+                Ok(page) => {
+                    let content_len = page.get_text().len();
+                    progress.on_page_complete(page_num, content_len);
+                    document.add_page(page);
+                    success_count += 1;
+                }
+                Err(e) => {
+                    let error_msg = e.to_string();
+                    progress.on_page_error(page_num, &error_msg);
+                    // WHY: Vision extraction continues on page errors to maximize
+                    // content extraction. User is informed via progress callback.
+                }
+            }
+        }
+
+        progress.on_extraction_complete(total, success_count);
 
         document.update_stats();
         document.generate_toc();

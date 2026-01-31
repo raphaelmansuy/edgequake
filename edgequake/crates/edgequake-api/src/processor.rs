@@ -1336,7 +1336,11 @@ impl DocumentTaskProcessor {
 
                 let extractor = VisionExtractor::new(Arc::clone(&self.llm_provider), vision_config);
 
-                match extractor.extract_from_pdf(&pdf.pdf_data).await {
+                // OODA-11: Use progress callback for vision extraction
+                match extractor
+                    .extract_from_pdf_with_progress(&pdf.pdf_data, Arc::clone(&progress_callback))
+                    .await
+                {
                     Ok(document) => {
                         // Render Document to markdown string
                         let renderer = MarkdownRenderer::new();
