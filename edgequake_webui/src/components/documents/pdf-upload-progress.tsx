@@ -4,6 +4,7 @@
  * Shows real-time progress through all pipeline phases with ETA.
  *
  * @implements OODA-21: PdfUploadProgress component
+ * @implements OODA-29: ErrorBanner integration
  * @implements UC0709: User sees estimated time remaining
  * @implements FEAT0606: Multi-phase progress tracking with ETA
  *
@@ -42,6 +43,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useMemo } from "react";
+import { ErrorBanner, type PdfError } from "./error-banner";
 
 // ============================================================================
 // Types
@@ -230,6 +232,28 @@ function EtaDisplay({ seconds }: { seconds: number | null }) {
   );
 }
 
+/**
+ * OODA-29: Extract error code from error message for classification.
+ */
+function extractErrorCode(errorMessage: string): string {
+  const lowerMsg = errorMessage.toLowerCase();
+  if (lowerMsg.includes("timeout")) return "timeout_error";
+  if (lowerMsg.includes("network")) return "network_error";
+  if (lowerMsg.includes("rate limit") || lowerMsg.includes("429")) return "rate_limit";
+  if (lowerMsg.includes("parse") || lowerMsg.includes("corrupt")) return "parse_error";
+  if (lowerMsg.includes("llm") || lowerMsg.includes("openai")) return "llm_error";
+  if (lowerMsg.includes("storage") || lowerMsg.includes("database")) return "storage_error";
+  return "unknown_error";
+}
+
+/**
+ * OODA-29: Get the name of the failed phase from phase info.
+ */
+function getFailedPhaseName(phases: PhaseInfo[]): string | undefined {
+  const failedPhase = phases.find(p => p.status.type === "failed");
+  return failedPhase?.label;
+}
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -416,59 +440,43 @@ export function PdfUploadProgress({
           ))}
         </div>
 
-        {/* Error message */}
+        {/* OODA-29: Enhanced error display using ErrorBanner */}
         {isFailed && progress?.error && (
-          <div className="flex items-start gap-2 p-3 rounded-md bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 text-sm">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <p className="font-medium">Processing Failed</p>
-              <p className="text-red-500 dark:text-red-400">{progress.error}</p>
-            </div>
-          </div>
+          <ErrorBanner
+            error={{
+              code: extractErrorCode(progress.error),
+              message: progress.error,
+              phase: getFailedPhaseName(phases),
+              recoverable: true,
+            }}
+            filename={displayFilename}
+            onRetry={() => retry()}
+            isRetrying={isRetrying}
+            compact={true}
+          />
         )}
 
-        {/* Action buttons */}
-        {(isFailed || isProcessing) && (
+        {/* Action buttons - only show Cancel when processing (Retry is in ErrorBanner) */}
+        {isProcessing && (
           <div className="flex justify-end gap-2">
-            {isFailed && (
-              <Button
-                size="sm"
-                onClick={() => retry()}
-                disabled={isRetrying}
-              >
-                {isRetrying ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Retrying...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Retry
-                  </>
-                )}
-              </Button>
-            )}
-            {isProcessing && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => cancel()}
-                disabled={isCancelling}
-              >
-                {isCancelling ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Cancelling...
-                  </>
-                ) : (
-                  <>
-                    <StopCircle className="h-4 w-4 mr-2" />
-                    Cancel
-                  </>
-                )}
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => cancel()}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                <>
+                  <StopCircle className="h-4 w-4 mr-2" />
+                  Cancel
+                </>
+              )}
+            </Button>
           </div>
         )}
       </CardContent>
