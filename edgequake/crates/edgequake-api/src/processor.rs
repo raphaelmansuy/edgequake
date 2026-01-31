@@ -1223,6 +1223,13 @@ impl TaskProcessor for DocumentTaskProcessor {
                     "Reindexing not yet implemented".to_string(),
                 ))
             }
+            TaskType::PdfProcessing => {
+                // PDF processing will be implemented in next phase
+                // For now, mark as unsupported to allow compilation
+                Err(edgequake_tasks::TaskError::UnsupportedOperation(
+                    "PDF processing implementation coming soon".to_string(),
+                ))
+            }
         }
     }
 }

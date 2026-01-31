@@ -382,9 +382,14 @@ pub async fn upload_pdf_document(
     // 4. Get PDF storage (platform-specific)
     let pdf_storage = get_pdf_storage(&state)?;
 
-    // 5. Check for duplicates
+    // 5. Extract workspace_id as UUID
+    let workspace_id = context
+        .workspace_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
+
+    // 6. Check for duplicates
     if let Some(existing) = pdf_storage
-        .find_pdf_by_checksum(&context.workspace_id, &checksum)
+        .find_pdf_by_checksum(&workspace_id, &checksum)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to check for duplicates: {}", e)))?
     {
@@ -422,7 +427,7 @@ pub async fn upload_pdf_document(
 
     let pdf_id = pdf_storage
         .create_pdf(CreatePdfRequest {
-            workspace_id: context.workspace_id,
+            workspace_id,
             filename: filename.clone(),
             content_type: "application/pdf".to_string(),
             file_size_bytes: file_data.len() as i64,
@@ -494,7 +499,7 @@ pub async fn upload_pdf_document(
 )]
 pub async fn get_pdf_status(
     State(state): State<AppState>,
-    TenantContext(context): TenantContext,
+    context: TenantContext,
     Path(pdf_id): Path<String>,
 ) -> ApiResult<Json<PdfStatusResponse>> {
     let pdf_id = Uuid::parse_str(&pdf_id)
@@ -509,10 +514,12 @@ pub async fn get_pdf_status(
         .ok_or_else(|| ApiError::NotFound("PDF not found".to_string()))?;
 
     // Verify workspace access
-    if pdf.workspace_id != context.workspace_id {
-        return Err(ApiError::Forbidden(
-            "PDF belongs to a different workspace".to_string(),
-        ));
+    let workspace_id = context
+        .workspace_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
+
+    if pdf.workspace_id != workspace_id {
+        return Err(ApiError::Forbidden);
     }
 
     let processing_duration_ms = pdf
@@ -564,10 +571,12 @@ pub async fn get_pdf_status(
 )]
 pub async fn list_pdfs(
     State(state): State<AppState>,
-    TenantContext(context): TenantContext,
+    context: TenantContext,
     Query(query): Query<ListPdfsQuery>,
 ) -> ApiResult<Json<ListPdfsResponse>> {
     let pdf_storage = get_pdf_storage(&state)?;
+
+    let workspace_id = context.workspace_id_uuid();
 
     let status = query
         .status
@@ -576,7 +585,7 @@ pub async fn list_pdfs(
 
     let list = pdf_storage
         .list_pdfs(ListPdfFilter {
-            workspace_id: Some(context.workspace_id),
+            workspace_id,
             processing_status: status,
             page: Some(query.page),
             page_size: Some(query.page_size),
@@ -640,7 +649,7 @@ pub async fn list_pdfs(
 )]
 pub async fn delete_pdf(
     State(state): State<AppState>,
-    TenantContext(context): TenantContext,
+    context: TenantContext,
     Path(pdf_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     let pdf_id = Uuid::parse_str(&pdf_id)
@@ -655,10 +664,12 @@ pub async fn delete_pdf(
         .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
         .ok_or_else(|| ApiError::NotFound("PDF not found".to_string()))?;
 
-    if pdf.workspace_id != context.workspace_id {
-        return Err(ApiError::Forbidden(
-            "PDF belongs to a different workspace".to_string(),
-        ));
+    let workspace_id = context
+        .workspace_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
+
+    if pdf.workspace_id != workspace_id {
+        return Err(ApiError::Forbidden);
     }
 
     pdf_storage
@@ -699,37 +710,63 @@ fn get_pdf_storage(_state: &AppState) -> ApiResult<Arc<dyn PdfDocumentStorage>> 
 /// Create PDF processing background task.
 async fn create_pdf_processing_task(
     state: &AppState,
-    context: &crate::middleware::TenantContextData,
+    context: &TenantContext,
     pdf_id: Uuid,
     options: &PdfUploadOptions,
-) -> ApiResult<Uuid> {
+) -> ApiResult<String> {
+    let workspace_id = context
+        .workspace_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
+    
+    let tenant_id = context
+        .tenant_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Tenant ID required".to_string()))?;
+
     let task_data = PdfProcessingData {
         pdf_id,
-        workspace_id: context.workspace_id,
+        workspace_id,
         enable_vision: options.enable_vision,
         vision_provider: options.vision_provider.clone(),
         vision_model: options.vision_model.clone(),
     };
 
-    let task_id = state
+    let track_id = format!("pdf-{}", Uuid::new_v4());
+    
+    let task = Task {
+        track_id: track_id.clone(),
+        tenant_id,
+        workspace_id,
+        task_type: TaskType::PdfProcessing,
+        status: TaskStatus::Pending,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+        started_at: None,
+        completed_at: None,
+        error_message: None,
+        error: None,
+        retry_count: 0,
+        max_retries: 3,
+        consecutive_timeout_failures: 0,
+        circuit_breaker_tripped: false,
+        task_data: serde_json::to_value(&task_data)
+            .map_err(|e| ApiError::Internal(format!("Failed to serialize task data: {}", e)))?,
+        metadata: None,
+        progress: None,
+        result: None,
+    };
+
+    state
         .task_storage
-        .create_task(
-            TaskType::PdfProcessing,
-            serde_json::to_value(&task_data)
-                .map_err(|e| ApiError::Internal(format!("Failed to serialize task data: {}", e)))?,
-            None,
-            Some(context.workspace_id),
-            Some(context.tenant_id),
-        )
+        .create_task(&task)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
 
     debug!(
         "Created PDF processing task: id={}, pdf_id={}",
-        task_id, pdf_id
+        track_id, pdf_id
     );
 
-    Ok(task_id)
+    Ok(track_id)
 }
 
 /// Extract page count from PDF (simple parse).
