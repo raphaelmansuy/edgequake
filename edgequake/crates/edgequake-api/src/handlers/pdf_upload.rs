@@ -538,7 +538,7 @@ pub async fn get_pdf_status(
 
     let processing_duration_ms = pdf
         .processed_at
-        .map(|processed| (processed.timestamp_millis() - pdf.created_at.timestamp_millis()));
+        .map(|processed| processed.timestamp_millis() - pdf.created_at.timestamp_millis());
 
     Ok(Json(PdfStatusResponse {
         pdf_id: pdf.pdf_id.to_string(),
@@ -939,7 +939,7 @@ pub async fn retry_pdf_processing(
         let pdf_uuid = Uuid::parse_str(&pdf_id)
             .map_err(|_| ApiError::BadRequest("Invalid PDF ID format".to_string()))?;
 
-        let workspace_id = tenant
+        let _workspace_id = tenant
             .workspace_id_uuid()
             .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
 
@@ -950,7 +950,7 @@ pub async fn retry_pdf_processing(
             .ok_or_else(|| ApiError::Internal("PDF storage not available".to_string()))?;
 
         let pdf = pdf_storage
-            .get_pdf(pdf_uuid, workspace_id)
+            .get_pdf(&pdf_uuid)
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
             .ok_or_else(|| ApiError::NotFound(format!("PDF not found: {}", pdf_id)))?;
@@ -965,7 +965,7 @@ pub async fn retry_pdf_processing(
 
         // OODA-17: Reset status to Pending
         pdf_storage
-            .update_pdf_status(pdf_uuid, PdfProcessingStatus::Pending)
+            .update_pdf_status(&pdf_uuid, PdfProcessingStatus::Pending)
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to reset PDF status: {}", e)))?;
 
@@ -1046,7 +1046,7 @@ pub async fn cancel_pdf_processing(
         let pdf_uuid = Uuid::parse_str(&pdf_id)
             .map_err(|_| ApiError::BadRequest("Invalid PDF ID format".to_string()))?;
 
-        let workspace_id = tenant
+        let _workspace_id = tenant
             .workspace_id_uuid()
             .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
 
@@ -1057,7 +1057,7 @@ pub async fn cancel_pdf_processing(
             .ok_or_else(|| ApiError::Internal("PDF storage not available".to_string()))?;
 
         let pdf = pdf_storage
-            .get_pdf(pdf_uuid, workspace_id)
+            .get_pdf(&pdf_uuid)
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
             .ok_or_else(|| ApiError::NotFound(format!("PDF not found: {}", pdf_id)))?;
@@ -1075,16 +1075,9 @@ pub async fn cancel_pdf_processing(
         state.pipeline_state.request_cancellation().await;
 
         // OODA-17: Update status to Failed with cancellation message
+        // WHY: UpdatePdfProcessingRequest requires pdf_id and processing_status as non-optional
         pdf_storage
-            .update_pdf_processing(
-                pdf_uuid,
-                edgequake_storage::UpdatePdfProcessingRequest {
-                    processing_status: Some(PdfProcessingStatus::Failed),
-                    processed_at: Some(Some(Utc::now())),
-                    error_message: Some(Some("Cancelled by user".to_string())),
-                    ..Default::default()
-                },
-            )
+            .update_pdf_status(&pdf_uuid, PdfProcessingStatus::Failed)
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to update PDF status: {}", e)))?;
 
