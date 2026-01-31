@@ -76,6 +76,7 @@ pub mod memory;
 pub mod pipeline_state;
 #[cfg(feature = "postgres")]
 pub mod postgres;
+pub mod progress;
 pub mod queue;
 pub mod storage;
 pub mod types;
@@ -84,6 +85,7 @@ pub mod worker;
 // Re-export commonly used types
 pub use error::{TaskError, TaskResult};
 pub use pipeline_state::{PipelineEvent, PipelineMessage, PipelineState, PipelineStatusSnapshot};
+pub use progress::{PdfUploadProgress, PhaseError, PhaseProgress, PhaseStatus, PipelinePhase};
 pub use queue::{ChannelTaskQueue, SharedTaskQueue, TaskQueue, UnboundedChannelTaskQueue};
 pub use storage::{
     Pagination, SharedTaskStorage, SortField, SortOrder, TaskFilter, TaskList, TaskStatistics,
