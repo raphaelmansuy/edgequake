@@ -101,6 +101,7 @@ import { DocumentFilters, type DocStatus, type SortDirection, type SortField } f
 import { DocumentPreviewPanel } from './document-preview-panel';
 import { ErrorMessagePopover } from './error-message-popover';
 import { PaginationControls } from './pagination-controls';
+import { PdfUploadProgress } from './pdf-upload-progress';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
@@ -310,7 +311,10 @@ export function DocumentManager() {
           let response: { document_id?: string; pdf_id?: string; duplicate_of?: string; task_id?: string; track_id?: string };
 
           // Check if file is PDF - route to PDF upload endpoint
-          if (file.type === 'application/pdf') {
+          // OODA-22: Track isPdf flag for enhanced progress component
+          const isPdfFile = file.type === 'application/pdf';
+          
+          if (isPdfFile) {
             // Upload PDF file directly (multipart/form-data)
             const pdfResponse = await uploadPdfDocument(file, {
               title: file.name,
@@ -326,6 +330,17 @@ export function DocumentManager() {
               task_id: pdfResponse.task_id,
               track_id: pdfResponse.track_id, // Use track_id from response
             };
+            
+            // OODA-22: Store track_id and isPdf flag for enhanced progress tracking
+            setUploadingFiles((prev) =>
+              prev.map((f, idx) =>
+                idx === i ? { 
+                  ...f, 
+                  trackId: pdfResponse.track_id,
+                  isPdf: true,
+                } : f
+              )
+            );
           } else {
             // Read text file content
             const text = await file.text();
@@ -1130,9 +1145,46 @@ export function DocumentManager() {
             </div>
           )}
           
-          <ScrollArea className="max-h-32">
+          <ScrollArea className="max-h-48">
             <div className="space-y-1">
               {uploadingFiles.map((uploadFile, index) => (
+                /* OODA-22: Conditionally render PdfUploadProgress for PDF files with trackId */
+                uploadFile.isPdf && uploadFile.trackId ? (
+                  <div
+                    key={`${uploadFile.file.name}-${index}`}
+                    className="relative p-2 rounded-lg border bg-card"
+                  >
+                    <PdfUploadProgress
+                      trackId={uploadFile.trackId}
+                      filename={uploadFile.file.name}
+                      compact={true}
+                      onComplete={() => {
+                        // Mark as success when PDF processing completes
+                        setUploadingFiles((prev) =>
+                          prev.map((f, idx) =>
+                            idx === index ? { ...f, status: 'success' as const, progress: 100 } : f
+                          )
+                        );
+                      }}
+                      onFailed={(error) => {
+                        // Mark as error when PDF processing fails
+                        setUploadingFiles((prev) =>
+                          prev.map((f, idx) =>
+                            idx === index ? { ...f, status: 'error' as const, error } : f
+                          )
+                        );
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-1 right-1 h-6 w-6"
+                      onClick={() => removeUploadingFile(index)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
                 <div
                   key={`${uploadFile.file.name}-${index}`}
                   className="flex items-center gap-3 p-2 rounded-lg border bg-card"
@@ -1185,6 +1237,7 @@ export function DocumentManager() {
                     <X className="h-3 w-3" />
                   </Button>
                 </div>
+                )
               ))}
             </div>
           </ScrollArea>
