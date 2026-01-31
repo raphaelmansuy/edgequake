@@ -40,7 +40,7 @@ Add in-memory progress storage to `PipelineState` with methods to create, update
 // In PipelineStateInner
 struct PipelineStateInner {
     // ... existing fields ...
-    
+
     /// OODA-12: Active PDF upload progress, keyed by track_id.
     /// Enables queryable progress for GET /api/v1/documents/pdf/:id/progress
     pdf_progress: HashMap<String, PdfUploadProgress>,
@@ -52,19 +52,19 @@ impl PipelineState {
     pub async fn start_pdf_progress(&self, track_id: &str, pdf_id: &str, filename: &str) {
         let progress = PdfUploadProgress::new(
             track_id.to_string(),
-            pdf_id.to_string(), 
+            pdf_id.to_string(),
             filename.to_string(),
         );
         let mut inner = self.inner.write().await;
         inner.pdf_progress.insert(track_id.to_string(), progress);
     }
-    
+
     /// OODA-12: Get current progress for a PDF upload.
     pub async fn get_pdf_progress(&self, track_id: &str) -> Option<PdfUploadProgress> {
         let inner = self.inner.read().await;
         inner.pdf_progress.get(track_id).cloned()
     }
-    
+
     // ... more methods ...
 }
 ```

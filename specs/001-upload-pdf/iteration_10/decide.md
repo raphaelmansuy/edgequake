@@ -7,6 +7,7 @@ Modify `PipelineProgressCallback` to also send `ProgressEvent::PdfPageProgress` 
 ## Updated Approach
 
 Instead of only sending to `PipelineState`, the callback will:
+
 1. Send to `PipelineState.emit_pdf_page_progress()` (for internal pipeline coordination)
 2. Also send to `ProgressBroadcaster.send()` (for WebSocket clients)
 
@@ -15,6 +16,7 @@ This requires adding `ProgressBroadcaster` as an optional field.
 ## Rationale
 
 Using first principles:
+
 1. **Dual purpose**: PipelineState for internal use, ProgressBroadcaster for frontend
 2. **Minimal change**: Just add a field to existing adapter
 3. **No new async tasks**: Direct send in callback methods

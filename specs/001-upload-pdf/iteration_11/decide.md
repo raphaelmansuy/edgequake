@@ -14,7 +14,7 @@ We will add progress callback support to VisionExtractor following the same patt
 ## Action Items
 
 1. [x] Add `extract_from_pdf_with_progress` method to VisionExtractor
-2. [x] Add `extract_from_images_with_progress` method to VisionExtractor  
+2. [x] Add `extract_from_images_with_progress` method to VisionExtractor
 3. [x] Update processor.rs vision path to use progress callback
 4. [x] Add unit tests for VisionExtractor progress callbacks
 5. [x] Verify existing vision tests still pass
@@ -51,10 +51,10 @@ where
         .with_dpi(self.config.dpi)
         .with_format(ImageFormat::Png);
     let images = renderer.render_pages(pdf_bytes)?;
-    
+
     // 2. Emit extraction start
     progress.on_extraction_start(images.len());
-    
+
     // 3. Extract with progress
     self.extract_from_images_with_progress(&images, progress).await
 }
@@ -75,7 +75,7 @@ where
     for (idx, image) in images.iter().enumerate() {
         let page_num = idx + 1;
         progress.on_page_start(page_num, total);
-        
+
         match self.extract_page(image).await {
             Ok(page) => {
                 progress.on_page_complete(page_num, page.content.len());
@@ -90,7 +90,7 @@ where
     }
 
     progress.on_extraction_complete(total, success_count);
-    
+
     document.update_stats();
     document.generate_toc();
 

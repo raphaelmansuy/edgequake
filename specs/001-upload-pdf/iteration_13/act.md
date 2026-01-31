@@ -3,31 +3,37 @@
 ## Changes Made
 
 ### File 1: `edgequake/crates/edgequake-api/src/pipeline_progress_callback.rs`
+
 - Lines: 34-45 (imports), 63-78 (struct), 82-103 (impl)
 - Change: Added `PipelinePhase` import, `filename` field, `with_filename()` builder
 - Why: Persistent progress needs filename for display in GET response
 
 ### File 2: `edgequake/crates/edgequake-api/src/pipeline_progress_callback.rs`
+
 - Lines: 123-135 (on_extraction_start)
 - Change: Added `tokio::spawn()` call to `start_pdf_progress()` and `start_pdf_phase()`
 - Why: Bridges sync callback to async PipelineState methods
 
 ### File 3: `edgequake/crates/edgequake-api/src/pipeline_progress_callback.rs`
+
 - Lines: 177-192 (on_page_complete)
 - Change: Added `tokio::spawn()` call to `update_pdf_phase()`
 - Why: Updates progress as each page completes
 
 ### File 4: `edgequake/crates/edgequake-api/src/pipeline_progress_callback.rs`
+
 - Lines: 244-250 (on_extraction_complete)
 - Change: Added `tokio::spawn()` call to `complete_pdf_phase()`
 - Why: Marks PdfConversion phase as complete
 
 ### File 5: `edgequake/crates/edgequake-api/src/pipeline_progress_callback.rs`
+
 - Lines: 218-230 (on_page_error)
 - Change: Added `tokio::spawn()` call to `update_pdf_phase()` with error message
 - Why: Records page-level errors in persistent storage
 
 ### File 6: `edgequake/crates/edgequake-api/src/state.rs`
+
 - Lines: 519-520, 613-614
 - Change: Added missing `#[cfg(feature = "postgres")]` on `pdf_storage: None`
 - Why: Field is conditionally compiled, initializations must match
@@ -107,6 +113,7 @@ test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 428 filtered out
 ## Next Iteration Focus
 
 OODA-14: Implement GET /api/v1/documents/pdf/:id/progress endpoint
+
 - Create handler function that calls `state.pipeline_state.get_pdf_progress()`
 - Add route to router
 - Return JSON `PdfUploadProgress` response

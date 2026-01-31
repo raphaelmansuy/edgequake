@@ -2,20 +2,22 @@
 
 ## Gap Analysis
 
-| Current State | Desired State | Gap | Priority |
-|--------------|---------------|-----|----------|
-| PipelineState emits PipelineEvent | WebSocket receives ProgressEvent | Need bridge | HIGH |
-| Two separate broadcast channels | Unified event flow | Forward events | HIGH |
-| WebSocket subscribes to ProgressBroadcaster | Should also receive PDF events | Wire PipelineState → ProgressBroadcaster | HIGH |
+| Current State                               | Desired State                    | Gap                                      | Priority |
+| ------------------------------------------- | -------------------------------- | ---------------------------------------- | -------- |
+| PipelineState emits PipelineEvent           | WebSocket receives ProgressEvent | Need bridge                              | HIGH     |
+| Two separate broadcast channels             | Unified event flow               | Forward events                           | HIGH     |
+| WebSocket subscribes to ProgressBroadcaster | Should also receive PDF events   | Wire PipelineState → ProgressBroadcaster | HIGH     |
 
 ## Two Event Systems Discovered
 
 ### 1. PipelineState (edgequake-tasks)
+
 - `PipelineEvent` enum: Log, Progress, StateChange, ChunkProgress, ChunkFailure, **PdfPageProgress**
 - Broadcast via `tokio::sync::broadcast<PipelineEvent>`
 - Used internally for pipeline coordination
 
 ### 2. ProgressBroadcaster (edgequake-api)
+
 - `ProgressEvent` enum: Connected, JobStarted, DocumentProgress, etc., **PdfPageProgress**
 - Broadcast via `tokio::sync::broadcast<ProgressEvent>`
 - Used for WebSocket client updates

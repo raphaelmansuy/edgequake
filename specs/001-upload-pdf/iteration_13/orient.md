@@ -2,12 +2,12 @@
 
 ## Gap Analysis
 
-| Current State | Desired State | Gap | Priority |
-|--------------|---------------|-----|----------|
-| `PipelineProgressCallback` emits events only | Also persist to `pdf_progress` HashMap | Sync→Async bridge needed | HIGH |
-| No initialization of `PdfUploadProgress` on start | Call `start_pdf_progress()` in `on_extraction_start` | Missing call | HIGH |
-| No phase update on page progress | Call `update_pdf_phase()` in `on_page_complete` | Missing call | HIGH |
-| No cleanup after completion | Call `remove_pdf_progress()` in processor | Missing call | MEDIUM |
+| Current State                                     | Desired State                                        | Gap                      | Priority |
+| ------------------------------------------------- | ---------------------------------------------------- | ------------------------ | -------- |
+| `PipelineProgressCallback` emits events only      | Also persist to `pdf_progress` HashMap               | Sync→Async bridge needed | HIGH     |
+| No initialization of `PdfUploadProgress` on start | Call `start_pdf_progress()` in `on_extraction_start` | Missing call             | HIGH     |
+| No phase update on page progress                  | Call `update_pdf_phase()` in `on_page_complete`      | Missing call             | HIGH     |
+| No cleanup after completion                       | Call `remove_pdf_progress()` in processor            | Missing call             | MEDIUM   |
 
 ## Risk Assessment
 

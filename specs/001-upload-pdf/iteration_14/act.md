@@ -3,11 +3,13 @@
 ## Changes Made
 
 ### File 1: `edgequake/crates/edgequake-api/src/handlers/pdf_upload.rs`
+
 - Lines: 50 (import), 712-762 (handler)
 - Change: Added `get_pdf_progress` handler function
 - Why: Provides HTTP endpoint for querying PDF upload progress
 
 ### File 2: `edgequake/crates/edgequake-api/src/routes.rs`
+
 - Lines: 216-219
 - Change: Added route `/documents/pdf/progress/{track_id}` before `{pdf_id}` routes
 - Why: More specific route must come before parameterized catch-all
@@ -67,9 +69,9 @@ test result: ok. 435 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fi
 
 ## API Documentation
 
-| Method | Path | Handler | Description |
-|--------|------|---------|-------------|
-| GET | `/api/v1/documents/pdf/progress/{track_id}` | `get_pdf_progress` | Get upload progress |
+| Method | Path                                        | Handler            | Description         |
+| ------ | ------------------------------------------- | ------------------ | ------------------- |
+| GET    | `/api/v1/documents/pdf/progress/{track_id}` | `get_pdf_progress` | Get upload progress |
 
 ### Response Example (200 OK)
 
@@ -115,6 +117,7 @@ test result: ok. 435 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fi
 ## Next Iteration Focus
 
 OODA-15: Implement WebSocket `/ws/progress/{track_id}` endpoint
+
 - Real-time progress updates via WebSocket
 - Filtering by track_id for specific upload
 - Heartbeat/ping mechanism

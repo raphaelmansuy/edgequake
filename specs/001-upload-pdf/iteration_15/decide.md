@@ -39,7 +39,7 @@ pub async fn ws_progress_by_track_id(
 
 async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, track_id: String) {
     // ... setup similar to existing handler ...
-    
+
     // Filter loop
     loop {
         tokio::select! {

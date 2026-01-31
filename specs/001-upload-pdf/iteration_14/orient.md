@@ -2,11 +2,11 @@
 
 ## Gap Analysis
 
-| Current State | Desired State | Gap | Priority |
-|--------------|---------------|-----|----------|
-| Progress stored by `track_id` | Need queryable endpoint | No GET endpoint exists | HIGH |
-| `PipelineState.get_pdf_progress(track_id)` exists | HTTP API wrapper | Just need handler + route | HIGH |
-| Routes exist for `/documents/pdf/{pdf_id}` | Need `/documents/pdf/progress/{track_id}` | Add new route | HIGH |
+| Current State                                     | Desired State                             | Gap                       | Priority |
+| ------------------------------------------------- | ----------------------------------------- | ------------------------- | -------- |
+| Progress stored by `track_id`                     | Need queryable endpoint                   | No GET endpoint exists    | HIGH     |
+| `PipelineState.get_pdf_progress(track_id)` exists | HTTP API wrapper                          | Just need handler + route | HIGH     |
+| Routes exist for `/documents/pdf/{pdf_id}`        | Need `/documents/pdf/progress/{track_id}` | Add new route             | HIGH     |
 
 ## Risk Assessment
 
@@ -47,6 +47,7 @@
 ## Response Structure
 
 The endpoint will return `PdfUploadProgress` which already has:
+
 ```rust
 pub struct PdfUploadProgress {
     pub track_id: String,
@@ -66,6 +67,7 @@ This is already `Serialize`, can return directly as JSON.
 ## Route Placement
 
 Must add BEFORE the `/documents/{document_id}` catch-all route:
+
 ```rust
 .route("/documents/pdf/progress/{track_id}", get(handlers::get_pdf_progress))
 ```

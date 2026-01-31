@@ -276,10 +276,7 @@ pub async fn ws_progress_by_track_id(
     State(state): State<AppState>,
     Path(track_id): Path<String>,
 ) -> impl IntoResponse {
-    info!(
-        "WebSocket connection requested for track_id={}",
-        track_id
-    );
+    info!("WebSocket connection requested for track_id={}", track_id);
     ws.on_upgrade(move |socket| handle_filtered_progress_socket(socket, state, track_id))
 }
 
@@ -287,10 +284,7 @@ pub async fn ws_progress_by_track_id(
 async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, track_id: String) {
     let (mut sender, mut receiver) = socket.split();
 
-    info!(
-        "WebSocket connection established for track_id={}",
-        track_id
-    );
+    info!("WebSocket connection established for track_id={}", track_id);
 
     // Send initial connected message
     let connected_event = ProgressEvent::Connected {

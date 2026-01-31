@@ -34,8 +34,8 @@
 //!                                                            └─────────────────┘
 //! ```
 
-use crate::handlers::ProgressBroadcaster;
 use crate::handlers::websocket_types::ProgressEvent;
+use crate::handlers::ProgressBroadcaster;
 use edgequake_pdf::ProgressCallback;
 use edgequake_tasks::progress::PipelinePhase;
 use edgequake_tasks::PipelineState;
