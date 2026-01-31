@@ -409,6 +409,26 @@ pub async fn upload_pdf_document(
             "Duplicate PDF upload detected: existing_id={}",
             existing.pdf_id
         );
+
+        // OODA-01 FIX: Initialize progress even for duplicates
+        //
+        // WHY: Frontend polls /pdf/progress/{track_id} immediately after upload.
+        //      Even for duplicates, we need to return a valid progress entry
+        //      so the frontend doesn't get a 404 error.
+        //
+        // The duplicate response tells the frontend it's already processed,
+        // but the progress entry needs to exist for the initial poll.
+        if let Some(ref track_id) = options.track_id {
+            info!(
+                "OODA-01: Initializing PDF progress for duplicate, track_id={}, pdf_id={}, filename={}",
+                track_id, existing.pdf_id, existing.filename
+            );
+            state
+                .pipeline_state
+                .start_pdf_progress(track_id, &existing.pdf_id.to_string(), &existing.filename)
+                .await;
+        }
+
         return Ok(Json(PdfUploadResponse {
             pdf_id: existing.pdf_id.to_string(),
             document_id: existing.document_id.map(|id| id.to_string()),
@@ -462,7 +482,25 @@ pub async fn upload_pdf_document(
     // 8. Create background task
     let task_id = create_pdf_processing_task(&state, &context, pdf_id, &options).await?;
 
-    // 9. Estimate processing time (rough heuristic)
+    // 9. OODA-01: Initialize progress tracking immediately
+    //
+    // WHY: Frontend polls /pdf/progress/{track_id} immediately after upload.
+    //      Previously, progress was only initialized when the task callback
+    //      fired (on_extraction_start), causing a race condition → 404 errors.
+    //
+    // FIX: Initialize progress here, before returning. The callback will
+    //      update phases as processing proceeds, but the entry now exists.
+    let effective_track_id = options.track_id.clone().unwrap_or_else(|| task_id.clone());
+    info!(
+        "OODA-01: Initializing PDF progress for track_id={}, pdf_id={}, filename={}",
+        effective_track_id, pdf_id, filename
+    );
+    state
+        .pipeline_state
+        .start_pdf_progress(&effective_track_id, &pdf_id.to_string(), &filename)
+        .await;
+
+    // 10. Estimate processing time (rough heuristic)
     let estimated_time = estimate_processing_time(&file_data, page_count);
 
     Ok(Json(PdfUploadResponse {
