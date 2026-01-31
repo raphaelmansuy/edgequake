@@ -830,9 +830,8 @@ impl AppState {
         let rbac_service = Arc::new(RbacService::new());
 
         // Create PDF storage (SPEC-007) - uses the connection pool
-        let pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage> = Arc::new(
-            edgequake_storage::PostgresPdfStorage::new(pool.clone()),
-        );
+        let pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage> =
+            Arc::new(edgequake_storage::PostgresPdfStorage::new(pool.clone()));
 
         Ok(Self {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
