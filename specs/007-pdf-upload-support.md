@@ -1847,7 +1847,7 @@ Due to the comprehensive nature of this implementation, I'll provide a high-leve
 
 ## Implementation Status
 
-### ✅ Completed (OODA Loops 1-13)
+### ✅ Completed (OODA Loops 1-16)
 
 - [x] **Loop 1**: Mission specification document (1,392 lines)
 - [x] **Loop 2**: Database migration 022 (406 lines, applied successfully)
@@ -1862,16 +1862,16 @@ Due to the comprehensive nature of this implementation, I'll provide a high-leve
 - [x] **Loop 11**: Helper update (get_pdf_storage uses state.pdf_storage)
 - [x] **Loop 12**: **Full PDF worker implementation** (text extraction pipeline)
 - [x] **Loop 13**: Test fixes (all 10 processor tests updated)
+- [x] **Loop 14**: Research PDF page rendering solutions (documented pdfium-render blocker)
+- [x] **Loop 15**: Implement PDF-to-image rendering via pdftoppm (poppler-utils)
+- [x] **Loop 16**: **VisionExtractor integration in processor.rs** (full vision workflow)
 
-### ⏳ Pending (Loops 14-50+)
+### ⏳ Pending (Loops 17-50+)
 
-- [ ] **Loop 14**: Research PDF page rendering solutions (pdfium-render, pdf_render)
-- [ ] **Loop 15**: Implement PDF-to-image rendering for vision mode
-- [ ] **Loop 16**: Update processor.rs for full vision workflow
 - [ ] **Loop 17**: Configure vision models in models.toml
 - [ ] **Loops 18-22**: Integration tests (text, vision, errors, dedup, isolation)
-- [ ] **Loop 23**: Performance benchmarking
-- [ ] **Loops 24-29**: Streaming upload & chunked processing optimization
+- [ ] **Loop 23**: E2E tests for PDF upload flow with Playwright
+- [ ] **Loops 24-29**: Performance benchmarking and optimization
 - [ ] **Loops 30-36**: Documentation (OpenAPI, user guide)
 - [ ] **Loops 37-50**: Advanced testing, security audit, final validation
 
@@ -1884,22 +1884,26 @@ Due to the comprehensive nature of this implementation, I'll provide a high-leve
 5. **Text Extraction Pipeline**: Full background processing worker with 8-step pipeline
 6. **AppState Integration**: PDF storage properly integrated into application state
 7. **Task System**: PdfProcessing task type integrated with retry logic
-8. **Compilation Success**: All code compiles with postgres feature (minor warnings only)
-9. **Test Coverage**: All processor tests passing (10 tests updated)
-10. **Vision Architecture**: vision.rs module exists (485 lines), needs page rendering integration
+8. **Vision Rendering**: pdftoppm-based page rendering (poppler-utils) - replaces broken pdfium-render
+9. **Vision Integration**: VisionExtractor.extract_from_pdf() integrated into processor.rs
+10. **Extraction Method Tracking**: ExtractionMethod (Text/Vision) and vision_model stored in DB
+11. **Compilation Success**: All code compiles with postgres,vision features
+12. **Test Coverage**: All processor tests passing (10 tests updated)
 
 ### 📊 Metrics
 
-- **Lines of Code**: ~3,500 (spec + migration + storage + API + worker)
-- **OODA Loops Executed**: **13 of 50+** (core implementation complete, vision pending)
+- **Lines of Code**: ~4,000 (spec + migration + storage + API + worker + vision)
+- **OODA Loops Executed**: **16 of 50+** (core + vision implementation complete)
 - **Database Tables**: 1 (pdf_documents with 6 indexes, 5 RLS policies)
 - **API Endpoints**: 4 implemented (upload, status, list, delete)
 - **Storage Methods**: 10 async CRUD operations
-- **Vision Providers**: 2 planned (OpenAI gpt-4o-mini, Ollama gemma3:latest)
+- **Vision Providers**: OpenAI gpt-4o-mini (default), configurable via PdfProcessingData
+- **PDF Rendering**: pdftoppm from poppler-utils (brew install poppler / apt-get install poppler-utils)
 - **Max File Size**: 100MB with BYTEA storage
 - **Storage Isolation**: Per-workspace with RLS enforcement
 - **Processing Pipeline**: 8 steps (load → extract → store → create doc → link → complete)
-- **Test Coverage**: 10 processor tests passing + unit tests in storage/vision modules
+- **Vision Pipeline**: Render pages → Extract via LLM → Merge markdown → Store
+- **Test Coverage**: 10 processor tests + 8 rendering tests + storage/vision unit tests
 
 ---
 
@@ -1921,3 +1925,22 @@ The remaining implementation work (API handlers, vision integration, task proces
 ---
 
 **End of OODA Execution Log**
+
+---
+
+### Vision Mode Workflow (Loop 16)
+
+1. Upload PDF with `enable_vision: true` in processing data
+2. Background worker loads PDF from storage
+3. PageRenderer renders pages to PNG images via pdftoppm
+4. VisionExtractor sends images to multimodal LLM (gpt-4o-mini default)
+5. LLM extracts text/structure from each page
+6. MarkdownRenderer converts Document to markdown
+7. Markdown stored with extraction_method=Vision
+8. Standard ingestion pipeline creates document and entities
+
+### Next Steps
+
+- **Loop 17**: Configure vision models in models.toml
+- **Loops 18-23**: Integration and E2E tests
+- **Loops 24-36**: Performance optimization and documentation
