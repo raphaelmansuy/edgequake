@@ -192,6 +192,54 @@ impl VisionExtractor {
         Self::new(provider, VisionConfig::default())
     }
 
+    /// Extract document from PDF bytes using vision mode.
+    ///
+    /// This renders PDF pages to images and processes them with a vision LLM.
+    /// Requires the `vision` feature to be enabled.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use edgequake_pdf::{VisionExtractor, VisionConfig};
+    /// use edgequake_llm::providers::mock::MockProvider;
+    /// use std::sync::Arc;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let provider = Arc::new(MockProvider::new());
+    /// let config = VisionConfig::default().with_model("gpt-4o-mini");
+    /// let extractor = VisionExtractor::new(provider, config);
+    ///
+    /// let pdf_bytes = std::fs::read("document.pdf")?;
+    /// let document = extractor.extract_from_pdf(&pdf_bytes).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(feature = "vision")]
+    pub async fn extract_from_pdf(&self, pdf_bytes: &[u8]) -> Result<Document> {
+        info!("Extracting document from PDF using vision mode");
+
+        // 1. Render pages to images
+        let renderer = crate::rendering::PageRenderer::new()?
+            .with_dpi(self.config.dpi)
+            .with_format(ImageFormat::Png);
+
+        let images = renderer.render_pages(pdf_bytes)?;
+        info!("Rendered {} pages to images", images.len());
+
+        // 2. Extract from rendered images (existing method)
+        self.extract_from_images(&images).await
+    }
+
+    /// Extract document from PDF bytes using vision mode (stub when feature disabled).
+    #[cfg(not(feature = "vision"))]
+    pub async fn extract_from_pdf(&self, _pdf_bytes: &[u8]) -> Result<Document> {
+        Err(PdfError::Unsupported(
+            "Vision mode requires the 'vision' feature flag. \
+             Recompile edgequake-pdf with --features vision"
+                .into(),
+        ))
+    }
+
     /// Extract a document from pre-rendered page images.
     pub async fn extract_from_images(&self, images: &[PageImage]) -> Result<Document> {
         info!("Extracting document from {} page images", images.len());

@@ -76,6 +76,7 @@ pub mod image_ocr;
 pub mod layout;
 pub mod processors;
 pub mod renderers;
+pub mod rendering;
 pub mod schema;
 pub mod vision;
 
@@ -114,6 +115,9 @@ pub use renderers::{JsonRenderer, MarkdownRenderer, MarkdownStyle, Renderer};
 
 // Re-export vision types
 pub use vision::{ImageFormat, PageImage, VisionCapable, VisionConfig, VisionExtractor};
+
+// Re-export rendering types
+pub use rendering::PageRenderer;
 
 // Re-export image OCR types
 pub use image_ocr::{ImageData, ImageOcrCapable, ImageOcrProcessor, ImageOcrResult, ImageType};

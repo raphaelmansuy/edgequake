@@ -32,6 +32,9 @@ pub enum PdfError {
     #[error("OCR processing error: {0}")]
     OcrProcessing(String),
 
+    #[error("PDF rendering error: {0}")]
+    Rendering(String),
+
     #[error("Configuration error: {0}")]
     Config(String),
 
