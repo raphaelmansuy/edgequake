@@ -565,6 +565,86 @@ export async function uploadPdfDocument(
   });
 }
 
+// ============================================================================
+// OODA-19: PDF Progress, Retry, Cancel API Functions
+// ============================================================================
+
+/**
+ * Response type for PDF progress endpoint.
+ * Matches backend PdfUploadProgress struct.
+ *
+ * @implements OODA-19: PDF progress API integration
+ */
+export interface PdfProgressResponse {
+  track_id: string;
+  pdf_id: string;
+  filename: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  phases: PhaseStatus[];
+  started_at: string;
+  completed_at?: string;
+  error?: string;
+  eta_seconds?: number;
+}
+
+/**
+ * Phase status within PdfProgressResponse.
+ */
+export type PhaseStatus =
+  | { type: "pending" }
+  | { type: "active"; current: number; total: number; percent: number }
+  | { type: "completed" }
+  | { type: "failed"; error: string };
+
+/**
+ * Response type for PDF retry/cancel operations.
+ */
+export interface PdfOperationResponse {
+  success: boolean;
+  pdf_id: string;
+  message: string;
+  task_id?: string;
+}
+
+/**
+ * Get PDF upload progress by track ID.
+ *
+ * @implements OODA-19: PDF progress tracking
+ * @param trackId The upload tracking ID
+ * @returns Progress state with phase details
+ */
+export async function getPdfProgress(
+  trackId: string,
+): Promise<PdfProgressResponse> {
+  return api.get<PdfProgressResponse>(`/documents/pdf/progress/${trackId}`);
+}
+
+/**
+ * Retry a failed PDF processing.
+ *
+ * @implements OODA-19: PDF retry functionality
+ * @param pdfId The PDF document ID
+ * @returns Operation result with new task ID
+ */
+export async function retryPdfProcessing(
+  pdfId: string,
+): Promise<PdfOperationResponse> {
+  return api.post<PdfOperationResponse>(`/documents/pdf/${pdfId}/retry`);
+}
+
+/**
+ * Cancel an in-progress PDF processing.
+ *
+ * @implements OODA-19: PDF cancel functionality
+ * @param pdfId The PDF document ID
+ * @returns Operation result
+ */
+export async function cancelPdfProcessing(
+  pdfId: string,
+): Promise<PdfOperationResponse> {
+  return api.delete<PdfOperationResponse>(`/documents/pdf/${pdfId}/cancel`);
+}
+
 export async function deleteDocument(documentId: string): Promise<void> {
   return api.delete<void>(`/documents/${documentId}`);
 }

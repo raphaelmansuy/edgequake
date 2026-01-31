@@ -312,6 +312,8 @@ export interface PdfUploadOptions {
   title?: string;
   /** Custom metadata (optional) */
   metadata?: Record<string, unknown>;
+  /** Batch tracking ID (optional) - OODA-19 */
+  track_id?: string;
 }
 
 export interface PdfMetadata {
