@@ -516,6 +516,7 @@ impl AppState {
             #[cfg(feature = "postgres")]
             pg_pool: None,
             // PDF storage not available in memory mode
+            #[cfg(feature = "postgres")]
             pdf_storage: None,
             start_time: std::time::Instant::now(),
             // SECURITY (OODA-248): Memory mode uses permissive config for dev/testing.
@@ -610,6 +611,7 @@ impl AppState {
             #[cfg(feature = "postgres")]
             pg_pool: None,
             // PDF storage not available in test mode
+            #[cfg(feature = "postgres")]
             pdf_storage: None,
             start_time: std::time::Instant::now(),
             // SECURITY (OODA-248): Test state is permissive for testing
