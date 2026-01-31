@@ -46,6 +46,7 @@ use edgequake_storage::{
     calculate_pdf_checksum, validate_pdf_data, CreatePdfRequest, ListPdfFilter, PdfDocumentStorage,
     PdfProcessingStatus,
 };
+use edgequake_tasks::progress::PdfUploadProgress;
 use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
 
 // ============================================================================
@@ -693,6 +694,60 @@ pub async fn delete_pdf(
     info!("PDF deleted: id={}", pdf_id);
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Get PDF upload progress by track ID.
+///
+/// @implements SPEC-001-upload-pdf: Progress query endpoint
+/// @implements OODA-14: GET progress endpoint
+///
+/// Returns real-time progress data for a PDF upload, including:
+/// - Progress for all 6 pipeline phases
+/// - Overall completion percentage
+/// - Estimated time remaining
+/// - Error details if any phase failed
+///
+/// # Arguments
+///
+/// * `state` - Application state with PipelineState
+/// * `track_id` - Upload tracking ID (returned from upload response)
+///
+/// # Returns
+///
+/// * `Ok(Json)` - Progress data as JSON
+/// * `Err(404)` - Progress not found (upload completed or not started)
+#[utoipa::path(
+    get,
+    path = "/api/v1/documents/pdf/progress/{track_id}",
+    params(
+        ("track_id" = String, Path, description = "Upload tracking ID from upload response")
+    ),
+    responses(
+        (status = 200, description = "Progress data (PdfUploadProgress)"),
+        (status = 404, description = "Progress not found (completed or not started)"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    tag = "Documents"
+)]
+pub async fn get_pdf_progress(
+    State(state): State<AppState>,
+    Path(track_id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let progress = state
+        .pipeline_state
+        .get_pdf_progress(&track_id)
+        .await
+        .ok_or_else(|| {
+            ApiError::NotFound(
+                "Progress not found. Upload may have completed or not yet started.".to_string(),
+            )
+        })?;
+
+    // Serialize to JSON value to avoid utoipa schema requirements
+    let json_value = serde_json::to_value(&progress)
+        .map_err(|e| ApiError::Internal(format!("Failed to serialize progress: {}", e)))?;
+
+    Ok(Json(json_value))
 }
 
 // ============================================================================
