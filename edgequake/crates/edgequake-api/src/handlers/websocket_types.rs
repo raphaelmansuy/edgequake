@@ -85,6 +85,41 @@ pub enum ProgressEvent {
         /// Number of retry attempts before giving up.
         retry_attempts: u32,
     },
+    /// PDF page-level extraction progress.
+    ///
+    /// @implements SPEC-001-upload-pdf: Page-by-page progress during PDF conversion
+    /// @implements OODA-06: Add PdfPageProgress event
+    ///
+    /// WHY: Large PDFs (30+ pages) take significant time to extract.
+    /// This event provides page-by-page feedback so users see continuous progress
+    /// instead of a generic "Processing..." message.
+    ///
+    /// ## Event Lifecycle
+    ///
+    /// For a 5-page PDF, events arrive in this order:
+    /// 1. PdfPageProgress { phase: "start", page_num: 0 } - extraction begins
+    /// 2. PdfPageProgress { phase: "extraction", page_num: 1 } - page 1 extracting
+    /// 3. PdfPageProgress { phase: "extraction", page_num: 1, success: true }
+    /// 4. ... repeat for pages 2-5 ...
+    /// 5. PdfPageProgress { phase: "complete", page_num: 5, success: true }
+    PdfPageProgress {
+        /// PDF document ID.
+        pdf_id: String,
+        /// Task tracking ID.
+        task_id: String,
+        /// Current page number (1-indexed, 0 for start/complete events).
+        page_num: u32,
+        /// Total pages in PDF.
+        total_pages: u32,
+        /// Current phase: "start", "extraction", "complete".
+        phase: String,
+        /// Markdown length for this page (0 if not yet rendered).
+        markdown_len: usize,
+        /// Whether this page completed successfully.
+        success: bool,
+        /// Error message if this page failed.
+        error: Option<String>,
+    },
 }
 
 // ============================================================================
@@ -395,5 +430,50 @@ mod tests {
             }
             _ => panic!("Unexpected event types"),
         }
+    }
+
+    /// Test PdfPageProgress event serialization.
+    ///
+    /// @implements OODA-06: Verify PdfPageProgress event structure
+    #[test]
+    fn test_progress_event_pdf_page_progress_serialization() {
+        let event = ProgressEvent::PdfPageProgress {
+            pdf_id: "pdf-123".to_string(),
+            task_id: "task-456".to_string(),
+            page_num: 5,
+            total_pages: 30,
+            phase: "extraction".to_string(),
+            markdown_len: 1024,
+            success: true,
+            error: None,
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("PdfPageProgress"));
+        assert!(json.contains("pdf-123"));
+        assert!(json.contains("\"page_num\":5"));
+        assert!(json.contains("\"total_pages\":30"));
+        assert!(json.contains("\"phase\":\"extraction\""));
+        assert!(json.contains("\"success\":true"));
+    }
+
+    /// Test PdfPageProgress event with error.
+    #[test]
+    fn test_progress_event_pdf_page_progress_with_error() {
+        let event = ProgressEvent::PdfPageProgress {
+            pdf_id: "pdf-123".to_string(),
+            task_id: "task-456".to_string(),
+            page_num: 3,
+            total_pages: 10,
+            phase: "extraction".to_string(),
+            markdown_len: 0,
+            success: false,
+            error: Some("Failed to decode font".to_string()),
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("PdfPageProgress"));
+        assert!(json.contains("\"success\":false"));
+        assert!(json.contains("Failed to decode font"));
     }
 }
