@@ -100,6 +100,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/metrics", get(handlers::get_metrics))
         // WebSocket endpoints (Phase 5)
         .route("/ws/pipeline/progress", get(handlers::ws_pipeline_progress))
+        // OODA-15: Filtered WebSocket for specific PDF upload progress
+        .route(
+            "/ws/progress/{track_id}",
+            get(handlers::ws_progress_by_track_id),
+        )
         // Ollama Emulation API (GAP-038)
         .nest("/api", ollama_api_routes())
         // API v1 endpoints
