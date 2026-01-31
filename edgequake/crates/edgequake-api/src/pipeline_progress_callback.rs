@@ -37,6 +37,7 @@
 use crate::handlers::ProgressBroadcaster;
 use crate::handlers::websocket_types::ProgressEvent;
 use edgequake_pdf::ProgressCallback;
+use edgequake_tasks::progress::PipelinePhase;
 use edgequake_tasks::PipelineState;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -73,6 +74,9 @@ pub struct PipelineProgressCallback {
     pdf_id: String,
     /// Task tracking ID.
     task_id: String,
+    /// Original filename for progress display.
+    /// OODA-13: Added for persistent progress storage.
+    filename: String,
     /// Total pages (set on extraction_start).
     total_pages: AtomicUsize,
 }
@@ -91,8 +95,18 @@ impl PipelineProgressCallback {
             progress_broadcaster: None,
             pdf_id,
             task_id,
+            filename: String::new(),
             total_pages: AtomicUsize::new(0),
         }
+    }
+
+    /// Add the original filename for progress display.
+    ///
+    /// OODA-13: Enables persistent progress storage with human-readable filename.
+    #[must_use]
+    pub fn with_filename(mut self, filename: String) -> Self {
+        self.filename = filename;
+        self
     }
 
     /// Add a ProgressBroadcaster for WebSocket event delivery.
@@ -140,6 +154,21 @@ impl ProgressCallback for PipelineProgressCallback {
             markdown_len: 0,
             success: true,
             error: None,
+        });
+
+        // OODA-13: Persist to queryable storage (async via spawn)
+        let state = self.pipeline_state.clone();
+        let track_id = self.task_id.clone();
+        let pdf_id = self.pdf_id.clone();
+        let filename = self.filename.clone();
+        let pages = total_pages;
+        tokio::spawn(async move {
+            state
+                .start_pdf_progress(&track_id, &pdf_id, &filename)
+                .await;
+            state
+                .start_pdf_phase(&track_id, PipelinePhase::PdfConversion, pages)
+                .await;
         });
     }
 
@@ -198,6 +227,22 @@ impl ProgressCallback for PipelineProgressCallback {
             success: true,
             error: None,
         });
+
+        // OODA-13: Persist to queryable storage (async via spawn)
+        let state = self.pipeline_state.clone();
+        let track_id = self.task_id.clone();
+        let page = page_num;
+        let total_pages = total;
+        tokio::spawn(async move {
+            state
+                .update_pdf_phase(
+                    &track_id,
+                    PipelinePhase::PdfConversion,
+                    page,
+                    &format!("Extracted page {} of {}", page, total_pages),
+                )
+                .await;
+        });
     }
 
     fn on_page_error(&self, page_num: usize, error: &str) {
@@ -225,6 +270,23 @@ impl ProgressCallback for PipelineProgressCallback {
             markdown_len: 0,
             success: false,
             error: Some(error.to_string()),
+        });
+
+        // OODA-13: Update phase with error message (still tracks progress)
+        let state = self.pipeline_state.clone();
+        let track_id = self.task_id.clone();
+        let page = page_num;
+        let total_pages = total;
+        let err_msg = error.to_string();
+        tokio::spawn(async move {
+            state
+                .update_pdf_phase(
+                    &track_id,
+                    PipelinePhase::PdfConversion,
+                    page,
+                    &format!("Error on page {}/{}: {}", page, total_pages, err_msg),
+                )
+                .await;
         });
     }
 
@@ -266,6 +328,15 @@ impl ProgressCallback for PipelineProgressCallback {
             markdown_len: 0,
             success: success_count > 0,
             error: error_msg,
+        });
+
+        // OODA-13: Complete the PdfConversion phase in persistent storage
+        let state = self.pipeline_state.clone();
+        let track_id = self.task_id.clone();
+        tokio::spawn(async move {
+            state
+                .complete_pdf_phase(&track_id, PipelinePhase::PdfConversion)
+                .await;
         });
     }
 
@@ -488,5 +559,81 @@ mod tests {
             }
             _ => panic!("Expected PdfPageProgress event from broadcaster"),
         }
+    }
+
+    /// OODA-13: Test that callbacks persist progress to queryable storage.
+    #[tokio::test]
+    async fn test_pipeline_progress_callback_persists_progress() {
+        use edgequake_tasks::progress::PhaseStatus;
+
+        let state = PipelineState::new();
+        let _internal_rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-persist-test".to_string(),
+            "task-persist-test".to_string(),
+        )
+        .with_filename("test_document.pdf".to_string());
+
+        // Fire extraction start and page complete
+        callback.on_extraction_start(10);
+        callback.on_page_complete(5, 2048);
+
+        // Wait for spawned tasks to complete
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // Verify progress was persisted
+        let progress = state.get_pdf_progress("task-persist-test").await;
+        assert!(progress.is_some(), "Progress should be stored");
+
+        let progress = progress.unwrap();
+        assert_eq!(progress.track_id, "task-persist-test");
+        assert_eq!(progress.pdf_id, "pdf-persist-test");
+        assert_eq!(progress.filename, "test_document.pdf");
+
+        // PdfConversion phase should be active (index 1)
+        let pdf_phase = &progress.phases[PipelinePhase::PdfConversion.index()];
+        assert_eq!(pdf_phase.status, PhaseStatus::Active);
+        assert_eq!(pdf_phase.total, 10);
+        assert_eq!(pdf_phase.current, 5);
+    }
+
+    /// OODA-13: Test that on_extraction_complete marks phase as completed.
+    #[tokio::test]
+    async fn test_pipeline_progress_callback_completes_phase() {
+        use edgequake_tasks::progress::PhaseStatus;
+
+        let state = PipelineState::new();
+        let _internal_rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-complete-test".to_string(),
+            "task-complete-test".to_string(),
+        )
+        .with_filename("completed.pdf".to_string());
+
+        // Full extraction flow
+        callback.on_extraction_start(5);
+        callback.on_page_complete(1, 1000);
+        callback.on_page_complete(2, 1000);
+        callback.on_page_complete(3, 1000);
+        callback.on_page_complete(4, 1000);
+        callback.on_page_complete(5, 1000);
+        callback.on_extraction_complete(5, 5);
+
+        // Wait for spawned tasks to complete
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Verify phase is marked as complete
+        let progress = state.get_pdf_progress("task-complete-test").await;
+        assert!(progress.is_some());
+
+        let progress = progress.unwrap();
+        let pdf_phase = &progress.phases[PipelinePhase::PdfConversion.index()];
+        assert_eq!(pdf_phase.status, PhaseStatus::Complete);
+        assert_eq!(pdf_phase.current, 5);
+        assert_eq!(pdf_phase.total, 5);
     }
 }
