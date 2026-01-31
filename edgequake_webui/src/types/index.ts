@@ -300,6 +300,38 @@ export interface UploadDocumentResponse {
   relationship_count?: number;
 }
 
+// PDF Upload types
+export interface PdfUploadOptions {
+  /** Enable vision LLM processing (default: true) */
+  enable_vision?: boolean;
+  /** Vision provider to use (default: "openai") */
+  vision_provider?: string;
+  /** Vision model override (optional) */
+  vision_model?: string;
+  /** Document title (optional) */
+  title?: string;
+  /** Custom metadata (optional) */
+  metadata?: Record<string, unknown>;
+}
+
+export interface PdfMetadata {
+  filename: string;
+  file_size_bytes: number;
+  page_count?: number;
+  sha256_checksum: string;
+}
+
+export interface PdfUploadResponse {
+  pdf_id: string;
+  document_id?: string;
+  status: string;
+  task_id: string;
+  message: string;
+  estimated_time_seconds: number;
+  metadata: PdfMetadata;
+  duplicate_of?: string;
+}
+
 // Query types
 export type QueryMode = "local" | "global" | "hybrid" | "naive";
 
