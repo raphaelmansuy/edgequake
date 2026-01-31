@@ -280,7 +280,8 @@ impl VisionExtractor {
         progress.on_extraction_start(images.len());
 
         // 3. Extract with progress callbacks
-        self.extract_from_images_with_progress(&images, progress).await
+        self.extract_from_images_with_progress(&images, progress)
+            .await
     }
 
     /// OODA-11: Stub for extract_from_pdf_with_progress when vision disabled.

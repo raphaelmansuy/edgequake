@@ -1,6 +1,7 @@
 # Iteration 11: Observe
 
 ## Mission Re-Read ✅
+
 - [x] Re-read `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-upload-pdf.md`
 - [x] Confirmed objectives: 6-phase pipeline, edgequake-pdf first, real-time UI
 - [x] Current phase: Phase 2 - Backend Implementation (Iterations 11-25)
@@ -8,6 +9,7 @@
 ## Phase 2 Tasks Review
 
 From mission file:
+
 - [ ] observe.md: PDF worker task handler code review
 - [ ] orient.md: Progress callback injection points
 - [ ] decide.md: Progress update event schema
@@ -21,8 +23,9 @@ From mission file:
 ## OODA 1-10 Summary (What We Built)
 
 ### Phase 1 Architecture Complete:
+
 1. ✅ PipelinePhase, PhaseProgress, PdfUploadProgress types
-2. ✅ ProgressCallback trait in edgequake-pdf  
+2. ✅ ProgressCallback trait in edgequake-pdf
 3. ✅ ExtractionEngine integration with progress
 4. ✅ PdfExtractor.extract_to_markdown_with_progress()
 5. ✅ Public exports verified
@@ -35,11 +38,13 @@ From mission file:
 ## Current Gap Analysis
 
 ### What Works:
+
 - PDF extraction with progress callbacks fires events
 - Events flow to both PipelineState and ProgressBroadcaster
 - WebSocket handler can subscribe to ProgressBroadcaster
 
 ### What's Missing for Phase 2:
+
 1. **Vision Processor Instrumentation** - Need page-level progress in VisionExtractor
 2. **Progress Persistence** - Events are ephemeral, need storage for GET endpoint
 3. **GET Endpoint** - `/api/v1/documents/pdf/:id/progress` not implemented
@@ -58,6 +63,7 @@ Missing: No progress callback integration
 ```
 
 The VisionExtractor needs:
+
 - `extract_from_pdf_with_progress()` method
 - Callbacks: on_page_start, on_page_complete, on_page_error
 
@@ -78,6 +84,7 @@ The VisionExtractor needs:
 ## Next Iteration Focus
 
 OODA-11 should focus on **Vision Processor Instrumentation** since:
+
 - Text extraction already has progress callbacks (OODA-04)
 - Vision mode is the alternate path that also needs progress
 - This completes the extraction layer instrumentation

@@ -2,10 +2,10 @@
 
 ## Gap Analysis
 
-| Current State | Desired State | Gap | Priority |
-|--------------|---------------|-----|----------|
-| `/ws/pipeline/progress` broadcasts ALL events | Need filtered `/ws/progress/{track_id}` | New filtered handler | HIGH |
-| Client receives all pipeline events | Client receives only its upload's events | Filter on `task_id` | HIGH |
+| Current State                                 | Desired State                            | Gap                  | Priority |
+| --------------------------------------------- | ---------------------------------------- | -------------------- | -------- |
+| `/ws/pipeline/progress` broadcasts ALL events | Need filtered `/ws/progress/{track_id}`  | New filtered handler | HIGH     |
+| Client receives all pipeline events           | Client receives only its upload's events | Filter on `task_id`  | HIGH     |
 
 ## Risk Assessment
 
@@ -61,7 +61,7 @@ match &event {
 
 ## Route Design
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /ws/pipeline/progress` | All events (admin/monitoring) |
+| Endpoint                      | Purpose                                   |
+| ----------------------------- | ----------------------------------------- |
+| `GET /ws/pipeline/progress`   | All events (admin/monitoring)             |
 | `GET /ws/progress/{track_id}` | Filtered PDF progress for specific upload |

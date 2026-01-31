@@ -1,6 +1,7 @@
 # Iteration 12: Observe
 
 ## Mission Re-Read ✅
+
 - [x] Re-read `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-upload-pdf.md`
 - [x] Confirmed objectives: 6-phase pipeline, edgequake-pdf first, real-time UI
 - [x] Current phase: Phase 2 - Backend Implementation (Iterations 11-25)
@@ -8,10 +9,12 @@
 ## Current Focus: Progress Persistence
 
 The mission specifies:
+
 - `GET /api/v1/documents/pdf/:id/progress` - Get current progress
 - Historical tracking: Maintain upload history with success/failure rates
 
 Current state:
+
 - ProgressEvent/PipelineEvent are emitted but ephemeral (in-memory broadcast)
 - WebSocket clients receive live events but lose history on reconnect
 - No way to query "what's the current progress of PDF xyz?"
@@ -59,6 +62,7 @@ PipelineProgressCallback
 ## Task Storage Analysis
 
 The task system already has:
+
 - `TaskStorage` trait with `update_task_result()`
 - Tasks have `metadata` field (HashMap<String, Value>)
 - PDF upload creates a task with `track_id`
@@ -68,7 +72,8 @@ Possible approach: Store progress in task metadata.
 ## PdfDocumentStorage Analysis
 
 The PDF storage has:
-- `update_pdf_status()` method  
+
+- `update_pdf_status()` method
 - `PdfProcessingStatus` enum (Pending, Processing, Completed, Failed)
 - Could add `PdfProgressState` table or column
 
@@ -90,16 +95,19 @@ The PDF storage has:
 ## Design Options
 
 ### Option A: Task Metadata
+
 - Store progress in task.metadata["progress"] as JSON
 - Pros: No schema changes, uses existing task system
 - Cons: Task may complete before query, need to keep task around
 
 ### Option B: Dedicated Progress Table
+
 - New table: `pdf_progress(pdf_id, page_num, total_pages, phase, updated_at)`
 - Pros: Clean separation, can query by pdf_id
 - Cons: Schema migration needed
 
 ### Option C: In-Memory Cache
+
 - Store progress in a DashMap<String, PdfUploadProgress>
 - Pros: Fast, no DB overhead
 - Cons: Lost on restart, doesn't scale across instances
@@ -107,6 +115,7 @@ The PDF storage has:
 ## Recommendation
 
 **Option A (Task Metadata)** for OODA-12:
+
 - Quick to implement
 - No schema changes
 - Task persists for job lifetime

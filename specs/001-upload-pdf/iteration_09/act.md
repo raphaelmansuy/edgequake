@@ -7,6 +7,7 @@
 ## Changes Made
 
 ### 1. Added Import
+
 **File:** `edgequake-api/src/processor.rs`
 
 ```rust
@@ -14,6 +15,7 @@ use crate::pipeline_progress_callback::PipelineProgressCallback;
 ```
 
 ### 2. Created Callback Before Extraction
+
 ```rust
 // OODA-09: Create progress callback for real-time page-by-page feedback
 let progress_callback = Arc::new(PipelineProgressCallback::new(
@@ -28,16 +30,19 @@ let progress_callback: Arc<dyn edgequake_pdf::ProgressCallback> = progress_callb
 ### 3. Updated All Extraction Calls
 
 **Vision fallback (line ~1342):**
+
 ```rust
 extractor.extract_to_markdown_with_progress(&pdf.pdf_data, Arc::clone(&progress_callback))
 ```
 
 **No-vision feature (line ~1365):**
+
 ```rust
 extractor.extract_to_markdown_with_progress(&pdf.pdf_data, Arc::clone(&progress_callback))
 ```
 
 **Standard text extraction (line ~1379):**
+
 ```rust
 extractor.extract_to_markdown_with_progress(&pdf.pdf_data, Arc::clone(&progress_callback))
 ```
@@ -91,6 +96,7 @@ test result: ok. 432 passed; 0 failed; 0 ignored
 ## Phase 1 Architecture Complete ✅
 
 With OODA-09, we have completed the core architecture:
+
 1. ✅ Progress types (OODA-01)
 2. ✅ ProgressCallback trait (OODA-02)
 3. ✅ ExtractionEngine integration (OODA-03)
@@ -104,5 +110,6 @@ With OODA-09, we have completed the core architecture:
 ## Next Iteration
 
 OODA-10: Create summary of Phase 1 and begin Phase 2 (Backend Implementation)
+
 - Document architecture decisions
 - Plan frontend WebSocket integration

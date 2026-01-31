@@ -11,6 +11,7 @@ Phase 1 established the complete architecture for PDF upload pipeline monitoring
 **Decision:** Use `Arc<dyn ProgressCallback>` trait object pattern instead of closures.
 
 **Rationale:**
+
 1. Multiple lifecycle methods (6 in trait) vs single closure
 2. State management (counters, channels) encapsulated in implementations
 3. Testability via mock implementations
@@ -23,6 +24,7 @@ Phase 1 established the complete architecture for PDF upload pipeline monitoring
 **Decision:** Add `PdfPageProgress` to `PipelineEvent` enum in `edgequake-tasks`.
 
 **Rationale:**
+
 1. Consistency with existing `ChunkProgress` and `ChunkFailure` events
 2. Single event system through `PipelineState` broadcast channel
 3. Thread-safe via tokio broadcast
@@ -35,6 +37,7 @@ Phase 1 established the complete architecture for PDF upload pipeline monitoring
 **Decision:** Create `PipelineProgressCallback` adapter in `edgequake-api`.
 
 **Rationale:**
+
 1. Avoids circular dependency (api→pdf→tasks)
 2. Bridges `edgequake_pdf::ProgressCallback` → `PipelineState`
 3. Captures context (pdf_id, task_id) for event correlation
@@ -44,17 +47,17 @@ Phase 1 established the complete architecture for PDF upload pipeline monitoring
 
 ## Commits Summary
 
-| OODA | Commit | Description |
-|------|--------|-------------|
-| 01 | 61d7cf89 | PipelinePhase, PhaseProgress, PdfUploadProgress types |
-| 02 | 74a1bb1b | ProgressCallback trait + NoopProgress, LoggingProgress, CountingProgress |
-| 03 | ca45afe3 | ExtractionEngine integration + extract_with_progress |
-| 04 | 9057d4ea | PdfExtractor integration + extract_to_markdown_with_progress |
-| 05 | (verified) | Public exports already in place |
-| 06 | be760f2e | WebSocket PdfPageProgress event in websocket_types.rs |
-| 07 | 9638d747 | PipelineEvent::PdfPageProgress + emit_pdf_page_progress() |
-| 08 | c11999e3 | PipelineProgressCallback adapter in edgequake-api |
-| 09 | 0e38b3bd | Wire callback into processor.rs |
+| OODA | Commit     | Description                                                              |
+| ---- | ---------- | ------------------------------------------------------------------------ |
+| 01   | 61d7cf89   | PipelinePhase, PhaseProgress, PdfUploadProgress types                    |
+| 02   | 74a1bb1b   | ProgressCallback trait + NoopProgress, LoggingProgress, CountingProgress |
+| 03   | ca45afe3   | ExtractionEngine integration + extract_with_progress                     |
+| 04   | 9057d4ea   | PdfExtractor integration + extract_to_markdown_with_progress             |
+| 05   | (verified) | Public exports already in place                                          |
+| 06   | be760f2e   | WebSocket PdfPageProgress event in websocket_types.rs                    |
+| 07   | 9638d747   | PipelineEvent::PdfPageProgress + emit_pdf_page_progress()                |
+| 08   | c11999e3   | PipelineProgressCallback adapter in edgequake-api                        |
+| 09   | 0e38b3bd   | Wire callback into processor.rs                                          |
 
 ## Architecture Diagram
 
@@ -117,16 +120,19 @@ Phase 1 established the complete architecture for PDF upload pipeline monitoring
 ## Files Modified/Created
 
 ### edgequake-tasks
+
 - `src/progress.rs` - PipelinePhase, PhaseProgress, PdfUploadProgress
 - `src/pipeline_state.rs` - PipelineEvent::PdfPageProgress, emit_pdf_page_progress()
 
 ### edgequake-pdf
+
 - `src/progress.rs` - ProgressCallback trait + implementations
 - `src/backend/mod.rs` - extract_with_progress() trait method
 - `src/backend/extraction_engine.rs` - Callback integration
 - `src/extractor.rs` - extract_to_markdown_with_progress()
 
 ### edgequake-api
+
 - `src/pipeline_progress_callback.rs` - PipelineProgressCallback adapter (NEW)
 - `src/lib.rs` - Module export
 - `src/processor.rs` - Callback creation and wiring
@@ -134,12 +140,12 @@ Phase 1 established the complete architecture for PDF upload pipeline monitoring
 
 ## Test Summary
 
-| Crate | Tests | Status |
-|-------|-------|--------|
-| edgequake-tasks | 12 pipeline_state tests | ✅ Passing |
-| edgequake-pdf | 408 tests | ✅ Passing |
-| edgequake-api | 432 lib tests | ✅ Passing |
-| edgequake-api | 14 websocket_types tests | ✅ Passing |
+| Crate           | Tests                    | Status     |
+| --------------- | ------------------------ | ---------- |
+| edgequake-tasks | 12 pipeline_state tests  | ✅ Passing |
+| edgequake-pdf   | 408 tests                | ✅ Passing |
+| edgequake-api   | 432 lib tests            | ✅ Passing |
+| edgequake-api   | 14 websocket_types tests | ✅ Passing |
 
 ## Phase 2 Transition
 

@@ -2,11 +2,11 @@
 
 ## Gap Analysis
 
-| Current State | Desired State | Gap | Priority |
-|--------------|---------------|-----|----------|
-| VisionExtractor has no progress callbacks | VisionExtractor should emit page-level progress | Need `extract_from_pdf_with_progress` method | HIGH |
-| extract_from_images loops without callbacks | Each page should trigger on_page_start/complete | Add callback parameter to loop | HIGH |
-| Vision mode falls back in processor.rs but doesn't use callbacks | Fallback should preserve progress tracking | Update fallback to use same callback | MEDIUM |
+| Current State                                                    | Desired State                                   | Gap                                          | Priority |
+| ---------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------- | -------- |
+| VisionExtractor has no progress callbacks                        | VisionExtractor should emit page-level progress | Need `extract_from_pdf_with_progress` method | HIGH     |
+| extract_from_images loops without callbacks                      | Each page should trigger on_page_start/complete | Add callback parameter to loop               | HIGH     |
+| Vision mode falls back in processor.rs but doesn't use callbacks | Fallback should preserve progress tracking      | Update fallback to use same callback         | MEDIUM   |
 
 ## VisionExtractor Structure Analysis
 
@@ -40,7 +40,6 @@ VisionExtractor
 
 - **Risk 1**: Breaking existing API without progress callback
   - Mitigation: Add new method `extract_from_pdf_with_progress` alongside existing
-  
 - **Risk 2**: Arc<dyn ProgressCallback> overhead in hot path
   - Mitigation: Minimal - one callback per page, not per token
 
@@ -59,7 +58,7 @@ where
 {
     // Render pages
     progress.on_extraction_start(images.len());
-    
+
     // Loop with callbacks
     for (idx, image) in images.iter().enumerate() {
         progress.on_page_start(idx + 1, images.len());
@@ -74,7 +73,7 @@ where
             }
         }
     }
-    
+
     progress.on_extraction_complete(images.len(), success_count);
     Ok(document)
 }

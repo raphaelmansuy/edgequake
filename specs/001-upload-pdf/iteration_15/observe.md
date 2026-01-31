@@ -1,6 +1,7 @@
 # Iteration 15: Observe
 
 ## Mission Re-Read ✅
+
 - [x] Re-read `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-upload-pdf.md`
 - [x] Confirmed objectives: WebSocket with < 500ms latency, track_id filtering
 - [x] Current phase: Phase 2 - Backend Implementation (Iterations 11-25)
@@ -9,6 +10,7 @@
 ## Code Analysis
 
 ### Existing WebSocket Infrastructure
+
 - File: `handlers/websocket.rs`
 - Handler: `ws_pipeline_progress`
 - Route: `/ws/pipeline/progress`
@@ -16,6 +18,7 @@
 - Uses: `state.progress_broadcaster.subscribe()` for events
 
 ### ProgressEvent Structure (websocket_types.rs)
+
 ```rust
 pub enum ProgressEvent {
     PdfPageProgress {
@@ -31,6 +34,7 @@ pub enum ProgressEvent {
 ```
 
 ### Route Registration (routes.rs)
+
 ```rust
 .route("/ws/pipeline/progress", get(handlers::ws_pipeline_progress))
 ```

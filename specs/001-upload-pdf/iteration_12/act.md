@@ -3,16 +3,19 @@
 ## Changes Made
 
 ### File 1: `edgequake-tasks/src/pipeline_state.rs`
+
 - Lines: 10-14
 - Change: Added imports for HashMap, PdfUploadProgress, PhaseError, PipelinePhase
 - Why: Required for progress storage
 
 ### File 2: `edgequake-tasks/src/pipeline_state.rs`
+
 - Lines: 168-172
 - Change: Added `pdf_progress: HashMap<String, PdfUploadProgress>` to PipelineStateInner
 - Why: Storage for queryable progress by track_id
 
 ### File 3: `edgequake-tasks/src/pipeline_state.rs`
+
 - Lines: 548-652
 - Change: Added 8 new methods to PipelineState:
   - `start_pdf_progress()` - Create new progress entry
@@ -26,6 +29,7 @@
 - Why: Enables GET /api/v1/documents/pdf/:id/progress endpoint
 
 ### File 4: `edgequake-tasks/src/pipeline_state.rs`
+
 - Lines: 810-932
 - Change: Added 7 new tests
 - Why: Verify progress storage CRUD operations
@@ -47,6 +51,7 @@ test result: ok. 19 passed
 ```
 
 ## Commit
+
 `fd80f76a` - OODA-12: Add PDF progress persistence to PipelineState
 
 ## Architecture Update
