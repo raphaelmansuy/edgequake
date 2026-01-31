@@ -82,17 +82,14 @@ impl PageRenderer {
         info!("Initializing PageRenderer with pdftoppm");
 
         // Verify pdftoppm is available
-        let output = Command::new("pdftoppm")
-            .arg("-v")
-            .output()
-            .map_err(|e| {
-                PdfError::Rendering(format!(
-                    "pdftoppm not found: {}. \
+        let output = Command::new("pdftoppm").arg("-v").output().map_err(|e| {
+            PdfError::Rendering(format!(
+                "pdftoppm not found: {}. \
                      Install poppler-utils: brew install poppler (macOS) or \
                      apt-get install poppler-utils (Linux)",
-                    e
-                ))
-            })?;
+                e
+            ))
+        })?;
 
         // pdftoppm -v outputs to stderr, check if command ran
         if !output.status.success() && output.stderr.is_empty() {
@@ -102,7 +99,10 @@ impl PageRenderer {
         }
 
         let version = String::from_utf8_lossy(&output.stderr);
-        debug!("pdftoppm version: {}", version.lines().next().unwrap_or("unknown"));
+        debug!(
+            "pdftoppm version: {}",
+            version.lines().next().unwrap_or("unknown")
+        );
 
         Ok(Self {
             dpi: 150, // Default DPI for vision mode (good balance of quality/size)
@@ -168,17 +168,16 @@ impl PageRenderer {
         let mut temp_pdf = NamedTempFile::new().map_err(|e| {
             PdfError::Rendering(format!("Failed to create temp file for PDF: {}", e))
         })?;
-        temp_pdf.write_all(pdf_bytes).map_err(|e| {
-            PdfError::Rendering(format!("Failed to write PDF to temp file: {}", e))
-        })?;
-        temp_pdf.flush().map_err(|e| {
-            PdfError::Rendering(format!("Failed to flush PDF temp file: {}", e))
-        })?;
+        temp_pdf
+            .write_all(pdf_bytes)
+            .map_err(|e| PdfError::Rendering(format!("Failed to write PDF to temp file: {}", e)))?;
+        temp_pdf
+            .flush()
+            .map_err(|e| PdfError::Rendering(format!("Failed to flush PDF temp file: {}", e)))?;
 
         // Create temp directory for output images
-        let temp_dir = TempDir::new().map_err(|e| {
-            PdfError::Rendering(format!("Failed to create temp directory: {}", e))
-        })?;
+        let temp_dir = TempDir::new()
+            .map_err(|e| PdfError::Rendering(format!("Failed to create temp directory: {}", e)))?;
 
         let output_prefix = temp_dir.path().join("page");
 
@@ -232,12 +231,7 @@ impl PageRenderer {
         let mut image_files: Vec<_> = fs::read_dir(temp_dir.path())
             .map_err(|e| PdfError::Rendering(format!("Failed to read temp directory: {}", e)))?
             .filter_map(|entry| entry.ok())
-            .filter(|entry| {
-                entry
-                    .path()
-                    .extension()
-                    .map_or(false, |e| e == ext)
-            })
+            .filter(|entry| entry.path().extension().map_or(false, |e| e == ext))
             .collect();
 
         // Sort by filename to ensure correct page order
@@ -400,10 +394,7 @@ mod tests {
             return;
         }
 
-        let renderer = result
-            .unwrap()
-            .with_dpi(300)
-            .with_format(ImageFormat::Jpeg);
+        let renderer = result.unwrap().with_dpi(300).with_format(ImageFormat::Jpeg);
 
         assert_eq!(renderer.dpi, 300);
         assert!(matches!(renderer.format, ImageFormat::Jpeg));

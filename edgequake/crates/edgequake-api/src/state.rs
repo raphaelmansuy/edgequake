@@ -515,6 +515,8 @@ impl AppState {
             ),
             #[cfg(feature = "postgres")]
             pg_pool: None,
+            // PDF storage not available in memory mode
+            pdf_storage: None,
             start_time: std::time::Instant::now(),
             // SECURITY (OODA-248): Memory mode uses permissive config for dev/testing.
             // Production should use PostgreSQL mode with explicit allowed_paths.
@@ -607,6 +609,8 @@ impl AppState {
             models_config: Arc::new(ModelsConfig::builtin_defaults()), // Use builtins for testing
             #[cfg(feature = "postgres")]
             pg_pool: None,
+            // PDF storage not available in test mode
+            pdf_storage: None,
             start_time: std::time::Instant::now(),
             // SECURITY (OODA-248): Test state is permissive for testing
             path_validation_config: crate::path_validation::PathValidationConfig {
@@ -825,9 +829,10 @@ impl AppState {
         let password_service = Arc::new(PasswordService::new(auth_config.clone()));
         let rbac_service = Arc::new(RbacService::new());
 
-        // Create PDF storage (SPEC-007)
-        let pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage> =
-            Arc::new(edgequake_storage::PostgresPdfStorage::new(pg_config.clone()));
+        // Create PDF storage (SPEC-007) - uses the connection pool
+        let pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage> = Arc::new(
+            edgequake_storage::PostgresPdfStorage::new(pool.clone()),
+        );
 
         Ok(Self {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,

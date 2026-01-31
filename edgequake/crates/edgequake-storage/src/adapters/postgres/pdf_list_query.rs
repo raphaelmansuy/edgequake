@@ -1,6 +1,9 @@
 //! Helper for building PDF list queries dynamically
 
-use crate::{pdf_storage::{ExtractionMethod, ListPdfFilter, PdfDocument, PdfProcessingStatus}, StorageError};
+use crate::{
+    pdf_storage::{ExtractionMethod, ListPdfFilter, PdfDocument, PdfProcessingStatus},
+    StorageError,
+};
 use sqlx::{PgPool, Row};
 
 pub async fn list_pdfs_dynamic(

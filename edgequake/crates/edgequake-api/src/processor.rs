@@ -1231,7 +1231,9 @@ impl DocumentTaskProcessor {
         data: edgequake_tasks::PdfProcessingData,
     ) -> TaskResult<serde_json::Value> {
         use edgequake_pdf::PdfExtractor;
-        use edgequake_storage::{PdfProcessingStatus, UpdatePdfProcessingRequest, ExtractionMethod};
+        use edgequake_storage::{
+            ExtractionMethod, PdfProcessingStatus, UpdatePdfProcessingRequest,
+        };
 
         info!(
             pdf_id = %data.pdf_id,
@@ -1241,25 +1243,25 @@ impl DocumentTaskProcessor {
         );
 
         // 1. Get PDF storage
-        let pdf_storage = self
-            .pdf_storage
-            .as_ref()
-            .ok_or_else(|| {
-                edgequake_tasks::TaskError::UnsupportedOperation(
-                    "PDF storage not available (postgres feature enabled but storage not initialized)".to_string()
-                )
-            })?;
+        let pdf_storage = self.pdf_storage.as_ref().ok_or_else(|| {
+            edgequake_tasks::TaskError::UnsupportedOperation(
+                "PDF storage not available (postgres feature enabled but storage not initialized)"
+                    .to_string(),
+            )
+        })?;
 
         // 2. Load PDF from storage
-        let pdf = pdf_storage
-            .get_pdf(&data.pdf_id)
-            .await
-            .map_err(|e| {
-                edgequake_tasks::TaskError::Storage(format!(
-                    "Failed to load PDF {}: {}",
-                    data.pdf_id, e
-                ))
-            })?;
+        let pdf = pdf_storage.get_pdf(&data.pdf_id).await.map_err(|e| {
+            edgequake_tasks::TaskError::Storage(format!(
+                "Failed to load PDF {}: {}",
+                data.pdf_id, e
+            ))
+        })?;
+
+        // Handle case where PDF not found
+        let pdf = pdf.ok_or_else(|| {
+            edgequake_tasks::TaskError::NotFound(format!("PDF not found: {}", data.pdf_id))
+        })?;
 
         info!(
             pdf_id = %data.pdf_id,
@@ -1271,58 +1273,135 @@ impl DocumentTaskProcessor {
 
         // 3. Update status to processing
         pdf_storage
-            .update_status(&data.pdf_id, PdfProcessingStatus::Processing)
+            .update_pdf_status(&data.pdf_id, PdfProcessingStatus::Processing)
             .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
-        // 4. Extract content (text mode for now, vision TODO)
-        let markdown = if data.enable_vision {
-            warn!(
-                "Vision extraction requested but not yet implemented - falling back to text extraction"
-            );
-            // TODO: Implement vision extraction with VisionExtractor
-            let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
-            extractor
-                .extract_to_markdown(&pdf.pdf_data)
-                .await
-                .map_err(|e| {
-                    edgequake_tasks::TaskError::Processing(format!("PDF extraction failed: {}", e))
-                })?
+        // 4. Extract content (vision or text mode)
+        // SPEC-007: Vision mode uses multimodal LLM to extract from rendered page images
+        // Requires vision feature and poppler-utils (pdftoppm) system package
+        let (markdown, extraction_method, used_vision_model) = if data.enable_vision {
+            #[cfg(feature = "vision")]
+            {
+                use edgequake_pdf::{MarkdownRenderer, Renderer, VisionConfig, VisionExtractor};
+
+                info!(
+                    pdf_id = %data.pdf_id,
+                    vision_provider = %data.vision_provider,
+                    vision_model = ?data.vision_model,
+                    "Starting vision-based PDF extraction"
+                );
+
+                // Build vision config with workspace-specified model
+                let model = data
+                    .vision_model
+                    .clone()
+                    .unwrap_or_else(|| "gpt-4o-mini".to_string());
+                let vision_config = VisionConfig::new()
+                    .with_model(&model)
+                    .with_dpi(150)
+                    .with_temperature(0.1);
+
+                let extractor = VisionExtractor::new(Arc::clone(&self.llm_provider), vision_config);
+
+                match extractor.extract_from_pdf(&pdf.pdf_data).await {
+                    Ok(document) => {
+                        // Render Document to markdown string
+                        let renderer = MarkdownRenderer::new();
+                        let md = renderer.render(&document).map_err(|e| {
+                            edgequake_tasks::TaskError::Processing(format!(
+                                "Markdown rendering failed: {}",
+                                e
+                            ))
+                        })?;
+                        info!(
+                            pdf_id = %data.pdf_id,
+                            pages = document.page_count(),
+                            markdown_len = md.len(),
+                            "Vision extraction completed successfully"
+                        );
+                        (md, ExtractionMethod::Vision, Some(model))
+                    }
+                    Err(e) => {
+                        warn!(
+                            pdf_id = %data.pdf_id,
+                            error = %e,
+                            "Vision extraction failed - falling back to text extraction"
+                        );
+                        // Fallback to text extraction
+                        let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
+                        let md =
+                            extractor
+                                .extract_to_markdown(&pdf.pdf_data)
+                                .await
+                                .map_err(|e| {
+                                    edgequake_tasks::TaskError::Processing(format!(
+                                        "PDF extraction failed: {}",
+                                        e
+                                    ))
+                                })?;
+                        (md, ExtractionMethod::Text, None)
+                    }
+                }
+            }
+            #[cfg(not(feature = "vision"))]
+            {
+                warn!(
+                    pdf_id = %data.pdf_id,
+                    "Vision extraction requested but vision feature not enabled - using text extraction"
+                );
+                let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
+                let md = extractor
+                    .extract_to_markdown(&pdf.pdf_data)
+                    .await
+                    .map_err(|e| {
+                        edgequake_tasks::TaskError::Processing(format!(
+                            "PDF extraction failed: {}",
+                            e
+                        ))
+                    })?;
+                (md, ExtractionMethod::Text, None)
+            }
         } else {
             // Standard text extraction
             let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
-            extractor
+            let md = extractor
                 .extract_to_markdown(&pdf.pdf_data)
                 .await
                 .map_err(|e| {
                     edgequake_tasks::TaskError::Processing(format!("PDF extraction failed: {}", e))
-                })?
+                })?;
+            (md, ExtractionMethod::Text, None)
         };
 
         info!(
             pdf_id = %data.pdf_id,
             markdown_len = markdown.len(),
+            extraction_method = ?extraction_method,
             "Extracted markdown from PDF"
         );
 
-        // 5. Store markdown in pdf_documents
+        // 5. Store markdown in pdf_documents with extraction method
         let update_req = UpdatePdfProcessingRequest {
+            pdf_id: data.pdf_id,
+            processing_status: PdfProcessingStatus::Completed,
             markdown_content: Some(markdown.clone()),
-            extraction_method: Some(ExtractionMethod::Text), // TODO: Set to Vision when implemented
+            extraction_method: Some(extraction_method),
             extraction_errors: None,
-            vision_model: None, // TODO: Set when vision implemented
+            document_id: None, // Will be set after document creation
+            vision_model: used_vision_model,
         };
 
         pdf_storage
-            .update_processing_result(&data.pdf_id, &update_req)
+            .update_pdf_processing(update_req.clone())
             .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
         // 6. Create document via standard pipeline
         let text_data = edgequake_tasks::TextInsertData {
-            content: markdown,
-            workspace_id: Some(data.workspace_id.to_string()),
-            document_id: None,
+            text: markdown,
+            file_source: pdf.filename.clone(),
+            workspace_id: data.workspace_id.to_string(),
             metadata: Some(json!({
                 "source": "pdf_upload",
                 "pdf_id": data.pdf_id.to_string(),
@@ -1338,24 +1417,16 @@ impl DocumentTaskProcessor {
         if let Some(document_id_str) = result.get("document_id").and_then(|v| v.as_str()) {
             if let Ok(document_uuid) = uuid::Uuid::parse_str(document_id_str) {
                 if let Err(e) = pdf_storage
-                    .link_to_document(&data.pdf_id, &document_uuid)
+                    .link_pdf_to_document(&data.pdf_id, &document_uuid)
                     .await
                 {
-                    error!(
-                        "Failed to link PDF to document: {} - continuing anyway",
-                        e
-                    );
+                    error!("Failed to link PDF to document: {} - continuing anyway", e);
                     // Non-fatal - PDF still processed successfully
                 }
             }
         }
 
-        // 8. Mark as completed
-        pdf_storage
-            .update_status(&data.pdf_id, PdfProcessingStatus::Completed)
-            .await
-            .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
-
+        // 8. Status already set to Completed in step 5 via update_pdf_processing
         info!(
             pdf_id = %data.pdf_id,
             "PDF processing completed successfully"

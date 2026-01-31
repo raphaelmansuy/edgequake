@@ -10,6 +10,7 @@
 ## Actions
 
 ### OODA Loop 7: Storage Layer Compilation Fixes
+
 - Fixed sqlx::Error conversion for StorageError
 - Added Conflict and InvalidData error variants
 - Implemented Display trait for PdfProcessingStatus
@@ -21,6 +22,7 @@
 **Result**: ✅ edgequake-storage compiles with warnings
 
 ### OODA Loop 8: API Handler Compilation Fixes
+
 - Fixed Multipart import (axum_extra::extract::Multipart)
 - Corrected TenantContext extraction pattern (struct not tuple)
 - Used workspace_id_uuid() and tenant_id_uuid() helpers throughout
@@ -31,6 +33,7 @@
 **Result**: ✅ edgequake-api compiles (2 warnings only)
 
 ### OODA Loop 9: PDF Processing Worker Stub
+
 - Added process_pdf_processing method to DocumentTaskProcessor
 - Updated TaskType::PdfProcessing match arm to parse PdfProcessingData
 - Comprehensive inline documentation with @implements tags
@@ -40,6 +43,7 @@
 **Result**: ✅ Worker architecture designed, awaits AppState integration
 
 ### OODA Loop 10: AppState PDF Storage Integration
+
 - Added pdf_storage field to AppState struct (postgres feature-gated)
 - Created PostgresPdfStorage in new_postgres constructor with same pg_config
 - Added PdfDocumentStorage and PostgresPdfStorage to imports
@@ -72,16 +76,19 @@
 ## Lessons & Insights
 
 ### Pattern Discovery
+
 - TenantContext helpers (workspace_id_uuid, tenant_id_uuid) are essential for clean UUID extraction
 - Task struct has specific fields - always verify in types.rs before building Task instances
 - sqlx! macro generates distinct types per query variant - use dynamic SQL for complex filters
 
 ### Architecture Insights
+
 - AppState changes cascade through multiple constructors (new, new_memory, new_postgres)
 - Feature-gated fields need careful NULL/None handling in non-feature constructors
 - Storage traits use Arc<dyn Trait> consistently for thread-safe shared ownership
 
 ### Build Strategy
+
 - Long builds should be checked incrementally with `cargo check` instead of `cargo build`
 - Feature flags require explicit cargo invocation: `--features postgres`
 - Compilation warnings are acceptable if non-blocking (unused variables, ambiguous re-exports)
@@ -100,18 +107,19 @@
 
 ## OODA Loop Summary
 
-| Loop | Focus | Status | Key Achievement |
-|------|-------|--------|----------------|
-| 7 | Storage Layer | ✅ Complete | Fixed compilation errors, added routes |
-| 8 | API Handlers | ✅ Complete | Full handler compilation successful |
-| 9 | Worker Stub | ✅ Complete | PDF processing architecture designed |
-| 10 | AppState Integration | ✅ Complete | PDF storage field added, instantiated |
+| Loop | Focus                | Status      | Key Achievement                        |
+| ---- | -------------------- | ----------- | -------------------------------------- |
+| 7    | Storage Layer        | ✅ Complete | Fixed compilation errors, added routes |
+| 8    | API Handlers         | ✅ Complete | Full handler compilation successful    |
+| 9    | Worker Stub          | ✅ Complete | PDF processing architecture designed   |
+| 10   | AppState Integration | ✅ Complete | PDF storage field added, instantiated  |
 
 ---
 
 ## Code References
 
 **Key Files Modified:**
+
 - `edgequake-storage/src/error.rs` - Added error variants, sqlx conversion
 - `edgequake-storage/src/adapters/postgres/pdf_list_query.rs` - Dynamic query builder
 - `edgequake-api/src/handlers/pdf_upload.rs` - All handler fixes (796 lines)
@@ -121,6 +129,7 @@
 - `migrations/022_add_pdf_documents_table.sql` - FK fix, sequence removal
 
 **Specification Reference:**
+
 - Implements SPEC-007: PDF Upload Support with Vision LLM Integration
 - Follows mission statement: "Store raw PDFs → transform to markdown → vision LLM → large file support"
 - Critical safety mandate: Re-read spec at start of every OODA iteration ✅

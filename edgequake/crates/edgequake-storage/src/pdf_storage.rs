@@ -211,6 +211,9 @@ pub struct UpdatePdfProcessingRequest {
     pub extraction_errors: Option<serde_json::Value>,
     /// Link to document (if indexed).
     pub document_id: Option<Uuid>,
+    /// Vision model used (when extraction_method is Vision).
+    /// SPEC-007: Tracks which vision LLM model was used for extraction.
+    pub vision_model: Option<String>,
 }
 
 /// Filter for listing PDFs.

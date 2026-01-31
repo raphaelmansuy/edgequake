@@ -23,18 +23,21 @@
 
 ## OODA Loop 12: Enable Full PDF Processing Worker
 
-**Observe**: 
+**Observe**:
+
 - process_pdf_processing was stub returning UnsupportedOperation
 - DocumentTaskProcessor lacked pdf_storage and llm_provider fields
 - Full implementation commented out in TODO section
 
 **Orient**:
+
 - Need pdf_storage field in processor for PDF access
 - Need llm_provider for PdfExtractor creation
 - Text extraction can work now, vision LLM deferred
 - Must update all constructors to accept new fields
 
 **Decide**:
+
 - Add pdf_storage field (postgres feature-gated)
 - Add llm_provider field (needed for PDF extraction)
 - Update all 3 constructors (new, with_workspace_support, with_workspace_support_strict)
@@ -44,6 +47,7 @@
 
 **Act**:
 Implemented complete PDF processing pipeline:
+
 1. Get pdf_storage from self.pdf_storage
 2. Load PDF by ID from storage
 3. Update status to Processing
@@ -54,6 +58,7 @@ Implemented complete PDF processing pipeline:
 8. Mark status as Completed
 
 Added proper error handling:
+
 - Storage errors → TaskError::Storage
 - Extraction errors → TaskError::Processing
 - Missing pdf_storage → UnsupportedOperation
@@ -66,18 +71,21 @@ Added proper error handling:
 ## Technical Achievements
 
 ### Architecture
+
 - ✅ Proper trait-based abstraction (Arc<dyn PdfDocumentStorage>)
 - ✅ Feature gating for postgres-only functionality
 - ✅ Reuse of existing process_text_insert pipeline
 - ✅ Non-breaking constructor pattern (setter method for pdf_storage)
 
 ### Code Quality
+
 - ✅ Comprehensive logging (info, warn, error levels)
 - ✅ Proper error propagation (Storage, Processing, UnsupportedOperation)
 - ✅ Non-fatal error handling (document linking)
 - ✅ Feature-gated implementations (postgres vs non-postgres)
 
 ### Integration
+
 - ✅ PDF storage from AppState
 - ✅ LLM provider from DocumentTaskProcessor
 - ✅ Standard document ingestion reused
@@ -88,11 +96,13 @@ Added proper error handling:
 ## Remaining Work
 
 ### Vision LLM (Loop 13-14):
+
 - Add vision section to models.toml
 - Implement VisionExtractor with page rendering
 - Test with scanned PDF
 
 ### Testing (Loop 15-20):
+
 - Unit tests for process_pdf_processing
 - Integration test: upload → process → index
 - Test error scenarios (invalid PDF, missing storage, extraction failure)
@@ -101,6 +111,7 @@ Added proper error handling:
 - Performance test with 100MB PDF
 
 ### Optimization (Loop 21-25):
+
 - Streaming multipart upload (avoid loading 100MB in memory)
 - Chunked page processing (process pages in batches)
 - Memory profiling
@@ -108,6 +119,7 @@ Added proper error handling:
 - Circuit breaker for repeated failures
 
 ### Documentation (Loop 26-30):
+
 - OpenAPI spec updates
 - User guide for PDF upload
 - API reference
