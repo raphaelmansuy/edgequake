@@ -1449,6 +1449,12 @@ mod tests {
         Arc::new(Pipeline::default_pipeline())
     }
 
+    /// Create test LLM provider for testing
+    fn create_test_llm_provider() -> Arc<dyn edgequake_llm::traits::LLMProvider> {
+        use edgequake_llm::MockProvider;
+        Arc::new(MockProvider::new())
+    }
+
     /// Create test storage instances for testing
     fn create_test_storages() -> (
         Arc<dyn KVStorage>,
@@ -1474,6 +1480,7 @@ mod tests {
 
         let processor = DocumentTaskProcessor::new(
             pipeline,
+            create_test_llm_provider(),
             kv,
             vector,
             vector_registry,
@@ -1493,6 +1500,7 @@ mod tests {
 
         let processor = DocumentTaskProcessor::new(
             pipeline,
+            create_test_llm_provider(),
             kv,
             vector,
             vector_registry,
@@ -1512,6 +1520,7 @@ mod tests {
 
         let processor = DocumentTaskProcessor::new(
             pipeline,
+            create_test_llm_provider(),
             kv,
             vector,
             vector_registry,
@@ -1542,6 +1551,7 @@ mod tests {
 
         let processor = DocumentTaskProcessor::new(
             pipeline,
+            create_test_llm_provider(),
             kv,
             vector,
             vector_registry,
@@ -1572,6 +1582,7 @@ mod tests {
 
         let processor = DocumentTaskProcessor::new(
             pipeline,
+            create_test_llm_provider(),
             kv,
             vector,
             vector_registry,
@@ -1620,6 +1631,7 @@ mod tests {
 
         let processor = DocumentTaskProcessor::new(
             pipeline,
+            create_test_llm_provider(),
             kv.clone(),
             vector,
             vector_registry,
@@ -1658,6 +1670,7 @@ mod tests {
 
         let processor = DocumentTaskProcessor::new(
             pipeline,
+            create_test_llm_provider(),
             kv.clone(),
             vector,
             vector_registry,
@@ -1685,6 +1698,7 @@ mod tests {
 
         let processor = DocumentTaskProcessor::new(
             pipeline,
+            create_test_llm_provider(),
             kv,
             vector,
             vector_registry,
@@ -1734,6 +1748,7 @@ mod tests {
 
         let processor = DocumentTaskProcessor::new(
             pipeline,
+            create_test_llm_provider(),
             kv,
             vector,
             vector_registry,
