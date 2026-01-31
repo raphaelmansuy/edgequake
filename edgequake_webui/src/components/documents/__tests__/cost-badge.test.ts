@@ -316,9 +316,9 @@ describe('calculateTotalFromBreakdown', () => {
     const breakdown: CostBreakdown = {
       total_cost: 2.00,
       by_stage: [
-        { stage: 'preprocessing', cost: 0.10, tokens: { input: 100, output: 50 } },
-        { stage: 'extracting', cost: 1.50, tokens: { input: 10000, output: 5000 } },
-        { stage: 'embedding', cost: 0.40, tokens: { input: 5000, output: 0 } },
+        { stage: 'preprocessing', cost: 0.10, tokens: { input: 100, output: 50, total: 150 } },
+        { stage: 'extracting', cost: 1.50, tokens: { input: 10000, output: 5000, total: 15000 } },
+        { stage: 'embedding', cost: 0.40, tokens: { input: 5000, output: 0, total: 5000 } },
       ],
     };
     expect(calculateTotalFromBreakdown(breakdown)).toBe(2.00);
@@ -336,7 +336,7 @@ describe('calculateTotalFromBreakdown', () => {
     const breakdown: CostBreakdown = {
       total_cost: 0.25,
       by_stage: [
-        { stage: 'indexing', cost: 0.25, tokens: { input: 500, output: 100 } },
+        { stage: 'indexing', cost: 0.25, tokens: { input: 500, output: 100, total: 600 } },
       ],
     };
     expect(calculateTotalFromBreakdown(breakdown)).toBe(0.25);
@@ -374,10 +374,10 @@ describe('Integration', () => {
       const breakdown: CostBreakdown = {
         total_cost: 0.145,
         by_stage: [
-          { stage: 'preprocessing', cost: 0.005, tokens: { input: 500, output: 100 } },
-          { stage: 'chunking', cost: 0.01, tokens: { input: 1000, output: 200 } },
-          { stage: 'extracting', cost: 0.10, tokens: { input: 10000, output: 5000 } },
-          { stage: 'embedding', cost: 0.03, tokens: { input: 3000, output: 0 } },
+          { stage: 'preprocessing', cost: 0.005, tokens: { input: 500, output: 100, total: 600 } },
+          { stage: 'chunking', cost: 0.01, tokens: { input: 1000, output: 200, total: 1200 } },
+          { stage: 'extracting', cost: 0.10, tokens: { input: 10000, output: 5000, total: 15000 } },
+          { stage: 'embedding', cost: 0.03, tokens: { input: 3000, output: 0, total: 3000 } },
         ],
         tokens: {
           input: 14500,

@@ -97,7 +97,7 @@ Failure to re-read causes alignment drift → incomplete features → broken tes
 
 Addition:
 
-Ensure documeny screen UX/UI is clean and intuitive for monitoring PDF upload progress. Ensure clean slyles and responsive design. Ensure accessibility standards are met (ARIA roles, keyboard navigation). Ensure scrollable areas for long histories. Ensure mobile responsiveness. Ensure information layout is logical and easy to follow. Be very careful to avoid clutter.
+Ensure documeny screen UX/UI is clean and intuitive for monitoring PDF upload progress. Ensure clean slyles and responsive design. Ensure accessibility standards are met (ARIA roles, keyboard navigation). Ensure scrollable areas for long histories. Ensure mobile responsiveness. Ensure information layout is logical and easy to follow. Be very careful to avoid clutter. --> I don't understand so well the upload history part, I  believe the documents component already has some history of uploads, so maybe just enhance that part to include the new progress tracking info?
 
 ### Directory Structure
 
