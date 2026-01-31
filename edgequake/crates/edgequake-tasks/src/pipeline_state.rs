@@ -85,6 +85,34 @@ pub enum PipelineEvent {
         /// Number of retry attempts before giving up.
         retry_attempts: u32,
     },
+    /// PDF page extraction progress notification.
+    ///
+    /// @implements SPEC-007: PDF Upload Support with progress tracking
+    /// @implements OODA-07: PDF page-level progress visibility
+    ///
+    /// WHY: When extracting PDF to Markdown, users need real-time feedback
+    /// on which page is being processed. This event enables:
+    /// - UI display like "Extracting page 5/10 (50%)"
+    /// - Error isolation per page
+    /// - ETA calculation based on pages remaining
+    PdfPageProgress {
+        /// PDF document being processed.
+        pdf_id: String,
+        /// Task tracking ID.
+        task_id: String,
+        /// Current page number (1-based for display).
+        page_num: u32,
+        /// Total pages in PDF.
+        total_pages: u32,
+        /// Processing phase: "extraction", "rendering", etc.
+        phase: String,
+        /// Length of markdown generated for this page.
+        markdown_len: usize,
+        /// Whether page extraction succeeded.
+        success: bool,
+        /// Error message if extraction failed.
+        error: Option<String>,
+    },
 }
 
 /// A single pipeline message with timestamp and level.
@@ -465,6 +493,49 @@ impl PipelineState {
             retry_attempts,
         });
     }
+
+    /// Emit a PDF page progress event.
+    ///
+    /// @implements SPEC-007: PDF Upload Support with progress tracking
+    /// @implements OODA-07: PDF page-level progress visibility
+    ///
+    /// WHY: This method sends real-time PDF extraction progress to WebSocket
+    /// subscribers, enabling the frontend to display page-by-page progress
+    /// like "Extracting page 5 of 10...".
+    ///
+    /// # Arguments
+    ///
+    /// * `pdf_id` - ID of the PDF being processed
+    /// * `task_id` - Task tracking ID
+    /// * `page_num` - Current page number (1-based)
+    /// * `total_pages` - Total pages in PDF
+    /// * `phase` - Processing phase (e.g., "extraction", "rendering")
+    /// * `markdown_len` - Length of markdown generated for this page
+    /// * `success` - Whether page extraction succeeded
+    /// * `error` - Error message if extraction failed
+    #[allow(clippy::too_many_arguments)]
+    pub fn emit_pdf_page_progress(
+        &self,
+        pdf_id: String,
+        task_id: String,
+        page_num: u32,
+        total_pages: u32,
+        phase: String,
+        markdown_len: usize,
+        success: bool,
+        error: Option<String>,
+    ) {
+        let _ = self.tx.send(PipelineEvent::PdfPageProgress {
+            pdf_id,
+            task_id,
+            page_num,
+            total_pages,
+            phase,
+            markdown_len,
+            success,
+            error,
+        });
+    }
 }
 
 /// A snapshot of the pipeline status for API responses.
@@ -618,5 +689,103 @@ mod tests {
         assert!(json.contains("\"is_busy\":true"));
         assert!(json.contains("Test Job"));
         assert!(json.contains("\"total_documents\":10"));
+    }
+
+    #[tokio::test]
+    async fn test_emit_pdf_page_progress() {
+        // OODA-07: Test PDF page progress event emission
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+
+        // Emit a PDF page progress event
+        state.emit_pdf_page_progress(
+            "pdf-123".to_string(),
+            "task-456".to_string(),
+            5,
+            10,
+            "extraction".to_string(),
+            2048,
+            true,
+            None,
+        );
+
+        // Receive and verify the event
+        let event = rx.try_recv().unwrap();
+        match event {
+            PipelineEvent::PdfPageProgress {
+                pdf_id,
+                task_id,
+                page_num,
+                total_pages,
+                phase,
+                markdown_len,
+                success,
+                error,
+            } => {
+                assert_eq!(pdf_id, "pdf-123");
+                assert_eq!(task_id, "task-456");
+                assert_eq!(page_num, 5);
+                assert_eq!(total_pages, 10);
+                assert_eq!(phase, "extraction");
+                assert_eq!(markdown_len, 2048);
+                assert!(success);
+                assert!(error.is_none());
+            }
+            _ => panic!("Expected PdfPageProgress event"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_emit_pdf_page_progress_with_error() {
+        // OODA-07: Test PDF page progress with extraction error
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+
+        state.emit_pdf_page_progress(
+            "pdf-err".to_string(),
+            "task-err".to_string(),
+            3,
+            5,
+            "extraction".to_string(),
+            0,
+            false,
+            Some("Page 3 extraction failed: corrupt image".to_string()),
+        );
+
+        let event = rx.try_recv().unwrap();
+        match event {
+            PipelineEvent::PdfPageProgress {
+                success,
+                error,
+                page_num,
+                ..
+            } => {
+                assert!(!success);
+                assert_eq!(page_num, 3);
+                assert!(error.unwrap().contains("corrupt image"));
+            }
+            _ => panic!("Expected PdfPageProgress event"),
+        }
+    }
+
+    #[test]
+    fn test_pdf_page_progress_serialization() {
+        // OODA-07: Verify PdfPageProgress serializes correctly for WebSocket
+        let event = PipelineEvent::PdfPageProgress {
+            pdf_id: "pdf-ser".to_string(),
+            task_id: "task-ser".to_string(),
+            page_num: 7,
+            total_pages: 15,
+            phase: "rendering".to_string(),
+            markdown_len: 4096,
+            success: true,
+            error: None,
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"PdfPageProgress\""));
+        assert!(json.contains("\"pdf_id\":\"pdf-ser\""));
+        assert!(json.contains("\"page_num\":7"));
+        assert!(json.contains("\"markdown_len\":4096"));
     }
 }
