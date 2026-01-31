@@ -2895,11 +2895,7 @@ pub async fn get_track_status(
         }
     }
 
-    if track_docs.is_empty() {
-        return Err(ApiError::NotFound(format!("Track not found: {}", track_id)));
-    }
-
-    // Calculate status summary
+    // Calculate status summary (handle empty track gracefully - documents may still be processing)
     let status_summary = StatusCounts {
         pending: track_docs
             .iter()
