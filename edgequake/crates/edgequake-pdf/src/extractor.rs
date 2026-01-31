@@ -7,11 +7,13 @@
 //!
 //! - [`FEAT1001`]: Core PDF to Markdown conversion
 //! - [`FEAT1006`]: LLM-enhanced content cleaning
+//! - [`SPEC-001-upload-pdf`]: Progress callbacks during extraction (OODA-04)
 //!
 //! ## Use Cases
 //!
 //! - [`UC1001`]: User uploads PDF for extraction
 //! - [`UC1002`]: System extracts with graceful degradation
+//! - [`UC0710`]: User sees page-by-page progress during PDF extraction
 
 use std::sync::Arc;
 use tracing::info;
@@ -32,6 +34,7 @@ use crate::processors::{
     SectionPatternProcessor, StyleDetectionProcessor, TableDetectionProcessor,
     TextTableReconstructionProcessor,
 };
+use crate::progress::ProgressCallback;
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
 use crate::schema::Document;
 use crate::Result;
@@ -218,6 +221,153 @@ impl PdfExtractor {
 
         let renderer = MarkdownRenderer::with_style(style);
         renderer.render(&doc)
+    }
+
+    /// Extract Markdown from PDF bytes with progress callbacks.
+    ///
+    /// This is the same as [`extract_to_markdown`] but reports progress
+    /// during page-by-page extraction.
+    ///
+    /// ## Implements
+    ///
+    /// - [`SPEC-001-upload-pdf`]: Page-level progress during PDF conversion
+    /// - [`OODA-04`]: Wire ProgressCallback through PdfExtractor
+    ///
+    /// ## Callback Lifecycle
+    ///
+    /// The callback will receive events in this order:
+    /// - `on_extraction_start(total_pages)` once at start
+    /// - `on_page_start(page_num, total)` before each page
+    /// - `on_page_complete(page_num, 0)` or `on_page_error(page_num, err)` after each page
+    /// - `on_extraction_complete(total_pages, success_count)` once at end
+    ///
+    /// Note: In parallel mode (2+ pages), page callbacks may arrive out of order.
+    ///
+    /// ## Example
+    ///
+    /// ```rust,ignore
+    /// use std::sync::Arc;
+    /// use edgequake_pdf::{PdfExtractor, CountingProgress};
+    ///
+    /// let callback = Arc::new(CountingProgress::new());
+    /// let markdown = extractor.extract_to_markdown_with_progress(pdf_bytes, callback.clone()).await?;
+    /// println!("Extracted {} pages", callback.pages_completed());
+    /// ```
+    pub async fn extract_to_markdown_with_progress(
+        &self,
+        pdf_bytes: &[u8],
+        callback: Arc<dyn ProgressCallback>,
+    ) -> Result<String> {
+        info!("Starting PDF extraction to Markdown with progress callbacks");
+
+        let doc = self.extract_document_with_progress(pdf_bytes, callback).await?;
+
+        let style = MarkdownStyle {
+            page_numbers: self.config.include_page_numbers,
+            ..Default::default()
+        };
+
+        let renderer = MarkdownRenderer::with_style(style);
+        renderer.render(&doc)
+    }
+
+    /// Extract structured Document from PDF bytes with progress callbacks.
+    ///
+    /// ## Implements
+    ///
+    /// - [`OODA-04`]: Internal method for progress-aware extraction
+    ///
+    /// ## WHY Separate Method?
+    ///
+    /// This allows `extract_to_markdown_with_progress` and future methods
+    /// (like `extract_full_with_progress`) to share the progress-aware core.
+    async fn extract_document_with_progress(
+        &self,
+        pdf_bytes: &[u8],
+        callback: Arc<dyn ProgressCallback>,
+    ) -> Result<Document> {
+        info!("Starting PDF extraction to Document IR with progress");
+
+        // Extract base document using the configured backend WITH progress
+        let doc = self.backend.extract_with_progress(pdf_bytes, callback).await?;
+
+        // Debug: show first few blocks of page 1 BEFORE processing
+        let table_count_before: usize = doc
+            .pages
+            .iter()
+            .map(|p| {
+                p.blocks
+                    .iter()
+                    .filter(|b| b.block_type == crate::schema::BlockType::Table)
+                    .count()
+            })
+            .sum();
+        tracing::info!(
+            "BEFORE processors: {} total Table blocks",
+            table_count_before
+        );
+
+        if let Some(page) = doc.pages.first() {
+            for (i, block) in page.blocks.iter().take(50).enumerate() {
+                let text_preview: String = block.text.chars().take(100).collect();
+                let text_len = block.text.len();
+                tracing::info!(
+                    "BEFORE - block {} len={} bbox=[{:.0},{:.0},{:.0},{:.0}]: '{}'",
+                    i,
+                    text_len,
+                    block.bbox.x1,
+                    block.bbox.y1,
+                    block.bbox.x2,
+                    block.bbox.y2,
+                    text_preview
+                );
+            }
+        }
+
+        // Apply post-processing pipeline
+        // NOTE: Processors don't report progress yet (future OODA iteration)
+        let mut doc = self.apply_processors(doc).await?;
+
+        // Debug: show first few blocks of page 1 after all processing
+        let table_count_after: usize = doc
+            .pages
+            .iter()
+            .map(|p| {
+                p.blocks
+                    .iter()
+                    .filter(|b| b.block_type == crate::schema::BlockType::Table)
+                    .count()
+            })
+            .sum();
+        tracing::info!("AFTER processors: {} total Table blocks", table_count_after);
+
+        if let Some(page) = doc.pages.first() {
+            for (i, block) in page.blocks.iter().take(10).enumerate() {
+                let text_preview: String = block.text.chars().take(60).collect();
+                tracing::debug!(
+                    "After processors - page1 block {} ({:?}): '{}'",
+                    i,
+                    block.block_type,
+                    text_preview
+                );
+            }
+        }
+
+        // Apply AI enhancement if configured
+        // NOTE: AI enhancement doesn't report progress yet (future OODA iteration)
+        if self.config.enhance_readability || self.config.enhance_tables {
+            info!("Applying AI enhancement to document");
+            let enhance_config = LlmEnhanceConfig {
+                enhance_tables: self.config.enhance_tables,
+                improve_text: self.config.enhance_readability,
+                ..LlmEnhanceConfig::default()
+            };
+
+            let enhancer = LlmEnhanceProcessor::new(self.llm_provider.clone(), enhance_config);
+            enhancer.process_document(&mut doc).await?;
+        }
+
+        Ok(doc)
     }
 
     /// Extract structured Document from PDF bytes.
@@ -412,6 +562,7 @@ pub struct PdfInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::progress::CountingProgress;
     use edgequake_llm::providers::mock::MockProvider;
 
     fn create_test_extractor() -> PdfExtractor {
@@ -444,6 +595,41 @@ mod tests {
 
         // For now, just verify it runs without panic.
         // assert!(result.is_err());
+    }
+
+    /// Test that extract_to_markdown_with_progress() invokes callbacks.
+    ///
+    /// ## Implements
+    ///
+    /// - [`OODA-04`]: Verify PdfExtractor progress callback integration
+    #[tokio::test]
+    async fn test_extract_to_markdown_with_progress() {
+        // Load a real PDF file for testing
+        let pdf_bytes = include_bytes!("../test-data/001_simple_text.pdf");
+
+        let provider = Arc::new(MockProvider::new());
+        let extractor = PdfExtractor::new(provider);
+        let callback = Arc::new(CountingProgress::new());
+
+        // Extract with progress
+        let result = extractor
+            .extract_to_markdown_with_progress(pdf_bytes, callback.clone())
+            .await;
+
+        assert!(result.is_ok(), "Extraction should succeed");
+        let markdown = result.unwrap();
+        assert!(!markdown.is_empty(), "Markdown should not be empty");
+
+        // Verify callback counts
+        let starts = callback.extraction_started();
+        let page_starts = callback.pages_started();
+        let page_completes = callback.pages_completed();
+        let completes = callback.extraction_completed();
+
+        assert_eq!(starts, 1, "on_extraction_start should be called once");
+        assert!(page_starts >= 1, "on_page_start should be called");
+        assert!(page_completes >= 1, "on_page_complete should be called");
+        assert_eq!(completes, 1, "on_extraction_complete should be called once");
     }
 
     #[test]
