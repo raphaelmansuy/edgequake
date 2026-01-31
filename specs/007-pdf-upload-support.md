@@ -12,6 +12,9 @@
 
 Design and implement a production-ready PDF upload system that stores raw PDF files with format metadata, transforms them to markdown at upload time, integrates vision LLM for image content extraction, and handles large files smoothly without request timeouts or memory exhaustion.
 
+
+Consider to use edgequake/crates/edgequake-pdf/ as it support vision !!!
+
 Ensure Multi-Tenancy compliance by isolating PDF data per workspace and Tenant
 
 Ensure PDF upload and processing is robust, efficient, and scalable and is integrated into the existing EdgeQuake ingestion pipeline and the Web Application
@@ -766,11 +769,255 @@ async fn process_pdf_processing(
 }
 ```
 
+**🚨 CRITICAL BLOCKER (Loop 15)**:
+
+**Problem**: pdfium-render v0.8.37 **FAILS TO COMPILE** with 122+ errors:
+- Root cause: Broken FFI bindings in `crate::bindgen` module
+- Missing types: `FPDF_DOCUMENT`, `FPDF_PAGE`, `FPDF_BITMAP`, `FPDF_ANNOTATION`, etc.
+- Error: `cannot find value 'buffer_length'`, mismatched types, missing struct fields
+- Impact: **Complete blocker for PDF page rendering in Rust**
+
+**Compilation Evidence** (Loop 15):
+```
+error[E0432]: unresolved imports `crate::bindgen::FPDF_CharsetFontMap`, ...
+error[E0425]: cannot find value `buffer_length` in this scope
+error[E0412]: cannot find type `FPDF_DOCUMENT` in module `crate::bindgen`
+... 122 total errors
+```
+
+**Root Cause Analysis**:
+- pdfium-render depends on pre-generated bindgen code that doesn't match the crate's API usage
+- The crate expects `FPDF_*` types that are missing from the bindgen module
+- This is a known issue with pdfium-render's build process (missing proper bindgen configuration)
+
+**Alternative Solutions Evaluated** (Loop 15):
+
+1. **Command-Line Tools** ⚠️ VIABLE
+   - Use `pdftoppm` (poppler-utils) via `std::process::Command`
+   - ✅ Pros: Reliable, battle-tested, widely available
+   - ❌ Cons: Requires system dependencies, not portable
+   - Command: `pdftoppm -png -r 150 input.pdf output-prefix`
+
+2. **pdf_process crate** (poppler Rust bindings) ⚠️ VIABLE
+   - Version: v0.2.0
+   - ✅ Pros: Native Rust API, actively maintained
+   - ❌ Cons: Requires system libpoppler-glib, complex build
+   - API: `Renderer::new(path).render_page(page_num, scale)`
+
+3. **image crate with external converter** ⚠️ VIABLE
+   - Use Ghostscript or MuPDF via shell commands
+   - ✅ Pros: Flexible, can use any system tool
+   - ❌ Cons: Not portable, security concerns with shell execution
+
+4. **mupdf-rs bindings** ❓ UNKNOWN
+   - May have similar FFI binding issues
+   - Not evaluated yet
+
+**✅ RECOMMENDED SOLUTION (Loop 15)**: **Hybrid Approach**
+
+**Phase 1 (Immediate)**:
+Use external `pdftoppm` command-line tool with feature gate:
+
+```rust
+// File: edgequake-pdf/src/rendering.rs
+
+#[cfg(all(feature = "vision", not(test)))]
+use std::process::Command;
+use crate::vision::{PageImage, ImageFormat};
+use crate::error::PdfError;
+use crate::Result;
+
+/// Render PDF pages to images using pdftoppm (poppler-utils).
+///
+/// @implements FEAT1025
+/// @enforces BR1025
+#[cfg(feature = "vision")]
+pub struct PageRenderer {
+    dpi: u32,
+    format: ImageFormat,
+}
+
+#[cfg(feature = "vision")]
+impl PageRenderer {
+    pub fn new() -> Result<Self> {
+        // Verify pdftoppm is available
+        let output = Command::new("pdftoppm")
+            .arg("-v")
+            .output()
+            .map_err(|e| PdfError::Rendering(format!("pdftoppm not found: {}. Install poppler-utils", e)))?;
+
+        if !output.status.success() {
+            return Err(PdfError::Rendering("pdftoppm failed version check".into()));
+        }
+
+        Ok(Self {
+            dpi: 150,
+            format: ImageFormat::Png,
+        })
+    }
+
+    pub fn with_dpi(mut self, dpi: u32) -> Self {
+        self.dpi = dpi;
+        self
+    }
+
+    pub fn with_format(mut self, format: ImageFormat) -> Self {
+        self.format = format;
+        self
+    }
+
+    pub fn render_pages(&self, pdf_bytes: &[u8]) -> Result<Vec<PageImage>> {
+        use std::fs;
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Write PDF to temp file
+        let mut temp_pdf = NamedTempFile::new()
+            .map_err(|e| PdfError::Rendering(format!("Failed to create temp file: {}", e)))?;
+        temp_pdf.write_all(pdf_bytes)
+            .map_err(|e| PdfError::Rendering(format!("Failed to write PDF: {}", e)))?;
+
+        let temp_dir = tempfile::tempdir()
+            .map_err(|e| PdfError::Rendering(format!("Failed to create temp dir: {}", e)))?;
+
+        let output_prefix = temp_dir.path().join("page");
+
+        // Run pdftoppm
+        let format_flag = match self.format {
+            ImageFormat::Png => "-png",
+            ImageFormat::Jpeg => "-jpeg",
+            ImageFormat::WebP => return Err(PdfError::Rendering("WebP not supported by pdftoppm".into())),
+        };
+
+        let output = Command::new("pdftoppm")
+            .arg(format_flag)
+            .arg("-r").arg(self.dpi.to_string())
+            .arg(temp_pdf.path())
+            .arg(&output_prefix)
+            .output()
+            .map_err(|e| PdfError::Rendering(format!("pdftoppm execution failed: {}", e)))?;
+
+        if !output.status.success() {
+            return Err(PdfError::Rendering(format!(
+                "pdftoppm failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )));
+        }
+
+        // Read generated images
+        let mut images = Vec::new();
+        let mut page_num = 1;
+
+        loop {
+            let ext = match self.format {
+                ImageFormat::Png => "png",
+                ImageFormat::Jpeg => "jpg",
+                _ => unreachable!(),
+            };
+
+            let filename = format!("{}-{}.{}", output_prefix.display(), page_num, ext);
+            let path = std::path::Path::new(&filename);
+
+            if !path.exists() {
+                break;
+            }
+
+            let image_data = fs::read(path)
+                .map_err(|e| PdfError::Rendering(format!("Failed to read page {}: {}", page_num, e)))?;
+
+            // Get image dimensions using image crate
+            let img = image::load_from_memory(&image_data)
+                .map_err(|e| PdfError::Rendering(format!("Failed to decode image: {}", e)))?;
+
+            images.push(
+                PageImage::new(image_data, img.width(), img.height(), self.format)
+                    .with_page(page_num - 1)  // 0-indexed
+                    .with_dpi(self.dpi)
+            );
+
+            page_num += 1;
+        }
+
+        info!("Rendered {} pages from PDF at {} DPI", images.len(), self.dpi);
+        Ok(images)
+    }
+
+    pub fn render_page(&self, pdf_bytes: &[u8], page_number: usize) -> Result<PageImage> {
+        let images = self.render_pages(pdf_bytes)?;
+        images.into_iter()
+            .find(|img| img.page_number() == Some(page_number))
+            .ok_or_else(|| PdfError::Rendering(format!("Page {} not found", page_number)))
+    }
+}
+
+#[cfg(not(feature = "vision"))]
+pub struct PageRenderer;
+
+#[cfg(not(feature = "vision"))]
+impl PageRenderer {
+    pub fn new() -> Result<Self> {
+        Err(PdfError::Unsupported(
+            "Vision mode requires the 'vision' feature flag".into()
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_without_vision_feature() {
+        #[cfg(not(feature = "vision"))]
+        {
+            let result = PageRenderer::new();
+            assert!(result.is_err());
+        }
+    }
+
+    #[cfg(feature = "vision")]
+    #[test]
+    fn test_pdftoppm_availability() {
+        let renderer = PageRenderer::new();
+        // Skip if pdftoppm not installed (CI/CD may not have it)
+        if renderer.is_err() {
+            println!("SKIP: pdftoppm not available (install poppler-utils)");
+            return;
+        }
+    }
+}
+```
+
+**Dependencies Update**:
+```toml
+# edgequake-pdf/Cargo.toml
+[features]
+default = ["lopdf"]
+lopdf = ["dep:lopdf"]
+vision = []  # No Rust dependencies, uses system pdftoppm
+
+[dependencies]
+tempfile = "3.0"  # For temp file handling
+tracing = { version = "0.1", features = ["log"] }  # Already present
+```
+
+**Phase 2 (Future - Optional)**:
+When pdfium-render or alternative Rust bindings are fixed, replace system calls with pure Rust implementation.
+
+**Deployment Requirements**:
+- **System Package**: `poppler-utils` (provides `pdftoppm`)
+- **macOS**: `brew install poppler`
+- **Ubuntu/Debian**: `apt-get install poppler-utils`
+- **Alpine Linux**: `apk add poppler-utils`
+- **Docker**: Add to Dockerfile: `RUN apt-get update && apt-get install -y poppler-utils`
+
 **Status**:
 - ✅ Vision module exists (485 lines) with VisionExtractor and PageImage types
-- ⏳ Page rendering capability needs to be added (OODA Loop 15)
-- ⏳ Integration with processor.rs vision workflow (OODA Loop 16)
-- ⏳ Testing with real scanned PDFs (OODA Loop 19)
+- ❌ Loop 15 BLOCKED by pdfium-render compilation failure (122 errors)
+- ✅ Loop 15 SOLUTION: Use pdftoppm via Command with tempfile
+- ⏳ Loop 15 IMPLEMENTATION: Rewrite rendering.rs with pdftoppm approach
+- ⏳ Loop 16: Integration with processor.rs vision workflow
+- ⏳ Loop 19: Testing with real scanned PDFs
 
 ### Provider Configuration
 
