@@ -9,7 +9,7 @@ authors.workspace = true
 repository.workspace = true
 
 [features]
-default = []
+default = ["postgres"]
 postgres = ["dep:sqlx", "dep:chrono"]
 # Enable all storage backends
 full = ["postgres"]
@@ -22,6 +22,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+sha2 = "0.10"
 
 # Optional PostgreSQL dependencies
 sqlx = { workspace = true, optional = true }
