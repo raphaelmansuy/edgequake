@@ -75,9 +75,7 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| {
-            StorageError::Database(format!("Failed to create PDF document: {}", e))
-        })?;
+        .map_err(|e| StorageError::Database(format!("Failed to create PDF document: {}", e)))?;
 
         debug!(
             "Created PDF document: id={}, workspace={}, size={}",
@@ -204,13 +202,12 @@ impl PdfDocumentStorage for PostgresPdfStorage {
     async fn update_pdf_status(&self, pdf_id: &Uuid, status: PdfProcessingStatus) -> Result<()> {
         let status_str = status.as_str();
 
-        let processed_at = if status == PdfProcessingStatus::Completed
-            || status == PdfProcessingStatus::Failed
-        {
-            Some(chrono::Utc::now())
-        } else {
-            None
-        };
+        let processed_at =
+            if status == PdfProcessingStatus::Completed || status == PdfProcessingStatus::Failed {
+                Some(chrono::Utc::now())
+            } else {
+                None
+            };
 
         sqlx::query!(
             r#"
@@ -265,9 +262,7 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| {
-            StorageError::Database(format!("Failed to update PDF processing: {}", e))
-        })?;
+        .map_err(|e| StorageError::Database(format!("Failed to update PDF processing: {}", e)))?;
 
         debug!(
             "Updated PDF processing: id={}, status={}, method={:?}",
@@ -289,9 +284,7 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| {
-            StorageError::Database(format!("Failed to link PDF to document: {}", e))
-        })?;
+        .map_err(|e| StorageError::Database(format!("Failed to link PDF to document: {}", e)))?;
 
         debug!(
             "Linked PDF to document: pdf_id={}, document_id={}",
@@ -360,7 +353,8 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         };
 
         // Get paginated items using helper
-        let items = super::pdf_list_query::list_pdfs_dynamic(&self.pool, &filter, limit, offset).await?;
+        let items =
+            super::pdf_list_query::list_pdfs_dynamic(&self.pool, &filter, limit, offset).await?;
 
         Ok(PdfList {
             items,

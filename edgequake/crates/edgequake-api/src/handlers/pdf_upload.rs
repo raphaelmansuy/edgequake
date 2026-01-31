@@ -41,12 +41,12 @@ use uuid::Uuid;
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
+use chrono::Utc;
 use edgequake_storage::{
-    calculate_pdf_checksum, validate_pdf_data, CreatePdfRequest, ListPdfFilter,
-    PdfDocumentStorage, PdfProcessingStatus,
+    calculate_pdf_checksum, validate_pdf_data, CreatePdfRequest, ListPdfFilter, PdfDocumentStorage,
+    PdfProcessingStatus,
 };
 use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
-use chrono::Utc;
 
 // ============================================================================
 // Request/Response Types
@@ -693,13 +693,9 @@ pub async fn delete_pdf(
 /// @enforces BR0701: PostgreSQL-backed PDF storage
 #[cfg(feature = "postgres")]
 fn get_pdf_storage(state: &AppState) -> ApiResult<Arc<dyn PdfDocumentStorage>> {
-    state
-        .pdf_storage
-        .as_ref()
-        .map(Arc::clone)
-        .ok_or_else(|| {
-            ApiError::Internal("PDF storage not initialized (check PostgreSQL setup)".to_string())
-        })
+    state.pdf_storage.as_ref().map(Arc::clone).ok_or_else(|| {
+        ApiError::Internal("PDF storage not initialized (check PostgreSQL setup)".to_string())
+    })
 }
 
 #[cfg(not(feature = "postgres"))]
@@ -719,7 +715,7 @@ async fn create_pdf_processing_task(
     let workspace_id = context
         .workspace_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
-    
+
     let tenant_id = context
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Tenant ID required".to_string()))?;
@@ -733,7 +729,7 @@ async fn create_pdf_processing_task(
     };
 
     let track_id = format!("pdf-{}", Uuid::new_v4());
-    
+
     let task = Task {
         track_id: track_id.clone(),
         tenant_id,

@@ -69,13 +69,20 @@ impl From<sqlx::Error> for StorageError {
                 // Check for unique constraint violations (duplicate keys)
                 if let Some(constraint) = e.constraint() {
                     if constraint.contains("unique") || constraint.contains("pkey") {
-                        return StorageError::AlreadyExists(format!("Constraint violation: {}", constraint));
+                        return StorageError::AlreadyExists(format!(
+                            "Constraint violation: {}",
+                            constraint
+                        ));
                     }
                 }
                 StorageError::Database(e.to_string())
             }
-            sqlx::Error::PoolTimedOut => StorageError::Connection("Connection pool timeout".to_string()),
-            sqlx::Error::PoolClosed => StorageError::Connection("Connection pool closed".to_string()),
+            sqlx::Error::PoolTimedOut => {
+                StorageError::Connection("Connection pool timeout".to_string())
+            }
+            sqlx::Error::PoolClosed => {
+                StorageError::Connection("Connection pool closed".to_string())
+            }
             _ => StorageError::Database(err.to_string()),
         }
     }

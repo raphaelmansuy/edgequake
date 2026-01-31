@@ -59,6 +59,14 @@ pub enum TaskError {
     #[error("Unsupported operation: {0}")]
     UnsupportedOperation(String),
 
+    /// Resource not found.
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    /// Processing error (extraction, transformation).
+    #[error("Processing error: {0}")]
+    Processing(String),
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }

@@ -12,7 +12,6 @@
 
 Design and implement a production-ready PDF upload system that stores raw PDF files with format metadata, transforms them to markdown at upload time, integrates vision LLM for image content extraction, and handles large files smoothly without request timeouts or memory exhaustion.
 
-
 Consider to use edgequake/crates/edgequake-pdf/ as it support vision !!!
 
 Ensure Multi-Tenancy compliance by isolating PDF data per workspace and Tenant
@@ -772,12 +771,14 @@ async fn process_pdf_processing(
 **🚨 CRITICAL BLOCKER (Loop 15)**:
 
 **Problem**: pdfium-render v0.8.37 **FAILS TO COMPILE** with 122+ errors:
+
 - Root cause: Broken FFI bindings in `crate::bindgen` module
 - Missing types: `FPDF_DOCUMENT`, `FPDF_PAGE`, `FPDF_BITMAP`, `FPDF_ANNOTATION`, etc.
 - Error: `cannot find value 'buffer_length'`, mismatched types, missing struct fields
 - Impact: **Complete blocker for PDF page rendering in Rust**
 
 **Compilation Evidence** (Loop 15):
+
 ```
 error[E0432]: unresolved imports `crate::bindgen::FPDF_CharsetFontMap`, ...
 error[E0425]: cannot find value `buffer_length` in this scope
@@ -786,6 +787,7 @@ error[E0412]: cannot find type `FPDF_DOCUMENT` in module `crate::bindgen`
 ```
 
 **Root Cause Analysis**:
+
 - pdfium-render depends on pre-generated bindgen code that doesn't match the crate's API usage
 - The crate expects `FPDF_*` types that are missing from the bindgen module
 - This is a known issue with pdfium-render's build process (missing proper bindgen configuration)
@@ -989,6 +991,7 @@ mod tests {
 ```
 
 **Dependencies Update**:
+
 ```toml
 # edgequake-pdf/Cargo.toml
 [features]
@@ -1005,6 +1008,7 @@ tracing = { version = "0.1", features = ["log"] }  # Already present
 When pdfium-render or alternative Rust bindings are fixed, replace system calls with pure Rust implementation.
 
 **Deployment Requirements**:
+
 - **System Package**: `poppler-utils` (provides `pdftoppm`)
 - **macOS**: `brew install poppler`
 - **Ubuntu/Debian**: `apt-get install poppler-utils`
@@ -1012,6 +1016,7 @@ When pdfium-render or alternative Rust bindings are fixed, replace system calls 
 - **Docker**: Add to Dockerfile: `RUN apt-get update && apt-get install -y poppler-utils`
 
 **Status**:
+
 - ✅ Vision module exists (485 lines) with VisionExtractor and PageImage types
 - ❌ Loop 15 BLOCKED by pdfium-render compilation failure (122 errors)
 - ✅ Loop 15 SOLUTION: Use pdftoppm via Command with tempfile
