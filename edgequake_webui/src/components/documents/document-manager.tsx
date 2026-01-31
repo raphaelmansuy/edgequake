@@ -1267,9 +1267,21 @@ export function DocumentManager() {
         <UploadHistory 
           maxItems={10} 
           compact={false}
-          onRetry={(trackId) => {
-            // TODO: Implement retry from history
-            console.log('Retry from history:', trackId);
+          onRetry={async (trackId, documentId) => {
+            // OODA-16: Implement retry from history
+            if (documentId) {
+              try {
+                toast.info('Reprocessing document...');
+                const result = await reprocessDocument(documentId);
+                toast.success(`Reprocessing started: ${result.message}`);
+                // Refresh documents list after retry starts
+                queryClient.invalidateQueries({ queryKey: ['documents'] });
+              } catch (error) {
+                toast.error(`Retry failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            } else {
+              toast.warning('Cannot retry: Document ID not available');
+            }
           }}
         />
       </div>
