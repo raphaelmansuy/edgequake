@@ -108,7 +108,6 @@ import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
 import { StatusBadge } from './status-badge';
 import type { UploadingFile } from './types';
-import { UploadHistory } from './upload-history';
 
 /**
  * OODA-30: File type icon helper
@@ -1261,30 +1260,6 @@ export function DocumentManager() {
           />
         </div>
       )}
-
-      {/* OODA-26: Upload History Section - Shows completed/failed uploads */}
-      <div className="shrink-0 px-4 py-3 border-b">
-        <UploadHistory 
-          maxItems={10} 
-          compact={false}
-          onRetry={async (trackId, documentId) => {
-            // OODA-16: Implement retry from history
-            if (documentId) {
-              try {
-                toast.info('Reprocessing document...');
-                const result = await reprocessDocument(documentId);
-                toast.success(`Reprocessing started: ${result.message}`);
-                // Refresh documents list after retry starts
-                queryClient.invalidateQueries({ queryKey: ['documents'] });
-              } catch (error) {
-                toast.error(`Retry failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-              }
-            } else {
-              toast.warning('Cannot retry: Document ID not available');
-            }
-          }}
-        />
-      </div>
 
       {/* Scrollable Documents Table Zone */}
       <div className="flex-1 min-h-0 overflow-auto">
