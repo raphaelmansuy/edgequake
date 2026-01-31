@@ -160,10 +160,12 @@ export function getTenantContext(): {
 }
 
 // Headers builder
-function buildHeaders(customHeaders?: HeadersInit): Headers {
+function buildHeaders(customHeaders?: HeadersInit, body?: unknown): Headers {
   const headers = new Headers(customHeaders);
 
-  if (!headers.has("Content-Type")) {
+  // Only set Content-Type to application/json if body is not FormData
+  // For FormData, the browser will set Content-Type with the boundary automatically
+  if (!headers.has("Content-Type") && !(body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -197,7 +199,7 @@ export async function apiClient<T>(
 
   const config: RequestInit = {
     ...options,
-    headers: buildHeaders(options.headers),
+    headers: buildHeaders(options.headers, options.body),
   };
 
   try {
@@ -208,7 +210,7 @@ export async function apiClient<T>(
       const refreshed = await tryRefreshToken();
       if (refreshed) {
         // Retry the request with new token
-        config.headers = buildHeaders(options.headers);
+        config.headers = buildHeaders(options.headers, options.body);
         const retryResponse = await fetch(url, config);
         if (!retryResponse.ok) {
           throw await handleErrorResponse(retryResponse);
@@ -414,21 +416,21 @@ export const api = {
     apiClient<T>(endpoint, {
       ...options,
       method: "POST",
-      body: data ? JSON.stringify(data) : undefined,
+      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined),
     }),
 
   put: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "PUT",
-      body: data ? JSON.stringify(data) : undefined,
+      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined),
     }),
 
   patch: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "PATCH",
-      body: data ? JSON.stringify(data) : undefined,
+      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined),
     }),
 
   delete: <T>(endpoint: string, options?: RequestInit) =>
