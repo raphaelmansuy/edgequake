@@ -1790,11 +1790,13 @@ mod tests {
     fn test_processor_fields_are_arc() {
         // Verify that processor uses Arc for shared ownership
         let pipeline = create_test_pipeline();
+        let llm = create_test_llm_provider();
         let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
         let _processor = DocumentTaskProcessor::new(
             pipeline.clone(),
+            llm.clone(),
             kv.clone(),
             vector.clone(),
             vector_registry.clone(),
@@ -1805,6 +1807,7 @@ mod tests {
         // If we got here, Arc works correctly
         // Verify we can still access the cloned Arcs
         assert!(Arc::strong_count(&pipeline) >= 1);
+        assert!(Arc::strong_count(&llm) >= 1);
         assert!(Arc::strong_count(&kv) >= 1);
         assert!(Arc::strong_count(&vector) >= 1);
         assert!(Arc::strong_count(&graph) >= 1);

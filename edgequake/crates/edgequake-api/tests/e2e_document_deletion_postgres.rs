@@ -220,6 +220,8 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
         storage_mode: StorageMode::Memory,
         models_config: Arc::new(ModelsConfig::builtin_defaults()),
         pg_pool: Some(pool.clone()),
+        // PDF storage not available in this test
+        pdf_storage: None,
         start_time: std::time::Instant::now(),
         path_validation_config: edgequake_api::path_validation::PathValidationConfig {
             allow_any_path: true,
