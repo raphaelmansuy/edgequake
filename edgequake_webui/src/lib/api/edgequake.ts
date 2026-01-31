@@ -554,6 +554,9 @@ export async function uploadPdfDocument(
   if (options?.metadata) {
     formData.append("metadata", JSON.stringify(options.metadata));
   }
+  if (options?.track_id) {
+    formData.append("track_id", options.track_id);
+  }
 
   return api.post<PdfUploadResponse>("/documents/pdf", formData, {
     headers: {
