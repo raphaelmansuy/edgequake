@@ -448,6 +448,7 @@ describe('Message Processing', () => {
           chunks: 25,
           entities: 100,
           relationships: 45,
+          total_cost_usd: 0.15,
         },
       };
       
@@ -477,6 +478,7 @@ describe('Message Processing', () => {
           chunks: 25,
           entities: 100,
           relationships: 45,
+          total_cost_usd: 0.15,
         },
       };
       
@@ -505,7 +507,7 @@ describe('Message Processing', () => {
           document_id: `doc-${i}`,
           completed_at: new Date().toISOString(),
           total_duration_ms: 1000,
-          summary: { chunks: i, entities: i, relationships: i },
+          summary: { chunks: i, entities: i, relationships: i, total_cost_usd: 0.01 },
         };
         
         act(() => {
@@ -619,14 +621,14 @@ describe('Message Processing', () => {
       const event: CostUpdateEvent = {
         type: 'cost_update',
         track_id: 'track-1',
-        document_id: 'doc-1',
         stage: 'extracting',
         operation: 'entity_extraction',
-        model: 'gpt-4',
-        input_tokens: 1000,
-        output_tokens: 500,
         cost_usd: 0.05,
         cumulative_cost_usd: 0.15,
+        tokens_used: {
+          input: 1000,
+          output: 500,
+        },
       };
       
       act(() => {
@@ -749,6 +751,7 @@ describe('Failed Jobs', () => {
         message: 'Error message',
         stage: 'extracting',
         reason: 'Test reason',
+        suggestion: 'Try again',
         recoverable: true,
       });
     });
@@ -765,6 +768,7 @@ describe('Failed Jobs', () => {
         message: 'Error 1',
         stage: 'chunking',
         reason: 'Reason 1',
+        suggestion: 'Retry chunk',
         recoverable: true,
       });
       store.addFailedJob('track-2', {
@@ -772,6 +776,7 @@ describe('Failed Jobs', () => {
         message: 'Error 2',
         stage: 'embedding',
         reason: 'Reason 2',
+        suggestion: 'Contact support',
         recoverable: false,
       });
     });
@@ -793,6 +798,7 @@ describe('Failed Jobs', () => {
         message: 'Error 1',
         stage: 'preprocessing',
         reason: 'Reason 1',
+        suggestion: 'Retry preprocessing',
         recoverable: true,
       });
       store.addFailedJob('track-2', {
@@ -800,6 +806,7 @@ describe('Failed Jobs', () => {
         message: 'Error 2',
         stage: 'indexing',
         reason: 'Reason 2',
+        suggestion: 'Contact admin',
         recoverable: false,
       });
     });
@@ -831,7 +838,7 @@ describe('stopTracking', () => {
       document_id: 'doc-1',
       completed_at: new Date().toISOString(),
       total_duration_ms: 1000,
-      summary: { chunks: 10, entities: 50, relationships: 25 },
+      summary: { chunks: 10, entities: 50, relationships: 25, total_cost_usd: 0.05 },
     };
     
     act(() => {
