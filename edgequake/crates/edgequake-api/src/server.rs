@@ -21,6 +21,7 @@
 
 use std::net::SocketAddr;
 
+use axum::extract::DefaultBodyLimit;
 use axum::middleware;
 use serde::{Deserialize, Serialize};
 use tower_http::{
@@ -86,6 +87,7 @@ impl Server {
 
         // Add middleware
         app = app
+            .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100 MB limit for PDF uploads
             .layer(middleware::from_fn(request_logging))
             .layer(middleware::from_fn(request_id))
             .layer(TraceLayer::new_for_http());

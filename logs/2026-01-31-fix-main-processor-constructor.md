@@ -23,6 +23,7 @@ error[E0061]: this function takes 9 arguments but 8 arguments were supplied
 The `DocumentTaskProcessor` constructors in `edgequake/src/main.rs` were missing the `llm_provider` argument as the 2nd parameter after `pipeline`. This caused all subsequent arguments to be off-by-one, leading to type mismatches.
 
 **Expected signature** (from processor.rs lines 127, 159):
+
 ```rust
 pub fn with_workspace_support(
     pipeline: Arc<Pipeline>,
@@ -38,6 +39,7 @@ pub fn with_workspace_support(
 ```
 
 **Actual calls** (main.rs lines 83-104):
+
 ```rust
 // Missing llm_provider argument!
 Arc::new(DocumentTaskProcessor::with_workspace_support_strict(
@@ -55,6 +57,7 @@ Added `Arc::clone(&state.llm_provider)` as the 2nd argument in both constructor 
 **File:** `edgequake/src/main.rs`
 
 Applied to both:
+
 - `with_workspace_support_strict()` (line 84)
 - `with_workspace_support()` (line 96)
 

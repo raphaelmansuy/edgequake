@@ -40,7 +40,7 @@ export class ApiRequestError extends Error {
     message: string,
     public status: number,
     public code?: string,
-    public details?: Record<string, unknown>
+    public details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiRequestError";
@@ -51,7 +51,7 @@ export class ApiRequestError extends Error {
       error.message,
       error.status,
       error.code,
-      error.details
+      error.details,
     );
   }
 }
@@ -191,7 +191,7 @@ function buildHeaders(customHeaders?: HeadersInit, body?: unknown): Headers {
 // Main API client function
 export async function apiClient<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const url = endpoint.startsWith("http")
     ? endpoint
@@ -244,7 +244,7 @@ export async function apiClient<T>(
 
 // Error response handler
 async function handleErrorResponse(
-  response: Response
+  response: Response,
 ): Promise<ApiRequestError> {
   try {
     const errorData = (await response.json()) as ApiError;
@@ -255,7 +255,7 @@ async function handleErrorResponse(
   } catch {
     return new ApiRequestError(
       response.statusText || "Request failed",
-      response.status
+      response.status,
     );
   }
 }
@@ -297,7 +297,7 @@ async function tryRefreshToken(): Promise<boolean> {
 // SSE format: "data: <content>\n\n" for each event
 export async function* streamClient<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): AsyncGenerator<T, void, unknown> {
   const url = endpoint.startsWith("http")
     ? endpoint
@@ -416,21 +416,36 @@ export const api = {
     apiClient<T>(endpoint, {
       ...options,
       method: "POST",
-      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined),
+      body:
+        data instanceof FormData
+          ? data
+          : data
+            ? JSON.stringify(data)
+            : undefined,
     }),
 
   put: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "PUT",
-      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined),
+      body:
+        data instanceof FormData
+          ? data
+          : data
+            ? JSON.stringify(data)
+            : undefined,
     }),
 
   patch: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "PATCH",
-      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined),
+      body:
+        data instanceof FormData
+          ? data
+          : data
+            ? JSON.stringify(data)
+            : undefined,
     }),
 
   delete: <T>(endpoint: string, options?: RequestInit) =>
