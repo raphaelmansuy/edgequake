@@ -9,8 +9,11 @@
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
+
+use crate::progress::{PdfUploadProgress, PhaseError, PipelinePhase};
 
 /// Events emitted by the pipeline for real-time updates.
 #[derive(Debug, Clone, Serialize)]
@@ -164,6 +167,9 @@ struct PipelineStateInner {
     messages: Vec<PipelineMessage>,
     cancellation_requested: bool,
     max_messages: usize,
+    /// OODA-12: Active PDF upload progress, keyed by track_id.
+    /// Enables queryable progress for GET /api/v1/documents/pdf/:id/progress
+    pdf_progress: HashMap<String, PdfUploadProgress>,
 }
 
 impl Default for PipelineStateInner {
@@ -179,6 +185,7 @@ impl Default for PipelineStateInner {
             messages: Vec::new(),
             cancellation_requested: false,
             max_messages: 100,
+            pdf_progress: HashMap::new(),
         }
     }
 }
@@ -536,6 +543,111 @@ impl PipelineState {
             error,
         });
     }
+
+    // =========================================================================
+    // OODA-12: PDF Upload Progress Tracking Methods
+    // =========================================================================
+    //
+    // These methods provide queryable PDF upload progress storage.
+    // Progress is stored in-memory and keyed by track_id.
+    // This enables the GET /api/v1/documents/pdf/:id/progress endpoint.
+
+    /// Start tracking a new PDF upload.
+    ///
+    /// Creates a new `PdfUploadProgress` entry with all 6 phases set to Pending.
+    /// Call this when PDF processing begins.
+    ///
+    /// # Arguments
+    ///
+    /// * `track_id` - Unique tracking ID for this upload
+    /// * `pdf_id` - PDF document ID
+    /// * `filename` - Original filename for display
+    pub async fn start_pdf_progress(&self, track_id: &str, pdf_id: &str, filename: &str) {
+        let progress = PdfUploadProgress::new(
+            track_id.to_string(),
+            pdf_id.to_string(),
+            filename.to_string(),
+        );
+        let mut inner = self.inner.write().await;
+        inner.pdf_progress.insert(track_id.to_string(), progress);
+    }
+
+    /// Get current progress for a PDF upload.
+    ///
+    /// Returns `None` if no progress exists for this track_id (either not started
+    /// or already cleaned up).
+    pub async fn get_pdf_progress(&self, track_id: &str) -> Option<PdfUploadProgress> {
+        let inner = self.inner.read().await;
+        inner.pdf_progress.get(track_id).cloned()
+    }
+
+    /// Start a phase with known total items.
+    ///
+    /// Use this when beginning a phase like PdfConversion with total_pages.
+    ///
+    /// # Arguments
+    ///
+    /// * `track_id` - Upload tracking ID
+    /// * `phase` - Which pipeline phase is starting
+    /// * `total` - Total items to process (pages, chunks, entities)
+    pub async fn start_pdf_phase(&self, track_id: &str, phase: PipelinePhase, total: usize) {
+        let mut inner = self.inner.write().await;
+        if let Some(progress) = inner.pdf_progress.get_mut(track_id) {
+            progress.start_phase(phase, total);
+        }
+    }
+
+    /// Update progress for a phase.
+    ///
+    /// # Arguments
+    ///
+    /// * `track_id` - Upload tracking ID
+    /// * `phase` - Which phase to update
+    /// * `current` - Current item index (0-based)
+    /// * `message` - Human-readable status message
+    pub async fn update_pdf_phase(
+        &self,
+        track_id: &str,
+        phase: PipelinePhase,
+        current: usize,
+        message: &str,
+    ) {
+        let mut inner = self.inner.write().await;
+        if let Some(progress) = inner.pdf_progress.get_mut(track_id) {
+            progress.update_phase(phase, current, message);
+        }
+    }
+
+    /// Mark a phase as complete.
+    pub async fn complete_pdf_phase(&self, track_id: &str, phase: PipelinePhase) {
+        let mut inner = self.inner.write().await;
+        if let Some(progress) = inner.pdf_progress.get_mut(track_id) {
+            progress.complete_phase(phase);
+        }
+    }
+
+    /// Mark a phase as failed.
+    pub async fn fail_pdf_phase(&self, track_id: &str, phase: PipelinePhase, error: PhaseError) {
+        let mut inner = self.inner.write().await;
+        if let Some(progress) = inner.pdf_progress.get_mut(track_id) {
+            progress.fail_phase(phase, error);
+        }
+    }
+
+    /// Remove progress entry (for cleanup after completion).
+    ///
+    /// Call this after the entire pipeline completes to free memory.
+    /// Progress can also be garbage-collected by a background task based on age.
+    pub async fn remove_pdf_progress(&self, track_id: &str) {
+        let mut inner = self.inner.write().await;
+        inner.pdf_progress.remove(track_id);
+    }
+
+    /// Get all active PDF progress entries (for admin/monitoring).
+    pub async fn list_pdf_progress(&self) -> Vec<PdfUploadProgress> {
+        let inner = self.inner.read().await;
+        inner.pdf_progress.values().cloned().collect()
+    }
 }
 
 /// A snapshot of the pipeline status for API responses.
@@ -787,5 +899,144 @@ mod tests {
         assert!(json.contains("\"pdf_id\":\"pdf-ser\""));
         assert!(json.contains("\"page_num\":7"));
         assert!(json.contains("\"markdown_len\":4096"));
+    }
+
+    // =========================================================================
+    // OODA-12: PDF Upload Progress Storage Tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_start_pdf_progress() {
+        let state = PipelineState::new();
+
+        // Start tracking a PDF upload
+        state
+            .start_pdf_progress("track-001", "pdf-001", "test.pdf")
+            .await;
+
+        // Verify it was stored
+        let progress = state.get_pdf_progress("track-001").await;
+        assert!(progress.is_some());
+
+        let p = progress.unwrap();
+        assert_eq!(p.track_id, "track-001");
+        assert_eq!(p.pdf_id, "pdf-001");
+        assert_eq!(p.filename, "test.pdf");
+        assert_eq!(p.phases.len(), 6);
+        assert!(!p.is_complete);
+    }
+
+    #[tokio::test]
+    async fn test_get_pdf_progress_not_found() {
+        let state = PipelineState::new();
+
+        // Query non-existent progress
+        let progress = state.get_pdf_progress("nonexistent").await;
+        assert!(progress.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_update_pdf_phase() {
+        let state = PipelineState::new();
+
+        // Start tracking
+        state
+            .start_pdf_progress("track-002", "pdf-002", "doc.pdf")
+            .await;
+
+        // Start PdfConversion phase with 10 pages
+        state
+            .start_pdf_phase("track-002", PipelinePhase::PdfConversion, 10)
+            .await;
+
+        // Update progress to page 5
+        state
+            .update_pdf_phase(
+                "track-002",
+                PipelinePhase::PdfConversion,
+                5,
+                "Extracting page 5 of 10...",
+            )
+            .await;
+
+        // Verify update
+        let progress = state.get_pdf_progress("track-002").await.unwrap();
+        let conversion = progress.phase(PipelinePhase::PdfConversion).unwrap();
+        assert_eq!(conversion.current, 5);
+        assert_eq!(conversion.total, 10);
+        assert_eq!(conversion.percentage, 50.0);
+    }
+
+    #[tokio::test]
+    async fn test_complete_pdf_phase() {
+        let state = PipelineState::new();
+
+        state
+            .start_pdf_progress("track-003", "pdf-003", "complete.pdf")
+            .await;
+        state
+            .start_pdf_phase("track-003", PipelinePhase::Upload, 1)
+            .await;
+        state
+            .complete_pdf_phase("track-003", PipelinePhase::Upload)
+            .await;
+
+        let progress = state.get_pdf_progress("track-003").await.unwrap();
+        let upload = progress.phase(PipelinePhase::Upload).unwrap();
+        assert!(upload.is_finished());
+        assert_eq!(upload.percentage, 100.0);
+    }
+
+    #[tokio::test]
+    async fn test_fail_pdf_phase() {
+        use crate::progress::PhaseError;
+
+        let state = PipelineState::new();
+
+        state
+            .start_pdf_progress("track-004", "pdf-004", "fail.pdf")
+            .await;
+        state
+            .start_pdf_phase("track-004", PipelinePhase::PdfConversion, 5)
+            .await;
+
+        let error = PhaseError::pdf_parse(3, "Invalid font encoding");
+        state
+            .fail_pdf_phase("track-004", PipelinePhase::PdfConversion, error)
+            .await;
+
+        let progress = state.get_pdf_progress("track-004").await.unwrap();
+        assert!(progress.is_failed);
+        let conversion = progress.phase(PipelinePhase::PdfConversion).unwrap();
+        assert!(conversion.error.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_remove_pdf_progress() {
+        let state = PipelineState::new();
+
+        state
+            .start_pdf_progress("track-005", "pdf-005", "remove.pdf")
+            .await;
+        assert!(state.get_pdf_progress("track-005").await.is_some());
+
+        state.remove_pdf_progress("track-005").await;
+        assert!(state.get_pdf_progress("track-005").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_list_pdf_progress() {
+        let state = PipelineState::new();
+
+        // Start multiple uploads
+        state
+            .start_pdf_progress("track-a", "pdf-a", "file-a.pdf")
+            .await;
+        state
+            .start_pdf_progress("track-b", "pdf-b", "file-b.pdf")
+            .await;
+
+        let list = state.list_pdf_progress().await;
+        assert_eq!(list.len(), 2);
     }
 }
