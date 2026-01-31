@@ -11,7 +11,7 @@
  * - Batch update handling
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
 // ============================================================================
 // Types (matching component types)
@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 interface PhaseProgress {
   phase: string;
-  status: 'pending' | 'active' | 'complete' | 'failed';
+  status: "pending" | "active" | "complete" | "failed";
   current: number;
   total: number;
   percentage: number;
@@ -51,7 +51,12 @@ function createMockPhases(count: number): PhaseProgress[] {
   for (let i = 0; i < count; i++) {
     phases.push({
       phase: `Phase_${i}`,
-      status: i < count / 2 ? 'complete' : i === Math.floor(count / 2) ? 'active' : 'pending',
+      status:
+        i < count / 2
+          ? "complete"
+          : i === Math.floor(count / 2)
+            ? "active"
+            : "pending",
       current: i < count / 2 ? 100 : i === Math.floor(count / 2) ? 50 : 0,
       total: 100,
       percentage: i < count / 2 ? 100 : i === Math.floor(count / 2) ? 50 : 0,
@@ -72,47 +77,47 @@ function calculateOverallPercent(phases: PhaseProgress[]): number {
 }
 
 function findCurrentPhaseIndex(phases: PhaseProgress[]): number {
-  const activeIndex = phases.findIndex((p) => p.status === 'active');
+  const activeIndex = phases.findIndex((p) => p.status === "active");
   if (activeIndex !== -1) return activeIndex;
-  const lastComplete = phases.findLastIndex((p) => p.status === 'complete');
+  const lastComplete = phases.findLastIndex((p) => p.status === "complete");
   return lastComplete + 1;
 }
 
 function getCompletedPhaseCount(phases: PhaseProgress[]): number {
-  return phases.filter((p) => p.status === 'complete').length;
+  return phases.filter((p) => p.status === "complete").length;
 }
 
 // ============================================================================
 // Tests
 // ============================================================================
 
-describe('Performance: Progress Calculations', () => {
-  describe('calculateOverallPercent performance', () => {
-    it('handles 6 phases in <1ms', () => {
+describe("Performance: Progress Calculations", () => {
+  describe("calculateOverallPercent performance", () => {
+    it("handles 6 phases in <1ms", () => {
       const phases = createMockPhases(6);
       const { durationMs } = measureTime(() => calculateOverallPercent(phases));
-      
+
       expect(durationMs).toBeLessThan(1);
     });
 
-    it('handles 100 phases in <5ms', () => {
+    it("handles 100 phases in <5ms", () => {
       const phases = createMockPhases(100);
       const { durationMs } = measureTime(() => calculateOverallPercent(phases));
-      
+
       expect(durationMs).toBeLessThan(5);
     });
 
-    it('handles 1000 phases in <50ms', () => {
+    it("handles 1000 phases in <50ms", () => {
       const phases = createMockPhases(1000);
       const { durationMs } = measureTime(() => calculateOverallPercent(phases));
-      
+
       expect(durationMs).toBeLessThan(50);
     });
 
-    it('calculates correctly for large arrays', () => {
+    it("calculates correctly for large arrays", () => {
       const phases = createMockPhases(1000);
       const result = calculateOverallPercent(phases);
-      
+
       // Half complete (100%) + one active (50%) + rest pending (0%)
       // Expected: (500*100 + 1*50 + 499*0) / 1000 = 50.05, rounds to 50
       expect(result).toBeGreaterThanOrEqual(0);
@@ -120,58 +125,62 @@ describe('Performance: Progress Calculations', () => {
     });
   });
 
-  describe('findCurrentPhaseIndex performance', () => {
-    it('finds active phase in <1ms for 6 phases', () => {
+  describe("findCurrentPhaseIndex performance", () => {
+    it("finds active phase in <1ms for 6 phases", () => {
       const phases = createMockPhases(6);
       const { durationMs } = measureTime(() => findCurrentPhaseIndex(phases));
-      
+
       expect(durationMs).toBeLessThan(1);
     });
 
-    it('finds active phase in <5ms for 100 phases', () => {
+    it("finds active phase in <5ms for 100 phases", () => {
       const phases = createMockPhases(100);
       const { durationMs } = measureTime(() => findCurrentPhaseIndex(phases));
-      
+
       expect(durationMs).toBeLessThan(5);
     });
 
-    it('handles worst case (active at end) efficiently', () => {
+    it("handles worst case (active at end) efficiently", () => {
       const phases = createMockPhases(100);
       // Move active to last phase
       phases.forEach((p, i) => {
-        p.status = i === 99 ? 'active' : 'pending';
+        p.status = i === 99 ? "active" : "pending";
       });
-      
-      const { durationMs, result } = measureTime(() => findCurrentPhaseIndex(phases));
-      
+
+      const { durationMs, result } = measureTime(() =>
+        findCurrentPhaseIndex(phases),
+      );
+
       expect(durationMs).toBeLessThan(5);
       expect(result).toBe(99);
     });
   });
 
-  describe('getCompletedPhaseCount performance', () => {
-    it('counts completed in <1ms for 6 phases', () => {
+  describe("getCompletedPhaseCount performance", () => {
+    it("counts completed in <1ms for 6 phases", () => {
       const phases = createMockPhases(6);
       const { durationMs } = measureTime(() => getCompletedPhaseCount(phases));
-      
+
       expect(durationMs).toBeLessThan(1);
     });
 
-    it('counts completed in <5ms for 1000 phases', () => {
+    it("counts completed in <5ms for 1000 phases", () => {
       const phases = createMockPhases(1000);
-      const { durationMs, result } = measureTime(() => getCompletedPhaseCount(phases));
-      
+      const { durationMs, result } = measureTime(() =>
+        getCompletedPhaseCount(phases),
+      );
+
       expect(durationMs).toBeLessThan(5);
       expect(result).toBe(500);
     });
   });
 });
 
-describe('Performance: Batch Updates', () => {
-  describe('rapid sequential updates', () => {
-    it('handles 100 rapid updates in <10ms', () => {
+describe("Performance: Batch Updates", () => {
+  describe("rapid sequential updates", () => {
+    it("handles 100 rapid updates in <10ms", () => {
       const phases = createMockPhases(6);
-      
+
       const { durationMs } = measureTime(() => {
         for (let i = 0; i < 100; i++) {
           // Simulate progress update
@@ -180,13 +189,13 @@ describe('Performance: Batch Updates', () => {
           calculateOverallPercent(phases);
         }
       });
-      
+
       expect(durationMs).toBeLessThan(10);
     });
 
-    it('handles 1000 rapid updates in <100ms', () => {
+    it("handles 1000 rapid updates in <100ms", () => {
       const phases = createMockPhases(6);
-      
+
       const { durationMs } = measureTime(() => {
         for (let i = 0; i < 1000; i++) {
           phases[0].percentage = i % 100;
@@ -195,13 +204,13 @@ describe('Performance: Batch Updates', () => {
           findCurrentPhaseIndex(phases);
         }
       });
-      
+
       expect(durationMs).toBeLessThan(100);
     });
   });
 
-  describe('concurrent upload simulation', () => {
-    it('handles 10 concurrent uploads efficiently', () => {
+  describe("concurrent upload simulation", () => {
+    it("handles 10 concurrent uploads efficiently", () => {
       // Simulate 10 concurrent uploads, each with 6 phases
       const uploads: PhaseProgress[][] = [];
       for (let i = 0; i < 10; i++) {
@@ -221,7 +230,7 @@ describe('Performance: Batch Updates', () => {
       expect(durationMs).toBeLessThan(50);
     });
 
-    it('handles 50 concurrent uploads', () => {
+    it("handles 50 concurrent uploads", () => {
       const uploads: PhaseProgress[][] = [];
       for (let i = 0; i < 50; i++) {
         uploads.push(createMockPhases(6));
@@ -242,31 +251,31 @@ describe('Performance: Batch Updates', () => {
   });
 });
 
-describe('Performance: Memory Efficiency', () => {
-  describe('phase array creation', () => {
-    it('creates 6 phases with minimal memory', () => {
+describe("Performance: Memory Efficiency", () => {
+  describe("phase array creation", () => {
+    it("creates 6 phases with minimal memory", () => {
       const phases = createMockPhases(6);
-      
+
       // Each phase is a small object
       const jsonSize = JSON.stringify(phases).length;
-      
+
       // 6 phases should be < 2KB
       expect(jsonSize).toBeLessThan(2000);
     });
 
-    it('creates 100 phases reasonably', () => {
+    it("creates 100 phases reasonably", () => {
       const phases = createMockPhases(100);
       const jsonSize = JSON.stringify(phases).length;
-      
+
       // 100 phases should be < 30KB
       expect(jsonSize).toBeLessThan(30000);
     });
   });
 
-  describe('immutable update patterns', () => {
-    it('spread operator is fast for small arrays', () => {
+  describe("immutable update patterns", () => {
+    it("spread operator is fast for small arrays", () => {
       const phases = createMockPhases(6);
-      
+
       const { durationMs } = measureTime(() => {
         for (let i = 0; i < 100; i++) {
           // Simulate immutable update
@@ -278,14 +287,14 @@ describe('Performance: Memory Efficiency', () => {
       expect(durationMs).toBeLessThan(5);
     });
 
-    it('map is efficient for bulk updates', () => {
+    it("map is efficient for bulk updates", () => {
       const phases = createMockPhases(6);
 
       const { durationMs } = measureTime(() => {
         for (let i = 0; i < 100; i++) {
           // Simulate map update
           const newPhases = phases.map((p, idx) =>
-            idx === 0 ? { ...p, percentage: i } : p
+            idx === 0 ? { ...p, percentage: i } : p,
           );
         }
       });
@@ -295,33 +304,33 @@ describe('Performance: Memory Efficiency', () => {
   });
 });
 
-describe('Performance: ETA Calculations', () => {
+describe("Performance: ETA Calculations", () => {
   function calculateETA(
     currentPhase: number,
     totalPhases: number,
     elapsedMs: number,
-    phasePercentage: number
+    phasePercentage: number,
   ): number {
     // Simple linear estimation
-    const completedPhases = currentPhase + (phasePercentage / 100);
+    const completedPhases = currentPhase + phasePercentage / 100;
     const remainingPhases = totalPhases - completedPhases;
-    
+
     if (completedPhases === 0) return 0;
-    
+
     const msPerPhase = elapsedMs / completedPhases;
     return Math.round(remainingPhases * msPerPhase);
   }
 
-  it('calculates ETA in <1ms', () => {
+  it("calculates ETA in <1ms", () => {
     const { durationMs, result } = measureTime(() =>
-      calculateETA(2, 6, 30000, 50)
+      calculateETA(2, 6, 30000, 50),
     );
 
     expect(durationMs).toBeLessThan(1);
     expect(result).toBeGreaterThanOrEqual(0);
   });
 
-  it('handles rapid ETA updates', () => {
+  it("handles rapid ETA updates", () => {
     const { durationMs } = measureTime(() => {
       for (let i = 0; i < 1000; i++) {
         calculateETA(Math.floor(i / 100), 6, i * 100, i % 100);
@@ -331,9 +340,9 @@ describe('Performance: ETA Calculations', () => {
     expect(durationMs).toBeLessThan(10);
   });
 
-  it('returns stable ETA estimates', () => {
+  it("returns stable ETA estimates", () => {
     const etas: number[] = [];
-    
+
     for (let percent = 10; percent <= 100; percent += 10) {
       const eta = calculateETA(0, 6, 10000, percent);
       etas.push(eta);
@@ -346,7 +355,7 @@ describe('Performance: ETA Calculations', () => {
   });
 });
 
-describe('Performance: WebSocket Update Processing', () => {
+describe("Performance: WebSocket Update Processing", () => {
   interface ProgressUpdate {
     trackId: string;
     phases: PhaseProgress[];
@@ -366,9 +375,9 @@ describe('Performance: WebSocket Update Processing', () => {
     };
   }
 
-  it('processes single update in <1ms', () => {
+  it("processes single update in <1ms", () => {
     const update: ProgressUpdate = {
-      trackId: 'test-123',
+      trackId: "test-123",
       phases: createMockPhases(6),
       overallPercent: 50,
       timestamp: Date.now(),
@@ -378,7 +387,7 @@ describe('Performance: WebSocket Update Processing', () => {
     expect(durationMs).toBeLessThan(1);
   });
 
-  it('processes 100 updates/second efficiently', () => {
+  it("processes 100 updates/second efficiently", () => {
     const updates: ProgressUpdate[] = [];
     for (let i = 0; i < 100; i++) {
       updates.push({

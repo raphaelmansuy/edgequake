@@ -10,6 +10,7 @@ The `upload_pdf_document()` function has two exit paths:
 2. **New Upload Path** (lines 430-495): Creates new PDF and processing task
 
 The iteration_01 fix was added to path #2, but path #1 also needs the fix because:
+
 - Frontend sends `track_id` in upload request
 - Frontend polls `/pdf/progress/{track_id}` regardless of response status
 - Even for duplicates, the progress entry must exist to avoid 404
@@ -30,10 +31,12 @@ upload_pdf_document()
 ## Mental Model Update
 
 The original assumption was that duplicates don't need progress tracking because:
+
 - They're already processed
 - No background task is created
 
 However, the frontend:
+
 - Generates a unique `track_id` per upload attempt
 - Immediately polls that `track_id` for progress
 - Does not check response status before polling
@@ -51,6 +54,7 @@ This means progress must be initialized for ALL upload responses, not just new u
 Add progress initialization to the duplicate detection path, right before returning the response.
 
 This is a defensive approach that:
+
 - Prevents 404 errors for duplicate uploads
 - Maintains frontend-backend contract
 - Is idempotent (harmless if called multiple times)

@@ -22,6 +22,24 @@ use crate::Result;
 use super::stats::DocumentStats;
 use super::Processor;
 
+/// WHY: UTF-8 safe string truncation.
+///
+/// Direct byte slicing like `&s[..15]` can panic if byte 15 falls in the middle
+/// of a multi-byte character (e.g., box-drawing '─' is 3 bytes). This function
+/// finds the nearest valid char boundary at or before `max_bytes`.
+///
+/// OODA-04: Fix byte index panics in layout_processing.rs (block text logging).
+fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 // =============================================================================
 // LayoutProcessor
 // =============================================================================
@@ -237,8 +255,8 @@ impl BlockMergeProcessor {
         let vertical_gap = (a.bbox.y1 - b.bbox.y2).abs();
         tracing::debug!(
             "BlockMerge: '{}...' vs '{}...' gap={:.1} threshold={:.1}",
-            &a.text[..a.text.len().min(15)],
-            &b.text[..b.text.len().min(15)],
+            safe_truncate(&a.text, 15),
+            safe_truncate(&b.text, 15),
             vertical_gap,
             vertical_threshold
         );
@@ -372,7 +390,7 @@ impl BlockMergeProcessor {
                 tracing::info!(
                     "MERGE-TRACE block {}: '{}...' x1={:.0}",
                     idx,
-                    &block.text[..block.text.len().min(50)],
+                    safe_truncate(&block.text, 50),
                     block.bbox.x1
                 );
             }
@@ -387,7 +405,7 @@ impl BlockMergeProcessor {
                         tracing::info!(
                             "MERGE-HAPPENING: '{}...' + '{}...'",
                             &cur.text[cur.text.len().saturating_sub(20)..],
-                            &block.text[..block.text.len().min(20)]
+                            safe_truncate(&block.text, 20)
                         );
                     }
                     cur.merge(&block);

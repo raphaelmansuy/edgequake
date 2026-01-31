@@ -1,6 +1,7 @@
 # Iteration 16: Observe
 
 ## Mission Re-Read ✅
+
 - [x] Re-read `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-upload-pdf.md`
 - [x] Confirmed objectives: 6 pipeline phases, edgequake-pdf first, real-time UI
 - [x] Current phase: Backend fixes and continued frontend integration
@@ -8,12 +9,14 @@
 ## Recent Session Context
 
 Fixed compilation errors from the backend build:
+
 1. `get_pdf()` method signature mismatch
 2. `update_pdf_status()` reference errors
 3. `cancel_pdf_processing()` struct field mismatches
 4. Unused import warnings
 
 ### Backend Status
+
 - ✅ `cargo build` succeeds
 - ✅ `cargo test` passes
 - ✅ Backend running on http://localhost:8080
@@ -23,26 +26,26 @@ Fixed compilation errors from the backend build:
 
 ### Frontend Progress Monitoring Components
 
-| Component | Status | Purpose |
-|-----------|--------|---------|
+| Component                | Status      | Purpose                        |
+| ------------------------ | ----------- | ------------------------------ |
 | `IngestionProgressPanel` | ✅ Complete | Real-time progress with stages |
-| `UploadHistory` | ✅ Complete | Completed/failed job history |
-| `PdfUploadProgress` | ✅ Complete | PDF-specific progress tracking |
-| `BatchProgressCard` | ✅ Complete | Batch upload tracking |
-| `StageIndicator` | ✅ Complete | Stage visualization |
-| `EtaDisplay` | ✅ Complete | Time estimation |
-| `CostBadge` | ✅ Complete | Cost tracking display |
-| `StatusBadge` | ✅ Complete | Document status |
-| `WebSocketStatusDot` | ✅ Complete | Connection indicator |
+| `UploadHistory`          | ✅ Complete | Completed/failed job history   |
+| `PdfUploadProgress`      | ✅ Complete | PDF-specific progress tracking |
+| `BatchProgressCard`      | ✅ Complete | Batch upload tracking          |
+| `StageIndicator`         | ✅ Complete | Stage visualization            |
+| `EtaDisplay`             | ✅ Complete | Time estimation                |
+| `CostBadge`              | ✅ Complete | Cost tracking display          |
+| `StatusBadge`            | ✅ Complete | Document status                |
+| `WebSocketStatusDot`     | ✅ Complete | Connection indicator           |
 
 ### Key Hooks
 
-| Hook | Status | Purpose |
-|------|--------|---------|
+| Hook                   | Status      | Purpose                      |
+| ---------------------- | ----------- | ---------------------------- |
 | `useIngestionProgress` | ✅ Complete | WebSocket + polling progress |
-| `useChunkProgress` | ✅ Complete | Chunk-level tracking |
-| `usePdfProgress` | ✅ Complete | PDF-specific progress |
-| `useIngestionStore` | ✅ Complete | Zustand state management |
+| `useChunkProgress`     | ✅ Complete | Chunk-level tracking         |
+| `usePdfProgress`       | ✅ Complete | PDF-specific progress        |
+| `useIngestionStore`    | ✅ Complete | Zustand state management     |
 
 ## Data Gathered
 

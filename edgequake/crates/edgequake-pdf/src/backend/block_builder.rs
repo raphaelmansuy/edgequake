@@ -19,6 +19,24 @@ use super::elements::TextElement;
 use super::text_grouping::{MergedLine, TextGrouper};
 use crate::schema::{Block, BlockId, BlockType, BoundingBox};
 
+/// WHY: UTF-8 safe string truncation.
+///
+/// Direct byte slicing like `&s[..80]` can panic if byte 80 falls in the middle
+/// of a multi-byte character (e.g., box-drawing '─' is 3 bytes). This function
+/// finds the nearest valid char boundary at or before `max_bytes`.
+///
+/// OODA-04: Fix byte index panics in block_builder.rs (block text logging).
+fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 /// Builder for converting lines into semantic blocks.
 pub struct BlockBuilder {
     text_grouper: TextGrouper,
@@ -133,7 +151,7 @@ impl BlockBuilder {
                     bbox.x1,
                     bbox.x2,
                     x_range,
-                    &text[..text.len().min(80)]
+                    safe_truncate(text, 80)
                 );
             }
 

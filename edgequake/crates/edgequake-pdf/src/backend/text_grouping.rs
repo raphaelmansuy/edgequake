@@ -29,6 +29,22 @@ impl TextGrouper {
         Self {}
     }
 
+    /// Safely truncate a string to a maximum byte length without breaking UTF-8.
+    /// Returns a string slice that ends at a valid UTF-8 character boundary.
+    /// OODA-03: Fixes panic when slicing multibyte characters like box-drawing '─'.
+    #[inline]
+    fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+        if s.len() <= max_bytes {
+            return s;
+        }
+        // Find the last valid char boundary at or before max_bytes
+        let mut end = max_bytes;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        &s[..end]
+    }
+
     /// Group text elements into lines with proper column handling.
     /// For two-column layouts: reads left column top-to-bottom, then right column.
     /// Returns (lines, detected_columns) where detected_columns are BoundingBoxes for each column.
@@ -132,7 +148,7 @@ impl TextGrouper {
                         elem.x,
                         is_title_zone,
                         is_large_font,
-                        &elem.text[..elem.text.len().min(40)]
+                        Self::safe_truncate(&elem.text, 40)
                     );
                 }
                 spanning_elements.push(elem);
@@ -144,7 +160,7 @@ impl TextGrouper {
                     elem.y,
                     elem.x,
                     is_affiliation,
-                    &elem.text[..elem.text.len().min(40)]
+                    Self::safe_truncate(&elem.text, 40)
                 );
 
                 // Assign footer to appropriate column
@@ -167,7 +183,7 @@ impl TextGrouper {
                         elem.y,
                         elem.x,
                         column_boundary,
-                        &elem.text[..elem.text.len().min(50)]
+                        Self::safe_truncate(&elem.text, 50)
                     );
                 }
                 left_column.push(elem);
@@ -184,7 +200,7 @@ impl TextGrouper {
                         elem.y,
                         elem.x,
                         column_boundary,
-                        &elem.text[..elem.text.len().min(50)]
+                        Self::safe_truncate(&elem.text, 50)
                     );
                 }
                 right_column.push(elem);
@@ -198,7 +214,7 @@ impl TextGrouper {
                         elem.y,
                         elem.x,
                         column_boundary,
-                        &elem.text[..elem.text.len().min(30)]
+                        Self::safe_truncate(&elem.text, 30)
                     );
                     left_column.push(elem);
                 } else {
@@ -207,7 +223,7 @@ impl TextGrouper {
                         elem.y,
                         elem.x,
                         column_boundary,
-                        &elem.text[..elem.text.len().min(30)]
+                        Self::safe_truncate(&elem.text, 30)
                     );
                     right_column.push(elem);
                 }
@@ -287,7 +303,7 @@ impl TextGrouper {
                 .map(|e| e.text.as_str())
                 .collect::<Vec<_>>()
                 .join("");
-            debug!("Spanning line {}: '{}'", i, &text[..text.len().min(50)]);
+            debug!("Spanning line {}: '{}'", i, Self::safe_truncate(&text, 50));
         }
         for (i, line) in left_lines.iter().take(3).enumerate() {
             let text: String = line
@@ -295,7 +311,7 @@ impl TextGrouper {
                 .map(|e| e.text.as_str())
                 .collect::<Vec<_>>()
                 .join("");
-            debug!("Left line {}: '{}'", i, &text[..text.len().min(50)]);
+            debug!("Left line {}: '{}'", i, Self::safe_truncate(&text, 50));
         }
         for (i, line) in right_lines.iter().take(3).enumerate() {
             let text: String = line
@@ -303,7 +319,7 @@ impl TextGrouper {
                 .map(|e| e.text.as_str())
                 .collect::<Vec<_>>()
                 .join("");
-            debug!("Right line {}: '{}'", i, &text[..text.len().min(50)]);
+            debug!("Right line {}: '{}'", i, Self::safe_truncate(&text, 50));
         }
 
         // WHY: Two-column reading order must interleave by Y-coordinate
@@ -470,7 +486,7 @@ impl TextGrouper {
                                     i,
                                     e.x,
                                     e.y,
-                                    &e.text[..e.text.len().min(40)]
+                                    Self::safe_truncate(&e.text, 40)
                                 );
                             }
                             info!(
@@ -480,7 +496,7 @@ impl TextGrouper {
                                 max_x,
                                 x_range,
                                 current_line.len(),
-                                &text[..text.len().min(80)]
+                                Self::safe_truncate(&text, 80)
                             );
                         }
 
@@ -517,7 +533,7 @@ impl TextGrouper {
                     max_x,
                     x_range,
                     current_line.len(),
-                    &text[..text.len().min(80)]
+                    Self::safe_truncate(&text, 80)
                 );
             }
 

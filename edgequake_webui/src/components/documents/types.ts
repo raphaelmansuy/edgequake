@@ -7,7 +7,13 @@
 export interface UploadingFile {
   file: File;
   progress: number;
-  status: 'pending' | 'reading' | 'uploading' | 'extracting' | 'success' | 'error';
+  status:
+    | "pending"
+    | "reading"
+    | "uploading"
+    | "extracting"
+    | "success"
+    | "error";
   error?: string;
   phase?: string; // Human-readable phase description
   /** OODA-22: Track ID for PDF progress monitoring */

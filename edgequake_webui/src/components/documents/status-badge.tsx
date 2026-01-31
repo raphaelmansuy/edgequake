@@ -27,48 +27,77 @@ import {
     Clock,
     Cpu,
     Database,
+    FileText,
+    GitMerge,
     Loader2,
     Scissors,
+    Search,
     StopCircle,
+    Upload,
     XCircle,
 } from 'lucide-react';
 import { memo, useMemo } from 'react';
 
 /**
  * Status configuration with icons, colors, and labels.
- * WHY: Each processing stage has distinct visual identity to reduce user anxiety.
  * 
- * Processing pipeline stages:
- * pending → chunking → extracting → embedding → indexing → completed
+ * @implements SPEC-002: Unified Ingestion Pipeline
+ * 
+ * WHY: Each processing stage has distinct visual identity to reduce user anxiety.
+ * All stages from UnifiedStage enum are represented here for consistent UX.
+ * 
+ * Unified Pipeline Stages (aligned with backend UnifiedStage):
+ * uploading → converting? → preprocessing → chunking → extracting → gleaning
+ *     → merging → summarizing → embedding → storing → completed/failed
  */
 const statusConfig = {
-  // Queue states
-  pending: { icon: Clock, color: 'bg-yellow-500', textColor: 'text-yellow-600 dark:text-yellow-400', label: 'Pending', animate: false },
+  // === UNIFIED STAGES (SPEC-002) ===
   
-  // Processing sub-states (OODA-01: Fine-grained progress visibility)
-  processing: { icon: Loader2, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Processing', animate: true },
+  // Upload stage
+  uploading: { icon: Upload, color: 'bg-blue-400', textColor: 'text-blue-500 dark:text-blue-300', label: 'Uploading', animate: true },
+  
+  // Conversion stage (PDF only)
+  converting: { icon: FileText, color: 'bg-indigo-500', textColor: 'text-indigo-600 dark:text-indigo-400', label: 'Converting PDF', animate: true },
+  
+  // Processing stages
+  preprocessing: { icon: Loader2, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Preprocessing', animate: true },
   chunking: { icon: Scissors, color: 'bg-blue-400', textColor: 'text-blue-500 dark:text-blue-300', label: 'Chunking', animate: true },
   extracting: { icon: Brain, color: 'bg-purple-500', textColor: 'text-purple-600 dark:text-purple-400', label: 'Extracting', animate: true },
+  gleaning: { icon: Search, color: 'bg-purple-400', textColor: 'text-purple-500 dark:text-purple-300', label: 'Gleaning', animate: true },
+  merging: { icon: GitMerge, color: 'bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400', label: 'Merging', animate: true },
+  summarizing: { icon: FileText, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', label: 'Summarizing', animate: true },
   embedding: { icon: Cpu, color: 'bg-cyan-500', textColor: 'text-cyan-600 dark:text-cyan-400', label: 'Embedding', animate: true },
-  indexing: { icon: Database, color: 'bg-teal-500', textColor: 'text-teal-600 dark:text-teal-400', label: 'Indexing', animate: true },
+  storing: { icon: Database, color: 'bg-teal-500', textColor: 'text-teal-600 dark:text-teal-400', label: 'Storing', animate: true },
   
   // Terminal states
   completed: { icon: CheckCircle, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', label: 'Completed', animate: false },
-  indexed: { icon: CheckCircle, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', label: 'Indexed', animate: false },
   failed: { icon: XCircle, color: 'bg-red-500', textColor: 'text-red-600 dark:text-red-400', label: 'Failed', animate: false },
+  
+  // === LEGACY STAGES (backward compatibility) ===
+  pending: { icon: Clock, color: 'bg-yellow-500', textColor: 'text-yellow-600 dark:text-yellow-400', label: 'Pending', animate: false },
+  processing: { icon: Loader2, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Processing', animate: true },
+  indexing: { icon: Database, color: 'bg-teal-500', textColor: 'text-teal-600 dark:text-teal-400', label: 'Indexing', animate: true },
+  indexed: { icon: CheckCircle, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', label: 'Indexed', animate: false },
   cancelled: { icon: StopCircle, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', label: 'Cancelled', animate: false },
 } as const;
 
 export type DocumentStatus = keyof typeof statusConfig;
 
 /**
- * OODA-11: Processing stages in order with descriptions
+ * OODA-11 + SPEC-002: Processing stages in order with descriptions
+ * Unified to match backend UnifiedStage enum.
  */
 const PROCESSING_STAGES = [
+  { key: 'uploading', label: 'Uploading', description: 'Uploading file to server' },
+  { key: 'converting', label: 'Converting', description: 'Converting PDF to Markdown' },
+  { key: 'preprocessing', label: 'Preprocessing', description: 'Validating and preparing document' },
   { key: 'chunking', label: 'Chunking', description: 'Splitting document into chunks' },
   { key: 'extracting', label: 'Extracting', description: 'Running LLM entity extraction' },
+  { key: 'gleaning', label: 'Gleaning', description: 'Second pass for missed entities' },
+  { key: 'merging', label: 'Merging', description: 'Merging into knowledge graph' },
+  { key: 'summarizing', label: 'Summarizing', description: 'Generating descriptions' },
   { key: 'embedding', label: 'Embedding', description: 'Generating vector embeddings' },
-  { key: 'indexing', label: 'Indexing', description: 'Storing in graph & vector databases' },
+  { key: 'storing', label: 'Storing', description: 'Storing in graph & vector databases' },
 ] as const;
 
 /**

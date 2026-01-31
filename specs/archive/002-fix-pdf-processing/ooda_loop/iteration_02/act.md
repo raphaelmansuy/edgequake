@@ -49,6 +49,7 @@ return Ok(Json(PdfUploadResponse {
 ### Test Results
 
 **Network Requests (via Playwright)**:
+
 ```
 POST http://localhost:8080/api/v1/documents/pdf => [200] OK
 GET http://localhost:8080/api/v1/documents/pdf/progress/upload_1769873158790_9y3ndhrk => [200] OK ✓
@@ -57,10 +58,11 @@ GET http://localhost:8080/api/v1/documents/pdf/progress/upload_1769873158790_9y3
 **No more 404 errors!**
 
 **Backend Log**:
+
 ```
-2026-01-31T15:25:58.820109Z INFO request{method=POST uri=/api/v1/documents/pdf version=HTTP/1.1}: 
-edgequake_api::handlers::pdf_upload: OODA-01: Initializing PDF progress for duplicate, 
-track_id=upload_1769873158790_9y3ndhrk, pdf_id=b482f592-d71f-47ec-b270-762b0f7d02a8, 
+2026-01-31T15:25:58.820109Z INFO request{method=POST uri=/api/v1/documents/pdf version=HTTP/1.1}:
+edgequake_api::handlers::pdf_upload: OODA-01: Initializing PDF progress for duplicate,
+track_id=upload_1769873158790_9y3ndhrk, pdf_id=b482f592-d71f-47ec-b270-762b0f7d02a8,
 filename=AgenticPlatformReference Architecture.pdf
 ```
 
@@ -68,16 +70,17 @@ filename=AgenticPlatformReference Architecture.pdf
 
 ### Summary
 
-| Test | Before Fix | After Fix |
-|------|------------|-----------|
-| Progress endpoint | 404 Not Found | 200 OK ✓ |
-| OODA-01 log | Missing | Present ✓ |
-| UI upload | Toast shows success | Toast shows success ✓ |
-| Document list | No 404 errors | No 404 errors ✓ |
+| Test              | Before Fix          | After Fix             |
+| ----------------- | ------------------- | --------------------- |
+| Progress endpoint | 404 Not Found       | 200 OK ✓              |
+| OODA-01 log       | Missing             | Present ✓             |
+| UI upload         | Toast shows success | Toast shows success ✓ |
+| Document list     | No 404 errors       | No 404 errors ✓       |
 
 ## Conclusion
 
 **OODA-01 FIX IS COMPLETE** for both:
+
 1. New PDF uploads (iteration_01)
 2. Duplicate PDF uploads (iteration_02)
 

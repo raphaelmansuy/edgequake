@@ -20,32 +20,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from '@/components/ui/table';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useIngestionStore } from '@/stores/use-ingestion-store';
-import type { IngestionError, IngestionResult } from '@/types/ingestion';
-import { formatDistanceToNow } from 'date-fns';
 import {
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  ExternalLink,
-  FileText,
-  RefreshCw,
-  Search,
-  Trash2,
-  XCircle,
+    AlertCircle,
+    CheckCircle,
+    Clock,
+    ExternalLink,
+    FileText,
+    RefreshCw,
+    Search,
+    Trash2,
+    XCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
