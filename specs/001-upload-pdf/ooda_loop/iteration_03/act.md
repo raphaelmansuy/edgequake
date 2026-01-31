@@ -3,12 +3,14 @@
 ## Changes Made
 
 ### File 1: `edgequake/crates/edgequake-pdf/src/backend/mod.rs`
+
 - Lines: 1-64
 - Change: Added `extract_with_progress()` method to `PdfBackend` trait
 - Why: Enable progress callbacks during PDF extraction without breaking existing API
 - New method has default implementation that falls back to `extract()`
 
 ### File 2: `edgequake/crates/edgequake-pdf/src/backend/extraction_engine.rs`
+
 - Lines: 1-30 (imports)
 - Change: Added `use std::sync::Arc;` and `use crate::progress::ProgressCallback;`
 - Why: Required for callback parameter type
@@ -30,6 +32,7 @@
 - Why: Verify callbacks are invoked correctly for both 1-page (sequential) and 5-page (parallel) PDFs
 
 ### File 3: `edgequake/crates/edgequake-pdf/src/progress.rs`
+
 - Lines: 228-237
 - Change: Fixed doctest example for CountingProgress
 - Why: Example was asserting non-zero values without calling callbacks
@@ -37,6 +40,7 @@
 ## Tests Added/Modified
 
 ### Test 1: `test_extract_with_progress_calls_callbacks`
+
 - File: `extraction_engine.rs`
 - Purpose: Verify sequential path callbacks (1-page PDF)
 - Assertions:
@@ -47,6 +51,7 @@
 - Result: ✅ PASS
 
 ### Test 2: `test_extract_with_progress_parallel_mode`
+
 - File: `extraction_engine.rs`
 - Purpose: Verify parallel path callbacks (5-page PDF)
 - Assertions:
@@ -127,9 +132,11 @@ cargo test --package edgequake-pdf --doc
 **OODA-04: Add `extract_to_markdown_with_progress()` to PdfExtractor**
 
 The `PdfExtractor` is the high-level API that most callers use. Currently it has:
+
 - `extract_to_markdown(pdf_bytes)` - returns String
 
 Need to add:
+
 - `extract_to_markdown_with_progress(pdf_bytes, callback)` - calls backend's new method
 
 This will complete the progress callback chain from extractor → backend → pages.

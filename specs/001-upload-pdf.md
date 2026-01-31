@@ -6,6 +6,9 @@ Your mission is to **implement complete PDF upload pipeline monitoring in the Ed
 
 FULLY Read this entire mission file BEFORE starting any work. You MUST re-read it at the start of EVERY OODA iteration.
 
+
+Ensure SRP/ DRY principles are followed. Split large files. Optimize Rust build speed (latest toolchain). Document all changes with high signal value in code comments and iteration files. Use ASCII diagrams where applicable.
+
 ## ⚠️ CRITICAL SAFETY MANDATE ⚠️
 
 **YOU MUST RE-READ THIS ENTIRE MISSION FILE AT THE START OF EVERY OODA ITERATION.**

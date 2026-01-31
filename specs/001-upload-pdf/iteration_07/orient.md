@@ -2,12 +2,12 @@
 
 ## Gap Analysis
 
-| Current State | Desired State | Gap | Priority |
-|--------------|---------------|-----|----------|
-| `extract_to_markdown()` called without progress | `extract_to_markdown_with_progress()` with callback | Need adapter | HIGH |
-| `PipelineEvent` lacks PDF event | `PdfPageProgress` event in pipeline_state.rs | Add event | HIGH |
-| No `emit_pdf_page_progress()` method | Method on PipelineState | Add method | HIGH |
-| Callback closures need pdf_id/task_id | Capture in closure | Design adapter | HIGH |
+| Current State                                   | Desired State                                       | Gap            | Priority |
+| ----------------------------------------------- | --------------------------------------------------- | -------------- | -------- |
+| `extract_to_markdown()` called without progress | `extract_to_markdown_with_progress()` with callback | Need adapter   | HIGH     |
+| `PipelineEvent` lacks PDF event                 | `PdfPageProgress` event in pipeline_state.rs        | Add event      | HIGH     |
+| No `emit_pdf_page_progress()` method            | Method on PipelineState                             | Add method     | HIGH     |
+| Callback closures need pdf_id/task_id           | Capture in closure                                  | Design adapter | HIGH     |
 
 ## Risk Assessment
 
@@ -36,5 +36,6 @@
    - Cons: More code, but cleaner architecture
 
 **Chosen: Option A + C combined**
+
 - Add PdfPageProgress to PipelineEvent (consistent with existing events)
 - Create BroadcastingProgressCallback adapter struct for testability

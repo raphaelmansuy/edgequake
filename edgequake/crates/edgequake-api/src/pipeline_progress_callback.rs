@@ -4,6 +4,7 @@
 //!
 //! - [`SPEC-007`]: PDF Upload Support with progress tracking
 //! - [`OODA-08`]: BroadcastingProgressCallback adapter
+//! - [`OODA-10`]: Dual event system (PipelineState + ProgressBroadcaster)
 //!
 //! ## Use Cases
 //!
@@ -12,28 +13,40 @@
 //!
 //! ## WHY This Module?
 //!
-//! This adapter bridges `edgequake_pdf::ProgressCallback` to `PipelineState` events:
+//! This adapter bridges `edgequake_pdf::ProgressCallback` to both event systems:
 //!
 //! ```text
 //! ┌─────────────────────┐    ┌──────────────────────────┐    ┌─────────────────┐
 //! │   PdfExtractor      │───►│ PipelineProgressCallback │───►│  PipelineState  │
-//! │                     │    │                          │    │                 │
-//! │ extract_with_       │    │ on_page_complete(5, 2048)│    │ emit_pdf_page_  │
-//! │   progress(callback)│    │   ───────────────────►   │    │   progress(...) │
-//! └─────────────────────┘    └──────────────────────────┘    └─────────────────┘
-//!                                       │
-//!                                       ▼
-//!                            ┌─────────────────────┐
-//!                            │  WebSocket clients  │
-//!                            │  (real-time events) │
-//!                            └─────────────────────┘
+//! │                     │    │                          │    │ (internal)      │
+//! │ extract_with_       │    │ on_page_complete(5, 2048)│    └─────────────────┘
+//! │   progress(callback)│    │   ───────────────────►   │            │
+//! └─────────────────────┘    │                          │            ▼
+//!                            │                          │    ┌─────────────────┐
+//!                            │                          │───►│ ProgressBroad-  │
+//!                            └──────────────────────────┘    │ caster (WS)     │
+//!                                                            └─────────────────┘
+//!                                                                    │
+//!                                                                    ▼
+//!                                                            ┌─────────────────┐
+//!                                                            │ WebSocket       │
+//!                                                            │ clients         │
+//!                                                            └─────────────────┘
 //! ```
 
+use crate::handlers::ProgressBroadcaster;
+use crate::handlers::websocket_types::ProgressEvent;
 use edgequake_pdf::ProgressCallback;
 use edgequake_tasks::PipelineState;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// Adapter that forwards PDF extraction progress to PipelineState for WebSocket broadcast.
+/// Adapter that forwards PDF extraction progress to PipelineState and ProgressBroadcaster.
+///
+/// ## OODA-10: Dual Event System
+///
+/// This adapter sends events to **both** systems:
+/// 1. `PipelineState` - For internal pipeline coordination (edgequake-tasks)
+/// 2. `ProgressBroadcaster` - For WebSocket clients (edgequake-api)
 ///
 /// ## Example
 ///
@@ -46,13 +59,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 ///     pipeline_state.clone(),
 ///     pdf_id.clone(),
 ///     task_id.clone(),
-/// ));
+/// ).with_broadcaster(progress_broadcaster.clone()));
 ///
 /// extractor.extract_to_markdown_with_progress(&pdf_bytes, callback).await?;
 /// ```
 pub struct PipelineProgressCallback {
-    /// Pipeline state for emitting events.
+    /// Pipeline state for emitting internal events.
     pipeline_state: PipelineState,
+    /// Optional broadcaster for WebSocket clients.
+    /// OODA-10: Added for dual event system.
+    progress_broadcaster: Option<ProgressBroadcaster>,
     /// PDF document ID.
     pdf_id: String,
     /// Task tracking ID.
@@ -72,9 +88,28 @@ impl PipelineProgressCallback {
     pub fn new(pipeline_state: PipelineState, pdf_id: String, task_id: String) -> Self {
         Self {
             pipeline_state,
+            progress_broadcaster: None,
             pdf_id,
             task_id,
             total_pages: AtomicUsize::new(0),
+        }
+    }
+
+    /// Add a ProgressBroadcaster for WebSocket event delivery.
+    ///
+    /// OODA-10: Enables dual event system where events go to both
+    /// PipelineState (internal) and ProgressBroadcaster (WebSocket).
+    #[must_use]
+    pub fn with_broadcaster(mut self, broadcaster: ProgressBroadcaster) -> Self {
+        self.progress_broadcaster = Some(broadcaster);
+        self
+    }
+
+    /// Send a ProgressEvent to WebSocket clients if broadcaster is configured.
+    fn broadcast_event(&self, event: ProgressEvent) {
+        if let Some(ref broadcaster) = self.progress_broadcaster {
+            // Ignore send errors (no subscribers is OK)
+            broadcaster.broadcast(event);
         }
     }
 }
@@ -83,7 +118,7 @@ impl ProgressCallback for PipelineProgressCallback {
     fn on_extraction_start(&self, total_pages: usize) {
         self.total_pages.store(total_pages, Ordering::SeqCst);
 
-        // Emit start event (page 0 indicates "starting")
+        // Emit start event to PipelineState (internal)
         self.pipeline_state.emit_pdf_page_progress(
             self.pdf_id.clone(),
             self.task_id.clone(),
@@ -94,13 +129,25 @@ impl ProgressCallback for PipelineProgressCallback {
             true,
             None,
         );
+
+        // OODA-10: Also broadcast to WebSocket clients
+        self.broadcast_event(ProgressEvent::PdfPageProgress {
+            pdf_id: self.pdf_id.clone(),
+            task_id: self.task_id.clone(),
+            page_num: 0,
+            total_pages: total_pages as u32,
+            phase: "extraction".to_string(),
+            markdown_len: 0,
+            success: true,
+            error: None,
+        });
     }
 
     fn on_page_start(&self, page_num: usize, total_pages: usize) {
         // Store total pages in case extraction_start wasn't called
         self.total_pages.store(total_pages, Ordering::SeqCst);
 
-        // Emit "starting page N" event
+        // Emit "starting page N" event to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
             self.pdf_id.clone(),
             self.task_id.clone(),
@@ -111,11 +158,24 @@ impl ProgressCallback for PipelineProgressCallback {
             true,
             None,
         );
+
+        // OODA-10: Also broadcast to WebSocket clients
+        self.broadcast_event(ProgressEvent::PdfPageProgress {
+            pdf_id: self.pdf_id.clone(),
+            task_id: self.task_id.clone(),
+            page_num: page_num as u32,
+            total_pages: total_pages as u32,
+            phase: "extracting".to_string(),
+            markdown_len: 0,
+            success: true,
+            error: None,
+        });
     }
 
     fn on_page_complete(&self, page_num: usize, markdown_len: usize) {
         let total = self.total_pages.load(Ordering::SeqCst);
 
+        // Emit to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
             self.pdf_id.clone(),
             self.task_id.clone(),
@@ -126,11 +186,24 @@ impl ProgressCallback for PipelineProgressCallback {
             true,
             None,
         );
+
+        // OODA-10: Also broadcast to WebSocket clients
+        self.broadcast_event(ProgressEvent::PdfPageProgress {
+            pdf_id: self.pdf_id.clone(),
+            task_id: self.task_id.clone(),
+            page_num: page_num as u32,
+            total_pages: total as u32,
+            phase: "extracted".to_string(),
+            markdown_len,
+            success: true,
+            error: None,
+        });
     }
 
     fn on_page_error(&self, page_num: usize, error: &str) {
         let total = self.total_pages.load(Ordering::SeqCst);
 
+        // Emit to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
             self.pdf_id.clone(),
             self.task_id.clone(),
@@ -141,6 +214,18 @@ impl ProgressCallback for PipelineProgressCallback {
             false,
             Some(error.to_string()),
         );
+
+        // OODA-10: Also broadcast to WebSocket clients
+        self.broadcast_event(ProgressEvent::PdfPageProgress {
+            pdf_id: self.pdf_id.clone(),
+            task_id: self.task_id.clone(),
+            page_num: page_num as u32,
+            total_pages: total as u32,
+            phase: "extraction_error".to_string(),
+            markdown_len: 0,
+            success: false,
+            error: Some(error.to_string()),
+        });
     }
 
     fn on_extraction_complete(&self, total_pages: usize, success_count: usize) {
@@ -150,24 +235,38 @@ impl ProgressCallback for PipelineProgressCallback {
         } else {
             format!("partial_complete_{}_of_{}", success_count, total_pages)
         };
+        let error_msg = if success_count < total_pages {
+            Some(format!(
+                "Extracted {}/{} pages successfully",
+                success_count, total_pages
+            ))
+        } else {
+            None
+        };
 
+        // Emit to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
             self.pdf_id.clone(),
             self.task_id.clone(),
             total_pages as u32,
             total_pages as u32,
-            phase,
+            phase.clone(),
             0,
             success_count > 0,
-            if success_count < total_pages {
-                Some(format!(
-                    "Extracted {}/{} pages successfully",
-                    success_count, total_pages
-                ))
-            } else {
-                None
-            },
+            error_msg.clone(),
         );
+
+        // OODA-10: Also broadcast to WebSocket clients
+        self.broadcast_event(ProgressEvent::PdfPageProgress {
+            pdf_id: self.pdf_id.clone(),
+            task_id: self.task_id.clone(),
+            page_num: total_pages as u32,
+            total_pages: total_pages as u32,
+            phase,
+            markdown_len: 0,
+            success: success_count > 0,
+            error: error_msg,
+        });
     }
 
     fn on_progress(&self, phase: &str, percent: f32) {
@@ -175,6 +274,7 @@ impl ProgressCallback for PipelineProgressCallback {
         let total = self.total_pages.load(Ordering::SeqCst);
         let approx_page = ((percent / 100.0) * total as f32).ceil() as u32;
 
+        // Emit to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
             self.pdf_id.clone(),
             self.task_id.clone(),
@@ -185,6 +285,18 @@ impl ProgressCallback for PipelineProgressCallback {
             true,
             None,
         );
+
+        // OODA-10: Also broadcast to WebSocket clients
+        self.broadcast_event(ProgressEvent::PdfPageProgress {
+            pdf_id: self.pdf_id.clone(),
+            task_id: self.task_id.clone(),
+            page_num: approx_page,
+            total_pages: total as u32,
+            phase: phase.to_string(),
+            markdown_len: 0,
+            success: true,
+            error: None,
+        });
     }
 }
 
@@ -332,6 +444,49 @@ mod tests {
                 assert!(error.unwrap().contains("8/10"));
             }
             _ => panic!("Expected PdfPageProgress event"),
+        }
+    }
+
+    /// OODA-10: Test that with_broadcaster enables dual event delivery.
+    #[tokio::test]
+    async fn test_pipeline_progress_callback_with_broadcaster() {
+        let state = PipelineState::new();
+        let _internal_rx = state.subscribe();
+
+        // Create broadcaster and subscribe BEFORE callback fires events
+        let broadcaster = ProgressBroadcaster::new(16);
+        let mut ws_rx = broadcaster.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-ws-test".to_string(),
+            "task-ws-test".to_string(),
+        )
+        .with_broadcaster(broadcaster);
+
+        // Fire an event
+        callback.on_extraction_start(5);
+
+        // Verify WebSocket subscriber received the event
+        let ws_event = ws_rx.try_recv().unwrap();
+        match ws_event {
+            ProgressEvent::PdfPageProgress {
+                pdf_id,
+                task_id,
+                page_num,
+                total_pages,
+                phase,
+                success,
+                ..
+            } => {
+                assert_eq!(pdf_id, "pdf-ws-test");
+                assert_eq!(task_id, "task-ws-test");
+                assert_eq!(page_num, 0);
+                assert_eq!(total_pages, 5);
+                assert_eq!(phase, "extraction");
+                assert!(success);
+            }
+            _ => panic!("Expected PdfPageProgress event from broadcaster"),
         }
     }
 }

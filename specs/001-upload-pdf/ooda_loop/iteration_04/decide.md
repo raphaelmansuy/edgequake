@@ -3,6 +3,7 @@
 ## Decision
 
 Add `extract_to_markdown_with_progress()` method to `PdfExtractor` that:
+
 1. Accepts `Arc<dyn ProgressCallback>`
 2. Calls `backend.extract_with_progress(pdf_bytes, callback)`
 3. Applies processors (no progress for now)

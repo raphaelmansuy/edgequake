@@ -857,10 +857,7 @@ mod tests {
         assert_eq!(completes, 1, "on_extraction_complete called once");
 
         // Document should have multiple pages
-        assert!(
-            doc.pages.len() >= 2,
-            "Multi-page PDF should have 2+ pages"
-        );
+        assert!(doc.pages.len() >= 2, "Multi-page PDF should have 2+ pages");
     }
 
     #[test]

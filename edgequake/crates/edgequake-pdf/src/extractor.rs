@@ -260,7 +260,9 @@ impl PdfExtractor {
     ) -> Result<String> {
         info!("Starting PDF extraction to Markdown with progress callbacks");
 
-        let doc = self.extract_document_with_progress(pdf_bytes, callback).await?;
+        let doc = self
+            .extract_document_with_progress(pdf_bytes, callback)
+            .await?;
 
         let style = MarkdownStyle {
             page_numbers: self.config.include_page_numbers,
@@ -289,7 +291,10 @@ impl PdfExtractor {
         info!("Starting PDF extraction to Document IR with progress");
 
         // Extract base document using the configured backend WITH progress
-        let doc = self.backend.extract_with_progress(pdf_bytes, callback).await?;
+        let doc = self
+            .backend
+            .extract_with_progress(pdf_bytes, callback)
+            .await?;
 
         // Debug: show first few blocks of page 1 BEFORE processing
         let table_count_before: usize = doc

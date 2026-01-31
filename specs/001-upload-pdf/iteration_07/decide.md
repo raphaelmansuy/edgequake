@@ -7,6 +7,7 @@ We will add `PdfPageProgress` event to `PipelineEvent` enum and `emit_pdf_page_p
 ## Rationale
 
 Using first principles:
+
 1. **Consistency**: ChunkProgress and PdfPageProgress are both pipeline events
 2. **Single Source of Truth**: PipelineState already handles broadcast channel
 3. **Testability**: PipelineState has existing test patterns

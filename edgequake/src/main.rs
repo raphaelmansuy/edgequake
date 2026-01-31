@@ -78,32 +78,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // OODA-223: Use strict mode for PostgreSQL (production) to enforce workspace isolation.
     // Memory mode (development) uses non-strict mode for test compatibility.
+    // OODA-10: Also attach progress broadcaster for WebSocket event delivery.
     let processor = if state.storage_mode.is_postgresql() {
         info!("🔒 Using STRICT workspace isolation mode (PostgreSQL storage)");
-        Arc::new(DocumentTaskProcessor::with_workspace_support_strict(
-            Arc::clone(&state.pipeline),
-            Arc::clone(&state.llm_provider),
-            Arc::clone(&state.kv_storage),
-            Arc::clone(&state.vector_storage),
-            Arc::clone(&state.vector_registry),
-            Arc::clone(&state.graph_storage),
-            state.pipeline_state.clone(),
-            Arc::clone(&state.workspace_service),
-            Arc::clone(&state.models_config),
-        ))
+        Arc::new(
+            DocumentTaskProcessor::with_workspace_support_strict(
+                Arc::clone(&state.pipeline),
+                Arc::clone(&state.llm_provider),
+                Arc::clone(&state.kv_storage),
+                Arc::clone(&state.vector_storage),
+                Arc::clone(&state.vector_registry),
+                Arc::clone(&state.graph_storage),
+                state.pipeline_state.clone(),
+                Arc::clone(&state.workspace_service),
+                Arc::clone(&state.models_config),
+            )
+            .with_progress_broadcaster(state.progress_broadcaster.clone()),
+        )
     } else {
         info!("⚠️ Using non-strict workspace mode (in-memory storage)");
-        Arc::new(DocumentTaskProcessor::with_workspace_support(
-            Arc::clone(&state.pipeline),
-            Arc::clone(&state.llm_provider),
-            Arc::clone(&state.kv_storage),
-            Arc::clone(&state.vector_storage),
-            Arc::clone(&state.vector_registry),
-            Arc::clone(&state.graph_storage),
-            state.pipeline_state.clone(),
-            Arc::clone(&state.workspace_service),
-            Arc::clone(&state.models_config),
-        ))
+        Arc::new(
+            DocumentTaskProcessor::with_workspace_support(
+                Arc::clone(&state.pipeline),
+                Arc::clone(&state.llm_provider),
+                Arc::clone(&state.kv_storage),
+                Arc::clone(&state.vector_storage),
+                Arc::clone(&state.vector_registry),
+                Arc::clone(&state.graph_storage),
+                state.pipeline_state.clone(),
+                Arc::clone(&state.workspace_service),
+                Arc::clone(&state.models_config),
+            )
+            .with_progress_broadcaster(state.progress_broadcaster.clone()),
+        )
     };
 
     // Configure worker pool

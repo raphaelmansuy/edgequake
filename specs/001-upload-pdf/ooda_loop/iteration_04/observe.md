@@ -25,6 +25,7 @@ pub struct PdfExtractor {
 ```
 
 Current methods:
+
 - `extract_to_markdown(&self, pdf_bytes) -> Result<String>` - Main entry point
 - `extract_document(&self, pdf_bytes) -> Result<Document>` - Returns Document IR
 - `extract_full(&self, pdf_bytes) -> Result<ExtractionResult>` - Detailed results
@@ -32,6 +33,7 @@ Current methods:
 - `get_info(&self, pdf_bytes) -> Result<PdfInfo>` - Metadata only
 
 Need to add:
+
 - `extract_to_markdown_with_progress(&self, pdf_bytes, callback) -> Result<String>`
 
 ### Method Flow
