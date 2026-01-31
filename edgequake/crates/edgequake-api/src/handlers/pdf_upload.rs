@@ -687,17 +687,19 @@ pub async fn delete_pdf(
 // ============================================================================
 
 /// Get PDF storage from app state (platform-specific).
+/// Get PDF storage from AppState.
+///
+/// @implements SPEC-007: PDF storage access
+/// @enforces BR0701: PostgreSQL-backed PDF storage
 #[cfg(feature = "postgres")]
 fn get_pdf_storage(state: &AppState) -> ApiResult<Arc<dyn PdfDocumentStorage>> {
-    use edgequake_storage::PostgresPdfStorage;
-
-    if let Some(pool) = state.postgres_pool.as_ref() {
-        Ok(Arc::new(PostgresPdfStorage::new(pool.inner().clone())))
-    } else {
-        Err(ApiError::Internal(
-            "PostgreSQL pool not available".to_string(),
-        ))
-    }
+    state
+        .pdf_storage
+        .as_ref()
+        .map(Arc::clone)
+        .ok_or_else(|| {
+            ApiError::Internal("PDF storage not initialized (check PostgreSQL setup)".to_string())
+        })
 }
 
 #[cfg(not(feature = "postgres"))]
