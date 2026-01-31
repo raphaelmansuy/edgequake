@@ -2,10 +2,10 @@
 
 ## Gap Analysis
 
-| Current State | Desired State | Gap | Priority |
-|--------------|---------------|-----|----------|
-| `extract_to_markdown()` has no callback | `extract_to_markdown_with_progress()` calls backend with callback | Add new method | HIGH |
-| Callers can't get page-level progress | Callers pass `Arc<dyn ProgressCallback>` | Wire through to backend | HIGH |
+| Current State                           | Desired State                                                     | Gap                     | Priority |
+| --------------------------------------- | ----------------------------------------------------------------- | ----------------------- | -------- |
+| `extract_to_markdown()` has no callback | `extract_to_markdown_with_progress()` calls backend with callback | Add new method          | HIGH     |
+| Callers can't get page-level progress   | Callers pass `Arc<dyn ProgressCallback>`                          | Wire through to backend | HIGH     |
 
 ## Risk Assessment
 

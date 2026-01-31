@@ -25,6 +25,7 @@
 
 use std::sync::Arc;
 
+use crate::handlers::websocket_types::ProgressBroadcaster;
 use crate::pipeline_progress_callback::PipelineProgressCallback;
 use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
@@ -80,6 +81,9 @@ pub struct DocumentTaskProcessor {
     pdf_storage: Option<Arc<dyn edgequake_storage::PdfDocumentStorage>>,
     /// Pipeline state for progress tracking.
     pipeline_state: PipelineState,
+    /// OODA-10: Progress broadcaster for WebSocket clients.
+    /// WHY: PDF page progress needs to reach frontend via WebSocket.
+    progress_broadcaster: Option<ProgressBroadcaster>,
     /// Workspace service for looking up workspace configuration (SPEC-032).
     workspace_service: Option<SharedWorkspaceService>,
     /// Models configuration for creating providers (SPEC-032).
@@ -111,6 +115,7 @@ impl DocumentTaskProcessor {
             #[cfg(feature = "postgres")]
             pdf_storage: None,
             pipeline_state,
+            progress_broadcaster: None, // OODA-10: Added for WebSocket clients
             workspace_service: None,
             models_config: None,
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
@@ -146,6 +151,7 @@ impl DocumentTaskProcessor {
             #[cfg(feature = "postgres")]
             pdf_storage: None,
             pipeline_state,
+            progress_broadcaster: None, // OODA-10: Added for WebSocket clients
             workspace_service: Some(workspace_service),
             models_config: Some(models_config),
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
@@ -178,6 +184,7 @@ impl DocumentTaskProcessor {
             #[cfg(feature = "postgres")]
             pdf_storage: None,
             pipeline_state,
+            progress_broadcaster: None, // OODA-10: Added for WebSocket clients
             workspace_service: Some(workspace_service),
             models_config: Some(models_config),
             strict_workspace_mode: true, // OODA-223: Production mode - fail on workspace errors
@@ -194,6 +201,15 @@ impl DocumentTaskProcessor {
         pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage>,
     ) -> Self {
         self.pdf_storage = Some(pdf_storage);
+        self
+    }
+
+    /// OODA-10: Set progress broadcaster for WebSocket event delivery.
+    ///
+    /// This enables PDF page progress events to be broadcast to connected
+    /// WebSocket clients in real-time.
+    pub fn with_progress_broadcaster(mut self, broadcaster: ProgressBroadcaster) -> Self {
+        self.progress_broadcaster = Some(broadcaster);
         self
     }
 
@@ -1280,11 +1296,16 @@ impl DocumentTaskProcessor {
 
         // OODA-09: Create progress callback for real-time page-by-page feedback
         // WHY: Users need to see extraction progress like "Extracting page 5/10..."
-        let progress_callback = Arc::new(PipelineProgressCallback::new(
+        // OODA-10: Also attach progress broadcaster if available for WebSocket delivery
+        let mut callback = PipelineProgressCallback::new(
             self.pipeline_state.clone(),
             data.pdf_id.to_string(),
             task.track_id.clone(),
-        ));
+        );
+        if let Some(ref broadcaster) = self.progress_broadcaster {
+            callback = callback.with_broadcaster(broadcaster.clone());
+        }
+        let progress_callback = Arc::new(callback);
         // OODA-09: Coerce to trait object for use with extract_to_markdown_with_progress
         let progress_callback: Arc<dyn edgequake_pdf::ProgressCallback> = progress_callback;
 
