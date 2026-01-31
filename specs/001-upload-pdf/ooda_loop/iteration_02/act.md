@@ -9,6 +9,7 @@
 ## Changes Made
 
 ### File 1: `edgequake/crates/edgequake-pdf/src/progress.rs`
+
 - **Lines**: 1-310 (new file)
 - **Change**: Created progress callback module
 - **Why**: Enables page-by-page progress reporting per mission spec
@@ -19,6 +20,7 @@
   - `CountingProgress` - Test implementation with counters
 
 ### File 2: `edgequake/crates/edgequake-pdf/src/lib.rs`
+
 - **Lines**: 68, 125-127
 - **Change**: Added `pub mod progress;` and re-exports
 - **Why**: Make callback types accessible from other crates

@@ -503,7 +503,12 @@ impl PdfUploadProgress {
     }
 
     /// Update a phase's progress.
-    pub fn update_phase(&mut self, phase: PipelinePhase, current: usize, message: impl Into<String>) {
+    pub fn update_phase(
+        &mut self,
+        phase: PipelinePhase,
+        current: usize,
+        message: impl Into<String>,
+    ) {
         if let Some(p) = self.phase_mut(phase) {
             p.update(current, message);
             self.updated_at = Utc::now();
@@ -557,19 +562,13 @@ impl PdfUploadProgress {
 
     /// Get the currently active phase.
     pub fn active_phase(&self) -> Option<&PhaseProgress> {
-        self.phases
-            .iter()
-            .find(|p| p.status == PhaseStatus::Active)
+        self.phases.iter().find(|p| p.status == PhaseStatus::Active)
     }
 
     /// Get a human-readable status summary.
     pub fn status_summary(&self) -> String {
         if self.is_failed {
-            if let Some(active) = self
-                .phases
-                .iter()
-                .find(|p| p.status == PhaseStatus::Failed)
-            {
+            if let Some(active) = self.phases.iter().find(|p| p.status == PhaseStatus::Failed) {
                 return format!("Failed during {}", active.phase.display_name());
             }
             return "Failed".to_string();
@@ -606,7 +605,10 @@ mod tests {
 
     #[test]
     fn test_pipeline_phase_next() {
-        assert_eq!(PipelinePhase::Upload.next(), Some(PipelinePhase::PdfConversion));
+        assert_eq!(
+            PipelinePhase::Upload.next(),
+            Some(PipelinePhase::PdfConversion)
+        );
         assert_eq!(PipelinePhase::GraphStorage.next(), None);
     }
 

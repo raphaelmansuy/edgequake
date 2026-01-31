@@ -226,12 +226,17 @@ impl ProgressCallback for LoggingProgress {
 /// # Example
 ///
 /// ```rust
-/// use edgequake_pdf::CountingProgress;
+/// use edgequake_pdf::{CountingProgress, ProgressCallback};
 ///
 /// let callback = CountingProgress::new();
-/// // ... use with extractor ...
-/// assert_eq!(callback.pages_completed(), 5);
-/// assert_eq!(callback.pages_failed(), 1);
+/// // Initially all counts are zero
+/// assert_eq!(callback.pages_completed(), 0);
+/// assert_eq!(callback.pages_failed(), 0);
+///
+/// // After calling callbacks, counts increment
+/// callback.on_page_complete(1, 100);
+/// callback.on_page_complete(2, 200);
+/// assert_eq!(callback.pages_completed(), 2);
 /// ```
 pub struct CountingProgress {
     extraction_started: AtomicUsize,

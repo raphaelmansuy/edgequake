@@ -9,6 +9,7 @@
 ## Changes Made
 
 ### File 1: `edgequake/crates/edgequake-tasks/src/progress.rs`
+
 - **Lines**: 1-554 (new file)
 - **Change**: Created comprehensive progress tracking module
 - **Why**: Foundation for 6-phase pipeline monitoring per mission spec
@@ -20,6 +21,7 @@
   - `PdfUploadProgress` struct: Overall upload tracking
 
 ### File 2: `edgequake/crates/edgequake-tasks/src/lib.rs`
+
 - **Lines**: 70, 79
 - **Change**: Added `pub mod progress;` and re-exports
 - **Why**: Make new types accessible from other crates

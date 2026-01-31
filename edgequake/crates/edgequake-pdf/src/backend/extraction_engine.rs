@@ -9,16 +9,19 @@
 //! - Two-column layout detection
 //! - Table detection using lattice analysis
 //! - **Parallel page processing** for multi-core performance (3.8x speedup on 4-core)
+//! - **Progress callbacks** for page-level progress tracking (OODA-03)
 
 use async_trait::async_trait;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 use super::PdfBackend;
 use crate::config::PdfConfig;
 use crate::error::PdfError;
 use crate::extractor::PdfInfo;
+use crate::progress::ProgressCallback;
 use crate::schema::{
     Block, BlockType, BoundingBox, Document, ExtractionMethod, Page, PageStats, Point,
 };
@@ -473,6 +476,61 @@ impl ExtractionEngine {
             })
             .collect()
     }
+
+    /// Extract pages in parallel with progress callbacks.
+    ///
+    /// ## Implements
+    ///
+    /// - [`OODA-03`]: Parallel extraction with progress callbacks
+    ///
+    /// ## WHY Separate Method?
+    ///
+    /// Callbacks require `Arc<dyn ProgressCallback>` which adds complexity.
+    /// Keeping this separate maintains the simpler no-callback path.
+    ///
+    /// ## Note on Callback Order
+    ///
+    /// In parallel mode, `on_page_start` and `on_page_complete` callbacks
+    /// may arrive out of order (e.g., page 3 completes before page 2).
+    /// The UI should handle this by tracking state per page_num.
+    fn extract_pages_parallel_with_progress(
+        &self,
+        pdf_bytes: &[u8],
+        page_infos: Vec<(u32, ObjectId)>,
+        callback: Arc<dyn ProgressCallback>,
+        total_pages: usize,
+    ) -> Vec<(usize, Result<Page>)> {
+        // Use rayon's parallel iterator with progress callbacks
+        page_infos
+            .into_par_iter()
+            .map(|(page_num, page_id)| {
+                let page_idx = page_num as usize;
+
+                // WHY: Signal page start (may be out of order in parallel)
+                callback.on_page_start(page_idx, total_pages);
+
+                // Each thread loads its own copy of the document
+                let lopdf_doc = match LopdfDocument::load_mem(pdf_bytes) {
+                    Ok(doc) => doc,
+                    Err(e) => {
+                        let err = PdfError::PdfParse(format!("Thread load failed: {}", e));
+                        callback.on_page_error(page_idx, &err.to_string());
+                        return (page_idx, Err(err));
+                    }
+                };
+
+                let result = self.extract_page(&lopdf_doc, page_id, page_idx);
+
+                // WHY: Signal page complete/error (may be out of order)
+                match &result {
+                    Ok(_) => callback.on_page_complete(page_idx, 0),
+                    Err(e) => callback.on_page_error(page_idx, &e.to_string()),
+                }
+
+                (page_idx, result)
+            })
+            .collect()
+    }
 }
 
 impl Default for ExtractionEngine {
@@ -559,6 +617,137 @@ impl PdfBackend for ExtractionEngine {
         Ok(document)
     }
 
+    /// Extract PDF with progress callbacks for each page.
+    ///
+    /// ## Implements
+    ///
+    /// - [`SPEC-001-upload-pdf`]: Page-level progress during PDF conversion
+    /// - [`OODA-03`]: Integrate ProgressCallback into ExtractionEngine
+    ///
+    /// ## WHY Override Default?
+    ///
+    /// The default `extract_with_progress()` ignores the callback.
+    /// This override calls callbacks during page iteration:
+    /// - `on_extraction_start` before processing any pages
+    /// - `on_page_start` before each page
+    /// - `on_page_complete` or `on_page_error` after each page
+    /// - `on_extraction_complete` with success count at end
+    ///
+    /// ## Parallel Mode Note
+    ///
+    /// In parallel mode (2+ pages), callbacks may be called out of order.
+    /// The UI should track state per page_num, not assume sequential order.
+    async fn extract_with_progress(
+        &self,
+        pdf_bytes: &[u8],
+        callback: Arc<dyn ProgressCallback>,
+    ) -> Result<Document> {
+        info!("Extracting PDF with progress callbacks");
+
+        let lopdf_doc = LopdfDocument::load_mem(pdf_bytes)
+            .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {}", e)))?;
+
+        if lopdf_doc.is_encrypted() {
+            return Err(PdfError::PdfParse(
+                "PDF is encrypted and password-protected".to_string(),
+            ));
+        }
+
+        let pages = lopdf_doc.get_pages();
+        let page_count = pages.len();
+        info!("PDF has {} pages", page_count);
+
+        let max_pages = self.config.max_pages.unwrap_or(page_count);
+        let pages_to_process = page_count.min(max_pages);
+
+        // WHY: Signal extraction start with total page count
+        callback.on_extraction_start(pages_to_process);
+
+        let mut document = Document::new();
+        document.metadata = DocumentMetadata {
+            pdf_version: Some(lopdf_doc.version.clone()),
+            ..Default::default()
+        };
+
+        // Collect page info for parallel processing
+        let page_infos: Vec<(u32, ObjectId)> = pages
+            .iter()
+            .take(pages_to_process)
+            .map(|(num, id)| (*num, *id))
+            .collect();
+
+        // Track success count for final callback
+        let mut success_count = 0usize;
+
+        // Use parallel extraction for multi-page documents (threshold: 2+ pages)
+        let parallel_threshold = 2;
+
+        if page_infos.len() >= parallel_threshold {
+            info!("Using parallel extraction for {} pages", page_infos.len());
+
+            // WHY: Clone Arc for each thread in parallel mode
+            // ProgressCallback is Send + Sync, so safe to share
+            let results = self.extract_pages_parallel_with_progress(
+                pdf_bytes,
+                page_infos,
+                callback.clone(),
+                pages_to_process,
+            );
+
+            // Sort by page number to maintain order
+            let mut sorted_results = results;
+            sorted_results.sort_by_key(|(num, _)| *num);
+
+            // Add pages to document
+            for (page_num, result) in sorted_results {
+                match result {
+                    Ok(page) => {
+                        document.add_page(page);
+                        success_count += 1;
+                    }
+                    Err(e) => {
+                        warn!("Failed to extract page {}: {}", page_num, e);
+                        // Note: on_page_error already called in parallel function
+                    }
+                }
+            }
+        } else {
+            // Sequential extraction for small documents
+            for (page_num, page_id) in pages.iter().take(pages_to_process) {
+                let page_idx = *page_num as usize;
+                debug!("Processing page {}", page_num);
+
+                // WHY: Signal page start before extraction
+                callback.on_page_start(page_idx, pages_to_process);
+
+                match self.extract_page(&lopdf_doc, *page_id, page_idx) {
+                    Ok(page) => {
+                        // WHY: Report success with 0 markdown_len for now
+                        // (actual markdown length computed later in render phase)
+                        callback.on_page_complete(page_idx, 0);
+                        document.add_page(page);
+                        success_count += 1;
+                    }
+                    Err(e) => {
+                        // WHY: Report page-level error with description
+                        callback.on_page_error(page_idx, &e.to_string());
+                        warn!("Failed to extract page {}: {}", page_num, e);
+                    }
+                }
+            }
+        }
+
+        // WHY: Signal extraction complete with final counts
+        callback.on_extraction_complete(pages_to_process, success_count);
+
+        info!(
+            "Extracted {} pages with progress callbacks (success: {})",
+            document.pages.len(),
+            success_count
+        );
+        Ok(document)
+    }
+
     fn get_info(&self, pdf_bytes: &[u8]) -> Result<PdfInfo> {
         let lopdf_doc = LopdfDocument::load_mem(pdf_bytes)
             .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {}", e)))?;
@@ -584,6 +773,95 @@ impl PdfBackend for ExtractionEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::progress::CountingProgress;
+
+    /// Test that extract_with_progress() calls all callback lifecycle methods.
+    ///
+    /// ## Implements
+    ///
+    /// - [`OODA-03`]: Verify ProgressCallback integration
+    ///
+    /// ## Test Strategy
+    ///
+    /// Uses CountingProgress to track callback invocations:
+    /// - extraction_starts: should be 1
+    /// - page_starts: should equal page count
+    /// - page_completes + page_errors: should equal page count
+    /// - extraction_completes: should be 1
+    #[tokio::test]
+    async fn test_extract_with_progress_calls_callbacks() {
+        // WHY: Use a simple 1-page PDF to test sequential path
+        // (parallel path only activates for 2+ pages)
+        let pdf_bytes = include_bytes!("../../test-data/001_simple_text.pdf");
+
+        let backend = ExtractionEngine::new();
+        let callback = Arc::new(CountingProgress::new());
+
+        // Execute extraction with progress
+        let result = backend
+            .extract_with_progress(pdf_bytes, callback.clone())
+            .await;
+
+        assert!(result.is_ok(), "Extraction should succeed");
+        let doc = result.unwrap();
+
+        // Verify callback counts
+        let starts = callback.extraction_started();
+        let page_starts = callback.pages_started();
+        let page_completes = callback.pages_completed();
+        let page_errors = callback.pages_failed();
+        let completes = callback.extraction_completed();
+
+        assert_eq!(starts, 1, "on_extraction_start should be called once");
+        assert!(page_starts >= 1, "on_page_start should be called per page");
+        assert_eq!(
+            page_completes + page_errors,
+            page_starts,
+            "Each page should have complete or error"
+        );
+        assert_eq!(completes, 1, "on_extraction_complete should be called once");
+
+        // Document should have pages
+        assert!(
+            !doc.pages.is_empty(),
+            "Extracted document should have pages"
+        );
+    }
+
+    /// Test that extract_with_progress() works with multi-page PDF (parallel path).
+    #[tokio::test]
+    async fn test_extract_with_progress_parallel_mode() {
+        // WHY: Multi-page PDF triggers parallel extraction (threshold: 2+ pages)
+        let pdf_bytes = include_bytes!("../../test-data/008_multi_page_5_pages.pdf");
+
+        let backend = ExtractionEngine::new();
+        let callback = Arc::new(CountingProgress::new());
+
+        let result = backend
+            .extract_with_progress(pdf_bytes, callback.clone())
+            .await;
+
+        assert!(result.is_ok(), "Multi-page extraction should succeed");
+        let doc = result.unwrap();
+
+        // Verify callback counts for multi-page
+        let starts = callback.extraction_started();
+        let page_starts = callback.pages_started();
+        let completes = callback.extraction_completed();
+
+        assert_eq!(starts, 1, "on_extraction_start called once");
+        assert!(
+            page_starts >= 2,
+            "on_page_start should be called for each page"
+        );
+        assert_eq!(completes, 1, "on_extraction_complete called once");
+
+        // Document should have multiple pages
+        assert!(
+            doc.pages.len() >= 2,
+            "Multi-page PDF should have 2+ pages"
+        );
+    }
 
     #[test]
     fn test_merge_line_preserves_style_runs_as_spans() {
