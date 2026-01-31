@@ -7,21 +7,21 @@
 
 ## Gap Analysis
 
-| Current State | Desired State | Gap | Priority |
-|--------------|---------------|-----|----------|
-| PDF processing is single "processing" status | 6 distinct phases: Upload, PdfConversion, Chunking, Embedding, Extraction, GraphStorage | No phase enum or tracking | HIGH |
-| No progress callbacks in PdfExtractor | `ProgressCallback` trait with `on_page_start`, `on_page_complete` | Need to add trait + implementation | HIGH |
-| Task progress only tracks chunks (ChunkProgress) | Track all 6 phases with current/total/percentage | Need PhaseProgress struct | HIGH |
-| Generic "Processing..." in UI | Timeline showing each phase with progress bars | Need `<PipelinePhase />` component | HIGH |
-| Polling every 2s for updates | Real-time WebSocket updates < 500ms | WebSocket exists but needs phase events | MEDIUM |
-| No page-by-page progress for PDF | Show "Page 5/10" during extraction | Need page-level callbacks | MEDIUM |
-| No ETA for PDF extraction | Estimate based on avg page time | Need timing + calculation | MEDIUM |
-| No error recovery UI | Retry button per phase, error details | Need retry endpoint + UI | MEDIUM |
-| No upload history | Persistent history with filter/search | Need storage + UI components | LOW |
+| Current State                                    | Desired State                                                                           | Gap                                     | Priority |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------- | --------------------------------------- | -------- |
+| PDF processing is single "processing" status     | 6 distinct phases: Upload, PdfConversion, Chunking, Embedding, Extraction, GraphStorage | No phase enum or tracking               | HIGH     |
+| No progress callbacks in PdfExtractor            | `ProgressCallback` trait with `on_page_start`, `on_page_complete`                       | Need to add trait + implementation      | HIGH     |
+| Task progress only tracks chunks (ChunkProgress) | Track all 6 phases with current/total/percentage                                        | Need PhaseProgress struct               | HIGH     |
+| Generic "Processing..." in UI                    | Timeline showing each phase with progress bars                                          | Need `<PipelinePhase />` component      | HIGH     |
+| Polling every 2s for updates                     | Real-time WebSocket updates < 500ms                                                     | WebSocket exists but needs phase events | MEDIUM   |
+| No page-by-page progress for PDF                 | Show "Page 5/10" during extraction                                                      | Need page-level callbacks               | MEDIUM   |
+| No ETA for PDF extraction                        | Estimate based on avg page time                                                         | Need timing + calculation               | MEDIUM   |
+| No error recovery UI                             | Retry button per phase, error details                                                   | Need retry endpoint + UI                | MEDIUM   |
+| No upload history                                | Persistent history with filter/search                                                   | Need storage + UI components            | LOW      |
 
 ## Risk Assessment
 
-- **Risk 1: Breaking existing ingestion flow** 
+- **Risk 1: Breaking existing ingestion flow**
   - Mitigation: Keep existing ChunkProgress, ADD PhaseProgress alongside
   - Mitigation: Feature flag for new progress system
 
@@ -40,15 +40,18 @@
 ## First Principles Analysis
 
 ### Core Problem
+
 The user cannot see what's happening during PDF processing. They see "Processing..." for 30 seconds to 5 minutes with no visibility into progress or issues.
 
 ### Fundamental Constraints
+
 1. **PDF extraction is CPU-bound** - Can't parallelize page processing easily
 2. **LLM calls have variable latency** - 100ms to 30s per call
 3. **Task processor is separate from HTTP handler** - Need communication channel
 4. **Frontend polls or uses WebSocket** - Already have this infrastructure
 
 ### Minimal Solution
+
 1. Add `PipelinePhase` enum with 6 phases
 2. Add `PhaseProgress` struct to Task
 3. Modify `process_pdf_processing()` to update phases
@@ -56,6 +59,7 @@ The user cannot see what's happening during PDF processing. They see "Processing
 5. Add `<PipelinePhase />` component to display phases
 
 ### Why This Matters (Business Impact)
+
 - **User trust**: Seeing progress builds confidence the system is working
 - **Error detection**: Users can identify stuck/failed uploads faster
 - **Debugging**: Support can pinpoint exactly where issues occur
@@ -64,24 +68,28 @@ The user cannot see what's happening during PDF processing. They see "Processing
 ## Alternative Approaches
 
 ### Option A: Polling with Phase State in Task
+
 - **Description**: Store phase progress in Task.progress, frontend polls
 - **Pros**: Simple, works with existing infrastructure
 - **Cons**: Up to 2s delay, more DB reads
 - **Verdict**: Good fallback, but not real-time
 
 ### Option B: WebSocket with Progress Events
+
 - **Description**: Emit events on each phase change via existing WebSocket
 - **Pros**: Real-time, < 500ms latency, less DB load
 - **Cons**: More complex, need to handle reconnections
 - **Verdict**: ✅ PREFERRED - Meets latency requirement
 
 ### Option C: Server-Sent Events (SSE)
+
 - **Description**: Use SSE instead of WebSocket
 - **Pros**: Simpler than WebSocket, HTTP-based
 - **Cons**: One-way only, would need to add new infrastructure
 - **Verdict**: Not worth adding when WebSocket exists
 
 ### Option D: GraphQL Subscriptions
+
 - **Description**: Use GraphQL subscriptions for real-time updates
 - **Pros**: Type-safe, schema-driven
 - **Cons**: Would need to add GraphQL layer
@@ -92,6 +100,7 @@ The user cannot see what's happening during PDF processing. They see "Processing
 **Selected: Option A + B Hybrid**
 
 Store phase state in Task (for persistence and polling fallback), AND emit WebSocket events for real-time updates. This provides:
+
 - Durability: Progress survives reconnects
 - Real-time: WebSocket for < 500ms updates
 - Fallback: Polling when WebSocket unavailable

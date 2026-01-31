@@ -59,10 +59,10 @@ This is the minimal first step - just the data types, no behavior yet.
 
 ## File Changes Summary
 
-| File | Change Type | Description |
-|------|-------------|-------------|
-| `edgequake-tasks/src/progress.rs` | CREATE | New module with phase tracking types |
-| `edgequake-tasks/src/lib.rs` | MODIFY | Add `pub mod progress;` and re-exports |
+| File                              | Change Type | Description                            |
+| --------------------------------- | ----------- | -------------------------------------- |
+| `edgequake-tasks/src/progress.rs` | CREATE      | New module with phase tracking types   |
+| `edgequake-tasks/src/lib.rs`      | MODIFY      | Add `pub mod progress;` and re-exports |
 
 ## Commit Message
 
