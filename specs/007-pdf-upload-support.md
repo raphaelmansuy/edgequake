@@ -16,6 +16,10 @@ Ensure Multi-Tenancy compliance by isolating PDF data per workspace and Tenant
 
 Ensure PDF upload and processing is robust, efficient, and scalable and is integrated into the existing EdgeQuake ingestion pipeline and the Web Application
 
+very important:
+
+Ensure there is e2e test coverage for the PDF upload flow, including vision LLM extraction and error handling.
+
 ## Executive Summary
 
 This specification defines a comprehensive PDF upload pipeline for EdgeQuake that:

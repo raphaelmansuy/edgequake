@@ -63,6 +63,8 @@ pub struct ProviderLineage {
 pub struct DocumentTaskProcessor {
     /// Default processing pipeline (fallback when workspace not specified).
     pipeline: Arc<Pipeline>,
+    /// LLM provider for extraction and enhancement (SPEC-007: needed for PDF processing).
+    llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
     /// KV storage for document metadata and chunks.
     kv_storage: Arc<dyn KVStorage>,
     /// Vector storage for chunk embeddings (legacy fallback).
@@ -72,6 +74,9 @@ pub struct DocumentTaskProcessor {
     vector_registry: Arc<dyn WorkspaceVectorRegistry>,
     /// Graph storage for entities and relationships.
     graph_storage: Arc<dyn GraphStorage>,
+    /// PDF storage for PDF document management (SPEC-007, postgres-only).
+    #[cfg(feature = "postgres")]
+    pdf_storage: Option<Arc<dyn edgequake_storage::PdfDocumentStorage>>,
     /// Pipeline state for progress tracking.
     pipeline_state: PipelineState,
     /// Workspace service for looking up workspace configuration (SPEC-032).
@@ -88,6 +93,7 @@ impl DocumentTaskProcessor {
     /// OODA-223: Uses non-strict mode (allows fallback) for backward compatibility.
     pub fn new(
         pipeline: Arc<Pipeline>,
+        llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
         kv_storage: Arc<dyn KVStorage>,
         vector_storage: Arc<dyn VectorStorage>,
         vector_registry: Arc<dyn WorkspaceVectorRegistry>,
@@ -96,10 +102,13 @@ impl DocumentTaskProcessor {
     ) -> Self {
         Self {
             pipeline,
+            llm_provider,
             kv_storage,
             vector_storage,
             vector_registry,
             graph_storage,
+            #[cfg(feature = "postgres")]
+            pdf_storage: None,
             pipeline_state,
             workspace_service: None,
             models_config: None,
@@ -117,6 +126,7 @@ impl DocumentTaskProcessor {
     /// isolation is enforced.
     pub fn with_workspace_support(
         pipeline: Arc<Pipeline>,
+        llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
         kv_storage: Arc<dyn KVStorage>,
         vector_storage: Arc<dyn VectorStorage>,
         vector_registry: Arc<dyn WorkspaceVectorRegistry>,
@@ -127,10 +137,13 @@ impl DocumentTaskProcessor {
     ) -> Self {
         Self {
             pipeline,
+            llm_provider,
             kv_storage,
             vector_storage,
             vector_registry,
             graph_storage,
+            #[cfg(feature = "postgres")]
+            pdf_storage: None,
             pipeline_state,
             workspace_service: Some(workspace_service),
             models_config: Some(models_config),
@@ -145,6 +158,7 @@ impl DocumentTaskProcessor {
     /// data from being stored in the wrong (global) table.
     pub fn with_workspace_support_strict(
         pipeline: Arc<Pipeline>,
+        llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
         kv_storage: Arc<dyn KVStorage>,
         vector_storage: Arc<dyn VectorStorage>,
         vector_registry: Arc<dyn WorkspaceVectorRegistry>,
@@ -155,15 +169,31 @@ impl DocumentTaskProcessor {
     ) -> Self {
         Self {
             pipeline,
+            llm_provider,
             kv_storage,
             vector_storage,
             vector_registry,
             graph_storage,
+            #[cfg(feature = "postgres")]
+            pdf_storage: None,
             pipeline_state,
             workspace_service: Some(workspace_service),
             models_config: Some(models_config),
             strict_workspace_mode: true, // OODA-223: Production mode - fail on workspace errors
         }
+    }
+
+    /// Set PDF storage for PDF processing support (SPEC-007).
+    ///
+    /// This method allows PDF storage to be injected after processor creation,
+    /// enabling PDF upload functionality when postgres feature is enabled.
+    #[cfg(feature = "postgres")]
+    pub fn with_pdf_storage(
+        mut self,
+        pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage>,
+    ) -> Self {
+        self.pdf_storage = Some(pdf_storage);
+        self
     }
 
     /// Get a workspace-specific pipeline if workspace_id is provided and valid.
@@ -1185,7 +1215,7 @@ impl DocumentTaskProcessor {
     ///
     /// This method handles the complete PDF processing pipeline:
     /// 1. Load PDF from storage using pdf_id
-    /// 2. Extract content with vision LLM if enabled
+    /// 2. Extract content (text mode only for now, vision TODO)
     /// 3. Convert to markdown
     /// 4. Create document and trigger standard ingestion
     /// 5. Update PDF status with results
@@ -1194,96 +1224,98 @@ impl DocumentTaskProcessor {
     /// @implements FEAT0704: PDF processing worker
     /// @implements UC0704: System processes PDF in background
     /// @enforces BR0704: PDF processed async with retry logic
+    #[cfg(feature = "postgres")]
     async fn process_pdf_processing(
         &self,
-        _task: &mut Task,
+        task: &mut Task,
         data: edgequake_tasks::PdfProcessingData,
     ) -> TaskResult<serde_json::Value> {
+        use edgequake_pdf::PdfExtractor;
+        use edgequake_storage::{PdfProcessingStatus, UpdatePdfProcessingRequest, ExtractionMethod};
+
         info!(
             pdf_id = %data.pdf_id,
             workspace_id = %data.workspace_id,
             enable_vision = data.enable_vision,
-            vision_provider = %data.vision_provider,
-            "Starting PDF processing task (SPEC-007)"
+            "Starting PDF processing task"
         );
 
-        // Note: PDF storage is not yet available in AppState
-        // This is a stub implementation that will be completed when:
-        // 1. AppState is updated to include pdf_storage field
-        // 2. get_pdf_storage helper is moved to state.rs
-        // 3. PdfExtractor with vision support is tested with real PDFs
-        
-        warn!(
-            "PDF processing not yet fully integrated - awaiting AppState updates"
-        );
-
-        // For now, mark as unsupported until full integration complete
-        Err(edgequake_tasks::TaskError::UnsupportedOperation(
-            "PDF processing awaiting full AppState integration (add pdf_storage field)".to_string(),
-        ))
-
-        // TODO: Uncomment when AppState has pdf_storage:
-        /*
-        use edgequake_pdf::{PdfExtractor, vision::{VisionConfig, VisionExtractor}};
-        use edgequake_storage::{PdfDocumentStorage, PdfProcessingStatus};
-
-        // 1. Get PDF storage (needs to be added to AppState)
-        let pdf_storage = state.pdf_storage.clone();
+        // 1. Get PDF storage
+        let pdf_storage = self
+            .pdf_storage
+            .as_ref()
+            .ok_or_else(|| {
+                edgequake_tasks::TaskError::UnsupportedOperation(
+                    "PDF storage not available (postgres feature enabled but storage not initialized)".to_string()
+                )
+            })?;
 
         // 2. Load PDF from storage
-        let pdf = pdf_storage.get_pdf(&data.pdf_id).await
-            .map_err(|e| edgequake_tasks::TaskError::Storage(
-                format!("Failed to load PDF {}: {}", data.pdf_id, e)
-            ))?;
+        let pdf = pdf_storage
+            .get_pdf(&data.pdf_id)
+            .await
+            .map_err(|e| {
+                edgequake_tasks::TaskError::Storage(format!(
+                    "Failed to load PDF {}: {}",
+                    data.pdf_id, e
+                ))
+            })?;
+
+        info!(
+            pdf_id = %data.pdf_id,
+            filename = %pdf.filename,
+            size = pdf.file_size_bytes,
+            pages = ?pdf.page_count,
+            "Loaded PDF from storage"
+        );
 
         // 3. Update status to processing
-        pdf_storage.update_status(&data.pdf_id, PdfProcessingStatus::Processing).await
+        pdf_storage
+            .update_status(&data.pdf_id, PdfProcessingStatus::Processing)
+            .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
-        // 4. Create appropriate extractor based on vision setting
+        // 4. Extract content (text mode for now, vision TODO)
         let markdown = if data.enable_vision {
-            // Vision-enabled extraction
-            let vision_config = VisionConfig::default()
-                .with_model(data.vision_model.unwrap_or_else(|| "gpt-4o-mini".to_string()))
-                .with_dpi(150)
-                .with_temperature(0.1);
-
-            let vision_extractor = VisionExtractor::new(
-                self.llm_provider.clone(),
-                vision_config
+            warn!(
+                "Vision extraction requested but not yet implemented - falling back to text extraction"
             );
-
-            // TODO: Render PDF pages to images using backend
-            // For now, fallback to standard text extraction
-            warn!("Vision extraction requested but page rendering not yet implemented");
-            
-            let extractor = PdfExtractor::new(self.llm_provider.clone());
-            extractor.extract_to_markdown(&pdf.pdf_data).await
-                .map_err(|e| edgequake_tasks::TaskError::Processing(
-                    format!("PDF extraction failed: {}", e)
-                ))?
+            // TODO: Implement vision extraction with VisionExtractor
+            let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
+            extractor
+                .extract_to_markdown(&pdf.pdf_data)
+                .await
+                .map_err(|e| {
+                    edgequake_tasks::TaskError::Processing(format!("PDF extraction failed: {}", e))
+                })?
         } else {
             // Standard text extraction
-            let extractor = PdfExtractor::new(self.llm_provider.clone());
-            extractor.extract_to_markdown(&pdf.pdf_data).await
-                .map_err(|e| edgequake_tasks::TaskError::Processing(
-                    format!("PDF extraction failed: {}", e)
-                ))?
+            let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
+            extractor
+                .extract_to_markdown(&pdf.pdf_data)
+                .await
+                .map_err(|e| {
+                    edgequake_tasks::TaskError::Processing(format!("PDF extraction failed: {}", e))
+                })?
         };
+
+        info!(
+            pdf_id = %data.pdf_id,
+            markdown_len = markdown.len(),
+            "Extracted markdown from PDF"
+        );
 
         // 5. Store markdown in pdf_documents
-        let update_req = edgequake_storage::UpdatePdfProcessingRequest {
+        let update_req = UpdatePdfProcessingRequest {
             markdown_content: Some(markdown.clone()),
-            extraction_method: Some(if data.enable_vision {
-                edgequake_storage::ExtractionMethod::Vision
-            } else {
-                edgequake_storage::ExtractionMethod::Text
-            }),
+            extraction_method: Some(ExtractionMethod::Text), // TODO: Set to Vision when implemented
             extraction_errors: None,
-            vision_model: data.vision_model.clone(),
+            vision_model: None, // TODO: Set when vision implemented
         };
 
-        pdf_storage.update_processing_result(&data.pdf_id, &update_req).await
+        pdf_storage
+            .update_processing_result(&data.pdf_id, &update_req)
+            .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
         // 6. Create document via standard pipeline
@@ -1296,6 +1328,7 @@ impl DocumentTaskProcessor {
                 "pdf_id": data.pdf_id.to_string(),
                 "filename": pdf.filename,
                 "page_count": pdf.page_count,
+                "file_size_bytes": pdf.file_size_bytes,
             })),
         };
 
@@ -1304,16 +1337,23 @@ impl DocumentTaskProcessor {
         // 7. Link PDF to created document
         if let Some(document_id_str) = result.get("document_id").and_then(|v| v.as_str()) {
             if let Ok(document_uuid) = uuid::Uuid::parse_str(document_id_str) {
-                pdf_storage.link_to_document(&data.pdf_id, &document_uuid).await
-                    .map_err(|e| {
-                        error!("Failed to link PDF to document: {}", e);
-                        // Non-fatal - PDF still processed successfully
-                    }).ok();
+                if let Err(e) = pdf_storage
+                    .link_to_document(&data.pdf_id, &document_uuid)
+                    .await
+                {
+                    error!(
+                        "Failed to link PDF to document: {} - continuing anyway",
+                        e
+                    );
+                    // Non-fatal - PDF still processed successfully
+                }
             }
         }
 
         // 8. Mark as completed
-        pdf_storage.update_status(&data.pdf_id, PdfProcessingStatus::Completed).await
+        pdf_storage
+            .update_status(&data.pdf_id, PdfProcessingStatus::Completed)
+            .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
         info!(
@@ -1322,7 +1362,21 @@ impl DocumentTaskProcessor {
         );
 
         Ok(result)
-        */
+    }
+
+    #[cfg(not(feature = "postgres"))]
+    async fn process_pdf_processing(
+        &self,
+        _task: &mut Task,
+        data: edgequake_tasks::PdfProcessingData,
+    ) -> TaskResult<serde_json::Value> {
+        warn!(
+            pdf_id = %data.pdf_id,
+            "PDF processing not available (postgres feature disabled)"
+        );
+        Err(edgequake_tasks::TaskError::UnsupportedOperation(
+            "PDF processing requires postgres feature".to_string(),
+        ))
     }
 }
 
