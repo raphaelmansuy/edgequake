@@ -25,6 +25,7 @@
 
 use std::sync::Arc;
 
+use crate::pipeline_progress_callback::PipelineProgressCallback;
 use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::{ChunkProgressCallback, ChunkProgressUpdate, LLMExtractor, Pipeline};
@@ -1277,6 +1278,16 @@ impl DocumentTaskProcessor {
             .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
+        // OODA-09: Create progress callback for real-time page-by-page feedback
+        // WHY: Users need to see extraction progress like "Extracting page 5/10..."
+        let progress_callback = Arc::new(PipelineProgressCallback::new(
+            self.pipeline_state.clone(),
+            data.pdf_id.to_string(),
+            task.track_id.clone(),
+        ));
+        // OODA-09: Coerce to trait object for use with extract_to_markdown_with_progress
+        let progress_callback: Arc<dyn edgequake_pdf::ProgressCallback> = progress_callback;
+
         // 4. Extract content (vision or text mode)
         // SPEC-007: Vision mode uses multimodal LLM to extract from rendered page images
         // Requires vision feature and poppler-utils (pdftoppm) system package
@@ -1328,18 +1339,20 @@ impl DocumentTaskProcessor {
                             error = %e,
                             "Vision extraction failed - falling back to text extraction"
                         );
-                        // Fallback to text extraction
+                        // Fallback to text extraction with progress callback (OODA-09)
                         let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
-                        let md =
-                            extractor
-                                .extract_to_markdown(&pdf.pdf_data)
-                                .await
-                                .map_err(|e| {
-                                    edgequake_tasks::TaskError::Processing(format!(
-                                        "PDF extraction failed: {}",
-                                        e
-                                    ))
-                                })?;
+                        let md = extractor
+                            .extract_to_markdown_with_progress(
+                                &pdf.pdf_data,
+                                Arc::clone(&progress_callback),
+                            )
+                            .await
+                            .map_err(|e| {
+                                edgequake_tasks::TaskError::Processing(format!(
+                                    "PDF extraction failed: {}",
+                                    e
+                                ))
+                            })?;
                         (md, ExtractionMethod::Text, None)
                     }
                 }
@@ -1350,9 +1363,13 @@ impl DocumentTaskProcessor {
                     pdf_id = %data.pdf_id,
                     "Vision extraction requested but vision feature not enabled - using text extraction"
                 );
+                // OODA-09: Use progress callback for text extraction
                 let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
                 let md = extractor
-                    .extract_to_markdown(&pdf.pdf_data)
+                    .extract_to_markdown_with_progress(
+                        &pdf.pdf_data,
+                        Arc::clone(&progress_callback),
+                    )
                     .await
                     .map_err(|e| {
                         edgequake_tasks::TaskError::Processing(format!(
@@ -1363,10 +1380,10 @@ impl DocumentTaskProcessor {
                 (md, ExtractionMethod::Text, None)
             }
         } else {
-            // Standard text extraction
+            // Standard text extraction with progress callback (OODA-09)
             let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
             let md = extractor
-                .extract_to_markdown(&pdf.pdf_data)
+                .extract_to_markdown_with_progress(&pdf.pdf_data, Arc::clone(&progress_callback))
                 .await
                 .map_err(|e| {
                     edgequake_tasks::TaskError::Processing(format!("PDF extraction failed: {}", e))
