@@ -107,6 +107,7 @@ import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
 import { StatusBadge } from './status-badge';
 import type { UploadingFile } from './types';
+import { UploadHistory } from './upload-history';
 
 /**
  * OODA-30: File type icon helper
@@ -1257,6 +1258,18 @@ export function DocumentManager() {
           />
         </div>
       )}
+
+      {/* OODA-26: Upload History Section - Shows completed/failed uploads */}
+      <div className="shrink-0 px-4 py-3 border-b">
+        <UploadHistory 
+          maxItems={10} 
+          compact={false}
+          onRetry={(trackId) => {
+            // TODO: Implement retry from history
+            console.log('Retry from history:', trackId);
+          }}
+        />
+      </div>
 
       {/* Scrollable Documents Table Zone */}
       <div className="flex-1 min-h-0 overflow-auto">
