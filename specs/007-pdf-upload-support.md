@@ -505,6 +505,273 @@ if let Err(e) = process_result {
 
 ## Vision LLM Integration
 
+### 🔍 PDF Rendering for Vision Mode
+
+**Current Status**: The `edgequake-pdf` crate has a comprehensive `vision.rs` module (485 lines) with `VisionExtractor` and `PageImage` types, but it expects pre-rendered page images. There is no built-in PDF-to-image rendering capability.
+
+**Implementation Approach** (OODA Loop 14-15):
+
+The vision module currently expects `PageImage` objects but doesn't provide page rendering. We need to add this capability.
+
+**Options Evaluated**:
+
+1. **pdfium-render (RECOMMENDED)** ✅
+   - High-level Rust wrapper around Pdfium (Google's PDF library)
+   - Mature, actively maintained (v0.8.37)
+   - Built-in image rendering with DPI control
+   - Supports PNG, JPEG, WebP output
+   - Thread-safe option available
+   - License: MIT OR Apache-2.0
+   - **Decision**: Add as optional feature to edgequake-pdf
+
+2. **pdf_render**
+   - Lower-level, less documented
+   - Not recommended for production
+
+3. **External Service (e.g., pdftoppm)**
+   - Requires system dependencies
+   - Not portable, complicates deployment
+   - Not recommended
+
+**Implementation Plan**:
+
+```toml
+# edgequake-pdf/Cargo.toml
+[features]
+default = ["lopdf"]
+lopdf = ["dep:lopdf"]
+vision = ["pdfium-render", "image"]  # New feature for vision mode
+
+[dependencies]
+pdfium-render = { version = "0.8", optional = true, default-features = false, features = ["thread_safe"] }
+image = { version = "0.24", optional = true }  # Already present
+```
+
+**New Module**: `edgequake-pdf/src/rendering.rs`
+
+```rust
+//! PDF page rendering for vision mode.
+//!
+//! @implements FEAT1025
+//! @enforces BR1025
+
+#[cfg(feature = "vision")]
+use pdfium_render::prelude::*;
+use crate::vision::{PageImage, ImageFormat};
+use crate::error::PdfError;
+use crate::Result;
+
+/// Render PDF pages to images for vision LLM processing.
+#[cfg(feature = "vision")]
+pub struct PageRenderer {
+    pdfium: Pdfium,
+    dpi: u32,
+    format: ImageFormat,
+}
+
+#[cfg(feature = "vision")]
+impl PageRenderer {
+    /// Create a new page renderer.
+    pub fn new() -> Result<Self> {
+        let pdfium = Pdfium::new(
+            Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path("./"))
+                .or_else(|_| Pdfium::bind_to_system_library())
+                .map_err(|e| PdfError::Rendering(format!("Failed to load Pdfium: {}", e)))?
+        );
+
+        Ok(Self {
+            pdfium,
+            dpi: 150,  // Default DPI for vision mode
+            format: ImageFormat::Png,
+        })
+    }
+
+    /// Set the DPI for rendering.
+    pub fn with_dpi(mut self, dpi: u32) -> Self {
+        self.dpi = dpi;
+        self
+    }
+
+    /// Set the output image format.
+    pub fn with_format(mut self, format: ImageFormat) -> Self {
+        self.format = format;
+        self
+    }
+
+    /// Render all pages to images.
+    pub fn render_pages(&self, pdf_bytes: &[u8]) -> Result<Vec<PageImage>> {
+        let document = self.pdfium
+            .load_pdf_from_byte_slice(pdf_bytes, None)
+            .map_err(|e| PdfError::Rendering(format!("Failed to load PDF: {}", e)))?;
+
+        let mut images = Vec::new();
+
+        for (page_index, page) in document.pages().iter().enumerate() {
+            let bitmap = page
+                .render_with_config(
+                    &PdfRenderConfig::new()
+                        .set_target_width((page.width().value * self.dpi as f32 / 72.0) as i32)
+                        .set_maximum_height((page.height().value * self.dpi as f32 / 72.0) as i32)
+                )
+                .map_err(|e| PdfError::Rendering(format!("Page {} render failed: {}", page_index, e)))?;
+
+            // Convert bitmap to image format
+            let image_data = match self.format {
+                ImageFormat::Png => bitmap.as_image_buffer().encode_png(),
+                ImageFormat::Jpeg => bitmap.as_image_buffer().encode_jpeg(90),
+                ImageFormat::WebP => return Err(PdfError::Rendering("WebP not yet supported".into())),
+            }.map_err(|e| PdfError::Rendering(format!("Image encoding failed: {}", e)))?;
+
+            images.push(
+                PageImage::new(
+                    image_data,
+                    bitmap.width() as u32,
+                    bitmap.height() as u32,
+                    self.format,
+                )
+                .with_page(page_index)
+                .with_dpi(self.dpi)
+            );
+        }
+
+        Ok(images)
+    }
+
+    /// Render a single page to an image.
+    pub fn render_page(&self, pdf_bytes: &[u8], page_number: usize) -> Result<PageImage> {
+        let document = self.pdfium
+            .load_pdf_from_byte_slice(pdf_bytes, None)
+            .map_err(|e| PdfError::Rendering(format!("Failed to load PDF: {}", e)))?;
+
+        let page = document.pages().get(page_number)
+            .map_err(|e| PdfError::Rendering(format!("Page {} not found: {}", page_number, e)))?;
+
+        let bitmap = page
+            .render_with_config(
+                &PdfRenderConfig::new()
+                    .set_target_width((page.width().value * self.dpi as f32 / 72.0) as i32)
+                    .set_maximum_height((page.height().value * self.dpi as f32 / 72.0) as i32)
+            )
+            .map_err(|e| PdfError::Rendering(format!("Page {} render failed: {}", page_number, e)))?;
+
+        let image_data = match self.format {
+            ImageFormat::Png => bitmap.as_image_buffer().encode_png(),
+            ImageFormat::Jpeg => bitmap.as_image_buffer().encode_jpeg(90),
+            ImageFormat::WebP => return Err(PdfError::Rendering("WebP not yet supported".into())),
+        }.map_err(|e| PdfError::Rendering(format!("Image encoding failed: {}", e)))?;
+
+        Ok(
+            PageImage::new(
+                image_data,
+                bitmap.width() as u32,
+                bitmap.height() as u32,
+                self.format,
+            )
+            .with_page(page_number)
+            .with_dpi(self.dpi)
+        )
+    }
+}
+
+#[cfg(not(feature = "vision"))]
+pub struct PageRenderer;
+
+#[cfg(not(feature = "vision"))]
+impl PageRenderer {
+    pub fn new() -> Result<Self> {
+        Err(PdfError::Unsupported(
+            "Vision mode requires the 'vision' feature flag".into()
+        ))
+    }
+}
+```
+
+**Updated VisionExtractor**:
+
+```rust
+// File: edgequake-pdf/src/vision.rs
+
+impl VisionExtractor {
+    /// Extract document from PDF bytes using vision mode.
+    ///
+    /// This renders PDF pages to images and processes them with a vision LLM.
+    #[cfg(feature = "vision")]
+    pub async fn extract_from_pdf(&self, pdf_bytes: &[u8]) -> Result<Document> {
+        // 1. Render pages to images
+        let renderer = crate::rendering::PageRenderer::new()?
+            .with_dpi(self.config.dpi)
+            .with_format(crate::vision::ImageFormat::Png);
+
+        let images = renderer.render_pages(pdf_bytes)?;
+
+        // 2. Extract from rendered images (existing method)
+        self.extract_from_images(&images).await
+    }
+
+    #[cfg(not(feature = "vision"))]
+    pub async fn extract_from_pdf(&self, _pdf_bytes: &[u8]) -> Result<Document> {
+        Err(PdfError::Unsupported(
+            "Vision mode requires the 'vision' feature flag".into()
+        ))
+    }
+}
+```
+
+**Integration in processor.rs** (OODA Loop 16):
+
+```rust
+// File: edgequake-api/src/processor.rs
+
+#[cfg(feature = "postgres")]
+async fn process_pdf_processing(
+    &self,
+    task: &mut Task,
+    data: PdfProcessingData,
+) -> TaskResult<serde_json::Value> {
+    // ... existing code ...
+
+    // 4. Extract markdown with vision support
+    let markdown = if data.enable_vision {
+        #[cfg(feature = "vision")]
+        {
+            info!("Using vision mode for PDF extraction (pdf_id: {})", data.pdf_id);
+            let vision_config = crate::vision::VisionConfig::default()
+                .with_model(data.vision_model.unwrap_or_else(|| "gpt-4o-mini".to_string()))
+                .with_dpi(150);
+
+            let vision_extractor = crate::vision::VisionExtractor::new(
+                Arc::clone(&self.llm_provider),
+                vision_config,
+            );
+
+            vision_extractor.extract_from_pdf(&pdf.pdf_data).await
+                .map_err(|e| TaskError::Processing(format!("Vision extraction failed: {}", e)))?
+        }
+        #[cfg(not(feature = "vision"))]
+        {
+            warn!("Vision mode requested but 'vision' feature not enabled, falling back to text extraction");
+            let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
+            extractor.extract_to_markdown(&pdf.pdf_data).await
+                .map_err(|e| TaskError::Processing(format!("Text extraction failed: {}", e)))?
+        }
+    } else {
+        // Text extraction (existing implementation)
+        info!("Using text mode for PDF extraction (pdf_id: {})", data.pdf_id);
+        let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
+        extractor.extract_to_markdown(&pdf.pdf_data).await
+            .map_err(|e| TaskError::Processing(format!("Text extraction failed: {}", e)))?
+    };
+
+    // ... rest of processing ...
+}
+```
+
+**Status**:
+- ✅ Vision module exists (485 lines) with VisionExtractor and PageImage types
+- ⏳ Page rendering capability needs to be added (OODA Loop 15)
+- ⏳ Integration with processor.rs vision workflow (OODA Loop 16)
+- ⏳ Testing with real scanned PDFs (OODA Loop 19)
+
 ### Provider Configuration
 
 **Config File**: `models.toml`
@@ -1328,46 +1595,59 @@ Due to the comprehensive nature of this implementation, I'll provide a high-leve
 
 ## Implementation Status
 
-### ✅ Completed (OODA Loops 1-3)
+### ✅ Completed (OODA Loops 1-13)
 
-- [x] Mission specification document (1,200+ lines)
-- [x] Database migration 022
-- [x] PDF storage trait definition
-- [x] PostgreSQL storage implementation
-- [x] Helper functions (checksum, validation)
-- [x] Data types and error handling
+- [x] **Loop 1**: Mission specification document (1,392 lines)
+- [x] **Loop 2**: Database migration 022 (406 lines, applied successfully)
+- [x] **Loop 3**: PDF storage trait definition (490 lines)
+- [x] **Loop 4**: PostgreSQL storage implementation (595 lines)
+- [x] **Loop 5**: Module exports and integration
+- [x] **Loop 6**: Helper functions (checksum, validation)
+- [x] **Loop 7**: Storage compilation fixes (sqlx conversion, FK, error variants, routes)
+- [x] **Loop 8**: API handler implementation (796 lines, all 4 endpoints)
+- [x] **Loop 9**: PDF worker stub with architecture
+- [x] **Loop 10**: AppState integration (pdf_storage field)
+- [x] **Loop 11**: Helper update (get_pdf_storage uses state.pdf_storage)
+- [x] **Loop 12**: **Full PDF worker implementation** (text extraction pipeline)
+- [x] **Loop 13**: Test fixes (all 10 processor tests updated)
 
-### ⏳ Pending (Architecture Complete)
+### ⏳ Pending (Loops 14-50+)
 
-- [ ] Module exports and integration
-- [ ] API handler implementation
-- [ ] Vision LLM provider factory
-- [ ] Background task worker
-- [ ] Streaming upload
-- [ ] Integration tests
-- [ ] Performance benchmarks
-- [ ] Documentation
+- [ ] **Loop 14**: Research PDF page rendering solutions (pdfium-render, pdf_render)
+- [ ] **Loop 15**: Implement PDF-to-image rendering for vision mode
+- [ ] **Loop 16**: Update processor.rs for full vision workflow
+- [ ] **Loop 17**: Configure vision models in models.toml
+- [ ] **Loops 18-22**: Integration tests (text, vision, errors, dedup, isolation)
+- [ ] **Loop 23**: Performance benchmarking
+- [ ] **Loops 24-29**: Streaming upload & chunked processing optimization
+- [ ] **Loops 30-36**: Documentation (OpenAPI, user guide)
+- [ ] **Loops 37-50**: Advanced testing, security audit, final validation
 
 ### 🎯 Key Achievements
 
 1. **Comprehensive Specification**: Complete system design with all components defined
-2. **Database Foundation**: Robust schema with RLS, indexes, and constraints
-3. **Storage Abstraction**: Trait-based design supporting multiple backends
-4. **PostgreSQL Implementation**: Production-ready storage with comprehensive CRUD
-5. **Vision LLM Design**: Flexible provider system (OpenAI + Ollama)
-6. **Large File Strategy**: Streaming, chunking, and memory management defined
-7. **Security**: Validation, deduplication, rate limiting designed
-8. **Error Handling**: Comprehensive error taxonomy with retry logic
+2. **Database Foundation**: Migration 022 applied, robust schema with RLS, indexes, and constraints
+3. **Storage Layer**: Trait-based design with PostgreSQL implementation (595 lines)
+4. **API Handlers**: All 4 REST endpoints implemented (upload, status, list, delete) - 796 lines
+5. **Text Extraction Pipeline**: Full background processing worker with 8-step pipeline
+6. **AppState Integration**: PDF storage properly integrated into application state
+7. **Task System**: PdfProcessing task type integrated with retry logic
+8. **Compilation Success**: All code compiles with postgres feature (minor warnings only)
+9. **Test Coverage**: All processor tests passing (10 tests updated)
+10. **Vision Architecture**: vision.rs module exists (485 lines), needs page rendering integration
 
 ### 📊 Metrics
 
-- **Lines of Code**: ~2,500 (spec + migration + storage)
-- **OODA Loops Executed**: 3 of 51 (architecture phase complete)
+- **Lines of Code**: ~3,500 (spec + migration + storage + API + worker)
+- **OODA Loops Executed**: **13 of 50+** (core implementation complete, vision pending)
 - **Database Tables**: 1 (pdf_documents with 6 indexes, 5 RLS policies)
-- **API Endpoints**: 3 designed (upload, status, list)
-- **Vision Providers**: 2 (OpenAI, Ollama)
-- **Max File Size**: 100MB
-- **Storage Isolation**: Per-workspace with RLS
+- **API Endpoints**: 4 implemented (upload, status, list, delete)
+- **Storage Methods**: 10 async CRUD operations
+- **Vision Providers**: 2 planned (OpenAI gpt-4o-mini, Ollama gemma3:latest)
+- **Max File Size**: 100MB with BYTEA storage
+- **Storage Isolation**: Per-workspace with RLS enforcement
+- **Processing Pipeline**: 8 steps (load → extract → store → create doc → link → complete)
+- **Test Coverage**: 10 processor tests passing + unit tests in storage/vision modules
 
 ---
 
