@@ -142,8 +142,8 @@ use edgequake_core::ConversationServiceImpl;
 use edgequake_core::WorkspaceServiceImpl;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{
-    GraphStorage, KVStorage, PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage,
-    PostgresKVStorage, VectorStorage,
+    GraphStorage, KVStorage, PdfDocumentStorage, PgVectorStorage, PgWorkspaceVectorRegistry,
+    PostgresAGEGraphStorage, PostgresKVStorage, PostgresPdfStorage, VectorStorage,
 };
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
@@ -169,6 +169,10 @@ pub struct AppState {
 
     /// Graph storage.
     pub graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
+
+    /// PDF document storage (SPEC-007).
+    #[cfg(feature = "postgres")]
+    pub pdf_storage: Option<Arc<dyn edgequake_storage::PdfDocumentStorage>>,
 
     /// LLM provider.
     pub llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
@@ -375,6 +379,8 @@ impl AppState {
             ),
             #[cfg(feature = "postgres")]
             pg_pool: None,
+            #[cfg(feature = "postgres")]
+            pdf_storage: None,
             start_time: std::time::Instant::now(),
             // SECURITY (OODA-248): Default to secure config (no paths allowed).
             // Production deployments should configure allowed_paths.
@@ -819,6 +825,10 @@ impl AppState {
         let password_service = Arc::new(PasswordService::new(auth_config.clone()));
         let rbac_service = Arc::new(RbacService::new());
 
+        // Create PDF storage (SPEC-007)
+        let pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage> =
+            Arc::new(edgequake_storage::PostgresPdfStorage::new(pg_config.clone()));
+
         Ok(Self {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
@@ -849,6 +859,7 @@ impl AppState {
                 ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
             ),
             pg_pool: Some(pool),
+            pdf_storage: Some(pdf_storage),
             start_time: std::time::Instant::now(),
             // SECURITY (OODA-248): PostgreSQL mode defaults to secure config.
             // Administrators should configure ALLOWED_SCAN_PATHS environment variable.
