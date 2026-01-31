@@ -84,7 +84,7 @@ Ensure we use edgequake/crates/edgequake-pdf to convert PDFs to Markdown BEFORE 
 
 ---
 
-## Process: OODA Loop (50 iterations minimum)
+## Process: OODA Loop (80 iterations minimum)
 
 Execute iterative OODA cycles. Each iteration produces 4 files:
 
@@ -93,6 +93,11 @@ Execute iterative OODA cycles. Each iteration produces 4 files:
 Mission file: `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-upload-pdf.md`
 
 Failure to re-read causes alignment drift → incomplete features → broken tests → user frustration.
+
+
+Addition:
+
+Ensure documeny screen UX/UI is clean and intuitive for monitoring PDF upload progress. Ensure clean slyles and responsive design. Ensure accessibility standards are met (ARIA roles, keyboard navigation). Ensure scrollable areas for long histories. Ensure mobile responsiveness. Ensure information layout is logical and easy to follow. Be very careful to avoid clutter.
 
 ### Directory Structure
 
