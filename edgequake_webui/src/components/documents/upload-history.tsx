@@ -79,8 +79,11 @@ export interface UploadHistoryProps {
   maxItems?: number;
   /** Whether to show in compact mode */
   compact?: boolean;
-  /** Callback when user clicks retry on a failed item */
-  onRetry?: (trackId: string) => void;
+  /** 
+   * Callback when user clicks retry on a failed item.
+   * OODA-16: Enhanced to pass documentId for reprocessing.
+   */
+  onRetry?: (trackId: string, documentId?: string) => void;
 }
 
 export function UploadHistory({
@@ -350,7 +353,8 @@ export function UploadHistory({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6"
-                            onClick={() => onRetry(item.trackId)}
+                            onClick={() => onRetry(item.trackId, item.documentId)}
+                            title="Retry processing"
                           >
                             <RefreshCw className="h-3 w-3" />
                           </Button>
