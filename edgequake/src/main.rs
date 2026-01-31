@@ -82,6 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("🔒 Using STRICT workspace isolation mode (PostgreSQL storage)");
         Arc::new(DocumentTaskProcessor::with_workspace_support_strict(
             Arc::clone(&state.pipeline),
+            Arc::clone(&state.llm_provider),
             Arc::clone(&state.kv_storage),
             Arc::clone(&state.vector_storage),
             Arc::clone(&state.vector_registry),
@@ -94,6 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("⚠️ Using non-strict workspace mode (in-memory storage)");
         Arc::new(DocumentTaskProcessor::with_workspace_support(
             Arc::clone(&state.pipeline),
+            Arc::clone(&state.llm_provider),
             Arc::clone(&state.kv_storage),
             Arc::clone(&state.vector_storage),
             Arc::clone(&state.vector_registry),
