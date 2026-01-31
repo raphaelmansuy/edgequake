@@ -212,6 +212,11 @@ fn api_v1_routes() -> Router<AppState> {
         // PDF Upload (SPEC-007) - MUST come before /documents/{document_id}
         .route("/documents/pdf", post(handlers::upload_pdf_document))
         .route("/documents/pdf", get(handlers::list_pdfs))
+        // OODA-14: PDF progress endpoint - before /documents/pdf/{pdf_id}
+        .route(
+            "/documents/pdf/progress/{track_id}",
+            get(handlers::get_pdf_progress),
+        )
         .route("/documents/pdf/{pdf_id}", get(handlers::get_pdf_status))
         .route("/documents/pdf/{pdf_id}", delete(handlers::delete_pdf))
         // Document Scan API (GAP-014) - MUST come before /documents/{document_id}
