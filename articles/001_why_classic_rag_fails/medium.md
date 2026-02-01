@@ -43,28 +43,8 @@ Now try asking: **"What are the main themes across these 50 documents?"**
 
 Classic RAG retrieves the chunks most similar to "main themes." But that's backwards.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                THE GLOBAL CONTEXT PROBLEM                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  50 Documents → 500 Chunks → 500 Embeddings                     │
-│                                                                   │
-│  Query: "What are the main themes?"                             │
-│                      │                                           │
-│                      ▼                                           │
-│  Vector Search: "Which chunks contain words like 'theme'?"      │
-│                                                                   │
-│  Results:                                                        │
-│  • Chunk 47: "The theme of this section..."                     │
-│  • Chunk 203: "A recurring theme in..."                         │
-│  • Chunk 401: "The central theme is..."                         │
-│                                                                   │
-│  ❌ PROBLEM: These are random mentions of "theme"!              │
-│  We wanted HOLISTIC understanding, not keyword matching.        │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![The global context problem](asset/002-figure.jpg)
+
 
 Vector similarity is **local**—it finds similar _chunks_.
 

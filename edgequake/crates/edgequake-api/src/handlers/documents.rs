@@ -558,6 +558,11 @@ pub async fn upload_document(
         "status": initial_status,
         "tenant_id": tenant_id_for_storage,
         "workspace_id": workspace_id_for_storage,
+        // SPEC-002: Unified Ingestion Pipeline fields
+        "source_type": "markdown",
+        "current_stage": "uploading",
+        "stage_progress": 0.0,
+        "stage_message": "Document received, starting processing",
     });
     state
         .kv_storage

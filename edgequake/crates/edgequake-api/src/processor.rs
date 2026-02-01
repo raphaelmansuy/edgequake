@@ -610,6 +610,20 @@ impl DocumentTaskProcessor {
             .unwrap_or(&data.file_source)
             .to_string();
 
+        // SPEC-002: Extract source_type from task metadata for unified pipeline tracking
+        let source_type = data
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("source_type"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("markdown") // Default to markdown for text uploads
+            .to_string();
+
+        // SPEC-002: Ensure document metadata includes source_type
+        // This is needed for PDFs that bypass the upload handler
+        self.ensure_document_source_type(&document_id, &source_type)
+            .await?;
+
         // SPEC-032: Extract workspace_id to use workspace-specific pipeline
         // Prefer the direct field (data.workspace_id), fallback to metadata if needed
         let workspace_id = if !data.workspace_id.is_empty() && data.workspace_id != "default" {
@@ -1106,6 +1120,10 @@ impl DocumentTaskProcessor {
     }
 
     /// Update document metadata status.
+    ///
+    /// @implements SPEC-002: Unified Ingestion Pipeline
+    /// Updates both legacy `status` field and new `current_stage` field for backward compatibility.
+    /// Creates metadata if it doesn't exist (for PDF documents that bypass upload handler).
     async fn update_document_status(
         &self,
         document_id: &str,
@@ -1114,31 +1132,154 @@ impl DocumentTaskProcessor {
     ) -> TaskResult<()> {
         let metadata_key = format!("{}-metadata", document_id);
 
-        // Get existing metadata
-        if let Ok(Some(existing)) = self.kv_storage.get_by_id(&metadata_key).await {
-            if let Some(obj) = existing.as_object() {
+        // SPEC-002: Map legacy status names to unified stage names
+        let unified_stage = match status {
+            "pending" => "uploading",
+            "processing" => "preprocessing",
+            "chunking" => "chunking",
+            "extracting" => "extracting",
+            "embedding" => "embedding",
+            "indexing" => "storing",
+            "completed" | "indexed" => "completed",
+            "failed" => "failed",
+            other => other, // Pass through unknown statuses
+        };
+
+        // SPEC-002: Build stage message based on status
+        let stage_message = match status {
+            "pending" => "Document queued for processing",
+            "processing" | "preprocessing" => "Preprocessing document...",
+            "chunking" => "Splitting document into chunks...",
+            "extracting" => "Extracting entities and relationships...",
+            "embedding" => "Generating vector embeddings...",
+            "indexing" | "storing" => "Storing in knowledge graph...",
+            "completed" | "indexed" => "Processing complete",
+            "failed" => "Processing failed",
+            _ => "Processing...",
+        };
+
+        // Get existing metadata or create new
+        let existing = self.kv_storage.get_by_id(&metadata_key).await.ok().flatten();
+
+        let updated_json = if let Some(existing_val) = existing {
+            if let Some(obj) = existing_val.as_object() {
                 let mut updated = obj.clone();
                 updated.insert("status".to_string(), json!(status));
                 updated.insert(
                     "updated_at".to_string(),
                     json!(chrono::Utc::now().to_rfc3339()),
                 );
+                updated.insert("current_stage".to_string(), json!(unified_stage));
+                updated.insert("stage_message".to_string(), json!(stage_message));
 
                 if let Some(msg) = error_message {
                     updated.insert("error_message".to_string(), json!(msg));
+                    updated.insert("stage_message".to_string(), json!(msg));
                 }
 
-                self.kv_storage
-                    .upsert(&[(metadata_key, json!(updated))])
-                    .await
-                    .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+                json!(updated)
+            } else {
+                return Ok(()); // Malformed metadata, skip update
             }
+        } else {
+            // SPEC-002: Create new metadata for documents that don't have it
+            // This happens for PDFs that bypass the upload handler
+            let mut new_metadata = serde_json::Map::new();
+            new_metadata.insert("id".to_string(), json!(document_id));
+            new_metadata.insert("status".to_string(), json!(status));
+            new_metadata.insert("current_stage".to_string(), json!(unified_stage));
+            new_metadata.insert("stage_message".to_string(), json!(stage_message));
+            new_metadata.insert(
+                "created_at".to_string(),
+                json!(chrono::Utc::now().to_rfc3339()),
+            );
+            new_metadata.insert(
+                "updated_at".to_string(),
+                json!(chrono::Utc::now().to_rfc3339()),
+            );
+            // Note: source_type will be set later if available from task metadata
+
+            if let Some(msg) = error_message {
+                new_metadata.insert("error_message".to_string(), json!(msg));
+                new_metadata.insert("stage_message".to_string(), json!(msg));
+            }
+
+            json!(new_metadata)
+        };
+
+        self.kv_storage
+            .upsert(&[(metadata_key, updated_json)])
+            .await
+            .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Ensure document metadata includes source_type.
+    ///
+    /// @implements SPEC-002: Unified Ingestion Pipeline
+    /// Sets source_type (pdf, markdown, text) for unified pipeline display.
+    /// Creates metadata if it doesn't exist (for PDFs that bypass upload handler).
+    async fn ensure_document_source_type(
+        &self,
+        document_id: &str,
+        source_type: &str,
+    ) -> TaskResult<()> {
+        let metadata_key = format!("{}-metadata", document_id);
+
+        // Get existing metadata or create new
+        let existing = self.kv_storage.get_by_id(&metadata_key).await.ok().flatten();
+
+        let updated_json = if let Some(existing_val) = existing {
+            if let Some(obj) = existing_val.as_object() {
+                // Only update if source_type is not already set
+                if obj.get("source_type").is_none() {
+                    let mut updated = obj.clone();
+                    updated.insert("source_type".to_string(), json!(source_type));
+                    updated.insert(
+                        "updated_at".to_string(),
+                        json!(chrono::Utc::now().to_rfc3339()),
+                    );
+                    Some(json!(updated))
+                } else {
+                    None // Already has source_type, skip update
+                }
+            } else {
+                None // Malformed metadata, skip update
+            }
+        } else {
+            // Create new metadata for documents that don't have it (e.g., PDFs)
+            let mut new_metadata = serde_json::Map::new();
+            new_metadata.insert("id".to_string(), json!(document_id));
+            new_metadata.insert("source_type".to_string(), json!(source_type));
+            new_metadata.insert("current_stage".to_string(), json!("preprocessing"));
+            new_metadata.insert("stage_message".to_string(), json!("Processing document..."));
+            new_metadata.insert("status".to_string(), json!("processing"));
+            new_metadata.insert(
+                "created_at".to_string(),
+                json!(chrono::Utc::now().to_rfc3339()),
+            );
+            new_metadata.insert(
+                "updated_at".to_string(),
+                json!(chrono::Utc::now().to_rfc3339()),
+            );
+            Some(json!(new_metadata))
+        };
+
+        if let Some(json) = updated_json {
+            self.kv_storage
+                .upsert(&[(metadata_key, json)])
+                .await
+                .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
         }
 
         Ok(())
     }
 
     /// Update document metadata with processing stats and lineage information.
+    ///
+    /// @implements SPEC-002: Unified Ingestion Pipeline
+    /// Sets both legacy `status` and new `current_stage` fields.
     async fn update_document_status_with_stats(
         &self,
         document_id: &str,
@@ -1160,6 +1301,22 @@ impl DocumentTaskProcessor {
                     "processed_at".to_string(),
                     json!(chrono::Utc::now().to_rfc3339()),
                 );
+
+                // SPEC-002: Set unified current_stage and stage_message for completion
+                let unified_stage = if status == "completed" || status == "indexed" {
+                    "completed"
+                } else {
+                    status
+                };
+                updated.insert("current_stage".to_string(), json!(unified_stage));
+                updated.insert("stage_progress".to_string(), json!(1.0)); // 100% complete
+
+                // SPEC-002: Informative completion message with stats
+                let stage_message = format!(
+                    "Processed {} chunks, extracted {} entities and {} relationships",
+                    stats.chunk_count, stats.entity_count, stats.relationship_count
+                );
+                updated.insert("stage_message".to_string(), json!(stage_message));
 
                 // Basic stats
                 updated.insert("chunk_count".to_string(), json!(stats.chunk_count));
@@ -1442,12 +1599,14 @@ impl DocumentTaskProcessor {
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
         // 6. Create document via standard pipeline
+        // SPEC-002: Include source_type: "pdf" for unified pipeline tracking
         let text_data = edgequake_tasks::TextInsertData {
             text: markdown,
             file_source: pdf.filename.clone(),
             workspace_id: data.workspace_id.to_string(),
             metadata: Some(json!({
                 "source": "pdf_upload",
+                "source_type": "pdf",
                 "pdf_id": data.pdf_id.to_string(),
                 "filename": pdf.filename,
                 "page_count": pdf.page_count,
