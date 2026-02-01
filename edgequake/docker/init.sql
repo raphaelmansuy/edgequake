@@ -525,8 +525,16 @@ CREATE INDEX IF NOT EXISTS idx_documents_track_id
     ON documents(track_id) WHERE track_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_documents_content_hash 
     ON documents(content_hash) WHERE content_hash IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_content_hash_unique 
-    ON documents(content_hash) WHERE content_hash IS NOT NULL AND status = 'indexed';
+-- WHY-OODA81: Workspace-scoped uniqueness for content hash
+-- Same document can exist in different workspaces (multi-tenancy)
+-- But duplicate within same workspace is prevented
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_workspace_content_hash_unique 
+    ON documents(workspace_id, content_hash) 
+    WHERE workspace_id IS NOT NULL AND content_hash IS NOT NULL AND status = 'indexed';
+-- Also add compound index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_documents_workspace_hash_lookup
+    ON documents(workspace_id, content_hash)
+    WHERE content_hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_documents_created_at 
     ON documents(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_documents_updated_at 

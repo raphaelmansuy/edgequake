@@ -105,6 +105,7 @@ pub mod provider_types;
 pub mod providers;
 pub mod routes;
 pub mod server;
+pub mod services;
 pub mod state;
 pub mod streaming;
 pub mod validation;

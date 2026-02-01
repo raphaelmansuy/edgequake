@@ -1610,11 +1610,11 @@ pub async fn rebuild_embeddings(
                     );
 
                     // Store and queue task
-                    if state.task_storage.create_task(&task).await.is_ok() {
-                        if state.task_queue.send(task).await.is_ok() {
-                            documents_queued += 1;
-                            total_chunks += doc_chunk_count;
-                        }
+                    if state.task_storage.create_task(&task).await.is_ok()
+                        && state.task_queue.send(task).await.is_ok()
+                    {
+                        documents_queued += 1;
+                        total_chunks += doc_chunk_count;
                     }
                 }
             }
@@ -1954,11 +1954,11 @@ pub async fn rebuild_knowledge_graph(
                     );
 
                     // Store and queue task
-                    if state.task_storage.create_task(&task).await.is_ok() {
-                        if state.task_queue.send(task).await.is_ok() {
-                            documents_queued += 1;
-                            total_chunks += doc_chunk_count;
-                        }
+                    if state.task_storage.create_task(&task).await.is_ok()
+                        && state.task_queue.send(task).await.is_ok()
+                    {
+                        documents_queued += 1;
+                        total_chunks += doc_chunk_count;
                     }
                 }
             }

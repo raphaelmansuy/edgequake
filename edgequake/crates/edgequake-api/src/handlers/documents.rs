@@ -41,7 +41,6 @@ use axum::http::StatusCode;
 use axum::{extract::State, Json};
 use axum_extra::extract::Multipart;
 use chrono::Utc;
-use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tracing::{debug, warn};
 use uuid::Uuid;
@@ -49,6 +48,7 @@ use uuid::Uuid;
 use crate::error::{ApiError, ApiResult};
 use crate::file_validation::validate_file;
 use crate::middleware::TenantContext;
+use crate::services::ContentHasher;
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 use edgequake_storage::traits::VectorStorage;
@@ -517,16 +517,52 @@ pub async fn upload_document(
         )
     });
 
-    // Compute content hash for duplicate detection
-    let mut hasher = Sha256::new();
-    hasher.update(request.content.as_bytes());
-    let content_hash = format!("{:x}", hasher.finalize());
+    // WHY-OODA83: Use ContentHasher service for consistent hash computation (DRY)
+    let content_hash = ContentHasher::hash_str(&request.content);
 
-    // Check for duplicate content (optional - search existing documents)
-    // For now, we'll store the hash and the frontend can check duplicates if needed
+    // Extract tenant context for storage (needed for hash_key)
+    let workspace_id_for_storage = tenant_ctx
+        .workspace_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let tenant_id_for_storage = tenant_ctx.tenant_id.clone();
+
+    // WHY-OODA81+84: Workspace-scoped duplicate detection
+    // Same content in same workspace = duplicate (reject)
+    // Same content in different workspace = allowed (multi-tenancy)
+    let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, &content_hash);
+    debug!(hash_key = %hash_key, workspace_id = %workspace_id_for_storage, "Checking for workspace-scoped duplicate hash");
+    if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
+        debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash in workspace");
+        if let Some(doc_id_str) = existing_doc_id.as_str() {
+            // Duplicates return 200 OK, not 201 CREATED
+            return Ok((
+                StatusCode::OK,
+                Json(UploadDocumentResponse {
+                    document_id: doc_id_str.to_string(),
+                    status: "duplicate".to_string(),
+                    task_id: None,
+                    track_id: track_id.clone(),
+                    duplicate_of: Some(doc_id_str.to_string()),
+                    chunk_count: None,
+                    entity_count: None,
+                    relationship_count: None,
+                    cost: None,
+                }),
+            ));
+        }
+    }
 
     // Generate document ID
     let document_id = Uuid::new_v4().to_string();
+
+    // Store hash mapping for deduplication (workspace-scoped)
+    // WHY-OODA81+84: Must store before creating document to prevent race conditions
+    state
+        .kv_storage
+        .upsert(&[(hash_key.clone(), serde_json::json!(document_id))])
+        .await?;
+    debug!(hash_key = %hash_key, document_id = %document_id, "Stored workspace-scoped hash mapping");
 
     // Generate content summary
     let content_summary = crate::validation::generate_content_summary(&request.content);
@@ -539,13 +575,6 @@ pub async fn upload_document(
     } else {
         "processing"
     };
-
-    // Extract tenant context for storage
-    let workspace_id_for_storage = tenant_ctx
-        .workspace_id
-        .clone()
-        .unwrap_or_else(|| "default".to_string());
-    let tenant_id_for_storage = tenant_ctx.tenant_id.clone();
 
     let doc_metadata = serde_json::json!({
         "id": document_id,
@@ -1553,6 +1582,7 @@ pub async fn get_document(
         processed_at,
         lineage,
         custom_metadata,
+        pdf_id,
     ) = if let Some(obj) = meta_obj {
         // Build lineage information from stored metadata
         let lineage = {
@@ -1708,6 +1738,10 @@ pub async fn get_document(
                 .map(|s| s.to_string()),
             lineage,
             obj.get("custom_metadata").cloned(),
+            // OODA-50: Extract pdf_id from metadata for PDF viewer
+            obj.get("pdf_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
         )
     } else {
         // Fallback for documents without metadata (legacy)
@@ -1732,6 +1766,7 @@ pub async fn get_document(
             None,                    // processed_at
             None,                    // lineage
             None,                    // custom_metadata
+            None,                    // pdf_id
         )
     };
 
@@ -1759,8 +1794,8 @@ pub async fn get_document(
         processed_at,
         lineage,
         metadata: custom_metadata,
-        // SPEC-002: PDF ID for viewer (TODO: look up from pdf_document_links table)
-        pdf_id: None,
+        // OODA-50: Use pdf_id from metadata for PDF viewer
+        pdf_id,
     }))
 }
 
@@ -2302,17 +2337,24 @@ pub async fn upload_file(
     let (_extension, text_content, mime_type) =
         validate_file(&filename, &content, state.config.max_document_size)?;
 
-    // Calculate content hash for deduplication
-    let mut hasher = Sha256::new();
-    hasher.update(&content);
-    let content_hash = hex::encode(hasher.finalize());
+    // WHY-OODA83: Use ContentHasher service for consistent hash computation (DRY)
+    let content_hash = ContentHasher::hash_bytes(&content);
     debug!(content_hash = %content_hash, "Computed content hash");
 
-    // Check for duplicate
-    let hash_key = format!("doc:hash:{}", content_hash);
-    debug!(hash_key = %hash_key, "Checking for duplicate hash");
+    // Extract tenant context for workspace-scoped uniqueness
+    // WHY-OODA81: Uniqueness must be scoped to workspace, not global
+    // Same document in different workspaces is allowed (multi-tenancy)
+    let workspace_id_for_storage = tenant_ctx
+        .workspace_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let tenant_id_for_storage = tenant_ctx.tenant_id.clone();
+
+    // WHY-OODA81+83: Use ContentHasher for workspace-scoped hash key
+    let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, &content_hash);
+    debug!(hash_key = %hash_key, workspace_id = %workspace_id_for_storage, "Checking for workspace-scoped duplicate hash");
     if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
-        debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash");
+        debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash in workspace");
         if let Some(doc_id_str) = existing_doc_id.as_str() {
             // Note: Duplicates return 200 OK, not 201 CREATED
             return Ok((
@@ -2335,7 +2377,7 @@ pub async fn upload_file(
     // Generate document ID
     let document_id = Uuid::new_v4().to_string();
 
-    // Store hash mapping for deduplication
+    // Store hash mapping for deduplication (workspace-scoped)
     state
         .kv_storage
         .upsert(&[(hash_key, serde_json::json!(document_id))])
@@ -2350,13 +2392,6 @@ pub async fn upload_file(
         Utc::now().format("%Y%m%d%H%M%S"),
         &Uuid::new_v4().to_string()[..8]
     );
-
-    // Extract tenant context for storage
-    let workspace_id_for_storage = tenant_ctx
-        .workspace_id
-        .clone()
-        .unwrap_or_else(|| "default".to_string());
-    let tenant_id_for_storage = tenant_ctx.tenant_id.clone();
 
     // Store comprehensive document metadata
     let doc_metadata_key = format!("{}-metadata", document_id);
@@ -2696,9 +2731,12 @@ pub async fn upload_files_batch(
         }
     }
 
-    // Process each file
+    // Process each file (uses default workspace for batch uploads)
+    // WHY-OODA81: Batch upload uses "default" workspace for dedup scoping
+    // For proper workspace isolation, use the single file upload endpoint with tenant context
+    let workspace_id = "default".to_string();
     for (filename, content) in files {
-        let result = process_single_file(&state, &filename, &content).await;
+        let result = process_single_file(&state, &filename, &content, &workspace_id).await;
 
         match result {
             Ok((doc_id, is_duplicate)) => {
@@ -2746,24 +2784,26 @@ pub async fn upload_files_batch(
 
 /// Process a single file and return (document_id, is_duplicate).
 ///
+/// WHY-OODA81: workspace_id parameter enables workspace-scoped duplicate detection.
+/// Same document in different workspaces is allowed (multi-tenancy support).
+///
 /// Note: Uses default vector storage for batch uploads without tenant context.
 /// For workspace-specific storage, use the main upload_file endpoint with tenant context.
 async fn process_single_file(
     state: &AppState,
     filename: &str,
     content: &[u8],
+    workspace_id: &str,
 ) -> Result<(String, bool), ApiError> {
     // Validate file (size, extension, UTF-8, non-empty)
     let (_extension, text_content, _mime_type) =
         validate_file(filename, content, state.config.max_document_size)?;
 
-    // Calculate hash
-    let mut hasher = Sha256::new();
-    hasher.update(content);
-    let content_hash = hex::encode(hasher.finalize());
+    // WHY-OODA83: Use ContentHasher service for consistent hash computation (DRY)
+    let content_hash = ContentHasher::hash_bytes(content);
 
-    // Check for duplicate
-    let hash_key = format!("doc:hash:{}", content_hash);
+    // WHY-OODA81+83: Use ContentHasher for workspace-scoped hash key
+    let hash_key = ContentHasher::workspace_hash_key(workspace_id, &content_hash);
     if let Some(existing) = state.kv_storage.get_by_id(&hash_key).await? {
         if let Some(doc_id) = existing.as_str() {
             return Ok((doc_id.to_string(), true));

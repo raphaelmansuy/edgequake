@@ -16,19 +16,19 @@ fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, p
     };
 
     let storage_icon = match storage_mode {
-        StorageMode::Memory => "💾",
-        StorageMode::PostgreSQL => "🐘",
+        StorageMode::Memory => "[M]",
+        StorageMode::PostgreSQL => "[P]",
     };
 
     println!();
     println!("╔══════════════════════════════════════════════════════════════╗");
     println!("║                                                              ║");
-    println!("║   ⚡ EdgeQuake v{:<44} ║", version);
+    println!("║   EdgeQuake v{:<47} ║", version);
     println!("║                                                              ║");
     println!("║   {} Storage: {:<40} ║", storage_icon, storage_label);
-    println!("║   🌐 Server:  http://{}:{:<30} ║", host, port);
+    println!("║   Server:  http://{}:{:<35} ║", host, port);
     println!(
-        "║   📚 Swagger: http://{}:{}/swagger-ui/{:<15} ║",
+        "║   Swagger: http://{}:{}/swagger-ui/{:<20} ║",
         host, port, ""
     );
     println!("║                                                              ║");
