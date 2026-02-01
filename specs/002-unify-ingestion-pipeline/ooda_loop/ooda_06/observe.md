@@ -28,13 +28,13 @@ to verify the unified ingestion pipeline works for both document types.
 
 ### Results
 
-| Metric | Value |
-|--------|-------|
-| Document title | test-unified-pipeline.md |
-| Status | Completed |
-| Entities extracted | 6 |
-| Cost | $0.00023 |
-| Processing time | ~5-10 seconds |
+| Metric             | Value                    |
+| ------------------ | ------------------------ |
+| Document title     | test-unified-pipeline.md |
+| Status             | Completed                |
+| Entities extracted | 6                        |
+| Cost               | $0.00023                 |
+| Processing time    | ~5-10 seconds            |
 
 ### Key Validations
 

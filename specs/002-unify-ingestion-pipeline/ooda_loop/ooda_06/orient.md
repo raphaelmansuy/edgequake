@@ -1,7 +1,7 @@
 # OODA-06: Orient
 
 **Iteration**: 06  
-**Date**: 2025-02-01  
+**Date**: 2025-02-01
 
 ## Analysis
 
@@ -15,21 +15,22 @@
 ### Pattern Validated
 
 ```
-Document Upload → Create Task → Worker Processes → 
+Document Upload → Create Task → Worker Processes →
    → Chunk → Extract Entities → Create Embeddings →
    → Store in Graph → Mark Completed
 ```
 
 This flow is now consistent for:
+
 - PDF: PDF → Markdown conversion first, then standard pipeline
 - Markdown/Text: Direct to standard pipeline
 
 ### Metrics Comparison
 
-| Document | Type | Entities | Cost |
-|----------|------|----------|------|
-| AgenticPlatformReference Architecture.pdf | PDF | 12 | $0.0057 |
-| test-unified-pipeline.md | Markdown | 6 | $0.00023 |
+| Document                                  | Type     | Entities | Cost     |
+| ----------------------------------------- | -------- | -------- | -------- |
+| AgenticPlatformReference Architecture.pdf | PDF      | 12       | $0.0057  |
+| test-unified-pipeline.md                  | Markdown | 6        | $0.00023 |
 
 Cost difference explained by document size - PDF was larger.
 

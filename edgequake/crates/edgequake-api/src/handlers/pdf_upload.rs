@@ -871,11 +871,16 @@ pub async fn download_pdf(
         return Err(ApiError::Forbidden);
     }
 
-    info!("PDF download: id={}, filename={}, size={}", pdf_id, pdf.filename, pdf.pdf_data.len());
+    info!(
+        "PDF download: id={}, filename={}, size={}",
+        pdf_id,
+        pdf.filename,
+        pdf.pdf_data.len()
+    );
 
     // Build response with PDF data
     let content_disposition = format!("inline; filename=\"{}\"", pdf.filename);
-    
+
     Ok((
         [
             (header::CONTENT_TYPE, "application/pdf"),
@@ -883,7 +888,8 @@ pub async fn download_pdf(
             (header::CACHE_CONTROL, "private, max-age=3600"),
         ],
         pdf.pdf_data,
-    ).into_response())
+    )
+        .into_response())
 }
 
 /// Get PDF content metadata including markdown.

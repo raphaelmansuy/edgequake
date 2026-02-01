@@ -1,7 +1,7 @@
 # OODA-06: Decide
 
 **Iteration**: 06  
-**Date**: 2025-02-01  
+**Date**: 2025-02-01
 
 ## Decision
 
@@ -20,6 +20,7 @@ with proper tenant/workspace context propagation.
 ## Next OODA Focus
 
 OODA-07 will verify Knowledge Graph visualization:
+
 - Navigate to /graph page
 - Confirm entities from both documents appear
 - Verify relationships are displayed correctly

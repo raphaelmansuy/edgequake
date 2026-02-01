@@ -12,7 +12,8 @@ Navigated to /query page and tested two queries:
 
 **Question**: "Who is Sarah Chen and what is her relationship with Marcus Rodriguez?"
 
-**Answer**: 
+**Answer**:
+
 > "Sarah Chen is the lead developer at EdgeQuake Labs. She has a mentoring relationship with Marcus Rodriguez, who works as a senior engineer on the pipeline team. Specifically, Sarah Chen mentors Marcus Rodriguez in Rust programming."
 
 **Metrics**:
@@ -31,11 +32,13 @@ Navigated to /query page and tested two queries:
 
 **Question**: "What is EdgeQuake and what technologies does it use?"
 
-**Answer**: 
+**Answer**:
+
 > EdgeQuake is an advanced RAG framework in Rust. Technologies:
+>
 > - **TensorFlow**: embedding generation
 > - **PostgreSQL**: database layer with AGE extension
-> 
+>
 > Also uses LLM entity extraction, graph-based knowledge, multi-tenant architecture.
 
 **Metrics**:
@@ -53,6 +56,7 @@ Navigated to /query page and tested two queries:
 ## Conclusion
 
 **SUCCESS**: Query engine correctly:
+
 1. Retrieves from single documents
 2. Merges information across multiple document types
 3. Provides accurate source attribution

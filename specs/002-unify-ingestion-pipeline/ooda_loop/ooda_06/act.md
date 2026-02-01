@@ -1,7 +1,7 @@
 # OODA-06: Act
 
 **Iteration**: 06  
-**Date**: 2025-02-01  
+**Date**: 2025-02-01
 
 ## Action Taken
 
@@ -30,14 +30,14 @@ This iteration validated the unified ingestion pipeline through E2E Playwright t
 
 ## Comparison with PDF Upload
 
-| Aspect | PDF (OODA-05) | Markdown (OODA-06) |
-|--------|---------------|-------------------|
-| Upload mechanism | Same UI | Same UI |
-| Task creation | ✅ | ✅ |
-| Worker processing | ✅ | ✅ |
-| Entity extraction | 12 entities | 6 entities |
-| Tenant context | ✅ Preserved | ✅ Preserved |
-| Visibility | ✅ In workspace | ✅ In workspace |
+| Aspect            | PDF (OODA-05)   | Markdown (OODA-06) |
+| ----------------- | --------------- | ------------------ |
+| Upload mechanism  | Same UI         | Same UI            |
+| Task creation     | ✅              | ✅                 |
+| Worker processing | ✅              | ✅                 |
+| Entity extraction | 12 entities     | 6 entities         |
+| Tenant context    | ✅ Preserved    | ✅ Preserved       |
+| Visibility        | ✅ In workspace | ✅ In workspace    |
 
 ## Files Modified
 

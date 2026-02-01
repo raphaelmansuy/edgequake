@@ -27,16 +27,16 @@ let track_id = task.track_id.clone();
 
 #### 1.3 Add Phase Tracking Calls
 
-| Location | Phase Start | Phase Complete |
-|----------|-------------|----------------|
-| Before chunking | `start_pdf_phase(Chunking)` | - |
-| After chunking | - | `complete_pdf_phase(Chunking)` |
-| Before extraction | `start_pdf_phase(Extraction)` | - |
-| After extraction | - | `complete_pdf_phase(Extraction)` |
-| Before embedding | `start_pdf_phase(Embedding)` | - |
-| After embedding | - | `complete_pdf_phase(Embedding)` |
-| Before storage | `start_pdf_phase(GraphStorage)` | - |
-| After storage | - | `complete_pdf_phase(GraphStorage)` |
+| Location          | Phase Start                     | Phase Complete                     |
+| ----------------- | ------------------------------- | ---------------------------------- |
+| Before chunking   | `start_pdf_phase(Chunking)`     | -                                  |
+| After chunking    | -                               | `complete_pdf_phase(Chunking)`     |
+| Before extraction | `start_pdf_phase(Extraction)`   | -                                  |
+| After extraction  | -                               | `complete_pdf_phase(Extraction)`   |
+| Before embedding  | `start_pdf_phase(Embedding)`    | -                                  |
+| After embedding   | -                               | `complete_pdf_phase(Embedding)`    |
+| Before storage    | `start_pdf_phase(GraphStorage)` | -                                  |
+| After storage     | -                               | `complete_pdf_phase(GraphStorage)` |
 
 ### 2. Conditional Logic
 
@@ -49,6 +49,7 @@ if is_pdf_source {
 ```
 
 This ensures:
+
 - Markdown processing is unaffected
 - Only PDFs get granular phase tracking
 - Existing behavior preserved
@@ -61,31 +62,32 @@ This ensures:
 
 ## Success Criteria
 
-| Criteria | Verification Method |
-|----------|---------------------|
-| PDF shows phase progress | Playwright E2E test |
-| Phases transition correctly | Backend logs |
-| Markdown still works | Regression test |
-| No performance impact | Timing logs |
-| All unit tests pass | `cargo test` |
+| Criteria                    | Verification Method |
+| --------------------------- | ------------------- |
+| PDF shows phase progress    | Playwright E2E test |
+| Phases transition correctly | Backend logs        |
+| Markdown still works        | Regression test     |
+| No performance impact       | Timing logs         |
+| All unit tests pass         | `cargo test`        |
 
 ## Rollback Plan
 
 If issues arise:
+
 1. Revert the 4 code changes in processor.rs
 2. Original functionality restored
 
 ## Files to Modify
 
-| File | Change Type |
-|------|-------------|
+| File                             | Change Type                    |
+| -------------------------------- | ------------------------------ |
 | `edgequake-api/src/processor.rs` | Add conditional phase tracking |
 
 ## No Changes Required
 
-| File | Reason |
-|------|--------|
+| File                            | Reason                                 |
+| ------------------------------- | -------------------------------------- |
 | `pipeline_progress_callback.rs` | Already tracks PdfConversion correctly |
-| `pipeline_state.rs` | Methods already exist |
-| `progress.rs` | Types already defined |
-| Frontend components | Already render phase progress |
+| `pipeline_state.rs`             | Methods already exist                  |
+| `progress.rs`                   | Types already defined                  |
+| Frontend components             | Already render phase progress          |

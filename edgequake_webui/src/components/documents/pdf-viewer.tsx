@@ -19,13 +19,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import {
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Maximize2,
-  Minimize2,
-  ZoomIn,
-  ZoomOut,
+    ChevronLeft,
+    ChevronRight,
+    Loader2,
+    Maximize2,
+    Minimize2,
+    ZoomIn,
+    ZoomOut,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useCallback, useState } from 'react';

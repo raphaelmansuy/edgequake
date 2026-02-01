@@ -17,17 +17,17 @@
 
 import { Button } from '@/components/ui/button';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import {
-  Columns2,
-  FileText,
-  PanelLeftClose,
-  PanelRightClose,
+    Columns2,
+    FileText,
+    PanelLeftClose,
+    PanelRightClose,
 } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
