@@ -16,7 +16,7 @@
  */
 'use client';
 
-import { StatusBadge, isProcessingStatus, normalizeStatus } from '@/components/documents/status-badge';
+import { StatusBadge, isProcessingStatus, normalizeStatus, getDocumentDisplayStatus } from '@/components/documents/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -718,7 +718,7 @@ function ProcessingDocumentsCard() {
                       </p>
                     </div>
                   </div>
-                  <StatusBadge status={normalizeStatus(doc.status)} />
+                  <StatusBadge status={getDocumentDisplayStatus(doc)} />
                 </div>
               ))}
             </div>

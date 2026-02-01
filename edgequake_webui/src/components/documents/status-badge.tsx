@@ -145,6 +145,26 @@ export function normalizeStatus(status: string | undefined | null): DocumentStat
   return 'pending';
 }
 
+/**
+ * Get the best status to display for a document.
+ * 
+ * @implements SPEC-002: Unified Ingestion Pipeline
+ * 
+ * Prefers current_stage (new unified field) over status (legacy field).
+ * Falls back to status if current_stage is not available.
+ */
+export function getDocumentDisplayStatus(doc: {
+  current_stage?: string | null;
+  status?: string | null;
+}): DocumentStatus {
+  // SPEC-002: Prefer unified current_stage over legacy status
+  if (doc.current_stage) {
+    return normalizeStatus(doc.current_stage);
+  }
+  // Fallback to legacy status field
+  return normalizeStatus(doc.status);
+}
+
 interface StatusBadgeProps {
   status: DocumentStatus;
   /** Optional tooltip with more details */

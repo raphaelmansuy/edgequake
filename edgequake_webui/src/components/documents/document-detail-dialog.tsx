@@ -6,6 +6,7 @@
  * @implements UC0010 - User views document details
  * @implements FEAT0631 - Document metadata display
  * @implements FEAT0632 - Chunk/entity statistics
+ * @implements SPEC-002 - Unified Ingestion Pipeline (uses current_stage)
  * 
  * @enforces BR0621 - All document fields visible
  * @enforces BR0302 - Reprocess action available for failed docs
@@ -38,6 +39,7 @@ import {
     RotateCcw,
     Tag
 } from 'lucide-react';
+import { StatusBadge as UnifiedStatusBadge, getDocumentDisplayStatus } from './status-badge';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -49,7 +51,18 @@ interface DocumentDetailDialogProps {
   onReprocess?: (id: string) => void;
 }
 
-function StatusBadge({ status }: { status: Document['status'] }) {
+/**
+ * SPEC-002: Use unified StatusBadge component that prefers current_stage.
+ * This inline wrapper exists for backward compatibility with existing usages.
+ */
+function StatusBadge({ status, document }: { status: Document['status']; document?: Document }) {
+  // SPEC-002: If document is available, use unified current_stage
+  if (document) {
+    const displayStatus = getDocumentDisplayStatus(document);
+    return <UnifiedStatusBadge status={displayStatus} />;
+  }
+  
+  // Legacy fallback for simple status strings
   const statusConfig = {
     pending: { label: 'Pending', variant: 'secondary' as const },
     processing: { label: 'Processing', variant: 'default' as const },
@@ -118,7 +131,7 @@ export function DocumentDetailDialog({
             {document.title || 'Untitled Document'}
           </DialogTitle>
           <DialogDescription className="flex items-center gap-2">
-            <StatusBadge status={document.status} />
+            <StatusBadge status={document.status} document={document} />
             <span className="text-muted-foreground">·</span>
             <span>{formatDate(document.created_at)}</span>
           </DialogDescription>
@@ -155,7 +168,7 @@ export function DocumentDetailDialog({
               <MetadataItem
                 icon={Tag}
                 label={t('documents.details.status', 'Status')}
-                value={<StatusBadge status={document.status} />}
+                value={<StatusBadge status={document.status} document={document} />}
               />
               <MetadataItem
                 icon={Calendar}
