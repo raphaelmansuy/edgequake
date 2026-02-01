@@ -60,6 +60,7 @@ pub enum PipelinePhase {
 ```
 
 This is used by the PDF progress system but:
+
 - Only 3 phases (not enough granularity)
 - Doesn't align with `UnifiedStage` (12 stages)
 - Text uploads don't use it at all
@@ -71,7 +72,7 @@ Documents stored in KV storage have status as arbitrary string:
 ```json
 {
   "id": "doc-123",
-  "status": "processing",  // arbitrary string
+  "status": "processing", // arbitrary string
   "track_id": "upload_xxx"
 }
 ```
@@ -180,19 +181,19 @@ Documents stored in KV storage have status as arbitrary string:
 
 ### Backend
 
-| File | Change |
-|------|--------|
-| `documents_types.rs` | Add `source_type` and `current_stage` to `TrackStatusResponse` |
-| `documents.rs` | Store `source_type` in metadata, update stage during pipeline |
-| `pdf_upload.rs` | Store `source_type: "pdf"` in metadata |
-| `pipeline_progress_callback.rs` | Use `UnifiedStage` instead of string phases |
+| File                            | Change                                                         |
+| ------------------------------- | -------------------------------------------------------------- |
+| `documents_types.rs`            | Add `source_type` and `current_stage` to `TrackStatusResponse` |
+| `documents.rs`                  | Store `source_type` in metadata, update stage during pipeline  |
+| `pdf_upload.rs`                 | Store `source_type: "pdf"` in metadata                         |
+| `pipeline_progress_callback.rs` | Use `UnifiedStage` instead of string phases                    |
 
 ### Frontend
 
-| File | Change |
-|------|--------|
-| `types/index.ts` | Update `Document` type with `source_type` and `current_stage` |
-| `ingestion-progress-panel.tsx` | Display unified stages for both types |
+| File                           | Change                                                        |
+| ------------------------------ | ------------------------------------------------------------- |
+| `types/index.ts`               | Update `Document` type with `source_type` and `current_stage` |
+| `ingestion-progress-panel.tsx` | Display unified stages for both types                         |
 
 ---
 

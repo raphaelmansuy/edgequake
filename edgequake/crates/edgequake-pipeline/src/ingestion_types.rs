@@ -179,9 +179,7 @@ impl UnifiedStage {
     /// Get the stage index for progress calculation.
     /// Returns None for terminal states.
     pub fn index(&self) -> Option<usize> {
-        Self::processing_stages()
-            .iter()
-            .position(|s| s == self)
+        Self::processing_stages().iter().position(|s| s == self)
     }
 
     /// Convert from internal PipelineStage to UnifiedStage.
@@ -217,8 +215,10 @@ impl UnifiedStage {
             UnifiedStage::Embedding => Some(PipelineStage::Embedding),
             UnifiedStage::Storing => Some(PipelineStage::Storing),
             // These stages don't exist in PipelineStage
-            UnifiedStage::Uploading | UnifiedStage::Converting | 
-            UnifiedStage::Completed | UnifiedStage::Failed => None,
+            UnifiedStage::Uploading
+            | UnifiedStage::Converting
+            | UnifiedStage::Completed
+            | UnifiedStage::Failed => None,
         }
     }
 }
@@ -392,7 +392,12 @@ impl IngestionProgress {
     }
 
     /// Update progress for current stage.
-    pub fn update_stage_progress(&mut self, stage: UnifiedStage, progress: f32, message: Option<String>) {
+    pub fn update_stage_progress(
+        &mut self,
+        stage: UnifiedStage,
+        progress: f32,
+        message: Option<String>,
+    ) {
         if let Some(sp) = self.stages.iter_mut().find(|s| s.stage == stage) {
             sp.progress = progress.clamp(0.0, 1.0);
             if let Some(msg) = message {

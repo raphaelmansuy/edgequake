@@ -315,7 +315,6 @@ pub struct DocumentSummary {
     // ========================================================================
     // SPEC-002: Unified Ingestion Pipeline Fields
     // ========================================================================
-
     /// Document source type (pdf, markdown, text).
     /// @implements SPEC-002
     #[serde(skip_serializing_if = "Option::is_none")]

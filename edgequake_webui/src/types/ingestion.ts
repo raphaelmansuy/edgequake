@@ -31,47 +31,48 @@ export type SourceType = "pdf" | "markdown" | "text";
 
 /**
  * Unified ingestion stage - aligns with backend UnifiedStage enum.
- * 
+ *
  * Stage Flow:
  * [uploading] → [converting?] → [preprocessing] → [chunking]
  *      ↓              ↓               ↓               ↓
  * [extracting] → [gleaning] → [merging] → [summarizing]
  *      ↓              ↓           ↓            ↓
  * [embedding] → [storing] → [completed/failed]
- * 
+ *
  * Note: 'converting' stage only applies to PDF sources.
  * Legacy aliases: pending → uploading, indexing → storing
  */
 export type IngestionStage =
-  | "uploading"      // File/content being uploaded
-  | "converting"     // PDF → Markdown (PDF only)
-  | "preprocessing"  // Validation, parsing
-  | "chunking"       // Document splitting
-  | "extracting"     // Entity/relationship extraction
-  | "gleaning"       // Second pass extraction
-  | "merging"        // Graph merge
-  | "summarizing"    // Description summarization
-  | "embedding"      // Vector generation
-  | "storing"        // Persist to storage
-  | "completed"      // Successfully finished
-  | "failed"         // Error state
+  | "uploading" // File/content being uploaded
+  | "converting" // PDF → Markdown (PDF only)
+  | "preprocessing" // Validation, parsing
+  | "chunking" // Document splitting
+  | "extracting" // Entity/relationship extraction
+  | "gleaning" // Second pass extraction
+  | "merging" // Graph merge
+  | "summarizing" // Description summarization
+  | "embedding" // Vector generation
+  | "storing" // Persist to storage
+  | "completed" // Successfully finished
+  | "failed" // Error state
   // Legacy aliases for backward compatibility
-  | "pending"        // Alias for uploading (legacy)
-  | "indexing";      // Alias for storing (legacy)
+  | "pending" // Alias for uploading (legacy)
+  | "indexing"; // Alias for storing (legacy)
 
 /**
  * Legacy stage names for backward compatibility.
  * Map to unified stages where possible.
  */
-export type LegacyStage =
-  | "processing";    // Generic active state
+export type LegacyStage = "processing"; // Generic active state
 
-export type IngestionStatus =
-  | IngestionStage
-  | LegacyStage
-  | "cancelled";
+export type IngestionStatus = IngestionStage | LegacyStage | "cancelled";
 
-export type StageStatus = "pending" | "running" | "completed" | "skipped" | "failed";
+export type StageStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "skipped"
+  | "failed";
 
 // ============================================================================
 // Progress Tracking Types

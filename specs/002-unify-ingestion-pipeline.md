@@ -173,6 +173,10 @@ Always use First Principle Thinking as your north star.
    - Status progression displayed correctly
    - Error states handled properly
 
+
+Ensure the worker pool is unified for both document types. Ensure Mukti-tenancy is respected in all changes.
+
+Test using OpenAI gpt-4o-mini and openai  embeddings to speed up tests. Create specific tenant and workspace for testing.
 ---
 
 ## ⚠️ CRITICAL SAFETY MANDATE ⚠️

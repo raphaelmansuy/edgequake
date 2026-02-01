@@ -79,29 +79,6 @@ Let's go back to basics. What is a vector embedding?
 
 ![What embeddings capture](asset/004-figure.jpg)
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│               WHAT EMBEDDINGS CAPTURE                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  "cat"  ─────────────────────────•                              │
-│                                  │                               │
-│  "kitten"  ──────────────────────•  (close = similar meaning)   │
-│                                  │                               │
-│  "dog"  ─────────────────────────•                              │
-│                                                                   │
-│  ────────────────────────────────────────────────────────────   │
-│                                                                   │
-│  "Sarah works with James"                                        │
-│                        │                                         │
-│                        ▼                                         │
-│  Embedding captures: [work, collaboration, people]               │
-│                                                                   │
-│  Embedding LOSES: "Sarah" → relationship → "James"               │
-│                   (The STRUCTURE is gone)                        │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
 
 **Embeddings preserve meaning, but lose structure.**
 
@@ -119,42 +96,8 @@ This is the fundamental limitation. And no prompt tuning, re-ranking, or chunk s
 
 What if, instead of just embedding chunks, you also extracted _who_ and _what_ is mentioned—and how they relate?
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│              THE GRAPH-ENHANCED APPROACH                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Document → LLM Extraction → Knowledge Graph                    │
-│                                                                   │
-│         ┌───────────────┐                                        │
-│         │  SARAH_CHEN   │                                        │
-│         │   (PERSON)    │                                        │
-│         └───────┬───────┘                                        │
-│                 │                                                │
-│    ┌────────────┼────────────┐                                  │
-│    │ WORKS_AT   │ CO_AUTHORED│                                  │
-│    ▼            ▼            ▼                                  │
-│  ┌─────────┐  ┌──────────────┐  ┌──────────────┐               │
-│  │QUANTUM  │  │CLIMATE_PAPER │  │ JAMES_WILSON│               │
-│  │  LAB    │  │  (DOCUMENT)  │  │   (PERSON)  │               │
-│  └─────────┘  └──────────────┘  └──────┬───────┘               │
-│                                        │                        │
-│                                   WORKS_AT                      │
-│                                        │                        │
-│                                        ▼                        │
-│                                   ┌─────────┐                   │
-│                                   │   MIT   │                   │
-│                                   └─────────┘                   │
-│                                                                   │
-│  Now we can TRAVERSE:                                            │
-│  Sarah → co_authored → Paper → authored_by → James              │
-│                                                                   │
-│  ✅ Relationships preserved!                                     │
-│  ✅ Multi-hop reasoning possible!                                │
-│  ✅ Global patterns discoverable!                                │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![The graph-enhanced approach](asset/005-figure.jpg)
+
 
 This is **Graph-RAG**: combining vector search with knowledge graph traversal.
 
@@ -164,12 +107,7 @@ This is **Graph-RAG**: combining vector search with knowledge graph traversal.
 
 This isn't just theory. The LightRAG paper (arxiv:2410.05779) demonstrated massive improvements:
 
-| Dataset     | Traditional RAG | Graph-RAG | Improvement |
-| ----------- | --------------- | --------- | ----------- |
-| Agriculture | 32.4%           | 67.6%     | **+35%**    |
-| CS          | 38.4%           | 61.6%     | **+23%**    |
-| Legal       | 16.4%           | 83.6%     | **+67%**    |
-| Mix         | 38.8%           | 61.2%     | **+22%**    |
+![LightRAG results](asset/006-figure.jpg)
 
 _Comprehensiveness scores, measured by LLM-as-judge evaluation_
 
@@ -181,13 +119,7 @@ That's a **67% improvement** on legal documents—where relationships between en
 
 Graph-RAG requires more work at indexing time:
 
-| Stage          | Traditional RAG | Graph-RAG      |
-| -------------- | --------------- | -------------- |
-| Chunking       | ~10ms           | ~10ms          |
-| Embedding      | ~100ms          | ~200ms         |
-| LLM Extraction | —               | **~2-10s**     |
-| Graph Merge    | —               | ~100ms         |
-| **Total**      | **~200ms/doc**  | **~5-30s/doc** |
+![Graph-RAG indexing time](asset/007-figure.jpg)
 
 But consider:
 

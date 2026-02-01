@@ -611,10 +611,17 @@ pub struct DocumentUploadData {
 /// - Extract content (text or vision)
 /// - Convert to markdown
 /// - Ingest into knowledge graph
+///
+/// @implements SPEC-002: Unified Ingestion Pipeline
+/// OODA-05: Added tenant_id for multi-tenant context propagation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PdfProcessingData {
     /// PDF document ID
     pub pdf_id: Uuid,
+
+    /// Tenant ID for multi-tenant isolation
+    /// OODA-05: Required for document metadata to be visible in workspace queries
+    pub tenant_id: Uuid,
 
     /// Workspace ID for isolation
     pub workspace_id: Uuid,
