@@ -31,7 +31,9 @@ use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::{ChunkProgressCallback, ChunkProgressUpdate, LLMExtractor, Pipeline};
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
-use edgequake_tasks::{PipelineState, Task, TaskProcessor, TaskResult, TaskType, TextInsertData};
+use edgequake_tasks::{
+    PipelinePhase, PipelineState, Task, TaskProcessor, TaskResult, TaskType, TextInsertData,
+};
 use serde_json::json;
 use tracing::{error, info, warn};
 
@@ -678,6 +680,19 @@ impl DocumentTaskProcessor {
         self.update_document_status(&document_id, "chunking", None)
             .await?;
 
+        // OODA-17: Update PDF phase progress for PDF uploads
+        // WHY: PDFs need all 6 phases tracked (Upload, PdfConversion, Chunking, Embedding, Extraction, GraphStorage)
+        // The PdfConversion phase is tracked by PipelineProgressCallback, but remaining phases need explicit tracking
+        let is_pdf_source = source_type == "pdf";
+        let track_id = task.track_id.clone();
+        if is_pdf_source {
+            // Estimate: text length / 2000 chars per chunk (rough heuristic)
+            let estimated_chunks = std::cmp::max(1, data.text.len() / 2000);
+            self.pipeline_state
+                .start_pdf_phase(&track_id, PipelinePhase::Chunking, estimated_chunks)
+                .await;
+        }
+
         // SPEC-001/Objective-A: Create chunk progress callback for real-time updates
         // WHY: Users need to see granular progress like "Chunk 12/35 (34%) - ETA: 53s"
         let task_id = task.track_id.clone();
@@ -768,6 +783,18 @@ impl DocumentTaskProcessor {
         self.update_document_status(&document_id, "extracting", None)
             .await?;
 
+        // OODA-17: Update PDF phase progress - chunking complete, start extraction
+        if is_pdf_source {
+            self.pipeline_state
+                .complete_pdf_phase(&track_id, PipelinePhase::Chunking)
+                .await;
+            // Extraction phase: estimate entity count from chunk count
+            let estimated_entities = result.chunks.len() * 3; // ~3 entities per chunk heuristic
+            self.pipeline_state
+                .start_pdf_phase(&track_id, PipelinePhase::Extraction, estimated_entities)
+                .await;
+        }
+
         // Store chunks in KV storage
         let chunks: Vec<(String, serde_json::Value)> = result
             .chunks
@@ -831,6 +858,17 @@ impl DocumentTaskProcessor {
         self.update_document_status(&document_id, "embedding", None)
             .await?;
 
+        // OODA-17: Update PDF phase progress - extraction complete, start embedding
+        if is_pdf_source {
+            self.pipeline_state
+                .complete_pdf_phase(&track_id, PipelinePhase::Extraction)
+                .await;
+            // Embedding phase: total = chunks to embed
+            self.pipeline_state
+                .start_pdf_phase(&track_id, PipelinePhase::Embedding, result.chunks.len())
+                .await;
+        }
+
         // Store chunk embeddings in vector storage for semantic search
         let mut chunk_embeddings_stored = 0;
         for chunk in &result.chunks {
@@ -877,6 +915,23 @@ impl DocumentTaskProcessor {
         // WHY: Final stage before completion, indicates DB writes in progress
         self.update_document_status(&document_id, "indexing", None)
             .await?;
+
+        // OODA-17: Update PDF phase progress - embedding complete, start graph storage
+        if is_pdf_source {
+            self.pipeline_state
+                .complete_pdf_phase(&track_id, PipelinePhase::Embedding)
+                .await;
+            // GraphStorage phase: estimate operations = entities + relationships
+            let total_entities: usize = result.extractions.iter().map(|e| e.entities.len()).sum();
+            let total_rels: usize = result
+                .extractions
+                .iter()
+                .map(|e| e.relationships.len())
+                .sum();
+            self.pipeline_state
+                .start_pdf_phase(&track_id, PipelinePhase::GraphStorage, total_entities + total_rels)
+                .await;
+        }
 
         // Store entities and relationships in graph storage using batch operations
         // Collect all nodes for batch upsert
@@ -1100,6 +1155,18 @@ impl DocumentTaskProcessor {
         // Update document status to completed with stats and lineage
         self.update_document_status_with_stats(&document_id, "completed", &stats_with_lineage)
             .await?;
+
+        // OODA-17: Update PDF phase progress - graph storage complete, all phases done
+        if is_pdf_source {
+            self.pipeline_state
+                .complete_pdf_phase(&track_id, PipelinePhase::GraphStorage)
+                .await;
+            info!(
+                track_id = %track_id,
+                document_id = %document_id,
+                "PDF pipeline phases complete: all 6 phases finished"
+            );
+        }
 
         // OODA-ITERATION-03-FIX: Invalidate workspace stats cache after async document processing
         // WHY: The cache contains stale entity/relationship counts. Without this, Dashboard
