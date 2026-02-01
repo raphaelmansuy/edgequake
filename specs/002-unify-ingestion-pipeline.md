@@ -7,6 +7,17 @@ Your mission is to unify the document ingestion, extraction, and knowledge graph
 YOU MUST RE-READ THIS ENTIRE MISSION FILE AT THE START OF EVERY OODA ITERATION.
 YOU MUST FULLY READ THIS ENTIRE MISSION FILE AT THE START OF EVERY OODA ITERATION.
 
+
+Fix: the markdown view in document detail page !!! Ensure When I upload a PDF document, I want to see the PDF on the left side and the markdown on the right side. Ensure scrollview is correctly implemented to avoid nested scrollbars and ensure smooth user experience.
+
+When I upload a PDF document, I want to see in documents panel the status of the document ingestion as it goes through the various stages of the ingestion pipeline (uploading, converting, chunking, extracting, embedding, indexing, completed/failed). --> The PDF conversion state to markdown are part of the process.
+
+Ensure the ingestion pipeline code respects SRP and DRY principles. Refactor where necessary.
+
+Ensure DRY and SRP principles are respected in the ingestion pipeline code. Refactor where necessary.
+
+Ensure no clippy errors, no typescript errors, no eslint errors after your changes.
+
 ## Context
 
 - **Location**: `/Users/raphaelmansuy/Github/03-working/edgequake`
@@ -202,6 +213,55 @@ Ensure the worker pool is unified for both document types. Ensure Mukti-tenancy 
 Failure to re-read causes alignment drift → catastrophic safety issues → user frustration → system unreliability.
 
 Mission file to read at each OODA Loop: `./specs/002-unify-ingestion-pipeline.md`
+
+---
+
+## NEW REQUIREMENTS (Added 2026-02-01) - OODA 81+
+
+### 5. Document Uniqueness at Workspace Level
+
+- **Requirement**: When applying content hash to verify document uniqueness, unicity MUST be scoped at the **workspace level**, not globally
+- **Rationale**: Documents with same content may legitimately exist in different workspaces for different tenants/use-cases
+- **Implementation**: Hash check query must include `workspace_id` in WHERE clause
+- **Edge Cases**:
+  - Same document uploaded to different workspaces → ALLOWED
+  - Same document uploaded twice to same workspace → REJECTED with clear error message
+
+### 6. PDF + Markdown Dual View in Document Detail
+
+- **Requirement**: For PDF-origin documents, display BOTH the original PDF and the extracted Markdown side-by-side
+- **Components**:
+  - PDF Viewer: Use `react-pdf` (already integrated) or evaluate `pdfjs-dist` for performance
+  - Markdown Viewer: Existing markdown renderer with syntax highlighting
+  - Layout: Side-by-side split view with adjustable divider
+- **UX Considerations**:
+  - Synchronized scrolling (optional toggle)
+  - Clear visual separation between PDF and Markdown panels
+  - Responsive layout for different screen sizes
+  - Toggle between "PDF Only", "Markdown Only", "Side-by-Side" views
+
+### 7. SRP and DRY Compliance Audit
+
+- **Requirement**: Audit and refactor ingestion pipeline to strictly follow:
+  - **SRP (Single Responsibility Principle)**: Each module/function handles ONE concern
+  - **DRY (Don't Repeat Yourself)**: Eliminate duplicate code between PDF and Markdown flows
+- **Target Files**:
+  - `edgequake-api/src/handlers/documents.rs`
+  - `edgequake-api/src/handlers/pdf_upload.rs`
+  - `edgequake-pipeline/src/processor.rs`
+  - Frontend document components
+
+### 8. E2E Testing with Playwright MCP
+
+- **Requirement**: Conduct comprehensive E2E tests using MCP Playwright
+- **Test Scenarios**:
+  - Upload PDF → verify extraction → view PDF+Markdown side-by-side
+  - Upload duplicate document in SAME workspace → verify rejection
+  - Upload same document in DIFFERENT workspace → verify acceptance
+  - Upload Markdown → verify processing → view document detail
+  - Status progression during ingestion
+  - Error states and recovery
+- **Constraint**: NO screenshots (bloats session) - use assertions and DOM validation only
 
 ---
 

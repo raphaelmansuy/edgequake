@@ -14,7 +14,6 @@ pub async fn list_pdfs_dynamic(
 ) -> Result<Vec<PdfDocument>, StorageError> {
     // Build dynamic query based on filters
     let mut query_parts = Vec::new();
-    let mut binds: Vec<Box<dyn sqlx::Encode<'_, sqlx::Postgres> + Send>> = Vec::new();
     let mut param_idx = 1;
 
     let base_query = r#"
@@ -42,7 +41,7 @@ pub async fn list_pdfs_dynamic(
 
     query_parts.push(base_query.to_string());
 
-    if let Some(workspace_id) = filter.workspace_id {
+    if let Some(_workspace_id) = filter.workspace_id {
         query_parts.push(format!(" AND workspace_id = ${}", param_idx));
         param_idx += 1;
     }

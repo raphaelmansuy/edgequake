@@ -7,6 +7,7 @@
  * @implements FEAT0631 - Document metadata display
  * @implements FEAT0632 - Chunk/entity statistics
  * @implements SPEC-002 - Unified Ingestion Pipeline (uses current_stage)
+ * @implements FEAT0731 - PDF+Markdown split view for PDF documents (OODA-82)
  * 
  * @enforces BR0621 - All document fields visible
  * @enforces BR0302 - Reprocess action available for failed docs
@@ -42,6 +43,7 @@ import {
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { PDFMarkdownSplitView } from './pdf-markdown-split-view';
 import { StatusBadge as UnifiedStatusBadge, getDocumentDisplayStatus } from './status-badge';
 
 interface DocumentDetailDialogProps {
@@ -122,9 +124,14 @@ export function DocumentDetailDialog({
     return formatDistanceToNow(d, { addSuffix: true });
   };
 
+  // OODA-82: Check if this is a PDF-origin document (has pdf_id)
+  const hasPdfSource = Boolean(document.pdf_id);
+  // Construct PDF URL for viewing
+  const pdfUrl = hasPdfSource ? `/api/v1/documents/pdf/${document.pdf_id}/download` : '';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh]">
+      <DialogContent className={hasPdfSource ? "sm:max-w-4xl max-h-[90vh]" : "sm:max-w-2xl max-h-[85vh]"}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -138,10 +145,17 @@ export function DocumentDetailDialog({
         </DialogHeader>
 
         <Tabs defaultValue="overview" className="mt-4">
-          <TabsList className="grid w-full grid-cols-3">
+          {/* OODA-82: Dynamic grid columns based on whether PDF source exists */}
+          <TabsList className={`grid w-full ${hasPdfSource ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <TabsTrigger value="overview">
               {t('documents.details.overview', 'Overview')}
             </TabsTrigger>
+            {/* OODA-82: Source tab for PDF documents showing PDF+Markdown side-by-side */}
+            {hasPdfSource && (
+              <TabsTrigger value="source">
+                {t('documents.details.source', 'Source')}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="content">
               {t('documents.details.content', 'Content')}
             </TabsTrigger>
@@ -216,6 +230,17 @@ export function DocumentDetailDialog({
               )}
             </div>
           </TabsContent>
+
+          {/* OODA-82: Source tab for PDF documents - shows PDF+Markdown side by side */}
+          {hasPdfSource && (
+            <TabsContent value="source" className="mt-4">
+              <PDFMarkdownSplitView
+                pdfUrl={pdfUrl}
+                markdown={document.content ?? null}
+                height={450}
+              />
+            </TabsContent>
+          )}
 
           <TabsContent value="content" className="mt-4">
             <ScrollArea className="h-[300px] rounded-lg border p-4">

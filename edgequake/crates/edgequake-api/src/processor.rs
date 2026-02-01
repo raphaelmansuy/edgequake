@@ -26,6 +26,7 @@
 use std::sync::Arc;
 
 use crate::handlers::websocket_types::ProgressBroadcaster;
+#[cfg(feature = "postgres")]
 use crate::pipeline_progress_callback::PipelineProgressCallback;
 use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
@@ -68,6 +69,8 @@ pub struct DocumentTaskProcessor {
     /// Default processing pipeline (fallback when workspace not specified).
     pipeline: Arc<Pipeline>,
     /// LLM provider for extraction and enhancement (SPEC-007: needed for PDF processing).
+    /// Only used when postgres+vision features are enabled, but stored for future extensibility.
+    #[allow(dead_code)]
     llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
     /// KV storage for document metadata and chunks.
     kv_storage: Arc<dyn KVStorage>,
@@ -132,6 +135,7 @@ impl DocumentTaskProcessor {
     ///
     /// OODA-223: Use `with_workspace_support_strict` for production to ensure workspace
     /// isolation is enforced.
+    #[allow(clippy::too_many_arguments)]
     pub fn with_workspace_support(
         pipeline: Arc<Pipeline>,
         llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
@@ -165,6 +169,7 @@ impl DocumentTaskProcessor {
     /// OODA-223: This constructor enables strict mode where ingestion FAILS if
     /// workspace storage cannot be obtained. Use this in production to prevent
     /// data from being stored in the wrong (global) table.
+    #[allow(clippy::too_many_arguments)]
     pub fn with_workspace_support_strict(
         pipeline: Arc<Pipeline>,
         llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
@@ -629,14 +634,25 @@ impl DocumentTaskProcessor {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
+        // OODA-49: Extract pdf_id from metadata for PDF document viewing
+        // WHY: PDF documents need pdf_id stored in metadata for the frontend to build download URLs
+        let pdf_id = data
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("pdf_id"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         // SPEC-002: Ensure document metadata includes source_type
         // This is needed for PDFs that bypass the upload handler
         // OODA-05: Pass tenant_id/workspace_id for multi-tenant context
+        // OODA-49: Pass pdf_id for PDF document viewing
         self.ensure_document_source_type(
             &document_id,
             &source_type,
             tenant_id.as_deref(),
             Some(&data.workspace_id),
+            pdf_id.as_deref(),
         )
         .await?;
 
@@ -1314,12 +1330,16 @@ impl DocumentTaskProcessor {
     /// OODA-05: Added tenant_id/workspace_id parameters to ensure multi-tenant context
     /// is propagated when creating new document metadata. Without these fields,
     /// documents become invisible in workspace-filtered queries.
+    ///
+    /// OODA-49: Added pdf_id parameter for PDF documents to enable frontend PDF viewing.
+    /// The pdf_id is a UUID that references the PDF binary stored in pdf_storage.
     async fn ensure_document_source_type(
         &self,
         document_id: &str,
         source_type: &str,
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
+        pdf_id: Option<&str>,
     ) -> TaskResult<()> {
         let metadata_key = format!("{}-metadata", document_id);
 
@@ -1352,9 +1372,30 @@ impl DocumentTaskProcessor {
                             updated.insert("workspace_id".to_string(), json!(wid));
                         }
                     }
+                    // OODA-49: Also update pdf_id if missing
+                    // WHY: PDF documents need pdf_id for frontend to build download URLs
+                    if obj.get("pdf_id").is_none() {
+                        if let Some(pid) = pdf_id {
+                            updated.insert("pdf_id".to_string(), json!(pid));
+                        }
+                    }
                     Some(json!(updated))
                 } else {
-                    None // Already has source_type, skip update
+                    // OODA-49: Even if source_type is set, check if pdf_id needs to be added
+                    // WHY: Fix existing documents that have source_type but missing pdf_id
+                    if pdf_id.is_some() && obj.get("pdf_id").is_none() {
+                        let mut updated = obj.clone();
+                        if let Some(pid) = pdf_id {
+                            updated.insert("pdf_id".to_string(), json!(pid));
+                            updated.insert(
+                                "updated_at".to_string(),
+                                json!(chrono::Utc::now().to_rfc3339()),
+                            );
+                        }
+                        Some(json!(updated))
+                    } else {
+                        None // Already has source_type and pdf_id (or no pdf_id needed), skip update
+                    }
                 }
             } else {
                 None // Malformed metadata, skip update
@@ -1382,6 +1423,11 @@ impl DocumentTaskProcessor {
             }
             if let Some(wid) = workspace_id {
                 new_metadata.insert("workspace_id".to_string(), json!(wid));
+            }
+            // OODA-49: Include pdf_id for PDF documents
+            // WHY: Frontend needs pdf_id to build download URLs for PDF viewing
+            if let Some(pid) = pdf_id {
+                new_metadata.insert("pdf_id".to_string(), json!(pid));
             }
             Some(json!(new_metadata))
         };

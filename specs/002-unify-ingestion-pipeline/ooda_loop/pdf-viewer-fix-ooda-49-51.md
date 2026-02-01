@@ -1,4 +1,9 @@
+Ensure document detail implement scrollview correctly. As UX/UI designer scrollable area should be carefully designed to avoid nested scrollbars and ensure smooth user experience.
+
+
 # OODA-49 to OODA-51: PDF Viewer Fix
+
+
 
 **Date**: 2026-02-01
 
