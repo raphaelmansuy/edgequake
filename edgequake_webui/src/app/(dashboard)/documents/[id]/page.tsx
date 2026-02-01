@@ -2,11 +2,13 @@
 
 import { ContentRenderer } from '@/components/document/content-renderer';
 import { MetadataSidebar } from '@/components/document/metadata-sidebar';
+import { PDFViewer } from '@/components/documents/pdf-viewer';
+import { SideBySideViewer } from '@/components/documents/side-by-side-viewer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getDocument } from '@/lib/api/edgequake';
+import { getDocument, getPdfDownloadUrl } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -16,6 +18,7 @@ import {
     CheckCircle,
     Clock,
     Copy,
+    Download,
     Loader2,
     Network,
     RefreshCw,
@@ -120,6 +123,14 @@ export default function DocumentViewPage() {
   const statusInfo = statusConfig[status] || statusConfig.completed;
   const StatusIcon = statusInfo.icon;
   const isFailed = status === 'failed';
+  
+  // OODA-48: Derive PDF ID for viewer - use pdf_id if available, otherwise use document.id for PDF source types
+  // WHY: The pdf_id may not be set in older documents or when source_type is 'pdf' but pdf_id wasn't populated
+  const pdfIdForViewer = document.pdf_id || (document.source_type === 'pdf' ? document.id : null);
+  
+  // OODA-43: Detect if document is a PDF for side-by-side viewer
+  // OODA-48: Require pdfIdForViewer to be truthy to prevent 'undefined' in URL
+  const isPdfDocument = Boolean(pdfIdForViewer);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -155,6 +166,16 @@ export default function DocumentViewPage() {
               <StatusIcon className={`h-3 w-3 mr-1 ${status === 'processing' ? 'animate-spin' : ''}`} />
               {statusInfo.label}
             </Badge>
+            {/* OODA-43: Download PDF button for PDF documents */}
+            {/* OODA-48: Use pdfIdForViewer which is guaranteed to exist when isPdfDocument is true */}
+            {isPdfDocument && pdfIdForViewer && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={getPdfDownloadUrl(pdfIdForViewer)} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-4 w-4 mr-2" />
+                  Download PDF
+                </a>
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={handleViewInGraph}>
               <Network className="h-4 w-4 mr-2" />
               View in Graph
@@ -178,31 +199,67 @@ export default function DocumentViewPage() {
 
       {/* Main Content Area - Two Column Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Desktop: Side-by-side layout */}
+        {/* OODA-43: Desktop layout with PDF side-by-side support */}
         <div className="hidden lg:flex flex-1 overflow-hidden">
-          {/* Content Area - 65% */}
-          <div className="flex-1 overflow-auto">
-            <ContentRenderer 
-              document={document} 
-              highlightText={highlightText}
-              startLine={startLine}
-              endLine={endLine}
-            />
+          {/* Content Area - 65% (or full width for PDF side-by-side) */}
+          <div className={isPdfDocument ? "flex-1 overflow-hidden" : "flex-1 overflow-auto"}>
+            {isPdfDocument ? (
+              /* OODA-43: PDF documents show side-by-side PDF and Markdown viewer */
+              <SideBySideViewer
+                height={undefined}
+                className="h-full"
+                leftTitle="PDF Document"
+                rightTitle="Extracted Markdown"
+                leftPanel={
+                  // OODA-48: Use pdfIdForViewer which is guaranteed to exist when isPdfDocument is true
+                  <PDFViewer
+                    file={getPdfDownloadUrl(pdfIdForViewer!)}
+                  />
+                }
+                rightPanel={
+                  <ContentRenderer 
+                    document={document} 
+                    highlightText={highlightText}
+                    startLine={startLine}
+                    endLine={endLine}
+                  />
+                }
+              />
+            ) : (
+              /* Non-PDF documents show ContentRenderer only */
+              <ContentRenderer 
+                document={document} 
+                highlightText={highlightText}
+                startLine={startLine}
+                endLine={endLine}
+              />
+            )}
           </div>
 
-          {/* Metadata Sidebar - 35% */}
-          <div className="w-[35%] shrink-0 overflow-hidden">
-            <MetadataSidebar document={document} />
-          </div>
+          {/* Metadata Sidebar - 35% (hidden for PDF side-by-side to maximize content) */}
+          {!isPdfDocument && (
+            <div className="w-[35%] shrink-0 overflow-hidden">
+              <MetadataSidebar document={document} />
+            </div>
+          )}
         </div>
 
         {/* Mobile/Tablet: Tabbed layout */}
         <div className="flex-1 lg:hidden overflow-hidden">
           <Tabs defaultValue="content" className="h-full flex flex-col">
-            <TabsList className="grid w-full grid-cols-2 rounded-none border-b">
-              <TabsTrigger value="content">Content</TabsTrigger>
+            <TabsList className={`grid w-full ${isPdfDocument ? 'grid-cols-3' : 'grid-cols-2'} rounded-none border-b`}>
+              {isPdfDocument && <TabsTrigger value="pdf">PDF</TabsTrigger>}
+              <TabsTrigger value="content">Markdown</TabsTrigger>
               <TabsTrigger value="metadata">Details</TabsTrigger>
             </TabsList>
+            {/* OODA-48: Use pdfIdForViewer which is guaranteed to exist when isPdfDocument is true */}
+            {isPdfDocument && pdfIdForViewer && (
+              <TabsContent value="pdf" className="flex-1 overflow-hidden m-0 mt-0">
+                <PDFViewer
+                  file={getPdfDownloadUrl(pdfIdForViewer)}
+                />
+              </TabsContent>
+            )}
             <TabsContent value="content" className="flex-1 overflow-auto m-0 mt-0">
               <ContentRenderer 
                 document={document} 
