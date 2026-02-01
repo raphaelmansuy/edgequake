@@ -106,7 +106,7 @@ import { PdfUploadProgress } from './pdf-upload-progress';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
-import { StatusBadge } from './status-badge';
+import { StatusBadge, getDocumentDisplayStatus } from './status-badge';
 import type { UploadingFile } from './types';
 
 /**
@@ -1372,7 +1372,7 @@ export function DocumentManager() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={doc.status || 'completed'} />
+                        <StatusBadge status={getDocumentDisplayStatus(doc)} />
                       </TableCell>
                       <TableCell className="text-center">{doc.entity_count ?? doc.chunk_count ?? '-'}</TableCell>
                       <TableCell className="text-center">

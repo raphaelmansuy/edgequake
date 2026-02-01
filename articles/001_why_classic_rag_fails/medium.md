@@ -66,32 +66,8 @@ This requires:
 
 Classic RAG does a single vector lookup. It cannot "hop" from Sarah → collaborators → organizations.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 THE MULTI-HOP PROBLEM                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Required reasoning chain:                                       │
-│                                                                   │
-│  SARAH_CHEN                                                      │
-│      │                                                           │
-│      │ collaborates_with                                         │
-│      ▼                                                           │
-│  JAMES_WILSON ───────────────────► MIT                          │
-│                    works_at                                      │
-│      │                                                           │
-│      │ collaborates_with                                         │
-│      ▼                                                           │
-│  MARIA_GARCIA ───────────────────► Stanford                     │
-│                    works_at                                      │
-│                                                                   │
-│  Answer: MIT, Stanford                                           │
-│                                                                   │
-│  ❌ Vector search cannot follow this chain!                     │
-│  It's a TRAVERSAL problem, not a SIMILARITY problem.            │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![The multi-hop problem](asset/003-figure.jpg)
+
 
 ---
 
@@ -100,6 +76,8 @@ Classic RAG does a single vector lookup. It cannot "hop" from Sarah → collabor
 Let's go back to basics. What is a vector embedding?
 
 **An embedding maps text to a point in high-dimensional space**, where _semantically similar_ texts are close together.
+
+![What embeddings capture](asset/004-figure.jpg)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

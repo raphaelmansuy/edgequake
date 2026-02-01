@@ -17,7 +17,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { StatusBadge, normalizeStatus } from './status-badge';
+import { StatusBadge, normalizeStatus, getDocumentDisplayStatus } from './status-badge';
 
 interface BatchProgressCardProps {
   trackId: string;
@@ -186,7 +186,8 @@ export function BatchProgressCard({ trackId, onClose, onComplete }: BatchProgres
           <ScrollArea className="h-32 rounded-md border">
             <div className="p-2 space-y-1">
               {documents.map((doc) => {
-                const normalizedStatus = normalizeStatus(doc.status);
+                // SPEC-002: Use unified current_stage if available
+                const displayStatus = getDocumentDisplayStatus(doc);
                 
                 return (
                   <div
@@ -197,7 +198,7 @@ export function BatchProgressCard({ trackId, onClose, onComplete }: BatchProgres
                       <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                       <span className="truncate">{doc.title || doc.file_name || doc.id.slice(0, 8)}</span>
                     </div>
-                    <StatusBadge status={normalizedStatus} compact />
+                    <StatusBadge status={displayStatus} compact />
                   </div>
                 );
               })}
