@@ -30,6 +30,8 @@ import {
 import dynamic from 'next/dynamic';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import 'react-pdf/dist/Page/TextLayer.css';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
 
 // PDF file source type - matches react-pdf File type
 // Can be: URL string, object with url, object with data (ArrayBuffer/TypedArray)
