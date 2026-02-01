@@ -75,6 +75,23 @@ PDF conversion state and Markdown processing displayed in unified way:
 - **DRY (Don't Repeat Yourself)**: Shared logic between PDF and Markdown flows
 - **KISS (Keep It Simple, Stupid)**: Minimize complexity
 
+
+## Additions to the mission:
+
+- Ensure place to view the document are able to display the PDF version and the markdown version of the document where applicable. Choose the best PDF viewer based on Javascript libraries available. (search on the web for the best options).
+- Allow side by side view of the PDF and the markdown version of the document where applicable.
+- Ensure scrolling / border / marging of the document is very well handled for best user experience.
+
+Always think about multi-tenancy and ensure all changes respect tenant boundaries.
+
+Always use First Principle Thinking as your north star.
+
+Alway this about the user experience and how to make it the best possible. No bloat, minimalist style, fast, responsive.
+
+Ensure the Swagger / OpenAPI documentation is updated where applicable.
+
+Ensure all changes are fully tested and deliver evidence that all tests are passing after your changes.
+
 ---
 
 ## Current State Analysis
@@ -93,7 +110,7 @@ PDF conversion state and Markdown processing displayed in unified way:
 
 ---
 
-## Process: OODA Loop (50 iterations minimum)
+## Process: OODA Loop (80 iterations minimum)
 
 Execute iterative OODA cycles. Each iteration produces 4 files:
 
@@ -148,6 +165,9 @@ You Must always produce the 4 files per iteration, as shown below:
 **YOU Must Read your mission every iteration! It is vital to avoid alignment drift. You can forget previous iterations, but never forget your mission.**
 
 You must always map the territory you are documenting. Never make assumptions about code structure or function. Always verify against the actual codebase.
+
+
+For markdonnwwensure 
 
 If you don't know make a search on the Web.
 

@@ -32,7 +32,13 @@ export { UploadHistory } from "./upload-history";
 export { ClearDocumentsDialog } from "./clear-documents-dialog";
 export { DocumentDetailDialog } from "./document-detail-dialog";
 export { DocumentPreviewPanel } from "./document-preview-panel";
+export { DocumentViewerDialog } from "./document-viewer-dialog";
 export { PipelineStatusDialog } from "./pipeline-status-dialog";
+
+// Viewer components (SPEC-002)
+export { MarkdownViewer } from "./markdown-viewer";
+export { PDFViewer } from "./pdf-viewer";
+export { SideBySideViewer } from "./side-by-side-viewer";
 
 // Controls and filters
 export { DocumentFilters } from "./document-filters";

@@ -150,6 +150,13 @@ export interface Document {
    * @implements SPEC-002
    */
   stage_message?: string;
+
+  /**
+   * Linked PDF document ID (only set if source_type is "pdf").
+   * Used to fetch PDF content for viewing.
+   * @implements SPEC-002
+   */
+  pdf_id?: string;
 }
 
 /** Extraction lineage information for a document. */

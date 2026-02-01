@@ -3,11 +3,13 @@
 ## Date: 2026-02-01
 
 ## Mission Reminder
+
 **RE-READ**: `./specs/002-unify-ingestion-pipeline.md`
 
 ## Observation Context
 
 Tested PDF upload E2E via Playwright browser automation:
+
 1. Navigated to `http://localhost:3001/documents?workspace=zz`
 2. Uploaded PDF `001-BEYONG-TRANFORMER-OUTLINE-V1_1.pdf` via drag-and-drop area
 3. Frontend showed: "Processing 1 document(s)" ✓
@@ -17,6 +19,7 @@ Tested PDF upload E2E via Playwright browser automation:
 ## Evidence Gathered
 
 ### Task Status (SUCCESS)
+
 ```json
 {
   "track_id": "pdf-f9027ceb-c17e-4faf-9661-6fdbe98e33b5",
@@ -28,6 +31,7 @@ Tested PDF upload E2E via Playwright browser automation:
 ```
 
 ### PDF Storage (SUCCESS)
+
 ```json
 {
   "pdf_id": "8866e3c3-bbd6-4384-b86f-215c9844914d",
@@ -39,6 +43,7 @@ Tested PDF upload E2E via Playwright browser automation:
 ```
 
 ### Document Metadata (BUG FOUND)
+
 ```json
 {
   "id": "001-BEYONG-TRANFORMER-OUTLINE-V1_1.pdf",
@@ -47,7 +52,7 @@ Tested PDF upload E2E via Playwright browser automation:
   "relationship_count": 6,
   "llm_provider": "openai",
   "llm_model": "gpt-4o-mini",
-  "source_type": "pdf",
+  "source_type": "pdf"
   // MISSING: "tenant_id"
   // MISSING: "workspace_id"
 }
@@ -58,6 +63,7 @@ Tested PDF upload E2E via Playwright browser automation:
 Location: `edgequake-api/src/processor.rs`
 
 **Bug 1**: Lines 1612-1625 (`process_pdf_processing`)
+
 ```rust
 let text_data = edgequake_tasks::TextInsertData {
     workspace_id: data.workspace_id.to_string(),  // Set in struct
@@ -70,9 +76,11 @@ let text_data = edgequake_tasks::TextInsertData {
 ```
 
 **Bug 2**: Lines 1260-1275 (`ensure_document_source_type`)
+
 - When creating NEW metadata for PDFs, tenant_id/workspace_id are not set
 
 **Bug 3**: Lines 1188-1200 (`update_document_status`)
+
 - When creating NEW metadata, tenant_id/workspace_id are not set
 
 ### Impact

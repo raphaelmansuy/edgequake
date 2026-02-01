@@ -340,6 +340,13 @@ pub struct DocumentSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "Extracting entities from chunk 5/12")]
     pub stage_message: Option<String>,
+
+    /// Linked PDF document ID (only set if source_type is "pdf").
+    /// Used to fetch PDF content for viewing.
+    /// @implements SPEC-002
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = "8866e3c3-bbd6-4384-b86f-215c9844914d")]
+    pub pdf_id: Option<String>,
 }
 
 // ============================================================================
@@ -443,6 +450,12 @@ pub struct DocumentDetailResponse {
     /// Additional custom metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
+
+    /// Linked PDF document ID (only set if source_type is "pdf").
+    /// Used to fetch PDF content for viewing.
+    /// @implements SPEC-002
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_id: Option<String>,
 }
 
 /// Extraction lineage information for a document.
@@ -1008,6 +1021,7 @@ mod tests {
             current_stage: Some("completed".to_string()),
             stage_progress: Some(1.0),
             stage_message: None,
+            pdf_id: None,
         };
 
         let json = serde_json::to_string(&summary).unwrap();
@@ -1042,6 +1056,7 @@ mod tests {
                 current_stage: Some("completed".to_string()),
                 stage_progress: None,
                 stage_message: None,
+                pdf_id: None,
             }],
             total: 1,
             page: 1,
@@ -1152,6 +1167,7 @@ mod tests {
                 current_stage: Some("completed".to_string()),
                 stage_progress: None,
                 stage_message: None,
+                pdf_id: None,
             }],
             total_count: 1,
             status_summary: StatusCounts {

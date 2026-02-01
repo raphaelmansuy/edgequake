@@ -9,6 +9,7 @@ Fixed critical bug where PDF documents uploaded via frontend were not visible in
 ## Changes Made
 
 ### 1. types.rs (edgequake-tasks, lines 615-632)
+
 **File:** `edgequake/crates/edgequake-tasks/src/types.rs`
 **Change:** Added `tenant_id: Uuid` field to `PdfProcessingData` struct
 
@@ -25,6 +26,7 @@ pub struct PdfProcessingData {
 **WHY:** Task data needs to carry tenant context so processor can include it in document metadata.
 
 ### 2. pdf_upload.rs (lines 829-840)
+
 **File:** `edgequake/crates/edgequake-api/src/handlers/pdf_upload.rs`
 **Change:** Include tenant_id when creating PdfProcessingData
 
@@ -41,9 +43,11 @@ let task_data = PdfProcessingData {
 **WHY:** Upload handler has access to tenant context and must pass it to processing task.
 
 ### 3. processor.rs (lines 1652-1668, 1633-1640, 1246-1316)
+
 **File:** `edgequake/crates/edgequake-api/src/processor.rs`
 
 **Change 3a:** Include tenant_id/workspace_id in TextInsertData metadata (lines 1652-1668)
+
 ```rust
 metadata: Some(json!({
     "source": "pdf_upload",
@@ -55,6 +59,7 @@ metadata: Some(json!({
 ```
 
 **Change 3b:** Updated `ensure_document_source_type` call (lines 1633-1640)
+
 ```rust
 self.ensure_document_source_type(
     &document_id,
@@ -74,12 +79,14 @@ When creating new metadata, now includes these fields for multi-tenant visibilit
 ## Test Results
 
 ### Before Fix
+
 - PDF upload completes (status: indexed)
 - Documents list shows: **0 documents**
 - Root cause: Document metadata missing tenant_id/workspace_id
 
 ### After Fix
-- PDF upload completes (status: completed)  
+
+- PDF upload completes (status: completed)
 - Documents list shows: **1 document** (AgenticPlatformReference Architecture.pdf)
 - Document metadata includes: `tenant_id: "7a1e4dca-ffe5-44a9-92ca-bf737acbed00"`, `workspace_id: "cd284095-67f8-47b2-a85c-e2f4f4fbb532"`
 - 12 entities extracted, 6 relationships, $0.0057 cost
@@ -95,6 +102,7 @@ When creating new metadata, now includes these fields for multi-tenant visibilit
 ## Commit
 
 Ready to commit with message:
+
 ```
 fix(processor): Include tenant/workspace in PDF document metadata
 
