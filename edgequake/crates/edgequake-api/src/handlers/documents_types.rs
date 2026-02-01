@@ -1105,6 +1105,7 @@ mod tests {
             processed_at: None,
             lineage: None,
             metadata: None,
+            pdf_id: None,
         };
 
         let json = serde_json::to_string(&response).unwrap();
