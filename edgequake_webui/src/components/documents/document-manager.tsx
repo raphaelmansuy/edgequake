@@ -70,6 +70,7 @@ import {
     CheckCircle,
     Clock,
     Copy,
+    ExternalLink,
     Eye,
     File,
     FileCode,
@@ -337,6 +338,41 @@ export function DocumentManager() {
               track_id: pdfResponse.track_id, // Use track_id from response
             };
             
+            // OODA-42: Optimistic update for PDF upload
+            // WHY: PDFs must appear immediately in documents panel (same as markdown)
+            // The backend creates the document record async, but we add it to cache now
+            if (pdfResponse.pdf_id && !pdfResponse.duplicate_of) {
+              const optimisticDoc: Document = {
+                id: pdfResponse.pdf_id, // Use pdf_id as temporary ID until document_id is assigned
+                title: file.name,
+                file_name: file.name,
+                file_size: file.size,
+                source_type: 'pdf',
+                status: 'processing',
+                mime_type: 'application/pdf',
+                created_at: new Date().toISOString(),
+                pdf_id: pdfResponse.pdf_id,
+                track_id: pdfResponse.track_id,
+              };
+              
+              // Add to all document query caches for instant visibility
+              // Uses predicate to match all queries starting with 'documents'
+              // OODA-47: Guard against undefined documents array in cache
+              queryClient.setQueriesData<{ documents: Document[]; total: number }>(
+                { queryKey: ['documents'] },
+                (old) => {
+                  if (!old || !old.documents || !Array.isArray(old.documents)) return old;
+                  // Check if document already exists (by pdf_id)
+                  const exists = old.documents.some(d => d.pdf_id === pdfResponse.pdf_id || d.id === pdfResponse.pdf_id);
+                  if (exists) return old;
+                  return {
+                    documents: [optimisticDoc, ...old.documents],
+                    total: (old.total ?? 0) + 1,
+                  };
+                }
+              );
+            }
+            
             // OODA-22: Store track_id and isPdf flag for enhanced progress tracking
             setUploadingFiles((prev) =>
               prev.map((f, idx) =>
@@ -484,7 +520,7 @@ export function DocumentManager() {
         setUploadingFiles([]);
       }, 3000);
     },
-    [queryClient, t, router]
+    [queryClient, t, router, selectedWorkspaceId]
   );
 
   // Remove a file from the upload list
@@ -787,13 +823,20 @@ export function DocumentManager() {
   }, []);
 
   /**
-   * OODA-40: Double-click to navigate to graph
+   * OODA-41: Double-click to navigate to document detail page
    * WHY: Power users expect double-click for primary navigation action
+   * SPEC-002: Navigate to dedicated document detail page, not dialog
    */
   const handleDocumentDoubleClick = useCallback((doc: Document) => {
-    if (doc.status === 'completed') {
-      router.push(`/graph?entity=${encodeURIComponent(doc.id)}`);
-    }
+    router.push(`/documents/${doc.id}`);
+  }, [router]);
+
+  /**
+   * OODA-41: Navigate to document detail page (for View Details button)
+   * WHY: Users need explicit link to dedicated document view
+   */
+  const handleViewDetails = useCallback((doc: Document) => {
+    router.push(`/documents/${doc.id}`);
   }, [router]);
 
   const handlePreviewClose = useCallback(() => {
@@ -1421,7 +1464,24 @@ export function DocumentManager() {
                         <div className="flex items-center gap-1 justify-end">
                           {/* OODA-22: Quick action buttons */}
                           
-                          {/* Preview button (always visible) */}
+                          {/* OODA-41: View Details button - navigates to document detail page */}
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleViewDetails(doc)}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View Details</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          
+                          {/* Preview button (opens side panel) */}
                           <TooltipProvider delayDuration={300}>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1586,12 +1646,9 @@ export function DocumentManager() {
           }}
           onReprocess={(id) => reprocessMutation.mutate(id)}
           onViewFull={(doc) => {
-            // SPEC-002: Open PDF viewer for PDF documents, standard view for others
-            if (doc.source_type === 'pdf' || doc.pdf_id) {
-              handleViewPdf(doc);
-            } else {
-              router.push(`/documents/${doc.id}`);
-            }
+            // OODA-41: Always navigate to document detail page
+            // WHY: Per SPEC-002, use dedicated page instead of dialog
+            router.push(`/documents/${doc.id}`);
           }}
           onViewInGraph={handleViewInGraph}
           isDeleting={deleteMutation.isPending}
