@@ -81,7 +81,7 @@ export interface Document {
   id: string;
   title?: string | null;
   content?: string;
-  source_type?: "file" | "text" | "url";
+  source_type?: "file" | "text" | "url" | "pdf" | "markdown";
   status?:
     | "pending"
     | "processing"
@@ -126,6 +126,30 @@ export interface Document {
   llm_model?: string;
   /** Embedding model used for processing. */
   embedding_model?: string;
+
+  // ========================================================================
+  // SPEC-002: Unified Ingestion Pipeline Fields
+  // ========================================================================
+
+  /**
+   * Current ingestion stage (aligned with UnifiedStage enum).
+   * Stages: uploading, converting, preprocessing, chunking, extracting,
+   * gleaning, merging, summarizing, embedding, storing, completed, failed.
+   * @implements SPEC-002
+   */
+  current_stage?: string;
+
+  /**
+   * Progress within current stage (0.0 to 1.0).
+   * @implements SPEC-002
+   */
+  stage_progress?: number;
+
+  /**
+   * Human-readable message for current stage.
+   * @implements SPEC-002
+   */
+  stage_message?: string;
 }
 
 /** Extraction lineage information for a document. */

@@ -239,6 +239,8 @@ pub struct ListDocumentsResponse {
 }
 
 /// Document summary.
+///
+/// @implements SPEC-002: Unified Ingestion Pipeline
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct DocumentSummary {
     /// Document ID.
@@ -266,7 +268,7 @@ pub struct DocumentSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entity_count: Option<usize>,
 
-    /// Document processing status.
+    /// Document processing status (legacy - use current_stage for new code).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
 
@@ -309,6 +311,36 @@ pub struct DocumentSummary {
     /// Embedding model used for processing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding_model: Option<String>,
+
+    // ========================================================================
+    // SPEC-002: Unified Ingestion Pipeline Fields
+    // ========================================================================
+
+    /// Document source type (pdf, markdown, text).
+    /// @implements SPEC-002
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = "pdf")]
+    pub source_type: Option<String>,
+
+    /// Current ingestion stage (aligned with UnifiedStage enum).
+    /// Stages: uploading, converting, preprocessing, chunking, extracting,
+    /// gleaning, merging, summarizing, embedding, storing, completed, failed.
+    /// @implements SPEC-002
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = "extracting")]
+    pub current_stage: Option<String>,
+
+    /// Progress within current stage (0.0 to 1.0).
+    /// @implements SPEC-002
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = json!(0.45))]
+    pub stage_progress: Option<f32>,
+
+    /// Human-readable message for current stage.
+    /// @implements SPEC-002
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = "Extracting entities from chunk 5/12")]
+    pub stage_message: Option<String>,
 }
 
 // ============================================================================
@@ -972,6 +1004,11 @@ mod tests {
             total_tokens: None,
             llm_model: None,
             embedding_model: None,
+            // SPEC-002 fields
+            source_type: Some("markdown".to_string()),
+            current_stage: Some("completed".to_string()),
+            stage_progress: Some(1.0),
+            stage_message: None,
         };
 
         let json = serde_json::to_string(&summary).unwrap();
@@ -1001,6 +1038,11 @@ mod tests {
                 total_tokens: None,
                 llm_model: None,
                 embedding_model: None,
+                // SPEC-002 fields
+                source_type: None,
+                current_stage: Some("completed".to_string()),
+                stage_progress: None,
+                stage_message: None,
             }],
             total: 1,
             page: 1,
@@ -1106,6 +1148,11 @@ mod tests {
                 total_tokens: None,
                 llm_model: None,
                 embedding_model: None,
+                // SPEC-002 fields
+                source_type: None,
+                current_stage: Some("completed".to_string()),
+                stage_progress: None,
+                stage_message: None,
             }],
             total_count: 1,
             status_summary: StatusCounts {
