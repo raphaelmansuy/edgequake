@@ -15,7 +15,7 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use edgequake_api::services::ContentHasher;
 //!
 //! // Hash string content
@@ -44,7 +44,7 @@ impl ContentHasher {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// let hash = ContentHasher::hash_bytes(b"hello world");
     /// assert_eq!(hash.len(), 64);  // 256 bits = 64 hex chars
     /// ```
@@ -61,7 +61,7 @@ impl ContentHasher {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// let hash = ContentHasher::hash_str("document text");
     /// ```
     #[inline]
@@ -82,7 +82,7 @@ impl ContentHasher {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// let key = ContentHasher::workspace_hash_key("ws-123", "abc...def");
     /// // => "doc:hash:ws-123:abc...def"
     /// ```

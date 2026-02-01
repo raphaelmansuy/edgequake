@@ -3886,6 +3886,7 @@ async fn test_deletion_response_status_info() {
 // ============================================================================
 
 /// OODA-40: Test that same content produces consistent hash.
+/// OODA-84: Updated to verify workspace-scoped duplicate detection.
 #[tokio::test]
 async fn test_content_hash_consistency() {
     let app = create_test_app();
@@ -3894,67 +3895,77 @@ async fn test_content_hash_consistency() {
 
     // Upload first document
     let (status1, body1) = upload_document_http(&app, "Hash Test Doc 1", content).await;
-    assert_eq!(status1, StatusCode::CREATED);
+    assert_eq!(status1, StatusCode::CREATED, "First upload should succeed with 201 CREATED");
 
-    // Upload second document with same content
+    // Upload second document with same content should be detected as duplicate
+    // OODA-84: Duplicate detection returns 200 OK with status: "duplicate"
     let (status2, body2) = upload_document_http(&app, "Hash Test Doc 2", content).await;
-    assert_eq!(status2, StatusCode::CREATED);
-
-    // If content_hash is in response, verify they match
-    if let (Some(hash1), Some(hash2)) = (
-        body1.get("content_hash").and_then(|v| v.as_str()),
-        body2.get("content_hash").and_then(|v| v.as_str()),
-    ) {
-        assert_eq!(hash1, hash2, "Same content should produce same hash");
-        println!("📊 Hash verified: {}", hash1);
-    }
-
-    // Document IDs should be different (each upload creates new doc)
+    assert_eq!(status2, StatusCode::OK, "Duplicate upload should return 200 OK");
+    
+    // Verify duplicate status
+    let status_field = body2.get("status").and_then(|v| v.as_str()).unwrap_or("");
+    assert_eq!(status_field, "duplicate", "Response should indicate duplicate status");
+    
+    // Verify duplicate_of field points to original document
+    let duplicate_of = body2.get("duplicate_of").and_then(|v| v.as_str());
     let doc_id1 = body1["document_id"].as_str().unwrap();
-    let doc_id2 = body2["document_id"].as_str().unwrap();
-    assert_ne!(
-        doc_id1, doc_id2,
-        "Different uploads should have different IDs"
+    assert_eq!(
+        duplicate_of,
+        Some(doc_id1),
+        "duplicate_of should reference original document ID"
     );
 
-    // Cleanup
+    // Cleanup - only need to delete the original since duplicate wasn't stored
     delete_document_http(&app, doc_id1).await;
-    delete_document_http(&app, doc_id2).await;
 
-    println!("✅ OODA-40 TEST PASSED: Content hash consistency");
+    println!("✅ OODA-40 TEST PASSED: Content hash consistency with duplicate detection");
 }
 
-/// OODA-40: Test that deleting one doc doesn't affect duplicate content doc.
+/// OODA-40: Test that duplicate content is properly rejected.
+/// OODA-84: Test updated to verify duplicate rejection instead of duplicate storage.
 #[tokio::test]
 async fn test_delete_one_of_duplicate_content_docs() {
     let app = create_test_app();
 
-    let duplicate_content = "Duplicate content for testing deletion independence.";
+    let duplicate_content = "Duplicate content for testing duplicate detection.";
 
-    // Upload two documents with same content
+    // Upload first document - should succeed
     let (status1, body1) =
         upload_document_http(&app, "Duplicate Content A", duplicate_content).await;
-    assert_eq!(status1, StatusCode::CREATED);
+    assert_eq!(status1, StatusCode::CREATED, "First upload should succeed");
     let doc_a_id = body1["document_id"].as_str().unwrap().to_string();
 
+    // Upload second document with same content - should be rejected as duplicate
     let (status2, body2) =
         upload_document_http(&app, "Duplicate Content B", duplicate_content).await;
-    assert_eq!(status2, StatusCode::CREATED);
-    let doc_b_id = body2["document_id"].as_str().unwrap().to_string();
-
-    // Delete doc A
-    let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
-    assert_eq!(delete_status, StatusCode::OK);
-
-    // Doc B should still be deletable (exists independently)
-    let (delete_b_status, _) = delete_document_http(&app, &doc_b_id).await;
+    assert_eq!(status2, StatusCode::OK, "Duplicate should return 200 OK");
+    
+    // Verify the duplicate response references the original
+    let duplicate_of = body2.get("duplicate_of").and_then(|v| v.as_str());
     assert_eq!(
-        delete_b_status,
-        StatusCode::OK,
-        "Duplicate content doc should still exist after other deleted"
+        duplicate_of,
+        Some(doc_a_id.as_str()),
+        "Duplicate should reference original document"
     );
 
-    println!("✅ OODA-40 TEST PASSED: Delete one of duplicate content docs");
+    // Delete doc A - should succeed
+    let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
+    assert_eq!(delete_status, StatusCode::OK, "Original document should be deletable");
+
+    // After deleting, uploading the same content should succeed again
+    let (status3, body3) =
+        upload_document_http(&app, "Duplicate Content C", duplicate_content).await;
+    assert_eq!(
+        status3,
+        StatusCode::CREATED,
+        "Content should be uploadable after original deleted"
+    );
+    
+    // Cleanup
+    let doc_c_id = body3["document_id"].as_str().unwrap();
+    delete_document_http(&app, doc_c_id).await;
+
+    println!("✅ OODA-40 TEST PASSED: Duplicate detection and re-upload after deletion");
 }
 
 // ============================================================================
@@ -4275,6 +4286,7 @@ async fn test_batch_cleanup_verification() {
 // ============================================================================
 
 /// OODA-44: Test document with unicode/emoji title.
+/// OODA-84: Each test case uses unique content to avoid duplicate detection.
 #[tokio::test]
 async fn test_document_with_unicode_title() {
     let app = create_test_app();
@@ -4287,9 +4299,11 @@ async fn test_document_with_unicode_title() {
         "مستند عربي",
     ];
 
-    for title in unicode_titles {
+    for (i, title) in unicode_titles.iter().enumerate() {
+        // OODA-84: Use unique content for each iteration to avoid duplicate detection
+        let unique_content = format!("Content for unicode title testing - iteration {} - {}", i, title);
         let (status, body) =
-            upload_document_http(&app, title, "Content for unicode title testing.").await;
+            upload_document_http(&app, title, &unique_content).await;
 
         assert_eq!(
             status,

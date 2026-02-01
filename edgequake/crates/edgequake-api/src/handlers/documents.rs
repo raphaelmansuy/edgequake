@@ -1842,7 +1842,8 @@ pub async fn delete_document(
 
     // SPEC-033: Get workspace_id from document metadata for vector storage isolation
     // OODA-02: Also check document status for safe deletion
-    let (workspace_id_for_storage, document_status) = if has_metadata {
+    // OODA-90: Extract content_hash for hash key cleanup
+    let (workspace_id_for_storage, document_status, content_hash_opt) = if has_metadata {
         if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
             let workspace = metadata
                 .get("workspace_id")
@@ -1854,12 +1855,17 @@ pub async fn delete_document(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "unknown".to_string());
-            (workspace, status)
+            // OODA-90: Extract content hash for duplicate detection key cleanup
+            let content_hash = metadata
+                .get("content_hash")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            (workspace, status, content_hash)
         } else {
-            ("default".to_string(), "unknown".to_string())
+            ("default".to_string(), "unknown".to_string(), None)
         }
     } else {
-        ("default".to_string(), "unknown".to_string())
+        ("default".to_string(), "unknown".to_string(), None)
     };
 
     // OODA-02: Safety check - prevent deletion of documents that are still being processed
@@ -2108,6 +2114,19 @@ pub async fn delete_document(
     }
     if has_content {
         keys_to_delete.push(content_key);
+    }
+    
+    // OODA-90: Delete workspace-scoped hash key to allow re-upload of same content
+    // WHY: If we don't delete the hash key, the duplicate detection will still
+    // block uploads of the same content even after the document is deleted.
+    if let Some(content_hash) = content_hash_opt {
+        let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, &content_hash);
+        keys_to_delete.push(hash_key.clone());
+        tracing::debug!(
+            hash_key = %hash_key,
+            document_id = %document_id,
+            "Adding hash key to deletion list for duplicate detection cleanup"
+        );
     }
 
     // Delete all document data from KV storage
