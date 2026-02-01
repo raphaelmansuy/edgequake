@@ -10,14 +10,14 @@ Navigated to /graph page in workspace ZZ to verify entity visualization.
 
 ### Entity Summary
 
-| Type | Entities | Count | Source |
-|------|----------|-------|--------|
-| CONCEPT | Action Scoping, Agentic Platform, Data Grounding, etc. | 9 | PDF |
-| ORGANIZATION | Agent CoI TAC, EdgeQuake Labs, TCA | 3 | PDF |
-| PRODUCT | Azure, EdgeQuake | 2 | Both |
-| PERSON | Marcus Rodriguez, Sarah Chen | 2 | Markdown |
-| TECHNOLOGY | PostgreSQL, TensorFlow | 2 | Markdown |
-| **TOTAL** | | **18** | |
+| Type         | Entities                                               | Count  | Source   |
+| ------------ | ------------------------------------------------------ | ------ | -------- |
+| CONCEPT      | Action Scoping, Agentic Platform, Data Grounding, etc. | 9      | PDF      |
+| ORGANIZATION | Agent CoI TAC, EdgeQuake Labs, TCA                     | 3      | PDF      |
+| PRODUCT      | Azure, EdgeQuake                                       | 2      | Both     |
+| PERSON       | Marcus Rodriguez, Sarah Chen                           | 2      | Markdown |
+| TECHNOLOGY   | PostgreSQL, TensorFlow                                 | 2      | Markdown |
+| **TOTAL**    |                                                        | **18** |          |
 
 ### Graph Statistics
 
@@ -30,14 +30,14 @@ Navigated to /graph page in workspace ZZ to verify entity visualization.
 
 Clicked on "Sarah Chen" entity to verify details:
 
-| Property | Value | Verification |
-|----------|-------|--------------|
-| Name | Sarah Chen | ✅ |
-| Type | PERSON | ✅ |
-| Description | "The lead developer at EdgeQuake Labs." | ✅ From markdown |
-| Connections | 1 (to Marcus Rodriguez) | ✅ Relationship extracted |
-| tenant_id | 7a1e4dca-ffe5-44a9-9... | ✅ Correct workspace |
-| workspace_id | cd284095-67f8-47b2-a... | ✅ Correct workspace |
+| Property     | Value                                   | Verification              |
+| ------------ | --------------------------------------- | ------------------------- |
+| Name         | Sarah Chen                              | ✅                        |
+| Type         | PERSON                                  | ✅                        |
+| Description  | "The lead developer at EdgeQuake Labs." | ✅ From markdown          |
+| Connections  | 1 (to Marcus Rodriguez)                 | ✅ Relationship extracted |
+| tenant_id    | 7a1e4dca-ffe5-44a9-9...                 | ✅ Correct workspace      |
+| workspace_id | cd284095-67f8-47b2-a...                 | ✅ Correct workspace      |
 
 ## Conclusion
 

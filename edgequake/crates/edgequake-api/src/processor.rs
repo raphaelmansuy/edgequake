@@ -929,7 +929,11 @@ impl DocumentTaskProcessor {
                 .map(|e| e.relationships.len())
                 .sum();
             self.pipeline_state
-                .start_pdf_phase(&track_id, PipelinePhase::GraphStorage, total_entities + total_rels)
+                .start_pdf_phase(
+                    &track_id,
+                    PipelinePhase::GraphStorage,
+                    total_entities + total_rels,
+                )
                 .await;
         }
 

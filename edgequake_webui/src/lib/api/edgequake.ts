@@ -691,7 +691,8 @@ export async function getPdfContent(
  */
 export function getPdfDownloadUrl(pdfId: string): string {
   // Build the full URL with the API base
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+  const baseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
   return `${baseUrl}/api/v1/documents/pdf/${pdfId}/download`;
 }
 

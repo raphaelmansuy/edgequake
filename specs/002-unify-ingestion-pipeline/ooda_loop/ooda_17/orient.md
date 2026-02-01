@@ -7,9 +7,11 @@
 ### First Principles Assessment
 
 The mission spec states:
+
 > "Display progression of ingestion for both PDF and Markdown in Documents panel"
 
 The 6-phase pipeline is already defined:
+
 1. `Upload` - File upload
 2. `PdfConversion` - PDF → Markdown (PDF only)
 3. `Chunking` - Document chunking
@@ -52,12 +54,14 @@ The 6-phase pipeline is already defined:
 **Approach**: Add conditional PDF phase tracking calls in `process_text_insert()` when `source_type == "pdf"`.
 
 **Pros**:
+
 - Minimal code changes
 - Uses existing tracking infrastructure
 - No architectural changes needed
 - Maintains single responsibility (processor handles processing)
 
 **Cons**:
+
 - Adds conditional logic to processor
 - PDF-specific code in generic processor
 
@@ -68,10 +72,12 @@ The 6-phase pipeline is already defined:
 **Approach**: Create new `UnifiedProgressCallback` that handles all phases for all document types.
 
 **Pros**:
+
 - Single callback for all progress updates
 - Cleaner separation of concerns
 
 **Cons**:
+
 - Significant refactoring required
 - More complex callback chain
 - Higher risk of introducing bugs
@@ -83,10 +89,12 @@ The 6-phase pipeline is already defined:
 **Approach**: Implement event-driven progress updates via message bus.
 
 **Pros**:
+
 - Decoupled architecture
 - Future-proof for scaling
 
 **Cons**:
+
 - Over-engineering for current needs
 - Significant implementation effort
 
@@ -97,6 +105,7 @@ The 6-phase pipeline is already defined:
 **Option A: Add Phase Tracking in processor.rs**
 
 Rationale:
+
 1. Uses existing `pipeline_state.start_pdf_phase()` and `complete_pdf_phase()` methods
 2. Minimal code changes with immediate impact
 3. Follows KISS principle
@@ -119,8 +128,8 @@ Rationale:
 
 ## Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Break existing MD flow | Low | High | Conditional logic only for PDFs |
-| Performance impact | Very Low | Low | Async calls, minimal overhead |
-| Frontend display issues | Low | Medium | Test with Playwright E2E |
+| Risk                    | Likelihood | Impact | Mitigation                      |
+| ----------------------- | ---------- | ------ | ------------------------------- |
+| Break existing MD flow  | Low        | High   | Conditional logic only for PDFs |
+| Performance impact      | Very Low   | Low    | Async calls, minimal overhead   |
+| Frontend display issues | Low        | Medium | Test with Playwright E2E        |

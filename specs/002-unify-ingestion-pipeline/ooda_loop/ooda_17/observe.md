@@ -3,6 +3,7 @@
 ## Date: 2026-02-01
 
 ## Mission Reference
+
 - Spec: `./specs/002-unify-ingestion-pipeline.md`
 - Objective: Unified Status Tracking for PDF and Markdown documents
 
@@ -45,6 +46,7 @@ impl PipelineProgressCallback {
 **File: `edgequake-api/src/processor.rs`**
 
 The `process_text_insert()` function handles post-PDF-conversion processing but did NOT call PDF phase tracking methods for:
+
 - Chunking phase
 - Extraction phase
 - Embedding phase
@@ -78,18 +80,19 @@ These methods exist but were not being called for phases after PdfConversion.
 
 ## Test Files Analyzed
 
-| File | Purpose | Status |
-|------|---------|--------|
-| `processor.rs` | Task processor for document pipeline | Missing PDF phase calls |
-| `pipeline_progress_callback.rs` | PDF extraction progress adapter | Only tracks PdfConversion |
-| `pipeline_state.rs` | Progress state management | Methods exist, not used |
-| `progress.rs` | Progress type definitions | Complete, 6 phases defined |
+| File                            | Purpose                              | Status                     |
+| ------------------------------- | ------------------------------------ | -------------------------- |
+| `processor.rs`                  | Task processor for document pipeline | Missing PDF phase calls    |
+| `pipeline_progress_callback.rs` | PDF extraction progress adapter      | Only tracks PdfConversion  |
+| `pipeline_state.rs`             | Progress state management            | Methods exist, not used    |
+| `progress.rs`                   | Progress type definitions            | Complete, 6 phases defined |
 
 ## Evidence
 
 Backend logs showed document processing but no phase updates after PdfConversion:
+
 - `status: "chunking"` - Updated document status
-- `status: "extracting"` - Updated document status  
+- `status: "extracting"` - Updated document status
 - `status: "embedding"` - Updated document status
 - `status: "completed"` - Final status
 

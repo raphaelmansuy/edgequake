@@ -136,14 +136,14 @@ Screenshot saved to: `.playwright-mcp/pdf-upload-completed.png`
 
 ## Verification Results
 
-| Test | Result | Evidence |
-|------|--------|----------|
-| Unit tests pass | ✅ | 55 passed, 0 failed |
-| Build succeeds | ✅ | cargo check passed |
-| PDF upload shows progress | ✅ | Screenshot |
-| PDF completes successfully | ✅ | 14 entities extracted |
-| Markdown still works | ✅ | 5 entities extracted |
-| Status transitions visible | ✅ | "Chunking" → "Completed" |
+| Test                       | Result | Evidence                 |
+| -------------------------- | ------ | ------------------------ |
+| Unit tests pass            | ✅     | 55 passed, 0 failed      |
+| Build succeeds             | ✅     | cargo check passed       |
+| PDF upload shows progress  | ✅     | Screenshot               |
+| PDF completes successfully | ✅     | 14 entities extracted    |
+| Markdown still works       | ✅     | 5 entities extracted     |
+| Status transitions visible | ✅     | "Chunking" → "Completed" |
 
 ## Phase Flow Diagram (Verified)
 

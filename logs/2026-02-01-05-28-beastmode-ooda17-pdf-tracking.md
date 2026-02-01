@@ -5,6 +5,7 @@
 **Commit**: d4703efb
 
 ## Actions
+
 - Read mission spec 002-unify-ingestion-pipeline.md
 - Verified existing code changes in processor.rs (6 PDF phase tracking locations)
 - Ran unit tests: 55 passed, 0 failed
@@ -16,16 +17,19 @@
 - Committed changes with OODA-17 label
 
 ## Decisions
+
 - Used Option A (add phase tracking in processor.rs) as decided in previous session
 - Tested with PostgreSQL for PDF storage (required for PDF uploads)
 - Verified both Markdown and PDF upload flows work correctly
 
 ## Next Steps
+
 - Monitor WebSocket "Unknown message type" warnings (non-blocking)
 - Consider adding more granular progress updates (chunk-level)
 - Update summary.md with cross-iteration insights
 
 ## Lessons/Insights
+
 - PDF uploads require PostgreSQL (pdf_storage feature)
 - In-memory storage only supports Markdown/text uploads
 - Phase tracking uses conditional logic based on source_type metadata

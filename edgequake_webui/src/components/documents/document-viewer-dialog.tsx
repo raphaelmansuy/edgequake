@@ -17,21 +17,19 @@
 
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
 import { getPdfContent, getPdfDownloadUrl } from '@/lib/api/edgequake';
-import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Download,
-  ExternalLink,
-  FileText,
-  Loader2,
+    Download,
+    ExternalLink,
+    FileText,
+    Loader2,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';

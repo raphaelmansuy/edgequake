@@ -5,6 +5,7 @@
 **Test Objective**: Verify the Document Preview panel displays comprehensive document information including processing details and unified status.
 
 ### Navigation
+
 - Selected `test-unified-pipeline.md` from document list
 
 ### Observed Document Details
@@ -31,21 +32,25 @@
 | Embedding | text-embedding-3-small |
 
 **Content Preview**:
+
 ```markdown
 # EdgeQuake Test Document
 
 ## Overview
+
 EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework...
 
 ### Key Entities
+
 - **Sarah Chen** is the lead developer at EdgeQuake Labs
 - **Marcus Rodriguez** works as a senior engineer
 - **TensorFlow** is used for embedding generation
 - **PostgreSQL** provides the database layer with AGE extension
-...
+  ...
 ```
 
 **Available Actions**:
+
 - View Details
 - Graph (navigate to graph)
 - Reprocess
@@ -76,6 +81,7 @@ EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework...
 ```
 
 **Unified Pipeline Evidence**:
+
 - Same preview panel works for both PDF and Markdown documents
 - Processing cost includes LLM model and embedding model used
 - Token breakdown (input/output) visible
@@ -86,6 +92,7 @@ EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework...
 **Decision**: No code changes needed - validation iteration.
 
 **Findings**:
+
 1. ✅ Document metadata correctly displayed
 2. ✅ Processing cost breakdown accurate
 3. ✅ LLM and embedding model info shown
@@ -100,6 +107,7 @@ EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework...
 **Status**: ✅ PASSED - Document Preview verified
 
 **Evidence**:
+
 - Full document details visible
 - Processing metrics accurate
 - Content preview working
@@ -107,5 +115,5 @@ EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework...
 
 ---
 
-*OODA-14 completed: 2025-01-27*
-*Type: Validation iteration (no code changes)*
+_OODA-14 completed: 2025-01-27_
+_Type: Validation iteration (no code changes)_
