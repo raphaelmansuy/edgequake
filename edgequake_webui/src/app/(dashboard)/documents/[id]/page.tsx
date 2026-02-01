@@ -101,6 +101,32 @@ export default function DocumentViewPage() {
     }
   }, [document, router]);
 
+  // OODA-48: Derive PDF ID for viewer - use pdf_id if available, otherwise use document.id for PDF source types
+  // WHY: The pdf_id may not be set in older documents or when source_type is 'pdf' but pdf_id wasn't populated
+  const pdfIdForViewer = document?.pdf_id || (document?.source_type === 'pdf' ? document?.id : null);
+  
+  // OODA-43: Detect if document is a PDF for side-by-side viewer
+  // OODA-48: Require pdfIdForViewer to be truthy to prevent 'undefined' in URL
+  const isPdfDocument = Boolean(pdfIdForViewer);
+
+  // OODA-91: Create document with PDF markdown content merged in
+  // WHY: PDF markdown is stored separately in pdf_documents table, not in regular document content.
+  // We merge it here so ContentRenderer can display it without special PDF handling.
+  // NOTE: Must be called before early returns to satisfy React Rules of Hooks
+  const documentWithContent = useMemo(() => {
+    if (!document) return null;
+    if (isPdfDocument && pdfContent?.markdown_content) {
+      return { ...document, content: pdfContent.markdown_content };
+    }
+    return document;
+  }, [document, isPdfDocument, pdfContent?.markdown_content]);
+
+  // Derived status values (safe to compute even if document is null)
+  const status = (document?.status || 'completed') as DocumentStatus;
+  const statusInfo = statusConfig[status] || statusConfig.completed;
+  const StatusIcon = statusInfo.icon;
+  const isFailed = status === 'failed';
+
   // Loading state
   if (isLoading) {
     return (
@@ -121,7 +147,7 @@ export default function DocumentViewPage() {
   }
 
   // Error state
-  if (isError || !document) {
+  if (isError || !document || !documentWithContent) {
     return (
       <div className="flex flex-col h-screen">
         <ErrorHeader />
@@ -131,29 +157,6 @@ export default function DocumentViewPage() {
       </div>
     );
   }
-
-  const status = (document.status || 'completed') as DocumentStatus;
-  const statusInfo = statusConfig[status] || statusConfig.completed;
-  const StatusIcon = statusInfo.icon;
-  const isFailed = status === 'failed';
-  
-  // OODA-48: Derive PDF ID for viewer - use pdf_id if available, otherwise use document.id for PDF source types
-  // WHY: The pdf_id may not be set in older documents or when source_type is 'pdf' but pdf_id wasn't populated
-  const pdfIdForViewer = document.pdf_id || (document.source_type === 'pdf' ? document.id : null);
-  
-  // OODA-43: Detect if document is a PDF for side-by-side viewer
-  // OODA-48: Require pdfIdForViewer to be truthy to prevent 'undefined' in URL
-  const isPdfDocument = Boolean(pdfIdForViewer);
-
-  // OODA-91: Create document with PDF markdown content merged in
-  // WHY: PDF markdown is stored separately in pdf_documents table, not in regular document content.
-  // We merge it here so ContentRenderer can display it without special PDF handling.
-  const documentWithContent = useMemo(() => {
-    if (isPdfDocument && pdfContent?.markdown_content) {
-      return { ...document, content: pdfContent.markdown_content };
-    }
-    return document;
-  }, [document, isPdfDocument, pdfContent?.markdown_content]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
