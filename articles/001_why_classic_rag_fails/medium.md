@@ -28,35 +28,8 @@ Now ask your RAG system: **"What is the connection between Sarah Chen and James 
 
 Here's what happens internally:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                  THE CLASSIC RAG PROBLEM                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Your Document (chunked):                                        │
-│                                                                   │
-│  ┌────────────────────────────────────────┐                     │
-│  │ Chunk 1: "Sarah Chen works at          │ → embedding_1       │
-│  │          Quantum Dynamics Lab..."      │                     │
-│  └────────────────────────────────────────┘                     │
-│                                                                   │
-│  ┌────────────────────────────────────────┐                     │
-│  │ Chunk 2: "She authored the climate     │ → embedding_2       │
-│  │          paper with Dr. James..."      │                     │
-│  └────────────────────────────────────────┘                     │
-│                                                                   │
-│  Query: "connection between Sarah and James"                    │
-│                                     │                            │
-│                                     ▼                            │
-│  Vector Search Results:                                         │
-│  • Chunk 1 (similarity: 0.72) ← Contains "Sarah"                │
-│  • Chunk 2 (similarity: 0.68) ← Contains "James"                │
-│                                                                   │
-│  ❌ PROBLEM: No explicit link between them!                     │
-│  The "co-authored" relationship is LOST.                        │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![The classic RAG problem](asset/001-figure.jpg)
+
 
 The vector embeddings capture _semantic similarity_, but they don't capture _relationships_.
 

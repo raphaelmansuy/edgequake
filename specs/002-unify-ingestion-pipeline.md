@@ -4,6 +4,9 @@
 
 Your mission is to unify the document ingestion, extraction, and knowledge graph building pipeline to handle both PDF and Markdown documents through a single, cohesive flow with consistent status tracking and error reporting.
 
+YOU MUST RE-READ THIS ENTIRE MISSION FILE AT THE START OF EVERY OODA ITERATION.
+YOU MUST  FULLY READ THIS ENTIRE MISSION FILE AT THE START OF EVERY OODA ITERATION.
+
 ## Context
 
 - **Location**: `/Users/raphaelmansuy/Github/03-working/edgequake`

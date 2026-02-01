@@ -1115,6 +1115,11 @@ pub async fn list_documents(
         total_tokens: Option<usize>,
         llm_model: Option<String>,
         embedding_model: Option<String>,
+        // SPEC-002: Unified Ingestion Pipeline fields
+        source_type: Option<String>,
+        current_stage: Option<String>,
+        stage_progress: Option<f32>,
+        stage_message: Option<String>,
     }
 
     let mut doc_metadata: std::collections::HashMap<String, DocMetadata> =
@@ -1238,6 +1243,30 @@ pub async fn list_documents(
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
+                // SPEC-002: Get source_type
+                meta.source_type = obj
+                    .get("source_type")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                // SPEC-002: Get current_stage
+                meta.current_stage = obj
+                    .get("current_stage")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                // SPEC-002: Get stage_progress
+                meta.stage_progress = obj
+                    .get("stage_progress")
+                    .and_then(|v| v.as_f64())
+                    .map(|n| n as f32);
+
+                // SPEC-002: Get stage_message
+                meta.stage_message = obj
+                    .get("stage_message")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
                 doc_metadata.insert(id.to_string(), meta);
             }
         }
@@ -1294,6 +1323,11 @@ pub async fn list_documents(
                 total_tokens: meta.total_tokens,
                 llm_model: meta.llm_model,
                 embedding_model: meta.embedding_model,
+                // SPEC-002: Unified Ingestion Pipeline fields
+                source_type: meta.source_type,
+                current_stage: meta.current_stage,
+                stage_progress: meta.stage_progress,
+                stage_message: meta.stage_message,
             })
         })
         .collect();
@@ -1323,6 +1357,11 @@ pub async fn list_documents(
             total_tokens: meta.total_tokens,
             llm_model: meta.llm_model,
             embedding_model: meta.embedding_model,
+            // SPEC-002: Unified Ingestion Pipeline fields
+            source_type: meta.source_type,
+            current_stage: meta.current_stage,
+            stage_progress: meta.stage_progress,
+            stage_message: meta.stage_message,
         });
     }
 
@@ -2890,6 +2929,23 @@ pub async fn get_track_status(
                         .get("embedding_model")
                         .and_then(|v| v.as_str())
                         .map(String::from),
+                    // SPEC-002: Unified Ingestion Pipeline fields
+                    source_type: obj
+                        .get("source_type")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    current_stage: obj
+                        .get("current_stage")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    stage_progress: obj
+                        .get("stage_progress")
+                        .and_then(|v| v.as_f64())
+                        .map(|n| n as f32),
+                    stage_message: obj
+                        .get("stage_message")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                 });
             }
         }
@@ -3880,6 +3936,11 @@ mod tests {
             total_tokens: None,
             llm_model: None,
             embedding_model: None,
+            // SPEC-002 fields
+            source_type: Some("markdown".to_string()),
+            current_stage: Some("completed".to_string()),
+            stage_progress: Some(1.0),
+            stage_message: None,
         };
 
         let json = serde_json::to_string(&summary).unwrap();
@@ -3909,6 +3970,11 @@ mod tests {
                 total_tokens: None,
                 llm_model: None,
                 embedding_model: None,
+                // SPEC-002 fields
+                source_type: None,
+                current_stage: Some("completed".to_string()),
+                stage_progress: None,
+                stage_message: None,
             }],
             total: 1,
             page: 1,
@@ -4014,6 +4080,11 @@ mod tests {
                 total_tokens: None,
                 llm_model: None,
                 embedding_model: None,
+                // SPEC-002 fields
+                source_type: None,
+                current_stage: Some("completed".to_string()),
+                stage_progress: None,
+                stage_message: None,
             }],
             total_count: 1,
             status_summary: StatusCounts {
