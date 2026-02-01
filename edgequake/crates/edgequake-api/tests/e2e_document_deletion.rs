@@ -3895,17 +3895,28 @@ async fn test_content_hash_consistency() {
 
     // Upload first document
     let (status1, body1) = upload_document_http(&app, "Hash Test Doc 1", content).await;
-    assert_eq!(status1, StatusCode::CREATED, "First upload should succeed with 201 CREATED");
+    assert_eq!(
+        status1,
+        StatusCode::CREATED,
+        "First upload should succeed with 201 CREATED"
+    );
 
     // Upload second document with same content should be detected as duplicate
     // OODA-84: Duplicate detection returns 200 OK with status: "duplicate"
     let (status2, body2) = upload_document_http(&app, "Hash Test Doc 2", content).await;
-    assert_eq!(status2, StatusCode::OK, "Duplicate upload should return 200 OK");
-    
+    assert_eq!(
+        status2,
+        StatusCode::OK,
+        "Duplicate upload should return 200 OK"
+    );
+
     // Verify duplicate status
     let status_field = body2.get("status").and_then(|v| v.as_str()).unwrap_or("");
-    assert_eq!(status_field, "duplicate", "Response should indicate duplicate status");
-    
+    assert_eq!(
+        status_field, "duplicate",
+        "Response should indicate duplicate status"
+    );
+
     // Verify duplicate_of field points to original document
     let duplicate_of = body2.get("duplicate_of").and_then(|v| v.as_str());
     let doc_id1 = body1["document_id"].as_str().unwrap();
@@ -3939,7 +3950,7 @@ async fn test_delete_one_of_duplicate_content_docs() {
     let (status2, body2) =
         upload_document_http(&app, "Duplicate Content B", duplicate_content).await;
     assert_eq!(status2, StatusCode::OK, "Duplicate should return 200 OK");
-    
+
     // Verify the duplicate response references the original
     let duplicate_of = body2.get("duplicate_of").and_then(|v| v.as_str());
     assert_eq!(
@@ -3950,7 +3961,11 @@ async fn test_delete_one_of_duplicate_content_docs() {
 
     // Delete doc A - should succeed
     let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
-    assert_eq!(delete_status, StatusCode::OK, "Original document should be deletable");
+    assert_eq!(
+        delete_status,
+        StatusCode::OK,
+        "Original document should be deletable"
+    );
 
     // After deleting, uploading the same content should succeed again
     let (status3, body3) =
@@ -3960,7 +3975,7 @@ async fn test_delete_one_of_duplicate_content_docs() {
         StatusCode::CREATED,
         "Content should be uploadable after original deleted"
     );
-    
+
     // Cleanup
     let doc_c_id = body3["document_id"].as_str().unwrap();
     delete_document_http(&app, doc_c_id).await;
@@ -4301,9 +4316,11 @@ async fn test_document_with_unicode_title() {
 
     for (i, title) in unicode_titles.iter().enumerate() {
         // OODA-84: Use unique content for each iteration to avoid duplicate detection
-        let unique_content = format!("Content for unicode title testing - iteration {} - {}", i, title);
-        let (status, body) =
-            upload_document_http(&app, title, &unique_content).await;
+        let unique_content = format!(
+            "Content for unicode title testing - iteration {} - {}",
+            i, title
+        );
+        let (status, body) = upload_document_http(&app, title, &unique_content).await;
 
         assert_eq!(
             status,
