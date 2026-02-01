@@ -645,6 +645,56 @@ export async function cancelPdfProcessing(
   return api.delete<PdfOperationResponse>(`/documents/pdf/${pdfId}/cancel`);
 }
 
+// ============================================================================
+// PDF Viewer API (SPEC-002)
+// ============================================================================
+
+/**
+ * PDF content response with metadata and extracted markdown.
+ *
+ * @implements SPEC-002: Document Viewer
+ */
+export interface PdfContentResponse {
+  /** PDF ID */
+  pdf_id: string;
+  /** Original filename */
+  filename: string;
+  /** File size in bytes */
+  file_size_bytes: number;
+  /** MIME type (typically application/pdf) */
+  content_type: string;
+  /** Extracted markdown content (if processed) */
+  markdown_content: string | null;
+  /** Whether PDF processing is complete */
+  is_processed: boolean;
+}
+
+/**
+ * Get PDF content metadata including extracted markdown.
+ *
+ * @implements SPEC-002: Document Viewer - get PDF metadata with markdown
+ * @param pdfId The PDF document ID
+ * @returns PDF content response with metadata and markdown
+ */
+export async function getPdfContent(
+  pdfId: string,
+): Promise<PdfContentResponse> {
+  return api.get<PdfContentResponse>(`/documents/pdf/${pdfId}/content`);
+}
+
+/**
+ * Get the URL for downloading a PDF file.
+ *
+ * @implements SPEC-002: Document Viewer - PDF download URL
+ * @param pdfId The PDF document ID
+ * @returns Full URL to download the PDF
+ */
+export function getPdfDownloadUrl(pdfId: string): string {
+  // Build the full URL with the API base
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+  return `${baseUrl}/api/v1/documents/pdf/${pdfId}/download`;
+}
+
 export async function deleteDocument(documentId: string): Promise<void> {
   return api.delete<void>(`/documents/${documentId}`);
 }

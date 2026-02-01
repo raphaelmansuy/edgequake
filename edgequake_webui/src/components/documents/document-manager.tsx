@@ -100,6 +100,7 @@ import { ConnectionStatus } from './connection-status';
 import { CostCell } from './cost-cell';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
+import { DocumentViewerDialog } from './document-viewer-dialog';
 import { ErrorMessagePopover } from './error-message-popover';
 import { PaginationControls } from './pagination-controls';
 import { PdfUploadProgress } from './pdf-upload-progress';
@@ -189,6 +190,10 @@ export function DocumentManager() {
   // Selected document for preview panel
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
+  
+  // SPEC-002: Document viewer dialog state for PDF/Markdown side-by-side view
+  const [viewerDialogOpen, setViewerDialogOpen] = useState(false);
+  const [viewerPdfId, setViewerPdfId] = useState<string | null>(null);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -798,6 +803,22 @@ export function DocumentManager() {
 
   const handleViewInGraph = useCallback((doc: Document) => {
     router.push(`/graph?entity=${encodeURIComponent(doc.id)}`);
+  }, [router]);
+
+  /**
+   * SPEC-002: Open PDF viewer dialog for PDF documents
+   * WHY: Users need to view original PDF alongside extracted markdown
+   */
+  const handleViewPdf = useCallback((doc: Document) => {
+    // Use pdf_id if available, otherwise try to derive from source_type
+    const pdfId = doc.pdf_id || (doc.source_type === 'pdf' ? doc.id : null);
+    if (pdfId) {
+      setViewerPdfId(pdfId);
+      setViewerDialogOpen(true);
+    } else {
+      // Fallback to standard document view
+      router.push(`/documents/${doc.id}`);
+    }
   }, [router]);
 
   /**
@@ -1472,6 +1493,13 @@ export function DocumentManager() {
                                 <Copy className="h-4 w-4 mr-2" />
                                 {t('documents.actions.copyId', 'Copy ID')}
                               </DropdownMenuItem>
+                              {/* SPEC-002: View PDF/Markdown for PDF documents */}
+                              {(doc.source_type === 'pdf' || doc.pdf_id) && (
+                                <DropdownMenuItem onClick={() => handleViewPdf(doc)}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  {t('documents.actions.viewPdf', 'View PDF')}
+                                </DropdownMenuItem>
+                              )}
                               {doc.status === 'failed' && (
                                 <DropdownMenuItem asChild>
                                   <div className="p-0">
@@ -1557,12 +1585,26 @@ export function DocumentManager() {
             handlePreviewClose();
           }}
           onReprocess={(id) => reprocessMutation.mutate(id)}
-          onViewFull={(doc) => router.push(`/documents/${doc.id}`)}
+          onViewFull={(doc) => {
+            // SPEC-002: Open PDF viewer for PDF documents, standard view for others
+            if (doc.source_type === 'pdf' || doc.pdf_id) {
+              handleViewPdf(doc);
+            } else {
+              router.push(`/documents/${doc.id}`);
+            }
+          }}
           onViewInGraph={handleViewInGraph}
           isDeleting={deleteMutation.isPending}
           isReprocessing={reprocessMutation.isPending}
         />
       </RightPanel>
+
+      {/* SPEC-002: PDF/Markdown Viewer Dialog */}
+      <DocumentViewerDialog
+        open={viewerDialogOpen}
+        onOpenChange={setViewerDialogOpen}
+        pdfId={viewerPdfId}
+      />
     </div>
   );
 }

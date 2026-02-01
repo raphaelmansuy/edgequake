@@ -231,6 +231,15 @@ fn api_v1_routes() -> Router<AppState> {
             "/documents/pdf/{pdf_id}/cancel",
             delete(handlers::cancel_pdf_processing),
         )
+        // SPEC-002: PDF content download/view endpoints - before /documents/pdf/{pdf_id}
+        .route(
+            "/documents/pdf/{pdf_id}/download",
+            get(handlers::download_pdf),
+        )
+        .route(
+            "/documents/pdf/{pdf_id}/content",
+            get(handlers::get_pdf_content),
+        )
         .route("/documents/pdf/{pdf_id}", get(handlers::get_pdf_status))
         .route("/documents/pdf/{pdf_id}", delete(handlers::delete_pdf))
         // Document Scan API (GAP-014) - MUST come before /documents/{document_id}

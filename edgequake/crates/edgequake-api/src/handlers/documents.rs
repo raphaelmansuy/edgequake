@@ -1125,6 +1125,7 @@ pub async fn list_documents(
         current_stage: Option<String>,
         stage_progress: Option<f32>,
         stage_message: Option<String>,
+        pdf_id: Option<String>,
     }
 
     let mut doc_metadata: std::collections::HashMap<String, DocMetadata> =
@@ -1272,6 +1273,12 @@ pub async fn list_documents(
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
+                // SPEC-002: Get pdf_id (linked PDF document for viewing)
+                meta.pdf_id = obj
+                    .get("pdf_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
                 doc_metadata.insert(id.to_string(), meta);
             }
         }
@@ -1333,6 +1340,7 @@ pub async fn list_documents(
                 current_stage: meta.current_stage,
                 stage_progress: meta.stage_progress,
                 stage_message: meta.stage_message,
+                pdf_id: meta.pdf_id,
             })
         })
         .collect();
@@ -1367,6 +1375,7 @@ pub async fn list_documents(
             current_stage: meta.current_stage,
             stage_progress: meta.stage_progress,
             stage_message: meta.stage_message,
+            pdf_id: meta.pdf_id,
         });
     }
 
@@ -1750,6 +1759,8 @@ pub async fn get_document(
         processed_at,
         lineage,
         metadata: custom_metadata,
+        // SPEC-002: PDF ID for viewer (TODO: look up from pdf_document_links table)
+        pdf_id: None,
     }))
 }
 
@@ -2951,6 +2962,10 @@ pub async fn get_track_status(
                         .get("stage_message")
                         .and_then(|v| v.as_str())
                         .map(String::from),
+                    pdf_id: obj
+                        .get("pdf_id")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                 });
             }
         }
@@ -3946,6 +3961,7 @@ mod tests {
             current_stage: Some("completed".to_string()),
             stage_progress: Some(1.0),
             stage_message: None,
+            pdf_id: None,
         };
 
         let json = serde_json::to_string(&summary).unwrap();
@@ -3980,6 +3996,7 @@ mod tests {
                 current_stage: Some("completed".to_string()),
                 stage_progress: None,
                 stage_message: None,
+                pdf_id: None,
             }],
             total: 1,
             page: 1,
@@ -4028,6 +4045,7 @@ mod tests {
             processed_at: None,
             lineage: None,
             metadata: None,
+            pdf_id: None,
         };
 
         let json = serde_json::to_string(&response).unwrap();
@@ -4090,6 +4108,7 @@ mod tests {
                 current_stage: Some("completed".to_string()),
                 stage_progress: None,
                 stage_message: None,
+                pdf_id: None,
             }],
             total_count: 1,
             status_summary: StatusCounts {
