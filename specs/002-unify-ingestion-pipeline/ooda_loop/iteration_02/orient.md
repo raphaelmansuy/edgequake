@@ -11,12 +11,14 @@
 ### Core Problem
 
 The current system has **two separate progress tracking mechanisms**:
+
 1. PDF: Uses `PipelineProgressCallback` with `PipelinePhase`
 2. Text: No intermediate progress, only status string in metadata
 
 ### First Principle: Single Source of Truth
 
 Both PDF and Markdown should:
+
 1. Store progress in the **same format**
 2. Use the **same stage enum**
 3. Be queryable via the **same API endpoint**
@@ -36,6 +38,7 @@ Both PDF and Markdown should:
 **Current**: `status: "processing"` (arbitrary string)
 
 **Required**:
+
 ```json
 {
   "id": "doc-123",
@@ -66,10 +69,12 @@ async fn run_ingestion_pipeline(content: &str, ...) -> Result<...> {
 ### GAP-04: TrackStatusResponse Needs UnifiedStage
 
 Current `TrackStatusResponse` returns:
+
 - `documents: Vec<DocumentSummary>` with string status
 - `status_counts: StatusCounts` (pending, processing, completed, failed)
 
 **Required**: Add per-document stage info:
+
 ```rust
 pub struct DocumentSummary {
     // Existing fields...
@@ -93,7 +98,7 @@ Store progress as part of document metadata in KV storage:
   "id": "doc-123",
   "title": "Research Paper",
   "status": "processing",
-  
+
   "source_type": "pdf",
   "current_stage": "extracting",
   "stage_progress": 0.45,
@@ -143,6 +148,7 @@ Store progress as part of document metadata in KV storage:
 #### Step 1: Add `source_type` to Document Metadata
 
 When creating document:
+
 ```rust
 let doc_metadata = serde_json::json!({
     "id": document_id,
@@ -163,7 +169,7 @@ async fn update_document_stage(
 ) -> Result<(), ApiError> {
     let key = format!("{}-metadata", document_id);
     let mut metadata = kv_storage.get_by_ids(&[key.clone()]).await?;
-    
+
     // Update stage fields
     if let Some(obj) = metadata.get_mut(0).and_then(|v| v.as_object_mut()) {
         obj.insert("current_stage".into(), stage.to_string().into());
@@ -172,7 +178,7 @@ async fn update_document_stage(
             obj.insert("stage_message".into(), msg.into());
         }
     }
-    
+
     kv_storage.upsert(&[(key, metadata[0].clone())]).await?;
     Ok(())
 }
@@ -181,6 +187,7 @@ async fn update_document_stage(
 #### Step 3: Update Pipeline Callbacks
 
 In `run_ingestion_pipeline`, add stage callbacks:
+
 ```rust
 // Before chunking
 callback.on_stage(UnifiedStage::Chunking, "Splitting into chunks");
@@ -192,22 +199,23 @@ callback.on_stage(UnifiedStage::Extracting, format!("Processing chunk 1/{}", tot
 #### Step 4: Update Response Types
 
 Add fields to `DocumentSummary`:
+
 ```rust
 pub struct DocumentSummary {
     // Existing fields...
-    
+
     /// Document source type (pdf, markdown, text)
     #[schema(example = "pdf")]
     pub source_type: Option<String>,
-    
+
     /// Current ingestion stage
     #[schema(example = "extracting")]
     pub current_stage: Option<String>,
-    
+
     /// Progress within current stage (0.0-1.0)
     #[schema(example = 0.45)]
     pub stage_progress: Option<f32>,
-    
+
     /// Human-readable stage message
     #[schema(example = "Extracting entities from chunk 5/12")]
     pub stage_message: Option<String>,
@@ -222,7 +230,8 @@ pub struct DocumentSummary {
 
 **Concern**: Updating metadata for every chunk could be slow.
 
-**Mitigation**: 
+**Mitigation**:
+
 - Batch updates (every N chunks)
 - Use stage-level updates (not chunk-level)
 - Rate-limit WebSocket broadcasts
@@ -232,6 +241,7 @@ pub struct DocumentSummary {
 **Concern**: Code that checks `status == "completed"` might break.
 
 **Mitigation**:
+
 - Keep `status` field for backward compatibility
 - `status` = "completed" when `current_stage` = "completed"
 - Add migration logic for existing documents

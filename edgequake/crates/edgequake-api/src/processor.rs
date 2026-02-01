@@ -619,10 +619,24 @@ impl DocumentTaskProcessor {
             .unwrap_or("markdown") // Default to markdown for text uploads
             .to_string();
 
+        // OODA-05: Extract tenant_id from metadata for multi-tenant visibility
+        let tenant_id = data
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("tenant_id"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         // SPEC-002: Ensure document metadata includes source_type
         // This is needed for PDFs that bypass the upload handler
-        self.ensure_document_source_type(&document_id, &source_type)
-            .await?;
+        // OODA-05: Pass tenant_id/workspace_id for multi-tenant context
+        self.ensure_document_source_type(
+            &document_id,
+            &source_type,
+            tenant_id.as_deref(),
+            Some(&data.workspace_id),
+        )
+        .await?;
 
         // SPEC-032: Extract workspace_id to use workspace-specific pipeline
         // Prefer the direct field (data.workspace_id), fallback to metadata if needed
@@ -1159,7 +1173,12 @@ impl DocumentTaskProcessor {
         };
 
         // Get existing metadata or create new
-        let existing = self.kv_storage.get_by_id(&metadata_key).await.ok().flatten();
+        let existing = self
+            .kv_storage
+            .get_by_id(&metadata_key)
+            .await
+            .ok()
+            .flatten();
 
         let updated_json = if let Some(existing_val) = existing {
             if let Some(obj) = existing_val.as_object() {
@@ -1220,15 +1239,26 @@ impl DocumentTaskProcessor {
     /// @implements SPEC-002: Unified Ingestion Pipeline
     /// Sets source_type (pdf, markdown, text) for unified pipeline display.
     /// Creates metadata if it doesn't exist (for PDFs that bypass upload handler).
+    ///
+    /// OODA-05: Added tenant_id/workspace_id parameters to ensure multi-tenant context
+    /// is propagated when creating new document metadata. Without these fields,
+    /// documents become invisible in workspace-filtered queries.
     async fn ensure_document_source_type(
         &self,
         document_id: &str,
         source_type: &str,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
     ) -> TaskResult<()> {
         let metadata_key = format!("{}-metadata", document_id);
 
         // Get existing metadata or create new
-        let existing = self.kv_storage.get_by_id(&metadata_key).await.ok().flatten();
+        let existing = self
+            .kv_storage
+            .get_by_id(&metadata_key)
+            .await
+            .ok()
+            .flatten();
 
         let updated_json = if let Some(existing_val) = existing {
             if let Some(obj) = existing_val.as_object() {
@@ -1240,6 +1270,17 @@ impl DocumentTaskProcessor {
                         "updated_at".to_string(),
                         json!(chrono::Utc::now().to_rfc3339()),
                     );
+                    // OODA-05: Also update tenant/workspace if missing
+                    if obj.get("tenant_id").is_none() {
+                        if let Some(tid) = tenant_id {
+                            updated.insert("tenant_id".to_string(), json!(tid));
+                        }
+                    }
+                    if obj.get("workspace_id").is_none() {
+                        if let Some(wid) = workspace_id {
+                            updated.insert("workspace_id".to_string(), json!(wid));
+                        }
+                    }
                     Some(json!(updated))
                 } else {
                     None // Already has source_type, skip update
@@ -1249,6 +1290,7 @@ impl DocumentTaskProcessor {
             }
         } else {
             // Create new metadata for documents that don't have it (e.g., PDFs)
+            // OODA-05: Include tenant_id/workspace_id for multi-tenant visibility
             let mut new_metadata = serde_json::Map::new();
             new_metadata.insert("id".to_string(), json!(document_id));
             new_metadata.insert("source_type".to_string(), json!(source_type));
@@ -1263,6 +1305,13 @@ impl DocumentTaskProcessor {
                 "updated_at".to_string(),
                 json!(chrono::Utc::now().to_rfc3339()),
             );
+            // OODA-05: Critical - include tenant/workspace context
+            if let Some(tid) = tenant_id {
+                new_metadata.insert("tenant_id".to_string(), json!(tid));
+            }
+            if let Some(wid) = workspace_id {
+                new_metadata.insert("workspace_id".to_string(), json!(wid));
+            }
             Some(json!(new_metadata))
         };
 
@@ -1600,6 +1649,7 @@ impl DocumentTaskProcessor {
 
         // 6. Create document via standard pipeline
         // SPEC-002: Include source_type: "pdf" for unified pipeline tracking
+        // OODA-05: Include tenant_id/workspace_id for multi-tenant document visibility
         let text_data = edgequake_tasks::TextInsertData {
             text: markdown,
             file_source: pdf.filename.clone(),
@@ -1611,6 +1661,8 @@ impl DocumentTaskProcessor {
                 "filename": pdf.filename,
                 "page_count": pdf.page_count,
                 "file_size_bytes": pdf.file_size_bytes,
+                "tenant_id": data.tenant_id.to_string(),
+                "workspace_id": data.workspace_id.to_string(),
             })),
         };
 

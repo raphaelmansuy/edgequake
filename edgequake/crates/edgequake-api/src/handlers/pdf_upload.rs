@@ -828,6 +828,7 @@ async fn create_pdf_processing_task(
 
     let task_data = PdfProcessingData {
         pdf_id,
+        tenant_id,
         workspace_id,
         enable_vision: options.enable_vision,
         vision_provider: options.vision_provider.clone(),

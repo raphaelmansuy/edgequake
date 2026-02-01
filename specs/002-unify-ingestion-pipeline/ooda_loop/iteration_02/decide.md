@@ -8,14 +8,14 @@
 
 ## Decision Matrix
 
-| Change | Impact | Effort | Priority |
-|--------|--------|--------|----------|
-| Add `source_type`, `current_stage` to `DocumentSummary` | High | Low | 1 |
-| Update `get_track_status` to return new fields | High | Low | 2 |
-| Store `source_type` on document upload | High | Low | 3 |
-| Store `source_type` on PDF upload | High | Low | 4 |
-| Update frontend `Document` type | High | Low | 5 |
-| Update `DocumentManager` to show unified status | Medium | Medium | 6 |
+| Change                                                  | Impact | Effort | Priority |
+| ------------------------------------------------------- | ------ | ------ | -------- |
+| Add `source_type`, `current_stage` to `DocumentSummary` | High   | Low    | 1        |
+| Update `get_track_status` to return new fields          | High   | Low    | 2        |
+| Store `source_type` on document upload                  | High   | Low    | 3        |
+| Store `source_type` on PDF upload                       | High   | Low    | 4        |
+| Update frontend `Document` type                         | High   | Low    | 5        |
+| Update `DocumentManager` to show unified status         | Medium | Medium | 6        |
 
 ---
 
@@ -32,22 +32,22 @@ Add new fields to `DocumentSummary`:
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DocumentSummary {
     // ... existing fields ...
-    
+
     /// Document source type (pdf, markdown, text)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "pdf")]
     pub source_type: Option<String>,
-    
+
     /// Current ingestion stage (unified with backend UnifiedStage)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "extracting")]
     pub current_stage: Option<String>,
-    
+
     /// Progress within current stage (0.0-1.0)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = json!(0.45))]
     pub stage_progress: Option<f32>,
-    
+
     /// Human-readable stage message
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "Extracting entities from chunk 5/12")]
@@ -109,16 +109,16 @@ Add new fields to Document interface:
 ```typescript
 export interface Document {
   // ... existing fields ...
-  
+
   /** Document source type (pdf, markdown, text) */
   source_type?: SourceType;
-  
+
   /** Current ingestion stage */
   current_stage?: IngestionStage;
-  
+
   /** Progress within current stage (0.0-1.0) */
   stage_progress?: number;
-  
+
   /** Human-readable stage message */
   stage_message?: string;
 }
@@ -131,7 +131,7 @@ export interface Document {
 Use `current_stage` instead of `status` for badge:
 
 ```tsx
-<StatusBadge 
+<StatusBadge
   status={normalizeStatus(doc.current_stage || doc.status)}
   tooltip={doc.stage_message}
 />

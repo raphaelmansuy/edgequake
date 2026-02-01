@@ -88,11 +88,9 @@ pub use extractor::{
 };
 // Re-export unified ingestion types for frontend compatibility
 pub use ingestion_types::{
-    error_codes, SourceType, UnifiedStage,
-    IngestionError as UnifiedIngestionError,
-    IngestionProgress as UnifiedIngestionProgress,
-    StageProgress as UnifiedStageProgress,
-    StageStatus as UnifiedStageStatus,
+    error_codes, IngestionError as UnifiedIngestionError,
+    IngestionProgress as UnifiedIngestionProgress, SourceType,
+    StageProgress as UnifiedStageProgress, StageStatus as UnifiedStageStatus, UnifiedStage,
 };
 pub use lineage::{
     ChunkLineage, DescriptionVersion, DocumentLineage, EntityLineage, EntitySource,

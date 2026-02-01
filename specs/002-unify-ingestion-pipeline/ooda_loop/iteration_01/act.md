@@ -28,6 +28,7 @@ pub mod error_codes { ... }
 **File**: [edgequake/crates/edgequake-pipeline/src/lib.rs](edgequake/crates/edgequake-pipeline/src/lib.rs#L60-L66)
 
 Added exports:
+
 ```rust
 pub use ingestion_types::{
     error_codes, SourceType, UnifiedStage,
@@ -46,8 +47,8 @@ pub use ingestion_types::{
 export type SourceType = "pdf" | "markdown" | "text";
 
 export type IngestionStage =
-  | "uploading"      // New
-  | "converting"     // New (PDF only)
+  | "uploading" // New
+  | "converting" // New (PDF only)
   | "preprocessing"
   | "chunking"
   | "extracting"
@@ -55,7 +56,7 @@ export type IngestionStage =
   | "merging"
   | "summarizing"
   | "embedding"
-  | "storing"        // New (was indexing)
+  | "storing" // New (was indexing)
   | "completed"
   | "failed"
   // Legacy aliases
@@ -68,6 +69,7 @@ export type IngestionStage =
 **File**: [edgequake_webui/src/components/documents/status-badge.tsx](edgequake_webui/src/components/documents/status-badge.tsx#L37-L70)
 
 Added icons and colors for all unified stages:
+
 - `uploading` → Upload icon, blue
 - `converting` → FileText icon, indigo
 - `preprocessing` → Loader2 icon, blue
@@ -104,20 +106,20 @@ cd edgequake_webui && pnpm tsc --noEmit
 
 ## Files Changed
 
-| File | Action | Lines |
-|------|--------|-------|
-| `edgequake-pipeline/src/ingestion_types.rs` | Created | 519 |
-| `edgequake-pipeline/src/lib.rs` | Modified | +8 |
-| `edgequake_webui/src/types/ingestion.ts` | Modified | +20 |
-| `edgequake_webui/src/components/documents/status-badge.tsx` | Modified | +35 |
-| `edgequake_webui/src/components/progress/stage-indicator.tsx` | Modified | +9 |
+| File                                                          | Action   | Lines |
+| ------------------------------------------------------------- | -------- | ----- |
+| `edgequake-pipeline/src/ingestion_types.rs`                   | Created  | 519   |
+| `edgequake-pipeline/src/lib.rs`                               | Modified | +8    |
+| `edgequake_webui/src/types/ingestion.ts`                      | Modified | +20   |
+| `edgequake_webui/src/components/documents/status-badge.tsx`   | Modified | +35   |
+| `edgequake_webui/src/components/progress/stage-indicator.tsx` | Modified | +9    |
 
 ---
 
 ## Next Steps (Iteration 02)
 
 1. Update PDF handler to emit `UnifiedStage` events
-2. Update document handler to emit `UnifiedStage` events  
+2. Update document handler to emit `UnifiedStage` events
 3. Update API progress endpoints to return unified format
 4. Add E2E tests for PDF and Markdown upload flows
 

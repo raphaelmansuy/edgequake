@@ -39,10 +39,10 @@ import {
     RotateCcw,
     Tag
 } from 'lucide-react';
-import { StatusBadge as UnifiedStatusBadge, getDocumentDisplayStatus } from './status-badge';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { StatusBadge as UnifiedStatusBadge, getDocumentDisplayStatus } from './status-badge';
 
 interface DocumentDetailDialogProps {
   document: Document | null;
