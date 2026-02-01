@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getDocument, getPdfDownloadUrl } from '@/lib/api/edgequake';
+import { getDocument, getPdfContent, getPdfDownloadUrl } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -71,6 +71,19 @@ export default function DocumentViewPage() {
     enabled: !!documentId && !!selectedWorkspaceId,
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
+  });
+
+  // OODA-91: Derive PDF ID for content fetching
+  // WHY: pdf_id may be in document.pdf_id or derived from source_type
+  const pdfIdForContent = document?.pdf_id || (document?.source_type === 'pdf' ? document?.id : null);
+
+  // OODA-91: Fetch PDF content (markdown) separately for PDF documents
+  // WHY: PDF markdown content is stored in pdf_documents table, not in regular document content
+  const { data: pdfContent, isLoading: isPdfContentLoading } = useQuery({
+    queryKey: ['pdfContent', pdfIdForContent],
+    queryFn: () => getPdfContent(pdfIdForContent!),
+    enabled: !!pdfIdForContent,
+    staleTime: 60 * 1000,
   });
 
   const handleCopyId = useCallback(async () => {
@@ -131,6 +144,16 @@ export default function DocumentViewPage() {
   // OODA-43: Detect if document is a PDF for side-by-side viewer
   // OODA-48: Require pdfIdForViewer to be truthy to prevent 'undefined' in URL
   const isPdfDocument = Boolean(pdfIdForViewer);
+
+  // OODA-91: Create document with PDF markdown content merged in
+  // WHY: PDF markdown is stored separately in pdf_documents table, not in regular document content.
+  // We merge it here so ContentRenderer can display it without special PDF handling.
+  const documentWithContent = useMemo(() => {
+    if (isPdfDocument && pdfContent?.markdown_content) {
+      return { ...document, content: pdfContent.markdown_content };
+    }
+    return document;
+  }, [document, isPdfDocument, pdfContent?.markdown_content]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -217,18 +240,25 @@ export default function DocumentViewPage() {
                   />
                 }
                 rightPanel={
-                  <ContentRenderer 
-                    document={document} 
-                    highlightText={highlightText}
-                    startLine={startLine}
-                    endLine={endLine}
-                  />
+                  // OODA-91: Show loading state while PDF markdown is being fetched
+                  isPdfContentLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <ContentRenderer 
+                      document={documentWithContent} 
+                      highlightText={highlightText}
+                      startLine={startLine}
+                      endLine={endLine}
+                    />
+                  )
                 }
               />
             ) : (
               /* Non-PDF documents show ContentRenderer only */
               <ContentRenderer 
-                document={document} 
+                document={documentWithContent} 
                 highlightText={highlightText}
                 startLine={startLine}
                 endLine={endLine}
@@ -261,12 +291,19 @@ export default function DocumentViewPage() {
               </TabsContent>
             )}
             <TabsContent value="content" className="flex-1 overflow-auto m-0 mt-0">
-              <ContentRenderer 
-                document={document} 
-                highlightText={highlightText}
-                startLine={startLine}
-                endLine={endLine}
-              />
+              {/* OODA-91: Show loading state for PDF markdown on mobile */}
+              {isPdfDocument && isPdfContentLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <ContentRenderer 
+                  document={documentWithContent} 
+                  highlightText={highlightText}
+                  startLine={startLine}
+                  endLine={endLine}
+                />
+              )}
             </TabsContent>
             <TabsContent value="metadata" className="flex-1 overflow-hidden m-0 mt-0">
               <MetadataSidebar document={document} />

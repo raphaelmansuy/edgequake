@@ -2115,7 +2115,7 @@ pub async fn delete_document(
     if has_content {
         keys_to_delete.push(content_key);
     }
-    
+
     // OODA-90: Delete workspace-scoped hash key to allow re-upload of same content
     // WHY: If we don't delete the hash key, the duplicate detection will still
     // block uploads of the same content even after the document is deleted.
