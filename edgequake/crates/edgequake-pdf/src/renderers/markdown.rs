@@ -87,31 +87,7 @@ impl MarkdownRenderer {
             output.push_str(&format!("## Page {}\n\n", page.number));
         }
 
-        // DEBUG: Log page columns info
-        if page.number == 1 {
-            tracing::info!(
-                "PAGE1-COLUMNS: count={}, cols={:?}",
-                page.columns.len(),
-                page.columns
-                    .iter()
-                    .map(|c| format!("x1={:.0}-x2={:.0}", c.x1, c.x2))
-                    .collect::<Vec<_>>()
-            );
-        }
-
         for (i, block) in page.blocks.iter().enumerate() {
-            // DEBUG: Log ALL page 1 blocks to understand ordering
-            if page.number == 1 && i < 30 {
-                tracing::info!(
-                    "PAGE1-BLOCK: idx={} x1={:.0} y1={:.0} len={}: '{}'",
-                    i,
-                    block.bbox.x1,
-                    block.bbox.y1,
-                    block.text.len(),
-                    &block.text[..block.text.len().min(80)]
-                );
-            }
-
             self.render_block(block, output);
 
             // Add extra newline after list items if the next block is not a list item
