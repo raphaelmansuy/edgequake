@@ -418,7 +418,10 @@ impl ExtractionEngine {
             for (i, elem) in elements.iter().take(10).enumerate() {
                 info!(
                     "ENG-PAGE1-ELEM[{}]: Y={:.1} font={:.1} text='{}'",
-                    i, elem.y, elem.font_size, &elem.text[..50.min(elem.text.len())]
+                    i,
+                    elem.y,
+                    elem.font_size,
+                    &elem.text[..50.min(elem.text.len())]
                 );
             }
         }
@@ -430,6 +433,12 @@ impl ExtractionEngine {
             pre_process_count,
             pdf_lines.len()
         );
+
+        // OODA-08: Detect column layout BEFORE table filtering
+        // WHY: In two-column layouts, tables that span both columns are likely
+        // false positives (side-by-side tables merged). We need to filter these out.
+        let column_boundary = self.detect_columns(&elements, page_width);
+        tracing::info!("Page {} OODA08 column boundary: {:?}", page_num, column_boundary);
 
         // Detect tables using lattice-based line detection
         let detected_tables =
@@ -503,6 +512,36 @@ impl ExtractionEngine {
                     // Less than 1 char per 10000 points²
                     debug!("Filtered out table: low text density ({:.6})", text_density);
                     return false;
+                }
+
+                // OODA-08: Exclude tables that cross column boundary in two-column layouts
+                // WHY: In academic papers, side-by-side tables (Table 2 on left, Table 3 on right)
+                // should NOT be merged into a single wide table. A table spanning both columns
+                // is likely a false positive from text layout detection.
+                //
+                // Exception: Tables at the very top of the page (title area) or at the very
+                // bottom (appendix) may legitimately span both columns.
+                if let Some(boundary) = column_boundary {
+                    let crosses_boundary = table.bbox.x1 < boundary - 10.0 && table.bbox.x2 > boundary + 10.0;
+                    
+                    if crosses_boundary {
+                        // Check if it's in the top or bottom area (allowed to span)
+                        // WHY: Full-width tables at top (title tables) or bottom (appendix tables)
+                        // are common in academic papers. Only reject mid-page spanning tables.
+                        let top_threshold = page_height * 0.20; // Top 20% of page
+                        let bottom_threshold = page_height * 0.85; // Bottom 15% of page
+                        
+                        let is_top_area = table.bbox.y1 < top_threshold;
+                        let is_bottom_area = table.bbox.y1 > bottom_threshold;
+                        
+                        if !is_top_area && !is_bottom_area {
+                            debug!(
+                                "Filtered out table: crosses column boundary ({:.1} < {:.1} < {:.1}) in body area",
+                                table.bbox.x1, boundary, table.bbox.x2
+                            );
+                            return false;
+                        }
+                    }
                 }
 
                 tracing::info!(
