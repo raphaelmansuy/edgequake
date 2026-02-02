@@ -46,24 +46,28 @@ let normalized_y = if is_flipped {
 ### Verification Results
 
 #### 1. Qwen.pdf - Reading Order Correct
+
 ```
 Before: "Beyond its Limits" appeared first (wrong)
 After:  "Pushing Qwen3-Max-Th" appears first (correct)
 ```
 
 #### 2. Log Output
+
 ```
 ENG-COORD: original Y range 265.6 to 2452.5 (span=2186.9), page_height=792.0, is_flipped=true
 ```
 
 #### 3. All Test PDFs
-| Document | Before | After | Status |
-|----------|--------|-------|--------|
-| Qwen.pdf | Wrong order | Correct order | ✅ Fixed |
-| Beyond Transformer | 17,759 bytes | 17,759 bytes | ✅ No regression |
-| Agentic Platform | 94,896 bytes | 94,896 bytes | ✅ No regression |
+
+| Document           | Before       | After         | Status           |
+| ------------------ | ------------ | ------------- | ---------------- |
+| Qwen.pdf           | Wrong order  | Correct order | ✅ Fixed         |
+| Beyond Transformer | 17,759 bytes | 17,759 bytes  | ✅ No regression |
+| Agentic Platform   | 94,896 bytes | 94,896 bytes  | ✅ No regression |
 
 #### 4. Test Suite
+
 ```
 cargo test --package edgequake-pdf
 # All tests pass including new type3_font_extraction tests

@@ -272,8 +272,8 @@ impl ExtractionEngine {
         // where higher Y = visually higher on page (opposite of normal PDFs)
         // If original Y range exceeds 1.5x page height, coordinates are likely flipped
         let is_flipped = original_y_range > page_height * 1.5;
-        
-        info!(
+
+        debug!(
             "ENG-COORD: original Y range {:.1} to {:.1} (span={:.1}), page_height={:.1}, is_flipped={}",
             actual_min_y, actual_max_y, original_y_range, page_height, is_flipped
         );
@@ -294,7 +294,7 @@ impl ExtractionEngine {
                 // Found a significant gap - this suggests bimodal distribution
                 has_ocr_layer = true;
                 ocr_split_point = (y_values[i - 1] + y_values[i]) / 2.0;
-                info!(
+                debug!(
                     "ENG-OCR-DETECT: Found gap of {:.1} at Y={:.1}→{:.1}, split at {:.1}",
                     gap,
                     y_values[i - 1],
@@ -332,9 +332,12 @@ impl ExtractionEngine {
             (actual_min_y - 10.0, actual_max_y + 10.0)
         };
 
-        info!(
+        debug!(
             "ENG-FILTER: y_bounds=({:.1}, {:.1}), page_width={:.1}, elem_count_before={}",
-            y_lower_bound, y_upper_bound, page_width, elements.len()
+            y_lower_bound,
+            y_upper_bound,
+            page_width,
+            elements.len()
         );
 
         let elements: Vec<_> = elements
@@ -347,7 +350,7 @@ impl ExtractionEngine {
             })
             .collect();
 
-        info!("ENG-FILTER: elem_count_after={}", elements.len());
+        debug!("ENG-FILTER: elem_count_after={}", elements.len());
 
         // Normalize Y coordinates to standard document order (Y=0 at top, Y increases downward)
         //
@@ -364,7 +367,7 @@ impl ExtractionEngine {
             let min_y = elements.iter().map(|e| e.y).fold(f32::INFINITY, f32::min);
             let y_range = max_y - min_y;
 
-            info!(
+            debug!(
                 "ENG-NORMALIZE: Page {} - filtered Y range {:.1} to {:.1} (span={:.1}), page_height={:.1}, flipped={}",
                 page_num, min_y, max_y, y_range, page_height, is_flipped
             );
