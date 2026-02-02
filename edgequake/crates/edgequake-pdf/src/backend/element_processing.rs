@@ -30,7 +30,11 @@ impl ElementProcessor {
     pub fn new() -> Self {
         Self {
             position_tolerance: 2.0,
-            char_width_factor: 0.4,
+            // WHY 0.55: Average character width is typically 55% of font size for most fonts.
+            // This is more accurate than the previous 0.4 which caused false gap detection.
+            // For 12pt font: 0.55 * 12 = 6.6pt average char width (realistic for body text)
+            // For 18pt heading: 0.55 * 18 = 9.9pt (close to actual ~10pt spacing seen in PDFs)
+            char_width_factor: 0.55,
         }
     }
 
@@ -46,10 +50,12 @@ impl ElementProcessor {
             return Vec::new();
         }
 
-        // Sort by Y (descending), then X (ascending)
+        // Sort by Y (ascending), then X (ascending)
+        // After Y-normalization in extraction engine, Y=0 is at top of page,
+        // so ascending Y gives top-to-bottom reading order.
         let mut sorted = elements;
         sorted.sort_by(|a, b| {
-            b.y.partial_cmp(&a.y)
+            a.y.partial_cmp(&b.y)
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then(a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
         });
@@ -98,10 +104,12 @@ impl ElementProcessor {
             return Vec::new();
         }
 
-        // Sort by Y (descending), then X (ascending)
+        // Sort by Y (ascending), then X (ascending)
+        // After Y-normalization in extraction engine, Y=0 is at top of page,
+        // so ascending Y gives top-to-bottom reading order.
         let mut sorted = elements;
         sorted.sort_by(|a, b| {
-            b.y.partial_cmp(&a.y)
+            a.y.partial_cmp(&b.y)
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then(a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
         });
@@ -110,26 +118,44 @@ impl ElementProcessor {
         let mut current = sorted[0].clone();
 
         for next in sorted.into_iter().skip(1) {
-            // Check if on same line
-            if (next.y - current.y).abs() < self.position_tolerance {
-                // Check horizontal distance
-                // Use font size from current element to estimate char width
+            // Check if on same line (Y within tolerance)
+            let y_diff = (next.y - current.y).abs();
+            if y_diff < self.position_tolerance {
+                // Estimate character width for gap threshold calculations
                 let char_width = if current.font_size > 0.0 {
                     current.font_size * self.char_width_factor
                 } else {
                     4.0
                 };
 
-                let current_width = current.text.len() as f32 * char_width;
-                let current_end = current.x + current_width;
-                let gap = next.x - current_end;
+                // Calculate gap using estimated end position.
+                let estimated_width = current.text.chars().count() as f32 * char_width;
+                let gap = next.x - (current.x + estimated_width);
 
-                // If gap is small (e.g. < 2.5 chars), merge
-                // Allow slight negative gap (overlap) due to kerning
-                if gap > -char_width && gap < char_width * 2.5 {
+                // For tight fonts where estimated width is too large (negative gap),
+                // use a heuristic: if elements are clearly overlapping in X-space,
+                // they should be merged. Check if next.x is within the estimated
+                // span of current element.
+                let overlapping = next.x >= current.x && next.x < current.x + estimated_width;
+
+                // Merge thresholds - generous to handle character-by-character PDFs
+                let max_overlap = char_width * 4.0; // 4x char_width for tight kerning
+                let max_gap = char_width * 2.0; // 2x char_width for word gaps
+
+                if overlapping || (gap > -max_overlap && gap < max_gap) {
                     // Merge!
-                    // Add space if gap is significant (> 0.3 char width)
-                    if gap > char_width * 0.3 {
+                    // For word-level spacing (actual gap > typical char spacing), insert space.
+                    // But for character-by-character PDFs, don't insert spaces.
+                    //
+                    // WHY 1.5x threshold instead of 1.0x:
+                    // Character-by-character PDFs have inherent position jitter (+-10%).
+                    // A gap of 7.39 with char_width=7.33 is just noise, not a real space.
+                    // Real word separators have gaps of 1.5-2x char_width.
+                    // Using 1.5x prevents false space insertion like "D iagnose" → "Diagnose".
+                    let needs_space = gap > char_width * 1.5
+                        && !current.text.ends_with(' ')
+                        && !next.text.starts_with(' ');
+                    if needs_space {
                         current.text.push(' ');
                     }
                     current.text.push_str(&next.text);
