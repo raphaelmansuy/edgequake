@@ -316,7 +316,7 @@ impl ExtractionEngine {
             elements
                 .into_iter()
                 .map(|mut e| {
-                    e.y = e.y - min_y;
+                    e.y -= min_y;
                     e
                 })
                 .collect()
