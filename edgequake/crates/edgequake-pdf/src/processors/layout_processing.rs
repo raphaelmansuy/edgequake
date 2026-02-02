@@ -204,15 +204,27 @@ impl BlockMergeProcessor {
         }
 
         // Don't merge if b looks like a new list item
+        // WHY: Each list item should be a separate block for proper rendering
         let trimmed_b = b.text.trim();
+
+        // OODA-12: Add academic reference detection [N] pattern
+        // WHY: arXiv papers have 30-60 references like "[1] Author..."
+        // These must NOT be merged with preceding blocks
+        let is_academic_ref = trimmed_b.len() > 2
+            && trimmed_b.starts_with('[')
+            && trimmed_b.chars().skip(1).take_while(|c| c.is_ascii_digit()).count() >= 1
+            && trimmed_b.contains(']');
+
         if trimmed_b.starts_with("- ")
             || trimmed_b.starts_with("* ")
             || trimmed_b.starts_with("• ")
+            || is_academic_ref
             || (trimmed_b.len() > 2
                 && trimmed_b.chars().next().unwrap().is_ascii_digit()
                 && trimmed_b.contains(". "))
         {
-            tracing::debug!("BlockMerge: skip - b looks like list item");
+            tracing::debug!("BlockMerge: skip - b looks like list item (ref={}, text='{}')", 
+                is_academic_ref, safe_truncate(trimmed_b, 30));
             return false;
         }
 

@@ -240,23 +240,32 @@ impl TextGrouper {
                 right_column.push(elem);
             } else {
                 // WHY: Element is in the gap between columns (within ±15pt of boundary)
-                // FIXED: Use element's X position relative to boundary
-                // Elements starting left of boundary go to left column
-                if elem.x < column_boundary {
+                // OODA-12 FIX: Use midpoint between left column right edge and right column left edge
+                // The "boundary" is the gap center. Elements close to boundary need smarter assignment.
+                // 
+                // Observation: Reference [25] at X=313.2 with boundary=320 was incorrectly assigned
+                // to LEFT because 313.2 < 320. But X=313 is clearly the START of right column text.
+                //
+                // FIX: Use page half as tie-breaker. If X > page_width/2, it's right column.
+                // This handles cases where column boundary detection is slightly off.
+                let page_center = _page_width / 2.0;
+                if elem.x < page_center {
                     info!(
-                        "GAP->LEFT: Y={:.1} X={:.1} boundary={:.1} '{}'",
+                        "GAP->LEFT: Y={:.1} X={:.1} boundary={:.1} center={:.1} '{}'",
                         elem.y,
                         elem.x,
                         column_boundary,
+                        page_center,
                         Self::safe_truncate(&elem.text, 30)
                     );
                     left_column.push(elem);
                 } else {
                     info!(
-                        "GAP->RIGHT: Y={:.1} X={:.1} boundary={:.1} '{}'",
+                        "GAP->RIGHT: Y={:.1} X={:.1} boundary={:.1} center={:.1} '{}'",
                         elem.y,
                         elem.x,
                         column_boundary,
+                        page_center,
                         Self::safe_truncate(&elem.text, 30)
                     );
                     right_column.push(elem);
