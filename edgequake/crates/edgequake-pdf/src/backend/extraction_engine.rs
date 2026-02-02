@@ -384,14 +384,17 @@ impl ExtractionEngine {
                     })
                     .collect()
             } else {
-                // Normal coordinate system: lower Y = bottom of page
-                // Normalize by shifting: normalized_y = visual_y - min_y
-                // This makes content at min_y become Y=0 (but still bottom-first)
-                // Then text_grouping handles Y-sorting for reading order
+                // Normal PDF coordinate system: lower Y = bottom of page (like a graph)
+                // To convert to document order (Y=0 at top), we flip: normalized_y = max_y - y
+                // This makes content at max_y (visual top of page) become Y=0
+                // WHY (OODA-04): Previously used `y - min_y` which kept Y=0 at bottom,
+                // causing reversed reading order (bottom content sorted first).
+                // All downstream sorting (text_grouping.rs, reading_order.rs) expects
+                // ascending Y = top-to-bottom document order.
                 elements
                     .into_iter()
                     .map(|mut e| {
-                        e.y -= min_y;
+                        e.y = max_y - e.y;
                         e
                     })
                     .collect()
