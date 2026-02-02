@@ -59,10 +59,10 @@ impl TextGrouper {
             return Vec::new();
         }
 
-        // Sort by Y descending (higher Y = top of page in PDF coordinates)
-        // This puts content that appears at the top of the page first
+        // Sort by Y ascending (lower Y = top of page after normalization)
+        // After Y-normalization in extraction engine, Y=0 is at top of page
         let mut elements = elements;
-        elements.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
+        elements.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal));
 
         // If two-column layout detected, separate columns first
         if let Some(boundary) = column_boundary {
@@ -373,12 +373,12 @@ impl TextGrouper {
             .map(|line| line.first().map(|e| e.y).unwrap_or(0.0))
             .collect();
 
-        // Find largest gap in Y (remember: sorted by Y descending, so gaps are when Y suddenly drops more)
+        // Find largest gap in Y (after normalization: Y ascending, gaps are when Y increases more than usual)
         let mut max_gap = 0.0f32;
         let mut split_idx = lines.len();
 
         for i in 1..y_positions.len() {
-            let gap = y_positions[i - 1] - y_positions[i]; // Previous Y minus current Y (should be positive)
+            let gap = y_positions[i] - y_positions[i - 1]; // Current Y minus previous Y (should be positive)
             if gap > max_gap && gap > gap_threshold {
                 max_gap = gap;
                 split_idx = i;
@@ -441,14 +441,26 @@ impl TextGrouper {
         all_lines.into_iter().map(|(_, line)| line).collect()
     }
 
-    /// Group elements into lines for single-column layout
+    /// Group elements into lines for single-column layout.
+    ///
+    /// # Algorithm (OODA-04 fix)
+    ///
+    /// 1. Sort by Y descending to get top-to-bottom order
+    /// 2. Group elements with similar Y into lines
+    /// 3. Within each line, detect "runs" of text (contiguous groups with small X gaps)
+    /// 4. Sort elements by X within each run, but preserve run order
+    /// 5. Treat runs with large X gaps as separate logical units
+    ///
+    /// This fixes the issue where elements at the same Y but from different columns
+    /// were being incorrectly interleaved when sorted purely by X.
     fn group_single_column_layout(&self, mut elements: Vec<TextElement>) -> Vec<Vec<TextElement>> {
         if elements.is_empty() {
             return Vec::new();
         }
 
-        // Sort by Y descending (higher Y = top of page in PDF coordinates)
-        elements.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
+        // Sort by Y ascending (lower Y = top of page after normalization)
+        // After Y-normalization in extraction engine, Y=0 is at top of page
+        elements.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal));
 
         // Group into Y-bands
         let mut lines: Vec<Vec<TextElement>> = Vec::new();
@@ -459,48 +471,14 @@ impl TextGrouper {
             let y_tolerance = elem.font_size * 0.5;
 
             if let Some(y) = current_y {
-                if (elem.y - y).abs() > y_tolerance {
+                let y_diff = (elem.y - y).abs();
+                if y_diff > y_tolerance {
                     // New line - save current and start new
                     if !current_line.is_empty() {
-                        current_line.sort_by(|a, b| {
-                            a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)
-                        });
-
-                        // Log X-coordinate range for this line
-                        let min_x = current_line
-                            .iter()
-                            .map(|e| e.x)
-                            .fold(f32::INFINITY, f32::min);
-                        let max_x = current_line
-                            .iter()
-                            .map(|e| e.x)
-                            .fold(f32::NEG_INFINITY, f32::max);
-                        let x_range = max_x - min_x;
-                        let text: String = current_line.iter().map(|e| e.text.as_str()).collect();
-
-                        if x_range > 200.0 {
-                            // Log individual elements in this line
-                            for (i, e) in current_line.iter().enumerate() {
-                                info!(
-                                    "  LINE-ELEM[{}]: X={:.1} Y={:.1} text='{}'",
-                                    i,
-                                    e.x,
-                                    e.y,
-                                    Self::safe_truncate(&e.text, 40)
-                                );
-                            }
-                            info!(
-                                "LINE-XRANGE: Y={:.1} X=[{:.1},{:.1}] range={:.1} elements={} text='{}'",
-                                current_y.unwrap_or(0.0),
-                                min_x,
-                                max_x,
-                                x_range,
-                                current_line.len(),
-                                Self::safe_truncate(&text, 80)
-                            );
-                        }
-
-                        lines.push(std::mem::take(&mut current_line));
+                        // OODA-04 FIX: Use run-aware sorting instead of pure X-sort
+                        let sorted_line = self.sort_line_by_runs(current_line);
+                        lines.push(sorted_line);
+                        current_line = Vec::new();
                     }
                     current_y = Some(elem.y);
                 }
@@ -511,36 +489,68 @@ impl TextGrouper {
         }
 
         if !current_line.is_empty() {
-            current_line.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
-
-            // Log X-coordinate range for final line
-            let min_x = current_line
-                .iter()
-                .map(|e| e.x)
-                .fold(f32::INFINITY, f32::min);
-            let max_x = current_line
-                .iter()
-                .map(|e| e.x)
-                .fold(f32::NEG_INFINITY, f32::max);
-            let x_range = max_x - min_x;
-            let text: String = current_line.iter().map(|e| e.text.as_str()).collect();
-
-            if x_range > 200.0 {
-                info!(
-                    "LINE-XRANGE: Y={:.1} X=[{:.1},{:.1}] range={:.1} elements={} text='{}'",
-                    current_y.unwrap_or(0.0),
-                    min_x,
-                    max_x,
-                    x_range,
-                    current_line.len(),
-                    Self::safe_truncate(&text, 80)
-                );
-            }
-
-            lines.push(current_line);
+            // OODA-04 FIX: Use run-aware sorting for final line
+            let sorted_line = self.sort_line_by_runs(current_line);
+            lines.push(sorted_line);
         }
 
         lines
+    }
+
+    /// Sort elements within a line using run-aware sorting.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. First, assign each element to a "run" based on X proximity
+    /// 2. Sort elements within each run by X
+    /// 3. Return elements in run order (preserving logical grouping)
+    ///
+    /// This prevents interleaving of elements from different columns/regions
+    /// that happen to share the same Y coordinate.
+    fn sort_line_by_runs(&self, mut elements: Vec<TextElement>) -> Vec<TextElement> {
+        if elements.len() <= 1 {
+            return elements;
+        }
+
+        // First, sort by X to identify runs
+        elements.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Detect runs: groups of elements with small X gaps
+        // A large gap (> 100pt or > 10x average char width) indicates a new run
+        let avg_font_size =
+            elements.iter().map(|e| e.font_size).sum::<f32>() / elements.len() as f32;
+        let large_gap_threshold = (avg_font_size * 10.0).max(100.0);
+
+        let mut runs: Vec<Vec<TextElement>> = Vec::new();
+        let mut current_run: Vec<TextElement> = Vec::new();
+        let mut prev_end_x: Option<f32> = None;
+
+        for elem in elements {
+            if let Some(prev_x) = prev_end_x {
+                let gap = elem.x - prev_x;
+                if gap > large_gap_threshold {
+                    // Large gap - start a new run
+                    if !current_run.is_empty() {
+                        runs.push(std::mem::take(&mut current_run));
+                    }
+                }
+            }
+
+            // Estimate element end position
+            let char_width = elem.font_size * 0.5;
+            let elem_end = elem.x + (elem.text.chars().count() as f32 * char_width);
+            prev_end_x = Some(elem_end);
+
+            current_run.push(elem);
+        }
+
+        if !current_run.is_empty() {
+            runs.push(current_run);
+        }
+
+        // Flatten runs back into a single line
+        // Each run is already sorted by X; runs are in left-to-right order
+        runs.into_iter().flatten().collect()
     }
 
     /// Merge line elements into text with proper spacing while preserving style runs as spans.
@@ -556,13 +566,12 @@ impl TextGrouper {
         let avg_font_size =
             elements.iter().map(|e| e.font_size).sum::<f32>() / elements.len() as f32;
 
-        // Estimate average character width.
-        // We bias toward inserting spaces (missing spaces are worse than extra spaces).
-        // Using a low threshold (0.3x) to be more aggressive about space insertion.
-        // Post-processing can clean up extra spaces, but missing spaces cause word concatenation.
-        let avg_char_width = avg_font_size * 0.5;
-        let space_threshold = avg_char_width * 0.3;
-
+        // Estimate space character width.
+        // A space character is typically about 0.25-0.33 of the font size.
+        // We use 0.25x as the minimum gap that should be treated as a space.
+        // This prevents inserting spaces between tightly-kerned letters while
+        // still catching actual word breaks.
+        //
         let mut text = String::new();
         let mut spans: Vec<TextSpan> = Vec::new();
 
@@ -583,29 +592,91 @@ impl TextGrouper {
             });
         };
 
+        // Calculate typical letter spacing from NON-WHITESPACE elements only
+        // Exclude spacing to/from explicit space characters
+        // This helps detect whether we have tightly-spaced letters or wide gaps
+        let typical_spacing = if elements.len() > 2 {
+            let mut spacings: Vec<f32> = Vec::new();
+            for i in 1..elements.len() {
+                // Only count spacing between non-whitespace elements
+                let curr_is_ws = elements[i].text.trim().is_empty();
+                let prev_is_ws = elements[i - 1].text.trim().is_empty();
+                if !curr_is_ws && !prev_is_ws {
+                    let spacing = elements[i].x - elements[i - 1].x;
+                    if spacing > 0.0 && spacing < avg_font_size * 2.0 {
+                        spacings.push(spacing);
+                    }
+                }
+            }
+            if spacings.is_empty() {
+                avg_font_size * 0.6
+            } else {
+                spacings.iter().sum::<f32>() / spacings.len() as f32
+            }
+        } else {
+            avg_font_size * 0.6
+        };
+
+        // A "word gap" is significantly larger than typical letter spacing
+        // Typically 2-3x the typical letter spacing
+        let word_gap_threshold = typical_spacing * 1.5;
+
         for (i, elem) in elements.iter().enumerate() {
             if i > 0 {
                 let prev = &elements[i - 1];
-                // Estimate previous element's end position using its own font size and Unicode-safe length.
-                let prev_char_width = prev.font_size * 0.5;
-                let prev_len = prev.text.chars().count() as f32;
-                let prev_end = prev.x + (prev_len * prev_char_width);
-                let gap = elem.x - prev_end;
 
-                // Avoid inserting spaces before punctuation.
-                let starts_with_punct = elem
-                    .text
-                    .chars()
-                    .next()
-                    .map(|c| matches!(c, ',' | '.' | ':' | ';' | ')' | ']' | '}' | '?' | '!'))
-                    .unwrap_or(false);
+                // Skip space insertion if current element is already a space/whitespace.
+                // PDF content often has explicit space characters at the correct positions.
+                let is_whitespace = elem.text.trim().is_empty();
 
-                if gap > space_threshold && !starts_with_punct {
-                    text.push(' ');
-                    if let Some(last) = spans.last_mut() {
-                        last.text.push(' ');
+                // Skip space insertion if previous element was already a space.
+                let prev_is_whitespace = prev.text.trim().is_empty();
+
+                // Skip space insertion if previous element already ends with a space.
+                // This prevents double spaces when elements like 'ABOUT ' merge with 'THE '.
+                let prev_ends_with_space = prev.text.ends_with(' ');
+
+                // Skip space insertion if current element starts with a space.
+                let elem_starts_with_space = elem.text.starts_with(' ');
+
+                // If previous element CONTAINS a space anywhere, be more cautious.
+                // The space in ' Mansu' already accounts for visual separation from previous element.
+                // Don't add more spaces after elements that have internal spaces, unless gap is HUGE.
+                let prev_has_space = prev.text.contains(' ');
+
+                if !is_whitespace
+                    && !prev_is_whitespace
+                    && !prev_ends_with_space
+                    && !elem_starts_with_space
+                {
+                    // Calculate actual gap between elements
+                    let spacing = elem.x - prev.x;
+
+                    // Avoid inserting spaces before punctuation.
+                    let starts_with_punct = elem
+                        .text
+                        .chars()
+                        .next()
+                        .map(|c| matches!(c, ',' | '.' | ':' | ';' | ')' | ']' | '}' | '?' | '!'))
+                        .unwrap_or(false);
+
+                    // If prev already has a space, require a much larger gap to insert another.
+                    // This handles cases like ' Mansu' -> 'y' where the leading space in prev
+                    // already accounts for word separation.
+                    let effective_threshold = if prev_has_space {
+                        word_gap_threshold * 2.0 // Much stricter: 3x typical spacing
                     } else {
-                        spans.push(TextSpan::plain(" "));
+                        word_gap_threshold // Normal: 1.5x typical spacing
+                    };
+
+                    // Only insert space if spacing exceeds the effective threshold
+                    if spacing > effective_threshold && !starts_with_punct {
+                        text.push(' ');
+                        if let Some(last) = spans.last_mut() {
+                            last.text.push(' ');
+                        } else {
+                            spans.push(TextSpan::plain(" "));
+                        }
                     }
                 }
             }

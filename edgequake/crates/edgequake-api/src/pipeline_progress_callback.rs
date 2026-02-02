@@ -37,9 +37,11 @@
 use crate::handlers::websocket_types::ProgressEvent;
 use crate::handlers::ProgressBroadcaster;
 use edgequake_pdf::ProgressCallback;
+use edgequake_storage::traits::KVStorage;
 use edgequake_tasks::progress::PipelinePhase;
 use edgequake_tasks::PipelineState;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use tokio::runtime::Handle;
 
 /// Adapter that forwards PDF extraction progress to PipelineState and ProgressBroadcaster.
@@ -80,12 +82,21 @@ pub struct PipelineProgressCallback {
     filename: String,
     /// Total pages (set on extraction_start).
     total_pages: AtomicUsize,
+    /// Document ID for updating metadata with progress.
+    document_id: Option<String>,
+    /// KV storage for updating document metadata.
+    kv_storage: Option<Arc<dyn KVStorage>>,
     /// OODA-04: Tokio runtime handle for spawning async tasks from sync context.
     ///
     /// WHY: PDF extraction runs in rayon thread pool (sync), but we need to spawn
     /// async tasks for persistence. Capturing the handle at construction time allows
     /// us to spawn on the correct runtime from any thread context.
     runtime_handle: Handle,
+    /// OODA-PERF-02: Last page number that triggered a metadata update.
+    ///
+    /// WHY: Prevents excessive KV storage writes (39 updates for 39 pages).
+    /// Instead, update every N pages OR on last page for completion.
+    last_metadata_page: AtomicUsize,
 }
 
 impl PipelineProgressCallback {
@@ -109,8 +120,12 @@ impl PipelineProgressCallback {
             task_id,
             filename: String::new(),
             total_pages: AtomicUsize::new(0),
+            document_id: None,
+            kv_storage: None,
             // OODA-04: Capture runtime handle at construction time
             runtime_handle: Handle::current(),
+            // OODA-PERF-02: Start at 0 (no pages updated yet)
+            last_metadata_page: AtomicUsize::new(0),
         }
     }
 
@@ -120,6 +135,22 @@ impl PipelineProgressCallback {
     #[must_use]
     pub fn with_filename(mut self, filename: String) -> Self {
         self.filename = filename;
+        self
+    }
+
+    /// Add document ID and KV storage for real-time metadata updates.
+    ///
+    /// WHY: Updates document metadata with page-by-page progress so users see
+    /// "Converting PDF: page 5/10 (50%)" in the documents list without waiting
+    /// for WebSocket or manual refresh.
+    #[must_use]
+    pub fn with_document_metadata(
+        mut self,
+        document_id: String,
+        kv_storage: Arc<dyn KVStorage>,
+    ) -> Self {
+        self.document_id = Some(document_id);
+        self.kv_storage = Some(kv_storage);
         self
     }
 
@@ -138,6 +169,41 @@ impl PipelineProgressCallback {
         if let Some(ref broadcaster) = self.progress_broadcaster {
             // Ignore send errors (no subscribers is OK)
             broadcaster.broadcast(event);
+        }
+    }
+
+    /// Update document metadata with current progress.
+    ///
+    /// WHY: Users polling /documents see real-time progress without WebSocket.
+    fn update_document_metadata(&self, stage_message: String, stage_progress: f64) {
+        if let (Some(ref doc_id), Some(ref kv)) = (&self.document_id, &self.kv_storage) {
+            let doc_id = doc_id.clone();
+            let kv = Arc::clone(kv);
+            let handle = self.runtime_handle.clone();
+
+            handle.spawn(async move {
+                let metadata_key = format!("{}-metadata", doc_id);
+                if let Ok(Some(existing)) = kv.get_by_id(&metadata_key).await {
+                    if let Some(mut obj) = existing.as_object().cloned() {
+                        obj.insert(
+                            "stage_message".to_string(),
+                            serde_json::json!(stage_message),
+                        );
+                        obj.insert(
+                            "stage_progress".to_string(),
+                            serde_json::json!(stage_progress),
+                        );
+                        obj.insert(
+                            "updated_at".to_string(),
+                            serde_json::json!(chrono::Utc::now().to_rfc3339()),
+                        );
+
+                        if let Err(e) = kv.upsert(&[(metadata_key, serde_json::json!(obj))]).await {
+                            tracing::warn!("Failed to update document metadata: {}", e);
+                        }
+                    }
+                }
+            });
         }
     }
 }
@@ -242,6 +308,30 @@ impl ProgressCallback for PipelineProgressCallback {
             success: true,
             error: None,
         });
+
+        // OODA-PERF-02: Update document metadata with debouncing
+        // WHY: Prevents excessive KV writes (39 updates for 39 pages)
+        // STRATEGY: Update every 5 pages OR on last page for completion
+        let last_updated = self.last_metadata_page.load(Ordering::SeqCst);
+        let is_last_page = page_num >= total;
+        let should_update = is_last_page || (page_num - last_updated) >= 5;
+
+        if should_update {
+            self.last_metadata_page.store(page_num, Ordering::SeqCst);
+
+            let progress_percent = if total > 0 {
+                (page_num as f64 / total as f64) * 100.0
+            } else {
+                0.0
+            };
+            self.update_document_metadata(
+                format!(
+                    "Converting PDF to Markdown: page {}/{} ({:.0}%)",
+                    page_num, total, progress_percent
+                ),
+                progress_percent / 100.0, // Normalize to 0.0-1.0
+            );
+        }
 
         // OODA-13: Persist to queryable storage (async via spawn)
         // OODA-04: Use captured runtime handle to spawn from sync context

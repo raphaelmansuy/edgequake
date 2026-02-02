@@ -2,6 +2,7 @@ use super::elements::{PdfLine, TextElement};
 use super::spatial::{LineRect, LineSpatialIndex};
 use crate::layout::dbscan_1d;
 use crate::schema::{Block, BlockType, BoundingBox};
+use tracing::debug;
 
 /// Lattice Engine for table extraction based on graphical lines
 /// @implements FEAT0503
@@ -220,7 +221,7 @@ impl LatticeEngine {
                 }
 
                 // Tables are horizontally adjacent with matching Y-band - merge them
-                println!(
+                debug!(
                     "🔗 MERGING HORIZONTAL TABLE HALVES: Y-overlap={:.1}%, X-gap={:.1}pt",
                     y_overlap_ratio * 100.0,
                     x_gap
@@ -247,7 +248,7 @@ impl LatticeEngine {
             }
 
             if merged_count > 1 {
-                println!(
+                debug!(
                     "📊 MERGED {} table halves into one (bbox: {:.1}x{:.1})",
                     merged_count,
                     merged_table.bbox.width(),
@@ -419,13 +420,13 @@ impl LatticeEngine {
             let cols_from_lines = unique_x.len().saturating_sub(1);
             let cols_from_clustering = detected_x.len().saturating_sub(1);
 
-            println!(
+            debug!(
                 "Table grid: {} rows (from lines), {} cols (from lines), {} cols (from clustering)",
                 rows_from_lines, cols_from_lines, cols_from_clustering
             );
 
             if detected_x.len() >= 2 {
-                println!(
+                debug!(
                     "Using clustered columns ({} cols) - no vertical grid lines found",
                     cols_from_clustering
                 );
@@ -435,7 +436,7 @@ impl LatticeEngine {
             // Has vertical lines - trust them, don't override with clustering
             let rows_from_lines = unique_y.len().saturating_sub(1);
             let cols_from_lines = unique_x.len().saturating_sub(1);
-            println!(
+            debug!(
                 "Table grid: {} rows, {} cols (using grid lines - not clustering)",
                 rows_from_lines, cols_from_lines
             );
@@ -464,7 +465,7 @@ impl LatticeEngine {
         // FIRST PRINCIPLES: A table must have at least 2 rows (header + data)
         // A single-row grid is NOT a table - it's a decorative line or header underline.
         if num_rows < 2 {
-            println!(
+            debug!(
                 "Rejecting table: Only {} row(s) - tables require header + data rows",
                 num_rows
             );
@@ -537,7 +538,7 @@ impl LatticeEngine {
 
             if total_elements > 0 {
                 let crossing_ratio = crossing_count as f32 / total_elements as f32;
-                println!(
+                debug!(
                     "Table Check: crossing_ratio={:.2} ({}/{})",
                     crossing_ratio, crossing_count, total_elements
                 );
@@ -545,7 +546,7 @@ impl LatticeEngine {
                     // First principles: Word-level text extraction in multi-line cells naturally
                     // creates apparent "crossings". Threshold of 0.35 (35%) allows legitimate
                     // multi-line cells while rejecting severely malformed grids.
-                    println!(
+                    debug!(
                         "Rejecting table: Text elements cross column boundaries (ratio {:.2})",
                         crossing_ratio
                     );
@@ -556,7 +557,7 @@ impl LatticeEngine {
             // 7. Element Count vs Grid Size (Heuristic 7)
             // If the grid implies many cells but we have very few text elements, it's likely noise.
             if num_cols * num_rows > 20 && total_elements < 5 {
-                println!(
+                debug!(
                     "Rejecting table: Large grid ({}x{}) with few text elements ({})",
                     num_rows, num_cols, total_elements
                 );
@@ -569,7 +570,7 @@ impl LatticeEngine {
         let mut rows = Vec::new();
 
         // DEBUG: Show which table we're processing
-        println!(
+        debug!(
             "📊 BUILDING TABLE: grid={}x{} (rows x cols)",
             num_rows, num_cols
         );
@@ -592,13 +593,13 @@ impl LatticeEngine {
 
                 // DEBUG: Track if this is a split cell
                 if cell_texts.len() > 1 {
-                    println!(
+                    debug!(
                         "💥 SPLIT APPLIED: Cell at grid col {} split into {} subcells",
                         j,
                         cell_texts.len()
                     );
                     for (idx, text) in cell_texts.iter().enumerate() {
-                        println!("   Subcell {}: {:?}", idx, text);
+                        debug!("   Subcell {}: {:?}", idx, text);
                     }
                 }
 
@@ -609,7 +610,7 @@ impl LatticeEngine {
 
             // DEBUG: Show row cell count after splitting
             if row_cells.len() != unique_x.len() - 1 {
-                println!(
+                debug!(
                     "🔥 ROW EXPANDED: grid cols={}, actual cells={}",
                     unique_x.len() - 1,
                     row_cells.len()
@@ -619,9 +620,9 @@ impl LatticeEngine {
             // DEBUG: Check for Agentless in row cells
             let row_text = row_cells.join(" ");
             if row_text.contains("Agentless") || row_text.contains("25.20") {
-                println!("🔴 ROW WITH AGENTLESS/25.20: {} cells", row_cells.len());
+                debug!("🔴 ROW WITH AGENTLESS/25.20: {} cells", row_cells.len());
                 for (idx, cell) in row_cells.iter().enumerate() {
-                    println!("   cell[{}]: {:?}", idx, cell);
+                    debug!("   cell[{}]: {:?}", idx, cell);
                 }
             }
 
@@ -682,7 +683,7 @@ impl LatticeEngine {
 
                         // Only use if we found at least one header
                         if header_row.iter().any(|h| !h.trim().is_empty()) {
-                            println!("📋 DETECTED HEADERS ABOVE TABLE: {:?}", header_row);
+                            debug!("📋 DETECTED HEADERS ABOVE TABLE: {:?}", header_row);
                             rows[0] = header_row;
                         }
                     }
@@ -730,13 +731,16 @@ impl LatticeEngine {
                     0.0
                 };
 
-                println!(
+                debug!(
                     "Table Check: cols={}, empty_ratio={:.2}, long_sentences={}, avg_len={:.1}",
                     num_cols, empty_ratio, has_long_sentences, avg_len
                 );
 
-                if empty_ratio > 0.5 && (has_long_sentences || avg_len > 30.0) {
-                    println!("Rejecting table: Sparse table with sentence-like content (likely text layout)");
+                // OODA-FIX: Lowered empty_ratio threshold from 0.5 to 0.3
+                // Many layout tables have some empty cells but are still text layout
+                // Also reject if average cell length > 15 chars (indicating prose content)
+                if (empty_ratio > 0.3 && (has_long_sentences || avg_len > 15.0)) || avg_len > 25.0 {
+                    debug!("Rejecting table: Sparse table with sentence-like content (likely text layout)");
                     return None;
                 }
             }
@@ -767,9 +771,9 @@ impl LatticeEngine {
             // Check if any cell contains Agentless
             let has_agentless = row.iter().any(|c| c.contains("Agentless"));
             if has_agentless {
-                println!("🎯 PROCESSING AGENTLESS ROW: {} cells", row.len());
+                debug!("🎯 PROCESSING AGENTLESS ROW: {} cells", row.len());
                 for (idx, cell) in row.iter().enumerate() {
-                    println!("   Cell {}: {:?}", idx, cell);
+                    debug!("   Cell {}: {:?}", idx, cell);
                 }
             }
 
@@ -777,7 +781,7 @@ impl LatticeEngine {
             let empty_ratio = empty_count as f32 / row.len() as f32;
 
             if has_agentless {
-                println!(
+                debug!(
                     "   Empty ratio: {:.2} ({}/{})",
                     empty_ratio,
                     empty_count,
@@ -800,7 +804,7 @@ impl LatticeEngine {
 
                     if tokens.len() > 5 && has_numbers {
                         // Split into separate cells
-                        println!(
+                        debug!(
                             "📦 SPLITTING MERGED TEXT: {} tokens from {:?}",
                             tokens.len(),
                             cell
@@ -833,7 +837,7 @@ impl LatticeEngine {
             for (idx, row) in rows.iter().enumerate() {
                 let row_text = row.join(" | ");
                 if row_text.contains("Agentless") || row_text.contains("25.20") {
-                    println!(
+                    debug!(
                         "🔥 TABLE ROW {}: {} cells, content: {}",
                         idx,
                         row.len(),
@@ -864,7 +868,7 @@ impl LatticeEngine {
 
         let mut block = Block::new(BlockType::Table, bbox);
         block.text = markdown;
-        println!(
+        debug!(
             "Accepted table: bbox={:?}, cols={}, rows={}",
             bbox, num_cols, num_rows
         );
@@ -1027,7 +1031,7 @@ impl LatticeEngine {
 
         // Debug print
         if column_boundaries.len() >= 3 {
-            println!(
+            debug!(
                 "Detected {} columns in table bbox {:?}",
                 column_boundaries.len() - 1,
                 bbox
@@ -1119,7 +1123,7 @@ impl LatticeEngine {
             .collect::<Vec<_>>()
             .join(" ");
         if joined_text.contains("Agentless") || joined_text.contains("25.20") {
-            println!(
+            debug!(
                 "📋 TARGET CELL: bbox=[{:.1},{:.1},{:.1},{:.1}], {} elems",
                 min_x,
                 min_y,
@@ -1127,9 +1131,9 @@ impl LatticeEngine {
                 max_y,
                 filtered.len()
             );
-            println!("   text: {:?}", joined_text);
+            debug!("   text: {:?}", joined_text);
             for (idx, elem) in filtered.iter().enumerate() {
-                println!("   [{}] x={:.1}, text={:?}", idx, elem.x, elem.text);
+                debug!("   [{}] x={:.1}, text={:?}", idx, elem.x, elem.text);
             }
         }
 
@@ -1137,14 +1141,17 @@ impl LatticeEngine {
         // Problem: PDF has one grid cell containing text at multiple X-positions
         // Solution: Cluster by X, treat each cluster as separate logical cell
 
-        // Cluster by X-position (20pt tolerance for same column)
-        let epsilon = 20.0;
+        // OODA-FIX: Increased epsilon from 20.0 to 50.0
+        // This is more conservative - only split cells when X-positions are truly
+        // far apart (50pt = ~0.7 inch), preventing word fragmentation from
+        // minor text positioning variations.
+        let epsilon = 50.0;
         let x_coords: Vec<f32> = filtered.iter().map(|e| e.x).collect();
 
         let clusters = dbscan_1d(&x_coords, epsilon, 1);
 
         if clusters.len() > 1 {
-            println!(
+            debug!(
                 "  → Merged cell detected: {} X-position clusters in cell bbox [{:.1}, {:.1}]",
                 clusters.len(),
                 min_x,

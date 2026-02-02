@@ -169,6 +169,10 @@ interface StatusBadgeProps {
   status: DocumentStatus;
   /** Optional tooltip with more details */
   tooltip?: string;
+  /** Optional custom stage message from backend (e.g., "Converting PDF: page 5/10 (50%)") */
+  stageMessage?: string;
+  /** Optional stage progress (0.0 to 1.0) */
+  stageProgressValue?: number;
   /** Compact mode (icon only) */
   compact?: boolean;
   /** Disable tooltip (for use in other tooltips) */
@@ -178,6 +182,8 @@ interface StatusBadgeProps {
 export const StatusBadge = memo(function StatusBadge({ 
   status, 
   tooltip,
+  stageMessage,
+  stageProgressValue,
   compact = false,
   disableTooltip = false,
 }: StatusBadgeProps) {
@@ -231,12 +237,37 @@ export const StatusBadge = memo(function StatusBadge({
               </span>
             </div>
             
-            {/* Stage description */}
-            <p className="text-xs text-muted-foreground">
-              {stageProgress.description}
-            </p>
+            {/* Custom stage message from backend (if available) */}
+            {stageMessage && (
+              <p className="text-xs font-medium text-foreground">
+                {stageMessage}
+              </p>
+            )}
             
-            {/* Visual progress bar */}
+            {/* Stage description (fallback if no custom message) */}
+            {!stageMessage && (
+              <p className="text-xs text-muted-foreground">
+                {stageProgress.description}
+              </p>
+            )}
+            
+            {/* Progress percentage bar (if available) */}
+            {typeof stageProgressValue === 'number' && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>Progress</span>
+                  <span>{Math.round(stageProgressValue * 100)}%</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{ width: `${stageProgressValue * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {/* Visual progress bar showing all stages */}
             <div className="flex gap-1">
               {PROCESSING_STAGES.map((stage, index) => (
                 <div

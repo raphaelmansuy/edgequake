@@ -711,9 +711,13 @@ impl DocumentTaskProcessor {
 
         // SPEC-001/Objective-A: Create chunk progress callback for real-time updates
         // WHY: Users need to see granular progress like "Chunk 12/35 (34%) - ETA: 53s"
+        // OODA-PERF-01: Enhanced to update document metadata for UI polling fallback
+        // WHY: If WebSocket fails, users still see extraction progress via metadata polling
         let task_id = task.track_id.clone();
         let doc_id_for_callback = document_id.clone();
+        let doc_id_for_metadata = document_id.clone();
         let pipeline_state_for_callback = self.pipeline_state.clone();
+        let kv_storage_for_callback = Arc::clone(&self.kv_storage);
         let chunk_progress_callback: ChunkProgressCallback =
             Arc::new(move |update: ChunkProgressUpdate| {
                 // Emit real-time WebSocket event for chunk progress
@@ -729,6 +733,49 @@ impl DocumentTaskProcessor {
                     update.cumulative_output_tokens,
                     update.cumulative_cost_usd,
                 );
+
+                // OODA-PERF-01: Update document metadata every 3 chunks for UI polling
+                // WHY: Reduce KV writes while maintaining visibility (update ~every 3-5 seconds)
+                let should_update_metadata =
+                    update.chunk_index % 3 == 0 || update.chunk_index == update.total_chunks - 1;
+                if should_update_metadata {
+                    let doc_id_clone = doc_id_for_metadata.clone();
+                    let kv_clone = Arc::clone(&kv_storage_for_callback);
+                    let chunk_idx = update.chunk_index;
+                    let total = update.total_chunks;
+
+                    // Fire-and-forget metadata update to avoid blocking extraction
+                    tokio::spawn(async move {
+                        let metadata_key = format!("{}-metadata", doc_id_clone);
+                        if let Ok(Some(existing)) = kv_clone.get_by_id(&metadata_key).await {
+                            if let Some(obj) = existing.as_object() {
+                                let mut updated = obj.clone();
+                                let progress_pct =
+                                    ((chunk_idx as f64 / total as f64) * 100.0).round() as u32;
+                                updated.insert("current_stage".to_string(), json!("extracting"));
+                                updated.insert(
+                                    "stage_message".to_string(),
+                                    json!(format!(
+                                        "Extracting entities: chunk {}/{} ({}%)",
+                                        chunk_idx + 1,
+                                        total,
+                                        progress_pct
+                                    )),
+                                );
+                                updated.insert(
+                                    "stage_progress".to_string(),
+                                    json!(progress_pct as f64 / 100.0),
+                                );
+                                updated.insert(
+                                    "updated_at".to_string(),
+                                    json!(chrono::Utc::now().to_rfc3339()),
+                                );
+
+                                let _ = kv_clone.upsert(&[(metadata_key, json!(updated))]).await;
+                            }
+                        }
+                    });
+                }
             });
 
         // SPEC-003: Process through pipeline with RESILIENT chunk-level extraction
@@ -1618,6 +1665,38 @@ impl DocumentTaskProcessor {
             .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
+        // 3.1 Create document metadata early with "converting" stage
+        // WHY: Users need to see the document appear in the UI immediately with visual feedback
+        // showing that PDF → Markdown conversion is happening.
+        let early_doc_id = uuid::Uuid::new_v4().to_string();
+        let metadata_key = format!("{}-metadata", early_doc_id);
+        let metadata_json = json!({
+            "id": early_doc_id,
+            "title": pdf.filename.clone(),
+            "file_name": pdf.filename.clone(),
+            "source_type": "pdf",
+            "status": "processing",
+            "current_stage": "converting",
+            "stage_message": format!("Converting PDF to Markdown (0/{} pages)", pdf.page_count.unwrap_or(0)),
+            "stage_progress": 0.0,
+            "pdf_id": data.pdf_id.to_string(),
+            "tenant_id": data.tenant_id.to_string(),
+            "workspace_id": data.workspace_id.to_string(),
+            "created_at": chrono::Utc::now().to_rfc3339(),
+            "updated_at": chrono::Utc::now().to_rfc3339(),
+        });
+
+        self.kv_storage
+            .upsert(&[(metadata_key.clone(), metadata_json.clone())])
+            .await
+            .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+
+        info!(
+            document_id = %early_doc_id,
+            pdf_id = %data.pdf_id,
+            "Created early document metadata with 'converting' stage"
+        );
+
         // OODA-09: Create progress callback for real-time page-by-page feedback
         // WHY: Users need to see extraction progress like "Extracting page 5/10..."
         // OODA-10: Also attach progress broadcaster if available for WebSocket delivery
@@ -1627,7 +1706,9 @@ impl DocumentTaskProcessor {
             data.pdf_id.to_string(),
             task.track_id.clone(),
         )
-        .with_filename(pdf.filename.clone());
+        .with_filename(pdf.filename.clone())
+        .with_document_metadata(early_doc_id.clone(), Arc::clone(&self.kv_storage));
+
         if let Some(ref broadcaster) = self.progress_broadcaster {
             callback = callback.with_broadcaster(broadcaster.clone());
         }
@@ -1768,11 +1849,13 @@ impl DocumentTaskProcessor {
         // 6. Create document via standard pipeline
         // SPEC-002: Include source_type: "pdf" for unified pipeline tracking
         // OODA-05: Include tenant_id/workspace_id for multi-tenant document visibility
+        // Pass the early_doc_id so we reuse the same document that's already showing in UI
         let text_data = edgequake_tasks::TextInsertData {
             text: markdown,
             file_source: pdf.filename.clone(),
             workspace_id: data.workspace_id.to_string(),
             metadata: Some(json!({
+                "document_id": early_doc_id.clone(),  // Reuse early document ID
                 "source": "pdf_upload",
                 "source_type": "pdf",
                 "pdf_id": data.pdf_id.to_string(),
@@ -1786,16 +1869,14 @@ impl DocumentTaskProcessor {
 
         let result = self.process_text_insert(task, text_data).await?;
 
-        // 7. Link PDF to created document
-        if let Some(document_id_str) = result.get("document_id").and_then(|v| v.as_str()) {
-            if let Ok(document_uuid) = uuid::Uuid::parse_str(document_id_str) {
-                if let Err(e) = pdf_storage
-                    .link_pdf_to_document(&data.pdf_id, &document_uuid)
-                    .await
-                {
-                    error!("Failed to link PDF to document: {} - continuing anyway", e);
-                    // Non-fatal - PDF still processed successfully
-                }
+        // 7. Link PDF to created document (use early_doc_id)
+        if let Ok(document_uuid) = uuid::Uuid::parse_str(&early_doc_id) {
+            if let Err(e) = pdf_storage
+                .link_pdf_to_document(&data.pdf_id, &document_uuid)
+                .await
+            {
+                error!("Failed to link PDF to document: {} - continuing anyway", e);
+                // Non-fatal - PDF still processed successfully
             }
         }
 
