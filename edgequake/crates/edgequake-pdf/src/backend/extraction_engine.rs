@@ -265,6 +265,18 @@ impl ExtractionEngine {
             .iter()
             .map(|e| e.y)
             .fold(f32::NEG_INFINITY, f32::max);
+        let original_y_range = actual_max_y - actual_min_y;
+
+        // Detect flipped coordinate system EARLY (before OCR filtering)
+        // WHY: Type3 fonts with negative CTM scale create Y coordinates
+        // where higher Y = visually higher on page (opposite of normal PDFs)
+        // If original Y range exceeds 1.5x page height, coordinates are likely flipped
+        let is_flipped = original_y_range > page_height * 1.5;
+        
+        info!(
+            "ENG-COORD: original Y range {:.1} to {:.1} (span={:.1}), page_height={:.1}, is_flipped={}",
+            actual_min_y, actual_max_y, original_y_range, page_height, is_flipped
+        );
 
         // Check for bimodal Y distribution (indicates OCR layer)
         // Sort Y values and look for a gap > page_height between clusters
@@ -282,10 +294,11 @@ impl ExtractionEngine {
                 // Found a significant gap - this suggests bimodal distribution
                 has_ocr_layer = true;
                 ocr_split_point = (y_values[i - 1] + y_values[i]) / 2.0;
-                debug!(
-                    "ENG-OCR-DETECT: Found gap of {:.1} at Y={:.1}, split at {:.1}",
+                info!(
+                    "ENG-OCR-DETECT: Found gap of {:.1} at Y={:.1}→{:.1}, split at {:.1}",
                     gap,
                     y_values[i - 1],
+                    y_values[i],
                     ocr_split_point
                 );
                 break;
@@ -319,6 +332,11 @@ impl ExtractionEngine {
             (actual_min_y - 10.0, actual_max_y + 10.0)
         };
 
+        info!(
+            "ENG-FILTER: y_bounds=({:.1}, {:.1}), page_width={:.1}, elem_count_before={}",
+            y_lower_bound, y_upper_bound, page_width, elements.len()
+        );
+
         let elements: Vec<_> = elements
             .into_iter()
             .filter(|e| {
@@ -329,50 +347,71 @@ impl ExtractionEngine {
             })
             .collect();
 
+        info!("ENG-FILTER: elem_count_after={}", elements.len());
+
         // Normalize Y coordinates to standard document order (Y=0 at top, Y increases downward)
         //
         // PDF coordinates have Y=0 at BOTTOM, Y increases UPWARD. Additionally, CTM transforms
-        // can shift and flip the coordinate system. After CTM application for this PDF:
-        // - LOWER visual_y = TOP of page (content that appears higher visually)
-        // - HIGHER visual_y = BOTTOM of page (content that appears lower visually)
+        // can shift and flip the coordinate system.
         //
-        // We normalize by shifting relative to min_y so that:
-        // - Content at min_y (visual top) becomes Y=0
-        // - Content at max_y (visual bottom) becomes max_y - min_y
-        // This gives us standard document order: top of page = low Y, bottom = high Y
+        // For normal PDFs: Y range ~ page_height, min_y at bottom, max_y at top
+        // For flipped PDFs (detected earlier): Y range >> page_height, max_y at TOP (visually first content)
         let elements = if !elements.is_empty() {
             let max_y = elements
                 .iter()
                 .map(|e| e.y)
                 .fold(f32::NEG_INFINITY, f32::max);
             let min_y = elements.iter().map(|e| e.y).fold(f32::INFINITY, f32::min);
+            let y_range = max_y - min_y;
 
-            debug!(
-                "ENG-NORMALIZE: Page {} - Y range before normalization: {:.1} to {:.1}",
-                page_num, min_y, max_y
+            info!(
+                "ENG-NORMALIZE: Page {} - filtered Y range {:.1} to {:.1} (span={:.1}), page_height={:.1}, flipped={}",
+                page_num, min_y, max_y, y_range, page_height, is_flipped
             );
 
-            // Shift Y: normalized_y = visual_y - min_y
-            // This transforms the coordinate system so that content at min_y (visual top)
-            // becomes Y=0, and content at max_y (visual bottom) becomes max_y - min_y
-            elements
-                .into_iter()
-                .map(|mut e| {
-                    e.y -= min_y;
-                    e
-                })
-                .collect()
+            if is_flipped {
+                // Flipped coordinate system: higher Y = top of page
+                // Normalize by flipping: normalized_y = max_y - visual_y
+                // This makes content at max_y (visual top) become Y=0
+                elements
+                    .into_iter()
+                    .map(|mut e| {
+                        e.y = max_y - e.y;
+                        e
+                    })
+                    .collect()
+            } else {
+                // Normal coordinate system: lower Y = bottom of page
+                // Normalize by shifting: normalized_y = visual_y - min_y
+                // This makes content at min_y become Y=0 (but still bottom-first)
+                // Then text_grouping handles Y-sorting for reading order
+                elements
+                    .into_iter()
+                    .map(|mut e| {
+                        e.y -= min_y;
+                        e
+                    })
+                    .collect()
+            }
         } else {
             elements
         };
+
+        // Log element count before processing (for debugging Type3 font merging)
+        let pre_process_count = elements.len();
+        debug!(
+            "Page {} pre-process: {} raw text elements",
+            page_num, pre_process_count
+        );
 
         // Preprocess elements: deduplicate OCR layers and merge fragmented text
         let elements = self.element_processor.process(elements);
 
         debug!(
-            "Page {} has {} text elements and {} graphical lines",
+            "Page {} has {} text elements (merged from {}) and {} graphical lines",
             page_num,
             elements.len(),
+            pre_process_count,
             pdf_lines.len()
         );
 
