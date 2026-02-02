@@ -209,9 +209,57 @@ export interface IngestionFailedEvent {
 }
 
 export interface HeartbeatEvent {
-  type: "heartbeat";
+  type: "heartbeat" | "Heartbeat";
   timestamp: string;
   server_time: string;
+}
+
+/**
+ * Connection confirmation event sent by backend when WebSocket connects.
+ */
+export interface ConnectedEvent {
+  type: "Connected";
+  timestamp: string;
+  server_version?: string;
+}
+
+/**
+ * Status snapshot event containing current pipeline state.
+ *
+ * WHY: Provides full synchronization of pipeline state when client connects
+ * or reconnects, ensuring UI shows accurate status even after disconnection.
+ */
+export interface StatusSnapshotEvent {
+  type: "StatusSnapshot";
+  timestamp: string;
+  active_tasks: Array<{
+    track_id: string;
+    document_id: string;
+    status: string;
+    progress: number;
+  }>;
+}
+
+/**
+ * PDF page-by-page progress event (OODA-PERF-02 optimization).
+ *
+ * WHY: PDF extraction can take 1-2 seconds per page. This event provides
+ * page-level granularity so users see progress during the PDF→Markdown phase.
+ * Debounced to send updates every 5 pages to reduce WebSocket traffic.
+ */
+export interface PdfPageProgressEvent {
+  type: "PdfPageProgress";
+  timestamp: string;
+  data: {
+    /** Document/PDF being processed */
+    document_id: string;
+    /** Current page number */
+    current_page: number;
+    /** Total pages in PDF */
+    total_pages: number;
+    /** Progress percentage (0.0 - 1.0) */
+    progress: number;
+  };
 }
 
 /**
@@ -289,6 +337,9 @@ export type WebSocketProgressMessage =
   | IngestionCompletedEvent
   | IngestionFailedEvent
   | HeartbeatEvent
+  | ConnectedEvent
+  | StatusSnapshotEvent
+  | PdfPageProgressEvent
   | ChunkProgressEvent
   | ChunkFailureEvent;
 

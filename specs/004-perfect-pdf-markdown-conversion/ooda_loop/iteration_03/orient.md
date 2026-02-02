@@ -4,11 +4,11 @@
 
 ### Test Coverage Matrix
 
-| PDF | Pages | Font Type | Complexity | Key Challenges |
-|-----|-------|-----------|------------|----------------|
-| Qwen.pdf | 1 | Type3 | Medium | Flipped CTM, Y-coordinate normalization |
-| Beyond Transformer | 10+ | Standard | High | Multi-page, academic structure |
-| Agentic Platform | 50+ | Standard | Very High | Tables, diagrams, ASCII art |
+| PDF                | Pages | Font Type | Complexity | Key Challenges                          |
+| ------------------ | ----- | --------- | ---------- | --------------------------------------- |
+| Qwen.pdf           | 1     | Type3     | Medium     | Flipped CTM, Y-coordinate normalization |
+| Beyond Transformer | 10+   | Standard  | High       | Multi-page, academic structure          |
+| Agentic Platform   | 50+   | Standard  | Very High  | Tables, diagrams, ASCII art             |
 
 ### Quality Dimensions
 

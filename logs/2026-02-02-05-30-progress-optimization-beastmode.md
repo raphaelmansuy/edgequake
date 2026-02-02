@@ -114,6 +114,7 @@
 ## Performance Impact Summary
 
 **Before Optimization:**
+
 ```
 Phase               Time    KV Writes  Progress Updates
 ───────────────────────────────────────────────────────
@@ -127,6 +128,7 @@ TOTAL               28s     42         42 updates
 ```
 
 **After Optimization:**
+
 ```
 Phase               Time    KV Writes  Progress Updates
 ───────────────────────────────────────────────────────
@@ -140,6 +142,7 @@ TOTAL               28s     21         21 updates
 ```
 
 **Improvements:**
+
 - ✅ Eliminated 20-25s silent period (85% of processing time)
 - ✅ 50% reduction in total KV writes (42 → 21)
 - ✅ 10x increase in feedback frequency during bottleneck
@@ -147,12 +150,12 @@ TOTAL               28s     21         21 updates
 
 ## Files Modified
 
-| File | Lines | Change |
-|------|-------|--------|
-| `edgequake-api/src/processor.rs` | 710-758 | Enhanced chunk callback with metadata updates |
-| `edgequake-api/src/pipeline_progress_callback.rs` | 70-100 | Added last_metadata_page field |
-| `edgequake-api/src/pipeline_progress_callback.rs` | 295-340 | Added debouncing logic |
-| `docs/OODA_PERF_01_02_PROGRESS_OPTIMIZATION.md` | NEW | Comprehensive documentation |
+| File                                              | Lines   | Change                                        |
+| ------------------------------------------------- | ------- | --------------------------------------------- |
+| `edgequake-api/src/processor.rs`                  | 710-758 | Enhanced chunk callback with metadata updates |
+| `edgequake-api/src/pipeline_progress_callback.rs` | 70-100  | Added last_metadata_page field                |
+| `edgequake-api/src/pipeline_progress_callback.rs` | 295-340 | Added debouncing logic                        |
+| `docs/OODA_PERF_01_02_PROGRESS_OPTIMIZATION.md`   | NEW     | Comprehensive documentation                   |
 
 ## Commit
 

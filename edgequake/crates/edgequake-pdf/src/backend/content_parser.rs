@@ -270,6 +270,16 @@ impl ContentParser {
                                 let visual_x = ctm[0] * raw_x + ctm[2] * raw_y + ctm[4];
                                 let visual_y = ctm[1] * raw_x + ctm[3] * raw_y + ctm[5];
 
+                                if text_elements.len() < 10 {
+                                    tracing::info!(
+                                        "CP-TJ: text='{}' font_size={:.1} x={:.1} y={:.1}",
+                                        &text,
+                                        font_size,
+                                        visual_x,
+                                        visual_y
+                                    );
+                                }
+
                                 text_elements.push(TextElement {
                                     text: text.clone(),
                                     x: visual_x,
@@ -279,7 +289,7 @@ impl ContentParser {
                                     is_bold,
                                     is_italic,
                                 });
-                                
+
                                 // Advance text matrix by estimated text width.
                                 // WHY: PDF text showing operators advance the cursor.
                                 // Average char width is ~55% of font size for proportional fonts.
@@ -318,18 +328,22 @@ impl ContentParser {
                                         // Convert to font units: -n/1000 * font_size
                                         let displacement = -*n as f32 / 1000.0 * font_size;
                                         total_displacement += displacement;
-                                        
-                                        // In TJ arrays, negative kerning values often encode word spaces.
-                                        // Be more permissive to avoid missing spaces in real-world PDFs.
-                                        if *n < -50 {
+
+                                        // In TJ arrays, large negative kerning values encode word spaces.
+                                        // OODA-05: Analysis of hotmess PDF shows:
+                                        // - Letter kerning: -61 to -63 (typical kerning adjustments)
+                                        // - Word spaces: -300 to -534 (significant spacing)
+                                        // Use threshold of -150 to distinguish (midpoint between -63 and -300)
+                                        if *n < -150 {
                                             combined_text.push(' ');
                                         }
                                     }
                                     Object::Real(n) => {
                                         let displacement = -n / 1000.0 * font_size;
                                         total_displacement += displacement;
-                                        
-                                        if *n < -50.0 {
+
+                                        // OODA-05: Same threshold for Real kerning values
+                                        if *n < -150.0 {
                                             combined_text.push(' ');
                                         }
                                     }
@@ -364,7 +378,7 @@ impl ContentParser {
                                     is_italic,
                                 });
                             }
-                            
+
                             // Advance text matrix by total displacement.
                             // WHY: TJ positions text correctly; we must track the cursor.
                             text_matrix[4] += total_displacement;
@@ -403,7 +417,7 @@ impl ContentParser {
                                     is_bold,
                                     is_italic,
                                 });
-                                
+
                                 // Advance text matrix by estimated text width
                                 let char_count = cleaned.chars().count() as f32;
                                 let estimated_width = char_count * font_size * 0.55;

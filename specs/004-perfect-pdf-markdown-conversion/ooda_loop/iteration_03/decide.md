@@ -12,11 +12,11 @@ Create `quality_extraction.rs` with 8 tests covering all quality dimensions.
    - Verify "Pushing" appears before "Beyond"
    - Validates flipped coordinate fix
 
-2. **Content Tests** (test_*_content)
+2. **Content Tests** (test\_\*\_content)
    - Check minimum byte output
    - Verify key phrases present
 
-3. **Structure Tests** (test_*_structure, test_*_headings)
+3. **Structure Tests** (test*\*\_structure, test*\*\_headings)
    - Verify page count
    - Count heading markers
 

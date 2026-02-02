@@ -86,10 +86,119 @@ impl PostProcessor {
         self
     }
 
+    /// Fix spaced text patterns (e.g., "T H E H O T M E S S" → "THE HOT MESS").
+    ///
+    /// **WHY:** Some PDFs embed titles with letter-spacing for visual emphasis.
+    /// This produces text like "T H E" instead of "THE" after extraction.
+    ///
+    /// **Detection heuristics:**
+    /// - Multiple single uppercase letters followed by spaces
+    /// - Pattern: letter-space-letter-space repeating
+    /// - Minimum 4 consecutive spaced letters to trigger (avoid "I A M")
+    /// - Stops at words (uppercase followed by lowercase, not by space)
+    ///
+    /// **OODA-05:** Fix missing title in hotmess PDF.
+    pub fn fix_spaced_text(&self, text: &str) -> String {
+        let chars: Vec<char> = text.chars().collect();
+        let mut result = String::new();
+        let mut i = 0;
+
+        while i < chars.len() {
+            // Look for pattern: uppercase-space-uppercase-space-...
+            if chars[i].is_uppercase() && i + 2 < chars.len() && chars[i + 1] == ' ' {
+                // Count consecutive spaced uppercase letters
+                let mut j = i;
+                let mut spaced_letters = Vec::new();
+
+                while j < chars.len() {
+                    if chars[j].is_uppercase() {
+                        // Check what follows this uppercase letter
+                        if j + 1 < chars.len() && chars[j + 1] == ' ' {
+                            // Space follows - check if next char is spaced letter or word start
+                            if j + 2 < chars.len() {
+                                let next = chars[j + 2];
+                                if next.is_uppercase() {
+                                    // Could be spaced letter or word start
+                                    // If at end of string or followed by space, it's a spaced letter
+                                    // If followed by lowercase, it's a word start
+                                    if j + 3 >= chars.len() {
+                                        // End of string - include both letters
+                                        spaced_letters.push(chars[j]);
+                                        j += 2; // Move to the last letter
+                                        spaced_letters.push(chars[j]);
+                                        break;
+                                    } else if chars[j + 3] == ' ' || chars[j + 3].is_uppercase() {
+                                        // Next uppercase is followed by space = spaced letter
+                                        spaced_letters.push(chars[j]);
+                                        j += 2; // Skip letter and space
+                                        continue;
+                                    } else {
+                                        // Next uppercase is followed by lowercase = word start
+                                        // Include current letter and stop
+                                        spaced_letters.push(chars[j]);
+                                        break;
+                                    }
+                                } else if next.is_lowercase() {
+                                    // lowercase after space = end of spaced sequence
+                                    spaced_letters.push(chars[j]);
+                                    break;
+                                }
+                            } else {
+                                // Nothing after space = end of string, include letter
+                                spaced_letters.push(chars[j]);
+                                break;
+                            }
+                        }
+                        // No space after = last letter of spaced sequence
+                        spaced_letters.push(chars[j]);
+                    }
+                    break;
+                }
+
+                // Only collapse if we found 4+ spaced letters (e.g., "T H E H")
+                if spaced_letters.len() >= 4 {
+                    // Collapse the spaced letters
+                    for c in &spaced_letters {
+                        result.push(*c);
+                    }
+
+                    // Calculate where to continue from
+                    // j points to last consumed letter
+                    let mut next_i = j + 1;
+
+                    // If there's a space after the last letter, preserve it if followed by word
+                    if next_i < chars.len() && chars[next_i] == ' ' {
+                        // Check if next is a word (uppercase + lowercase) or end
+                        if next_i + 1 < chars.len() {
+                            let next = chars[next_i + 1];
+                            if next.is_lowercase()
+                                || (next.is_uppercase()
+                                    && next_i + 2 < chars.len()
+                                    && chars[next_i + 2].is_lowercase())
+                            {
+                                result.push(' '); // Preserve space before word
+                            }
+                        }
+                        next_i += 1; // Skip the space
+                    }
+
+                    i = next_i;
+                    continue;
+                }
+            }
+
+            result.push(chars[i]);
+            i += 1;
+        }
+
+        result
+    }
+
     /// Process a single block and its children.
     pub fn process_block(&self, block: &mut Block) {
         if block.block_type.has_text() {
             // Process main text
+            block.text = self.fix_spaced_text(&block.text); // OODA-05: Fix spaced titles first
             block.text = self.normalize_text(&block.text);
             block.text = self.fix_ocr_text(&block.text);
             block.text = self.fix_concatenated_words(&block.text);
@@ -98,6 +207,7 @@ impl PostProcessor {
 
             // Process spans (renderer uses spans if present)
             for span in &mut block.spans {
+                span.text = self.fix_spaced_text(&span.text); // OODA-05: Fix spaced titles
                 span.text = self.normalize_span_text(&span.text);
                 span.text = self.fix_ocr_text(&span.text);
 
@@ -355,6 +465,52 @@ impl Processor for PostProcessor {
 
     fn name(&self) -> &str {
         "PostProcessor"
+    }
+}
+
+// =============================================================================
+// SpacedTextProcessor - MUST run before GarbledTextFilter!
+// =============================================================================
+
+/// Fixes spaced text patterns like "T H E H O T M E S S" → "THE HOT MESS".
+///
+/// **OODA-05**: Spaced text in PDF titles was being filtered by GarbledTextFilter
+/// because it looks like many isolated letters. This processor must run FIRST
+/// to normalize the text before garbled detection.
+pub struct SpacedTextProcessor {
+    post: PostProcessor,
+}
+
+impl SpacedTextProcessor {
+    pub fn new() -> Self {
+        Self {
+            post: PostProcessor::new(),
+        }
+    }
+}
+
+impl Default for SpacedTextProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for SpacedTextProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        for page in &mut document.pages {
+            for block in &mut page.blocks {
+                // Only apply fix_spaced_text, not the full post-processing
+                block.text = self.post.fix_spaced_text(&block.text);
+                for span in &mut block.spans {
+                    span.text = self.post.fix_spaced_text(&span.text);
+                }
+            }
+        }
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "SpacedTextProcessor"
     }
 }
 
@@ -921,5 +1077,43 @@ mod tests {
         let expected = "Line one Line two Line three";
         let result = HyphenContinuationProcessor::process_intra_block_hyphens(input);
         assert_eq!(result, expected);
+    }
+
+    // OODA-05: Tests for spaced text fix
+    #[test]
+    fn test_spaced_text_title() {
+        let processor = PostProcessor::new();
+        // Test the hotmess PDF title pattern
+        let input = "T H E H O T M E S S O F A I";
+        let result = processor.fix_spaced_text(input);
+        assert_eq!(result, "THEHOTMESSOFAI");
+    }
+
+    #[test]
+    fn test_spaced_text_partial() {
+        let processor = PostProcessor::new();
+        // Test partial spaced text with normal text
+        let input = "A B S T R A C T Introduction";
+        let result = processor.fix_spaced_text(input);
+        assert_eq!(result, "ABSTRACT Introduction");
+    }
+
+    #[test]
+    fn test_spaced_text_short_sequence() {
+        let processor = PostProcessor::new();
+        // Short sequences (< 4 letters) should NOT be collapsed
+        // to avoid breaking "I A M" or similar valid phrases
+        let input = "I A M here";
+        let result = processor.fix_spaced_text(input);
+        assert_eq!(result, "I A M here"); // Should stay unchanged
+    }
+
+    #[test]
+    fn test_spaced_text_mixed_case() {
+        let processor = PostProcessor::new();
+        // Only uppercase spaced letters should trigger
+        let input = "T h e hot mess";
+        let result = processor.fix_spaced_text(input);
+        assert_eq!(result, "T h e hot mess"); // Lowercase = no change
     }
 }
