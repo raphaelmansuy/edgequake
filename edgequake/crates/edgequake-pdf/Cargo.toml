@@ -11,6 +11,10 @@ description = "PDF to Markdown extraction with AI enhancement for EdgeQuake"
 name = "edgequake-pdf"
 path = "src/bin.rs"
 
+[[bin]]
+name = "trace_content"
+path = "src/bin/trace_content.rs"
+
 [features]
 # Default features include lopdf backend for native PDF parsing
 default = ["lopdf"]
