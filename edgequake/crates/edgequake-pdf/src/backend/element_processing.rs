@@ -116,6 +116,12 @@ impl ElementProcessor {
 
         let mut merged = Vec::new();
         let mut current = sorted[0].clone();
+        // OODA-09: Track the actual end X position instead of estimating from text length
+        // WHY: When elements accumulate, estimated_width grows unbounded, causing
+        // cross-column merges like "oper-" + "manipulate" from different columns.
+        // Track actual_end_x as max(current_x, next_x + next_estimated_width)
+        let mut current_end_x = current.x
+            + current.text.chars().count() as f32 * current.font_size * self.char_width_factor;
 
         for next in sorted.into_iter().skip(1) {
             // Check if on same line (Y within tolerance)
@@ -128,21 +134,56 @@ impl ElementProcessor {
                     4.0
                 };
 
-                // Calculate gap using estimated end position.
-                let estimated_width = current.text.chars().count() as f32 * char_width;
-                let gap = next.x - (current.x + estimated_width);
+                // OODA-09: Use tracked end_x instead of estimated_width from accumulated text
+                // WHY: estimated_width = text.len() * char_width grows unbounded as we merge,
+                // causing overlapping=true even for cross-column elements
+                let gap = next.x - current_end_x;
+
+                // OODA-09: Check for column boundary crossing
+                // WHY: In two-column layouts, there's a ~40pt gap at the column boundary (~300pt).
+                // Elements from different columns should NOT merge even if on same Y.
+                //
+                // Key insight from debugging v2 PDF:
+                // - Left column elements start at X ≈ 64 (left margin)
+                // - Right column elements start at X ≈ 313 (right margin)
+                // - Estimated end_x can overshoot (330 for text ending around 280)
+                // - Gap calculation: -17.1 (negative because end_x overestimated)
+                //
+                // In single-column PDFs like Qwen.pdf:
+                // - Title starts at X ≈ 183 (centered, not left margin)
+                // - Content spans X = 183-650+
+                //
+                // The key discriminator: LEFT MARGIN vs CENTERED content
+                // - If current.x < 100 (left margin region) AND next.x > 300 (right region)
+                //   → Definitely a column boundary (can't have a single element spanning 200+ pts)
+                // - If current.x >= 100 (centered/wide content) → NOT a column boundary
+                //
+                // Secondary check: Large gap indicates column boundary
+                // - If gap > 4x char_width AND both in their respective halves
+                let large_gap_threshold = char_width * 4.0;
+                let current_in_left_half = current.x < 250.0;
+                let next_in_right_half = next.x > 280.0;
+                let large_gap_indicates_column = gap > large_gap_threshold && current_in_left_half && next_in_right_half;
+                
+                // Primary check: Left margin to right column = definite column boundary
+                // This catches the v2 PDF case where estimated end_x causes gap to be negative
+                let current_in_left_margin = current.x < 100.0;
+                let next_in_right_column = next.x > 300.0;
+                let margin_to_column = current_in_left_margin && next_in_right_column;
+                
+                let likely_cross_column = large_gap_indicates_column || margin_to_column;
 
                 // For tight fonts where estimated width is too large (negative gap),
                 // use a heuristic: if elements are clearly overlapping in X-space,
-                // they should be merged. Check if next.x is within the estimated
-                // span of current element.
-                let overlapping = next.x >= current.x && next.x < current.x + estimated_width;
+                // they should be merged. Check if next.x is within the actual current span.
+                let overlapping = next.x >= current.x && next.x < current_end_x;
 
                 // Merge thresholds - generous to handle character-by-character PDFs
                 let max_overlap = char_width * 4.0; // 4x char_width for tight kerning
                 let max_gap = char_width * 2.0; // 2x char_width for word gaps
 
-                if overlapping || (gap > -max_overlap && gap < max_gap) {
+                // OODA-09: Add cross-column check to prevent merging elements from different columns
+                if !likely_cross_column && (overlapping || (gap > -max_overlap && gap < max_gap)) {
                     // Merge!
                     // For word-level spacing (actual gap > typical char spacing), insert space.
                     // But for character-by-character PDFs, don't insert spaces.
@@ -159,13 +200,23 @@ impl ElementProcessor {
                         current.text.push(' ');
                     }
                     current.text.push_str(&next.text);
+                    // OODA-09: Update end_x to include the merged element
+                    let next_end_x = next.x + next.text.chars().count() as f32 * char_width;
+                    current_end_x = current_end_x.max(next_end_x);
                     continue;
                 }
             }
 
             // Push current and start new
             merged.push(current);
-            current = next;
+            current = next.clone();
+            // OODA-09: Reset end_x for new element
+            let char_width = if next.font_size > 0.0 {
+                next.font_size * self.char_width_factor
+            } else {
+                4.0
+            };
+            current_end_x = next.x + next.text.chars().count() as f32 * char_width;
         }
         merged.push(current);
 

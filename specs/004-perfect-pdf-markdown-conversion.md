@@ -11,6 +11,8 @@ Your mission is to achieve **production-grade, high-fidelity PDF to Markdown con
 
 Ensure to use First Principles thinking. Use your knowledge of PDF structures, text encoding, layout analysis, and Markdown syntax to guide your decisions. Use Donald Knuth knowledge about text composition and typesetting where applicable: space between letters, words, line breaks, paragraph structure, ligatures, font styles, etc. If you don't know something, research it thoroughly on the web: PDF, typesetting, Markdown, text extraction techniques.
 
+ALWAY USE ASCII DIAGRAMS TO DEEPLY REFLECT YOUR THINKING about Data, geometric processing pipelines, architecture, workflows, etc. Search about PDF handling, text extraction, layout analysis, and Markdown formatting as needed. See other project such as Markitdown (https://github.com/microsoft/markitdown)
+
 Use markitdown mcp to compare extracted Markdown against gold standard references.
 
 VERY IMPORTANT: Optimize for speed and efficiency:
@@ -20,9 +22,11 @@ VERY IMPORTANT: Optimize for speed and efficiency:
 Tests have been split into three tiers for optimal performance:
 
 ### Tier 1: Smoke Tests (< 1 second) - DEFAULT
+
 ```bash
 cargo test --package edgequake-pdf --test quick_smoke
 ```
+
 - **File:** `tests/quick_smoke.rs`
 - **PDFs:** 3 small files (sample.pdf, 001_simple_text.pdf, 002_headers_and_lists.pdf)
 - **Purpose:** Instant feedback during development
@@ -30,9 +34,11 @@ cargo test --package edgequake-pdf --test quick_smoke
 - **Actual time:** 0.07s (✅ target: <5s)
 
 ### Tier 2: Feature Tests (< 1 minute)
+
 ```bash
 cargo test --package edgequake-pdf --test basic_features --features slow-tests
 ```
+
 - **File:** `tests/basic_features.rs`
 - **PDFs:** 4 medium files testing columns, tables, structure
 - **Purpose:** Verify feature functionality before committing
@@ -40,9 +46,11 @@ cargo test --package edgequake-pdf --test basic_features --features slow-tests
 - **Actual time:** 0.32s (✅ target: <30s)
 
 ### Tier 3: Comprehensive Quality (2+ minutes)
+
 ```bash
 cargo test --package edgequake-pdf --test comprehensive_quality --features comprehensive-tests
 ```
+
 - **File:** `tests/comprehensive_quality.rs`
 - **PDFs:** All 7 files in real_dataset/ (27MB total)
 - **Purpose:** Full quality validation before releases
@@ -52,15 +60,16 @@ cargo test --package edgequake-pdf --test comprehensive_quality --features compr
 
 ### Optimization Results
 
-| Test Tier | Before | After | Speedup | Use Case |
-|-----------|--------|-------|---------|----------|
-| **Smoke** | 116s (all tests) | 0.07s | 1657x | Every save |
-| **Feature** | 116s | 0.32s | 362x | Before commit |
-| **Comprehensive** | 116s | 118s | 1x | Before release |
+| Test Tier         | Before           | After | Speedup | Use Case       |
+| ----------------- | ---------------- | ----- | ------- | -------------- |
+| **Smoke**         | 116s (all tests) | 0.07s | 1657x   | Every save     |
+| **Feature**       | 116s             | 0.32s | 362x    | Before commit  |
+| **Comprehensive** | 116s             | 118s  | 1x      | Before release |
 
 ### CI/CD Integration
 
 **Recommended pipeline:**
+
 ```yaml
 # PR checks (fast feedback)
 - name: Smoke tests
@@ -82,6 +91,7 @@ cargo test --package edgequake-pdf --test comprehensive_quality --features compr
 3. **Before release:** Run comprehensive tests for quality metrics (118s)
 
 **Quick reference:**
+
 ```bash
 # Development (default - no flags needed)
 cargo test --package edgequake-pdf --test quick_smoke
@@ -103,6 +113,7 @@ cargo test --package edgequake-pdf --all-features
 **Root cause:** No incremental feedback loop. Developers wait 2 minutes to see if basic changes work.
 
 **Solution:** Stratified testing based on Donald Knuth's principle:
+
 > "Premature optimization is the root of all evil, but we should not pass up our opportunities in that critical 3%."
 
 The critical 3% is the development loop. Most changes need only smoke tests (<1s). Feature tests (0.32s) catch integration issues. Comprehensive tests (118s) validate production quality.
@@ -112,7 +123,6 @@ The critical 3% is the development loop. Most changes need only smoke tests (<1s
 ---
 
 RUST_LOG=info cargo run --example convert_test_docs 2>&1 | cat
-
 
 Avoid Magic Number !!! : Think by First Principles to choose how to set thresholds and constants.
 Use comments to explain WHY you chose specific values.
@@ -219,24 +229,28 @@ specs/004-perfect-pdf-markdown-conversion/ooda_loop/
 **Status:** Test acceleration complete (OODA-09)
 
 **Files:**
+
 - `tests/quick_smoke.rs` - Smoke tests (0.07s, 3 PDFs)
 - `tests/basic_features.rs` - Feature tests (0.32s, 4 PDFs) [--features slow-tests]
 - `tests/comprehensive_quality.rs` - Quality metrics (118s, 7 PDFs) [--features comprehensive-tests]
 - `tests/quality_evaluation.rs` - DEPRECATED (backward compatibility only)
 
 **Current Coverage:**
+
 - ✅ Smoke tests: 3 PDFs (simple text, headers/lists, sample)
 - ✅ Feature tests: 4 PDFs (multi-column, tables, batch processing)
 - ✅ Comprehensive: 7 real academic papers from arXiv
 - ⚠️ Total: 14 unique PDFs tested (target: 100 per spec)
 
 **Quality Metrics (Comprehensive Suite - Feb 2, 2026):**
+
 - Text Preservation: 81.3%
 - Structural Fidelity: 68.0%
 - Overall Quality: 74.6%
 - Target: 95%+ on all metrics
 
 **Gap Analysis:**
+
 - 86 PDFs needed to reach 100 test coverage goal
 - Structure fidelity at 68% vs. 95% target → 27 percentage points gap
 - Need: table detection improvements, multi-column reading order fixes
@@ -247,16 +261,19 @@ specs/004-perfect-pdf-markdown-conversion/ooda_loop/
 See "Test Categories (Comprehensive Coverage)" section below for full breakdown.
 
 Focus on:
+
 1. Tables (15 PDFs) - current bottleneck at 68% structural fidelity
 2. Multi-column (10 PDFs) - reading order accuracy needed
 3. Edge cases (15 PDFs) - robustness improvements
 
 **Priority 2: Improve quality metrics (OODA-16-25)**
+
 - Target: 85%+ overall quality
 - Strategy: LLM-enhanced structure detection
 - Measure: TPS, SFS, ROA, TCA, FPS metrics
 
 **Priority 3: Performance optimization (OODA-26-30)**
+
 - Target: <1 second per page average
 - Current: ~17s per page (118s / 7 PDFs ≈ 17s/PDF, avg 1-2 pages)
 - Strategy: Parallel processing, caching, incremental extraction

@@ -155,15 +155,19 @@ enum InfoFormat {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    // Initialize logging based on verbosity
+    // OODA-09: Initialize logging to stderr (not stdout)
+    // WHY: CLI tools should output data to stdout and logs to stderr.
+    // This allows piping output: `edgequake-pdf input.pdf | head` works correctly.
     if cli.verbose {
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
+            .with_writer(std::io::stderr)
             .init();
     } else if !cli.quiet {
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::INFO)
             .with_target(false)
+            .with_writer(std::io::stderr)
             .init();
     }
 

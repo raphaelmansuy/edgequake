@@ -112,7 +112,10 @@ impl TextGrouper {
             for (i, elem) in elements.iter().take(3).enumerate() {
                 info!(
                     "TG-ELEM[{}]: Y={:.1} font={:.1} text='{}'",
-                    i, elem.y, elem.font_size, Self::safe_truncate(&elem.text, 40)
+                    i,
+                    elem.y,
+                    elem.font_size,
+                    Self::safe_truncate(&elem.text, 40)
                 );
             }
         }
@@ -128,7 +131,7 @@ impl TextGrouper {
 
             // WHY (OODA-05): After Y-normalization, Y=0 is at TOP of page, Y increases downward.
             // So footer (visual bottom) = LARGE Y, and title (visual top) = SMALL Y.
-            
+
             // Check if element is in footer region (visual bottom = large Y)
             let is_footer = elem.y > footer_threshold;
 
@@ -733,7 +736,7 @@ impl TextGrouper {
 }
 
 /// Calculate adaptive region thresholds based on content distribution.
-/// 
+///
 /// WHY (OODA-05): After Y-normalization in extraction_engine.rs, coordinates are:
 /// - Y=0 at visual TOP of page
 /// - Y=max at visual BOTTOM of page
@@ -911,9 +914,9 @@ mod tests {
         // After Y-normalization: Y=0 is at TOP of page, Y increases downward
         // So elements with lower Y are at the TOP (title zone), higher Y at bottom (footer zone)
         let elements = vec![
-            make_element(100.0, 50.0, "Top (title zone)", 14.0),  // Y=50 = near top
-            make_element(100.0, 400.0, "Middle", 10.0),           // Y=400 = middle
-            make_element(100.0, 700.0, "Bottom (footer)", 8.0),   // Y=700 = near bottom
+            make_element(100.0, 50.0, "Top (title zone)", 14.0), // Y=50 = near top
+            make_element(100.0, 400.0, "Middle", 10.0),          // Y=400 = middle
+            make_element(100.0, 700.0, "Bottom (footer)", 8.0),  // Y=700 = near bottom
         ];
 
         let (footer, header, title, affiliation, large_font) =
@@ -922,10 +925,26 @@ mod tests {
         // After my fix: footer threshold should be LARGE (near bottom)
         // header threshold should be SMALL (near top)
         // title threshold should be SMALL (near top)
-        assert!(footer > 500.0, "footer should be large Y (near bottom): got {}", footer);
-        assert!(header < 100.0, "header should be small Y (near top): got {}", header);
-        assert!(title < 200.0, "title should be small Y (near top): got {}", title);
-        assert!(affiliation > 400.0, "affiliation should be large Y (above footer): got {}", affiliation);
+        assert!(
+            footer > 500.0,
+            "footer should be large Y (near bottom): got {}",
+            footer
+        );
+        assert!(
+            header < 100.0,
+            "header should be small Y (near top): got {}",
+            header
+        );
+        assert!(
+            title < 200.0,
+            "title should be small Y (near top): got {}",
+            title
+        );
+        assert!(
+            affiliation > 400.0,
+            "affiliation should be large Y (above footer): got {}",
+            affiliation
+        );
         assert!(large_font > 0.0);
     }
 
@@ -943,7 +962,10 @@ mod tests {
         assert_eq!(footer, 650.0, "footer default should be 650.0 (large Y)");
         assert_eq!(header, 60.0, "header default should be 60.0 (small Y)");
         assert_eq!(title, 120.0, "title default should be 120.0 (small Y)");
-        assert_eq!(affiliation, 600.0, "affiliation default should be 600.0 (large Y)");
+        assert_eq!(
+            affiliation, 600.0,
+            "affiliation default should be 600.0 (large Y)"
+        );
         assert_eq!(large_font, 11.0);
     }
 
