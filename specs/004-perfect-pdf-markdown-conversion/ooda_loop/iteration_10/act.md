@@ -3,6 +3,7 @@
 ## Implementation Summary
 
 Fixed word boundary detection and compound hyphen handling in three locations:
+
 1. `Block::merge()` in `src/schema/block.rs` - Block-level merging
 2. `process_intra_block_hyphens()` in `src/processors/text_cleanup.rs` - Line-to-line within blocks
 3. Inter-block hyphen processing in `HyphenContinuationProcessor::process()` - Block-to-block
@@ -16,6 +17,7 @@ Fixed word boundary detection and compound hyphen handling in three locations:
 **Change**: Added compound word detection for both hyphen handling and word fragment detection
 
 Key logic added:
+
 ```rust
 // OODA-10: Check for compound word prefix (keep hyphen)
 let is_compound_prefix = matches!(
@@ -86,15 +88,15 @@ Fixes:
 
 ### Specific Metric Improvements
 
-| PDF | Text Before | Text After | Change |
-|-----|-------------|------------|--------|
-| ccn_2512.21804v1 | 77.2% | 80.5% | +3.3% |
-| 2900_Goyal_et_al | 87.6% | 90.2% | +2.6% |
-| v2_2512.25072v1 | 83.9% | 86.1% | +2.2% |
-| AlphaEvolve | 84.7% | 85.8% | +1.1% |
-| agent_2510.09244v1 | 78.7% | 80.7% | +2.0% |
-| 01_2512.25075v1 | 79.4% | 80.1% | +0.7% |
-| one_tool_2512.20957v2 | 81.6% | 81.1% | -0.5% |
+| PDF                   | Text Before | Text After | Change |
+| --------------------- | ----------- | ---------- | ------ |
+| ccn_2512.21804v1      | 77.2%       | 80.5%      | +3.3%  |
+| 2900_Goyal_et_al      | 87.6%       | 90.2%      | +2.6%  |
+| v2_2512.25072v1       | 83.9%       | 86.1%      | +2.2%  |
+| AlphaEvolve           | 84.7%       | 85.8%      | +1.1%  |
+| agent_2510.09244v1    | 78.7%       | 80.7%      | +2.0%  |
+| 01_2512.25075v1       | 79.4%       | 80.1%      | +0.7%  |
+| one_tool_2512.20957v2 | 81.6%       | 81.1%      | -0.5%  |
 
 ### Test Suite Results
 
@@ -138,11 +140,11 @@ cargo test --test comprehensive_quality --features comprehensive-tests --release
 
 ### Quality Metrics
 
-| Metric | OODA-09 | OODA-10 | Target | Gap |
-|--------|---------|---------|--------|-----|
-| Text Preservation | 81.9% | 83.5% | 98% | -14.5% |
-| Structural Fidelity | 69.0% | 69.0% | 95% | -26.0% |
-| Overall Quality | 75.4% | 76.2% | 95% | -18.8% |
+| Metric              | OODA-09 | OODA-10 | Target | Gap    |
+| ------------------- | ------- | ------- | ------ | ------ |
+| Text Preservation   | 81.9%   | 83.5%   | 98%    | -14.5% |
+| Structural Fidelity | 69.0%   | 69.0%   | 95%    | -26.0% |
+| Overall Quality     | 75.4%   | 76.2%   | 95%    | -18.8% |
 
 ### Next Steps (OODA-11+)
 
