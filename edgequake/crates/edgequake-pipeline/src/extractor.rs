@@ -926,6 +926,56 @@ where
                 }
             };
 
+            // DEBUG: Log raw LLM response for debugging JSON parsing errors
+            tracing::debug!(
+                chunk_id = %chunk.id,
+                attempt = attempt,
+                response_len = response.content.len(),
+                response_preview = %&response.content[..response.content.len().min(500)],
+                finish_reason = ?response.finish_reason,
+                "Raw LLM response received"
+            );
+
+            // CRITICAL: Validate response is not empty
+            // WHY: Empty LLM responses cause "Invalid JSON: expected value at line 1 column 1" errors
+            // This provides actionable error message instead of cryptic JSON parse errors
+            let trimmed_response = response.content.trim();
+            if trimmed_response.is_empty() {
+                let error_msg = format!(
+                    "LLM returned EMPTY response. Chunk: {}KB (~{} tokens). \
+                    This usually indicates:\n\
+                    1. LLM timeout (check Ollama logs: journalctl -u ollama -f)\n\
+                    2. Model crashed or OOM (check ollama ps)\n\
+                    3. Context window exhausted (reduce chunk_size)\n\
+                    4. Network issue with Ollama server\n\
+                    Chunk ID: {} | Attempt: {}/{} | Prompt tokens: {}",
+                    chunk_size_bytes / 1024,
+                    estimated_tokens,
+                    chunk.id,
+                    attempt,
+                    MAX_RETRIES,
+                    response.prompt_tokens
+                );
+                tracing::error!(
+                    chunk_id = %chunk.id,
+                    attempt = attempt,
+                    prompt_tokens = response.prompt_tokens,
+                    completion_tokens = response.completion_tokens,
+                    "{}",
+                    error_msg
+                );
+                last_error = Some(PipelineError::ExtractionError(error_msg));
+                if attempt < MAX_RETRIES {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(
+                        100 * 2_u64.pow(attempt - 1),
+                    ))
+                    .await;
+                    continue;
+                } else {
+                    return Err(last_error.unwrap());
+                }
+            }
+
             // Check if response was truncated (finish_reason = "length")
             let was_truncated = response
                 .finish_reason

@@ -31,7 +31,7 @@ use crate::processors::{
     GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor,
     LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig, LlmEnhanceProcessor,
     MarginFilterProcessor, PostProcessor, ProcessorChain, SectionNumberMergeProcessor,
-    SectionPatternProcessor, StyleDetectionProcessor, TableDetectionProcessor,
+    SectionPatternProcessor, SpacedTextProcessor, StyleDetectionProcessor, TableDetectionProcessor,
     TextTableReconstructionProcessor,
 };
 use crate::progress::ProgressCallback;
@@ -349,8 +349,8 @@ impl PdfExtractor {
         if let Some(page) = doc.pages.first() {
             for (i, block) in page.blocks.iter().take(10).enumerate() {
                 let text_preview: String = block.text.chars().take(60).collect();
-                tracing::debug!(
-                    "After processors - page1 block {} ({:?}): '{}'",
+                tracing::info!(
+                    "AFTER - page1 block {} ({:?}): '{}'",
                     i,
                     block.block_type,
                     text_preview
@@ -434,8 +434,8 @@ impl PdfExtractor {
         if let Some(page) = doc.pages.first() {
             for (i, block) in page.blocks.iter().take(10).enumerate() {
                 let text_preview: String = block.text.chars().take(60).collect();
-                tracing::debug!(
-                    "After processors - page1 block {} ({:?}): '{}'",
+                tracing::info!(
+                    "AFTER - page1 block {} ({:?}): '{}'",
                     i,
                     block.block_type,
                     text_preview
@@ -514,6 +514,7 @@ impl PdfExtractor {
     /// Apply post-processing pipeline to improve text quality
     ///
     /// **WHY this order matters:**
+    /// 0. SpacedTextProcessor: Fix spaced text BEFORE garbled filter (OODA-05)
     /// 1. MarginFilter: Remove page numbers, headers, footers FIRST
     /// 2. GarbledTextFilter: Remove noise before layout analysis
     /// 3. LayoutProcessor: Establish block structure
@@ -527,6 +528,7 @@ impl PdfExtractor {
     /// 11. PostProcessor: Final cleanup
     async fn apply_processors(&self, document: Document) -> Result<Document> {
         let chain = ProcessorChain::new()
+            .add(SpacedTextProcessor::new()) // OODA-05: Fix spaced text BEFORE garbled filter!
             .add(MarginFilterProcessor::new()) // Filter margin content (line numbers, page numbers)
             .add(GarbledTextFilterProcessor::new()) // Filter garbled figure annotations
             .add(LayoutProcessor::new())

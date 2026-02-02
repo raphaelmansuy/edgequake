@@ -102,6 +102,21 @@ impl TextGrouper {
             large_font_threshold,
         ) = calculate_adaptive_region_thresholds(&elements);
 
+        // OODA-05 DEBUG: Log thresholds for first 3 elements
+        if !elements.is_empty() {
+            info!(
+                "TG-THRESHOLDS: footer={:.1} header={:.1} title={:.1} affil={:.1} large_font={:.1} elem_count={}",
+                footer_threshold, header_threshold, title_threshold, affiliation_threshold, large_font_threshold, elements.len()
+            );
+            // Log first few elements with Y and font_size
+            for (i, elem) in elements.iter().take(3).enumerate() {
+                info!(
+                    "TG-ELEM[{}]: Y={:.1} font={:.1} text='{}'",
+                    i, elem.y, elem.font_size, Self::safe_truncate(&elem.text, 40)
+                );
+            }
+        }
+
         // Margin around column boundary for classification
         let margin = 15.0;
 
@@ -111,50 +126,66 @@ impl TextGrouper {
                 continue;
             }
 
-            // Check if element is in footer region
-            let is_footer = elem.y < footer_threshold;
+            // WHY (OODA-05): After Y-normalization, Y=0 is at TOP of page, Y increases downward.
+            // So footer (visual bottom) = LARGE Y, and title (visual top) = SMALL Y.
+            
+            // Check if element is in footer region (visual bottom = large Y)
+            let is_footer = elem.y > footer_threshold;
 
-            // Check if element is in header region (running header)
-            let is_header = elem.y > header_threshold && elem.font_size < large_font_threshold;
+            // Check if element is in header region (visual top but small font = running header)
+            // Running headers are at the very top (small Y) but with small font size
+            let is_header = elem.y < header_threshold && elem.font_size < large_font_threshold;
 
             // Check if element is affiliation/metadata (between body and footer)
             // These include: university names, emails, conference submission lines
-            let is_affiliation_zone = elem.y < affiliation_threshold && elem.y >= footer_threshold;
+            // Affiliation zone is near footer (large Y) but not quite at the bottom
+            let is_affiliation_zone = elem.y > affiliation_threshold && elem.y <= footer_threshold;
             let looks_like_affiliation = elem.text.contains('@')
                 || elem.text.contains("University")
                 || elem.text.contains("School of")
                 || elem.text.contains("Department")
                 || elem.text.contains("Correspondence")
                 || elem.text.contains("Submitted to")
-                || elem.text.contains("Conference")
+                // REMOVED: "Conference" - this matches paper title lines like "Published at ICLR"
                 || elem.text.starts_with("1") && elem.text.len() < 5  // Affiliation numbers
                 || elem.text.starts_with("2") && elem.text.len() < 5;
             let is_affiliation = is_affiliation_zone || looks_like_affiliation;
 
             // Handle spanning elements (titles):
-            // - In title zone (near top of page)
+            // - In title zone (near top of page = small Y after normalization)
             // - Larger font size (typically > 11pt for titles)
             // - Not a header/footer
-            let is_title_zone = elem.y > title_threshold;
+            let is_title_zone = elem.y < title_threshold;
             let is_large_font = elem.font_size > large_font_threshold;
             let is_spanning = is_title_zone && is_large_font && !is_footer && !is_header;
 
             if is_spanning {
                 // Spanning elements go to beginning (will be processed first)
-                if elem.text.contains("trajectory") || elem.text.contains("temporal") {
-                    info!(
-                        "SPANNING: Y={:.1} X={:.1} title_zone={} large_font={} '{}'",
-                        elem.y,
-                        elem.x,
-                        is_title_zone,
-                        is_large_font,
-                        Self::safe_truncate(&elem.text, 40)
-                    );
-                }
+                // OODA-05 DEBUG: Log ALL spanning elements to verify title detection
+                info!(
+                    "SPANNING: Y={:.1} X={:.1} font={:.1} title_zone={} large_font={} '{}'",
+                    elem.y,
+                    elem.x,
+                    elem.font_size,
+                    is_title_zone,
+                    is_large_font,
+                    Self::safe_truncate(&elem.text, 50)
+                );
                 spanning_elements.push(elem);
             } else if is_footer || is_header || is_affiliation {
                 // WHY: Footer/header/affiliation must ALSO respect column boundaries
                 // FIXED: Separate left and right footer to prevent cross-column line merging
+                // OODA-05 DEBUG: Log elements at top of page that are NOT spanning
+                if elem.y < 100.0 {
+                    info!(
+                        "TOP-NON-SPAN: Y={:.1} font={:.1} header={} affil={} '{}'",
+                        elem.y,
+                        elem.font_size,
+                        is_header,
+                        is_affiliation,
+                        Self::safe_truncate(&elem.text, 50)
+                    );
+                }
                 debug!(
                     "Footer/affiliation element: Y={:.1} X={:.1} affil={} '{}'",
                     elem.y,
@@ -702,16 +733,33 @@ impl TextGrouper {
 }
 
 /// Calculate adaptive region thresholds based on content distribution.
+/// 
+/// WHY (OODA-05): After Y-normalization in extraction_engine.rs, coordinates are:
+/// - Y=0 at visual TOP of page
+/// - Y=max at visual BOTTOM of page
+///
+/// Therefore:
+/// - Footer region (visual bottom): elements with Y > footer_threshold (large Y)
+/// - Title region (visual top): elements with Y < title_threshold (small Y)  
+/// - Header region (running headers at very top): elements with Y < header_threshold (small Y) AND small font
+/// - Affiliation region (near footer): elements with Y > affiliation_threshold (large Y)
+///
 /// Returns tuple of (footer_threshold, header_threshold, title_threshold, affiliation_threshold, large_font_threshold).
 fn calculate_adaptive_region_thresholds(elements: &[TextElement]) -> (f32, f32, f32, f32, f32) {
     if elements.is_empty() {
         // Fallback to reasonable defaults for empty documents
-        return (60.0, 730.0, 650.0, 80.0, 11.0);
+        // After normalization: Y range is typically 0 to ~700-800
+        // footer_threshold: 92% of page = large Y (visual bottom)
+        // header_threshold: 8% of page = small Y (visual top)
+        // title_threshold: 15% of page = small Y (visual top with title font)
+        // affiliation_threshold: 88% of page = large Y (just above footer)
+        return (650.0, 60.0, 120.0, 600.0, 11.0);
     }
 
-    // Calculate page height from elements
-    let page_height = elements.iter().map(|e| e.y).fold(f32::MIN, f32::max);
-    let page_bottom = elements.iter().map(|e| e.y).fold(f32::MAX, f32::min);
+    // After Y-normalization: min_y is near 0 (visual top), max_y is the visual bottom
+    let min_y = elements.iter().map(|e| e.y).fold(f32::MAX, f32::min);
+    let max_y = elements.iter().map(|e| e.y).fold(f32::MIN, f32::max);
+    let y_range = max_y - min_y;
 
     // Calculate font size distribution
     let font_sizes: Vec<f32> = elements.iter().map(|e| e.font_size).collect();
@@ -721,24 +769,28 @@ fn calculate_adaptive_region_thresholds(elements: &[TextElement]) -> (f32, f32, 
         font_sizes.iter().sum::<f32>() / font_sizes.len() as f32
     };
 
-    // Calculate adaptive thresholds based on page dimensions and content
-    let footer_threshold = page_bottom + (page_height - page_bottom) * 0.08; // Bottom 8% of page
-    let header_threshold = page_height - (page_height - page_bottom) * 0.08; // Top 8% of page
-    let title_threshold = page_bottom + (page_height - page_bottom) * 0.15; // Top 15% of page
-    let affiliation_threshold = page_bottom + (page_height - page_bottom) * 0.12; // Bottom 12% of page
-    let large_font_threshold = avg_font_size * 1.2; // 20% larger than average
+    // Calculate adaptive thresholds based on normalized coordinates
+    // Footer threshold: Y > 92% = visual bottom (page number, copyright)
+    let footer_threshold = min_y + y_range * 0.92;
+    // Header threshold: Y < 8% = visual top (running headers with small font)
+    let header_threshold = min_y + y_range * 0.08;
+    // Title threshold: Y < 15% = visual top (titles with large font)
+    let title_threshold = min_y + y_range * 0.15;
+    // Affiliation threshold: Y > 88% = just above footer (author affiliations)
+    let affiliation_threshold = min_y + y_range * 0.88;
+    // Large font threshold: 20% larger than average indicates title/heading
+    let large_font_threshold = avg_font_size * 1.2;
 
-    // Clamp to reasonable ranges - ensure min <= max to avoid panic
-    let footer_threshold = footer_threshold.clamp(40.0, 100.0);
-    let header_min = (page_height - 100.0).max(0.0);
-    let header_max = (page_height - 20.0).max(header_min);
-    let header_threshold = header_threshold.clamp(header_min, header_max);
-
-    let title_min = page_bottom + 100.0;
-    let title_max = (page_height - 50.0).max(title_min);
-    let title_threshold = title_threshold.clamp(title_min, title_max);
-
-    let affiliation_threshold = affiliation_threshold.clamp(60.0, 120.0);
+    // Clamp to reasonable ranges
+    // Footer should be near bottom (large Y), so clamp to high values
+    let footer_threshold = footer_threshold.clamp(y_range * 0.85, y_range * 0.98);
+    // Header should be near top (small Y), so clamp to low values
+    let header_threshold = header_threshold.clamp(y_range * 0.02, y_range * 0.12);
+    // Title zone should be in top portion (small Y)
+    let title_threshold = title_threshold.clamp(y_range * 0.08, y_range * 0.25);
+    // Affiliation should be near footer but not at very bottom
+    let affiliation_threshold = affiliation_threshold.clamp(y_range * 0.80, y_range * 0.92);
+    // Font size threshold
     let large_font_threshold = large_font_threshold.clamp(10.0, 14.0);
 
     (
@@ -856,21 +908,25 @@ mod tests {
 
     #[test]
     fn test_adaptive_thresholds() {
+        // After Y-normalization: Y=0 is at TOP of page, Y increases downward
+        // So elements with lower Y are at the TOP (title zone), higher Y at bottom (footer zone)
         let elements = vec![
-            make_element(100.0, 700.0, "Top", 12.0),
-            make_element(100.0, 500.0, "Middle", 10.0),
-            make_element(100.0, 100.0, "Bottom", 8.0),
+            make_element(100.0, 50.0, "Top (title zone)", 14.0),  // Y=50 = near top
+            make_element(100.0, 400.0, "Middle", 10.0),           // Y=400 = middle
+            make_element(100.0, 700.0, "Bottom (footer)", 8.0),   // Y=700 = near bottom
         ];
 
         let (footer, header, title, affiliation, large_font) =
             calculate_adaptive_region_thresholds(&elements);
 
-        // Verify thresholds are in valid ranges
-        assert!(footer > 0.0);
-        assert!(header > footer);
+        // After my fix: footer threshold should be LARGE (near bottom)
+        // header threshold should be SMALL (near top)
+        // title threshold should be SMALL (near top)
+        assert!(footer > 500.0, "footer should be large Y (near bottom): got {}", footer);
+        assert!(header < 100.0, "header should be small Y (near top): got {}", header);
+        assert!(title < 200.0, "title should be small Y (near top): got {}", title);
+        assert!(affiliation > 400.0, "affiliation should be large Y (above footer): got {}", affiliation);
         assert!(large_font > 0.0);
-        assert!(title > 0.0);
-        assert!(affiliation > 0.0);
     }
 
     #[test]
@@ -879,12 +935,16 @@ mod tests {
         let (footer, header, title, affiliation, large_font) =
             calculate_adaptive_region_thresholds(&elements);
 
-        // Should return default values
-        assert_eq!(footer, 60.0);
-        assert_eq!(header, 730.0);
+        // Updated default values after OODA-05 fix:
+        // footer_threshold: 92% of page = large Y (visual bottom)
+        // header_threshold: 8% of page = small Y (visual top)
+        // title_threshold: 15% of page = small Y (visual top with title font)
+        // affiliation_threshold: 88% of page = large Y (just above footer)
+        assert_eq!(footer, 650.0, "footer default should be 650.0 (large Y)");
+        assert_eq!(header, 60.0, "header default should be 60.0 (small Y)");
+        assert_eq!(title, 120.0, "title default should be 120.0 (small Y)");
+        assert_eq!(affiliation, 600.0, "affiliation default should be 600.0 (large Y)");
         assert_eq!(large_font, 11.0);
-        assert!(title > 0.0);
-        assert!(affiliation > 0.0);
     }
 
     #[test]

@@ -60,7 +60,9 @@ pub use structure_detection::{
 pub use table_detection::{TableDetectionProcessor, TextTableReconstructionProcessor};
 
 // Text cleanup processors
-pub use text_cleanup::{GarbledTextFilterProcessor, HyphenContinuationProcessor, PostProcessor};
+pub use text_cleanup::{
+    GarbledTextFilterProcessor, HyphenContinuationProcessor, PostProcessor, SpacedTextProcessor,
+};
 
 // Image extraction processor
 #[cfg(feature = "lopdf")]

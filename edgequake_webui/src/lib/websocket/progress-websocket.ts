@@ -38,7 +38,9 @@ type WebSocketEventType =
   | "reconnecting"
   | "max_reconnects_reached"
   | "error"
-  | "progress";
+  | "progress"
+  | "status_snapshot"
+  | "pdf_progress";
 
 type WebSocketEventCallback = (...args: unknown[]) => void;
 
@@ -160,7 +162,22 @@ export class ProgressWebSocket {
   private handleMessage(message: WebSocketProgressMessage): void {
     switch (message.type) {
       case "heartbeat":
+      case "Heartbeat":
         // Connection is alive, no action needed
+        break;
+      case "Connected":
+        // Backend connection confirmation
+        console.log("[ProgressWebSocket] Backend confirmed connection");
+        break;
+      case "StatusSnapshot":
+        // Full pipeline status snapshot
+        this.emit("status_snapshot", message);
+        this.options.onMessage?.(message);
+        break;
+      case "PdfPageProgress":
+        // OODA-PERF-02: PDF page-by-page progress events
+        this.emit("pdf_progress", message);
+        this.options.onMessage?.(message);
         break;
       case "ingestion_started":
       case "stage_started":

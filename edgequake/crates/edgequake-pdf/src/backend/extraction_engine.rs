@@ -413,6 +413,16 @@ impl ExtractionEngine {
         // Preprocess elements: deduplicate OCR layers and merge fragmented text
         let elements = self.element_processor.process(elements);
 
+        // OODA-05 DEBUG: Log first 10 elements after processing for page 1
+        if page_num == 1 {
+            for (i, elem) in elements.iter().take(10).enumerate() {
+                info!(
+                    "ENG-PAGE1-ELEM[{}]: Y={:.1} font={:.1} text='{}'",
+                    i, elem.y, elem.font_size, &elem.text[..50.min(elem.text.len())]
+                );
+            }
+        }
+
         debug!(
             "Page {} has {} text elements (merged from {}) and {} graphical lines",
             page_num,
