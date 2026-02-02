@@ -131,56 +131,50 @@ export function SideBySideViewer({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <Columns2 className="h-4 w-4" />
-          <span>{t('documents.viewer.title', 'Document Viewer')}</span>
-        </div>
-        
-        {/* View Mode Toggle */}
+      {/* Minimal View Mode Toggle */}
+      <div className="flex items-center justify-end gap-1 px-2 py-1 border-b bg-muted/20">
         <TooltipProvider>
-          <div className="flex items-center gap-1 bg-muted/50 rounded-md p-0.5">
+          <div className="flex items-center gap-0.5 bg-background rounded p-0.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant={mode === 'pdf-only' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-7 px-2"
+                  size="icon"
+                  className="h-6 w-6"
                   onClick={() => handleModeChange('pdf-only')}
                 >
-                  <PanelRightClose className="h-4 w-4" />
+                  <PanelRightClose className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{t('documents.viewer.pdfOnly', 'PDF Only')}</TooltipContent>
+              <TooltipContent>PDF Only</TooltipContent>
             </Tooltip>
             
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant={mode === 'side-by-side' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-7 px-2"
+                  size="icon"
+                  className="h-6 w-6"
                   onClick={() => handleModeChange('side-by-side')}
                 >
-                  <Columns2 className="h-4 w-4" />
+                  <Columns2 className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{t('documents.viewer.sideBySide', 'Side by Side')}</TooltipContent>
+              <TooltipContent>Split View</TooltipContent>
             </Tooltip>
             
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant={mode === 'markdown-only' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-7 px-2"
+                  size="icon"
+                  className="h-6 w-6"
                   onClick={() => handleModeChange('markdown-only')}
                 >
-                  <PanelLeftClose className="h-4 w-4" />
+                  <PanelLeftClose className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{t('documents.viewer.markdownOnly', 'Markdown Only')}</TooltipContent>
+              <TooltipContent>Markdown Only</TooltipContent>
             </Tooltip>
           </div>
         </TooltipProvider>
@@ -201,11 +195,7 @@ export function SideBySideViewer({
             )}
             style={mode === 'side-by-side' ? { width: `${leftWidth}%` } : undefined}
           >
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/20 border-b text-xs text-muted-foreground">
-              <FileText className="h-3.5 w-3.5" />
-              {leftTitle}
-            </div>
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-hidden">
               {leftPanel}
             </div>
           </div>
@@ -230,14 +220,10 @@ export function SideBySideViewer({
           <div
             className={cn(
               'flex flex-col overflow-hidden',
-              mode === 'markdown-only' ? 'w-full' : 'flex-1'
+              'markdown-only' ? 'w-full' : 'flex-1'
             )}
           >
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/20 border-b text-xs text-muted-foreground">
-              <FileText className="h-3.5 w-3.5" />
-              {rightTitle}
-            </div>
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
               {rightPanel}
             </div>
           </div>

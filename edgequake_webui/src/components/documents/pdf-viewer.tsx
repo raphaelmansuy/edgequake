@@ -238,15 +238,18 @@ export function PDFViewer({
         </div>
       )}
 
-      {/* PDF Content */}
+      {/* PDF Content - mousewheel scrollable */}
       <div
         className={cn(
-          'flex-1 overflow-auto bg-muted/20',
-          'scroll-smooth'
+          'flex-1 overflow-y-auto overflow-x-hidden',
+          'scroll-smooth bg-muted/10'
         )}
-        style={{ height: height ? `${height}px` : 'auto' }}
+        style={{ 
+          height: height ? `${height}px` : 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}
       >
-        <div className="flex justify-center p-4">
+        <div className="flex justify-center py-4">
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <Document
             file={file as any}
@@ -259,7 +262,7 @@ export function PDFViewer({
               pageNumber={pageNumber}
               scale={scale}
               width={isFullWidth ? undefined : width}
-              className="shadow-lg rounded-sm"
+              className="shadow-md"
               renderTextLayer={true}
               renderAnnotationLayer={true}
               loading={
