@@ -88,8 +88,10 @@ impl ReadingOrderDetector {
         let mut indices: Vec<usize> = (0..blocks.len()).collect();
 
         // Sort by Y position (top to bottom), then X (left to right)
-        // In PDF coordinates, Y=0 is at BOTTOM of page, so higher Y = top.
-        // For top-to-bottom reading order, we need DESCENDING Y (higher Y first).
+        //
+        // After Y-normalization in the extraction engine, coordinates are in
+        // standard document order: Y=0 at top of page, Y increases downward.
+        // So for top-to-bottom reading order, we sort by ASCENDING Y (lower Y = top = first).
         indices.sort_by(|&a, &b| {
             let bbox_a = &blocks[a].bbox;
             let bbox_b = &blocks[b].bbox;
@@ -99,8 +101,8 @@ impl ReadingOrderDetector {
             let y_b = (bbox_b.y1 / self.line_tolerance).floor();
 
             if y_a != y_b {
-                // DESCENDING Y for top-to-bottom (higher Y = top of page = first)
-                y_b.partial_cmp(&y_a).unwrap()
+                // ASCENDING Y for top-to-bottom (lower Y = top of page = first)
+                y_a.partial_cmp(&y_b).unwrap()
             } else {
                 // Same line: sort by X (left to right)
                 bbox_a.x1.partial_cmp(&bbox_b.x1).unwrap()
@@ -209,16 +211,16 @@ impl ReadingOrderDetector {
     }
 
     /// Sort block indices by position.
-    /// In PDF coordinates, Y=0 is at BOTTOM, so we sort DESCENDING Y for top-to-bottom.
+    /// After Y-normalization: Y=0 at top, Y increases downward. Sort ASCENDING Y for top-to-bottom.
     fn sort_by_position(&self, indices: &mut [usize], blocks: &[Block]) {
         indices.sort_by(|&a, &b| {
             let bbox_a = &blocks[a].bbox;
             let bbox_b = &blocks[b].bbox;
 
-            // DESCENDING Y (higher Y = top of page = comes first)
-            bbox_b
+            // ASCENDING Y (lower Y = top of page = comes first)
+            bbox_a
                 .y1
-                .partial_cmp(&bbox_a.y1)
+                .partial_cmp(&bbox_b.y1)
                 .unwrap()
                 .then_with(|| bbox_a.x1.partial_cmp(&bbox_b.x1).unwrap())
         });
@@ -230,8 +232,8 @@ impl ReadingOrderDetector {
     /// elements at their vertical position. This ensures proper reading order for
     /// multi-column layouts (read all of column 1, then all of column 2, etc.)
     ///
-    /// Note: In PDF coordinates, Y=0 is at BOTTOM. Higher Y = top of page.
-    /// Blocks are sorted DESCENDING by Y (top first = higher Y first).
+    /// Note: After Y-normalization, Y=0 is at TOP of page. Lower Y = top of page.
+    /// Blocks are sorted ASCENDING by Y (top first = lower Y first).
     fn merge_column_orders(
         &self,
         column_blocks: &[Vec<usize>],
@@ -243,17 +245,17 @@ impl ReadingOrderDetector {
         let mut spanning_idx = 0;
 
         // Process leading spanning elements (before first column content)
-        // Find the HIGHEST Y in first column blocks (top of content)
+        // Find the LOWEST Y in first column blocks (top of content after normalization)
         let first_col_y = column_blocks
             .iter()
             .filter_map(|col| col.first().map(|&idx| blocks[idx].bbox.y1))
-            .max_by(|a, b| a.partial_cmp(b).unwrap()) // MAX for top-most block
-            .unwrap_or(f32::MIN);
+            .min_by(|a, b| a.partial_cmp(b).unwrap()) // MIN for top-most block (lowest Y = top)
+            .unwrap_or(f32::MAX);
 
         while spanning_idx < spanning.len() {
             let span_y = blocks[spanning[spanning_idx]].bbox.y1;
-            // Spanning element is ABOVE first column content if its Y > first_col_y
-            if span_y > first_col_y + self.line_tolerance {
+            // Spanning element is ABOVE first column content if its Y < first_col_y
+            if span_y < first_col_y - self.line_tolerance {
                 result.push(spanning[spanning_idx]);
                 spanning_idx += 1;
             } else {
@@ -267,10 +269,10 @@ impl ReadingOrderDetector {
                 let block_y = blocks[block_idx].bbox.y1;
 
                 // Insert any spanning elements that appear ABOVE this block
-                // (higher Y = above in PDF coordinates)
+                // (lower Y = above after normalization)
                 while spanning_idx < spanning.len() {
                     let span_y = blocks[spanning[spanning_idx]].bbox.y1;
-                    if span_y > block_y + self.line_tolerance {
+                    if span_y < block_y - self.line_tolerance {
                         result.push(spanning[spanning_idx]);
                         spanning_idx += 1;
                     } else {
@@ -328,16 +330,16 @@ mod tests {
     fn test_single_column_order() {
         let detector = ReadingOrderDetector::new();
 
-        // In PDF coordinates: Y=0 is at BOTTOM, higher Y = higher on page
-        // For top-to-bottom reading order: higher Y should come FIRST
+        // After Y-normalization: Y=0 at TOP of page, lower Y = higher on page
+        // For top-to-bottom reading order: lower Y should come FIRST (ascending Y sort)
         let blocks = vec![
-            make_block(100.0, 200.0, 500.0, 250.0), // Middle (Y=200)
-            make_block(100.0, 100.0, 500.0, 150.0), // Bottom (Y=100) - LAST
-            make_block(100.0, 300.0, 500.0, 350.0), // Top (Y=300) - FIRST
+            make_block(100.0, 100.0, 500.0, 150.0), // Middle (Y=100)
+            make_block(100.0, 200.0, 500.0, 250.0), // Bottom (Y=200) - LAST
+            make_block(100.0, 50.0, 500.0, 100.0),  // Top (Y=50) - FIRST
         ];
 
         let order = detector.single_column_order(&blocks);
-        // Expected: Top (Y=300, idx=2), Middle (Y=200, idx=0), Bottom (Y=100, idx=1)
+        // Expected: Top (Y=50, idx=2), Middle (Y=100, idx=0), Bottom (Y=200, idx=1)
         assert_eq!(order, vec![2, 0, 1]);
     }
 
@@ -363,24 +365,24 @@ mod tests {
             BoundingBox::new(332.0, 0.0, 562.0, 800.0), // Right column
         ];
 
-        // In PDF coordinates: Y=0 at BOTTOM, higher Y = higher on page
-        // Within each column, blocks are sorted by DESCENDING Y (higher Y = top = first)
+        // After Y-normalization: Y=0 at TOP, lower Y = top of page
+        // Within each column, blocks are sorted by ASCENDING Y (lower Y = top = first)
         let blocks = vec![
-            make_block(350.0, 200.0, 540.0, 250.0), // Right column, Y=200 (lower = second in right col)
-            make_block(100.0, 200.0, 260.0, 250.0), // Left column, Y=200 (lower = second in left col)
-            make_block(100.0, 100.0, 260.0, 150.0), // Left column, Y=100 (lowest = third in left col)
-            make_block(350.0, 300.0, 540.0, 350.0), // Right column, Y=300 (higher = first in right col)
+            make_block(350.0, 200.0, 540.0, 250.0), // Right column, Y=200 (higher = second in right col)
+            make_block(100.0, 100.0, 260.0, 150.0), // Left column, Y=100 (lower = first in left col)
+            make_block(100.0, 200.0, 260.0, 250.0), // Left column, Y=200 (higher = second in left col)
+            make_block(350.0, 100.0, 540.0, 150.0), // Right column, Y=100 (lower = first in right col)
         ];
 
         let order = detector.determine_order(&blocks, &columns);
 
-        // Left column blocks sorted by descending Y: idx=1 (Y=200), idx=2 (Y=100)
-        // Right column blocks sorted by descending Y: idx=3 (Y=300), idx=0 (Y=200)
+        // Left column blocks sorted by ascending Y: idx=1 (Y=100), idx=2 (Y=200)
+        // Right column blocks sorted by ascending Y: idx=3 (Y=100), idx=0 (Y=200)
         // Reading order: left column (1, 2), then right column (3, 0)
         assert_eq!(order.len(), 4);
-        assert_eq!(order[0], 1); // Left column first (Y=200)
-        assert_eq!(order[1], 2); // Left column second (Y=100)
-        assert_eq!(order[2], 3); // Right column first (Y=300)
+        assert_eq!(order[0], 1); // Left column first (Y=100)
+        assert_eq!(order[1], 2); // Left column second (Y=200)
+        assert_eq!(order[2], 3); // Right column first (Y=100)
         assert_eq!(order[3], 0); // Right column second (Y=200)
     }
 
@@ -393,17 +395,17 @@ mod tests {
             BoundingBox::new(332.0, 0.0, 562.0, 800.0),
         ];
 
-        // In PDF coordinates: Y=0 at BOTTOM, higher Y = higher on page
-        // The header at Y=300 is ABOVE the content at Y=100
+        // After Y-normalization: Y=0 at TOP of page, lower Y = top
+        // The header at Y=30 is ABOVE the content at Y=100
         let blocks = vec![
-            make_block(50.0, 300.0, 562.0, 330.0), // Spanning header at TOP (Y=300)
+            make_block(50.0, 30.0, 562.0, 80.0), // Spanning header at TOP (Y=30)
             make_block(100.0, 100.0, 260.0, 150.0), // Left column content (Y=100)
             make_block(350.0, 100.0, 540.0, 150.0), // Right column content (Y=100)
         ];
 
         let order = detector.determine_order(&blocks, &columns);
 
-        // Header (Y=300) should come first since it's at the top
+        // Header (Y=30) should come first since it's at the top (lowest Y)
         assert_eq!(order[0], 0);
     }
 

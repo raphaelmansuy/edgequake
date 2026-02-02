@@ -263,15 +263,30 @@ impl ContentParser {
                                     .map(|f| (f.is_bold, f.is_italic))
                                     .unwrap_or((false, false));
 
+                                // Apply CTM transformation to get visual coordinates
+                                // visual_pos = CTM * text_pos
+                                let raw_x = text_matrix[4];
+                                let raw_y = text_matrix[5];
+                                let visual_x = ctm[0] * raw_x + ctm[2] * raw_y + ctm[4];
+                                let visual_y = ctm[1] * raw_x + ctm[3] * raw_y + ctm[5];
+
                                 text_elements.push(TextElement {
-                                    text,
-                                    x: text_matrix[4],
-                                    y: text_matrix[5],
+                                    text: text.clone(),
+                                    x: visual_x,
+                                    y: visual_y,
                                     font_size,
                                     font_name: current_font_name.clone(),
                                     is_bold,
                                     is_italic,
                                 });
+                                
+                                // Advance text matrix by estimated text width.
+                                // WHY: PDF text showing operators advance the cursor.
+                                // Average char width is ~55% of font size for proportional fonts.
+                                // Without this, consecutive text operators appear at same position.
+                                let char_count = text.chars().count() as f32;
+                                let estimated_width = char_count * font_size * 0.55;
+                                text_matrix[4] += estimated_width;
                             }
                         }
                     }
@@ -281,6 +296,9 @@ impl ContentParser {
                     if !op.operands.is_empty() {
                         if let Object::Array(arr) = &op.operands[0] {
                             let mut combined_text = String::new();
+                            // Track total width displacement from TJ array.
+                            // Negative values = advance right, positive = move left (in thousandths of em).
+                            let mut total_displacement: f32 = 0.0;
 
                             for item in arr {
                                 match item {
@@ -289,9 +307,18 @@ impl ContentParser {
                                             self.decode_text_operand(item, current_font)
                                         {
                                             combined_text.push_str(&text);
+                                            // Add estimated width of this text run
+                                            let char_count = text.chars().count() as f32;
+                                            total_displacement += char_count * font_size * 0.55;
                                         }
                                     }
                                     Object::Integer(n) => {
+                                        // Negative values move right (kerning adjustment).
+                                        // Values in thousandths of em-space.
+                                        // Convert to font units: -n/1000 * font_size
+                                        let displacement = -*n as f32 / 1000.0 * font_size;
+                                        total_displacement += displacement;
+                                        
                                         // In TJ arrays, negative kerning values often encode word spaces.
                                         // Be more permissive to avoid missing spaces in real-world PDFs.
                                         if *n < -50 {
@@ -299,6 +326,9 @@ impl ContentParser {
                                         }
                                     }
                                     Object::Real(n) => {
+                                        let displacement = -n / 1000.0 * font_size;
+                                        total_displacement += displacement;
+                                        
                                         if *n < -50.0 {
                                             combined_text.push(' ');
                                         }
@@ -318,16 +348,26 @@ impl ContentParser {
                                     .filter(|&c| c != '\n' && c != '\r')
                                     .collect();
 
+                                // Apply CTM transformation to get visual coordinates
+                                let raw_x = text_matrix[4];
+                                let raw_y = text_matrix[5];
+                                let visual_x = ctm[0] * raw_x + ctm[2] * raw_y + ctm[4];
+                                let visual_y = ctm[1] * raw_x + ctm[3] * raw_y + ctm[5];
+
                                 text_elements.push(TextElement {
                                     text: cleaned,
-                                    x: text_matrix[4],
-                                    y: text_matrix[5],
+                                    x: visual_x,
+                                    y: visual_y,
                                     font_size,
                                     font_name: current_font_name.clone(),
                                     is_bold,
                                     is_italic,
                                 });
                             }
+                            
+                            // Advance text matrix by total displacement.
+                            // WHY: TJ positions text correctly; we must track the cursor.
+                            text_matrix[4] += total_displacement;
                         }
                     }
                 }
@@ -348,15 +388,26 @@ impl ContentParser {
                                     .map(|f| (f.is_bold, f.is_italic))
                                     .unwrap_or((false, false));
 
+                                // Apply CTM transformation to get visual coordinates
+                                let raw_x = text_matrix[4];
+                                let raw_y = text_matrix[5];
+                                let visual_x = ctm[0] * raw_x + ctm[2] * raw_y + ctm[4];
+                                let visual_y = ctm[1] * raw_x + ctm[3] * raw_y + ctm[5];
+
                                 text_elements.push(TextElement {
-                                    text: cleaned,
-                                    x: text_matrix[4],
-                                    y: text_matrix[5],
+                                    text: cleaned.clone(),
+                                    x: visual_x,
+                                    y: visual_y,
                                     font_size,
                                     font_name: current_font_name.clone(),
                                     is_bold,
                                     is_italic,
                                 });
+                                
+                                // Advance text matrix by estimated text width
+                                let char_count = cleaned.chars().count() as f32;
+                                let estimated_width = char_count * font_size * 0.55;
+                                text_matrix[4] += estimated_width;
                             }
                         }
                     }

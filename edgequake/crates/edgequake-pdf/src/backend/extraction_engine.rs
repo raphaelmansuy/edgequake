@@ -257,15 +257,18 @@ impl ExtractionEngine {
         // 2. Only filter if there are multiple distinct "layers" (e.g., OCR layer at 2x height)
         // 3. Keep all elements if they form a single continuous range
         let x_margin = 50.0;
-        
+
         // First pass: get actual element bounds
         let actual_min_y = elements.iter().map(|e| e.y).fold(f32::INFINITY, f32::min);
-        let actual_max_y = elements.iter().map(|e| e.y).fold(f32::NEG_INFINITY, f32::max);
-        
+        let actual_max_y = elements
+            .iter()
+            .map(|e| e.y)
+            .fold(f32::NEG_INFINITY, f32::max);
+
         // Check if there are clearly separate layers (OCR detection)
         // OCR layers are typically placed at exactly 2x or more of page height
         let has_ocr_layer = actual_max_y > page_height * 2.5;
-        
+
         // Define bounds based on whether we have an OCR layer
         let (y_lower_bound, y_upper_bound) = if has_ocr_layer {
             // OCR layer detected - keep only elements in the primary visual range
@@ -276,7 +279,7 @@ impl ExtractionEngine {
             // Trust the CTM transform and normalize later
             (actual_min_y - 10.0, actual_max_y + 10.0)
         };
-        
+
         let elements: Vec<_> = elements
             .into_iter()
             .filter(|e| {
@@ -1032,7 +1035,11 @@ mod tests {
         // After sorting by Y then X:
         // (10.0, 700) Hello -> (10.5, 700) Hello -> (60, 700) World
         // Adjacent duplicates should be removed
-        assert!(deduped.len() == 2, "Should handle near-duplicates, got {}", deduped.len());
+        assert!(
+            deduped.len() == 2,
+            "Should handle near-duplicates, got {}",
+            deduped.len()
+        );
     }
 
     #[test]

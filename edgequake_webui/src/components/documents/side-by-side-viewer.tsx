@@ -25,9 +25,8 @@ import {
 import { cn } from '@/lib/utils';
 import {
     Columns2,
-    FileText,
     PanelLeftClose,
-    PanelRightClose,
+    PanelRightClose
 } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -220,7 +219,7 @@ export function SideBySideViewer({
           <div
             className={cn(
               'flex flex-col overflow-hidden',
-              'markdown-only' ? 'w-full' : 'flex-1'
+              mode === 'markdown-only' ? 'w-full' : 'flex-1'
             )}
           >
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
