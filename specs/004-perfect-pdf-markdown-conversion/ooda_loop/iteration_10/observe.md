@@ -32,6 +32,7 @@ Averages:
 ### Issue 1: Word Fragments Being Incorrectly Joined
 
 **Observed in output**:
+
 ```
 "whole-body loco-manipulation forwhiteboard wiping"
                                ^^^ MISSING SPACE
@@ -51,13 +52,15 @@ if is_same_visual_line && is_close_horizontally {
         self.text.push_str(other.text.trim_start());  // <-- NO SPACE!
 ```
 
-**Problem**: 
+**Problem**:
+
 - "for" ends with "r" (alphabetic)
 - "whiteboard" starts with "w" (lowercase)
 - Both conditions satisfied → incorrectly treated as word fragment
 
 **Why this is wrong**:
 The heuristic assumes `alphabetic + lowercase = continuation`, but this fails for common word boundaries like:
+
 - "for whiteboard" → "forwhiteboard" ❌
 - "the same" → "thesame" ❌
 - "is critical" → "iscritical" ❌
@@ -65,6 +68,7 @@ The heuristic assumes `alphabetic + lowercase = continuation`, but this fails fo
 ### Issue 2: Aggressive Hyphen Removal
 
 **Observed in output**:
+
 ```
 "long-horizon tasks" rendered as "longhorizon tasks"
      ^ HYPHEN LOST
@@ -81,18 +85,21 @@ if ends_with_hyphen && starts_with_lowercase {
 ```
 
 **Problem**: The code assumes ALL hyphens at end-of-line are word-continuation hyphens:
+
 - "modifi-" + "cation" → "modification" ✅ CORRECT
 - "long-" + "horizon" → "longhorizon" ❌ WRONG (should be "long-horizon")
 
 **Why this is wrong**:
 Compound words like "long-horizon", "hand-eye", "self-supervised" have intentional hyphens.
 The heuristic needs to distinguish:
+
 - Word-continuation hyphen: "modifi-" → partial word being broken
 - Compound-word hyphen: "long-" → complete morpheme with intentional hyphen
 
 ### Issue 3: Missing Paragraph Breaks
 
 **Observed in output**:
+
 ```
 "yet achieving robust whole-body coordination across the head, hands, and legs
 remains a major challenge. We present a system that combinesa modular..."
@@ -142,11 +149,11 @@ The `should_merge()` function may be too permissive in its vertical gap threshol
 
 ## Key Files Affected
 
-| File | Lines | Issue |
-|------|-------|-------|
-| `src/schema/block.rs` | 339-349 | Word fragment detection incorrectly joins words |
-| `src/schema/block.rs` | 330-332 | Hyphen removal too aggressive for compound words |
-| `src/processors/layout_processing.rs` | 240-250 | Vertical gap threshold may be too permissive |
+| File                                  | Lines   | Issue                                            |
+| ------------------------------------- | ------- | ------------------------------------------------ |
+| `src/schema/block.rs`                 | 339-349 | Word fragment detection incorrectly joins words  |
+| `src/schema/block.rs`                 | 330-332 | Hyphen removal too aggressive for compound words |
+| `src/processors/layout_processing.rs` | 240-250 | Vertical gap threshold may be too permissive     |
 
 ## Next Steps
 

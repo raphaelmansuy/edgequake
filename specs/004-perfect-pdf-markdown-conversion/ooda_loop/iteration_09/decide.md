@@ -11,7 +11,7 @@ In two-column PDF layouts, text elements from different columns at the same Y-co
 ```
 BEFORE: "Abstract— Humanoid robots hold great promise for oper-manipulate objects [1]."
         ↑ Left column text                              ↑ Right column text
-        
+
 AFTER:  "Abstract— Humanoid robots hold great promise for oper-"
         "manipulate objects [1]. Achieving this level of dexterity and"
 ```
@@ -60,7 +60,7 @@ let margin_to_column = current_in_left_margin && next_in_right_column;
 let large_gap_threshold = char_width * 4.0;
 let current_in_left_half = current.x < 250.0;
 let next_in_right_half = next.x > 280.0;
-let large_gap_indicates_column = gap > large_gap_threshold 
+let large_gap_indicates_column = gap > large_gap_threshold
     && current_in_left_half && next_in_right_half;
 
 let likely_cross_column = margin_to_column || large_gap_indicates_column;
@@ -69,21 +69,25 @@ let likely_cross_column = margin_to_column || large_gap_indicates_column;
 ## Alternatives Considered
 
 ### 1. Gap-Only Detection (Rejected)
+
 - **Threshold**: `gap > 4 * char_width`
 - **Problem**: When end_x is overestimated, gap becomes negative (-17.1pt)
 - **Verdict**: ❌ Cannot detect column boundary with negative gaps
 
 ### 2. Position-Only Detection (Rejected)
+
 - **Threshold**: `current.x < 200 && next.x > 280`
 - **Problem**: Breaks Qwen.pdf - 60pt title characters at X=320.6 trigger false positive
 - **Verdict**: ❌ Too aggressive for single-column PDFs
 
 ### 3. Hybrid Position + Jump Detection (Rejected)
+
 - **Threshold**: `gap < -50 && current.x < 200 && next.x > 300`
 - **Problem**: gap=-17.1 doesn't meet -50 threshold
 - **Verdict**: ❌ Threshold too strict for this case
 
 ### 4. Margin-Based Detection (Chosen) ✅
+
 - **Key insight**: Left margin (X < 100) is unambiguous indicator of two-column layout
 - **Works for v2 PDF**: `current.x=64 < 100` AND `next.x=313 > 300` → column boundary
 - **Works for Qwen.pdf**: `current.x=183 >= 100` → NOT a column boundary
@@ -91,24 +95,25 @@ let likely_cross_column = margin_to_column || large_gap_indicates_column;
 
 ## Expected Impact
 
-| Metric | Before | After | Target |
-|--------|--------|-------|--------|
-| Text Preservation | 81.9% | 81.9% | 98% |
-| Structural Fidelity | 68.8% | ~69.0% | 95% |
-| Overall Quality | 75.3% | ~75.4% | 95% |
+| Metric              | Before | After  | Target |
+| ------------------- | ------ | ------ | ------ |
+| Text Preservation   | 81.9%  | 81.9%  | 98%    |
+| Structural Fidelity | 68.8%  | ~69.0% | 95%    |
+| Overall Quality     | 75.3%  | ~75.4% | 95%    |
 
 **Note**: This fix is necessary but not sufficient for 95% target. Additional improvements needed for:
+
 - Table detection accuracy
 - Multi-column reading order
 - Header/footer filtering
 
 ## Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| False positives (wrong boundary detection) | Low | Medium | Tested against Qwen.pdf |
-| Narrow pages breaking (<200pt wide) | Low | Low | Rare in academic papers |
-| Three-column layouts | Medium | Low | May need refinement |
+| Risk                                       | Likelihood | Impact | Mitigation              |
+| ------------------------------------------ | ---------- | ------ | ----------------------- |
+| False positives (wrong boundary detection) | Low        | Medium | Tested against Qwen.pdf |
+| Narrow pages breaking (<200pt wide)        | Low        | Low    | Rare in academic papers |
+| Three-column layouts                       | Medium     | Low    | May need refinement     |
 
 ## Next Steps (OODA-10+)
 

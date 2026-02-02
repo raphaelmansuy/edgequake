@@ -53,7 +53,7 @@ let likely_cross_column = large_gap_indicates_column || margin_to_column;
 ### Before Fix
 
 ```
-BEFORE - block 10 len=117 bbox=[64,332,64,341]: 
+BEFORE - block 10 len=117 bbox=[64,332,64,341]:
 'Abstract— Humanoid robots hold great promise for oper-manipulate objects [1]. Achieving this level o'
                                                       ↑ WRONG: Right column text merged
 ```
@@ -61,11 +61,11 @@ BEFORE - block 10 len=117 bbox=[64,332,64,341]:
 ### After Fix
 
 ```
-BEFORE - block 11 len=56 bbox=[64,332,64,341]: 
+BEFORE - block 11 len=56 bbox=[64,332,64,341]:
 'Abstract— Humanoid robots hold great promise for oper-'
                                                       ↑ CORRECT: Ends at hyphen
 
-BEFORE - block 12 len=61 bbox=[313,332,313,342]: 
+BEFORE - block 12 len=61 bbox=[313,332,313,342]:
 'manipulate objects [1]. Achieving this level of dexterity and'
                                                       ↑ CORRECT: Separate right column block
 ```
@@ -79,7 +79,7 @@ BEFORE - block 12 len=61 bbox=[313,332,313,342]:
 
 📄 v2_2512.25072v1
    Text:  83.9% | Structure:  47.2% | Overall:  65.5%
-   
+
 ────────────────────────────────────────────────────────────────
 📊 Average Scores:
    Text Preservation:    81.9%
@@ -117,7 +117,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ### v2 PDF Cross-Column Fix ✅
 
 ```
-OODA09-MERGE: curr='Abstract' curr_x=64.0 end_x=103.4 next='— Humanoid...' next_x=103.4 
+OODA09-MERGE: curr='Abstract' curr_x=64.0 end_x=103.4 next='— Humanoid...' next_x=103.4
   gap=0.0 char_w=4.9 large_gap=false margin_col=false
   → Merge OK (same column)
 
@@ -139,21 +139,23 @@ Qwen.pdf output (562 bytes):
 ## Commits
 
 This change is part of OODA-09 cross-column fix:
+
 - Modified: `edgequake/crates/edgequake-pdf/src/backend/element_processing.rs`
 - Lines affected: ~144-177 (merge function column detection)
 
 ## Impact Analysis
 
-| PDF | Before SFS | After SFS | Change |
-|-----|------------|-----------|--------|
-| v2_2512.25072v1 | 47.2% | 47.2% | No change (table issues dominate) |
-| Overall Average | 68.8% | 69.0% | +0.2% |
+| PDF             | Before SFS | After SFS | Change                            |
+| --------------- | ---------- | --------- | --------------------------------- |
+| v2_2512.25072v1 | 47.2%      | 47.2%     | No change (table issues dominate) |
+| Overall Average | 68.8%      | 69.0%     | +0.2%                             |
 
 **Note**: The cross-column fix is working correctly but structural fidelity for v2 PDF is still low (47.2%) due to table detection issues, not cross-column merging.
 
 ## Next OODA Iteration Focus
 
 **OODA-10**: Investigate why v2_2512.25072v1 has only 47.2% structural fidelity:
+
 1. Analyze table detection for v2 PDF
 2. Check if figures/captions are being misdetected
 3. Review block ordering and reading sequence

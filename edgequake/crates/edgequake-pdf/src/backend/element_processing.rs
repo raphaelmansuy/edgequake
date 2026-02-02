@@ -163,14 +163,15 @@ impl ElementProcessor {
                 let large_gap_threshold = char_width * 4.0;
                 let current_in_left_half = current.x < 250.0;
                 let next_in_right_half = next.x > 280.0;
-                let large_gap_indicates_column = gap > large_gap_threshold && current_in_left_half && next_in_right_half;
-                
+                let large_gap_indicates_column =
+                    gap > large_gap_threshold && current_in_left_half && next_in_right_half;
+
                 // Primary check: Left margin to right column = definite column boundary
                 // This catches the v2 PDF case where estimated end_x causes gap to be negative
                 let current_in_left_margin = current.x < 100.0;
                 let next_in_right_column = next.x > 300.0;
                 let margin_to_column = current_in_left_margin && next_in_right_column;
-                
+
                 let likely_cross_column = large_gap_indicates_column || margin_to_column;
 
                 // For tight fonts where estimated width is too large (negative gap),

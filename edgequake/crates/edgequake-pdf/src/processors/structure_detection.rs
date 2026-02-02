@@ -319,6 +319,10 @@ impl Processor for ListDetectionProcessor {
         // for nested lists. Also include common Unicode bullet characters.
         let bullet_regex = Regex::new(r"^[-–—*•◦▪]\s+").unwrap();
         let number_regex = Regex::new(r"^\d+[\.)]\s+").unwrap();
+        // WHY: Academic papers use [N] format for references. arXiv papers commonly
+        // have 30-60 references. This pattern matches "[1]", "[42]", or "[123]" at
+        // line start, with optional space before the citation text.
+        let ref_regex = Regex::new(r"^\[\d{1,3}\]\s*").unwrap();
 
         for page in &mut document.pages {
             // Find left margin for indentation calculation
@@ -342,7 +346,10 @@ impl Processor for ListDetectionProcessor {
                 }
 
                 let text = block.text.trim();
-                if bullet_regex.is_match(text) || number_regex.is_match(text) {
+                if bullet_regex.is_match(text)
+                    || number_regex.is_match(text)
+                    || ref_regex.is_match(text)
+                {
                     block.block_type = BlockType::ListItem;
 
                     // Calculate indentation level (20pts per level)

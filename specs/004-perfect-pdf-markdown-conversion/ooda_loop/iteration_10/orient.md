@@ -7,6 +7,7 @@
 **Block merging treats word boundaries incorrectly.**
 
 When two text blocks are merged in PDF extraction, we need to decide:
+
 1. Should we add a space between them?
 2. Should we remove a hyphen?
 3. Should we join them directly?
@@ -18,6 +19,7 @@ The current heuristics fail because they rely on surface-level character pattern
 #### Problem 1: Word Fragment Detection
 
 Current logic:
+
 ```rust
 let is_likely_word_fragment = matches!(
     (last_char, first_char),
@@ -28,11 +30,13 @@ let is_likely_word_fragment = matches!(
 **Flaw**: This says "alphabetic + lowercase = word continuation"
 
 Counter-examples from English:
+
 - "for whiteboard" → last='r', first='w' → both alphabetic → WRONG
 - "the robot" → last='e', first='r' → both alphabetic → WRONG
 - "human centric" → last='n', first='c' → both alphabetic → WRONG
 
 **First Principle**: A word fragment must be an INCOMPLETE word. English words typically don't end with:
+
 - Articles: "the", "a", "an"
 - Prepositions: "for", "to", "in", "on", "at"
 - Common short words: "is", "as", "or"
@@ -42,6 +46,7 @@ A proper fragment would be something like: "decom-" + "position" where "decom" i
 #### Problem 2: Hyphen Classification
 
 Current logic:
+
 ```rust
 if ends_with_hyphen && starts_with_lowercase {
     // Remove hyphen and join
@@ -53,7 +58,7 @@ if ends_with_hyphen && starts_with_lowercase {
 **First Principle**: There are TWO types of hyphens:
 
 1. **Continuation hyphen**: Added by typesetter to break long words at line end
-   - "modifi-" + "cation" → "modification" 
+   - "modifi-" + "cation" → "modification"
    - "observa-" + "tion" → "observation"
    - Key: The prefix is NOT a valid standalone word
 
@@ -63,7 +68,8 @@ if ends_with_hyphen && starts_with_lowercase {
    - "hand-" + "eye" → "hand-eye"
    - Key: The prefix IS a valid standalone word
 
-**Detection heuristic**: 
+**Detection heuristic**:
+
 - If the text before hyphen is a complete English word (exists in dictionary or > 3 letters and pronounceable), keep the hyphen
 - If it's a partial word (like "modifi", "techni", "observa"), remove the hyphen
 
@@ -86,18 +92,21 @@ From TeX and typesetting theory:
 ## Strategic Decision
 
 ### Option A: Dictionary-based detection (Complex)
+
 - Load English word list
 - Check if prefix is a valid word
 - Pros: Accurate
 - Cons: Requires dictionary, slow, language-dependent
 
 ### Option B: Common pattern matching (Simple)
+
 - Maintain list of common compound prefixes: "self-", "long-", "short-", "hand-", "eye-", etc.
 - Keep hyphen for known patterns
 - Pros: Fast, no external dependency
 - Cons: Won't catch all cases
 
 ### Option C: Morphological heuristic (Balanced)
+
 - If prefix length >= 4 AND ends with complete syllable → likely compound word
 - If prefix length < 4 → likely continuation
 - Common prefixes like "pre-", "re-", "co-" → special handling
@@ -106,7 +115,7 @@ From TeX and typesetting theory:
 
 **Decision**: Implement **Option C** with enhancements:
 
-1. **For word fragments**: 
+1. **For word fragments**:
    - Only treat as fragment if last word is < 3 characters AND looks like partial word
    - Always add space otherwise
 
@@ -119,12 +128,12 @@ From TeX and typesetting theory:
 
 ## Risk Assessment
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Over-correction: add too many spaces | Words split incorrectly | Keep tight horizontal proximity check |
-| Under-correction: still join words | Same bugs persist | Test with known failure cases |
-| Regression: break hyphenation that worked | Quality drops | Test Qwen.pdf "Pushing" word |
-| Performance impact | Slower extraction | Keep heuristics simple, no dictionary |
+| Risk                                      | Impact                  | Mitigation                            |
+| ----------------------------------------- | ----------------------- | ------------------------------------- |
+| Over-correction: add too many spaces      | Words split incorrectly | Keep tight horizontal proximity check |
+| Under-correction: still join words        | Same bugs persist       | Test with known failure cases         |
+| Regression: break hyphenation that worked | Quality drops           | Test Qwen.pdf "Pushing" word          |
+| Performance impact                        | Slower extraction       | Keep heuristics simple, no dictionary |
 
 ## Implementation Plan
 

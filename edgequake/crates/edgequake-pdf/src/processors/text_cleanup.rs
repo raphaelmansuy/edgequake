@@ -800,11 +800,44 @@ impl HyphenContinuationProcessor {
                         // WHY: "long-horizon", "self-supervised" should keep hyphens
                         let is_compound_prefix = matches!(
                             prefix_lower.as_str(),
-                            "long" | "short" | "self" | "hand" | "eye" | "high" | "low" | "well" |
-                            "full" | "half" | "co" | "pre" | "re" | "anti" | "non" | "multi" |
-                            "cross" | "whole" | "end" | "real" | "time" | "data" | "user" |
-                            "loco" | "semi" | "all" | "one" | "two" | "three" | "first" | "second" |
-                            "body" | "level" | "state" | "world" | "task" | "based" | "free"
+                            "long"
+                                | "short"
+                                | "self"
+                                | "hand"
+                                | "eye"
+                                | "high"
+                                | "low"
+                                | "well"
+                                | "full"
+                                | "half"
+                                | "co"
+                                | "pre"
+                                | "re"
+                                | "anti"
+                                | "non"
+                                | "multi"
+                                | "cross"
+                                | "whole"
+                                | "end"
+                                | "real"
+                                | "time"
+                                | "data"
+                                | "user"
+                                | "loco"
+                                | "semi"
+                                | "all"
+                                | "one"
+                                | "two"
+                                | "three"
+                                | "first"
+                                | "second"
+                                | "body"
+                                | "level"
+                                | "state"
+                                | "world"
+                                | "task"
+                                | "based"
+                                | "free"
                         );
 
                         // Also detect as compound if prefix is >= 4 chars with vowel and no fragment ending
@@ -818,10 +851,31 @@ impl HyphenContinuationProcessor {
                             || prefix_lower.ends_with("gi")
                             || prefix_lower.ends_with("vi")
                             || prefix_lower.ends_with("ci");
-                        let is_likely_complete_word =
+                        let _is_likely_complete_word =
                             prefix_word.len() >= 4 && has_vowel && !is_fragment_ending;
 
-                        if is_compound_prefix || is_likely_complete_word {
+                        // OODA-11: Check if continuation starts with common suffix patterns
+                        // WHY: "gener-ating" should become "generating" not "gener-ating"
+                        // If continuation starts with "-ating", "-tion", "-ing", etc., it's likely a word break
+                        let continuation_starts_suffix = after_hyphen.starts_with("ating")
+                            || after_hyphen.starts_with("tion")
+                            || after_hyphen.starts_with("ing")
+                            || after_hyphen.starts_with("ering")
+                            || after_hyphen.starts_with("izing")
+                            || after_hyphen.starts_with("izing")
+                            || after_hyphen.starts_with("ating")
+                            || after_hyphen.starts_with("ering")
+                            || after_hyphen.starts_with("ered")
+                            || after_hyphen.starts_with("ment")
+                            || after_hyphen.starts_with("ness")
+                            || after_hyphen.starts_with("able")
+                            || after_hyphen.starts_with("ible")
+                            || after_hyphen.starts_with("ally")
+                            || after_hyphen.starts_with("tion")
+                            || after_hyphen.starts_with("sion")
+                            || after_hyphen.starts_with("ity");
+
+                        if is_compound_prefix && !continuation_starts_suffix {
                             // COMPOUND WORD: Replace "word- continuation" with "word-continuation"
                             // WHY: Keep the hyphen but remove the space
                             let cont_end = after_hyphen
@@ -830,12 +884,7 @@ impl HyphenContinuationProcessor {
                             let continuation = &after_hyphen[..cont_end];
                             let rest = &after_hyphen[cont_end..];
 
-                            let new_result = format!(
-                                "{}-{}{}",
-                                &result[..pos],
-                                continuation,
-                                rest
-                            );
+                            let new_result = format!("{}-{}{}", &result[..pos], continuation, rest);
                             result = new_result;
                             changed = true;
                         } else {
@@ -944,11 +993,44 @@ impl Processor for HyphenContinuationProcessor {
                     // Check if prefix is a known compound word prefix (keep hyphen)
                     let is_compound_prefix = matches!(
                         last_word_lower.as_str(),
-                        "long" | "short" | "self" | "hand" | "eye" | "high" | "low" | "well" |
-                        "full" | "half" | "co" | "pre" | "re" | "anti" | "non" | "multi" |
-                        "cross" | "whole" | "end" | "real" | "time" | "data" | "user" |
-                        "loco" | "semi" | "all" | "one" | "two" | "three" | "first" | "second" |
-                        "body" | "level" | "state" | "world" | "task" | "based" | "free"
+                        "long"
+                            | "short"
+                            | "self"
+                            | "hand"
+                            | "eye"
+                            | "high"
+                            | "low"
+                            | "well"
+                            | "full"
+                            | "half"
+                            | "co"
+                            | "pre"
+                            | "re"
+                            | "anti"
+                            | "non"
+                            | "multi"
+                            | "cross"
+                            | "whole"
+                            | "end"
+                            | "real"
+                            | "time"
+                            | "data"
+                            | "user"
+                            | "loco"
+                            | "semi"
+                            | "all"
+                            | "one"
+                            | "two"
+                            | "three"
+                            | "first"
+                            | "second"
+                            | "body"
+                            | "level"
+                            | "state"
+                            | "world"
+                            | "task"
+                            | "based"
+                            | "free"
                     );
 
                     // Also detect as compound if prefix is >= 4 chars with vowel and no fragment ending
@@ -962,12 +1044,28 @@ impl Processor for HyphenContinuationProcessor {
                         || last_word_lower.ends_with("gi")
                         || last_word_lower.ends_with("vi")
                         || last_word_lower.ends_with("ci");
-                    let is_likely_complete_word =
+                    let _is_likely_complete_word =
                         last_word.len() >= 4 && has_vowel && !is_fragment_ending;
 
                     // Get continuation word
                     let cont_trimmed = next_text.trim_start();
                     let first_word_next = cont_trimmed.split_whitespace().next().unwrap_or("");
+
+                    // OODA-11: Check if continuation starts with common suffix patterns
+                    // WHY: "gener-ating" should become "generating" not "gener-ating"
+                    let continuation_starts_suffix = first_word_next.starts_with("ating")
+                        || first_word_next.starts_with("tion")
+                        || first_word_next.starts_with("ing")
+                        || first_word_next.starts_with("ering")
+                        || first_word_next.starts_with("izing")
+                        || first_word_next.starts_with("ered")
+                        || first_word_next.starts_with("ment")
+                        || first_word_next.starts_with("ness")
+                        || first_word_next.starts_with("able")
+                        || first_word_next.starts_with("ible")
+                        || first_word_next.starts_with("ally")
+                        || first_word_next.starts_with("sion")
+                        || first_word_next.starts_with("ity");
 
                     // Rest of continuation
                     let rest = cont_trimmed
@@ -975,7 +1073,7 @@ impl Processor for HyphenContinuationProcessor {
                         .unwrap_or("")
                         .trim_start();
 
-                    let final_text = if is_compound_prefix || is_likely_complete_word {
+                    let final_text = if is_compound_prefix && !continuation_starts_suffix {
                         // COMPOUND WORD: Keep the hyphen
                         // WHY: "long-" + "horizon" → "long-horizon"
                         tracing::debug!(
