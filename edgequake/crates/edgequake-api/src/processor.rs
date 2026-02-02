@@ -1120,6 +1120,8 @@ impl DocumentTaskProcessor {
         }
 
         // CRITICAL: Store entity embeddings in vector storage for query_local retrieval
+        // FIX: Use workspace_vector_storage instead of self.vector_storage to avoid
+        // dimension mismatch (768 vs 1536) when workspace uses different embedding model
         for extraction in &result.extractions {
             for entity in &extraction.entities {
                 if let Some(embedding) = &entity.embedding {
@@ -1137,8 +1139,7 @@ impl DocumentTaskProcessor {
                     metadata["workspace_id"] = json!(&workspace_id_meta);
 
                     let entity_id = format!("entity:{}", entity.name);
-                    if let Err(e) = self
-                        .vector_storage
+                    if let Err(e) = workspace_vector_storage
                         .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
                         .await
                     {
