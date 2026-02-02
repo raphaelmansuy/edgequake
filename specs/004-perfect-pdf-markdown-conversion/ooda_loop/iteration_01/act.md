@@ -3,14 +3,17 @@
 ## Implementation Summary
 
 ### Commit: `345bc157`
+
 **Message:** `fix(pdf): OCR layer detection uses bimodal Y distribution`
 
 ### Files Changed
 
 #### 1. `edgequake/crates/edgequake-pdf/src/extraction_engine.rs`
+
 **Lines:** 250-320 (OCR layer detection logic)
 
 **Before (9 lines):**
+
 ```rust
 let actual_max_y = elements.iter().map(|e| e.y).fold(0.0f32, |a, b| a.max(b));
 let actual_min_y = elements.iter().map(|e| e.y).fold(f32::MAX, |a, b| a.min(b));
@@ -18,6 +21,7 @@ let has_ocr_layer = actual_max_y > page_height * 2.5;
 ```
 
 **After (48 lines):**
+
 ```rust
 // WHY: Sort Y coordinates and look for bimodal gap > 0.8 * page_height
 // This detects real OCR layers (two distinct text regions) while
@@ -41,7 +45,7 @@ for i in 1..y_values.len() {
 if has_ocr_layer {
     let below_split = elements.iter().filter(|e| e.y < ocr_split_point).count();
     let above_split = elements.iter().filter(|e| e.y >= ocr_split_point).count();
-    
+
     if below_split > above_split {
         elements.retain(|e| e.y < ocr_split_point);
     } else {
@@ -52,11 +56,11 @@ if has_ocr_layer {
 
 ### Verification Results
 
-| PDF | Before | After | Status |
-|-----|--------|-------|--------|
-| Qwen.pdf | 0 bytes | 629 bytes | ✅ FIXED |
+| PDF                | Before       | After        | Status           |
+| ------------------ | ------------ | ------------ | ---------------- |
+| Qwen.pdf           | 0 bytes      | 629 bytes    | ✅ FIXED         |
 | Beyond Transformer | 17,759 bytes | 17,759 bytes | ✅ No regression |
-| Agentic Platform | 94,896 bytes | 94,896 bytes | ✅ No regression |
+| Agentic Platform   | 94,896 bytes | 94,896 bytes | ✅ No regression |
 
 ### Test Coverage Added
 
@@ -78,11 +82,13 @@ async fn test_type3_font_document_structure() {
 ### Diagnostic Tools Added
 
 **File:** `src/bin/trace_content.rs`
+
 - Standalone binary for content stream debugging
 - Traces CTM transforms, font lookups, text extraction
 - Usage: `cargo run --bin trace_content -- <pdf_path>`
 
 ### Remaining Work
+
 - [ ] Improve Qwen.pdf text fragmentation (block merging)
 - [ ] Add more Type3 font test cases
 - [ ] Document CTM transform handling in architecture docs
