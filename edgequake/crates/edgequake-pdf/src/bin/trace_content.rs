@@ -190,16 +190,17 @@ fn main() {
 
         println!("\nExtracted {} text elements", text_elements.len());
 
-        // Print first 20
-        for (i, elem) in text_elements.iter().take(20).enumerate() {
+        // Print first 100 elements
+        for (i, elem) in text_elements.iter().take(100).enumerate() {
             println!(
                 "  [{}] '{}' at ({:.1}, {:.1}), size={:.1}",
                 i, elem.text, elem.x, elem.y, elem.font_size
             );
         }
 
-        if text_elements.len() > 20 {
-            println!("  ... and {} more", text_elements.len() - 20);
+        // Print count of remaining elements
+        if text_elements.len() > 100 {
+            println!("  ... and {} more", text_elements.len() - 100);
         }
 
         // Calculate bounds
