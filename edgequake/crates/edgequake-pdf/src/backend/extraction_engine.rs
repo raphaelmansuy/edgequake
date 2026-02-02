@@ -252,9 +252,10 @@ impl ExtractionEngine {
         // This removes invisible layers (e.g., OCR text positioned far off-page)
         //
         // NOTE: PDFs can have CTM transforms that significantly shift content origin.
-        // Instead of using fixed page bounds, we use a smarter approach:
+        // Type3 fonts and custom CTMs can produce coordinates well outside nominal page bounds.
+        // We use a smarter approach:
         // 1. Calculate the actual Y range of extracted elements
-        // 2. Only filter if there are multiple distinct "layers" (e.g., OCR layer at 2x height)
+        // 2. Only filter if there's a clear BIMODAL distribution (gap between clusters)
         // 3. Keep all elements if they form a single continuous range
         let x_margin = 50.0;
 
@@ -265,15 +266,53 @@ impl ExtractionEngine {
             .map(|e| e.y)
             .fold(f32::NEG_INFINITY, f32::max);
 
-        // Check if there are clearly separate layers (OCR detection)
-        // OCR layers are typically placed at exactly 2x or more of page height
-        let has_ocr_layer = actual_max_y > page_height * 2.5;
+        // Check for bimodal Y distribution (indicates OCR layer)
+        // Sort Y values and look for a gap > page_height between clusters
+        let mut y_values: Vec<f32> = elements.iter().map(|e| e.y).collect();
+        y_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-        // Define bounds based on whether we have an OCR layer
+        let mut has_ocr_layer = false;
+        let mut ocr_split_point = 0.0f32;
+
+        // Look for a gap in Y values that suggests an OCR layer
+        // OCR layers typically have a gap of at least page_height between them
+        for i in 1..y_values.len() {
+            let gap = y_values[i] - y_values[i - 1];
+            if gap > page_height * 0.8 {
+                // Found a significant gap - this suggests bimodal distribution
+                has_ocr_layer = true;
+                ocr_split_point = (y_values[i - 1] + y_values[i]) / 2.0;
+                debug!(
+                    "ENG-OCR-DETECT: Found gap of {:.1} at Y={:.1}, split at {:.1}",
+                    gap,
+                    y_values[i - 1],
+                    ocr_split_point
+                );
+                break;
+            }
+        }
+
+        // Define bounds based on whether we detected an OCR layer
         let (y_lower_bound, y_upper_bound) = if has_ocr_layer {
-            // OCR layer detected - keep only elements in the primary visual range
-            // The visual content is typically in the range [0, page_height * 1.5]
-            (-page_height * 0.5, page_height * 2.0)
+            // OCR layer detected - determine which cluster is the primary content
+            // Primary content is typically the one closer to normal page bounds [0, page_height]
+            let elements_below_split = y_values.iter().filter(|&&y| y < ocr_split_point).count();
+            let elements_above_split = y_values.iter().filter(|&&y| y >= ocr_split_point).count();
+
+            // Keep the larger cluster, or if equal, the one closer to page origin
+            if elements_below_split >= elements_above_split {
+                debug!(
+                    "ENG-OCR-DETECT: Keeping lower cluster ({} elements)",
+                    elements_below_split
+                );
+                (actual_min_y - 10.0, ocr_split_point)
+            } else {
+                debug!(
+                    "ENG-OCR-DETECT: Keeping upper cluster ({} elements)",
+                    elements_above_split
+                );
+                (ocr_split_point, actual_max_y + 10.0)
+            }
         } else {
             // No OCR layer - keep all elements regardless of Y position
             // Trust the CTM transform and normalize later
