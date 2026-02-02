@@ -763,9 +763,13 @@ impl HyphenContinuationProcessor {
     /// hyphenated words WITHIN a block's text before block-to-block
     /// processing happens.
     ///
+    /// **OODA-10:** Added compound-word detection to preserve hyphens in
+    /// compound words like "long-horizon", "self-supervised", "hand-eye".
+    ///
     /// Algorithm:
     /// 1. Collapse all line breaks to spaces (making one continuous line)
     /// 2. Fix hyphenation patterns like "gener- ating" → "generating"
+    /// 3. But PRESERVE compound hyphens like "long- horizon" → "long-horizon"
     fn process_intra_block_hyphens(text: &str) -> String {
         // Step 1: Collapse newlines to spaces, normalizing whitespace
         let collapsed = text
@@ -775,7 +779,7 @@ impl HyphenContinuationProcessor {
             .collect::<Vec<&str>>()
             .join(" ");
 
-        // Step 2: Fix hyphenation patterns "word- continuation" → "wordcontinuation"
+        // Step 2: Fix hyphenation patterns while preserving compound words
         let mut result = collapsed;
         let mut changed = true;
 
@@ -783,25 +787,74 @@ impl HyphenContinuationProcessor {
             changed = false;
             // Find pattern: word ending with hyphen followed by space and lowercase word
             if let Some(pos) = result.find("- ") {
+                // Get the word before the hyphen
+                let before_hyphen = &result[..pos];
+                let prefix_word = before_hyphen.split_whitespace().last().unwrap_or("");
+                let prefix_lower = prefix_word.to_lowercase();
+
                 // Check if next word starts with lowercase
                 let after_hyphen = &result[pos + 2..];
                 if let Some(first_char) = after_hyphen.chars().next() {
                     if first_char.is_lowercase() {
-                        // Find end of continuation word
-                        let cont_end = after_hyphen
-                            .find(|c: char| c.is_whitespace())
-                            .unwrap_or(after_hyphen.len());
-                        let continuation = &after_hyphen[..cont_end];
-
-                        // Replace "word- continuation" with "wordcontinuation"
-                        let new_result = format!(
-                            "{}{}{}",
-                            &result[..pos],
-                            continuation,
-                            &after_hyphen[cont_end..]
+                        // OODA-10: Check if this is a compound word prefix (keep hyphen)
+                        // WHY: "long-horizon", "self-supervised" should keep hyphens
+                        let is_compound_prefix = matches!(
+                            prefix_lower.as_str(),
+                            "long" | "short" | "self" | "hand" | "eye" | "high" | "low" | "well" |
+                            "full" | "half" | "co" | "pre" | "re" | "anti" | "non" | "multi" |
+                            "cross" | "whole" | "end" | "real" | "time" | "data" | "user" |
+                            "loco" | "semi" | "all" | "one" | "two" | "three" | "first" | "second" |
+                            "body" | "level" | "state" | "world" | "task" | "based" | "free"
                         );
-                        result = new_result;
-                        changed = true;
+
+                        // Also detect as compound if prefix is >= 4 chars with vowel and no fragment ending
+                        let has_vowel = prefix_word
+                            .chars()
+                            .any(|c| matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u'));
+                        let is_fragment_ending = prefix_lower.ends_with("ti")
+                            || prefix_lower.ends_with("ni")
+                            || prefix_lower.ends_with("fi")
+                            || prefix_lower.ends_with("si")
+                            || prefix_lower.ends_with("gi")
+                            || prefix_lower.ends_with("vi")
+                            || prefix_lower.ends_with("ci");
+                        let is_likely_complete_word =
+                            prefix_word.len() >= 4 && has_vowel && !is_fragment_ending;
+
+                        if is_compound_prefix || is_likely_complete_word {
+                            // COMPOUND WORD: Replace "word- continuation" with "word-continuation"
+                            // WHY: Keep the hyphen but remove the space
+                            let cont_end = after_hyphen
+                                .find(|c: char| c.is_whitespace())
+                                .unwrap_or(after_hyphen.len());
+                            let continuation = &after_hyphen[..cont_end];
+                            let rest = &after_hyphen[cont_end..];
+
+                            let new_result = format!(
+                                "{}-{}{}",
+                                &result[..pos],
+                                continuation,
+                                rest
+                            );
+                            result = new_result;
+                            changed = true;
+                        } else {
+                            // CONTINUATION: Replace "word- continuation" with "wordcontinuation"
+                            // WHY: Remove hyphen, this is a word broken at line end
+                            let cont_end = after_hyphen
+                                .find(|c: char| c.is_whitespace())
+                                .unwrap_or(after_hyphen.len());
+                            let continuation = &after_hyphen[..cont_end];
+
+                            let new_result = format!(
+                                "{}{}{}",
+                                &result[..pos],
+                                continuation,
+                                &after_hyphen[cont_end..]
+                            );
+                            result = new_result;
+                            changed = true;
+                        }
                     }
                 }
             }
@@ -882,37 +935,84 @@ impl Processor for HyphenContinuationProcessor {
                     && Self::is_valid_continuation(&next_text)
                     && Self::get_hyphen_fragment(&current_text).is_some()
                 {
-                    tracing::debug!(
-                        "HyphenContinuation: MERGING blocks: '{}...' + '{}...' (current_center={:.1}, next_center={:.1}, page_center={:.1}, page_width={:.1})",
-                        current_text.chars().take(30).collect::<String>(),
-                        next_text.chars().take(30).collect::<String>(),
-                        current_center,
-                        next_center,
-                        page_center,
-                        page.width
+                    // OODA-10: Check for compound word prefix before removing hyphen
+                    // WHY: "long-" + "horizon" should become "long-horizon", not "longhorizon"
+                    let prefix = current_text.trim_end().trim_end_matches('-');
+                    let last_word = prefix.split_whitespace().last().unwrap_or("");
+                    let last_word_lower = last_word.to_lowercase();
+
+                    // Check if prefix is a known compound word prefix (keep hyphen)
+                    let is_compound_prefix = matches!(
+                        last_word_lower.as_str(),
+                        "long" | "short" | "self" | "hand" | "eye" | "high" | "low" | "well" |
+                        "full" | "half" | "co" | "pre" | "re" | "anti" | "non" | "multi" |
+                        "cross" | "whole" | "end" | "real" | "time" | "data" | "user" |
+                        "loco" | "semi" | "all" | "one" | "two" | "three" | "first" | "second" |
+                        "body" | "level" | "state" | "world" | "task" | "based" | "free"
                     );
-                    // Join the blocks
-                    let mut new_current_text = current_text.trim_end().to_string();
-                    // Remove the hyphen
-                    new_current_text.pop();
+
+                    // Also detect as compound if prefix is >= 4 chars with vowel and no fragment ending
+                    let has_vowel = last_word
+                        .chars()
+                        .any(|c| matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u'));
+                    let is_fragment_ending = last_word_lower.ends_with("ti")
+                        || last_word_lower.ends_with("ni")
+                        || last_word_lower.ends_with("fi")
+                        || last_word_lower.ends_with("si")
+                        || last_word_lower.ends_with("gi")
+                        || last_word_lower.ends_with("vi")
+                        || last_word_lower.ends_with("ci");
+                    let is_likely_complete_word =
+                        last_word.len() >= 4 && has_vowel && !is_fragment_ending;
 
                     // Get continuation word
                     let cont_trimmed = next_text.trim_start();
-                    let first_word = cont_trimmed.split_whitespace().next().unwrap_or("");
-
-                    // Combine
-                    let joined_text = format!("{}{}", new_current_text, first_word);
+                    let first_word_next = cont_trimmed.split_whitespace().next().unwrap_or("");
 
                     // Rest of continuation
                     let rest = cont_trimmed
-                        .strip_prefix(first_word)
+                        .strip_prefix(first_word_next)
                         .unwrap_or("")
                         .trim_start();
-                    let final_text = if rest.is_empty() {
-                        joined_text
+
+                    let final_text = if is_compound_prefix || is_likely_complete_word {
+                        // COMPOUND WORD: Keep the hyphen
+                        // WHY: "long-" + "horizon" → "long-horizon"
+                        tracing::debug!(
+                            "HyphenContinuation: COMPOUND WORD merge: '{}' + '{}'",
+                            last_word,
+                            first_word_next
+                        );
+                        let joined_text = format!("{}{}-{}", prefix, "", first_word_next);
+                        if rest.is_empty() {
+                            joined_text
+                        } else {
+                            format!("{} {}", joined_text, rest)
+                        }
                     } else {
-                        format!("{} {}", joined_text, rest)
+                        // CONTINUATION: Remove the hyphen
+                        // WHY: "modifi-" + "cation" → "modification"
+                        tracing::debug!(
+                            "HyphenContinuation: CONTINUATION merge: '{}' + '{}'",
+                            last_word,
+                            first_word_next
+                        );
+                        let mut new_current_text = current_text.trim_end().to_string();
+                        new_current_text.pop(); // Remove hyphen
+                        let joined_text = format!("{}{}", new_current_text, first_word_next);
+                        if rest.is_empty() {
+                            joined_text
+                        } else {
+                            format!("{} {}", joined_text, rest)
+                        }
                     };
+
+                    tracing::debug!(
+                        "HyphenContinuation: MERGING blocks: '{}...' + '{}...' -> '{}'",
+                        current_text.chars().take(30).collect::<String>(),
+                        next_text.chars().take(30).collect::<String>(),
+                        final_text.chars().take(50).collect::<String>()
+                    );
 
                     // Update current block (no borrow conflict now)
                     page.blocks[i].text = final_text;

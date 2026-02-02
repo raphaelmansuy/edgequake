@@ -309,6 +309,11 @@ impl Block {
 
     /// Merge with another block (combine text and expand bbox).
     /// Handles hyphenation and avoids double spaces.
+    ///
+    /// OODA-10: Fixed word fragment detection and compound hyphen handling:
+    /// - Common words like "for", "the", "is" are NOT treated as word fragments
+    /// - Compound hyphens ("long-horizon", "self-supervised") are preserved
+    /// - Continuation hyphens ("modifi-" + "cation") are properly removed
     pub fn merge(&mut self, other: &Block) {
         if !other.text.is_empty() {
             if !self.text.is_empty() {
@@ -331,17 +336,85 @@ impl Block {
                 let is_close_horizontally = horizontal_gap < 20.0 && horizontal_gap > -5.0;
 
                 if ends_with_hyphen && starts_with_lowercase {
-                    // Explicit hyphenation: remove hyphen and join
-                    self.text = self.text.trim_end_matches('-').trim_end().to_string();
-                    self.text.push_str(other.text.trim_start());
+                    // OODA-10: Distinguish continuation hyphen vs compound hyphen
+                    // WHY: "modifi-" + "cation" → "modification" (continuation)
+                    //      "long-" + "horizon" → "long-horizon" (compound)
+                    let prefix = self.text.trim_end().trim_end_matches('-');
+                    let last_word = prefix.split_whitespace().last().unwrap_or("");
+                    let last_word_lower = last_word.to_lowercase();
+
+                    // Check if prefix is a known compound word prefix (keep hyphen)
+                    // WHY: These are complete words that form compound terms
+                    let is_compound_prefix = matches!(
+                        last_word_lower.as_str(),
+                        "long" | "short" | "self" | "hand" | "eye" | "high" | "low" | "well" |
+                        "full" | "half" | "co" | "pre" | "re" | "anti" | "non" | "multi" |
+                        "cross" | "whole" | "end" | "real" | "time" | "data" | "user" |
+                        "loco" | "semi" | "all" | "one" | "two" | "three" | "first" | "second" |
+                        "body" | "level" | "state" | "world" | "task" | "based" | "free"
+                    );
+
+                    // Also treat as compound if prefix has >= 4 chars AND contains vowel
+                    // AND doesn't end with typical word-break suffixes
+                    // WHY: Complete words like "long", "hand" are pronounceable (have vowels)
+                    //      Fragments like "modifi", "techni" end with incomplete suffixes
+                    let has_vowel = last_word
+                        .chars()
+                        .any(|c| matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u'));
+                    let is_fragment_ending = last_word_lower.ends_with("ti")
+                        || last_word_lower.ends_with("ni")
+                        || last_word_lower.ends_with("fi")
+                        || last_word_lower.ends_with("si")
+                        || last_word_lower.ends_with("gi")
+                        || last_word_lower.ends_with("vi")
+                        || last_word_lower.ends_with("ci");
+                    let is_likely_complete_word =
+                        last_word.len() >= 4 && has_vowel && !is_fragment_ending;
+
+                    if is_compound_prefix || is_likely_complete_word {
+                        // Keep hyphen, add space (compound word at line break)
+                        // WHY: "long-" at end of line + "horizon" should become "long-horizon"
+                        if !self_ends_with_space {
+                            self.text.push(' ');
+                            if !self.spans.is_empty() || !other.spans.is_empty() {
+                                self.spans.push(TextSpan::plain(" "));
+                            }
+                        }
+                        self.text.push_str(&other.text);
+                    } else {
+                        // Remove hyphen, join directly (continuation)
+                        // WHY: "modifi-" + "cation" should become "modification"
+                        self.text = self.text.trim_end_matches('-').trim_end().to_string();
+                        self.text.push_str(other.text.trim_start());
+                    }
                 } else if is_same_visual_line && is_close_horizontally {
-                    // Same line, close together - check if it's a word fragment
-                    // Only join without space if both conditions met AND looks like word fragment
+                    // OODA-10: More conservative word fragment detection
+                    // WHY: Only join without space if the last "word" is clearly a partial fragment
+                    // Common words like "for", "the", "is" should NOT be treated as fragments
+                    let last_word = self.text.split_whitespace().last().unwrap_or("");
+                    let last_word_lower = last_word.to_lowercase();
+
+                    // Common short words that should NEVER be joined without space
+                    let is_complete_common_word = matches!(
+                        last_word_lower.as_str(),
+                        "the" | "a" | "an" | "for" | "to" | "in" | "on" | "at" | "of" | "by" |
+                        "is" | "as" | "or" | "and" | "but" | "so" | "if" | "it" | "we" | "be" |
+                        "this" | "that" | "with" | "from" | "are" | "was" | "has" | "had" | "not" |
+                        "our" | "its" | "can" | "may" | "will" | "each" | "all" | "any" | "both"
+                    );
+
                     let last_char = self.text.trim_end().chars().last();
-                    let is_likely_word_fragment = matches!(
-                        (last_char, first_char),
-                        (Some(c1), Some(c2)) if c1.is_alphabetic() && c2.is_lowercase()
-                    ) && !self.text.trim_end().ends_with(' ');
+                    let is_likely_word_fragment = if is_complete_common_word {
+                        false // Never treat common words as fragments
+                    } else {
+                        // Only fragments if very short partial word (1-2 chars) AND looks incomplete
+                        // WHY: Real fragments like "th" (from "the") are very short
+                        let is_very_short = last_word.len() <= 2;
+                        let ends_alpha_lowercase = matches!(last_char, Some(c) if c.is_lowercase());
+                        is_very_short
+                            && ends_alpha_lowercase
+                            && !self.text.trim_end().ends_with(' ')
+                    };
 
                     if is_likely_word_fragment {
                         self.text = self.text.trim_end().to_string();
