@@ -160,65 +160,52 @@ export default function DocumentViewPage() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      {/* Compact Slick Header */}
-      <header className="shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <Button variant="ghost" size="icon" className="shrink-0" asChild>
+      {/* Minimal Header */}
+      <header className="shrink-0 border-b bg-background">
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
               <Link href="/documents">
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
             
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold truncate">
+              <h1 className="text-base font-semibold truncate">
                 {document.title || document.file_name || `Document ${document.id.slice(0, 8)}`}
               </h1>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <code className="font-mono">{document.id.slice(0, 12)}...</code>
-                <Button variant="ghost" size="icon" className="h-4 w-4 p-0" onClick={handleCopyId}>
-                  <Copy className="h-3 w-3" />
-                </Button>
-                <span>•</span>
-                <span>{formatFileSize(document.file_size)}</span>
-                <span>•</span>
-                <span>{document.created_at ? formatDistanceToNow(new Date(document.created_at), { addSuffix: true }) : ''}</span>
-              </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge className={`${statusInfo.bg} ${statusInfo.color} border-0`}>
-              <StatusIcon className={`h-3 w-3 mr-1 ${status === 'processing' ? 'animate-spin' : ''}`} />
-              {statusInfo.label}
-            </Badge>
-            {/* OODA-43: Download PDF button for PDF documents */}
-            {/* OODA-48: Use pdfIdForViewer which is guaranteed to exist when isPdfDocument is true */}
+          <div className="flex items-center gap-1 shrink-0">
+            {status === 'processing' && (
+              <Badge variant="outline" className="text-xs">
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                Processing
+              </Badge>
+            )}
+            {status === 'failed' && (
+              <Badge variant="destructive" className="text-xs">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Failed
+              </Badge>
+            )}
             {isPdfDocument && pdfIdForViewer && (
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="ghost" size="sm" className="h-8" asChild>
                 <a href={getPdfDownloadUrl(pdfIdForViewer)} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
+                  <Download className="h-3.5 w-3.5" />
                 </a>
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={handleViewInGraph}>
-              <Network className="h-4 w-4 mr-2" />
-              View in Graph
+            <Button variant="ghost" size="sm" className="h-8" onClick={handleViewInGraph}>
+              <Network className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
 
-        {/* Error Banner */}
         {isFailed && document.error_message && (
-          <div className="px-4 pb-3">
-            <div className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-lg">
-              <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-medium text-red-700 dark:text-red-300 text-sm">Processing Failed</p>
-                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{document.error_message}</p>
-              </div>
-            </div>
+          <div className="px-3 py-2 bg-destructive/10 border-t">
+            <p className="text-xs text-destructive">{document.error_message}</p>
           </div>
         )}
       </header>
