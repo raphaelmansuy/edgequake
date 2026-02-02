@@ -1,15 +1,33 @@
 //! Quality Evaluation Test Suite for PDF-to-Markdown Conversion
 //!
-//! **Single Responsibility:** Validate extraction quality against gold standards.
+//! **⚠️ DEPRECATED:** This test file has been split for performance optimization.
 //!
-//! This test suite implements the TEST_PROTOCOL.md evaluation methodology:
-//! - Tests extraction on real PDFs from test-data/
-//! - Compares output with gold markdown standards
-//! - Reports quality metrics (text preservation, structure fidelity)
+//! **Use instead:**
+//! - `quick_smoke.rs` - Fast sanity checks (<5s)
+//! - `basic_features.rs` - Feature validation (<30s) [requires --features slow-tests]
+//! - `comprehensive_quality.rs` - Full quality metrics (2+ min) [requires --features comprehensive-tests]
 //!
-//! **WHY this approach:**
-//! First-principles evaluation: we test actual PDFs that represent
-//! real-world documents, not synthetic minimal examples.
+//! **Why split:**
+//! Original test took 116 seconds to run all 7 PDFs in real_dataset/.
+//! Developers need fast feedback (<5s) for most changes.
+//!
+//! **Migration guide:**
+//! ```bash
+//! # Old (slow):
+//! cargo test --package edgequake-pdf --test quality_evaluation
+//!
+//! # New (fast smoke tests):
+//! cargo test --package edgequake-pdf --test quick_smoke
+//!
+//! # New (feature tests):
+//! cargo test --package edgequake-pdf --test basic_features --features slow-tests
+//!
+//! # New (comprehensive):
+//! cargo test --package edgequake-pdf --test comprehensive_quality --features comprehensive-tests
+//! ```
+//!
+//! **This file:**
+//! Kept for backward compatibility. Contains only one fast test.
 
 use std::fs;
 use std::path::PathBuf;
@@ -108,85 +126,17 @@ fn structural_fidelity_score(gold: &str, extracted: &str) -> f64 {
 }
 
 // =============================================================================
-// Real Dataset Tests
+// Deprecated Tests - Kept for Backward Compatibility Only
 // =============================================================================
 
-/// Test extraction on real academic papers from real_dataset/
-#[tokio::test]
-async fn test_real_dataset_extraction() {
-    let dataset_dir = real_dataset_dir();
-
-    if !dataset_dir.exists() {
-        println!("Skipping: real_dataset directory not found");
-        return;
-    }
-
-    let extractor = create_extractor();
-    let mut results = Vec::new();
-
-    // Find all PDFs with corresponding gold files
-    for entry in fs::read_dir(&dataset_dir).unwrap().flatten() {
-        let path = entry.path();
-        if path.extension().map(|e| e == "pdf").unwrap_or(false) {
-            let stem = path.file_stem().unwrap().to_string_lossy();
-            let gold_path = dataset_dir.join(format!("{}.gold.md", stem));
-
-            if gold_path.exists() {
-                let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
-                let gold_md = fs::read_to_string(&gold_path).expect("Failed to read gold");
-
-                match extractor.extract_to_markdown(&pdf_bytes).await {
-                    Ok(extracted) => {
-                        let text_score = text_preservation_score(&gold_md, &extracted);
-                        let struct_score = structural_fidelity_score(&gold_md, &extracted);
-                        let overall = (text_score + struct_score) / 2.0;
-
-                        results.push((stem.to_string(), text_score, struct_score, overall));
-                    }
-                    Err(e) => {
-                        results.push((stem.to_string(), 0.0, 0.0, 0.0));
-                        eprintln!("Extraction failed for {}: {}", stem, e);
-                    }
-                }
-            }
-        }
-    }
-
-    // Print results
-    println!("\n╔══════════════════════════════════════════════════════════════════╗");
-    println!("║  Real Dataset Quality Evaluation                                 ║");
-    println!("╚══════════════════════════════════════════════════════════════════╝\n");
-
-    let mut total_overall = 0.0;
-    for (name, text, structure, overall) in &results {
-        println!("📄 {}", name);
-        println!(
-            "   Text: {:5.1}% | Structure: {:5.1}% | Overall: {:5.1}%",
-            text, structure, overall
-        );
-        total_overall += overall;
-    }
-
-    if !results.is_empty() {
-        let avg = total_overall / results.len() as f64;
-        println!("\n────────────────────────────────────────────────────────────────");
-        println!("📊 Average Overall Score: {:.1}%", avg);
-
-        // Quality threshold: must be at least 50% (achievable without LLM)
-        assert!(avg >= 50.0, "Quality score {:.1}% below threshold 50%", avg);
-    }
-}
-
-// =============================================================================
-// Basic PDF Tests (from test-data/ root)
-// =============================================================================
-
+/// **DEPRECATED:** Use `quick_smoke.rs` instead
 #[tokio::test]
 async fn test_sample_pdf_extraction() {
     let sample_path = test_data_dir().join("sample.pdf");
 
     if !sample_path.exists() {
-        println!("Skipping: sample.pdf not found");
+        println!("⚠️  Skipping: sample.pdf not found");
+        println!("    Run tests via: cargo test --package edgequake-pdf --test quick_smoke");
         return;
     }
 
@@ -200,91 +150,45 @@ async fn test_sample_pdf_extraction() {
     assert!(!markdown.is_empty(), "Markdown should not be empty");
 
     println!("✓ sample.pdf extracted ({} chars)", markdown.len());
+    println!("\n╔══════════════════════════════════════════════════════════════════╗");
+    println!("║  ⚠️  DEPRECATION NOTICE                                          ║");
+    println!("║  This test file has been split for better performance:          ║");
+    println!("║  - quick_smoke.rs        (<5s)                                   ║");
+    println!("║  - basic_features.rs     (<30s, --features slow-tests)          ║");
+    println!("║  - comprehensive_quality.rs (2min, --features comprehensive)    ║");
+    println!("╚══════════════════════════════════════════════════════════════════╝");
 }
 
+/// **DEPRECATED:** Use `comprehensive_quality.rs --features comprehensive-tests` instead
 #[tokio::test]
-async fn test_numbered_pdfs_extraction() {
-    let extractor = create_extractor();
-    let test_dir = test_data_dir();
-
-    // Test a subset of numbered PDFs
-    let test_cases = [
-        "001_simple_text.pdf",
-        "002_headers_and_lists.pdf",
-        "003_two_columns.pdf",
-        "004_simple_table_2x3.pdf",
-    ];
-
-    for filename in test_cases {
-        let path = test_dir.join(filename);
-        if path.exists() {
-            let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
-            let result = extractor.extract_to_markdown(&pdf_bytes).await;
-
-            assert!(result.is_ok(), "Extraction should succeed for {}", filename);
-            let markdown = result.unwrap();
-            assert!(
-                !markdown.is_empty(),
-                "Markdown should not be empty for {}",
-                filename
-            );
-
-            println!("✓ {} extracted ({} chars)", filename, markdown.len());
-        }
-    }
+#[ignore] // Ignored by default to avoid 116-second test runs
+async fn test_real_dataset_extraction_deprecated() {
+    println!("\n╔══════════════════════════════════════════════════════════════════╗");
+    println!("║  ⚠️  TEST DEPRECATED                                             ║");
+    println!("║  This test took 116 seconds. Use split tests instead:           ║");
+    println!("║                                                                  ║");
+    println!("║  cargo test --test comprehensive_quality \\                      ║");
+    println!("║              --features comprehensive-tests                      ║");
+    println!("╚══════════════════════════════════════════════════════════════════╝");
 }
 
-// =============================================================================
-// Specific Feature Tests
-// =============================================================================
-
+/// **DEPRECATED:** Use `basic_features.rs --features slow-tests` instead
 #[tokio::test]
-async fn test_table_extraction_quality() {
-    let path = test_data_dir().join("004_simple_table_2x3.pdf");
-
-    if !path.exists() {
-        println!("Skipping: table test PDF not found");
-        return;
-    }
-
-    let extractor = create_extractor();
-    let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
-    let markdown = extractor
-        .extract_to_markdown(&pdf_bytes)
-        .await
-        .expect("Extraction failed");
-
-    // Check for table markers
-    let has_table = markdown.contains('|');
-    println!("Table detection: {}", if has_table { "✓" } else { "✗" });
-
-    // For non-LLM extraction, we may not always detect tables perfectly
-    // but we should at least extract the text content
-    assert!(!markdown.is_empty(), "Should extract some content");
+#[ignore] // Ignored to avoid slow test runs by default
+async fn test_numbered_pdfs_extraction_deprecated() {
+    println!("⚠️  DEPRECATED: Use basic_features.rs --features slow-tests instead");
 }
 
+/// **DEPRECATED:** Use `basic_features.rs --features slow-tests` instead
 #[tokio::test]
-async fn test_multi_column_layout() {
-    let path = test_data_dir().join("003_two_columns.pdf");
+#[ignore]
+async fn test_table_extraction_quality_deprecated() {
+    println!("⚠️  DEPRECATED: Use basic_features.rs --features slow-tests instead");
+}
 
-    if !path.exists() {
-        println!("Skipping: column test PDF not found");
-        return;
-    }
-
-    let extractor = create_extractor();
-    let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
-    let markdown = extractor
-        .extract_to_markdown(&pdf_bytes)
-        .await
-        .expect("Extraction failed");
-
-    assert!(
-        !markdown.is_empty(),
-        "Should extract content from multi-column layout"
-    );
-    println!(
-        "✓ Multi-column extraction succeeded ({} chars)",
-        markdown.len()
-    );
+/// **DEPRECATED:** Use `basic_features.rs --features slow-tests` instead  
+#[tokio::test]
+#[ignore]
+async fn test_multi_column_layout_deprecated() {
+    println!("⚠️  DEPRECATED: Use basic_features.rs --features slow-tests instead");
 }

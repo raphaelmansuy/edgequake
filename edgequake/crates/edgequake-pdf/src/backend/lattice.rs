@@ -4,6 +4,18 @@ use crate::layout::dbscan_1d;
 use crate::schema::{Block, BlockType, BoundingBox};
 use tracing::debug;
 
+/// Helper for debug logging - horizontal line length
+#[inline]
+fn dx_of(line: &PdfLine) -> f32 {
+    (line.p2.0 - line.p1.0).abs()
+}
+
+/// Helper for debug logging - vertical line length
+#[inline]
+fn dy_of(line: &PdfLine) -> f32 {
+    (line.p2.1 - line.p1.1).abs()
+}
+
 /// Lattice Engine for table extraction based on graphical lines
 /// @implements FEAT0503
 pub struct LatticeEngine {
@@ -42,11 +54,12 @@ impl LatticeEngine {
         &self,
         lines: &[PdfLine],
         text_elements: &[TextElement],
-        _page_width: f32,
+        page_width: f32,
         _page_height: f32,
     ) -> Vec<Block> {
         // WHY: Filter first to avoid processing decorative/unrelated lines
-        let (h_lines, v_lines) = self.filter_lines(lines);
+        // OODA-09: Pass page_width to filter out full-width decorative lines
+        let (h_lines, v_lines) = self.filter_lines_enhanced(lines, page_width);
         let all_lines: Vec<&PdfLine> = h_lines.iter().chain(v_lines.iter()).collect();
 
         if all_lines.is_empty() {
@@ -327,6 +340,138 @@ impl LatticeEngine {
                 h_lines.push(line.clone());
             } else if dy > self.min_line_length && dx < self.line_tolerance {
                 v_lines.push(line.clone());
+            }
+        }
+
+        // OODA-09: Debug line detection
+        if !h_lines.is_empty() || !v_lines.is_empty() {
+            tracing::debug!(
+                "LATTICE filter_lines: {} raw -> {} H + {} V lines",
+                lines.len(),
+                h_lines.len(),
+                v_lines.len()
+            );
+            for (i, line) in h_lines.iter().take(5).enumerate() {
+                tracing::debug!(
+                    "  H[{}]: ({:.1},{:.1})-({:.1},{:.1}) len={:.1}",
+                    i,
+                    line.p1.0,
+                    line.p1.1,
+                    line.p2.0,
+                    line.p2.1,
+                    dx_of(line)
+                );
+            }
+            for (i, line) in v_lines.iter().take(5).enumerate() {
+                tracing::debug!(
+                    "  V[{}]: ({:.1},{:.1})-({:.1},{:.1}) len={:.1}",
+                    i,
+                    line.p1.0,
+                    line.p1.1,
+                    line.p2.0,
+                    line.p2.1,
+                    dy_of(line)
+                );
+            }
+        }
+
+        (h_lines, v_lines)
+    }
+
+    /// OODA-09: Enhanced line filtering to exclude decorative lines.
+    ///
+    /// WHY: Academic PDFs contain many decorative lines that trigger false tables:
+    /// 1. Full-width horizontal rules (page separators, header/footer lines)
+    /// 2. Very short vertical lines (tick marks from charts/figures)
+    /// 3. Lines at page edges (margin decorations)
+    ///
+    /// This function applies additional heuristics beyond basic H/V classification.
+    fn filter_lines_enhanced(
+        &self,
+        lines: &[PdfLine],
+        page_width: f32,
+    ) -> (Vec<PdfLine>, Vec<PdfLine>) {
+        let mut h_lines = Vec::new();
+        let mut v_lines = Vec::new();
+
+        // OODA-09: Thresholds for filtering decorative lines
+        // WHY: Full-width lines (>75% of page) are typically decorations, not table borders
+        // Table separators usually span a portion of the page, not the full text width
+        let max_h_width_ratio = 0.75;
+        let max_h_width = page_width * max_h_width_ratio;
+
+        // WHY: Very short vertical lines (<30pt) are usually tick marks or chart elements
+        let min_v_length = 30.0;
+
+        // WHY: Lines at extreme X positions (near margins) are often decorations
+        let margin_threshold = page_width * 0.05;
+
+        for line in lines {
+            let dx = (line.p2.0 - line.p1.0).abs();
+            let dy = (line.p2.1 - line.p1.1).abs();
+            let min_x = line.p1.0.min(line.p2.0);
+            let max_x = line.p1.0.max(line.p2.0);
+
+            // Check horizontal lines
+            if dx > self.min_line_length && dy < self.line_tolerance {
+                // OODA-09: Skip full-width horizontal lines (decorations)
+                if dx > max_h_width {
+                    tracing::debug!(
+                        "LATTICE: Skipping full-width H line: ({:.1},{:.1})-({:.1},{:.1}) len={:.1} (>{:.1})",
+                        line.p1.0, line.p1.1, line.p2.0, line.p2.1, dx, max_h_width
+                    );
+                    continue;
+                }
+                h_lines.push(line.clone());
+            }
+            // Check vertical lines
+            else if dy > self.min_line_length && dx < self.line_tolerance {
+                // OODA-09: Skip very short vertical lines (tick marks)
+                if dy < min_v_length {
+                    continue; // Silent skip - too many of these to log
+                }
+
+                // OODA-09: Skip lines at extreme margins (decorations)
+                if min_x < margin_threshold || max_x > page_width - margin_threshold {
+                    if dy < 50.0 {
+                        // Only skip short margin lines, keep tall ones (could be table borders)
+                        continue;
+                    }
+                }
+
+                v_lines.push(line.clone());
+            }
+        }
+
+        // Debug output for pages with lines
+        if !h_lines.is_empty() || !v_lines.is_empty() {
+            tracing::debug!(
+                "LATTICE filter_lines_enhanced: {} raw -> {} H + {} V lines (filtered decorative)",
+                lines.len(),
+                h_lines.len(),
+                v_lines.len()
+            );
+            for (i, line) in h_lines.iter().take(5).enumerate() {
+                tracing::debug!(
+                    "  H[{}]: ({:.1},{:.1})-({:.1},{:.1}) len={:.1}",
+                    i,
+                    line.p1.0,
+                    line.p1.1,
+                    line.p2.0,
+                    line.p2.1,
+                    dx_of(line)
+                );
+            }
+            for (i, line) in v_lines.iter().take(5).enumerate() {
+                tracing::debug!(
+                    "  V[{}]: ({:.1},{:.1})-({:.1},{:.1}) len={:.1}",
+                    i,
+                    line.p1.0,
+                    line.p1.1,
+                    line.p2.0,
+                    line.p2.1,
+                    dy_of(line)
+                );
             }
         }
 

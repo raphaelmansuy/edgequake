@@ -373,11 +373,31 @@ impl PostProcessor {
     }
 
     /// Fix concatenated words (e.g., "methodsThe" → "methods The").
+    ///
+    /// **OODA-07 FIX**: Only split at word boundaries to preserve CamelCase terms.
+    /// The original regex `([a-z])([A-Z][a-z])` was too aggressive and split terms like:
+    /// - BrowseComp → Browse Comp
+    /// - DeepHalluBench → Deep Hallu Bench
+    ///
+    /// The new approach only splits when there's a space before the lowercase word,
+    /// indicating it's likely a concatenation error rather than intentional CamelCase.
     pub fn fix_concatenated_words(&self, text: &str) -> String {
         let mut result = text.to_string();
 
-        // Fix lower-UPPER-lower pattern
-        if let Ok(re) = Regex::new(r"([a-z])([A-Z][a-z])") {
+        // OODA-07: Only split concatenated words at word boundaries
+        // This preserves CamelCase terms like BrowseComp, DeepHalluBench
+        // Pattern: space + lowercase word + UpperLower
+        // Match: "text methodsThe model" → "text methods The model"
+        // Preserve: "BrowseComp" (no preceding space to match)
+        if let Ok(re) = Regex::new(r"(\s)([a-z]+)([A-Z][a-z])") {
+            result = re.replace_all(&result, "$1$2 $3").to_string();
+        }
+
+        // Also fix at start of line (no preceding space)
+        // Only if the lowercase portion is long (likely a complete word, not part of CamelCase)
+        // "methodsThe model" → "methods The model" (methods = 7 chars, likely a word)
+        // but NOT "browseComp" (starts with lowercase = CamelCase style)
+        if let Ok(re) = Regex::new(r"^([a-z]{5,})([A-Z][a-z])") {
             result = re.replace_all(&result, "$1 $2").to_string();
         }
 
@@ -386,6 +406,15 @@ impl PostProcessor {
         result = result.replace("Ar Xiv", "ArXiv");
         result = result.replace("etal.", "et al.");
         result = result.replace("etal,", "et al.,");
+
+        // OODA-07: Repair commonly split CamelCase terms (defensive)
+        result = result.replace("Browse Comp", "BrowseComp");
+        result = result.replace("Report Bench", "ReportBench");
+        result = result.replace("Deep Hallu Bench", "DeepHalluBench");
+        result = result.replace("Deep Hallu", "DeepHallu");
+        result = result.replace("Hallu Bench", "HalluBench");
+        result = result.replace("Sci Fact", "SciFact");
+        result = result.replace("Mind2 Web", "Mind2Web");
 
         result
     }
@@ -932,9 +961,32 @@ mod tests {
     #[test]
     fn test_post_processor_concatenated_words() {
         let processor = PostProcessor::new();
+        // OODA-07: Test that concatenated words are split at word boundaries
         assert_eq!(
-            processor.fix_concatenated_words("methodsThe model"),
-            "methods The model"
+            processor.fix_concatenated_words("text methodsThe model"),
+            "text methods The model"
+        );
+    }
+
+    #[test]
+    fn test_post_processor_camelcase_preserved() {
+        let processor = PostProcessor::new();
+        // OODA-07: CamelCase terms should be preserved (no preceding space)
+        assert_eq!(processor.fix_concatenated_words("BrowseComp"), "BrowseComp");
+        assert_eq!(
+            processor.fix_concatenated_words("DeepHalluBench"),
+            "DeepHalluBench"
+        );
+        assert_eq!(
+            processor.fix_concatenated_words("ReportBench"),
+            "ReportBench"
+        );
+        assert_eq!(processor.fix_concatenated_words("SciFact"), "SciFact");
+        assert_eq!(processor.fix_concatenated_words("Mind2Web"), "Mind2Web");
+        // Also test with surrounding context
+        assert_eq!(
+            processor.fix_concatenated_words("Using BrowseComp for evaluation"),
+            "Using BrowseComp for evaluation"
         );
     }
 

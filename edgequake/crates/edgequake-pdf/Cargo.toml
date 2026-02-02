@@ -23,6 +23,18 @@ lopdf = ["dep:lopdf"]
 # Requires: brew install poppler (macOS) or apt-get install poppler-utils (Linux)
 vision = []
 
+# Test execution features for performance optimization
+# **Why split tests:**
+# - `cargo test` runs only smoke tests (<5s) for instant feedback
+# - `cargo test --features slow-tests` adds basic feature tests (<30s)
+# - `cargo test --all-features` includes comprehensive quality tests (2+ min)
+#
+# **First Principles:**
+# Fast feedback loops improve developer productivity. Most changes need
+# smoke tests only. Feature tests for integration. Comprehensive for releases.
+slow-tests = []
+comprehensive-tests = []
+
 [dependencies]
 # Workspace dependencies
 edgequake-llm.workspace = true
