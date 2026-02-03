@@ -469,7 +469,7 @@ impl BlockMergeProcessor {
             return blocks;
         }
 
-        let mut result = blocks;
+        let result = blocks;
         let mut merged_indices: std::collections::HashSet<usize> = std::collections::HashSet::new();
         let mut new_blocks: Vec<(usize, Block)> = Vec::new(); // (left_idx, merged_block)
 

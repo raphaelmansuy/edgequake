@@ -328,6 +328,7 @@ impl LatticeEngine {
         groups
     }
 
+    #[allow(dead_code)]
     fn filter_lines(&self, lines: &[PdfLine]) -> (Vec<PdfLine>, Vec<PdfLine>) {
         let mut h_lines = Vec::new();
         let mut v_lines = Vec::new();

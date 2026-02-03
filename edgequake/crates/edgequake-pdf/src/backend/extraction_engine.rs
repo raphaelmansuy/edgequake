@@ -273,7 +273,6 @@ impl ExtractionEngine {
             .iter()
             .map(|e| e.y)
             .fold(f32::NEG_INFINITY, f32::max);
-        let original_y_range = actual_max_y - actual_min_y;
 
         // OODA-19: Compute effective X bounds for filtering
         // When CTM transforms shift content, actual_max_x can exceed nominal page_width.
