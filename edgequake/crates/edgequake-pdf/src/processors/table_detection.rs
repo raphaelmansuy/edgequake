@@ -60,19 +60,21 @@ impl Processor for TableDetectionProcessor {
                 page.blocks.len()
             );
 
-            // Skip multi-column layouts to avoid treating columns as table
-            // WHY: Column text arranged side-by-side looks like table rows
-            if page.columns.len() > 1 {
+            // OODA-16: Enable table detection for multi-column pages with stricter criteria
+            // WHY: Tables can appear within multi-column layouts (e.g., AlphaEvolve Table 1)
+            // STRICT MODE: Use tighter Y-tolerance and text length checks to avoid
+            // false positives from column text that happens to align horizontally
+            let strict_mode = page.columns.len() > 1;
+            if strict_mode {
                 tracing::info!(
-                    "  Skipping multi-column page ({} columns)",
+                    "  Multi-column page ({} columns) - using strict table detection",
                     page.columns.len()
                 );
-                continue;
             }
 
-            let rows = self.group_blocks_by_row(page);
+            let rows = self.group_blocks_by_row(page, strict_mode);
             tracing::info!("  Grouped into {} rows", rows.len());
-            let new_blocks = self.detect_tables(page, rows);
+            let new_blocks = self.detect_tables(page, rows, strict_mode);
             tracing::info!("  Produced {} blocks", new_blocks.len());
             page.blocks = new_blocks;
         }
@@ -86,7 +88,16 @@ impl Processor for TableDetectionProcessor {
 
 impl TableDetectionProcessor {
     /// Group blocks into rows based on Y-coordinate overlap.
-    fn group_blocks_by_row(&self, page: &crate::schema::Page) -> Vec<Vec<usize>> {
+    ///
+    /// # OODA-16: Strict Mode for Multi-Column Pages
+    ///
+    /// In strict mode, use tighter Y-tolerance (2pt vs 10pt) to distinguish
+    /// precise table rows from approximate column text alignment.
+    fn group_blocks_by_row(
+        &self,
+        page: &crate::schema::Page,
+        strict_mode: bool,
+    ) -> Vec<Vec<usize>> {
         let mut rows: Vec<Vec<usize>> = Vec::new();
         let mut sorted_indices: Vec<usize> = (0..page.blocks.len()).collect();
 
@@ -110,9 +121,15 @@ impl TableDetectionProcessor {
                 let overlap_y = b1.bbox.y2.min(block.bbox.y2) - b1.bbox.y1.max(block.bbox.y1);
                 let min_h = (b1.bbox.y2 - b1.bbox.y1).min(block.bbox.y2 - block.bbox.y1);
 
+                // OODA-16: Stricter Y-tolerance in multi-column mode
+                // WHY: Column text may have slight Y variations (different line heights)
+                // Table cells are precisely aligned (same row = same Y)
+                // - Normal mode: 10pt tolerance for slight extraction misalignment
+                // - Strict mode: 2pt tolerance to require precise table alignment
+                let y_tolerance = if strict_mode { 2.0 } else { 10.0 };
+
                 // WHY 0.5 overlap: blocks on same row should have >50% vertical overlap
-                // WHY 10.0 tolerance: handles slight misalignment in extracted text
-                if overlap_y > min_h * 0.5 || (b1.bbox.y1 - block.bbox.y1).abs() < 10.0 {
+                if overlap_y > min_h * 0.5 || (b1.bbox.y1 - block.bbox.y1).abs() < y_tolerance {
                     row.push(idx);
                     found = true;
                     break;
@@ -139,7 +156,12 @@ impl TableDetectionProcessor {
     }
 
     /// Detect table regions from grouped rows.
-    fn detect_tables(&self, page: &crate::schema::Page, rows: Vec<Vec<usize>>) -> Vec<Block> {
+    fn detect_tables(
+        &self,
+        page: &crate::schema::Page,
+        rows: Vec<Vec<usize>>,
+        strict_mode: bool,
+    ) -> Vec<Block> {
         let mut new_blocks = Vec::new();
         let mut i = 0;
 
@@ -154,7 +176,7 @@ impl TableDetectionProcessor {
                     table_rows.len()
                 );
 
-                if self.is_likely_table(&table_rows, &rows) {
+                if self.is_likely_table(&table_rows, &rows, page, strict_mode) {
                     tracing::info!("  ✓ Creating table from {} rows", table_rows.len());
                     let table_block = self.create_table_block(&table_rows, &rows, page);
                     new_blocks.push(table_block);
@@ -248,7 +270,18 @@ impl TableDetectionProcessor {
     }
 
     /// Check if table candidate is likely a real table.
-    fn is_likely_table(&self, table_rows: &[usize], rows: &[Vec<usize>]) -> bool {
+    ///
+    /// # OODA-16: Strict Mode for Multi-Column Pages
+    ///
+    /// In strict mode, add text length check to avoid false positives from
+    /// column text that happens to align at the same Y-coordinate.
+    fn is_likely_table(
+        &self,
+        table_rows: &[usize],
+        rows: &[Vec<usize>],
+        page: &crate::schema::Page,
+        strict_mode: bool,
+    ) -> bool {
         let has_multi_col = table_rows.iter().any(|&r| rows[r].len() > 1);
 
         // WHY: Require multiple rows with columns to avoid false positives
@@ -256,7 +289,52 @@ impl TableDetectionProcessor {
         // - 3+ rows with 2+ columns (simple tables like 2x3)
         // - 4+ rows with 3+ columns (moderate tables)
         // - 6+ rows with any multi-col (large tables)
-        table_rows.len() >= 3 && has_multi_col
+        let base_check = table_rows.len() >= 3 && has_multi_col;
+
+        if !base_check {
+            return false;
+        }
+
+        // OODA-16: In strict mode (multi-column pages), add text length filter
+        // WHY: Tables have short cells (typically <100 chars each)
+        //      Column paragraphs have long sentences (typically 100-300 chars)
+        //      This distinguishes real tables from coincidental Y-alignment
+        if strict_mode {
+            let mut total_chars = 0usize;
+            let mut total_blocks = 0usize;
+
+            for &row_idx in table_rows {
+                for &block_idx in &rows[row_idx] {
+                    let block = &page.blocks[block_idx];
+                    total_chars += block.text.len();
+                    total_blocks += 1;
+                }
+            }
+
+            if total_blocks == 0 {
+                return false;
+            }
+
+            let avg_text_length = total_chars as f32 / total_blocks as f32;
+
+            // WHY 100 chars: Typical table cell = 10-50 chars (short values)
+            // Typical paragraph = 100-300 chars (full sentences)
+            // 100 chars is a clear dividing line
+            if avg_text_length > 100.0 {
+                tracing::debug!(
+                    "  ✗ Rejected: avg text length {:.1} chars > 100 (likely column text)",
+                    avg_text_length
+                );
+                return false;
+            }
+
+            tracing::debug!(
+                "  ✓ Passed strict mode: avg text length {:.1} chars <= 100",
+                avg_text_length
+            );
+        }
+
+        true
     }
 
     /// Create Table block from detected rows.

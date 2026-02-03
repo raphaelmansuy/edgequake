@@ -665,8 +665,9 @@ impl TextGrouper {
         elements.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
 
         // Calculate average font size for adaptive threshold
-        let avg_font_size = elements.iter().map(|e| e.font_size).sum::<f32>() / elements.len() as f32;
-        
+        let avg_font_size =
+            elements.iter().map(|e| e.font_size).sum::<f32>() / elements.len() as f32;
+
         // WHY 5× font_size with 50pt minimum:
         // - Word spacing is ~0.25-0.33 × font_size (3-4pt for 12pt font)
         // - Column gaps in tables are typically 3-5× font_size (36-60pt for 12pt font)
@@ -704,8 +705,11 @@ impl TextGrouper {
 
         // Log if we split into multiple lines (table cells detected)
         if lines.len() > 1 {
-            tracing::info!("OODA-15: Split line into {} column cells (threshold={:.1}pt)", 
-                lines.len(), column_gap_threshold);
+            tracing::info!(
+                "OODA-15: Split line into {} column cells (threshold={:.1}pt)",
+                lines.len(),
+                column_gap_threshold
+            );
         }
 
         lines
