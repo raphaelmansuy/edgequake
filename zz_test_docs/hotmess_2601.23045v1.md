@@ -1,5 +1,3 @@
-## Page 1
-
 # THE HOT MESS OF AI: HSCALE WITH MODEL INTELLIGENCE ANDTASK COMPLEXITY?
 
 
@@ -50,8 +48,6 @@ Liu et al., 2024; Gao et al., 2024b; Yada &
 
 ---
 
-## Page 2
-
 > Figure 1: AI can fail because it is misaligned, and produces consistent but undesired outcomes, or because it is incoherent, and does not produce consistent outcomes at all. These failures
 >
 
@@ -75,8 +71,6 @@ tantly, how they change as models become more intelligent and perform longer hor
 
 
 ---
-
-## Page 3
 
 We find that across multiple-choice benchmarks, agentic coding, and safety tasks, models become more incoherent with longer reasoning (Fig. Larger, more capable models are often more incoherent (Fig. they grow more coherent on easy tasks but less coherent on hard tasks (Fig. findings in a synthetic environment where variance asymptotically dominates with increasing model size (Fig. 6), and find that ensembling and larger reasoning budgets reduce incoherence (Fig. We discuss our results in Section 5.
 
@@ -156,8 +150,6 @@ Scaling laws. Model performance generally follows predictable model size N, data
 
 
 ---
-
-## Page 4
 
 prominently, taking the parameters *l(N) ∝ N* −αfor some exponent α. This slope Section 3.2 we will compute scaling laws independently for bias and variance loss contributions, to judge which asymptotically dominates. Reasoning and inference compute. Besides the model and dataset size, the most promising recent development uses inference compute are trained with reinforcement learning (RL) to think in long chains of thought before providing an answer, which improves performance with larger thinking budgets ( 2024; Guo et al., 2025; Anthropic, et al., 2025a; Zhong et al., 2024; Muennighoff et al. aspect of our analysis, which we see as a process of sequential action steps (
 
@@ -252,8 +244,6 @@ text-embedding-3-large). Consequently, we re-in the Euclidean norm.
 
 ---
 
-## Page 5
-
 (a) GPQA
 
 (c) Model Written Evals: Discrete Choice and Open-Ended Formats
@@ -306,8 +296,6 @@ WEN3 (right).
 
 
 ---
-
-## Page 6
 
 synthetic setting) on the x-axis and incoherence or variance on the y-axis. For Figures lines show different question sets across and within models, obtained by sorting by average length and grouping into equal buckets, with incoherence computed per group. Across all conditions, longer reasoning and action sequences increase incoherence or variance. For 
 
@@ -378,8 +366,6 @@ WEN3 model family, as they provide the same model archi-
 
 ---
 
-## Page 7
-
 (a) QWEN3 on MMLU
 
 (b) Survey Ranking Results (c) Synthetic Optimizers
@@ -426,8 +412,6 @@ variance curves (Fig. 26). Importantly, larger models reduce bias more than vari
 
 ---
 
-## Page 8
-
 (a) Separating Complexity Groups(b) Length Correlation
 
 (d) Bias and Variance Scaling Laws
@@ -470,8 +454,6 @@ middle)
 
 
 ---
-
-## Page 9
 
 (a) Reasoning Budgets
 
@@ -529,8 +511,6 @@ We summarize the most important related work and defer a comprehensive discussio
 
 ---
 
-## Page 10
-
 Ghosal et al. (2025) find that overthinking increases output variance, though via artificially injected tokens rather than natural overthinking. While these studies identify performance degradation, they do not distinguish systematic errors from inconsistent failures. Our ensembling analysis relates to self-consistency work (Wang et al., 2023), but reframes aggregation as reducing incoherence. Evaluation variance. Even though AI models have vastly improved upon benchmarks, evaluations are known to be highly variant (Bui et al. this through sensitivity and consistency metrics, revealing important failure modes. This is similar setup to our input and output randomness. Importantly, we connect the variability to the concepts of bias and variance, highlighting the relevance in the safety setting, and analyze scaling laws. Scaling behavior. As models get larger and more capable, evidence suggests their representation and errors become highly aligned ( Kim et al., 2025; Huh et al., 2024; Goel et al., 2025) and that scaling improves long-horizon tasks ( Sinha et al., 2025). Our work complements these observations by finding increased incoherence the longer models reason and act, aligned between model families.
 
 ## 5 DISCUSSION AND WHAT OUR RESULTS DO NOT TELL US
@@ -563,8 +543,6 @@ AI models are not consistently more coherent. Our results suggest that when adva
 
 
 ---
-
-## Page 11
 
 ## ACKNOWLEDGEMENTS
 
@@ -629,8 +607,6 @@ tional Linguistics. ISBN 979-8-89176-299-2. URL ijcnlp-short.3/. 10, 40
 
 ---
 
-## Page 12
-
 Andong Chen, Yuchen Song, Wenxin Zhu, Kehai Chen, Muyun Yang, Tiejun Zhao, et al. Evaluating o1-like llms: Unlocking reasoning for translation through comprehensive analysis.
 
 arXiv:2502.11544, 2025a. 4 Danqing Chen, Carina Kane, Austin Kozlowski, Nadav Kunievsky, and James A Evans. The (short-term) effects of large language models on unemployment and earnings.
@@ -685,8 +661,6 @@ Sutawika, Eric Tang, Anish Thite, Ben Wang, Kevin Wang, and Andy Zou. The langua
 
 
 ---
-
-## Page 13
 
 Aryo Pradipta Gema, Alexander Hagele, Runjin Chen, Andy Arditi, Jacob Goldman-Wetzler, Kit ¨ Fraser-Taliente, Henry Sleight, Linda Petrini, Julian Michael, Beatrice Alex, Pasquale Minervini, Yanda Chen, Joe Benton, and Ethan Perez. Inverse scaling in test-time compute. Machine Learning Research, 2025. ISSN 2835-8856. URL forum?id=NXgyHW1c7M. Featured Certification, J2C Certification. Soumya Suvra Ghosal, Souradip Chakraborty, Avinash Reddy, Yifu Lu, Mengdi Wang, Dinesh Manocha, Furong Huang, Mohammad Ghavamzadeh, and Amrit Singh Bedi. Does thinking more always help? mirage of test-time scaling in reasoning models. In Conference on Neural Information Processing Systems net/forum?id=tKPqbamNb9. 10, 40 Shashwat Goel, Joschka Struber, Ilze Amanda Auzina, Karuna K Chandra, Ponnurangam Ku- ¨ maraguru, Douwe Kiela, Ameya Prabhu, Matthias Bethge, and Jonas Geiping. Great models think alike and this undermines AI oversight. In chine Learning, 2025. URL https://openreview.net/forum?id=3Z827FtMNe
 
@@ -753,8 +727,6 @@ John Hughes and safety research. safety-research/safety-tooling: v1.0.0, 2025. U
 
 ---
 
-## Page 14
-
 Minyoung Huh, Brian Cheung, Tongzhou Wang, and Phillip Isola. The platonic representation hypothesis. arXiv preprint arXiv:2405.07987 Aaron Jaech, Adam Kalai, Adam Lerer, Adam Richardson, Ahmed El-Kishky, Aiden Low, Alec Helyar, Aleksander Madry, Alex Beutel, Alex Carney, et al. Openai o1 system card.
 
 Doohyuk Jang, Yoonjeon Kim, Chanjae Park, Hyun Ryu, and Eunho Yang. Reasoning model is stub- born: Diagnosing instruction overriding in reasoning models.
@@ -797,8 +769,6 @@ Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B Brown, Benjamin Chess, Rewon C
 
 
 ---
-
-## Page 15
 
 Yiran Ma, Zui Chen, Tianqiao Liu, Mi Tian, Zhuo Liu, Zitao Liu, and Weiqi Luo. What are step-level reward models rewarding? counterintuitive findings from mcts-boosted mathematical reasoning. In Proceedings of the AAAI Conference on Artificial Intelligence
 
@@ -856,8 +826,6 @@ arXiv:2504.16078, 2025. 40
 
 
 ---
-
-## Page 16
 
 Parshin Shojaee, Seyed Iman Mirzadeh, Keivan Alizadeh, Maxwell Horton, Samy Bengio, and Mehrdad Farajtabar. The illusion of thinking: Understanding the strengths and limitations of reasoning models via the lens of problem complexity. In Neural Information Processing Systems id=YghiOusmvw. 40 Akshit Sinha, Arvindh Arun, Shashwat Goel, Steffen Staab, and Jonas Geiping. The illusion of diminishing returns: Measuring long horizon execution in llms.
 
@@ -928,8 +896,6 @@ https://openreview.net/forum?id=1PL1NIMMrw
 
 ---
 
-## Page 17
-
 Yuki Yada and Hayato Yamana. News recommendation with category description by a large language model. In CEUR Workshop Proceedings tional Workshop on News Recommendation and Analytics, INRA 2025. Wenkai Yang, Shuming Ma, Yankai Lin, and Furu Wei. Towards thinking-optimal scaling of testtime compute for LLM reasoning. In The Thirty-ninth Annual Conference on Neural Information
 
 Processing Systems, 2025. URL https://openreview.net/forum?id=6ICFqmixlS 40 Zitong Yang, Yaodong Yu, Chong You, Jacob Steinhardt, and Yi Ma. Rethinking bias-variance trade- off for generalization of neural networks. In
@@ -950,8 +916,6 @@ Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, an
 
 
 ---
-
-## Page 18
 
 ## CONTENTS
 
@@ -986,12 +950,8 @@ C.5 Sample Efficiency and Correct Formatting
 
 ---
 
-## Page 19
-
 
 ---
-
-## Page 20
 
 ## A BIAS AND VARIANCE DEFINITIONS FOR
 
@@ -1074,8 +1034,6 @@ KL-BIAS KL-VARIANCE
 
 ---
 
-## Page 21
-
 Note that this is not the standard average prediction, as is the case in the Brier decomposition, but a geometric mean. In practice, since predicted probabilities can be zero, we apply Laplace smoothing to avoid log(0) or infinite values. This is done by updating the probabilities to
 
 *f[c] =*ˆ *f[c]+δε* for
@@ -1084,8 +1042,6 @@ Note that this is not the standard average prediction, as is the case in the Bri
 
 
 ---
-
-## Page 22
 
 ## B EXPERIMENTAL DETAILS
 
@@ -1125,8 +1081,6 @@ Use a thinking process to analyze the problem step-by-step. At the end, provide 
 
 
 ---
-
-## Page 23
 
 In both cases, we obtain exactly 30 samples by simply resampling from the APIs. We use the returned output token count as a measure of reasoning length. Embeddings. For the open-ended question set, we extract the model answers inside tags (i.e., removing chain of thought or reasoning) and embed the text into fixed-size vectors using the OpenAI text embedding model text-embedding-3-large tion, we in turn compute the variance in Euclidean space by computing the mean embedding and computing the average squared distance of samples to the mean.
 
@@ -1204,8 +1158,6 @@ VARIANCE
 
  ---
 
-## Page 24
-
 Note that each sequence has a fixed length, and separation of vectors and floats is done based on token position. In our setup of roughly 80 million step pairs, with dimension 4 and a precision of 4 digits after the comma, this results in a dataset of roughly Models. We implement standard decoder transformer architectures ( sizes using the next-token teacher forcing of the collected data. The model sizes are chosen to grow in depth and width, and range from roughly 47 thousand parameters to 5 million. Training is done with a standard cross-entropy loss of sequences of tokens (shown above) and AdamW, with a batch size of 1024, which results in roughly 65k training steps. Evaluation. During evaluation, we sample various starting positions (4096 in our experiments) and generate complete trajectories using the model's own output predictions. This is done in a Markovian way, i.e., the model predicts update *i*
 
 then added to the current state. To ensure that that the decoded sequences are correct floating points, we implement a version of constrained decoding that restricts the next token to a subset of the vocabulary (either digit or sign). We use greedy decoding, the floating point addition, the next state is then tokenized again and passed to the model. The total optimizer steps for evaluation are set to 2048. We calculate bias and variance metrics of the final points, relative to the function minima, using the norm that is induced by the function itself, and average across all 4096 points.
@@ -1240,8 +1192,6 @@ across all 11 raters we average the rank orders for each entity across the subje
 
 ---
 
-## Page 25
-
 (a) Full GPQA: Accuracy Inference Scaling Laws with Standard (Left) and Probability Prompting (Right)
 
 (b) Sorting by Reasoning Length: Accuracy of Standard (Left) and Probability Prompting (Right)
@@ -1275,8 +1225,6 @@ Accuracy and error measures. We provide an overview of the performance (accuracy
 
 
 ---
-
-## Page 26
 
 > Figure 9: There is a multiplicative interaction between RL and model scale for performance.
 >
@@ -1323,8 +1271,6 @@ Wait-ratios and backtracking. Motivated by the reduction in incoherence of front
 
 ---
 
-## Page 27
-
 (a) Absolute Bias and Variance Errors
 
  8). But, noticeably, all variance have a steeper growth bottom), which show how incoherence goes up with
@@ -1338,8 +1284,6 @@ that have the models reason longer (cf., Fig. rate. This is reflected in the inc
 
 
 ---
-
-## Page 28
 
 > Figure 11: KL measures with ensembling. We repeat the plots from Fig. 7 with the KL measures of bias and variance. Recall that we use O4-MINI on GPQA with varying ensemble size. Since
 >
@@ -1366,8 +1310,6 @@ We repeat the analysis from Section 3.2 with GPQA. That is, we group questions b
 
 ---
 
-## Page 29
-
 > Figure 13: Relationship between incoherence and error. incoherence and both bias (x-axis) and variance (y-axis) for both GPQA (
 >
 
@@ -1390,8 +1332,6 @@ left) and MMLU (right). The contour
 
 
 ---
-
-## Page 30
 
 (a) QWEN3
 
@@ -1416,8 +1356,6 @@ while performance (accuracy) strongly improves with model size, the contribution
 
 
 ---
-
-## Page 31
 
 (a) QWEN3
 
@@ -1450,8 +1388,6 @@ WEN3 as
 
 
 ---
-
-## Page 32
 
 (a) GPQA
 
@@ -1498,8 +1434,6 @@ ONNET
 
 ---
 
-## Page 33
-
 > Figure 19: Qualitative illustration of incoherence. the MWE suite about being disconnected (
 >
 
@@ -1543,8 +1477,6 @@ the verification of a power law scaling for cross-entropy loss (the teacher-forc
 
 ---
 
-## Page 34
-
 > Figure 20: Rate of absolute answer changes for GPQA: models change answers at least once for a large portion of questions. To illustrate the variance and incoherence, we report the perdifferent answer across the following settings: 1) pure
 >
 
@@ -1562,8 +1494,6 @@ function of higher intelligence is consistent across all three.
 
 
 ---
-
-## Page 35
 
 > Figure 21: Sampling efficiency for bias and variance estimates. there are no unbiased estimators for the KL measures and B
 >
@@ -1592,8 +1522,6 @@ find that the average reasoning length of frontier models for questions correlat
 
 ---
 
-## Page 36
-
 (a) Corrigibility w.r.t a More HHH objective
 
 (b) Myopic Reward
@@ -1618,8 +1546,6 @@ incoherence (right). We filter out question sets that do not show noticeable tre
 
 ---
 
-## Page 37
-
  We provide an overview of
 
 Perez et al., 2023). Using the OpenAI text embedding
@@ -1637,8 +1563,6 @@ model (text-embedding-3-large), we obtain a vector embedding for each i.e., excl
 
 
 ---
-
-## Page 38
 
 (a) Incoherence
 
@@ -1670,8 +1594,6 @@ we show the alternatives of the total output tokens ( trends are qualitatively s
 
 ---
 
-## Page 39
-
 (a) Scaling Law of Loss (left) and Bias + Variance as a Function of Steps (right)
 
 (b) 50K
@@ -1702,8 +1624,6 @@ right), human subjects judged entities to be of higher
 
 
 ---
-
-## Page 40
 
 ## D RELATED WORK
 

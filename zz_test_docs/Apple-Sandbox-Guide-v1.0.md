@@ -1,5 +1,3 @@
-## Page 1
-
 Apple
 
 's Sandbox Guide
@@ -12,8 +10,6 @@ v1.0
 
 
 ---
-
-## Page 2
 
 v1.0
 
@@ -67,8 +63,6 @@ v1.0
 
 
 ---
-
-## Page 3
 
 v1.0
 
@@ -219,8 +213,6 @@ operations
 
 ---
 
-## Page 4
-
 v1.0
 
 documents, etc.
@@ -353,8 +345,6 @@ one of the these folders:
 
 ---
 
-## Page 5
-
 v1.0
 
 where bsd.sb is located at /usr/share/sandbox
@@ -463,8 +453,6 @@ Most
 
 
 ---
-
-## Page 6
 
 v1.0
 
@@ -583,8 +571,6 @@ Process*
 
 ---
 
-## Page 7
-
 v1.0
 
 I have tried to find all kernel functions where operations apply (for example, an operation such as 
@@ -674,8 +660,6 @@ All file operations described in detail below.
 
 ---
 
-## Page 8
-
 v1.0
 
 This will deny all file related operations that have /mach_kernel as target.
@@ -743,8 +727,6 @@ must exercise extreme care when
 
 ---
 
-## Page 9
-
 v1.0
 
 Description:
@@ -810,8 +792,6 @@ contents.
 
 
 ---
-
-## Page 10
 
 v1.0
 
@@ -890,8 +870,6 @@ Result with sandbox:
 
 ---
 
-## Page 11
-
 v1.0
 
 **O4$% - 0%Q';%**
@@ -950,8 +928,6 @@ vn_open_auth
 
 
 ---
-
-## Page 12
 
 v1.0
 
@@ -1031,8 +1007,6 @@ chflags1, link
 
 ---
 
-## Page 13
-
 v1.0
 
 Log output:
@@ -1089,8 +1063,6 @@ N/A (tried different combinations and mount still works!)
 
 
 ---
-
-## Page 14
 
 v1.0
 
@@ -1169,8 +1141,6 @@ Control s et the access and modification times of a file.
 
 ---
 
-## Page 15
-
 v1.0
 
 setutimes, link
@@ -1232,8 +1202,6 @@ test: 123
 
 ---
 
-## Page 16
-
 v1.0
 
 Log output:
@@ -1280,8 +1248,6 @@ functions (create, open, post, unlink, wait).
 
 
 ---
-
-## Page 17
 
 v1.0
 
@@ -1348,8 +1314,6 @@ functions
 
 ---
 
-## Page 18
-
 v1.0
 
 (allow ipc
@@ -1394,8 +1358,6 @@ Controls access to all Mach related functions described below.
 
 
 ---
-
-## Page 19
 
 v1.0
 
@@ -1442,8 +1404,6 @@ Control access to all the mach
 
 ---
 
-## Page 20
-
 v1.0
 
 set_security_token
@@ -1488,8 +1448,6 @@ task_for_pid()
 
 
 ---
-
-## Page 21
 
 v1.0
 
@@ -1588,8 +1546,6 @@ owner of the socket drains when they read
 
 ---
 
-## Page 22
-
 v1.0
 
 (allow network
@@ -1684,8 +1640,6 @@ Log output:
 
 
 ---
-
-## Page 23
 
 v1.0
 
@@ -1784,8 +1738,6 @@ macbox sandboxd[26360]: sandbox
 
 ---
 
-## Page 24
-
 v1.0
 
 **T0'3%,, - ('0;**
@@ -1861,8 +1813,6 @@ macbox sandboxd[ 31416]: kill(31418) deny signal
 
 ---
 
-## Page 25
-
 v1.0
 
 Definition:
@@ -1933,8 +1883,6 @@ s invalid
 
 
 ---
-
-## Page 26
 
 v1.0
 
@@ -2027,8 +1975,6 @@ Log output:
 
 ---
 
-## Page 27
-
 v1.0
 
 **HD,+%? - "33+**
@@ -2083,8 +2029,6 @@ Control access to fsctl().
 
 
 ---
-
-## Page 28
 
 v1.0
 
@@ -2157,8 +2101,6 @@ is used to associate a MAC label with a file.
 
 ---
 
-## Page 29
-
 v1.0
 
 Determine whether the 
@@ -2203,8 +2145,6 @@ s ettimeofday, adjtime
 
 
 ---
-
-## Page 30
 
 v1.0
 
@@ -2262,8 +2202,6 @@ fcntl
 
 
 ---
-
-## Page 31
 
 v1.0
 
@@ -2342,8 +2280,6 @@ signal
 
 ---
 
-## Page 32
-
 v1.0
 
 Symlinks are resolved
@@ -2412,8 +2348,6 @@ Filter by network protocol and source or destination.
 
 
 ---
-
-## Page 33
 
 v1.0
 
@@ -2510,8 +2444,6 @@ macbox sandboxd[32011]: telnet(32010) deny network
 
 ---
 
-## Page 34
-
 v1.0
 
 **E5656 - O4$% -?'1%**
@@ -2579,8 +2511,6 @@ the difference between global
 
 
 ---
-
-## Page 35
 
 v1.0
 
@@ -2671,8 +2601,6 @@ without killing
 
 ---
 
-## Page 36
-
 v1.0
 
 Do not log denied operations. Applies only to den
@@ -2753,8 +2681,6 @@ Example:
 
 
 ---
-
-## Page 37
 
 v1.0
 
@@ -2851,8 +2777,6 @@ to build manually a
 
 ---
 
-## Page 38
-
 v1.0
 
 very tight sandbox. It requires a lot of testing and patience!
@@ -2934,8 +2858,6 @@ The trace directive is very helpful to
 
 ---
 
-## Page 39
-
 v1.0
 
 (allow file read*
@@ -3006,8 +2928,6 @@ references/pbs.plist")
 
 
 ---
-
-## Page 40
 
 v1.0
 
@@ -3082,8 +3002,6 @@ y/Application Support/Vienna/*"
 
 ---
 
-## Page 41
-
 v1.0
 
 ; allow write to dtrace related stuff
@@ -3138,8 +3056,6 @@ v1.0
 
 
 ---
-
-## Page 42
 
 v1.0
 
@@ -3216,8 +3132,6 @@ toryService.membership_v1")
 
 ---
 
-## Page 43
-
 v1.0
 
 These are some links and books where you can fi
@@ -3283,8 +3197,6 @@ ipc posix*
 
 
 ---
-
-## Page 44
 
 v1.0
 
@@ -3354,8 +3266,6 @@ SBPL operations and sandbox kernel
 
 
 ---
-
-## Page 45
 
 v1.0
 
@@ -3436,8 +3346,6 @@ first = LocByName("_cred_check");
 
 ---
 
-## Page 46
-
 v1.0
 
 // which is the information we are looking for
@@ -3493,8 +3401,6 @@ register2 = GetOpnd(crap,1);
 
 ---
 
-## Page 47
-
 v1.0
 
 Message("%s;%s", GetFunctionName(ea), GetArrayElement(AR_STR, myarrayid, 
@@ -3537,8 +3443,6 @@ Message("%s;%s", GetFunctionName(ea), GetArrayElement(AR_STR, myarrayid,
 
 
 ---
-
-## Page 48
 
 v1.0
 

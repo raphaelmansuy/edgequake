@@ -822,10 +822,26 @@ pub static MAC_ROMAN_ENCODING: CodedCharacterSet = [
 // =============================================================================
 
 /// Encoding types for PDF fonts
+///
+/// **WHY multiple encoding types:**
+/// PDF fonts can use various encoding schemes:
+/// - `OneByteEncoding`: Fixed tables (WinAnsi, MacRoman, Standard)
+/// - `ToUnicodeMap`: Custom per-font mappings via CMaps
+/// - `DifferencesEncoding`: Base encoding + glyph name overrides
+/// - `Identity`: Direct UTF-16BE (for CID fonts)
 #[derive(Debug)]
 pub enum Encoding {
     OneByteEncoding(&'static CodedCharacterSet),
     ToUnicodeMap(ToUnicodeMap),
+    /// Custom encoding built from /Differences array.
+    ///
+    /// This is critical for fonts that use glyph names instead of standard
+    /// byte mappings. Many legacy PDFs (like Apple's 2011 documentation)
+    /// use this approach.
+    ///
+    /// The HashMap maps byte values (0-255) to Unicode characters.
+    /// Missing entries fall back to WinAnsi encoding.
+    DifferencesEncoding(std::collections::HashMap<u8, char>),
     Identity,
 }
 
@@ -868,6 +884,26 @@ impl Encoding {
                 result
             }
             Encoding::ToUnicodeMap(cmap) => cmap.decode(bytes),
+            Encoding::DifferencesEncoding(diff_map) => {
+                // WHY: /Differences encoding uses a HashMap for custom byte->char mapping.
+                // For bytes not in the map, fall back to WinAnsi (most common base).
+                let mut result = String::new();
+                for &b in bytes {
+                    if let Some(&c) = diff_map.get(&b) {
+                        result.push(c);
+                    } else if let Some(cp) = WIN_ANSI_ENCODING[b as usize] {
+                        // Fall back to WinAnsi for unmapped bytes
+                        if let Some(c) = char::from_u32(cp as u32) {
+                            result.push(c);
+                        } else {
+                            result.push('\u{FFFD}');
+                        }
+                    } else if let Some(ligature) = get_ligature_expansion(b) {
+                        result.push_str(ligature);
+                    }
+                }
+                result
+            }
             Encoding::Identity => {
                 if bytes.len() >= 2 {
                     let utf16: Vec<u16> = bytes

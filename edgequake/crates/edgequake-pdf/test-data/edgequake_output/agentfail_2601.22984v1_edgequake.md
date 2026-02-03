@@ -20,9 +20,10 @@ The rapid advancement of Large Language Models (LLMs) has spurred the developmen
 
 Zirui GuoChao Huang
 
-*Figure 1. Comparison between existing benchmarks for DRAs and*
+> Figure 1. Comparison between existing benchmarks for DRAs and our benchmark.
+>
 
-our benchmark. 2025), accelerate complex research, reducing completion times from hours to minutes. Despite their potential, the complexity and sophistication of DRAs make holistic and faithful evaluation challenging. Existing benchmarks predominantly fall into two categories based on query type: close-ended, which verifies short-form answers against ground-truth data (Mialon et al., 2023; Wei 
+2025), accelerate complex research, reducing completion times from hours to minutes. Despite their potential, the complexity and sophistication of DRAs make holistic and faithful evaluation challenging. Existing benchmarks predominantly fall into two categories based on query type: close-ended, which verifies short-form answers against ground-truth data (Mialon et al., 2023; Wei 
 
 reference reports or rubrics (Du et al., 2025; Li et al., 2025). Critically, both approaches share a fundamental deficiency: they rely on end-to-end evaluation. These benchmarks focus solely on the final output, neglecting the complex 
 
@@ -31,8 +32,6 @@ intermediate hallucinations, such as misleading plans, occur exclusively within 
 summarization) becomes infeasible, impeding fine-grained 
 
 assessment to process-aware evaluation, capable of auditing
-
-1
 
 1Zhejiang University. Work done during internship at HKU.
 
@@ -83,8 +82,6 @@ LLM-based agents have gained attention, leading to new tax-, 2025) onomies and d
 
 2025b). However, hallucinations specific to DRAs, though briefly assessed in benchmarks like Mind2Web2 (Gou et al., 2025), lack systematic evaluation and analysis, leaving the fundamental limitations of DRAs largely unexplored. Deep Research Evaluation. Current benchmarks for DRAs can be categorized by query type: close-ended and open-ended. Close-ended evaluations involve queries with short, ground-truth answers, facilitating automated verifi-
 
-1. Cognitive Biases, specifically a temporal "Anchor Effect"
-
 Regarding RQ1 (Hallucination Landscape), our results re-
 
 1The final report is treated as the terminal summary.
@@ -96,9 +93,10 @@ cation. Benchmarks such as GAIA (Mialon et al., 2023), BrowseComp (Wei et al., 2
 
 ## Page 3
 
-*Table 1. Comparison between DeepHalluBench and existing Deep Research benchmarks.*
+> Table 1. Comparison between DeepHalluBench and existing Deep Research benchmarks. hallucinations. DeepHalluBench uniquely integrates close-ended, open-ended, and "no-answer" queries, providing the first comprehensive
+>
 
-hallucinations. DeepHalluBench uniquely integrates close-ended, open-ended, and "no-answer" queries, providing the first comprehensive hallucination evaluation throughout the full research trajectory.
+hallucination evaluation throughout the full research trajectory.
 
 Benchmark Close-ended Open-ended Research Trajectory Hallucination No-answer Query GAIA ✓ BrowseComp ✓ BrowseComp-Plus ✓ Rigorous Bench ✗ Mind2Web2 ✗ DeepResearch-ReportEval ✗ ✓ metrics like accuracy. Open-ended evaluations ReportBench ✗
 
@@ -130,8 +128,6 @@ Guided by the PIES taxonomy, this section establishes our framework for trajecto
 
 To evaluate proprietary DRAs lacking cost-friendly APIs and structured reasoning output, we developed a pipeline traces (Figure 3). We employ custom HTML-parsers and
 
-## 2Guided by the PIES taxonomy, this section establishes our
-
 2We exclude the Search stage as it relies on external engines, distinguishing retrieval outputs from LLM-induced hallucinations.
 
 3
@@ -143,13 +139,15 @@ LLMs to disentangle interleaved reasoning and URLs into structured plan-search-s
 
 ## Page 4
 
-*Figure 2. The PIES Taxonomy. The framework intersects functional components (vertical axis) with error properties (horizontal*
+> Figure 2. The PIES Taxonomy. The framework intersects functional components (vertical axis) with error properties (horizontal axis). The four quadrants represent specific hallucination categories derived from these combinations: Explicit Summarization, Implicit
+>
 
-axis). The four quadrants represent specific hallucination categories derived from these combinations: Explicit Summarization, Implicit Summarization, Explicit Planning, and Implicit Planning.
+Summarization, Explicit Planning, and Implicit Planning.
 
-*Figure 3. The Data Acquisition and Decomposition Pipeline.*
+> Figure 3. The Data Acquisition and Decomposition Pipeline. iterative plan-search-summarize loops. These loops are further decomposed by LLMs
+>
 
-iterative plan-search-summarize loops. These loops are further decomposed by LLMs cinations precisely, we adopt an atomicity-based approach 
+cinations precisely, we adopt an atomicity-based approach 
 
 plans into atomic actions, and summaries into atomic claimsa cost-efficient NLI-then-LLM cascade. Supported claims (preserving citation mappings). As shown in Figure 
 
@@ -184,9 +182,10 @@ HES=
 
 ## Page 5
 
-*Figure 4. The Evaluation Framework for Summarization Hallucinations.*
+> Figure 4. The Evaluation Framework for Summarization Hallucinations. neglect (bottom). The addition symbols (⊕) define the data scope: selecting evidence scope for verification (top) or specifying document
+>
 
-neglect (bottom). The addition symbols (⊕) define the data scope: selecting evidence scope for verification (top) or specifying document sets for global/local level (bottom). The cross symbol (⊗) intersects ranked clusters with (In-Memory) or ignored (Out-Memory), enabling the penalty quantification shown on the right. See Appendix B.1 for implementation details. Noise Detection (Implicit Summarization). LLMs often struggle to prioritize valuable information due to positional bias (Liu et al., 2024; Trienes et al., 2025; Elaraby & Litman
+sets for global/local level (bottom). The cross symbol (⊗) intersects ranked clusters with (In-Memory) or ignored (Out-Memory), enabling the penalty quantification shown on the right. See Appendix B.1 for implementation details. Noise Detection (Implicit Summarization). LLMs often struggle to prioritize valuable information due to positional bias (Liu et al., 2024; Trienes et al., 2025; Elaraby & Litman
 
 2025). To quantify DRA's capability to distinguish essential signals from massive retrieval streams, as shown in figure 4, we propose a cluster-based heuristic at two granularities: global-level (assessing total information utilization) and local-level (measuring utilization within each search round). •Semantic Clustering & Value Estimation. We first map retrieved chunks into semantic clusters to reduce redundancy and rank them by relevance to the atomic sub-queries (Rank=1 denotes highest importance). •Penalty Quantification. We distinguish between utilized clustersC and ignored onesC . We penalize ne-inout 3 
 
@@ -204,7 +203,9 @@ See Appendix B.3 for clustering and computation details. Action Verification (Ex
 
 evant to user query) and Action RedundancyA ( ,redundancy repetitive steps), we explicitly identify Action Propagation (Apropagation): actions that are logically sound but grounded 
 
-The Explicit Planning Hallucination () is defined as:HEP HEP=
+The Explicit Planning Hallucination () is defined as:HEP
+
+HEP=
 
  |Atotal|
 
@@ -229,7 +230,8 @@ HIS=*. (3)* Pworst
 
 ## Page 6
 
-*Figure 5. The Evaluation Framework for Planning Hallucinations.*
+> Figure 5. The Evaluation Framework for Planning Hallucinations.
+>
 
 (bottom). The subtraction symbol (⊖) defines the neglect identification logic: removing the set of effectively executed sub-queries from the full set of sub-queries to isolate neglected restrictions. Reliability. Benchmarking claim verification module 
 
@@ -263,13 +265,11 @@ Overview. Table 2 overviews the performance of the
 
 (H ≈ 0.175) and SalesforceH ≈ ( 0.185). Perplexity trails with a higher hallucination degree (H ≈ 0.21), while Grok lags significantly behind, exhibiting severe hallucinations in the summarization stage. 4
 
-## 4WhenHis averaged exclusively on summarization metrics
-
 1. Overview. Table 2 overviews the performance of the
 
 The final benchmark comprises 100 queries, evenly split between open-ended and close-ended tasks. See Appendix for dataset details and case studies for atomic perturbations.
 
-HESand H, Grok (H ≈ 0.38) is the poorest performer.IS
+WhenHis averaged exclusively on summarization metrics HESand H, Grok (H ≈ 0.38) is the poorest performer.IS
 
  C
 
@@ -286,16 +286,18 @@ perturbations to solvable close-ended queries-modifying specific restrictions (e
 
 ## Page 7
 
-*Figure 6. Evaluation Results over DeepHalluBenchwith seven hallucination metrics alongside Retrieval Quality for six DRAs.*
+> Figure 6. Evaluation Results over DeepHalluBenchwith seven hallucination metrics alongside Retrieval Quality for six DRAs.
+>
 
-*Table 2. Evaluation results on DeepHalluBench. DRAs above the*
+> Table 2. Evaluation results on DeepHalluBench. DRAs above the midline are proprietary. Bold denotes lowest hallucination score.
+>
 
-| midline | are | proprietary. | Bold | denotes | lowest | hallucination | score. |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Gemini 0.2171 0.2786 0.0170 0.1866 | 0.1749 |  |  |  |  |  |  |
-| OpenAI 0.2207 0.3121 0.0456 0.0401 | 0.1546 |  |  |  |  |  |  |
-| Perplexity 0.2220 0.3940 0.0313 0.1865 | 0.2084 |  |  |  |  |  |  |
-| Qwen 0.2311 0.2374 0.0197 | 0.1070 |  |  |  |  |  |  |
+| Note | that | Grok | lacks | planning | metrics | (HandH) | because | EP | IP |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Gemini 0.2171 0.2786 0.0170 0.1866 | 0.1749 |  |  |  |  |  |  |  |  |
+| OpenAI 0.2207 0.3121 0.0456 0.0401 | 0.1546 |  |  |  |  |  |  |  |  |
+| Perplexity 0.2220 0.3940 0.0313 0.1865 | 0.2084 |  |  |  |  |  |  |  |  |
+| Qwen 0.2311 0.2374 0.0197 | 0.1070 |  |  |  |  |  |  |  |  |
 
 ### 0.1488OpenAI 28% 28% 28% 22%
 
@@ -305,9 +307,10 @@ Hallucination Landscape across Categories. Dissecting performance along the PIES
 
 act as "confident fabricators" (High Fabrication≈ 0.15, Low Misattribution), generating content without sufficient support. Conversely, Salesforce creates an "illusion of grounding" dominated by Misattribution (> 0.20).and over-conservatism, with three distinct profiles: (1) Over- •Implicit Summarization (Noise Domination). This met-Confidence (Gemini, Grok): These DRAs fail to reject adric highlights a bottleneck in information prioritization. Grok and Perplexity succumb to high noise (≈ 0.33) despite decent retrieval. Qwen proves most resilience (≈ 0.23), whereas Salesforce, with lower retrieval quality, achieves the lowest noise (≈ 0.10) likely by retrieving a narrower, safer set of information. •Explicit Planning (Action Hallucination). While general planning capabilities are robust (< 5%errors), nuances emerge. OpenAI shows slightly higher Deviation
 
-and Redundancy≈ ( 4%) likely due to its exhaustive strate-
+and Redundancy≈ ( 4%) likely due to its exhaustive strate- collapsing into systemic bias. For extended results on domain sensitivity and performance disparities between openand close-ended tasks, see Appendix D.2 and D.3. 7 versarial queries (near0%accuracy), force-hallucinating answers due to an inability to identify empty intersection of re-striction sets. (2) Over-Conservatism (Salesforce, Qwen):
 
-*Table 3. Performance on Close-Ended Queries (N = 50). Ans.:*
+> Table 3. Performance on Close-Ended Queries (N = 50). Ans.:
+>
 
 Answerable queries; No-Ans.: Adversarial queries (correct re-sponse is rejection). Rejection: Proportion of queries where the DRA reported no answer. Bold denotes highest metric.
 
@@ -321,8 +324,6 @@ Perplexity 24% 16% 32% 42% Qwen 36% 0% 72% 60% Grok 16% 24% 8% 10% Salesforce 40
 
 gies. Gemini, while efficient, exhibits specific susceptibility to Propagation≈ 1. (7%), where planning errors cascade from prior fabrications.
 
-collapsing into systemic bias. For extended results on domain sensitivity and performance disparities between openand close-ended tasks, see Appendix D.2 and D.3. 7 versarial queries (near0%accuracy), force-hallucinating answers due to an inability to identify empty intersection of re-striction sets. (2) Over-Conservatism (Salesforce, Qwen):
-
 They achieve high adversarial accuracy (72-80%) but at the cost of prematurely abandoning answerable queries (0% 
 
 (3) Balanced Struggle (OpenAI, Perplexity): Only these 
@@ -332,9 +333,10 @@ They achieve high adversarial accuracy (72-80%) but at the cost of prematurely a
 
 ## Page 8
 
-*Figure 7. Temporal Distribution of Hallucinations. We segment*
+> Figure 7. Temporal Distribution of Hallucinations. We segment the research trajectory into three equal stages (Early, Middle, Late).
+>
 
-the research trajectory into three equal stages (Early, Middle, Late). Src. Dist.: source errors that trigger propagation; Desc. Dist.: consequent errors propagating from source; and Hallu. Dist. distribution of explicit hallucinations derived after backtracking all propagation chains to their root sources.
+Src. Dist.: source errors that trigger propagation; Desc. Dist.: consequent errors propagating from source; and Hallu. Dist. distribution of explicit hallucinations derived after backtracking all propagation chains to their root sources.
 
 ### 5.3. Analysis
 
@@ -350,7 +352,8 @@ down in the late stage (> 40%of errors). This highlights a limitation in maintai
 
 (i.e., Salesforce) tends to conservatively refuse the query, whereas proprietary DRAs often proceed to fabricate a final answer. This behavior aligns with the "Over-Confidence vs. Over-Conservatism" dichotomy observed in Table 3.
 
-*Figure 8. Temporal Analysis of Information Attention and Noise.*
+> Figure 8. Temporal Analysis of Information Attention and Noise.
+>
 
 mensions, leading to severe Noise Domination. •Temporal: "Anchor Effect". DRAs disproportionately favor early retrieval (Figure 8). The Utilized Chunk Count drops precipitously in later stages. Paradoxically, Noise Scores peak in the late stage even as Retrieval Quality increases. This indicates a "saturation" bottleneck: agents may stop attending to new, superior information once their context is filled by initial findings. 
 
@@ -430,7 +433,7 @@ doi: 10.18653/v1/2020.findings-emnlp.309. URLhttps: //aclanthology.org/2020.find
 
 Li, M., Zeng, Y., Cheng, Z., Ma, C., and Jia, K. Reportbench: Evaluating deep research agents via academic survey tasks, 2025. URLhttps://arxiv.org/abs/2508. 15804. Lin, X., Ning, Y., Zhang, J., Dong, Y., Liu, Y., Wu, Y., Qi, X., Sun, N., Shang, Y., Cao, P., et al. Llm-based agents suffer from hallucinations: A survey of taxonomy, methods, and directions. arXiv preprint arXiv:2509.18970, 2025. Liu, M. and Fang, J. Enhancing mathematical reasoning in large language models with self-consistency-based hallucination detection, 2025. URLhttps://arxiv.org/
 
-abs/2504.09440. 
+qua, M., Petroni, F., and Liang, P. Lost in the middle: How language models use long contexts. Transactions of the Association for Computational Linguistics,
 
 12:157-173, 2024. doi: 10.1162/tacla00638. URL
 
@@ -477,7 +480,7 @@ Schopf, T., Vladika, J., Farber, M., and Matthes, F. Nat- ¨
 
 Fifth Workshop on Scholarly Document Processing (SDP
 
-2025), pp. 344-352, Vienna, Austria, July 2025. Association for Computational Linguistics. ISBN 979-8-
+2025), pp. 344-352, Vienna, Austria, July 2025. Association for Computational Linguistics. ISBN 979-8for automated failure attribution in multi-agent systems,
 
 89176-265-7. doi: 10.18653/v1/2025.sdp-1.33. URL
 
@@ -504,8 +507,6 @@ Wei, J., Yang, C., Song, X., Lu, Y., Hu, N., Huang, J., Tran, D., Peng, D., Liu,
 Browsecomp: A simple yet challenging benchmark for browsing agents, 2025. URLhttps://arxiv.org/abs/ 2504.12516. West, A., Weng, Y., Zhu, M., Lin, Z., Ning, Z., and Zhang,
 
 ## Y. Abduct, act, predict: Scaffolding causal inference
-
-for automated failure attribution in multi-agent systems,
 
                         2025. URL https://arxiv.org/abs/2509.10401.
 
@@ -603,7 +604,8 @@ whereC supported is the set of claims with ground-truth evidence, and successful
 
 Dataset #Claim #Document Label Acc. Strict Acc. Evidence Recall FEVER (subset) 659 50k 0.940 0.883 0.956 SciFact-Open 279 500k 0.862 0.824 0.883
 
-*Table 4. Benchmarking results of the automated claim verification pipeline against human ground truth.*
+> Table 4. Benchmarking results of the automated claim verification pipeline against human ground truth.
+>
 
 , a distinction shown to be highly subjective (Jiang et al., 2020),
 
@@ -640,9 +642,10 @@ alignment between Label Accuracy (0.862) and Strict Accuracy (0.824). This narro
 
 To determine the optimal granularity for evidence retrieval, balancing semantic integrity with token efficiency, we conducted a sensitivity analysis on the chunk size using the FEVER development subset. We defined a chunk as a contiguous block of *N sentences and evaluated the pipeline's performance by varying*
 
-*Figure 9. Impact of Chunk Length on Verification Performance.*
+> Figure 9. Impact of Chunk Length on Verification Performance. stabilizing afterN = 13. We selectN = 15(highlighted) as the optimal threshold, where Label Accuracy peaks at 94.33% and F1-Score
+>
 
-stabilizing afterN = 13. We selectN = 15(highlighted) as the optimal threshold, where Label Accuracy peaks at 94.33% and F1-Score reaches 90.39%, balancing robust performance with computational cost. As illustrated in Figure 9, performance is suboptimal at lower lengths ( fragment necessary context. While there is minor volatility in the mid-range ( high plateau as the length exceeds 13 sentences. The performance peaks atN = 15, achieving the highest Label Accuracy of 0.9433 and F1-Score of 0.9039. Extending the window beyond this point (N > 15) leads to a slight performance dip rather than further improvement. This trend suggests that excessively long chunks may introduce irrelevant noise that interferes with verification, in addition to linearly increasing the token consumption for the embedding and reranking models. Consequently, we adopt a 15-sentence window as the standard configuration, ensuring the retrieval system captures sufficient context without incurring unnecessary computational overhead.
+reaches 90.39%, balancing robust performance with computational cost. As illustrated in Figure 9, performance is suboptimal at lower lengths ( fragment necessary context. While there is minor volatility in the mid-range ( high plateau as the length exceeds 13 sentences. The performance peaks atN = 15, achieving the highest Label Accuracy of 0.9433 and F1-Score of 0.9039. Extending the window beyond this point (N > 15) leads to a slight performance dip rather than further improvement. This trend suggests that excessively long chunks may introduce irrelevant noise that interferes with verification, in addition to linearly increasing the token consumption for the embedding and reranking models. Consequently, we adopt a 15-sentence window as the standard configuration, ensuring the retrieval system captures sufficient context without incurring unnecessary computational overhead.
 
 #### B.2.4. NLI MODEL UTILITY
 
@@ -673,7 +676,8 @@ accuracy: 98.47% on FEVER and 90.09% on SciFact-Open. This confirms that for cle
 
 Setting Confidence Range Count Label Acc. (FEVER) NLI Only 0.99-1.00 261 0.9847 NLI Only 0.95-0.99 93 0.8602 NLI Only 0.90-0.95 25 0.6800 Pure LLM - 659 0.9333 Hybrid (Ours) Hybrid 659
 
-*Table 5. Ablation study on FEVER: NLI confidence distribution and hybrid pipeline performance.*
+> Table 5. Ablation study on FEVER: NLI confidence distribution and hybrid pipeline performance.
+>
 
 | Setting | Confidence | Range | Count | Label | Acc. | (SciFact) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -682,11 +686,12 @@ Setting Confidence Range Count Label Acc. (FEVER) NLI Only 0.99-1.00 261 0.9847 
 | NLI Only 0.90-0.95 13 | 0.8462 |  |  |  |  |  |
 | Pure LLM - 279 | 0.8587 |  |  |  |  |  |
 
-*Table 6. Ablation study on SciFact-Open: NLI confidence distribution and hybrid pipeline performance.*
+> Table 6. Ablation study on SciFact-Open: NLI confidence distribution and hybrid pipeline performance.
+>
 
 dropping to ∼68% in the 0.90-0.95 range on FEVER), validating our decision to set a strict threshold at 0.99.
 
-2. Superior Performance with Lower Cost. The hybrid NLI-then-LLM strategy effectively optimizes the efficiency-
+2. Superior Performance with Lower Cost. The hybrid NLI-then-LLM strategy effectively optimizes the efficiency- worst) in Equation 8.P
 
 accuracy trade-off. First, it slightly outperforms the pure LLM baseline on both datasets (FEVER: 0.9402 vs. 0.9333; SciFact: 0.8623 vs. 0.8587), suggesting that the specialized NLI model effectively filters simple cases where LLMs might occasionally hallucinate or over-reason. Second, it significantly reduces computational overhead. On FEVER, the NLI model resolves 261 out of 659 claims (∼40%) directly; on SciFact, it handles 111 out of 279 ( pipeline reduces the demand for expensive LLM inference by approximately 40% without compromising overall verification accuracy.
 
@@ -720,8 +725,6 @@ Pworst ≈ N*in*×
 
 Problem Formulation. Recall that the penalty for a single ignored cluster is given by determine the theoretical worst-case scenario, we must identify a subset of "ignored" clusters from the total set of clustersthat maximizes the total penalty. Ctotal Our proposed approximation assumes the worst case occurs when the agent ignores the
 
-worst) in Equation 8.P
-
 *Nout*X *. (8)*
 
  highest-ranked1to clusters (Ranks
@@ -747,7 +750,8 @@ research trajectories generated by Gemini Deep Research (50 from Mind2Web2, 50 f
 
 Metric Mean Max Min Search Space (logT ) 168 849 10
 
-*Table 7. Estimated computational complexity (*
+> Table 7. Estimated computational complexity (
+>
 
 Statistical Justification. Given the computational intractability, we validate our rank-based approximation by analyzing the distribution of cluster sizes (S). IfSvaried dramatically ( *c c*
 
@@ -813,15 +817,19 @@ e.g., Art, Music & Literature,
 
 ## Page 17
 
-*Figure 10. Topic Distribution of DeepHalluBench. The left chart details the domain breakdown for the full benchmark (*
+> Figure 10. Topic Distribution of DeepHalluBench. The left chart details the domain breakdown for the full benchmark ( including adversarial queries. The right chart illustrates the distribution for the "answerable" subset (
+>
 
-including adversarial queries. The right chart illustrates the distribution for the "answerable" subset ( *N = 75). The broad coverage across 11 diverse categories prevents domain-specific bias and ensures a holistic assessment of DRA* capabilities. excluding the 25 adversarial "no-answer" queries preserves this distribution structure, confirming that our analysis remains statistically robust across varying subject matters. Domain Vulnerability Analysis. Figure 11 illustrates the filtering process from the initial candidate pool to the final benchmark. The percentage above each bar represents the triggered significant hallucinations and were thus retained for the final difficult set. Analyzing these ratios reveals a critical insight: hallucinations are popular topics such as Science & Technology and Lifestyle & Leisure show relatively low selection rates, identifying them as areas where DRAs are generally robust. In contrast, "long-tail" or specialized domains exhibit much higher vulnerability. Notably, Geography & Environment has the highest selection ratios of 75.0%, despite having smaller initial candidate counts. This suggests that DRAs struggle significantly more with niche topics. The severe hallucination degrees in domains like Geography (75.0%) are likely attributable to their long-tail nature and the density of specialized domain knowledge. These factors complicate accurate retrieval and synthesis, thereby increasing the propensity for fabrication when the agent cannot access or reason over obscure facts.
+*N = 75). The broad coverage across 11 diverse categories prevents domain-specific bias and ensures a holistic assessment of DRA* capabilities.
+
+excluding the 25 adversarial "no-answer" queries preserves this distribution structure, confirming that our analysis remains statistically robust across varying subject matters. Domain Vulnerability Analysis. Figure 11 illustrates the filtering process from the initial candidate pool to the final benchmark. The percentage above each bar represents the triggered significant hallucinations and were thus retained for the final difficult set. Analyzing these ratios reveals a critical insight: hallucinations are popular topics such as Science & Technology and Lifestyle & Leisure show relatively low selection rates, identifying them as areas where DRAs are generally robust. In contrast, "long-tail" or specialized domains exhibit much higher vulnerability. Notably, Geography & Environment has the highest selection ratios of 75.0%, despite having smaller initial candidate counts. This suggests that DRAs struggle significantly more with niche topics. The severe hallucination degrees in domains like Geography (75.0%) are likely attributable to their long-tail nature and the density of specialized domain knowledge. These factors complicate accurate retrieval and synthesis, thereby increasing the propensity for fabrication when the agent cannot access or reason over obscure facts.
 
 ### C.4. Case Study for Atomic Perturbations
 
-*Table 8. Examples of Atomic Perturbations. We merge different perturbation types into a single view, each type with three examples*
+> Table 8. Examples of Atomic Perturbations. We merge different perturbation types into a single view, each type with three examples respectively.
+>
 
-respectively. Query (Original) Query (Modified) Modification
+Query (Original) Query (Modified) Modification
 
 Type 1: Entity Attribute Modification
 
@@ -963,7 +971,7 @@ Query (Original) Query (Modified) Modification A child was reported missing seve
 
 2018. In late 2014, the missing 13-year-old2018. In late 2014, the missing 13-year-old
 
-was found along with two other missing teens.was found along with In late 2015, the 14-year-old was also reportedteens. In late 2015, the 14-year-old was also 
+was found along with two other missing teens.was found along with In late 2015, the 14-year-old was also reportedteens. In late 2015, the 14-year-old was also missing but was located shortly afterward. Inreported missing but was located shortly afearly 2018, the 16-year-old was reported miss-terward. In early 2018, the 16-year-old was ing. According to the police's description,reported missing. According to the police's dewhat color shirt were they last wearing whenscription, what color shirt were they last wear- seven other missingteens" to "seven other
 
 they went missing in 2018?
 
@@ -978,8 +986,6 @@ food? The university was established between 2000The university was established 
 who once represented an individual in a casewho once represented an individual in a case where the crime/incident occurred in that samewhere the crime/incident occurred in that same year range. In this same trial, an individual atyear range. In this same trial, an individual at
 
 Fact Alteration (Incident Detail): Change "two other missing
-
- seven other missingteens" to "seven other
 
 missing teens".
 
@@ -1004,19 +1010,21 @@ Procedural Impossibility (Legal Context): Change "8 and 17" to "1 and 2".
 
 ## Page 22
 
-*Figure 11. Comparison of Candidate vs. Selected Sets. The percentages indicate the Selection Ratio for each domain, defined as the*
+> Figure 11. Comparison of Candidate vs. Selected Sets. The percentages indicate the Selection Ratio for each domain, defined as the ratio of queries retained for the final benchmark to the total candidate pool aggregated from the source datasets.
+>
 
-ratio of queries retained for the final benchmark to the total candidate pool aggregated from the source datasets. The specific distribution of these perturbation types across the 25 adversarial queries is summarized in Table coverage across semantic, temporal, quantitative, and logical restrictions.
+The specific distribution of these perturbation types across the 25 adversarial queries is summarized in Table coverage across semantic, temporal, quantitative, and logical restrictions.
 
-*Table 9. Distribution of Adversarial Perturbations. The dataset prioritizes entity and temporal modifications while including specific*
+> Table 9. Distribution of Adversarial Perturbations. The dataset prioritizes entity and temporal modifications while including specific logical and quantitative challenges.
+>
 
-| logical | and | quantitative | challenges. |
-| --- | --- | --- | --- |
-| (1) Entity Attribute Modification | 9 |  |  |
-| (2) Temporal Detail Modification | 9 |  |  |
-| (3) Quantitative Value Modification | 4 |  |  |
-| (4) Logical Relationship Modification | 3 |  |  |
-| Total | 25 |  |  |
+| Perturbation | Type | Count |
+| --- | --- | --- |
+| (1) Entity Attribute Modification | 9 |  |
+| (2) Temporal Detail Modification | 9 |  |
+| (3) Quantitative Value Modification | 4 |  |
+| (4) Logical Relationship Modification | 3 |  |
+| Total | 25 |  |
 
 ## D. Detailed Results
 
@@ -1031,15 +1039,13 @@ We quantify Retrieval Quality by assessing the relevance of the top-ranking docu
 
 ## Page 23
 
-*Figure 12. Distribution of Semantic Cluster Sizes. The majority of clusters are small, with∼75% containing only 1-3 chunks. This low*
-
-variance supports the rank-dominant approximation.
+> Figure 12. Distribution of Semantic Cluster Sizes. The majority of clusters are small, with∼75% containing only 1-3 chunks. This low variance supports the rank-dominant approximation.
+>
 
 (a) Explicit Summarization: Claim Hallucination
 
-*Figure 13. Domain-specific performance for Summarization Hallucinations. High-entropy domains like Entertainment and Sports induce*
-
-higher hallucination degree across both dimensions compared to structured domains like Economy.
+> Figure 13. Domain-specific performance for Summarization Hallucinations. High-entropy domains like Entertainment and Sports induce higher hallucination degree across both dimensions compared to structured domains like Economy.
+>
 
 high-value evidence.
 
@@ -1064,7 +1070,8 @@ H) across all domains.
 
 (a) Explicit Planning: Action Hallucination
 
-*Figure 14. Domain-specific performance for Planning Hallucinations. Note the specific spike in Action Hallucination for Geography and*
+> Figure 14. Domain-specific performance for Planning Hallucinations. Note the specific spike in Action Hallucination for Geography and
+>
 
 Politics, and the high Restriction Neglect in Lifestyle and Career domains.
 
@@ -1095,7 +1102,8 @@ hallucinated premise. We limit this graph analysis to Gemini, OpenAI, and Salesf
 
 ## Page 25
 
-*Figure 15. Composite Hallucination Score (H) across query domains. Geography & Environment represents the most challenging*
+> Figure 15. Composite Hallucination Score (H) across query domains. Geography & Environment represents the most challenging
+>
 
 "Universal Trap" for current DRAs.
 
@@ -1122,17 +1130,20 @@ In-Memory) versus e.g., Gemini: 4.0 vs. 2.5 chunks).
 
 ## Page 26
 
-*Figure 16. Comparison of Hallucination Metrics between Open-Ended and Close-Ended tasks.*
+> Figure 16. Comparison of Hallucination Metrics between Open-Ended and Close-Ended tasks. while dark bars denote close-ended ones. Close-ended tasks generally incur more severe hallucinations across most metrics; the notable
+>
 
-while dark bars denote close-ended ones. Close-ended tasks generally incur more severe hallucinations across most metrics; the notable exception is Misattribution, which is naturally higher in open-ended tasks due to the requirement for long-form reports containing numerous citations, contrasting with the short-form answers typical of close-ended queries.
+exception is Misattribution, which is naturally higher in open-ended tasks due to the requirement for long-form reports containing numerous citations, contrasting with the short-form answers typical of close-ended queries.
 
-*Figure 17. Heatmap of Root-Cause Errors across Modules and Stages. We classify detected root-cause errors by module and research*
+> Figure 17. Heatmap of Root-Cause Errors across Modules and Stages. We classify detected root-cause errors by module and research stage. Search denotes cases where the agent failed to retrieve information and reported "no answer found" despite a trajectory free of
+>
 
-stage. Search denotes cases where the agent failed to retrieve information and reported "no answer found" despite a trajectory free of hallucinations. None denotes cases where the agent produced a fabricated answer despite a research trajectory containing no detectable errors. Darker cells indicate higher frequency.
+hallucinations. None denotes cases where the agent produced a fabricated answer despite a research trajectory containing no detectable errors. Darker cells indicate higher frequency.
 
  Light bars denote open-ended tasks,
 
-*Figure 18. Semantic Analysis of Information Attention.*
+> Figure 18. Semantic Analysis of Information Attention.
+>
 
 Correlation between the total number of clusters (information heterogeneity) and the Noise Score.
 
