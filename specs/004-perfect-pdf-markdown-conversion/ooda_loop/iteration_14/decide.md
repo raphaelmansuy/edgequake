@@ -3,6 +3,7 @@
 ## Decision: Dual Regex Pattern for Numbered Lists
 
 ### Approach
+
 Implement two complementary patterns in `ListDetectionProcessor`:
 
 1. **Primary Pattern** (unchanged): `r"^\d+[\.)]\s+"`
@@ -15,6 +16,7 @@ Implement two complementary patterns in `ListDetectionProcessor`:
    - Excludes: "1.1", "2.3" (decimal section numbers)
 
 ### Rationale
+
 - Preserves all existing detection (no regression)
 - Adds coverage for edge case PDFs
 - Avoids unsupported regex lookahead
@@ -31,6 +33,7 @@ Implement two complementary patterns in `ListDetectionProcessor`:
    - Normalizes output to "N. content" with proper spacing
 
 ### Expected Outcome
+
 - Fix numbered list detection for edge case PDFs
 - Maintain section header detection quality
 - No regression in overall quality metrics

@@ -319,7 +319,7 @@ impl Processor for ListDetectionProcessor {
         // for nested lists. Also include common Unicode bullet characters.
         let bullet_regex = Regex::new(r"^[-–—*•◦▪]\s+").unwrap();
         // WHY: Match numbered lists like "1. " or "1)" - require space after marker
-        // This avoids matching section numbers like "1.1" (decimal) 
+        // This avoids matching section numbers like "1.1" (decimal)
         let number_regex = Regex::new(r"^\d+[\.)]\s+").unwrap();
         // OODA-14: Secondary pattern for "1.Text" (no space) but NOT "1.1" (decimal)
         // Matches: digit(s) + period + uppercase letter (section start)
