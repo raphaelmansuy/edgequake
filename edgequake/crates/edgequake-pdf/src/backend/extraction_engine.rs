@@ -169,20 +169,23 @@ impl ExtractionEngine {
     /// Group text elements into lines with proper column handling
     /// For two-column layouts: reads left column top-to-bottom, then right column
     /// Returns (lines, detected_columns) where detected_columns are BoundingBoxes for each column
+    ///
+    /// OODA-22 FIX: Accept pre-detected column_boundary as parameter instead of detecting again.
+    /// WHY: Column detection should happen BEFORE table filtering, because tables may contain
+    /// text elements from both columns. If we detect columns AFTER table filtering, we may
+    /// incorrectly conclude there's only one column when table detection consumed the right column.
     fn group_into_lines(
         &self,
         elements: Vec<TextElement>,
         page_width: f32,
         page_height: f32,
+        column_boundary: Option<f32>,
     ) -> (Vec<Vec<TextElement>>, Vec<BoundingBox>) {
         if elements.is_empty() {
             return (Vec::new(), Vec::new());
         }
 
-        // First, detect if this is a two-column layout
-        let column_boundary = self.detect_columns(&elements, page_width);
-
-        info!("ENG-COLUMN: boundary = {:?}", column_boundary);
+        info!("ENG-COLUMN: using pre-detected boundary = {:?}", column_boundary);
 
         // Use TextGrouper to group elements into lines
         let lines =
@@ -458,19 +461,6 @@ impl ExtractionEngine {
             }
         }
 
-        // OODA-05 DEBUG: Log first 10 elements after processing for page 1
-        if page_num == 1 {
-            for (i, elem) in elements.iter().take(10).enumerate() {
-                info!(
-                    "ENG-PAGE1-ELEM[{}]: Y={:.1} font={:.1} text='{}'",
-                    i,
-                    elem.y,
-                    elem.font_size,
-                    &elem.text[..50.min(elem.text.len())]
-                );
-            }
-        }
-
         debug!(
             "Page {} has {} text elements (merged from {}) and {} graphical lines",
             page_num,
@@ -623,7 +613,8 @@ impl ExtractionEngine {
         }
 
         // Group into lines (handles two-column layouts) and get column bounding boxes
-        let (lines, columns) = self.group_into_lines(non_table_elements, page_width, page_height);
+        // OODA-22 FIX: Pass the pre-detected column_boundary to avoid re-detection with filtered elements
+        let (lines, columns) = self.group_into_lines(non_table_elements, page_width, page_height, column_boundary);
         debug!(
             "Page {} has {} lines, {} columns detected",
             page_num,

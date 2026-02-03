@@ -3,7 +3,9 @@
 
 **arXiv:2510.09244v1 [cs.AI] 10 Oct 2025** 
 
-Victor de Lamo Castrillo, Habtom Kahsay Gidey, Alexander Lenz, and
+Victor de Lamo Castrillo, Habtom Kahsay Gidey
+
+, Alexander Lenz, and
 
 Alois Knoll
 
@@ -31,7 +33,7 @@ execution system that translates internal decisions into concrete actions. This 
 
 and generalized software bots that mimic human cognitive processes for autonomous and intelligent behavior.
 
-### Keywords: Autonomous LLM Agents · Perception · Reasoning and
+### Keywords: Autonomous LLM Agents
 
 Planning · Memory Systems · Action Systems · Multi-agent Systems
 
@@ -49,7 +51,13 @@ would reason through a problem, since LLM agents can learn and mimic human probl
 
 self-feedback [26,38,49,58,60,65,66].
 
-This paper is based on a seminar technical report from the course Trends in Autonomous Agents: Advances in Architecture and Practice offered at TUM.
+This paper is based on a seminar technical report from the course
+
+ *Trends in Au-*
+
+*tonomous Agents: Advances in Architecture and Practice*
+
+ offered at TUM.
 
 
 ---
@@ -121,7 +129,9 @@ Benchmarks such as OSworld [71], alongside studies on autonomous software
 
 agents [13,15,16], reveal key limitations in multimodal agents, highlighting the following issues:
 
-1. Difficulties in GUI grounding and operational knowledge: Agents
+1. Difficulties in GUI grounding and operational knowledge:
+
+ Agents
 
 struggle to accurately map screenshots to precise coordinates for their actions and lack deep understanding of basic graphical user interface (GUI)
 
@@ -131,17 +141,23 @@ interactions and application-specific features.
 
 a lack of progress or an inability to break out of loops.
 
-3. Inability to handle unexpected window noise: Agents are not robust to
+3. Inability to handle unexpected window noise:
+
+ Agents are not robust to
 
 unexpected elements or changes in UI layout, such as unanticipated pop-up windows or dialog boxes.
 
-4. Limitations in exploration and adaptability: Particularly for agents
+4. Limitations in exploration and adaptability:
+
+ Particularly for agents
 
 equipped with modules like "Set-of-Mark" (SoM), it has been observed that
 
 they can constrain the agent's action space, hindering exploration and adaptability to diverse tasks.
 
-5. Significant performance gap with human capabilities: As reported on
+5. Significant performance gap with human capabilities:
+
+ As reported on
 
 the OSworld website [43], humans achieve a task completion rate of more than
 
@@ -178,13 +194,17 @@ ToT, ReAct, and parallel planning, such as DPPM or MCTS-based approaches, affect
 
 anisms, for example, RAG and context management, influence accuracy, robustness to context length limits, and adaptation in long-horizon tasks?
 
-5. RQ5, Failures and mitigation, What are the principal failure modes
+5. RQ5, Failures and mitigation,
+
+ What are the principal failure modes
 
 in agentic settings, for example, hallucination, GUI misgrounding, repetitive loops, and tool misuse, and which mitigation techniques, for example,
 
 reflection, anticipatory reflection, SoM, and guardrails, are most effective?
 
-6. RQ6, Evaluation and generalization, Which benchmarks and metrics are
+6. RQ6, Evaluation and generalization,
+
+ Which benchmarks and metrics are
 
 appropriate for assessing these systems, for example, OSWorld, WebArena, and Mind2Web [8, 70, 71], and to what extent do agents generalize across
 
@@ -384,11 +404,17 @@ aligned multimodal representations (visual embeddings and textual features)
 
 are fed to the LLM. The LLM processes these representations, answering using the semantic understanding of the inputs.
 
--Output Projector (for multimodal generation): For tasks requiring outputs in other modalities (e.g., generating images), this component maps signal
+**-Output Projector (for multimodal generation):**
 
-token representations from the LLM Backbone into features understandable by a Modality Generator.
+ For tasks requiring out-
 
-**-Modality Generator (for multimodal generation): This component is**
+puts in other modalities (e.g., generating images), this component maps signal token representations from the LLM Backbone into features understandable
+
+by a Modality Generator.
+
+**-Modality Generator (for multimodal generation):**
+
+ This component is
 
 tasked with producing outputs in distinct modalities, such as synthesizing images using models like Latent Diffusion Models.
 
@@ -416,7 +442,7 @@ the MM-LLM, it offers a practical trade-off by significantly improving results a
 
 enhance visual perception with visual encoders:
 
-**-Segmentation and Depth Maps: VCoder enhances MM-LLM capabilities**
+**-Segmentation and Depth Maps:** VCoder enhances MM-LLM capabilities
 
 through a specialized adaptive architecture and the integration of additional
 
@@ -460,9 +486,11 @@ environmental interpretation, as explored in the following subsection.
 
 ### 3.3 Information Tree/Structured Data Perception
 
--Accessibility Tree Utilization: OSCAR [56] utilizes an A11y tree generated by the Windows API for representing GUI components, incorporating
+**-Accessibility Tree Utilization:**
 
-descriptive labels to facilitate semantic grounding.
+ OSCAR [56] utilizes an A11y tree gener-
+
+ated by the Windows API for representing GUI components, incorporating descriptive labels to facilitate semantic grounding.
 
 - HTML Utilization: Meanwhile, DUALVCR [30] captures both the visual
 
@@ -478,11 +506,15 @@ sensors and specialized databases. The mechanism of integration typically involv
 
 goals, with the results from these tools being "fed back" into the LLM [44,47].
 
-### Categorizing Tools for Perception The diverse landscape of external tools
+### Categorizing Tools for Perception
+
+ The diverse landscape of external tools
 
 available to LLM agents can be broadly categorized based on the type of information they help perceive:
 
-**-Web Search and Information Retrieval APIs: These tools allow agents**
+**-Web Search and Information Retrieval APIs:**
+
+ These tools allow agents
 
 to access vast amounts of up-to-date information, facts, and specific data points from the internet. By issuing queries to search engines (e.g., Google
 
@@ -505,7 +537,9 @@ data), or scientific databases and literature APIs (for accessing specialized re
 
 specific information relevant to niche tasks [32,44], and can be implemented as document-centric microservices for knowledge discovery [17].
 
-**-Sensor Integration (Conceptual via Intermediary Tools): While an**
+**-Sensor Integration (Conceptual via Intermediary Tools):**
+
+ While an
 
 LLM agent does not directly interface with physical hardware sensors, its perception system can be augmented to interpret data originating from them.
 
@@ -578,7 +612,9 @@ or misinterpret visual cues remains a significant hurdle. This can lead to agent
 
 or undesirable behavior [25].
 
-**-Latency in Inference Pipelines: Integrating complex perception modules,**
+**-Latency in Inference Pipelines:**
+
+ Integrating complex perception modules,
 
 especially those involving multimodal processing or external tool calls, can introduce substantial latency. Real-world applications, particularly those
 
@@ -697,15 +733,19 @@ There are various strategies:
 
 ---
 
-- Self-consistent CoT (CoT-SC): This approach generates various reasoning
+**-Self-consistent CoT (CoT-SC):** This approach generates various reasoning
 
 paths and their corresponding answers using Chain of Thought (CoT), then selects the answer with the highest frequency as the final output [58].
 
--Tree-of-Thought (ToT) and Graph of Thoughts (GoT): ToT generates plans using a tree-like reasoning structure where each node represents
+**-Tree-of-Thought (ToT) and Graph of Thoughts (GoT):**
 
-an intermediate "thought." The selection of these steps is based on LLM evaluations. Unlike CoT-SC, ToT queries LLMs for each reasoning step [65].
+ ToT gener-
 
-Graph-of-Thought (GoT) extends the tree-like reasoning structure of ToT to graph structures. It supports arbitrary thought aggregation and allows
+ates plans using a tree-like reasoning structure where each node represents an intermediate "thought." The selection of these steps is based on LLM
+
+evaluations. Unlike CoT-SC, ToT queries LLMs for each reasoning step [65]. Graph-of-Thought (GoT) extends the tree-like reasoning structure of ToT
+
+to graph structures. It supports arbitrary thought aggregation and allows
 
 for transformations of thoughts, leading to more powerful prompting strategies [4].
 
@@ -756,7 +796,9 @@ Key characteristics of reflection include:
 
 generated plans, and the results of its actions. This often involves comparing actual and expected outcomes.
 
-**-Error Detection and Analysis: Identifying where things went wrong,**
+**-Error Detection and Analysis:**
+
+ Identifying where things went wrong,
 
 why a plan failed, or where the reasoning failed. This can be due to misunderstandings of the prompt, incorrect tool usage, logical inconsistencies, or
 
@@ -776,7 +818,9 @@ Building on the conceptual framework of reflection and its key characteristics,
 
 we now explore the practical steps and components required to implement an effective reflection system in LLM agents.
 
-**How to Implement a Reflection System: A Reflection system, as described in**
+### How to Implement a Reflection System:
+
+ A Reflection system, as described in
 
 the paper "Reflection: Language Agents with Verbal Reinforcement Learning," [49] is a framework designed to improve the performance of language agents through
 
@@ -899,7 +943,7 @@ and suggesting recovery strategies for errors. This expert could analyze logs, i
 
 propose to scroll down if an item is not found in a webpage [51]. It can also support self-healing behaviors in adaptive architectures [19].
 
-**-Memory Management Expert: Responsible for handling the agent's**
+**-Memory Management Expert:** Responsible for handling the agent's
 
 memory. This expert ensures that relevant information is retrieved efficiently and that the agent's context is maintained effectively, which is a critical
 
@@ -958,11 +1002,11 @@ knowledge. This can be achieved by:
 
 LLM toward performing as the expert, incorporating specific prompting techniques such as Chain-of-Thought to enhance its reasoning process.
 
-**-Fine-tuning (if applicable): For highly specialized tasks, fine-tuning a**
+**-Fine-tuning (if applicable):** For highly specialized tasks, fine-tuning a
 
 base LLM on a dataset relevant to the expert's domain can enhance its performance.
 
-- External Knowledge Bases: Integrating the expert with external tools or
+**-External Knowledge Bases:** Integrating the expert with external tools or
 
 databases that provide specific, up-to-date, or proprietary knowledge relevant to its role [21].
 
@@ -974,11 +1018,11 @@ With the methodology for crafting specialized experts established, the following
 
 framework.
 
-**Example of a Multi-agent System First, the planning expert decomposes the**
+**Example of a Multi-agent System** First, the planning expert decomposes the main task into subplans. This expert is also responsible for avoiding infinite loops
 
-main task into subplans. This expert is also responsible for avoiding infinite loops or repeated attempts if problems occur. Additionally, it collaborates with the
+or repeated attempts if problems occur. Additionally, it collaborates with the constraint satisfaction expert to ensure that no constraints are violated during
 
-constraint satisfaction expert to ensure that no constraints are violated during planning.
+planning.
 
 Next, the execution expert generates the specific actions to be performed in
 
@@ -1220,7 +1264,9 @@ analysis, generate SQL queries for database operations, create shell scripts for
 
 system administration, or produce HTML/CSS/JavaScript for web-based solutions [10,42].
 
-**Robotic and Physical System Control: In robotics applications, LLM**
+### Robotic and Physical System Control:
+
+ In robotics applications, LLM
 
 agents can control physical systems through appropriate APIs and sensor integrations [61]. They process sensor data (cameras, force sensors, temperature
 
@@ -1413,15 +1459,17 @@ Kessentini, Y., Eom, S. (eds.) Intelligent Systems and Pattern Recognition: ISPR
 
 https://doi.org/10.1007/978-3-031-08277-1_13
 
-18. Gidey, H.K., Marmsoler, D.: FACTum Studio. https://habtom.github.io/factum/
+18. Gidey, H.K., Marmsoler, D.: FACTum
 
-19. Gidey, H.K., Marmsoler, D.: FACTum Studio. https://habtom.github.io/factum/
+19. Gidey, H.K., Marmsoler, D.: FACTum
 
-Gidey, H.K., Marmsoler, D.: FACTum Studio. https://habtom.github.io/factum/ (2018)
+Gidey, H.K., Marmsoler, D.: FACTum
 
-Gidey, H.K., Marmsoler, D., Ascher, D.: Modeling adaptive self-healing systems. CoRR abs/2304.12773 (Apr 2023). https://doi.org/10.48550/arXiv.2304.12773,
+ Studio. https://habtom.github.io/factum/
 
-https://arxiv.org/abs/2304.12773
+(2018) Gidey, H.K., Marmsoler, D., Ascher, D.: Modeling adaptive self-healing systems.
+
+CoRR abs/2304.12773 (Apr 2023). https://doi.org/10.48550/arXiv.2304.12773, https://arxiv.org/abs/2304.12773
 
 20. Gidey, H.K., Marmsoler, D., Eckhardt, J.: Grounded architectures: Using grounded
 
@@ -1488,7 +1536,11 @@ bank: A comprehensive benchmark for tool-augmented llms. arXiv preprint (2023), 
 
 33. Li, X., Wang, S., Zeng, S., Wu, Y., Yang, Y.: A survey on LLM-based multi-agent
 
-systems: workflow, infrastructure, and challenges. Vicinagearth 1, 9 (2024). https:// doi.org/10.1007/s44336-024-00009-2, https://doi.org/10.1007/s44336-024-00009-2
+systems: workflow, infrastructure, and challenges. Vicinagearth
+
+ **1, 9 (2024). https://**
+
+doi.org/10.1007/s44336-024-00009-2, https://doi.org/10.1007/s44336-024-00009-2
 
 34. Li, Y., Lai, Z., Bao, W., Tan, Z., Dao, A., Sui, K., Shen, J., Liu, D., Liu, H., Kong,
 
@@ -1555,9 +1607,9 @@ Building Autonomous LLM Agents 37
 
 45. Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G.,
 
-Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., Krueger, G., Sutskever, I.: Learning transferable
+Askell, A., Mishkin, P., Clark, J., Krueger, G., Sutskever, I.: Learning transferable visual models from natural language supervision. arXiv preprint arXiv:2103.00020
 
-visual models from natural language supervision. arXiv preprint arXiv:2103.00020 (2021), https://arxiv.org/abs/2103.00020
+(2021), https://arxiv.org/abs/2103.00020
 
 46. Rawles, C., Li, A., Rodriguez, D., Riva, O., Lillicrap, T.: Android in the wild:
 

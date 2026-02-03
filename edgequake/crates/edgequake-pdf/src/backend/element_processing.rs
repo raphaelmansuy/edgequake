@@ -143,23 +143,22 @@ impl ElementProcessor {
                 // WHY: In two-column layouts, there's a ~40pt gap at the column boundary (~300pt).
                 // Elements from different columns should NOT merge even if on same Y.
                 //
-                // Key insight from debugging v2 PDF:
-                // - Left column elements start at X ≈ 64 (left margin)
-                // - Right column elements start at X ≈ 313 (right margin)
-                // - Estimated end_x can overshoot (330 for text ending around 280)
-                // - Gap calculation: -17.1 (negative because end_x overestimated)
+                // OODA-22 FIX: The previous gap-based check fails when current_end_x overflows.
+                // When text accumulates, estimated end_x can be 500+ even though actual
+                // content ends at ~275. This causes gap to be negative, and the large_gap
+                // check incorrectly returns false.
                 //
-                // In single-column PDFs like Qwen.pdf:
-                // - Title starts at X ≈ 183 (centered, not left margin)
-                // - Content spans X = 183-650+
-                //
-                // The key discriminator: LEFT MARGIN vs CENTERED content
-                // - If current.x < 100 (left margin region) AND next.x > 300 (right region)
-                //   → Definitely a column boundary (can't have a single element spanning 200+ pts)
-                // - If current.x >= 100 (centered/wide content) → NOT a column boundary
-                //
-                // Secondary check: Large gap indicates column boundary
-                // - If gap > 4x char_width AND both in their respective halves
+                // New approach: Use ABSOLUTE X positions as the primary cross-column check.
+                // In academic papers:
+                // - Left column: X ≈ 55-280
+                // - Right column: X ≈ 305-540
+                // If current started in left column AND next is clearly in right column,
+                // do NOT merge regardless of gap.
+                let current_started_left = current.x < 200.0;
+                let next_is_right_column = next.x > 280.0;
+                let absolute_column_boundary = current_started_left && next_is_right_column;
+                
+                // Original checks for more nuanced cases
                 let large_gap_threshold = char_width * 4.0;
                 let current_in_left_half = current.x < 250.0;
                 let next_in_right_half = next.x > 280.0;
@@ -172,7 +171,8 @@ impl ElementProcessor {
                 let next_in_right_column = next.x > 300.0;
                 let margin_to_column = current_in_left_margin && next_in_right_column;
 
-                let likely_cross_column = large_gap_indicates_column || margin_to_column;
+                // OODA-22: Combine all cross-column checks - absolute position is most reliable
+                let likely_cross_column = absolute_column_boundary || large_gap_indicates_column || margin_to_column;
 
                 // For tight fonts where estimated width is too large (negative gap),
                 // use a heuristic: if elements are clearly overlapping in X-space,
