@@ -3,8 +3,9 @@
 ## Problem Pattern Recognition
 
 The element merge function uses gap-based cross-column detection:
+
 ```rust
-let large_gap_indicates_column = gap > large_gap_threshold 
+let large_gap_indicates_column = gap > large_gap_threshold
     && current_in_left_half && next_in_right_half;
 ```
 
@@ -27,6 +28,7 @@ This fails when `current_end_x` (estimated from accumulated text) overflows beyo
 ## Key Insight
 
 The merge condition `!likely_cross_column && (overlapping || ...)` allows merging when:
+
 - Cross-column check fails (because gap is negative)
 - Overlapping is true (because end_x overflowed)
 

@@ -157,7 +157,7 @@ impl ElementProcessor {
                 let current_started_left = current.x < 200.0;
                 let next_is_right_column = next.x > 280.0;
                 let absolute_column_boundary = current_started_left && next_is_right_column;
-                
+
                 // Original checks for more nuanced cases
                 let large_gap_threshold = char_width * 4.0;
                 let current_in_left_half = current.x < 250.0;
@@ -172,7 +172,8 @@ impl ElementProcessor {
                 let margin_to_column = current_in_left_margin && next_in_right_column;
 
                 // OODA-22: Combine all cross-column checks - absolute position is most reliable
-                let likely_cross_column = absolute_column_boundary || large_gap_indicates_column || margin_to_column;
+                let likely_cross_column =
+                    absolute_column_boundary || large_gap_indicates_column || margin_to_column;
 
                 // For tight fonts where estimated width is too large (negative gap),
                 // use a heuristic: if elements are clearly overlapping in X-space,

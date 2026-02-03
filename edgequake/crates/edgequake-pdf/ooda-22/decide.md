@@ -11,6 +11,7 @@ let absolute_column_boundary = current_started_left && next_is_right_column;
 ```
 
 This catches the cross-column case even when:
+
 - Gap is negative (due to overflowed end_x)
 - Overlapping appears true
 
@@ -25,6 +26,7 @@ This catches the cross-column case even when:
 `edgequake/crates/edgequake-pdf/src/backend/element_processing.rs`
 
 In the `merge()` function, before the cross-column check, add:
+
 ```rust
 // OODA-22 FIX: Absolute position cross-column check
 let current_started_left = current.x < 200.0;
