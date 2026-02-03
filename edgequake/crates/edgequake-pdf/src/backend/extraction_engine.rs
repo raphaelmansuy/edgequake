@@ -620,23 +620,41 @@ impl ExtractionEngine {
 
         // Sort blocks by Y coordinate for correct reading order
         //
-        // After Y-normalization: lower Y = top of page, higher Y = bottom
-        // For ALL layouts, we now sort by Y since Y-normalization has already
-        // established a consistent coordinate system where ascending Y = top to bottom.
+        // OODA-12 FIX: Only sort for single-column layouts. For multi-column layouts,
+        // text_grouping.rs already establishes correct reading order:
+        // - Elements are sorted by Y within each column in group_single_column_layout()
+        // - Columns are concatenated in correct order: left column first, then right column
         //
-        // For multi-column layouts, the content is already organized by text_grouping
-        // (left column first, then right column), and the Y values within each
-        // column section will naturally sort correctly.
+        // Sorting multi-column pages by Y destroys this order by interleaving blocks
+        // at similar Y coordinates from different columns.
         //
-        // WHY sort here? The text grouping may return lines in an order that reflects
-        // the order elements were parsed from the PDF (not necessarily top-to-bottom).
-        // After Y-normalization, sorting by Y gives the correct visual reading order.
-        blocks.sort_by(|a, b| {
-            a.bbox
-                .y1
-                .partial_cmp(&b.bbox.y1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        // Example: Two-column REFERENCES section
+        //   Before fix: [ref1, ref2, ref3, ref4] (interleaved by Y)
+        //   After fix:  [ref1, ref3, ref2, ref4] (left col, then right col)
+        //
+        if columns.len() <= 1 {
+            // Single-column: sort by Y for top-to-bottom reading order
+            blocks.sort_by(|a, b| {
+                a.bbox
+                    .y1
+                    .partial_cmp(&b.bbox.y1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+        } else {
+            // Multi-column: trust text_grouping's column-aware order
+            // OODA-12 TEMP DEBUG: Print to verify this branch is taken
+            eprintln!(
+                "OODA-12: Skipping Y-sort for {}-column page {} (blocks={})",
+                columns.len(),
+                page_num,
+                blocks.len()
+            );
+            debug!(
+                "OODA-12: Skipping Y-sort for {}-column page (blocks={}, using text_grouping order)",
+                columns.len(),
+                blocks.len()
+            );
+        }
 
         let char_count: usize = blocks.iter().map(|b| b.text.len()).sum();
         let word_count: usize = blocks
@@ -646,6 +664,7 @@ impl ExtractionEngine {
 
         let mut page = Page::new(page_num, page_width, page_height);
         page.blocks = blocks;
+        
         page.columns = columns; // Set detected columns to prevent LayoutProcessor re-analysis
         page.method = ExtractionMethod::Native;
         page.stats = PageStats {

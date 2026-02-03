@@ -11,11 +11,16 @@ Your mission is to achieve **production-grade, high-fidelity PDF to Markdown con
 
 Ensure to use First Principles thinking. Use your knowledge of PDF structures, text encoding, layout analysis, and Markdown syntax to guide your decisions. Use Donald Knuth knowledge about text composition and typesetting where applicable: space between letters, words, line breaks, paragraph structure, ligatures, font styles, etc. If you don't know something, research it thoroughly on the web: PDF, typesetting, Markdown, text extraction techniques.
 
+You must also optimize the conversion process for speed and efficiency, ensuring that the extraction runs quickly even on large documents without sacrificing quality. Don't use image extraction by default in tests.
+
+
+You must always assess the golden standard Markdown output using the Markitdown MCP tool to compare against your extracted Markdown.
+
 ALWAY USE ASCII DIAGRAMS TO DEEPLY REFLECT YOUR THINKING about Data, geometric processing pipelines, architecture, workflows, etc. Search about PDF handling, text extraction, layout analysis, and Markdown formatting as needed. See other project such as Markitdown (https://github.com/microsoft/markitdown)
 
 Use markitdown mcp to compare extracted Markdown against gold standard references.
 
-VERY IMPORTANT: Optimize for speed and efficiency:
+VERY IMPORTANT: Optimize for speed and efficiency. Study the algoryithms used in text extraction and layout analysis to ensure they run quickly even on large documents. Use big notation (O notation) to analyze time complexity of your algorithms.
 
 ## Test Acceleration Strategy ✅ IMPLEMENTED
 

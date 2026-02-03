@@ -579,6 +579,17 @@ impl GarbledTextFilterProcessor {
             return false;
         }
 
+        // OODA-13 FIX: Never filter academic references (start with [NUMBER])
+        // WHY: Author initials like "X.", "J." incorrectly trigger short-word ratio checks
+        if trimmed.starts_with('[') {
+            if let Some(bracket_end) = trimmed.find(']') {
+                let inside = &trimmed[1..bracket_end];
+                if inside.chars().all(|c| c.is_ascii_digit()) {
+                    return false; // This is a reference like [1], [23], etc.
+                }
+            }
+        }
+
         // Filter very short fragments (≤3 chars) that aren't valid
         if trimmed.len() <= 3 {
             let is_valid_short =
@@ -617,9 +628,25 @@ impl GarbledTextFilterProcessor {
             "5", "6", "7", "8", "9",
         ];
 
+        // OODA-13 FIX: Count short words, but exclude author initials (e.g., "X.", "J.")
+        // WHY: Academic references have many single-letter initials that shouldn't count as garbled
         let short_count = words
             .iter()
-            .filter(|w| w.len() <= 2 && !valid_short_words.contains(&w.to_lowercase().as_str()))
+            .filter(|w| {
+                if w.len() > 2 {
+                    return false;
+                }
+                // Skip valid short words
+                if valid_short_words.contains(&w.to_lowercase().as_str()) {
+                    return false;
+                }
+                // Skip author initials: single uppercase letter + period (e.g., "X.", "J.")
+                let chars: Vec<char> = w.chars().collect();
+                if chars.len() == 2 && chars[0].is_ascii_uppercase() && chars[1] == '.' {
+                    return false;
+                }
+                true
+            })
             .count();
         let ratio = short_count as f32 / words.len() as f32;
 
