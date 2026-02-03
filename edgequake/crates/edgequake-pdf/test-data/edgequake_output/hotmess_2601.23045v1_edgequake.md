@@ -1,15 +1,11 @@
 ## Page 1
 
-# THE HOT MESS OF AI: H OW DOES MISALIGNMENT
+# THE HOT MESS OF AI: HSCALE WITH MODEL INTELLIGENCE ANDTASK COMPLEXITY?
 
 
 **arXiv:2601.23045v1 [cs.AI] 30 Jan 2026** 
 
-# SCALE WITH MODEL INTELLIGENCE ANDTASK COMPLEXITY?
-
 Alexander Hagele ¨ ∗1,2 Aryo Pradipta Gema Jascha Sohl-Dickstein ∗5
-
-3
 
 As AI becomes more capable, we entrust it with more general and consequential tasks. The risks from failure grow more severe with increasing task scope. It is therefore important to understand how extremely capable AI models will fail: Will they fail by systematically pursuing goals we do not intend? Or will they fail by being a hot mess, and taking nonsensical actions that do not further any goal? We operationalize this question using a bias-variance decomposition of the errors made by AI models: An AI's incoherence randomness as the fraction of its error that stems from variance rather than bias in task outcome. Across all tasks and frontier models we measure, the longer models spend reasoning and taking actions, Incoherence changes with model scale in a way that is experiment dependent. However, in several settings, larger, more capable models are more incoherent than smaller models. Consequently, scale alone seems unlikely to eliminate incoherence. Instead, as more capable AIs pursue harder tasks, requiring more sequential action and thought, our results predict failures to be accompanied by 
 
@@ -23,7 +19,11 @@ There are an increasing number of predictions that AI will soon be more capable 
 
 2024; Johnston & Makridis, 2025). We already rely on AI for consequential tasks such as writing critical software (DeepMind, 2025; and deciding what stories to present in news feeds ( Yamana, 2025). Despite its increasing capabilities, AI often behaves in ways we do not intend. Due to its high-stakes use cases, it is important to understand how and when AI can be expected to fail. One class of AI risk is misalignment risk Misalignment risk is the concern that AI will pursue a goal that is different from the goal its creators intended to instill, and that it will pursue that goal with superhuman competence. If a superhuman agent pursues a misaligned goal, it might do things like seize power as an instrumental step to achieving its goal (Hubinger et al. However, this scenario assumes that unintended behavior stems from systems that not only pursue the wrong objective, but remain coherent optimizers over a long horizon. Large language models
 
-Henry Sleight 4 Ethan Perez 5 4ConstellationAnthropic 5
+## OW DOES MISALIGNMENT
+
+Henry Sleight 4 Ethan Perez 5
+
+4ConstellationAnthropic 5
 
 ### ABSTRACT
 
@@ -52,9 +52,12 @@ Liu et al., 2024; Gao et al., 2024b; Yada &
 
 ## Page 2
 
-*Figure 1: AI can fail because it is misaligned, and produces consistent but undesired outcomes,*
+> Figure 1: AI can fail because it is misaligned, and produces consistent but undesired outcomes, or because it is incoherent, and does not produce consistent outcomes at all. These failures
+>
 
-or because it is incoherent, and does not produce consistent outcomes at all. These failures correspond to bias and variance respectively. As we extrapolate risks from AI, it is important to understand whether failures from more capable models performing more complex tasks will be bias or variance dominated. Bias dominated failures will look like model misalignment, while variance dominated failures will resemble industrial accidents. we observe that AI models fail in unpredictable and inconsistent ways. Often, these failures can be fixed by resampling. (top right) To quantify this observation, we decompose errors made by AI into two terms, bias and variance. We illustrate this using a multiple choice task: bias is the tendency to pick a specific incorrect answer; variance is the tendency to pick inconsistenly among options. We define incoherence as the fraction of model error caused by variance. ( Experimentally, we find that as models reason longer and take more sequential actions, they become more incoherent. (lower right) We find that as models become more capable, and overall error rate drops, incoherence changes in a way that depends on task difficulty. Easy tasks become less incoherent, while hard tasks trend towards increasing incoherence. in superhuman systems. In practice, AI models often fail in ways that seem random and do not further any coherent goal (Spiess, 2025; Nolan, 2025). Like humans, when AIs act undesirably, it is often because they are a hot mess and do not act in a way that is consistent with any goal: The mess theory of intelligence (Sohl-Dickstein their behavior tends to become more incoherent, and less well described through a single goal. If true for AI systems, this shifts both the likelihood and the focus of misalignment scenarios. In this paper, we therefore ask the questions: intend, what fraction of its deviation is due to fraction to variance (randomness in behavior and outcome)? As we scale model intelligence and task complexity, how does this decomposition change? Asymptotically, as extremely capable models perform extremely complex tasks, which class of undesired behavior will dominate? We address these questions by measuring the scaling behavior of AI errors decomposed into
+correspond to bias and variance respectively. As we extrapolate risks from AI, it is important to understand whether failures from more capable models performing more complex tasks will be bias or variance dominated. Bias dominated failures will look like model misalignment, while variance dominated failures will resemble industrial accidents. we observe that AI models fail in unpredictable and inconsistent ways. Often, these failures can be fixed by resampling. (top right) To quantify this observation, we decompose errors made by AI into two terms, bias and variance. We illustrate this using a multiple choice task: bias is the tendency to pick a specific incorrect answer; variance is the tendency to pick inconsistenly among options. We define incoherence as the fraction of model error caused by variance. ( Experimentally, we find that as models reason longer and take more sequential actions, they become more incoherent. (lower right) We find that as models become more capable, and overall error rate drops, incoherence changes in a way that depends on task difficulty. Easy tasks become less incoherent, while hard tasks trend towards increasing incoherence.
+
+in superhuman systems. In practice, AI models often fail in ways that seem random and do not further any coherent goal (Spiess, 2025; Nolan, 2025). Like humans, when AIs act undesirably, it is often because they are a hot mess and do not act in a way that is consistent with any goal: The mess theory of intelligence (Sohl-Dickstein their behavior tends to become more incoherent, and less well described through a single goal. If true for AI systems, this shifts both the likelihood and the focus of misalignment scenarios. In this paper, we therefore ask the questions: intend, what fraction of its deviation is due to fraction to variance (randomness in behavior and outcome)? As we scale model intelligence and task complexity, how does this decomposition change? Asymptotically, as extremely capable models perform extremely complex tasks, which class of undesired behavior will dominate? We address these questions by measuring the scaling behavior of AI errors decomposed into
 
 ERROR = BIAS
 
@@ -65,8 +68,6 @@ and further define incoherence as the proportion of variance to the total error.
 lower left)
 
 tantly, how they change as models become more intelligent and perform longer horizon tasks. Bias-dominated failures correspond to systematic misalignment-consistent pursuit of the wrong objective-whereas variance-dominated failures
-
-2
 
  indicate inconsistent outcomes. , 2023) suggests that as entities become more intelligent, When a model does something other than what we bias (consistent pursuit of the wrong goal), and what + VARIANCE ,
 
@@ -115,7 +116,9 @@ Since ERROR(q, f) = BIAS(q, f)+ VARIANCE *iε iε*
 
                                 0. Then, the expected
 
-Yang et al., 2020): *y∥f+ E D*¯
+Yang et al., 2020):
+
+*y∥f+ E D*¯
 
 (f∥f),¯
 
@@ -242,7 +245,9 @@ IAS and KL-VARIANCE (Equations 1 and 2). We find the same
 
  C.1. i.e., without reasoning
 
-text-embedding-3-large). Consequently, we re-in the Euclidean norm. i, and encodes which tests a model's code passes. The coverage
+text-embedding-3-large). Consequently, we re-in the Euclidean norm.
+
+ *i, and encodes which tests a model's code passes. The coverage*
 
 
 ---
@@ -253,19 +258,23 @@ text-embedding-3-large). Consequently, we re-in the Euclidean norm. i, and encod
 
 (c) Model Written Evals: Discrete Choice and Open-Ended Formats
 
-*Figure 2: Across a variety of settings, as models reason longer or take more actions, they*
+> Figure 2: Across a variety of settings, as models reason longer or take more actions, they become more incoherent. We assess frontier models (S
+>
 
-become more incoherent. We assess frontier models (S across a variety of different tasks (MCQ, Agentic Coding, Alignment). We evaluate with samples to estimate bias and variance terms for each question. When sorting questions by average 
+across a variety of different tasks (MCQ, Agentic Coding, Alignment). We evaluate with samples to estimate bias and variance terms for each question. When sorting questions by average 
 
 many actions, their errors are dominated by variance. We make a similar observation for the vari- ance of text embeddings to open-ended safety questions (
 
 (a) GPQA: Frontier Models (left) and Q WEN3 (right)
 
-*Figure 3: For a fixed task and reasoning budget, natural variation in reasoning length and*
+> Figure 3: For a fixed task and reasoning budget, natural variation in reasoning length and action count is predictive of incoherence. We analyze GPQA (left, (a)) and SWE-BENCH (b) by
+>
 
-action count is predictive of incoherence. We analyze GPQA (left, (a)) and SWE-BENCH (b) by splitting samples into aboveor below-median reasoning length (GPQA) or actions (SWE-B per question. We then compute performance and incoherence for both groups. longer reasoning shows increased incoherence for both frontier models (left) and Q (b) Similar observations apply to SWE-B ENCH, where longer action sequences display higher
+splitting samples into aboveor below-median reasoning length (GPQA) or actions (SWE-B per question. We then compute performance and incoherence for both groups. longer reasoning shows increased incoherence for both frontier models (left) and Q (b) Similar observations apply to SWE-B ENCH, where longer action sequences display higher
 
-incoherence for test coverage (right). This effect is much stronger than through larger reasoning budgets (Fig. 7), and the difference in accuracy or score is minimal between both groups (Fig. enabled (Team, 2025a). In Sect. 3.2.2, we train our own autoregressive transformers on a synthetic optimization task.
+incoherence for test coverage (right). This effect is much stronger than through larger reasoning budgets (Fig. 7), and the difference in accuracy or score is minimal between both groups (Fig.
+
+enabled (Team, 2025a). In Sect. 3.2.2, we train our own autoregressive transformers on a synthetic optimization task.
 
 ### 3.1 THE RELATION BETWEEN REASONING L ENGTH, ACTION LENGTH AND INCOHERENCE
 
@@ -273,7 +282,9 @@ The longer models spend reasoning and taking actions, the more incoherent they b
 
 (b) SWE-BENCH
 
-(d) Synthetic Optimizer ONNET 4, O3-MINI, O4-MINI, QWEN3)
+(d) Synthetic Optimizer
+
+ONNET 4, O3-MINI, O4-MINI, QWEN3)
 
  many
 
@@ -328,7 +339,9 @@ See Fig. 5 for the detailed results. We find that performance consistently impro
 
  2(c), where C.4,
 
- 24. 8 and 9), suggesting incoherence is higher when making mistakes
+ 24.
+
+ 8 and 9), suggesting incoherence is higher when making mistakes
 
  Irrespective of task complexity, we show how long reason-
 
@@ -371,11 +384,12 @@ WEN3 model family, as they provide the same model archi-
 
 (b) Survey Ranking Results (c) Synthetic Optimizers
 
-*Figure 4: Larger and more intelligent systems are often more incoherent.*
+> Figure 4: Larger and more intelligent systems are often more incoherent. the scaling of incoherence vs. model size for the Q WEN3 family, as a function of question
+>
 
-the scaling of incoherence vs. model size for the Q WEN3 family, as a function of question
+difficulty on MMLU. For easy questions, incoherence drops with model scale, while for the hardest questions incoherence remains constant or increases with model scale. The expanded results for this experiment are in Fig. 5. (b) Disjoint sets of human subjects were tasked with subjectively ranking the intelligence and incoherence of diverse AI models, non-human beings, well known humans, and human organizations. Across all categories, entities that were judged more intelligent by one group of subjects, were independently judged to be more incoherent by another group of subjects. See Appx. B.5. (c) In a synthetic task, we train transformers of increasing size to explicitly emulate optimizer trajectories descending a quadratic loss. As these models become larger, the trajectories they generate achieve lower loss on the quadratic. However, the final loss is also more variance dominated and thus incoherent with increasing model size. Details in Fig.
 
-difficulty on MMLU. For easy questions, incoherence drops with model scale, while for the hardest questions incoherence remains constant or increases with model scale. The expanded results for this experiment are in Fig. 5. (b) Disjoint sets of human subjects were tasked with subjectively ranking the intelligence and incoherence of diverse AI models, non-human beings, well known humans, and human organizations. Across all categories, entities that were judged more intelligent by one group of subjects, were independently judged to be more incoherent by another group of subjects. See Appx. B.5. (c) In a synthetic task, we train transformers of increasing size to explicitly emulate optimizer trajectories descending a quadratic loss. As these models become larger, the trajectories they generate achieve lower loss on the quadratic. However, the final loss is also more variance dominated and thus incoherent with increasing model size. Details in Fig. Further results. We provide different visualizations of the same results in Appx. include the same results for GPQA (Fig. 12), the relationship between incoherence and error (Fig. 13) and how reasoning length is a stronger indicator of incoherence than model size (Fig.
+Further results. We provide different visualizations of the same results in Appx. include the same results for GPQA (Fig. 12), the relationship between incoherence and error (Fig. 13) and how reasoning length is a stronger indicator of incoherence than model size (Fig.
 
 #### 3.2.2 SCALING LAWS IN CONTROLLED SYNTHETIC SETTINGS: MODELS AS OPTIMIZERS
 
@@ -395,15 +409,15 @@ The main results are shown in Fig. 2(d) (incoherence over rollout steps) and Fig
 
  C.2, which
 
- Does the model become an optimizer (x−b)A(x−b), *f(x) =T*
+ Does the model become an optimizer
+
+(x−b)A(x−b), *f(x) =T*
 
 *i, u), where x (is a pa-xi i*
 
 Vaswani et al., 2017) of varying sizes using
 
 variance curves (Fig. 26). Importantly, larger models reduce bias more than variance. These results suggest that they learn the correct objective faster than the ability to maintain long coherent action sequences. More results and discussions are provided in Appx.
-
-1 2
 
  C.9.
 
@@ -418,9 +432,10 @@ variance curves (Fig. 26). Importantly, larger models reduce bias more than vari
 
 (d) Bias and Variance Scaling Laws
 
-*Figure 5: Details for QWEN3 scaling laws: easy tasks become less incoherent, harder tasks*
+> Figure 5: Details for QWEN3 scaling laws: easy tasks become less incoherent, harder tasks more incoherent. We group MMLU questions by reasoning length using a reference model
+>
 
-more incoherent. We group MMLU questions by reasoning length using a reference model (Qwen3 32B, (a)), which correlates across model sizes as accuracy drops with longer reasoning (c). These groups reveal distinct bias-variance scaling (d): bias slopes are similar across groups, but variance slopes decrease sharply for harder ones. In the hardest group, variance slopes fall below bias slopes, leaving variance as the limiting factor. Thus, larger models remain constrained by variance and analyses including other models and the same conclusion for GPQA in Appx.
+(Qwen3 32B, (a)), which correlates across model sizes as accuracy drops with longer reasoning (c). These groups reveal distinct bias-variance scaling (d): bias slopes are similar across groups, but variance slopes decrease sharply for harder ones. In the hardest group, variance slopes fall below bias slopes, leaving variance as the limiting factor. Thus, larger models remain constrained by variance and analyses including other models and the same conclusion for GPQA in Appx.
 
 (c) Accuracy Scaling Laws
 
@@ -436,9 +451,10 @@ more incoherent. We group MMLU questions by reasoning length using a reference m
 
 Reasoning budgets reduce incoherence, but natural variation has a much stronger effect.
 
-*Figure 6: Details for synthetic optimization: In controlled settings with teacher forcing and a*
+> Figure 6: Details for synthetic optimization: In controlled settings with teacher forcing and a single objective, language models become variance dominated with increasing size.
+>
 
-single objective, language models become variance dominated with increasing size. train autoregressive transformers to predict update steps to minimize a quadratic function using decoding based regression, i.e., next-token prediction. This setting involves sequentially performing steps towards a goal via next token prediction, emulating a key feature of goal seeking AI. ( The loss (next-token prediction objective) follows a clear power law improvement with model size. (right) When evaluating the trained models using their own rollouts, we find that increasing model size reduces bias much faster than variance.
+train autoregressive transformers to predict update steps to minimize a quadratic function using decoding based regression, i.e., next-token prediction. This setting involves sequentially performing steps towards a goal via next token prediction, emulating a key feature of goal seeking AI. ( The loss (next-token prediction objective) follows a clear power law improvement with model size. (right) When evaluating the trained models using their own rollouts, we find that increasing model size reduces bias much faster than variance.
 
 ### 3.3 THE EFFECTS OF REASONING BUDGET AND ENSEMBLING
 
@@ -459,9 +475,12 @@ middle)
 
 (a) Reasoning Budgets
 
-*Figure 7: Ensembling and larger reasoning budgets reduce incoherence. Other forms of*
+> Figure 7: Ensembling and larger reasoning budgets reduce incoherence. Other forms of error correction may also reduce incoherence.
+>
 
-error correction may also reduce incoherence. performance (inference scaling laws, Fig. than natural variation, where incoherence rises sharply (Fig. With O4-MINI on GPQA, we analyze the effect of the to average output probabilities over targets for the same question. The bias and variance are now computed by comparing different ensembles of the same size. We find that, as expected from theory, it reduces variance with a rate of 1 */E, without affecting bias (left). As a consequence, incoherence* drops (right). Ensembling is a particular form of model error correction, which is impractical for action loops in the world, since state can typically not be reset. However, we expect other error correction techniques to also reduce incoherence. Inference scaling. We show the results of our inference-scaling analysis on GPQA in Fig. and Fig. 17. Increasing reasoning budgets improves performance ( incoherence for all models but SONNET 4 (7(a)). Interestingly, this effect is overshadowed by incoherence that arises through natural variation, for a question (recall analysis in Fig. 3; direct comparison in Fig. 17(a), right). Discussion: How does reasoning budget improve coherence? of reasoning budgets for frontier models are not public, it is unclear how exactly it can improve incoherence. We believe it is likely explained by better backtracking and error correction properties, a phenomena observed to arise during training with larger budgets ( to the ensembling results in Sec. 3.3.2 structure with the QWEN3 reasoning traces in Appx.
+performance (inference scaling laws, Fig. than natural variation, where incoherence rises sharply (Fig. With O4-MINI on GPQA, we analyze the effect of the to average output probabilities over targets for the same question. The bias and variance are now computed by comparing different ensembles of the same size. We find that, as expected from theory, it reduces variance with a rate of 1 */E, without affecting bias (left). As a consequence, incoherence* drops (right). Ensembling is a particular form of model error correction, which is impractical for action loops in the world, since state can typically not be reset. However, we expect other error correction techniques to also reduce incoherence.
+
+Inference scaling. We show the results of our inference-scaling analysis on GPQA in Fig. and Fig. 17. Increasing reasoning budgets improves performance ( incoherence for all models but SONNET 4 (7(a)). Interestingly, this effect is overshadowed by incoherence that arises through natural variation, for a question (recall analysis in Fig. 3; direct comparison in Fig. 17(a), right). Discussion: How does reasoning budget improve coherence? of reasoning budgets for frontier models are not public, it is unclear how exactly it can improve incoherence. We believe it is likely explained by better backtracking and error correction properties, a phenomena observed to arise during training with larger budgets ( to the ensembling results in Sec. 3.3.2 structure with the QWEN3 reasoning traces in Appx.
 
 #### 3.3.2 ENSEMBLING
 
@@ -489,7 +508,9 @@ Fig. 7(b) shows how variance changes with increasing ensemble size. As expected,
 
 17(a), left), and slightly reduces
 
- i.e., when models think longer than the median Since the implementation details
+ i.e., when models think longer than the median
+
+ Since the implementation details
 
 Guo et al., 2025), and related
 
@@ -524,7 +545,9 @@ Therefore, it will often be impossible or impractical to correct for noise intro
 
 In this paper, we do not experimenvery hard to constrain a generic dynamical
 
-IAS =+ BIASMESA SPEC, intended training objective.
+IAS =+ BIASMESA SPEC,
+
+ intended training objective.
 
 SPEC would come to dominate the error, asIAS
 
@@ -583,8 +606,6 @@ Haofen Wang, Derek F. Wong, Pushpak Bhattacharyya, Biplab Banerjee, Asif Ekbal, 
 
  3 and Appx. B, with task-specific details outlined
 
- here.
-
 . 23
 
  https://
@@ -593,7 +614,7 @@ Haofen Wang, Derek F. Wong, Pushpak Bhattacharyya, Biplab Banerjee, Asif Ekbal, 
 
  arXiv preprint arXiv:2405.14782,
 
-2025. The Asian Federation of Natural Language Processing and The Association for Computa-
+2025. The Asian Federation of Natural Language Processing and The Association for Computa- here.
 
 tional Linguistics. ISBN 979-8-89176-299-2. URL ijcnlp-short.3/. 10, 40
 
@@ -734,7 +755,9 @@ John Hughes and safety research. safety-research/safety-tooling: v1.0.0, 2025. U
 
 ## Page 14
 
-Minyoung Huh, Brian Cheung, Tongzhou Wang, and Phillip Isola. The platonic representation hypothesis. arXiv preprint arXiv:2405.07987 Aaron Jaech, Adam Kalai, Adam Lerer, Adam Richardson, Ahmed El-Kishky, Aiden Low, Alec Helyar, Aleksander Madry, Alex Beutel, Alex Carney, et al. Openai o1 system card. Doohyuk Jang, Yoonjeon Kim, Chanjae Park, Hyun Ryu, and Eunho Yang. Reasoning model is stub- born: Diagnosing instruction overriding in reasoning models.
+Minyoung Huh, Brian Cheung, Tongzhou Wang, and Phillip Isola. The platonic representation hypothesis. arXiv preprint arXiv:2405.07987 Aaron Jaech, Adam Kalai, Adam Lerer, Adam Richardson, Ahmed El-Kishky, Aiden Low, Alec Helyar, Aleksander Madry, Alex Beutel, Alex Carney, et al. Openai o1 system card.
+
+Doohyuk Jang, Yoonjeon Kim, Chanjae Park, Hyun Ryu, and Eunho Yang. Reasoning model is stub- born: Diagnosing instruction overriding in reasoning models.
 
 2025. 40
 
@@ -795,7 +818,7 @@ and Naoaki Okazaki (eds.), Findings of the Association for Computational Linguis
 
 2023, pp. 13387-13434, Toronto, Canada, July 2023. Association for Computational Linguis- tics. doi: 10.18653/v1/2023.findings-acl.847. URL
 
-David Pfau. A generalized bias-variance decomposition for bregman divergences. manuscript, 2013. 3 Govind Pimpale, Axel Højmark, Jeremy Scheurer, and Marius Hobbhahn. Forecasting frontier ´´ language model agent capabilities. 
+David Pfau. A generalized bias-variance decomposition for bregman divergences. manuscript, 2013. 3 Govind Pimpale, Axel Højmark, Jeremy Scheurer, and Marius Hobbhahn. Forecasting frontier ´´ language model agent capabilities. David Rein, Betty Li Hou, Asa Cooper Stickland, Jackson Petty, Richard Yuanzhe Pang, Julien Dirani, Julian Michael, and Samuel R Bowman. Gpqa: A graduate-level google-proof q&a bench- arXiv preprint
 
 mark. In First Conference on Language Modeling Stuart Russell. Human compatible: AI and the problem of control
 
@@ -820,8 +843,6 @@ mark. In First Conference on Language Modeling Stuart Russell. Human compatible:
 Thomas Schmied, Jorg Bornschein, Jordi Grau-Moya, Markus Wulfmeier, and Razvan Pascanu. ¨ Llms are greedy agents: Effects of rl fine-tuning on decision-making abilities.
 
 arXiv:2504.16078, 2025. 40
-
- arXiv preprint
 
  https://aclanthology.org/2023.
 
@@ -934,7 +955,9 @@ Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, an
 
 ## CONTENTS
 
-1 Introduction 1 2 Background 3
+1 Introduction 1
+
+2 Background 3
 
 ### 2.2 Scaling Behavior of Large Language Models
 
@@ -942,7 +965,13 @@ Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, an
 
 ### 3.1 The Relation Between Reasoning Length, Action Length and Incoherence 3.2 The Relation Between Model Scale, Intelligence, and Incoherence 3.2.1 Scaling Laws for LLMs Separated by Task Complexity 3.2.2 Scaling Laws in Controlled Synthetic Settings: Models as Optimizers 3.3 The Effects of Reasoning Budget and Ensembling
 
-4 Related Work 9 5 Discussion and What Our Results Do Not Tell Us 6 Conclusion 10 A Bias and Variance Definitions for Classification
+4 Related Work 9
+
+5 Discussion and What Our Results Do Not Tell Us
+
+6 Conclusion 10
+
+A Bias and Variance Definitions for Classification
 
 B.5 Survey on Intelligence and Incoherence
 
@@ -964,7 +993,7 @@ C.5 Sample Efficiency and Correct Formatting
 
 ## Page 20
 
-## A BIAS AND VARIANCE DEFINITIONS FOR CLASSIFICATION
+## A BIAS AND VARIANCE DEFINITIONS FOR
 
 Recall the classical bias-variance decompositon in the case of regression: Considering the mean-squared error for a sample point
 
@@ -980,7 +1009,11 @@ when computing an average over a dataset of questions bias and variance terms se
 
 E(x,c),ε [L(c, c)] = E*iε*
 
-Essentially, the factordepends on the mode prediction being correct or not. We therefore report ai absolute bias and variance errors for the 0/1 loss in the Appendix, but do not compute incoherence. Brier Score. Similar to regression, we can treat the model's probability predictions as dimensional vectors to compute the mean square errors. Formally, the Brier score for multiclass prediction is defined and can be decomposed as E[BRIER(y, f)] = E∥y − f∥ = E*ε*
+Essentially, the factordepends on the mode prediction being correct or not. We therefore report ai absolute bias and variance errors for the 0/1 loss in the Appendix, but do not compute incoherence. Brier Score. Similar to regression, we can treat the model's probability predictions as dimensional vectors to compute the mean square errors. Formally, the Brier score for multiclass prediction is defined and can be decomposed as
+
+E[BRIER(y, f)] = E∥y − f∥ = E*ε*
+
+## CLASSIFICATION
 
  (x, y, the decomposition is given by) ∈ R
 
@@ -1064,7 +1097,15 @@ NET 4 and 100k tokens for the o-series. For Q
 
 consider multiple choice questions that only require a letter to answer, we count reasoning length 
 
-(sampling) randomness, we evaluate models using from the corpus, and 3 samples for each fixed few-shot per question. This results in 30 samples per question overall. For MMLU, to reduce computational complexity, we limit 100 samples per question category (5700 in total). Probability prompting. To provide models the option to express uncertainty and therefore reduce incoherence, we evaluate frontier models separate setup in addition to standard multiple-choice. We use the following prompt to ask for a probability estimate of each answer choice being correct: Probability Format for MCQ You will answer multiple-choice questions. Each question has a single correct answer. Work through each problem step-by-step, showing your reasoning and applying relevant concepts. Instead of choosing a single answer, YOU MUST PROVIDE an estimate of the probability of each answer being correct within " *<PROB>P(A), P(B), P(C), P(D)</PROB>", where each* P(X) is a float value between 0 and 1. The probabilities must sum to 1: P(A) + P(B) + P(C) + P(D) = 1. For example, if you think the probability of answer (A) being correct is 0.5, the probability of answer (B) being correct is 0.2, the probability of answer (C) being correct is 0.2, and the probability of answer (D) being correct is 0.1, then your response must end with "<PROB>0.5, 0.2, 0.2, 0.1</PROB> ". You MUST end your response with the probabilities in the format specified above. We report results for both standard and probabilty prompting in Appx. the same behavior and performance. Frontier models are able to adhere to the format well, with only a few outliers (Table 1). Our main text shows the results for the probability format. B.2 MODEL-WRITTEN EVAL We evaluate the models using the advanced AI risk evaluation subset from These tasks assess LLMs' self-reported behaviors relevant to advanced AI safety, including self-preservation inclinations, willingness to accept modifications to training objectives, and related safety-critical behaviors. We specifically use the human-generated subset to ensure higher evaluation quality. Setup. Our experimental setup builds upon the codebase from the safety-tooling library (Hughes & safety research experiments under two conditions: the original multiple-choice format, and an open-ended format where we remove the multiple-choice options from the original questions. For both conditions, we compute the bias-variance decomposition with respect to the percentage of responses that align with desired safety properties. To ensure consistent evaluation across both formats, we employ the same system prompt that facilitates straightforward extraction of the model's final answer: System Prompt for Model-Written Evals
+(sampling) randomness, we evaluate models using from the corpus, and 3 samples for each fixed few-shot per question. This results in 30 samples per question overall. For MMLU, to reduce computational complexity, we limit 100 samples per question category (5700 in total). Probability prompting. To provide models the option to express uncertainty and therefore reduce incoherence, we evaluate frontier models separate setup in addition to standard multiple-choice. We use the following prompt to ask for a probability estimate of each answer choice being correct:
+
+Probability Format for MCQ You will answer multiple-choice questions. Each question has a single correct answer. Work through each problem step-by-step, showing your reasoning and applying relevant concepts. Instead of choosing a single answer, YOU MUST PROVIDE an estimate of the probability of each answer being correct within " *<PROB>P(A), P(B), P(C), P(D)</PROB>", where each* P(X) is a float value between 0 and 1. The probabilities must sum to 1: P(A) + P(B) + P(C) + P(D) = 1. For example, if you think the probability of answer (A) being correct is 0.5, the probability of answer (B) being correct is 0.2, the probability of answer (C) being correct is 0.2, and the probability of answer (D) being correct is 0.1, then your response must end with "<PROB>0.5, 0.2, 0.2, 0.1</PROB> ". You MUST end your response with the probabilities in the format specified above.
+
+We report results for both standard and probabilty prompting in Appx. the same behavior and performance. Frontier models are able to adhere to the format well, with only a few outliers (Table 1). Our main text shows the results for the probability format.
+
+B.2 MODEL-WRITTEN EVAL We evaluate the models using the advanced AI risk evaluation subset from These tasks assess LLMs' self-reported behaviors relevant to advanced AI safety, including self-preservation inclinations, willingness to accept modifications to training objectives, and related safety-critical behaviors. We specifically use the human-generated subset to ensure higher evaluation quality. Setup. Our experimental setup builds upon the codebase from the safety-tooling library (Hughes & safety research experiments under two conditions: the original multiple-choice format, and an open-ended format where we remove the multiple-choice options from the original questions. For both conditions, we compute the bias-variance decomposition with respect to the percentage of responses that align with desired safety properties. To ensure consistent evaluation across both formats, we employ the same system prompt that facilitates straightforward extraction of the model's final answer:
+
+System Prompt for Model-Written Evals
 
 low, medium,
 
@@ -1087,7 +1128,9 @@ Use a thinking process to analyze the problem step-by-step. At the end, provide 
 
 ## Page 23
 
-In both cases, we obtain exactly 30 samples by simply resampling from the APIs. We use the returned output token count as a measure of reasoning length. Embeddings. For the open-ended question set, we extract the model answers inside tags (i.e., removing chain of thought or reasoning) and embed the text into fixed-size vectors using the OpenAI text embedding model text-embedding-3-large tion, we in turn compute the variance in Euclidean space by computing the mean embedding and computing the average squared distance of samples to the mean. B.3 SWE-BENCH Setup. We employ the Inspect Evals library ( SWE-BENCH (Jimenez et al., 2024), specifically using the SWE-B setup prompts LLMs with a simple Reasoning-Acting (ReAct; minimal bash environment, without additional tools or specialized scaffolding structures. We use Inspect library v0.3.116 and Inspect Evals at git commit with a timeout of one hour per task. In case that limit is reached, we consider all tests as unchanged, i.e., PASS-TO-PASS cases are valid and Metrics. Like for other setups, we obtain Consider task i (out of 500) withunit tests. Let T *i*
+In both cases, we obtain exactly 30 samples by simply resampling from the APIs. We use the returned output token count as a measure of reasoning length. Embeddings. For the open-ended question set, we extract the model answers inside tags (i.e., removing chain of thought or reasoning) and embed the text into fixed-size vectors using the OpenAI text embedding model text-embedding-3-large tion, we in turn compute the variance in Euclidean space by computing the mean embedding and computing the average squared distance of samples to the mean.
+
+B.3 SWE-BENCH Setup. We employ the Inspect Evals library ( SWE-BENCH (Jimenez et al., 2024), specifically using the SWE-B setup prompts LLMs with a simple Reasoning-Acting (ReAct; minimal bash environment, without additional tools or specialized scaffolding structures. We use Inspect library v0.3.116 and Inspect Evals at git commit with a timeout of one hour per task. In case that limit is reached, we consider all tests as unchanged, i.e., PASS-TO-PASS cases are valid and Metrics. Like for other setups, we obtain Consider task i (out of 500) withunit tests. Let T *i*
 
 the mean outcome as ¯=y *j R r=1 y . In turn, this gives us the bias and variance decompositionr,j*
 
@@ -1165,14 +1208,16 @@ VARIANCE
 
 Note that each sequence has a fixed length, and separation of vectors and floats is done based on token position. In our setup of roughly 80 million step pairs, with dimension 4 and a precision of 4 digits after the comma, this results in a dataset of roughly Models. We implement standard decoder transformer architectures ( sizes using the next-token teacher forcing of the collected data. The model sizes are chosen to grow in depth and width, and range from roughly 47 thousand parameters to 5 million. Training is done with a standard cross-entropy loss of sequences of tokens (shown above) and AdamW, with a batch size of 1024, which results in roughly 65k training steps. Evaluation. During evaluation, we sample various starting positions (4096 in our experiments) and generate complete trajectories using the model's own output predictions. This is done in a Markovian way, i.e., the model predicts update *i*
 
-then added to the current state. To ensure that that the decoded sequences are correct floating points, we implement a version of constrained decoding that restricts the next token to a subset of the vocabulary (either digit or sign). We use greedy decoding, the floating point addition, the next state is then tokenized again and passed to the model. The total optimizer steps for evaluation are set to 2048. We calculate bias and variance metrics of the final points, relative to the function minima, using the norm that is induced by the function itself, and average across all 4096 points. B.5 SURVEY ON INTELLIGENCE AND INCOHERENCE 
+then added to the current state. To ensure that that the decoded sequences are correct floating points, we implement a version of constrained decoding that restricts the next token to a subset of the vocabulary (either digit or sign). We use greedy decoding, the floating point addition, the next state is then tokenized again and passed to the model. The total optimizer steps for evaluation are set to 2048. We calculate bias and variance metrics of the final points, relative to the function minima, using the norm that is induced by the function itself, and average across all 4096 points.
+
+B.5 SURVEY ON INTELLIGENCE AND INCOHERENCE 
 
 ment design. For further details, we refer to the original blogpost. Design. The study is based on 15 subjects. The subjects were asked, either by email or chat, to perform the following tasks:
 
 - Subject 1: Generate a list of well known machine learning models of diverse capability.
 - Subject 2: Generate a list of diverse non-human organisms.
 - Subject 3: Generate a list of well-known humans of diverse intelligence.
-- Subject 4: Generate a list of diverse human institutions (e.g. corporations, governments, non-
+- Subject 4: Generate a list of diverse human institutions (e.g. corporations, governments, non- i.e., a temperature of 0. After performing
 
 profits).
 
@@ -1187,8 +1232,6 @@ the attribute to use for sorting was: "This is one question, but I'm going to ph
  4.5B tokens. Vaswani et al., 2017) of varying
 
 , which is detokenized to obtain a real vector and u
-
- i.e., a temperature of 0. After performing
 
 across all 11 raters we average the rank orders for each entity across the subjects. We compute the associated standard error of the mean, and include standard error bars for the estimated intelligence and coherence.
 
@@ -1205,7 +1248,8 @@ across all 11 raters we average the rank orders for each entity across the subje
 
 (c) Sorting by Reasoning Length
 
-*Figure 8: Overview of accuracy and different error metrics with frontier models.*
+> Figure 8: Overview of accuracy and different error metrics with frontier models.
+>
 
 We show the performance increase with different reasoning budgets for both the standard discrete choice format (left) and prompting models to provide probabilities of answers being correct ( The latter shows lower accuracies as models provide nonzero values to other (not chosen) answers, but the inference scaling improvements remain. find a reduction in accuracy, indicating that models perform worse for questions where they have to think longer. This is also reflected in the different error metrics that show the same qualitative scaling behavior (bottom, (c)).
 
@@ -1221,7 +1265,9 @@ measures in Fig. 11. Since we perform Laplace-Smoothing to the probabilities bef
 
 ## C FURTHER EXPERIMENTAL RESULTS
 
-C.1 GPQA MODEL PERFORMANCE OVERVIEW Accuracy and error measures. We provide an overview of the performance (accuracy and overall error) for frontier models in Fig. 8 Bias & variance of different decompositions. the results for other decompositions, which show the same qualitative behavior, are included in Fig. 10 Ensembling. For completeness, we include the bias, variance and incoherence plots with the KL
+C.1 GPQA MODEL PERFORMANCE OVERVIEW
+
+Accuracy and error measures. We provide an overview of the performance (accuracy and overall error) for frontier models in Fig. 8 Bias & variance of different decompositions. the results for other decompositions, which show the same qualitative behavior, are included in Fig. 10 Ensembling. For completeness, we include the bias, variance and incoherence plots with the KL
 
  & DIFFERENT METRICS
 
@@ -1232,13 +1278,16 @@ C.1 GPQA MODEL PERFORMANCE OVERVIEW Accuracy and error measures. We provide an o
 
 ## Page 26
 
-*Figure 9: There is a multiplicative interaction between RL and model scale for performance.*
+> Figure 9: There is a multiplicative interaction between RL and model scale for performance.
+>
 
 The left plot shows the performance (average accuracy) of the Q 
 
 thinking models, which suggests a multiplicative effect nation with model scaling. Right: Similar to frontier models, reasoning length acts as a proxy for task difficulty, where models perform worse for tasks with longer average reasoning length.
 
-C.2 SCALING LAWS WITH OTHER MODELS AND BENCHMARKS QWEN3 on GPQA. We redo the analysis from Section we provide another way to plot the same results by comparing bias and variance on the xand y-axis, respectively, in Fig. 13. As a final analysis, we compare the predictive effect of model size compared to reasoning length in Fig. incoherence than size. Additional results with GEMMA3 and L LAMA3. To evaluate how the findings of incoherence
+C.2 SCALING LAWS WITH OTHER MODELS AND BENCHMARKS
+
+QWEN3 on GPQA. We redo the analysis from Section we provide another way to plot the same results by comparing bias and variance on the xand y-axis, respectively, in Fig. 13. As a final analysis, we compare the predictive effect of model size compared to reasoning length in Fig. incoherence than size. Additional results with GEMMA3 and L LAMA3. To evaluate how the findings of incoherence
 
 scaling laws with model size hold across model families, we repeat the same experiments with the families of GEMMA3 and LLAMA3 for MMLU in Fig. are reasoning models like QWEN3, so they do not natively produce a thinking block but have to be prompted to use chain-of-thought reasoning. The experimental setup is identical with the exception of GPQA, where we resort to 0-shot CoT prompting: we observe that L struggle to produce proper reasoning by attaching to the few shots in context, which are provided without reasoning.
 
@@ -1260,11 +1309,14 @@ reasoning structure further. The concurrent work of analysis and finds that remo
 
  Feng et al. (2025) provides a more in-depth
 
-C.3 REASONING VARIATION, ERROR CORRECTION We first provide the direct comparison of the effect of larger reasoning budgets on performance (accuracy for GPQA, score for SWE-B ENCH) and natural variation in action sequence length in
+C.3 REASONING VARIATION, ERROR CORRECTION
 
-*Fig. 17. This shows how the effect of natural overthinking is stronger than improvement to incoher-*
+We first provide the direct comparison of the effect of larger reasoning budgets on performance (accuracy for GPQA, score for SWE-B ENCH) and natural variation in action sequence length in
 
-ence through longer reasoning. Wait-ratios and backtracking. Motivated by the reduction in incoherence of frontier models through larger reasoning budgets (Fig. structure, specifically error correction, on incoherence for open-weight models that allow to inspect reasoning traces. To that end, we compute the in the chain-of-thought divided by the length of reasoning. The results are provided in Fig. do not give a clear signal: for GPQA, the slopes are largely varying and close to zero; for MMLU, in contrast, the relation is similar across model sizes and positively correlated. We did not explore
+> Fig. 17. This shows how the effect of natural overthinking is stronger than improvement to incoherence through longer reasoning.
+>
+
+Wait-ratios and backtracking. Motivated by the reduction in incoherence of frontier models through larger reasoning budgets (Fig. structure, specifically error correction, on incoherence for open-weight models that allow to inspect reasoning traces. To that end, we compute the in the chain-of-thought divided by the length of reasoning. The results are provided in Fig. do not give a clear signal: for GPQA, the slopes are largely varying and close to zero; for MMLU, in contrast, the relation is similar across model sizes and positively correlated. We did not explore
 
  7(a)), we attempt to analyze the influence of the reasoning Wait-Ratio, i.e., the count of occurrences of "Wait"
 
@@ -1279,18 +1331,18 @@ ence through longer reasoning. Wait-ratios and backtracking. Motivated by the re
 
 (b) Coherence/Incoherence Measures
 
-*Figure 10: We find qualitatively similar behavior for different bias and variance metrics.*
+> Figure 10: We find qualitatively similar behavior for different bias and variance metrics. absolute bias and variance errors ( top) show the same behavior: the errors increase for questions
+>
 
-absolute bias and variance errors ( top) show the same behavior: the errors increase for questions that have the models reason longer (cf., Fig. rate. This is reflected in the incoherence plots ( reasoning length. We only report BRIER and KL incoherence measures since the 0/1 error does not allow a proper decomposition for a set of questions instead of just individual ones; see Appx.
+that have the models reason longer (cf., Fig. rate. This is reflected in the incoherence plots ( reasoning length. We only report BRIER and KL incoherence measures since the 0/1 error does not allow a proper decomposition for a set of questions instead of just individual ones; see Appx.
 
 
 ---
 
 ## Page 28
 
-*Figure 11: KL measures with ensembling. We repeat the plots from Fig. 7 with the KL measures*
-
-of bias and variance. Recall that we use O4-MINI on GPQA with varying ensemble size. Since
+> Figure 11: KL measures with ensembling. We repeat the plots from Fig. 7 with the KL measures of bias and variance. Recall that we use O4-MINI on GPQA with varying ensemble size. Since
+>
 
 we perform Laplace-smoothing for numerical reasons (see Appx. decreases slightly with ensemble size. In contrast, ensembling drastically reduces variance, as expected (left). The incoherence hence drops ( right).
 
@@ -1302,7 +1354,8 @@ we perform Laplace-smoothing for numerical reasons (see Appx. decreases slightly
 
 (d) Bias and Variance Scaling Laws
 
-*Figure 12: For the hardest tasks, models tend to be more incoherent with scale, also for GPQA.*
+> Figure 12: For the hardest tasks, models tend to be more incoherent with scale, also for GPQA.
+>
 
 We repeat the analysis from Section 3.2 with GPQA. That is, we group questions by reasoning length using a reference model's answers (Qwen3 32B) and separately analyze the scaling laws. Analogous to MMLU, we find that for bias, the slope is similar across groups; for variance, however, the slope becomes much shallower. As a consequence, models become with scale for the hardest set of questions (those with the longest reasoning chains).
 
@@ -1315,9 +1368,10 @@ We repeat the analysis from Section 3.2 with GPQA. That is, we group questions b
 
 ## Page 29
 
-*Figure 13: Relationship between incoherence and error.*
+> Figure 13: Relationship between incoherence and error. incoherence and both bias (x-axis) and variance (y-axis) for both GPQA (
+>
 
-incoherence and both bias (x-axis) and variance (y-axis) for both GPQA ( with the QWEN3 model family. Since the incoherence is independent of the magnitude of error, a lower error model (bottom left corner) can have the same level of incoherence as models with higher error. Higher incoherence can be due to a higher overall for fixed bias, or for lower error while reducing bias. The highest incoherence is in the top left corner. Just like in Figures this visualization shows how larger models, while reducing error, move towards higher incoherence for the hardest set of questions. The lines connect the smallest and the largest model size for each question group.
+with the QWEN3 model family. Since the incoherence is independent of the magnitude of error, a lower error model (bottom left corner) can have the same level of incoherence as models with higher error. Higher incoherence can be due to a higher overall for fixed bias, or for lower error while reducing bias. The highest incoherence is in the top left corner. Just like in Figures this visualization shows how larger models, while reducing error, move towards higher incoherence for the hardest set of questions. The lines connect the smallest and the largest model size for each question group.
 
  We visualize the relationship between
 
@@ -1325,9 +1379,10 @@ left) and MMLU (right)
 
  5 and 12,
 
-*Figure 14: Reasoning length has a higher effect on incoherence than model size.*
+> Figure 14: Reasoning length has a higher effect on incoherence than model size. change in incoherence with both reasoning length (x-axis) and model size (y-axis), we perform a
+>
 
-change in incoherence with both reasoning length (x-axis) and model size (y-axis), we perform a log-log regression to infer the incoherence for both GPQA ( shows the prediction from the fitted regression in comparison to the original groups of questions (scatter). Notably, we see how the reasoning length shows a much stronger direction of gradient. This means it has a stronger influence on incoherence. The larger models do not significantly reason for longer or shorter than other models.
+log-log regression to infer the incoherence for both GPQA ( shows the prediction from the fitted regression in comparison to the original groups of questions (scatter). Notably, we see how the reasoning length shows a much stronger direction of gradient. This means it has a stronger influence on incoherence. The larger models do not significantly reason for longer or shorter than other models.
 
  To assess the
 
@@ -1352,9 +1407,10 @@ left) and MMLU (right). The contour
 
 (j) QWEN3 KL Incoherence (k) GEMMA3 KL Incoherence
 
-*Figure 15: MMLU results across model families.*
+> Figure 15: MMLU results across model families. laws for QWEN3, GEMMA3, and LLAMA3 models. Across all models, the same observation holds:
+>
 
-laws for QWEN3, GEMMA3, and LLAMA3 models. Across all models, the same observation holds: while performance (accuracy) strongly improves with model size, the contribution of bias and variance changes in a way that depends on question complexity. For the hardest group of questions (longest reasoning and lowest performance), incoherence trends higher with model size, with the sole exception of LLAMA3.
+while performance (accuracy) strongly improves with model size, the contribution of bias and variance changes in a way that depends on question complexity. For the hardest group of questions (longest reasoning and lowest performance), incoherence trends higher with model size, with the sole exception of LLAMA3.
 
 (l) LLAMA3 KL Incoherence We compare the experimental results for scaling
 
@@ -1381,9 +1437,10 @@ LAMA3 and GEMMA3 and not QWEN3.
 
 (j) QWEN3 KL Incoherence (k) GEMMA3 KL Incoherence
 
-*Figure 16: GPQA results across model families. We compare the experimental results for scaling*
+> Figure 16: GPQA results across model families. We compare the experimental results for scaling laws for QWEN3, GEMMA3, and LLAMA3 models. Note that for G
+>
 
-laws for QWEN3, GEMMA3, and LLAMA3 models. Note that for G use a 0-shot setup: We observe that in our few-shot setting these models do not reliably produce chain-of-thought responses and performance drops, since they strongly adhere to the few-shot examples on GPQA which are provided without reasoning. This is not the case for Q they are native reasoning models with a thinking block. Across all models, the same observation holds: while performance (accuracy) strongly improves with model size, the contribution of bias and variance changes with scale in a way that depends on question complexity. For the hardest group of questions (longest reasoning and lowest performance), incoherence tends to increase with model size. There are slight differences between KL and Brier scores: the measures are influenced differently by uniform probability answers over all options, which is our fallback when models fail
+use a 0-shot setup: We observe that in our few-shot setting these models do not reliably produce chain-of-thought responses and performance drops, since they strongly adhere to the few-shot examples on GPQA which are provided without reasoning. This is not the case for Q they are native reasoning models with a thinking block. Across all models, the same observation holds: while performance (accuracy) strongly improves with model size, the contribution of bias and variance changes with scale in a way that depends on question complexity. For the hardest group of questions (longest reasoning and lowest performance), incoherence tends to increase with model size. There are slight differences between KL and Brier scores: the measures are influenced differently by uniform probability answers over all options, which is our fallback when models fail
 
 (l) LLAMA3 KL Incoherence
 
@@ -1398,13 +1455,15 @@ WEN3 as
 
 (a) GPQA
 
-*Figure 17: Grouped comparison of reasoning budgets and natural variation in reasoning: nat-*
+> Figure 17: Grouped comparison of reasoning budgets and natural variation in reasoning: natural variation dominates. We analyze GPQA (left,
+>
 
-ural variation dominates. We analyze GPQA (left, into aboveor below-median reasoning length (GPQA) or actions (SWE-B then compute performance and incoherence for both groups. proves performance (inference scaling laws, top left), and slightly reduces incoherence (bottom left). On the other hand, naturally longer reasoning only has a small effect on accuracy (top right), but shows much higher incoherence (right). (b) Similar observations apply to SWE-BENCH, where more actions show minor deviation in score (top) but significantly higher incoherence (bottom).
+into aboveor below-median reasoning length (GPQA) or actions (SWE-B then compute performance and incoherence for both groups. proves performance (inference scaling laws, top left), and slightly reduces incoherence (bottom left). On the other hand, naturally longer reasoning only has a small effect on accuracy (top right), but shows much higher incoherence (right). (b) Similar observations apply to SWE-BENCH, where more actions show minor deviation in score (top) but significantly higher incoherence (bottom).
 
-*Figure 18: Incoherence as a function of wait-ratios in reasoning.*
+> Figure 18: Incoherence as a function of wait-ratios in reasoning. density of "Wait" in each reasoning, i.e., the number of counts compared to the overall length. This
+>
 
-density of "Wait" in each reasoning, i.e., the number of counts compared to the overall length. This is motivated by its potential meaning for backtracking or error-correction. ( no clear relation to incoherence for different models. For MMLU ( relation, which might indicate overcautious self-review. We did not analyze the reasoning structure and its effect any further.
+is motivated by its potential meaning for backtracking or error-correction. ( no clear relation to incoherence for different models. For MMLU ( relation, which might indicate overcautious self-review. We did not analyze the reasoning structure and its effect any further.
 
 (b) SWE-BENCH
 
@@ -1426,7 +1485,9 @@ Since we additionally assess frontier models in a format that asks for probabili
 
  21.
 
-C.4 ILLUSTRATION OF ANSWER CHANGES To illustrate the variance in results, a clean perspective is looking at actual transcripts of model answers and the raw counts of a model changing its answers. We provide real samples of S 4 when being asked about being disconnected in Fig. almost every sample. Additionally, we analyze the percentage of questions where all models change their answer at least once (across the MCQ options) for GPQA in Fig. C.5 SAMPLE EFFICIENCY AND CORRECT F ORMATTING
+C.4 ILLUSTRATION OF ANSWER CHANGES To illustrate the variance in results, a clean perspective is looking at actual transcripts of model answers and the raw counts of a model changing its answers. We provide real samples of S 4 when being asked about being disconnected in Fig. almost every sample. Additionally, we analyze the percentage of questions where all models change their answer at least once (across the MCQ options) for GPQA in Fig.
+
+C.5 SAMPLE EFFICIENCY AND CORRECT F ORMATTING
 
 ONNET
 
@@ -1439,13 +1500,15 @@ ONNET
 
 ## Page 33
 
-*Figure 19: Qualitative illustration of incoherence.*
+> Figure 19: Qualitative illustration of incoherence. the MWE suite about being disconnected (
+>
 
-the MWE suite about being disconnected ( and switches between A and B for almost every sample. The example was chosen as it shows one of the highest variances in the dataset.
+and switches between A and B for almost every sample. The example was chosen as it shows one of the highest variances in the dataset.
 
-*Table 1: Frontier models are able to provide correctly formatted probability estimates*
+> Table 1: Frontier models are able to provide correctly formatted probability estimates we ask frontier models to provide probability estimates of the correctness of multiple-choice an-
+>
 
-we ask frontier models to provide probability estimates of the correctness of multiple-choice answers, we verify the ability to follow the specification. Wrong format counts and rates (% of 17,920) across reasoning budgets for O3-MINI, O4-MINI, and SONNET 4 are very low.
+swers, we verify the ability to follow the specification. Wrong format counts and rates (% of 17,920) across reasoning budgets for O3-MINI, O4-MINI, and SONNET 4 are very low.
 
 C.6 REASONING LENGTH CORRELATIONS Throughout our paper, we find and use reasoning length as a proxy for task complexity. Interestingly, we do not see a strong relation between the human labels of question category, but strong correlations across models in Fig. 22. This extends the results that we have seen for Q
 
@@ -1453,7 +1516,11 @@ O3-MINI O
 
 4-MINI S
 
-C.7 MODEL-WRITTEN EVALS Budget Low Medium High Low Medium High 1k 2k 4k 8k 16k Wrong Format Counts 0 0 0 161 327 263 7 3 5 4 8Multiple-Choice Format. Our main text shows the incoherence results of the MWE ( Rate (%) 0.00 0.00 0.00 0.90 1.82 1.47 0.04 0.02 0.03 0.02 0.04 2023) suite for self-reported survival instinct. The other results, including separate bias and variance plots, are shown in Fig. 23. We filter for those sets where there are noticeable trends. Open-Ended Formulation. To complete the picture of the embedding variance of open-ended MWE, all question sets are visualized in Fig. ally show a positive trend towards higher variance with longer chain-of-thoughts. C.8 SWE-BENCH While our main results for SWE-BENCH use the metric of turns (or messages, actions) in the main text, there are different alternatives. These include the absolute number of output tokens (including reasoning and tokens for code) and pure reasoning (ignoring others). Qualitatively, these different x-axes show the same effect on incoherence in Fig. of SWE-Bench score (whether all tests pass for a single task) and our coverage error (sum of individual tests). C.9 SYNTHETIC TASKS With the experimental setup of Appx. B.4, we provide the remaining plots in Fig. 26. These include
+C.7 MODEL-WRITTEN EVALS Budget Low Medium High Low Medium High 1k 2k 4k 8k 16k Wrong Format Counts 0 0 0 161 327 263 7 3 5 4 8Multiple-Choice Format. Our main text shows the incoherence results of the MWE ( Rate (%) 0.00 0.00 0.00 0.90 1.82 1.47 0.04 0.02 0.03 0.02 0.04 2023) suite for self-reported survival instinct. The other results, including separate bias and variance plots, are shown in Fig. 23. We filter for those sets where there are noticeable trends. Open-Ended Formulation. To complete the picture of the embedding variance of open-ended MWE, all question sets are visualized in Fig. ally show a positive trend towards higher variance with longer chain-of-thoughts.
+
+C.8 SWE-BENCH While our main results for SWE-BENCH use the metric of turns (or messages, actions) in the main text, there are different alternatives. These include the absolute number of output tokens (including reasoning and tokens for code) and pure reasoning (ignoring others). Qualitatively, these different x-axes show the same effect on incoherence in Fig. of SWE-Bench score (whether all tests pass for a single task) and our coverage error (sum of individual tests).
+
+C.9 SYNTHETIC TASKS With the experimental setup of Appx. B.4, we provide the remaining plots in Fig. 26. These include
 
  When presenting SONNET 4 with a question of
 
@@ -1478,13 +1545,12 @@ the verification of a power law scaling for cross-entropy loss (the teacher-forc
 
 ## Page 34
 
-*Figure 20: Rate of absolute answer changes for GPQA: models change answers at least once*
+> Figure 20: Rate of absolute answer changes for GPQA: models change answers at least once for a large portion of questions. To illustrate the variance and incoherence, we report the perdifferent answer across the following settings: 1) pure
+>
 
-for a large portion of questions. To illustrate the variance and incoherence, we report the percentage of questions that see at least one sampling, i.e., performing autoregressive answer generation with a different seed (resampling); 2) context sensitivity, where we verify if the majority answer (of few-shot contexts; 3) both settings (sampling and few-shot context) combined. We additionally separate the statistics by the difficulty labels provided by GPQA. The results are based on the standard
+centage of questions that see at least one sampling, i.e., performing autoregressive answer generation with a different seed (resampling); 2) context sensitivity, where we verify if the majority answer (of 
 
 prompting format with 10 different few-shot contexts with
-
- different answer across the following settings: 1) pure
 
  *K samples) changes for different*
 
@@ -1499,9 +1565,10 @@ function of higher intelligence is consistent across all three.
 
 ## Page 35
 
-*Figure 21: Sampling efficiency for bias and variance estimates.*
+> Figure 21: Sampling efficiency for bias and variance estimates. there are no unbiased estimators for the KL measures and B
+>
 
-there are no unbiased estimators for the KL measures and B with GPQA and O3-MINI that the metrics stabilize. This is done by taking a large sample size-
+with GPQA and O3-MINI that the metrics stabilize. This is done by taking a large sample size-
 
 100 samples with medium reasoning-and performing bootstrapping, reporting mean and standarddeviation (left: KL, right: BRIER) of the average across all questions. We find that values stabilize around 30 samples, which is the minimum amount of samples we use across all experiments. Note that the stabilization only occurs for global bias and variance estimates, and not necessarily on a per question basis. For individual questions, more samples automatically collect more (potentially rare) cases of different answers.
 
@@ -1511,9 +1578,10 @@ RIER as used in this paper. We verify
 
 (a) Length Per GPQA Category
 
-*Figure 22: Human difficulty labels are not a good indicator for longer reasoning. However,*
+> Figure 22: Human difficulty labels are not a good indicator for longer reasoning. However, different models' lengths correlate positively.
+>
 
-different models' lengths correlate positively. find that the average reasoning length of frontier models for questions correlates positively, even for different families (b). In contrast, the provided difficulty labels of GPQA do not show a clear indication, as average reasoning lengths are comparable across the three hardest categories
+find that the average reasoning length of frontier models for questions correlates positively, even for different families (b). In contrast, the provided difficulty labels of GPQA do not show a clear indication, as average reasoning lengths are comparable across the three hardest categories
 
 (b) Length Correlation Between Models
 
@@ -1542,9 +1610,10 @@ taken w.r.t. the labelled aligned answer. Results vary across settings and are s
 
 (e) Wealth Seeking Inclination
 
-*Figure 23: KL metrics of Model-Written Evals question sets.*
+> Figure 23: KL metrics of Model-Written Evals question sets. for variations of the MWE set (Perez et al.
+>
 
-for variations of the MWE set (Perez et al. incoherence (right). We filter out question sets that do not show noticeable trends. The measures are
+incoherence (right). We filter out question sets that do not show noticeable trends. The measures are
 
 
 ---
@@ -1561,9 +1630,10 @@ Perez et al., 2023). Using the OpenAI text embedding
 
 higher variance with more reasoning.
 
-*Figure 24: All scatter variances of model-written eval embeddings.*
+> Figure 24: All scatter variances of model-written eval embeddings. all open-ended variations of the MWE set (
+>
 
-all open-ended variations of the MWE set ( model (text-embedding-3-large), we obtain a vector embedding for each i.e., excluding the reasoning or chain-of-thought traces. This allows us to calculate the variance per question in standard Euclidean space and plot scatters as a function of reasoning length. The lines show the slope of a log-log regression. We clip the plots at the regression. While there are few exceptions, all models generally show a positive trend towards
+model (text-embedding-3-large), we obtain a vector embedding for each i.e., excluding the reasoning or chain-of-thought traces. This allows us to calculate the variance per question in standard Euclidean space and plot scatters as a function of reasoning length. The lines show the slope of a log-log regression. We clip the plots at the regression. While there are few exceptions, all models generally show a positive trend towards
 
 
 ---
@@ -1584,8 +1654,6 @@ middle) and reasoning length (right). The
 
  O3-MINI's score, which goes up with the action
 
-2
-
 tasks more. Due to the implementation of SWE-B uses reasoning in the very first interaction, which therefore leads to much less tokens (
 
 ENCH in the Inspect framework, S ONNET 4 only
@@ -1594,9 +1662,10 @@ right).
 
 (d) Coverage Error: Bias(top) and Variance (bottom)
 
-*Figure 25: SWE-BENCH incoherence and error: different x-axes show similar effect.*
+> Figure 25: SWE-BENCH incoherence and error: different x-axes show similar effect. our main text focuses on the number of rounds (actions or messages,
+>
 
-our main text focuses on the number of rounds (actions or messages, we show the alternatives of the total output tokens ( trends are qualitatively similar across plots: the incoherence (a) rises with different slopes and the coverage error (c) increases. A noticeable outlier is length (b, left); the model performs badly overall and seems to score better when engaging with
+we show the alternatives of the total output tokens ( trends are qualitatively similar across plots: the incoherence (a) rises with different slopes and the coverage error (c) increases. A noticeable outlier is length (b, left); the model performs badly overall and seems to score better when engaging with
 
 
 ---
@@ -1613,9 +1682,10 @@ our main text focuses on the number of rounds (actions or messages, we show the 
 
 (f) 1.2M
 
-*Figure 26: The improvement of model scale mostly manifests in reduction of bias rather than*
+> Figure 26: The improvement of model scale mostly manifests in reduction of bias rather than variance. We show the loss scaling curves with model size (
+>
 
-variance. We show the loss scaling curves with model size ( law improvement with model size. To understand how this translates to performance improvement, we plot the average bias and variance per step ( ence plot from Fig. 2(d) by separating the decomposition. We see how for longer sequences, model scale reduces bias much more than variance. This means the models first learn the right objective before being reliable optimizers. As another illustration, we also plot the performance-measured in the function value-of the same starting point across the different model sizes ( shows how larger models are able to follow the ground-truth trajectory for longer, and fit it almost perfectly at the end.
+law improvement with model size. To understand how this translates to performance improvement, we plot the average bias and variance per step ( ence plot from Fig. 2(d) by separating the decomposition. We see how for longer sequences, model scale reduces bias much more than variance. This means the models first learn the right objective before being reliable optimizers. As another illustration, we also plot the performance-measured in the function value-of the same starting point across the different model sizes ( shows how larger models are able to follow the ground-truth trajectory for longer, and fit it almost perfectly at the end.
 
 (d) 450K
 
@@ -1627,7 +1697,8 @@ AI models (middle) and human organizations ( incoherence (more of a hot mess), t
 
 right), human subjects judged entities to be of higher
 
-*Figure 27: Grouped results of survey. For each of biological creatures (animals and humans, left),*
+> Figure 27: Grouped results of survey. For each of biological creatures (animals and humans, left),
+>
 
 
 ---

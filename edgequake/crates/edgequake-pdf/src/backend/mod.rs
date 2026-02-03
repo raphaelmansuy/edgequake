@@ -83,6 +83,8 @@ pub mod extraction_engine;
 #[cfg(feature = "lopdf")]
 pub mod font_handling;
 #[cfg(feature = "lopdf")]
+pub mod glyph_list;
+#[cfg(feature = "lopdf")]
 pub mod lattice;
 pub mod mock;
 pub mod spatial;

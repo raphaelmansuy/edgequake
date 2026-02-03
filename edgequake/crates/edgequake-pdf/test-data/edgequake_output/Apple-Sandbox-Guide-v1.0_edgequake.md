@@ -192,8 +192,6 @@ ll contributions and fixes
 
 .as.
 
-1
-
 reverser@put.as
 
 potential attacks, especially on network
@@ -204,17 +202,11 @@ applications that process
 
 potentially untrusted input such as pd
 
-1
-
 https://media.blackhat.com/bh
 
 -dc -11/Blazakis/BlackHat_DC_2011_Blazakis_Apple_Sandbox
 
-2
-
 https://github.com/s7ephen/OSX
-
-2
 
 or tweet @osxreverser.
 
@@ -280,8 +272,6 @@ _CS_DARWIN_USER_TEMP_DIR.
 
 Check the sandbox_init manpage for more information. 
 
-3
-
 OS X Lion introduces Application Sandboxing
 
 , a different way of applying sandboxing but with the 
@@ -323,8 +313,6 @@ using one of the pre
 at "/usr/share/sandbox". These are used to 
 
 filters and 
-
-3
 
 http://developer.apple.com/library/mac/#documentation/Security/Conceptual/CodeSigningGuide/Introduction/Introduction.html#//a
 
@@ -2875,7 +2863,7 @@ You will need to replace the string %username% with yours. A global search a
 
 job.
 
------------- START HERE ------------
+------------ START HERE ------------ nd replace does the 
 
 ; Vienna 2.5.x Sandbox profile
 
@@ -2938,8 +2926,6 @@ job.
 #"^/System/Library/*"
 
 The trace directive is very helpful to 
-
-nd replace does the 
 
 ; reverser@put.as
 

@@ -3,11 +3,18 @@
 //! This module handles:
 //! - Font information extraction from PDF dictionaries
 //! - Bold/italic detection from font naming conventions
-//! - Encoding resolution (ToUnicode, WinAnsi, MacRoman, etc.)
+//! - Encoding resolution (ToUnicode, WinAnsi, MacRoman, /Differences, etc.)
+//!
+//! **WHY /Differences parsing is critical:**
+//! Many legacy PDFs (especially from tools like Apple's Pages or early LaTeX)
+//! use custom font encodings via /Differences arrays. Without parsing these,
+//! text extraction produces garbled output like "!"#$%" instead of "Table".
 
 use super::encodings;
 use super::encodings::Encoding;
+use super::glyph_list::glyph_to_unicode;
 use lopdf::{Dictionary, Document as LopdfDocument, Object, Stream};
+use std::collections::HashMap;
 
 /// Information about a font in the PDF
 #[derive(Debug)]
@@ -80,8 +87,9 @@ impl FontInfo {
     ///
     /// Priority order:
     /// 1. ToUnicode CMap (most reliable, handles any mapping)
-    /// 2. Named encoding (WinAnsiEncoding, StandardEncoding, etc.)
-    /// 3. Identity fallback (raw bytes as UTF-16BE)
+    /// 2. Encoding dictionary with /Differences array (custom glyph mappings)
+    /// 3. Named encoding (WinAnsiEncoding, StandardEncoding, etc.)
+    /// 4. WinAnsi fallback (default for Type1/TrueType fonts)
     fn get_encoding(doc: &LopdfDocument, font_dict: &Dictionary) -> Encoding {
         // Check for ToUnicode CMap first (most reliable)
         if let Ok(to_unicode) = font_dict.get(b"ToUnicode") {
@@ -113,8 +121,14 @@ impl FontInfo {
                     };
                 }
                 Object::Reference(id) => {
-                    // Encoding dictionary - check for BaseEncoding
+                    // Encoding dictionary - check for /Differences array first
                     if let Ok(enc_dict) = doc.get_dictionary(*id) {
+                        // Try to parse /Differences array
+                        if let Some(diff_map) = Self::parse_differences(doc, enc_dict) {
+                            return Encoding::DifferencesEncoding(diff_map);
+                        }
+                        
+                        // Fall back to BaseEncoding
                         if let Ok(base) = enc_dict.get(b"BaseEncoding") {
                             if let Ok(name) = base.as_name() {
                                 let name_str = String::from_utf8_lossy(name);
@@ -131,12 +145,74 @@ impl FontInfo {
                         }
                     }
                 }
+                Object::Dictionary(enc_dict) => {
+                    // Direct dictionary - check for /Differences array
+                    if let Some(diff_map) = Self::parse_differences(doc, enc_dict) {
+                        return Encoding::DifferencesEncoding(diff_map);
+                    }
+                }
                 _ => {}
             }
         }
 
         // Default to WinAnsi for Type1 and TrueType fonts
         Encoding::OneByteEncoding(&encodings::WIN_ANSI_ENCODING)
+    }
+
+    /// Parse a /Differences array from an encoding dictionary.
+    ///
+    /// **WHY this is critical:**
+    /// The /Differences array allows fonts to override specific byte codes
+    /// with custom glyph names. Format: [firstCode glyphName glyphName ... nextCode glyphName ...]
+    ///
+    /// Example: `/Differences [33 /exclam /quotedbl /numbersign 65 /A /B /C]`
+    /// This maps byte 33 → "!", 34 → "\"", 35 → "#", 65 → "A", 66 → "B", 67 → "C"
+    ///
+    /// # Returns
+    /// - `Some(HashMap)` if /Differences was found and parsed successfully
+    /// - `None` if no /Differences array or parsing failed
+    fn parse_differences(doc: &LopdfDocument, enc_dict: &Dictionary) -> Option<HashMap<u8, char>> {
+        let diffs = enc_dict.get(b"Differences").ok()?;
+        
+        // Resolve reference if needed
+        let diffs_array = match diffs {
+            Object::Array(arr) => arr,
+            Object::Reference(id) => {
+                doc.get_object(*id).ok()?.as_array().ok()?
+            }
+            _ => return None,
+        };
+
+        let mut map = HashMap::new();
+        let mut code: u8 = 0;
+
+        for obj in diffs_array {
+            match obj {
+                Object::Integer(n) => {
+                    // Integer sets the starting code for subsequent glyph names
+                    code = (*n).clamp(0, 255) as u8;
+                }
+                Object::Name(name) => {
+                    // Glyph name - look up Unicode equivalent
+                    let glyph_name = String::from_utf8_lossy(name);
+                    if let Some(unicode_char) = glyph_to_unicode(&glyph_name) {
+                        map.insert(code, unicode_char);
+                    }
+                    // Always increment code for next glyph name
+                    code = code.wrapping_add(1);
+                }
+                _ => {
+                    // Unexpected object type, skip
+                }
+            }
+        }
+
+        // Only return if we found any mappings
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
     }
 
     /// Resolve a PDF object to a Stream, following indirect references.
@@ -273,5 +349,51 @@ mod tests {
 
         assert!(is_bold);
         assert!(is_italic);
+    }
+    
+    #[test]
+    fn test_differences_encoding_decode() {
+        // Test DifferencesEncoding with a custom mapping for "Table"
+        // Simulates: /Differences [33 /T /a /b /l /e]
+        // This maps byte 33='T', 34='a', 35='b', 36='l', 37='e'
+        let mut diff_map = HashMap::new();
+        diff_map.insert(33, 'T');
+        diff_map.insert(34, 'a');
+        diff_map.insert(35, 'b');
+        diff_map.insert(36, 'l');
+        diff_map.insert(37, 'e');
+        
+        let info = FontInfo {
+            base_font: "CustomFont".to_string(),
+            encoding: Encoding::DifferencesEncoding(diff_map),
+            size: 12.0,
+            is_bold: false,
+            is_italic: false,
+        };
+        
+        // bytes [33, 34, 35, 36, 37] should decode to "Table"
+        let bytes = [33, 34, 35, 36, 37];
+        let result = info.decode(&bytes);
+        assert_eq!(result, "Table");
+    }
+    
+    #[test]
+    fn test_differences_encoding_fallback_to_winansi() {
+        // DifferencesEncoding should fall back to WinAnsi for unmapped bytes
+        let mut diff_map = HashMap::new();
+        diff_map.insert(33, 'X'); // Map 33 to 'X' instead of '!'
+        
+        let info = FontInfo {
+            base_font: "CustomFont".to_string(),
+            encoding: Encoding::DifferencesEncoding(diff_map),
+            size: 12.0,
+            is_bold: false,
+            is_italic: false,
+        };
+        
+        // Byte 65 is not in diff_map, should fall back to WinAnsi ('A')
+        let bytes = [33, 65]; // 33='X' (from diff), 65='A' (from WinAnsi fallback)
+        let result = info.decode(&bytes);
+        assert_eq!(result, "XA");
     }
 }
