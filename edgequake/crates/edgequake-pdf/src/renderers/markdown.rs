@@ -334,7 +334,10 @@ impl MarkdownRenderer {
             // OODA-14 FIX: Normalize numbered list output to "N. content" format
             // WHY: Markdown requires space after the period for proper list rendering
             // Extract just the number(s) from the prefix
-            let number: String = raw_text.chars().take_while(|c| c.is_ascii_digit()).collect();
+            let number: String = raw_text
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
             if !number.is_empty() {
                 output.push_str(&number);
                 output.push_str(". ");

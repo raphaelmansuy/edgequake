@@ -612,8 +612,9 @@ impl TextGrouper {
                     // New line - save current and start new
                     if !current_line.is_empty() {
                         // OODA-04 FIX: Use run-aware sorting instead of pure X-sort
-                        let sorted_line = self.sort_line_by_runs(current_line);
-                        lines.push(sorted_line);
+                        // OODA-15 FIX: Split into separate lines if large column gaps detected
+                        let split_lines = self.split_line_by_column_gaps(current_line);
+                        lines.extend(split_lines);
                         current_line = Vec::new();
                     }
                     current_y = Some(elem.y);
@@ -626,8 +627,85 @@ impl TextGrouper {
 
         if !current_line.is_empty() {
             // OODA-04 FIX: Use run-aware sorting for final line
-            let sorted_line = self.sort_line_by_runs(current_line);
-            lines.push(sorted_line);
+            // OODA-15 FIX: Split into separate lines if large column gaps detected
+            let split_lines = self.split_line_by_column_gaps(current_line);
+            lines.extend(split_lines);
+        }
+
+        lines
+    }
+
+    /// OODA-15: Split a line into multiple lines if large column gaps are detected.
+    ///
+    /// # WHY
+    ///
+    /// Tables without borders (borderless/stream tables) have columns separated by
+    /// whitespace. When text at the same Y-coordinate has a large X-gap, it's likely
+    /// two different table cells that should be separate blocks.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Sort elements by X position
+    /// 2. Calculate gaps between adjacent elements
+    /// 3. If gap > column_threshold (adaptive), start a new "line"
+    /// 4. Return vector of lines (one per detected column)
+    ///
+    /// # Threshold Selection (First Principles)
+    ///
+    /// - Typical word spacing: 0.25-0.33 × font_size
+    /// - Typical column gap: 3-5 × font_size (intentional whitespace)
+    /// - Using 5× font_size: clearly exceeds word spacing, catches column gaps
+    /// - Minimum 50pt: prevents splitting justified text with wide spaces
+    fn split_line_by_column_gaps(&self, mut elements: Vec<TextElement>) -> Vec<Vec<TextElement>> {
+        if elements.len() <= 1 {
+            return vec![elements];
+        }
+
+        // Sort by X position
+        elements.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Calculate average font size for adaptive threshold
+        let avg_font_size = elements.iter().map(|e| e.font_size).sum::<f32>() / elements.len() as f32;
+        
+        // WHY 5× font_size with 50pt minimum:
+        // - Word spacing is ~0.25-0.33 × font_size (3-4pt for 12pt font)
+        // - Column gaps in tables are typically 3-5× font_size (36-60pt for 12pt font)
+        // - 5× font_size = clearly intentional gap, not just wide word spacing
+        // - 50pt minimum prevents splitting justified text with slightly wide spaces
+        let column_gap_threshold = (avg_font_size * 5.0).max(50.0);
+
+        let mut lines: Vec<Vec<TextElement>> = Vec::new();
+        let mut current_line: Vec<TextElement> = Vec::new();
+        let mut prev_end_x: Option<f32> = None;
+
+        for elem in elements {
+            if let Some(prev_x) = prev_end_x {
+                let gap = elem.x - prev_x;
+                if gap > column_gap_threshold {
+                    // Large gap detected - this is a column boundary
+                    // Save current line and start new one
+                    if !current_line.is_empty() {
+                        lines.push(std::mem::take(&mut current_line));
+                    }
+                }
+            }
+
+            // Estimate element end position based on text width
+            let char_width = elem.font_size * 0.5;
+            let elem_end = elem.x + (elem.text.chars().count() as f32 * char_width);
+            prev_end_x = Some(elem_end);
+
+            current_line.push(elem);
+        }
+
+        if !current_line.is_empty() {
+            lines.push(current_line);
+        }
+
+        // Log if we split into multiple lines (table cells detected)
+        if lines.len() > 1 {
+            tracing::info!("OODA-15: Split line into {} column cells (threshold={:.1}pt)", 
+                lines.len(), column_gap_threshold);
         }
 
         lines

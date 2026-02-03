@@ -5,12 +5,14 @@
 ### 1. Modified `structure_detection.rs`
 
 Added secondary regex pattern:
+
 ```rust
 // OODA-14: Secondary pattern for "1.Text" (no space) but NOT "1.1" (decimal)
 let number_no_space_regex = Regex::new(r"^\d+\.[A-Z]").unwrap();
 ```
 
 Updated detection condition:
+
 ```rust
 if bullet_regex.is_match(text)
     || number_regex.is_match(text)
@@ -19,7 +21,9 @@ if bullet_regex.is_match(text)
 ```
 
 ### 2. Preserved `markdown.rs` Changes
+
 The renderer already handles both formats:
+
 - Finds content after marker even without trailing space
 - Normalizes output to "N. content" format
 
@@ -49,6 +53,7 @@ The renderer already handles both formats:
 ## Verified Outputs
 
 ### Numbered Lists (Correct)
+
 ```markdown
 1. Explore the options for perception systems
 2. and Tree-
@@ -56,19 +61,22 @@ The renderer already handles both formats:
 ```
 
 ### Section Headers (Preserved)
+
 ```markdown
 ### 1.1 Task A: Text2Onto
+
 ### 1.2 Task B: Term Typing
+
 ### 1.3 Task C: Taxonomy Discovery
 ```
 
 ## Summary
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Text | 84.7% | 84.9% | +0.2% |
-| Structure | 81.0% | 81.0% | 0.0% |
-| Overall | 82.8% | 83.0% | +0.2% |
-| 2900_Goyal | 85.7% | 85.5% | -0.2% |
+| Metric     | Before | After | Change |
+| ---------- | ------ | ----- | ------ |
+| Text       | 84.7%  | 84.9% | +0.2%  |
+| Structure  | 81.0%  | 81.0% | 0.0%   |
+| Overall    | 82.8%  | 83.0% | +0.2%  |
+| 2900_Goyal | 85.7%  | 85.5% | -0.2%  |
 
 **Result**: Successfully fixed numbered list detection without regressing section header quality.
