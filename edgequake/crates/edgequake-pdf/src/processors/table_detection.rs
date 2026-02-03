@@ -10,12 +10,47 @@
 //! - Tables have columnar structure (multiple blocks per row)
 //! - Tables have consistent row heights and column alignment
 //! - Captions like "Table 1." indicate nearby table content
+//! - Paragraphs are NOT table cells (wide blocks with long text)
 
 use crate::schema::{Block, BlockType, BoundingBox, Document};
 use crate::Result;
 use regex::Regex;
 
 use super::Processor;
+
+// =============================================================================
+// Paragraph Detection (OODA-21)
+// =============================================================================
+
+/// Detect if a block is a paragraph (NOT a table cell).
+///
+/// **First Principles (from Markitdown analysis):**
+/// - Tables contain SHORT data cells, not flowing prose
+/// - Paragraphs span significant page width (>55%)
+/// - Paragraphs have many characters (>60)
+///
+/// **Thresholds:**
+/// - 55% page width: Markitdown threshold, columns are typically 40-45% wide
+/// - 60 characters: Table cells rarely exceed this, paragraphs always do
+///
+/// **OODA-21:** Adding this check prevents prose blocks from being
+/// incorrectly classified as table rows.
+fn is_paragraph(block: &Block, page_width: f32) -> bool {
+    let block_width = block.bbox.x2 - block.bbox.x1;
+    let text_len = block.text.chars().count();
+
+    // WHY 55%: Typical column is 40-45% of page width.
+    // A block wider than 55% must be spanning content, not a table cell.
+    // WHY 60 chars: Table cells are short labels/numbers, paragraphs are sentences.
+    block_width > page_width * 0.55 && text_len > 60
+}
+
+/// Check if any block in a row is a paragraph.
+/// Used to stop table extent when encountering prose content.
+fn row_contains_paragraph(row: &[usize], blocks: &[Block], page_width: f32) -> bool {
+    row.iter()
+        .any(|&idx| is_paragraph(&blocks[idx], page_width))
+}
 
 // =============================================================================
 // TableDetectionProcessor
@@ -188,8 +223,21 @@ impl TableDetectionProcessor {
     ) -> Vec<Block> {
         let mut new_blocks = Vec::new();
         let mut i = 0;
+        
+        // OODA-21: Get page width for paragraph detection
+        let page_width = page.width;
 
         while i < rows.len() {
+            // OODA-21: Skip rows that contain paragraphs (not table candidates)
+            // WHY: Paragraphs are prose content, not tabular data
+            if row_contains_paragraph(&rows[i], &page.blocks, page_width) {
+                for &block_idx in &rows[i] {
+                    new_blocks.push(page.blocks[block_idx].clone());
+                }
+                i += 1;
+                continue;
+            }
+            
             // Table candidate: row with multiple blocks
             if rows[i].len() > 1 {
                 let table_rows = self.find_table_extent(&rows, i, page);
@@ -226,6 +274,9 @@ impl TableDetectionProcessor {
     }
 
     /// Find extent of table starting at given row index.
+    /// 
+    /// **OODA-21:** Added paragraph detection to stop table extent when
+    /// encountering prose blocks. Tables should only contain short data cells.
     fn find_table_extent(
         &self,
         rows: &[Vec<usize>],
@@ -234,9 +285,23 @@ impl TableDetectionProcessor {
     ) -> Vec<usize> {
         let mut table_rows = vec![start];
         let mut j = start + 1;
+        
+        // OODA-21: Get page width for paragraph detection
+        // WHY: We need to determine if blocks span >55% of page width
+        let page_width = page.width;
 
         while j < rows.len() {
             let current_row_blocks = &rows[j];
+
+            // OODA-21: Stop table if this row contains a paragraph
+            // WHY: Paragraphs are flowing text, not table cells
+            if row_contains_paragraph(current_row_blocks, &page.blocks, page_width) {
+                tracing::debug!(
+                    "  OODA-21: Stopping table extent at row {} - paragraph detected",
+                    j
+                );
+                break;
+            }
 
             if current_row_blocks.len() > 1 {
                 // Check gap between blocks
