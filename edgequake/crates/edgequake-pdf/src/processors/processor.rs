@@ -437,6 +437,100 @@ impl StyleDetectionProcessor {
             return;
         }
 
+        // OODA-32: Author block fragment detection
+        // WHY: When table detection rejects author blocks (correctly), the individual
+        // fragments may still be misclassified as headers. Author block fragments have:
+        // - Single leading digit(s) directly attached to a name (no delimiter)
+        //   e.g., "1Alois Knoll" (superscript ¹ rendered as "1")
+        // - Just a standalone digit (affiliation number)
+        // - Very short person name patterns (< 30 chars)
+        // - Pattern "N. Name Name" where N is 1-2 digits (affiliation + name)
+        // Real section headers have: "1. Introduction" (common section words, not names)
+        let looks_like_author_fragment = {
+            // Pattern 1: Starts with digit(s) immediately followed by uppercase letter
+            // e.g., "1Alois Knoll" vs "1. Introduction" or "1 Introduction"
+            let digit_end = text.chars().take_while(|c| c.is_ascii_digit()).count();
+            let has_digit_prefix = digit_end > 0 && digit_end < text.len();
+            let digit_attached_to_name = if has_digit_prefix {
+                let after_digits = text[digit_end..].chars().next();
+                matches!(after_digits, Some(c) if c.is_uppercase())
+            } else {
+                false
+            };
+
+            // Pattern 2: Just a standalone digit (1-3 chars, all digits)
+            let is_standalone_digit = text.len() <= 3 && text.chars().all(|c| c.is_ascii_digit());
+
+            // Pattern 3: "N. Name Name" - affiliation number + proper names
+            // e.g., "1. Alois Knoll" vs "1. Introduction"
+            // Detect: short text with digit prefix, followed by 2+ capitalized words
+            // that don't look like section titles
+            let is_numbered_name = {
+                // Check for "N." or "N)" prefix
+                let trimmed = text.trim();
+                let prefix_end = trimmed.find(|c: char| !c.is_ascii_digit() && c != '.' && c != ')' && c != ' ');
+                
+                if let Some(pos) = prefix_end {
+                    // Check if starts with digit + delimiter pattern
+                    let prefix = &trimmed[..pos];
+                    let has_number_prefix = prefix.chars().any(|c| c.is_ascii_digit()) 
+                        && (prefix.contains('.') || prefix.contains(')'));
+                    
+                    if has_number_prefix && pos < trimmed.len() {
+                        let after_prefix = trimmed[pos..].trim();
+                        let words: Vec<&str> = after_prefix.split_whitespace().collect();
+                        
+                        // Looks like names: 1-3 capitalized words, all short
+                        let looks_like_names = words.len() >= 1 
+                            && words.len() <= 4
+                            && words.iter().all(|w| {
+                                let first_char = w.chars().next();
+                                matches!(first_char, Some(c) if c.is_uppercase())
+                                    && w.len() <= 15  // Person name words are short
+                            })
+                            && after_prefix.len() <= 40;  // Total name is short
+                        
+                        // NOT a section header pattern
+                        // Real sections have: Introduction, Motivation, Background, Methods, Results, etc.
+                        let after_lower = after_prefix.to_lowercase();
+                        let looks_like_section = after_lower.contains("introduction")
+                            || after_lower.contains("motivation")
+                            || after_lower.contains("background")
+                            || after_lower.contains("method")
+                            || after_lower.contains("result")
+                            || after_lower.contains("conclusion")
+                            || after_lower.contains("discussion")
+                            || after_lower.contains("abstract")
+                            || after_lower.contains("related")
+                            || after_lower.contains("experiment")
+                            || after_lower.contains("evaluation")
+                            || after_lower.contains("overview")
+                            || after_lower.contains("objective")
+                            || after_lower.contains("problem")
+                            || after_lower.contains("approach")
+                            || after_lower.contains("system")
+                            || after_lower.contains("framework")
+                            || after_lower.contains("analysis")
+                            || after_lower.contains("implementation")
+                            || after_lower.contains("appendix")
+                            || after_lower.contains("reference");
+                        
+                        looks_like_names && !looks_like_section
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            };
+
+            digit_attached_to_name || is_standalone_digit || is_numbered_name
+        };
+
+        if looks_like_author_fragment {
+            return; // Don't classify author fragments as headers
+        }
+
         // Generic list item detection
         // Pattern: starts with "N." or "N)" where N is 1-3 digits
         let is_list_item = {

@@ -875,11 +875,93 @@ impl SectionNumberMergeProcessor {
         if trimmed.is_empty() || trimmed.len() > 100 {
             return false;
         }
-        trimmed
+        
+        let starts_uppercase = trimmed
             .chars()
             .next()
             .map(|c| c.is_uppercase())
-            .unwrap_or(false)
+            .unwrap_or(false);
+        
+        if !starts_uppercase {
+            return false;
+        }
+        
+        // OODA-32: Filter out person name patterns
+        // WHY: Author names like "Alois Knoll" start with uppercase but are NOT section titles.
+        // Section titles are: Introduction, Motivation, Background, Methods, etc.
+        // Person names are: 2-3 capitalized words, no common section keywords.
+        //
+        // Heuristic: If text is 2-4 short capitalized words without section keywords, it's a name.
+        let words: Vec<&str> = trimmed.split_whitespace().collect();
+        
+        // Check if it looks like a person name (2-4 short capitalized words)
+        let looks_like_person_name = words.len() >= 1 
+            && words.len() <= 4
+            && words.iter().all(|w| {
+                let first_char = w.chars().next();
+                // Each word starts with uppercase and is short (person name word)
+                matches!(first_char, Some(c) if c.is_uppercase()) && w.len() <= 15
+            })
+            && trimmed.len() <= 40;  // Total name is short
+        
+        if looks_like_person_name {
+            // Check if it contains any section keyword - if so, it IS a section title
+            let text_lower = trimmed.to_lowercase();
+            let has_section_keyword = text_lower.contains("introduction")
+                || text_lower.contains("motivation")
+                || text_lower.contains("background")
+                || text_lower.contains("method")
+                || text_lower.contains("result")
+                || text_lower.contains("conclusion")
+                || text_lower.contains("discussion")
+                || text_lower.contains("abstract")
+                || text_lower.contains("related")
+                || text_lower.contains("experiment")
+                || text_lower.contains("evaluation")
+                || text_lower.contains("overview")
+                || text_lower.contains("objective")
+                || text_lower.contains("problem")
+                || text_lower.contains("approach")
+                || text_lower.contains("system")
+                || text_lower.contains("framework")
+                || text_lower.contains("analysis")
+                || text_lower.contains("implementation")
+                || text_lower.contains("appendix")
+                || text_lower.contains("reference")
+                || text_lower.contains("acknowledgment")
+                || text_lower.contains("preliminaries")
+                || text_lower.contains("definition")
+                || text_lower.contains("theorem")
+                || text_lower.contains("proof")
+                || text_lower.contains("algorithm")
+                || text_lower.contains("data")
+                || text_lower.contains("model")
+                || text_lower.contains("training")
+                || text_lower.contains("inference")
+                || text_lower.contains("architecture")
+                || text_lower.contains("network")
+                || text_lower.contains("performance")
+                || text_lower.contains("benchmark")
+                || text_lower.contains("comparison")
+                || text_lower.contains("limitation")
+                || text_lower.contains("future")
+                || text_lower.contains("work")
+                || text_lower.contains("contribution")
+                || text_lower.contains("setup")
+                || text_lower.contains("setting")
+                || text_lower.contains("detail")
+                || text_lower.contains("application")
+                || text_lower.contains("review")
+                || text_lower.contains("survey")
+                || text_lower.contains("statement");
+            
+            if !has_section_keyword {
+                // It's a short capitalized phrase without section keywords = likely person name
+                return false;
+            }
+        }
+        
+        true
     }
 }
 

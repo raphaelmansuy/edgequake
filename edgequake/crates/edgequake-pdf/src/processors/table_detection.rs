@@ -275,6 +275,13 @@ impl TableDetectionProcessor {
     ///
     /// In strict mode, add text length check to avoid false positives from
     /// column text that happens to align at the same Y-coordinate.
+    ///
+    /// # OODA-32: Author Block Rejection
+    ///
+    /// Author blocks near the top of page 1 should NOT be detected as tables.
+    /// They have short text fragments (names, affiliations) that look like table
+    /// cells but are actually metadata. Detect via email patterns (@) or
+    /// academic affiliation patterns (superscript numbers, university names).
     fn is_likely_table(
         &self,
         table_rows: &[usize],
@@ -293,6 +300,64 @@ impl TableDetectionProcessor {
 
         if !base_check {
             return false;
+        }
+
+        // OODA-32: Reject author blocks on page 1 near the top
+        // WHY: Author blocks contain short text fragments (names, affiliations, emails)
+        // that look like table cells but are NOT tabular data. They typically:
+        // - Appear in the top 30% of page 1
+        // - Contain @ for emails or superscript numbers (¹²³) for affiliations
+        // - Contain university/institution names
+        if page.number == 1 {
+            // Check if candidate table is in the top 30% of the page
+            let mut min_y = f32::MAX;
+            let mut has_author_pattern = false;
+            let mut combined_text = String::new();
+
+            for &row_idx in table_rows {
+                for &block_idx in &rows[row_idx] {
+                    let block = &page.blocks[block_idx];
+                    min_y = min_y.min(block.bbox.y1);
+                    combined_text.push_str(&block.text);
+                    combined_text.push(' ');
+                }
+            }
+
+            // WHY: 200.0 = approximately top 25% of a 792pt page
+            let is_near_top = min_y < 200.0;
+
+            if is_near_top {
+                // Check for author block patterns:
+                // - Email addresses (@)
+                // - Superscript affiliation numbers (¹²³⁴⁵⁶⁷⁸⁹)
+                // - Common affiliation words (University, Institut, Department, School)
+                let text_lower = combined_text.to_lowercase();
+                has_author_pattern = combined_text.contains('@')
+                    || combined_text.contains('¹')
+                    || combined_text.contains('²')
+                    || combined_text.contains('³')
+                    || combined_text.contains('⁴')
+                    || combined_text.contains('⁵')
+                    || combined_text.contains('⁶')
+                    || combined_text.contains('⁷')
+                    || combined_text.contains('⁸')
+                    || combined_text.contains('⁹')
+                    || text_lower.contains("university")
+                    || text_lower.contains("universitat")
+                    || text_lower.contains("universität")
+                    || text_lower.contains("institut")
+                    || text_lower.contains("department")
+                    || text_lower.contains("school of")
+                    || text_lower.contains(".edu");
+
+                if has_author_pattern {
+                    tracing::debug!(
+                        "  ✗ Rejected: author block pattern detected on page 1 (y={:.1})",
+                        min_y
+                    );
+                    return false;
+                }
+            }
         }
 
         // OODA-16: In strict mode (multi-column pages), add text length filter
