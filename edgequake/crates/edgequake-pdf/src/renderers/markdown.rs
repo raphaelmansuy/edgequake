@@ -83,12 +83,34 @@ impl MarkdownRenderer {
 
     /// Render a page to Markdown.
     fn render_page(&self, page: &Page, output: &mut String) {
+        self.render_page_with_arxiv(page, output, None);
+    }
+
+    /// Render a page to Markdown with optional arXiv ID insertion after first header.
+    /// OODA-21: Insert arXiv ID after the title on page 1.
+    fn render_page_with_arxiv(&self, page: &Page, output: &mut String, arxiv_id: Option<&str>) {
         if self.style.page_numbers {
             output.push_str(&format!("## Page {}\n\n", page.number));
         }
 
+        let mut arxiv_inserted = false;
+
         for (i, block) in page.blocks.iter().enumerate() {
             self.render_block(block, output);
+
+            // OODA-21: Insert arXiv after the first header block (title)
+            if !arxiv_inserted {
+                if let Some(arxiv) = arxiv_id {
+                    // Insert after title-like blocks (large headers)
+                    if block.block_type == BlockType::SectionHeader {
+                        let level = block.level.unwrap_or(2);
+                        if level <= 1 {
+                            output.push_str(&format!("\n**{}** \n\n", arxiv));
+                            arxiv_inserted = true;
+                        }
+                    }
+                }
+            }
 
             // Add extra newline after list items if the next block is not a list item
             if block.block_type == BlockType::ListItem {
@@ -748,13 +770,26 @@ impl Renderer for MarkdownRenderer {
             }
         }
 
+        // OODA-21: Extract arXiv identifier from page 1 metadata for insertion after title
+        let arxiv_id: Option<String> = document
+            .pages
+            .first()
+            .and_then(|p| p.metadata.get("arxiv_id"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         // Render each page
         for (i, page) in document.pages.iter().enumerate() {
             if i > 0 && self.style.page_breaks {
                 output.push_str("\n---\n\n");
             }
 
-            self.render_page(page, &mut output);
+            // For page 1, pass arxiv_id to insert after title header
+            if i == 0 {
+                self.render_page_with_arxiv(page, &mut output, arxiv_id.as_deref());
+            } else {
+                self.render_page(page, &mut output);
+            }
         }
 
         // Final normalization: remove excessive whitespace
