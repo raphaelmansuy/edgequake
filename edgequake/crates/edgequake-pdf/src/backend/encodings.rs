@@ -1016,10 +1016,10 @@ impl ToUnicodeMap {
                 // 1. Space-separated: <21> <21> <0054>
                 // 2. Concatenated: <21><21><0054>
                 // We need to extract three hex values: start, end, destination
-                
+
                 // Use regex-like pattern matching for hex codes
                 let hex_codes: Vec<&str> = Self::extract_hex_codes(line);
-                
+
                 if hex_codes.len() >= 3 {
                     if let (Some(start), Some(end)) = (
                         Self::parse_hex_code(hex_codes[0]),
@@ -1033,7 +1033,7 @@ impl ToUnicodeMap {
                             let array_end = line.rfind(']').unwrap_or(line.len());
                             let array_content = &line[array_start + 1..array_end];
                             let dest_codes = Self::extract_hex_codes(array_content);
-                            
+
                             for (i, code) in (start..=end).enumerate() {
                                 if i < dest_codes.len() {
                                     if let Some(dst) = Self::parse_hex_string(dest_codes[i]) {
@@ -1080,18 +1080,18 @@ impl ToUnicodeMap {
     }
 
     /// Extract hex codes from a line.
-    /// 
+    ///
     /// **WHY this function:**
     /// ToUnicode CMap bfrange entries can be in two formats:
     /// 1. Space-separated: `<21> <21> <0054>`
     /// 2. Concatenated: `<21><21><0054>`
-    /// 
+    ///
     /// This function extracts all `<hex>` patterns regardless of spacing.
     fn extract_hex_codes(line: &str) -> Vec<&str> {
         let mut codes = Vec::new();
         let bytes = line.as_bytes();
         let mut i = 0;
-        
+
         while i < bytes.len() {
             if bytes[i] == b'<' {
                 // Find the closing >
@@ -1109,7 +1109,7 @@ impl ToUnicodeMap {
                 i += 1;
             }
         }
-        
+
         codes
     }
 

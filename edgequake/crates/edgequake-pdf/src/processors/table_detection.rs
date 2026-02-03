@@ -400,7 +400,6 @@ impl TableDetectionProcessor {
         if page.number == 1 {
             // Check if candidate table is in the top 30% of the page
             let mut min_y = f32::MAX;
-            let mut has_author_pattern = false;
             let mut combined_text = String::new();
 
             for &row_idx in table_rows {
@@ -421,7 +420,7 @@ impl TableDetectionProcessor {
                 // - Superscript affiliation numbers (¹²³⁴⁵⁶⁷⁸⁹)
                 // - Common affiliation words (University, Institut, Department, School)
                 let text_lower = combined_text.to_lowercase();
-                has_author_pattern = combined_text.contains('@')
+                let has_author_pattern = combined_text.contains('@')
                     || combined_text.contains('¹')
                     || combined_text.contains('²')
                     || combined_text.contains('³')

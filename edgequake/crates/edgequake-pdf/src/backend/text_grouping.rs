@@ -932,6 +932,7 @@ impl TextGrouper {
     ///
     /// This prevents interleaving of elements from different columns/regions
     /// that happen to share the same Y coordinate.
+    #[allow(dead_code)]
     fn sort_line_by_runs(&self, mut elements: Vec<TextElement>) -> Vec<TextElement> {
         if elements.len() <= 1 {
             return elements;
