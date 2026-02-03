@@ -54,7 +54,7 @@ impl ContentParser {
     fn is_rotated_ctm(ctm: &[f32; 6]) -> bool {
         let a = ctm[0].abs();
         let d = ctm[3].abs();
-        
+
         // If both a and d are small (< 0.1), text is rotated ~90°
         // Normal text has a ≈ 1 and d ≈ 1
         a < 0.1 && d < 0.1
@@ -297,17 +297,6 @@ impl ContentParser {
 
                                 // OODA-19: Detect rotated text (e.g., arXiv margin watermark)
                                 let is_rotated = Self::is_rotated_ctm(&ctm);
-
-                                if text_elements.len() < 10 {
-                                    tracing::info!(
-                                        "CP-TJ: text='{}' font_size={:.1} x={:.1} y={:.1} rotated={}",
-                                        &text,
-                                        font_size,
-                                        visual_x,
-                                        visual_y,
-                                        is_rotated
-                                    );
-                                }
 
                                 text_elements.push(TextElement {
                                     text: text.clone(),

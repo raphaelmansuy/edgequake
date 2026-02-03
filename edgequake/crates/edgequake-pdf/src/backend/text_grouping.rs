@@ -258,6 +258,12 @@ impl TextGrouper {
                     is_large_font,
                     Self::safe_truncate(&elem.text, 50)
                 );
+                // DEBUG: Track Figure 1 if it goes to spanning
+                if elem.text.contains("Figure") {
+                    eprintln!("FIGURE->SPANNING: Y={:.1} X={:.1} font={:.1} title_thresh={:.1} large_font_thresh={:.1} text='{}'",
+                        elem.y, elem.x, elem.font_size, title_threshold, large_font_threshold,
+                        Self::safe_truncate(&elem.text, 60));
+                }
                 spanning_elements.push(elem);
             } else if is_footer || is_header || is_affiliation {
                 // WHY: Footer/header/affiliation must ALSO respect column boundaries
@@ -281,6 +287,19 @@ impl TextGrouper {
                     Self::safe_truncate(&elem.text, 40)
                 );
 
+                // DEBUG: Track Figure elements going to footer
+                if elem.text.contains("Figure") {
+                    eprintln!(
+                        "FIGURE->FOOTER: Y={:.1} X={:.1} header={} footer={} affil={} text='{}'",
+                        elem.y,
+                        elem.x,
+                        is_header,
+                        is_footer,
+                        is_affiliation,
+                        Self::safe_truncate(&elem.text, 60)
+                    );
+                }
+
                 // Assign footer to appropriate column
                 if elem.x < column_boundary {
                     left_footer.push(elem);
@@ -289,9 +308,31 @@ impl TextGrouper {
                 }
             } else if elem.x < column_boundary - margin {
                 // Clearly in left column
+                // DEBUG: Track Figure elements
+                if elem.text.contains("Figure") {
+                    eprintln!(
+                        "FIGURE->LEFT: X={:.1} boundary={:.1}-{}={:.1} text='{}'",
+                        elem.x,
+                        column_boundary,
+                        margin,
+                        column_boundary - margin,
+                        Self::safe_truncate(&elem.text, 60)
+                    );
+                }
                 left_column.push(elem);
             } else if elem.x > column_boundary + margin {
                 // Clearly in right column
+                // DEBUG: Track Figure elements
+                if elem.text.contains("Figure") {
+                    eprintln!(
+                        "FIGURE->RIGHT: X={:.1} boundary={:.1}+{}={:.1} text='{}'",
+                        elem.x,
+                        column_boundary,
+                        margin,
+                        column_boundary + margin,
+                        Self::safe_truncate(&elem.text, 60)
+                    );
+                }
                 right_column.push(elem);
             } else {
                 // WHY: Element is in the gap between columns (within ±15pt of boundary)
@@ -313,6 +354,16 @@ impl TextGrouper {
                         page_center,
                         Self::safe_truncate(&elem.text, 30)
                     );
+                    // DEBUG: Track Figure elements going to GAP->LEFT
+                    if elem.text.contains("Figure") {
+                        eprintln!(
+                            "FIGURE->GAP-LEFT: X={:.1} boundary={:.1} center={:.1} text='{}'",
+                            elem.x,
+                            column_boundary,
+                            page_center,
+                            Self::safe_truncate(&elem.text, 60)
+                        );
+                    }
                     left_column.push(elem);
                 } else {
                     info!(
@@ -323,6 +374,16 @@ impl TextGrouper {
                         page_center,
                         Self::safe_truncate(&elem.text, 30)
                     );
+                    // DEBUG: Track Figure elements going to GAP->RIGHT
+                    if elem.text.contains("Figure") {
+                        eprintln!(
+                            "FIGURE->GAP-RIGHT: X={:.1} boundary={:.1} center={:.1} text='{}'",
+                            elem.x,
+                            column_boundary,
+                            page_center,
+                            Self::safe_truncate(&elem.text, 60)
+                        );
+                    }
                     right_column.push(elem);
                 }
             }
@@ -469,6 +530,7 @@ impl TextGrouper {
         // WHY: Academic papers are read column-by-column, NOT interleaved by Y
         // Correct reading order: ALL left column (top to bottom), THEN ALL right column (top to bottom)
         // WRONG approach: Interleaving by Y causes block_builder to merge lines from different columns
+
         result.extend(left_main);
         result.extend(right_main);
 
@@ -485,6 +547,16 @@ impl TextGrouper {
 
     /// Split lines into main content and bottom-isolated content.
     /// If there's a vertical gap > threshold between content regions, the lower content is separated.
+    ///
+    /// # OODA-33 FIX
+    ///
+    /// Previous logic found the LARGEST gap anywhere and split there. This was wrong
+    /// because page 1 has: authors (Y=50) → body (Y=104) → affiliations (Y=560).
+    /// The gap authors→body (54pt) was larger than body→affiliations, so it split
+    /// at the wrong place, putting all body content into "bottom".
+    ///
+    /// FIX: Only consider gaps where the LOWER content is near the page bottom.
+    /// We use a heuristic: bottom content should be at Y > 500 (or 75% of typical page height).
     fn split_by_vertical_gap(
         &self,
         lines: Vec<Vec<TextElement>>,
@@ -500,13 +572,21 @@ impl TextGrouper {
             .map(|line| line.first().map(|e| e.y).unwrap_or(0.0))
             .collect();
 
-        // Find largest gap in Y (after normalization: Y ascending, gaps are when Y increases more than usual)
+        // OODA-33: Only split if the gap leads to content near page bottom
+        // Typical page height is ~792pt, so "bottom" = Y > 500 (bottom ~37%)
+        let bottom_threshold = 500.0;
+
+        // Find largest gap in Y that leads to bottom content
         let mut max_gap = 0.0f32;
         let mut split_idx = lines.len();
 
         for i in 1..y_positions.len() {
             let gap = y_positions[i] - y_positions[i - 1]; // Current Y minus previous Y (should be positive)
-            if gap > max_gap && gap > gap_threshold {
+
+            // OODA-33: Only consider this gap if the content AFTER the gap is near page bottom
+            let content_after_is_bottom = y_positions[i] > bottom_threshold;
+
+            if gap > max_gap && gap > gap_threshold && content_after_is_bottom {
                 max_gap = gap;
                 split_idx = i;
             }
@@ -514,8 +594,12 @@ impl TextGrouper {
 
         if max_gap > gap_threshold {
             info!(
-                "SPLIT-GAP: gap={:.1}pt at line {} (threshold={:.1})",
-                max_gap, split_idx, gap_threshold
+                "SPLIT-GAP: gap={:.1}pt at line {} Y={:.1} (threshold={:.1}, bottom_thresh={:.1})",
+                max_gap,
+                split_idx,
+                y_positions.get(split_idx).unwrap_or(&0.0),
+                gap_threshold,
+                bottom_threshold
             );
             let (main, bottom) = lines.split_at(split_idx);
 

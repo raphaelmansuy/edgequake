@@ -257,17 +257,34 @@ impl ExtractionEngine {
         // NOTE: PDFs can have CTM transforms that significantly shift content origin.
         // Type3 fonts and custom CTMs can produce coordinates well outside nominal page bounds.
         // We use a smarter approach:
-        // 1. Calculate the actual Y range of extracted elements
+        // 1. Calculate the actual X and Y range of extracted elements
         // 2. Only filter if there's a clear BIMODAL distribution (gap between clusters)
         // 3. Keep all elements if they form a single continuous range
         let x_margin = 50.0;
 
-        // First pass: get actual element bounds
+        // First pass: get actual element bounds (both X and Y)
+        let actual_min_x = elements.iter().map(|e| e.x).fold(f32::INFINITY, f32::min);
+        let actual_max_x = elements
+            .iter()
+            .map(|e| e.x)
+            .fold(f32::NEG_INFINITY, f32::max);
         let actual_min_y = elements.iter().map(|e| e.y).fold(f32::INFINITY, f32::min);
         let actual_max_y = elements
             .iter()
             .map(|e| e.y)
             .fold(f32::NEG_INFINITY, f32::max);
+        let original_y_range = actual_max_y - actual_min_y;
+
+        // OODA-19: Compute effective X bounds for filtering
+        // When CTM transforms shift content, actual_max_x can exceed nominal page_width.
+        // Use the larger of (page_width, actual_max_x) to avoid truncating valid content.
+        let effective_x_max = page_width.max(actual_max_x);
+        let effective_x_min = 0.0f32.min(actual_min_x);
+
+        debug!(
+            "ENG-X-BOUNDS: actual_x=[{:.1}, {:.1}], page_width={:.1}, effective_x_max={:.1}",
+            actual_min_x, actual_max_x, page_width, effective_x_max
+        );
         let original_y_range = actual_max_y - actual_min_y;
 
         // Detect flipped coordinate system EARLY (before OCR filtering)
@@ -336,18 +353,21 @@ impl ExtractionEngine {
         };
 
         debug!(
-            "ENG-FILTER: y_bounds=({:.1}, {:.1}), page_width={:.1}, elem_count_before={}",
+            "ENG-FILTER: y_bounds=({:.1}, {:.1}), x_bounds=({:.1}, {:.1}), elem_count_before={}",
             y_lower_bound,
             y_upper_bound,
-            page_width,
+            effective_x_min - x_margin,
+            effective_x_max + x_margin,
             elements.len()
         );
 
         let elements: Vec<_> = elements
             .into_iter()
             .filter(|e| {
-                e.x >= -x_margin
-                    && e.x <= page_width + x_margin
+                // OODA-19: Use effective X bounds computed from actual content
+                // This prevents truncation when CTM transforms shift content beyond nominal page_width
+                e.x >= effective_x_min - x_margin
+                    && e.x <= effective_x_max + x_margin
                     && e.y >= y_lower_bound
                     && e.y <= y_upper_bound
             })
@@ -624,6 +644,18 @@ impl ExtractionEngine {
 
         // Convert lines to blocks using BlockBuilder
         let mut blocks = self.block_builder.build(lines, page_width);
+
+        // DEBUG: Track page 1 blocks with Abstract and Figure 1
+        if page_num == 1 {
+            eprintln!("PAGE1-BLOCKS (first 45 of {}):", blocks.len());
+            for (i, blk) in blocks.iter().take(45).enumerate() {
+                let marker = if blk.text.contains("Figure 1") { ">>>" } 
+                            else if blk.text.contains("Abstract") { "ABS" }
+                            else { "   " };
+                eprintln!("{}  [{}] X={:.0} Y={:.0} '{}'", marker, i, blk.bbox.x1, blk.bbox.y1,
+                    if blk.text.len() > 45 { &blk.text[..45] } else { &blk.text });
+            }
+        }
 
         // Insert detected tables back into the existing reading order.
         // We intentionally do NOT re-sort `blocks` globally (that can break multi-column reading

@@ -89,6 +89,33 @@ impl Processor for LayoutProcessor {
                     page.number,
                     page.columns.len()
                 );
+
+                // DEBUG: Trace page 1 blocks after LayoutProcessor (should be unchanged)
+                if page.number == 1 {
+                    eprintln!("LAYOUT-SKIP PAGE1 (first 15 of {}):", page.blocks.len());
+                    for (i, blk) in page.blocks.iter().take(15).enumerate() {
+                        let marker = if blk.text.contains("Figure 1") {
+                            ">>>"
+                        } else if blk.text.contains("Abstract") {
+                            "ABS"
+                        } else {
+                            "   "
+                        };
+                        eprintln!(
+                            "{}  [{}] X={:.0} Y={:.0} '{}'",
+                            marker,
+                            i,
+                            blk.bbox.x1,
+                            blk.bbox.y1,
+                            if blk.text.len() > 50 {
+                                &blk.text[..50]
+                            } else {
+                                &blk.text
+                            }
+                        );
+                    }
+                }
+
                 continue;
             }
 
@@ -378,28 +405,37 @@ impl BlockMergeProcessor {
     /// Determine which column a block belongs to.
     ///
     /// **WHY:** Allows BlockMergeProcessor to respect column boundaries.
-    /// Returns the index of the column that contains the block's center point.
-    /// If no column contains the block, returns the closest column.
+    /// 
+    /// **OODA-20 FIX:** Use block's LEFT EDGE (x1) for column assignment, not center.
+    /// Block widths vary wildly (narrow "ROI." vs wide "Elitizon designs...").
+    /// Using center point caused adjacent blocks to be assigned to different columns
+    /// when one is narrow and another is wide. The left edge represents where the
+    /// block STARTS in the document, which is the true column indicator.
     fn get_block_column(&self, block: &Block, columns: &[BoundingBox]) -> usize {
-        let center = block.bbox.center();
+        let left_edge_point = crate::schema::Point::new(
+            block.bbox.x1,
+            block.bbox.y1 + block.bbox.height() / 2.0,
+        );
 
-        // Find column containing the block's center
+        // Find column containing the block's left edge
         for (idx, col) in columns.iter().enumerate() {
-            if col.contains_point(&center) {
+            if col.contains_point(&left_edge_point) {
                 return idx;
             }
         }
 
-        // Fallback: find closest column by X-coordinate
-        columns
+        // Fallback: find closest column by left edge X-coordinate
+        let result = columns
             .iter()
             .enumerate()
             .min_by_key(|(_, col): &(usize, &BoundingBox)| {
-                let col_center = col.center().x;
-                ((col_center - center.x).abs() * 1000.0) as i32
+                // Use left edge of column, not center
+                ((col.x1 - block.bbox.x1).abs() * 1000.0) as i32
             })
             .map(|(idx, _)| idx)
-            .unwrap_or(0)
+            .unwrap_or(0);
+
+        result
     }
 
     fn merge_page_blocks(
@@ -525,6 +561,64 @@ impl Processor for BlockMergeProcessor {
         );
 
         for page in &mut document.pages {
+            // DEBUG: Trace page 1 blocks BEFORE merge - show column transition
+            if page.number == 1 {
+                eprintln!(
+                    "BMP-BEFORE-MERGE PAGE1 ({} blocks, {} columns):",
+                    page.blocks.len(),
+                    page.columns.len()
+                );
+                // Show first left block, last left block, first right block
+                let left_boundary = 200.0; // Approximate left/right boundary
+                let mut last_left_idx = 0;
+                let mut first_right_idx = None;
+                for (i, blk) in page.blocks.iter().enumerate() {
+                    if blk.bbox.x1 < left_boundary {
+                        last_left_idx = i;
+                    } else if first_right_idx.is_none() {
+                        first_right_idx = Some(i);
+                    }
+                }
+                // Show blocks around the transition
+                let start_show = last_left_idx.saturating_sub(3);
+                let end_show = first_right_idx
+                    .unwrap_or(last_left_idx + 1)
+                    .saturating_add(3)
+                    .min(page.blocks.len());
+                eprintln!(
+                    "  Showing blocks [{}..{}] (last left={}, first right={:?}):",
+                    start_show, end_show, last_left_idx, first_right_idx
+                );
+                for i in start_show..end_show {
+                    let blk = &page.blocks[i];
+                    let side = if blk.bbox.x1 < left_boundary {
+                        "L"
+                    } else {
+                        "R"
+                    };
+                    let marker = if blk.text.contains("Figure 1") {
+                        ">>>"
+                    } else if blk.text.contains("Abstract") {
+                        "ABS"
+                    } else {
+                        "   "
+                    };
+                    eprintln!(
+                        "{}  [{:2}] {}  X={:.0} Y={:.0} '{}'",
+                        marker,
+                        i,
+                        side,
+                        blk.bbox.x1,
+                        blk.bbox.y1,
+                        if blk.text.len() > 50 {
+                            &blk.text[..50]
+                        } else {
+                            &blk.text
+                        }
+                    );
+                }
+            }
+
             let block_count_before = page.blocks.len();
 
             // OODA-13 DEBUG: Count ref blocks before merge
@@ -573,6 +667,32 @@ impl Processor for BlockMergeProcessor {
                     "BMP-PAGE-{}: refs {} -> {} (blocks {} -> {})",
                     page.number, refs_before, refs_after, block_count_before, block_count_after
                 );
+            }
+
+            // DEBUG: Trace page 1 blocks after merge
+            if page.number == 1 {
+                eprintln!("BMP-AFTER-MERGE PAGE1 (first 20 of {}):", page.blocks.len());
+                for (i, blk) in page.blocks.iter().take(20).enumerate() {
+                    let marker = if blk.text.contains("Figure 1") {
+                        ">>>"
+                    } else if blk.text.contains("Abstract") {
+                        "ABS"
+                    } else {
+                        "   "
+                    };
+                    eprintln!(
+                        "{}  [{}] X={:.0} Y={:.0} '{}'",
+                        marker,
+                        i,
+                        blk.bbox.x1,
+                        blk.bbox.y1,
+                        if blk.text.len() > 50 {
+                            &blk.text[..50]
+                        } else {
+                            &blk.text
+                        }
+                    );
+                }
             }
 
             page.update_stats();
@@ -875,17 +995,17 @@ impl SectionNumberMergeProcessor {
         if trimmed.is_empty() || trimmed.len() > 100 {
             return false;
         }
-        
+
         let starts_uppercase = trimmed
             .chars()
             .next()
             .map(|c| c.is_uppercase())
             .unwrap_or(false);
-        
+
         if !starts_uppercase {
             return false;
         }
-        
+
         // OODA-32: Filter out person name patterns
         // WHY: Author names like "Alois Knoll" start with uppercase but are NOT section titles.
         // Section titles are: Introduction, Motivation, Background, Methods, etc.
@@ -893,17 +1013,17 @@ impl SectionNumberMergeProcessor {
         //
         // Heuristic: If text is 2-4 short capitalized words without section keywords, it's a name.
         let words: Vec<&str> = trimmed.split_whitespace().collect();
-        
+
         // Check if it looks like a person name (2-4 short capitalized words)
-        let looks_like_person_name = words.len() >= 1 
+        let looks_like_person_name = words.len() >= 1
             && words.len() <= 4
             && words.iter().all(|w| {
                 let first_char = w.chars().next();
                 // Each word starts with uppercase and is short (person name word)
                 matches!(first_char, Some(c) if c.is_uppercase()) && w.len() <= 15
             })
-            && trimmed.len() <= 40;  // Total name is short
-        
+            && trimmed.len() <= 40; // Total name is short
+
         if looks_like_person_name {
             // Check if it contains any section keyword - if so, it IS a section title
             let text_lower = trimmed.to_lowercase();
@@ -954,13 +1074,13 @@ impl SectionNumberMergeProcessor {
                 || text_lower.contains("review")
                 || text_lower.contains("survey")
                 || text_lower.contains("statement");
-            
+
             if !has_section_keyword {
                 // It's a short capitalized phrase without section keywords = likely person name
                 return false;
             }
         }
-        
+
         true
     }
 }
