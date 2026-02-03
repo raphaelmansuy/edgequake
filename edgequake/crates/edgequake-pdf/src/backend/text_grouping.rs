@@ -152,29 +152,41 @@ impl TextGrouper {
             // - Don't continue sentences (don't end with continuation chars like comma, hyphen, "the", etc.)
             // - Often contain page numbers, dates, or all-caps words
             // Body text at Y=0 (paragraph continuation from previous page) should NOT be classified as header
+            // OODA-22 FIX: Running header detection was too permissive.
+            // Previous logic flagged any text with digits as header.
+            // Fix: Be much stricter about what counts as a running header.
             let looks_like_running_header = {
                 let text_len = elem.text.len();
                 let trimmed = elem.text.trim();
-                // Short text is more likely a header
-                let is_short = text_len < 80;
-                // Check if text looks like paragraph continuation (ends with hyphen, comma, lowercase)
-                let is_continuation = trimmed.ends_with('-')
-                    || trimmed.ends_with(',')
-                    || trimmed.ends_with("the")
-                    || trimmed.ends_with("a")
-                    || trimmed.ends_with("and")
-                    || trimmed.ends_with("or")
-                    || trimmed.ends_with("of");
-                // Headers often have numbers (page numbers) or are all caps
-                let has_page_number = trimmed.chars().any(|c| c.is_ascii_digit());
-                let has_uppercase_word = trimmed
-                    .split_whitespace()
-                    .any(|w| w.len() > 2 && w.chars().all(|c| c.is_uppercase()));
 
-                // It's a header if it's short AND NOT a continuation AND has header-like features
-                // OR if it's very short (likely just a page number)
-                (is_short && !is_continuation && (has_page_number || has_uppercase_word))
-                    || text_len < 15 // Very short = likely page number or header
+                // Running headers are typically:
+                // - Very short (< 50 chars) - "Paper Title 5", "J. Smith et al. 12"
+                // - End with a page number pattern (space + number)
+                // - Often in format "Title... PageNum" or "Author et al. PageNum"
+                let is_very_short = text_len < 50;
+
+                // Page number at END of text (not in the middle like citations)
+                let ends_with_number = trimmed
+                    .rsplit_once(' ')
+                    .map(|(_, last)| last.chars().all(|c| c.is_ascii_digit()) && last.len() <= 3)
+                    .unwrap_or(false);
+
+                // Headers don't have sentence-like content (articles, prepositions in middle)
+                let has_sentence_structure = trimmed.contains(" the ")
+                    || trimmed.contains(" a ")
+                    || trimmed.contains(" is ")
+                    || trimmed.contains(" are ")
+                    || trimmed.contains(" with ")
+                    || trimmed.contains(" to ")
+                    || trimmed.contains(" of ");
+
+                // It's a header if VERY short AND ends with page number AND NOT sentence-like
+                // OR if it's just a number (page number alone)
+                (is_very_short && ends_with_number && !has_sentence_structure)
+                    || (text_len <= 5
+                        && trimmed
+                            .chars()
+                            .all(|c| c.is_ascii_digit() || c.is_whitespace()))
             };
             let is_header = elem.y < header_threshold
                 && elem.font_size < large_font_threshold

@@ -1,6 +1,7 @@
 # OODA-20: Footnote Marker Cleanup - OBSERVE
 
 ## Baseline Metrics
+
 - Overall Quality: 86.5%
 - Text Preservation: 85.7%
 - Structural Fidelity: 87.2%
@@ -20,6 +21,7 @@ This paper is based on...
 ```
 
 ## Footnote Markers Found
+
 - ⋆ (U+22C6, SIX POINTED BLACK STAR) - common in arXiv papers
 - † (dagger)
 - ‡ (double dagger)
@@ -27,9 +29,11 @@ This paper is based on...
 - ¶ (pilcrow)
 
 ## Root Cause
+
 PDF embeds footnote reference symbols as visible text that gets extracted along with body content.
 
 ## Impact Assessment
+
 - Affects few words per document
 - Impact on word-level quality score: minimal (~0.1%)
 - But affects readability and markdown cleanliness
