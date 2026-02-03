@@ -278,11 +278,27 @@ impl MarkdownRenderer {
             // Find first space after bullet and skip to content
             raw_text.find(' ').map(|i| i + 1).unwrap_or(0)
         } else if has_number {
-            // For numbered lists like "1. ", find the ". " or ") " and skip
+            // OODA-14 FIX: For numbered lists like "1. " or "1.Text" (no space)
+            // Find the ". " or ") " or just "." or ")" and skip
+            // WHY: PDF text extraction may not preserve spaces after list markers
             raw_text
                 .find(". ")
                 .map(|i| i + 2)
                 .or_else(|| raw_text.find(") ").map(|i| i + 2))
+                .or_else(|| {
+                    // No space after marker - find the first "." or ")" followed by a letter
+                    for (i, c) in raw_text.chars().enumerate() {
+                        if (c == '.' || c == ')') && i > 0 {
+                            // Check if next char is a letter (no space)
+                            if let Some(next) = raw_text.chars().nth(i + 1) {
+                                if next.is_alphabetic() {
+                                    return Some(i + 1); // Skip past the "." or ")"
+                                }
+                            }
+                        }
+                    }
+                    None
+                })
                 .unwrap_or(0)
         } else {
             0
@@ -315,10 +331,20 @@ impl MarkdownRenderer {
                 );
             }
         } else if has_number {
-            // Preserve the number prefix
-            let prefix: String = raw_text.chars().take(content_start).collect();
-            output.push_str(&prefix);
-            output.push_str(&content);
+            // OODA-14 FIX: Normalize numbered list output to "N. content" format
+            // WHY: Markdown requires space after the period for proper list rendering
+            // Extract just the number(s) from the prefix
+            let number: String = raw_text.chars().take_while(|c| c.is_ascii_digit()).collect();
+            if !number.is_empty() {
+                output.push_str(&number);
+                output.push_str(". ");
+                output.push_str(&content);
+            } else {
+                // Fallback: use original prefix
+                let prefix: String = raw_text.chars().take(content_start).collect();
+                output.push_str(&prefix);
+                output.push_str(&content);
+            }
         } else if has_asterisk {
             output.push_str(&content);
         } else {
