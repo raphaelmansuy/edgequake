@@ -300,28 +300,44 @@ impl MarkdownRenderer {
             // Find first space after bullet and skip to content
             raw_text.find(' ').map(|i| i + 1).unwrap_or(0)
         } else if has_number {
-            // OODA-14 FIX: For numbered lists like "1. " or "1.Text" (no space)
-            // Find the ". " or ") " or just "." or ")" and skip
-            // WHY: PDF text extraction may not preserve spaces after list markers
-            raw_text
-                .find(". ")
-                .map(|i| i + 2)
-                .or_else(|| raw_text.find(") ").map(|i| i + 2))
-                .or_else(|| {
-                    // No space after marker - find the first "." or ")" followed by a letter
-                    for (i, c) in raw_text.chars().enumerate() {
-                        if (c == '.' || c == ')') && i > 0 {
-                            // Check if next char is a letter (no space)
-                            if let Some(next) = raw_text.chars().nth(i + 1) {
-                                if next.is_alphabetic() {
-                                    return Some(i + 1); // Skip past the "." or ")"
-                                }
-                            }
-                        }
+            // OODA-31 FIX: Properly parse numbered list prefix (e.g., "1. ", "2.", "10)")
+            // WHY: The previous code searched for ". " or ") " anywhere in text, which 
+            // incorrectly matched content like "(CoT) and" instead of the list prefix.
+            // Now we extract just the numeric prefix and find the delimiter immediately after.
+            //
+            // Strategy: Find where digits end, then check if next char(s) form a list delimiter
+            let digit_end = raw_text.chars().take_while(|c| c.is_ascii_digit()).count();
+            
+            if digit_end > 0 {
+                let after_digits = &raw_text[digit_end..];
+                // Check for ". " (standard numbered list)
+                if after_digits.starts_with(". ") {
+                    digit_end + 2
+                // Check for "." followed immediately by letter (no space: "1.Item")
+                } else if after_digits.starts_with('.') && after_digits.len() > 1 {
+                    let second_char = after_digits.chars().nth(1).unwrap_or(' ');
+                    if second_char.is_alphabetic() {
+                        digit_end + 1
+                    } else {
+                        0
                     }
-                    None
-                })
-                .unwrap_or(0)
+                // Check for ") " (parenthetical numbered list)
+                } else if after_digits.starts_with(") ") {
+                    digit_end + 2
+                // Check for ")" followed immediately by letter (no space: "1)Item")
+                } else if after_digits.starts_with(')') && after_digits.len() > 1 {
+                    let second_char = after_digits.chars().nth(1).unwrap_or(' ');
+                    if second_char.is_alphabetic() {
+                        digit_end + 1
+                    } else {
+                        0
+                    }
+                } else {
+                    0
+                }
+            } else {
+                0
+            }
         } else {
             0
         };
