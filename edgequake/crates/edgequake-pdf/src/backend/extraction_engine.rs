@@ -652,8 +652,11 @@ impl ExtractionEngine {
                 let marker = if blk.text.contains("Figure 1") { ">>>" } 
                             else if blk.text.contains("Abstract") { "ABS" }
                             else { "   " };
-                eprintln!("{}  [{}] X={:.0} Y={:.0} '{}'", marker, i, blk.bbox.x1, blk.bbox.y1,
-                    if blk.text.len() > 45 { &blk.text[..45] } else { &blk.text });
+                // WHY: Use char_indices to safely truncate UTF-8 strings at character boundaries
+                // because direct byte slicing (e.g., &text[..45]) can panic on multi-byte characters
+                // like curly quotes (' ' " ") which are 3 bytes each in UTF-8
+                let truncated: String = blk.text.chars().take(45).collect();
+                eprintln!("{}  [{}] X={:.0} Y={:.0} '{}'", marker, i, blk.bbox.x1, blk.bbox.y1, truncated);
             }
         }
 
