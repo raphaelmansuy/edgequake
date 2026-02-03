@@ -17,53 +17,59 @@ v1.0
 
 v1.0
 
-**!"#$% '( )'*+%*+,**
+**Table of Contents**
 
-- . /*+0'123+4'*
+- Introduction
 
-**7 . 89"+ "0% :% +"$;4*< "#'2+=**
+- What are we talking about?
 
-**E -)'??"*1, F%(%0%*3%**
+**3  - How can it be used or implemented?**
 
-!"# % &'()*+, """"""""""""""""""""""""""""""""
+## 4  Anatomy of a custom profile
 
-!". % /0123()*+, """"""""""""""""""""""""""""""""
+## 5  Commands Reference
 
-!"4 % 5)6(12, """"""""""""""""""""""""""""""""
+5.1  - Actions  ................................
 
-!"7 % 8*9):)12, """"""""""""""""""""""""""""""""
+5.2  - Operations  ................................
 
-!"! - /(<12 =1>?*29,
+5.3  - Filters  ................................
 
-**55555555555555 6**
+5.4  - Modifiers................................
 
-### A
+### 5.5  Other keywords
 
-### 5555555555555 E
+**6  - Special hardcoded cases**
 
-### G
+**7  - A sample sandbox profile**
 
-""""""""""""""" 4-
+**8  - Where to find more information**
 
-### 55555555555555555 6I
+### Appendix A
 
-### 5555555555555555 6I
+### Appendix B
 
-### 55555 A6
+**.....**
 
-### 5555555555 A6
+**.............. 3**
 
-### 55555555555 AA
+**............. 5**
 
-**H@%34"$ 9"013'1%1 3",%,**
+31
 
-**C ,"?@$% ,"*1#'J @0'(4$%**
+35
 
-**C@@%*14J C**
+...............  36
 
-**C@@%*14J L**
+**................. 37**
 
-**55555 6**
+**................ 37**
+
+**..... 43**
+
+**.......... 43**
+
+**........... 44**
 
 
 ---
@@ -72,7 +78,7 @@ v1.0
 
 v1.0
 
-- . /*+0'123+4'*
+- Introduction
 
 Apple's sandbox technology was introduced in
 
@@ -134,7 +140,7 @@ http://reverse.put
 
 Enjoy,
 
-**7 . 89"+ "0% :% +"$;4*< "#'2+=**
+- What are we talking about?
 
 Using the definition from Apple's we
 
@@ -228,6 +234,8 @@ documents, etc.
 Malware analysis and reverse engineering processes can also benefit from this 
 
 technology.
+
+**3  - How can it be used or implemented?**
 
 There are two 
 
@@ -427,8 +435,6 @@ ted. Then it can be simplified using the
 
 appear!). 
 
-**@0'(4$%**
-
 operations can have filters to improve granularity, 
 
 while 
@@ -445,7 +451,9 @@ automatic rules for denied operations will be crea
 
 details (the operation isn't as automatic as it might 
 
-**32,+'?** 
+## 4  Anatomy of a
+
+**custom  profile**
 
 A profile is composed of 
 
@@ -494,13 +502,13 @@ Comments should start with semi
 
 colon (;) and are valid until the end of the line
 
-**E -)'??"*1, F%(%0%*3%**
+## 5  Commands Reference
 
 All commands are enclosed into parenthesis. In each example, the "$" symbol means command 
 
 execution at the shell.
 
-**E5- . C3+4'*,**
+**5.1  - Actions**
 
 There are two available
 
@@ -538,8 +546,6 @@ command. Two options are
 
 .
 
-**M@%0"+4'*,**
-
 Operations can have filters and modifiers. Modifiers 
 
 while filters don't.
@@ -548,7 +554,7 @@ apply to all operations
 
 (e xcept the mach ones
 
-**E57 .**
+**5.2  - Operations**
 
 As previously described, the sandbox supports different type of operations. 
 
@@ -595,7 +601,7 @@ when available.
 
 All the available operations are now described.
 
-**N%("2$+**
+### Default
 
 Syntax:
 
@@ -639,7 +645,7 @@ To create a whitelist profile.
 
 To create a whitelist profile without logging.
 
-**O4$%P**
+### File*
 
 Syntax:
 
@@ -680,7 +686,7 @@ v1.0
 
 This will deny all file related operations that have /mach_kernel as target.
 
-**O4$% - 390''+**
+### File chroot
 
 (action file chroot [filter] [modifier])
 
@@ -702,7 +708,7 @@ Sep 2 18:45:02
 
 macbox sandboxd[40841]: chroot(40840) deny file
 
-**O4$% - 4'3+$**
+### File ioctl
 
 (action file ioctl [filter] [modifier])
 
@@ -728,7 +734,7 @@ Example(s):
 
 (allow file ioctl (literal "/dev/dtracehelper"))
 
-**O4$% - 0%"1P**
+### File read*
 
 (action file read* [filter] [modifier])
 
@@ -779,10 +785,10 @@ macbox sandboxd[24498]: Python(24497) deny
 
 allow deny
 
-| access1 Applies to: Give or refuse read access to  Description:   | ,  getvolattrlist | getvolattrlist   |  |  |  |  |  |  |  |  |  |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| Modifiers: Filters: Actions: Syntax: |         |   |  |  |  |  |  |  |  |  |  |
-| O4$% | - | 0%"1 | /mach_kernel | Sep | 2 | 00:13:38 | Sep | 2 | 00:13:38 |  | - 1"+" |
+| access1 Applies to: Give or refuse read access to  Description:   | ,  getvolattrlist |  |  |  |  |  |  |  |  |
+|---|---|---|---|---|---|---|---|---|---|
+| Modifiers: Filters:   Actions: Syntax:   |         |  |  |  |  |  |  |  |  |
+| File | read | /mach_kernel | Sep | 2 | 00:13:38 | Sep | 2 | 00:13:38 |  |
 
 path file mode
 
@@ -815,7 +821,7 @@ contents.
 
 v1.0
 
-**O4$% - 0%"1 -?%+"1"+"**
+### File read metadata
 
 Syntax:
 
@@ -854,6 +860,8 @@ Log output:
 Sep 2 00:24:11 
 
 macbox sandboxd[24809]: ls(24808) deny file
+
+### File read xattr
 
 Syntax:
 
@@ -894,7 +902,7 @@ Result with sandbox:
 
 v1.0
 
-**O4$% - 0%Q';%**
+### File revoke
 
 (action file revoke [filter] [modifier])
 
@@ -908,7 +916,7 @@ vnode).
 
 r evoke, link
 
-**O4$% -:04+%P**
+### File write*
 
 (action file write* [filter] [modifier])
 
@@ -932,7 +940,7 @@ Sep 2 21:05:46
 
 macbox sandboxd[45341]: touch(45340) deny file
 
-**O4$% -:04+% -**
+### File write data
 
 (action file write data [filter] [modifier])
 
@@ -943,8 +951,6 @@ vn_open_auth
 , exchangedata
 
 , link, rename,
-
-**1"+"**
 
                           - write* /test
 
@@ -998,7 +1004,7 @@ truncate, ftruncate
 
 (deny file write data (literal "/private/tmp/test3"))
 
-**O4$% -:04+% - ($"<,**
+### File write flags
 
 Syntax:
 
@@ -1043,7 +1049,7 @@ macbox sandboxd[42198]: chflags(42197) deny file
 
 /private/tmp/test
 
-**O4$% -:04+% -?'1%**
+### File write mode
 
 (action file write mode [filter] [modifier])
 
@@ -1065,7 +1071,7 @@ macbox sandboxd[43051]: chmod(43050) deny file
 
 /private/tmp/test
 
-**O4$% -:04+% -?'2*+**
+### File write mount
 
 (action file write mount [filter] [modifier])
 
@@ -1083,7 +1089,7 @@ __mac_mount
 
 N/A (tried different combinations and mount still works!)
 
-**O4$% -:04+% - ':*%0**
+### File write owner
 
 (action file write owner [filter] [modifier])
 
@@ -1114,7 +1120,7 @@ macbox sandboxd[43419]: chown(43418) deny file
 
 /private/tmp/test
 
-**O4$% -:04+% -,%+2<41**
+### File write setugid
 
 Syntax:
 
@@ -1150,7 +1156,7 @@ macbox sandboxd[80230]: chmod(80229) deny file
 
 reverser/test
 
-**O4$% -:04+% - +4?%,**
+### File write times
 
 Syntax:
 
@@ -1175,7 +1181,7 @@ v1.0
 
 setutimes, link
 
-**O4$% -:04+% - 2*?'2*+**
+### File write unmount
 
 Syntax:
 
@@ -1195,6 +1201,8 @@ Access control check for unmounting a filesystem
 
 u nmounts, link
 
+(deny file write unmount (literal "/Volumes/Mac OS X Install ESD"))
+
 umount: unmount(/Volumes/Mac OS X Install ESD): Operation not permitted
 
 Log output:
@@ -1203,7 +1211,7 @@ Sep 2 20:21:19
 
 macbox sandboxd[43908]: umount(43911) deny file
 
-**O4$% -:04+% - J"++0**
+### File write xattr
 
 Syntax:
 
@@ -1240,6 +1248,8 @@ Log output:
 
 Sep 2 00:38:13 
 
+### Ipc*
+
 | send n/a   allow deny (action ipc* [modifier]) | - signal no   | - log |     |  |
 |---|---|---|---|---|
 | macbox |   |   sandboxd[25217]: Python(25216) deny file | - write | - write - xattr /test |
@@ -1252,6 +1262,8 @@ All IPC operations described below.
 
 (deny ipc*)
 
+### Ipc posix*
+
 (action ipc posix* [modifier])
 
 allow deny
@@ -1260,15 +1272,11 @@ This operation will IPC POSIX related operations described below.
 
 All IPC - Posix operations described below.
 
+### Ipc posix sem
+
 (action ipc posix sem [modifier])
 
 allow deny
-
-**/@3P**
-
-**/@3 @',4JP**
-
-**/@3 @',4J**
 
 sem_open, sem_post, sem_unlink, sem_wait_nocancel
 
@@ -1285,9 +1293,13 @@ functions (create, open, post, unlink, wait).
 
 v1.0
 
+(allow ipc posix sem)
+
+### Ipc posix shm
+
 | -   | - signal no   - posix | - log   - posix - |
 |---|---|---|
-| 	 |  |  |
+|   |  |  |
 
 Modifiers:
 
@@ -1301,7 +1313,9 @@ shm_open, pshm_mmap
 
 , pshm_stat, pshm_truncate
 
-**-,D,QP**
+(allow ipc posix shm)
+
+### Ipc sysv*
 
 (action ipc sysv* [modifier])
 
@@ -1317,7 +1331,9 @@ All IPC SysV operations described
 
 below.
 
-**-,D,Q -?,<**
+(allow ipc sysv*)
+
+### Ipc sysv msg
 
 (action ipc sysv msg [modifier])
 
@@ -1326,8 +1342,6 @@ allow deny
 functions (create, mmap, open, stat, truncate, 
 
 , shm_unlink
-
-**/@3 @',4J**
 
 msqrcv, msqsnd).
 
@@ -1354,9 +1368,9 @@ v1.0
 
 (allow ipc
 
-**-,D,Q -,%?**
+### Ipc sysv sem
 
-| -   	 | - signal no   - sysv | - log   - sysv - sem [modifier]) |
+| -     | - signal no   - sysv | - log   - sysv - sem [modifier]) |
 |---|---|---|
 | - sysv - | - msg)   |   |
 
@@ -1368,7 +1382,9 @@ functions
 
 Semctl, semget, semop
 
-**-,D,Q -,9?**
+(allow ipc sysv sem)
+
+### Ipc sysv shm
 
 (action ipc sysv shm [modifier])
 
@@ -1378,7 +1394,9 @@ Controls access to mapping System V shared memory
 
 Shmat, shmctl, shmdt, shmget_existing
 
-**R"39P**
+(allow ipc sysv shm)
+
+### Mach*
 
 (action mach* [modifier])
 
@@ -1401,11 +1419,15 @@ v1.0
 
 (deny mach*)
 
+### Mach bootstrap
+
 | allow deny   (action mach |
 |---|
-| 	 |
+|   |
 
 Used only to apply sandbox? To create/access new mach ports
+
+### Mach lookup
 
 (action mach lookup [modifier])
 
@@ -1419,21 +1441,19 @@ essages.
 
 Most applications require access to some basic Mach services (bsd.sb configures 
 
+(allow mach lookup
+
 (global name "com.apple.system.logger")
 
 (global name regex #"^com.apple.DeviceLink.AppleMobileBackup*")
+
+### Mach priv*
 
 (action mach priv* [modifier])
 
 allow deny
 
 the basic ones).
-
-**#''+,+0"@**
-
-**$'';2@**
-
-**@04QP**
 
 Control access to all the mach
 
@@ -1450,13 +1470,13 @@ set_security_token
 
 Example (s)
 
-| 9',+ - - priv*) :   | - @'0+   |
+| - priv*)   | port   |
 |---|---|
 |  | , task_for_pid |
 
 (allow mach
 
-**R"39 - -**
+### Mach priv
 
 (action mach priv host port [modifier])
 
@@ -1465,6 +1485,8 @@ Access control check for
 retrieving a process's host port.
 
 set_security_token
+
+### Mach priv task port
 
 (action mach priv task -port [modifier])
 
@@ -1476,15 +1498,13 @@ apply, such as task_for_pid only available to root or group procmod.
 
 task_for_pid
 
+### Mach task name
+
 (action mach task -name [modifier])
 
 task_for_pid()
 
 . Standard restrictions still 
-
-**@04Q**
-
-**@04Q @'0+**
 
 
 ---
@@ -1509,7 +1529,7 @@ Example (s)
 |---|---|
 |  |  |
 
-**S%+:'0;P**
+### Network*
 
 Syntax:
 
@@ -1539,7 +1559,7 @@ Sep 2 21:12:00
 
 macbox sandboxd[45542]: nc(45540) deny network
 
-**S%+:'0; - 4*#'2*1**
+### Network inbound
 
 Syntax:
 
@@ -1596,7 +1616,7 @@ v1.0
 
       - inbound (local ip4 "*:22))
 
-**S%+:'0; - #4*1**
+### Network bind
 
 Syntax:
 
@@ -1628,7 +1648,7 @@ Sep 2 21:08:41
 
 macbox sandboxd[45438]: nc(45437) deny network
 
-**S%+:'0; - '2+#'2*1**
+### Network outbound
 
 Syntax:
 
@@ -1691,7 +1711,7 @@ v1.0
 
 Allow access to the syslog unix socket.
 
-**T0'3%,,P**
+### Process*
 
 Syntax:
 
@@ -1727,7 +1747,7 @@ Sep 2 22:36:09
 
 macbox sandboxd[47975]: sandbox
 
-**T0'3%,, - %J%3**
+### Process exec
 
 Syntax:
 
@@ -1788,7 +1808,7 @@ macbox sandboxd[26360]: sandbox
 
 v1.0
 
-**T0'3%,, - ('0;**
+### Process fork
 
 (action process
 
@@ -1824,7 +1844,7 @@ Sep 2 01:23:52
 
 macbox sandboxd[26677]: forktest(26676) deny process
 
-**H4<*"$**
+### Signal
 
 (action signal [filter] [modifier])
 
@@ -1836,7 +1856,7 @@ Filters:
 
 signal
 
-**HD,3+$P**
+### Sysctl*
 
 (action sysctl* [modifier])
 
@@ -1889,7 +1909,7 @@ This happens because sysctl
 
           - read is also denied so it can't read the name.
 
-**HD,3+$ - 0%"1**
+### Sysctl read
 
 Syntax:
 
@@ -1905,6 +1925,8 @@ s ysctl, sysctlbyname
 
 , sysctlnametomib
 
+(deny sysctl read)
+
 Log output:
 
 Sep 2 01:40:01 
@@ -1915,7 +1937,7 @@ second level name bpf_bufsize
 
 in debug.bpf_bufsize i
 
-**HD,3+$ -:04+%**
+### Sysctl write
 
 Syntax:
 
@@ -1978,7 +2000,7 @@ S ysctl
 
 Example:
 
-**HD,+%?P**
+### System*
 
 Syntax:
 
@@ -2031,7 +2053,7 @@ Log output:
 
 v1.0
 
-**HD,+%? - "33+**
+### System acct
 
 | send - n/a   allow deny (action system | - signal no - log   - acct [modifier]) |
 |---|---|
@@ -2051,7 +2073,7 @@ See acct(5) for more information.
 
       - acct)
 
-**HD,+%? - "214+**
+### System audit
 
 (action system
 
@@ -2071,7 +2093,7 @@ setaudit, setauid, audit, auditon, auditctl
 
       - audit)
 
-**HD,+%? - (,3+$**
+### System fsctl
 
 (action process* [modifier])
 
@@ -2098,7 +2120,9 @@ policies must exercise extreme care when implementing access control checks.
 
 fsctl
 
-**HD,+%? - $341**
+(deny system fsctl)
+
+### System lcid
 
           - lcid [modifier])
 
@@ -2128,7 +2152,7 @@ setlcid
 
       - lcid)
 
-**HD,+%? -?"3 - $"#%$**
+### System mac label
 
 Actions:
 
@@ -2142,7 +2166,7 @@ ny aspects of
 
 m call is invoked. A user space
 
-**HD,+%? - *(,,Q3**
+### System nfssvc
 
           - nfssvc [modifier])
 
@@ -2153,6 +2177,8 @@ Determine whether the
 target can perform the mac_set_fd operation. The mac_set_fd operation 
 
 is used to associate a MAC label with a file.
+
+(deny system mac label)
 
 
 ---
@@ -2171,7 +2197,7 @@ nfssvc
 
       - nfssvc)
 
-**HD,+%? - 0%#''+**
+### System reboot
 
 Syntax:
 
@@ -2185,7 +2211,9 @@ Note: doesn't seem to work!
 
 reboot
 
-**HD,+%? -,%+ - +4?%**
+(deny system reboot)
+
+### System set time
 
 Syntax:
 
@@ -2201,6 +2229,8 @@ Controls access to the system clock.
 
 s ettimeofday, adjtime
 
+(deny system set time)
+
 
 ---
 
@@ -2212,11 +2242,11 @@ Sep 2 22:49:30
 
 macbox sandboxd[48428]: date(48435) deny system
 
-**HD,+%? -,'3;%+**
+### System socket
 
 |   send n/a   allow deny (action system | - signal no - log   - socket [modifier]) |
 |---|---|
-| 	 |  |
+|   |  |
 
 Modifiers:
 
@@ -2226,7 +2256,9 @@ sockets.
 
 socket
 
-**HD,+%? -**
+(deny system socket)
+
+### System swap
 
 (action system
 
@@ -2248,15 +2280,11 @@ macx_swapon
 
       - swap)
 
-**HD,+%? -:04+% -**
+### System write bootstrap
 
 (action system
 
 allow deny
-
-**,:"@**
-
-**#''+,+0"@**
 
 fcntl
 
@@ -2267,7 +2295,7 @@ fcntl
 
 v1.0
 
-**U'# - 30%"+4'***
+### Job creation
 
 Syntax:
 
@@ -2283,6 +2311,8 @@ path
 
 Not implemented ???
 
+### Mach per user lookup
+
 Syntax:
 
 (action mach per user -lookup [modifier])
@@ -2293,7 +2323,7 @@ allow deny
 
 Filters:
 
-**E56 . O4$+%0,**
+**5.3  - Filters**
 
 Filters can be applied to 
 
@@ -2321,8 +2351,6 @@ file mode
 
 and granularity. 
 
-**@%0 2,%0 $'';2@**
-
 Match filenames or paths.
 
 Three different modes are supported
@@ -2331,7 +2359,7 @@ Three different modes are supported
 
 Anything included in square braces "[]" is optional. 
 
-**E565- - T"+9**
+#### 5.3.1  Path
 
 xattr
 
@@ -2366,6 +2394,8 @@ Multiple regular expressions are supported, so the operation can apply to multip
 
 files.
 
+(allow file read*
+
 (regex
 
 #"^/usr/lib/*"
@@ -2398,7 +2428,7 @@ Note: the PATH never ends with a slash (/).
 
 In this case, everything under /dev will be denied read access (including /dev itself).
 
-**E5657 - S%+:'0;**
+#### 5.3.2  Network
 
 n't protected by 
 
@@ -2514,7 +2544,7 @@ macbox sandboxd[32011]: telnet(32010) deny network
 
 v1.0
 
-**E5656 - O4$% -?'1%**
+#### 5.3.3  File mode
 
 Match file mode 
 
@@ -2530,7 +2560,7 @@ will be successfully matched by a file with a mode of 0644, 0744,
 
 Filter will match if target has permissions of 0644 (
 
-**E565A - V"++0**
+#### 5.3.4  Xattr
 
 Match the extended attribute name, not content.
 
@@ -2554,7 +2584,7 @@ macbox sandboxd[33295]: Python(33294) deny file
 
 /private/tmp/xattr
 
-**E565E - R"39**
+#### 5.3.5  Mach
 
 These are needed for things like getpwnam, hostname changes, & keychain
 
@@ -2586,7 +2616,7 @@ v1.0
 
 (allow mach lookup (global
 
-**E565G - H4<*"$**
+#### 5.3.6  Signal
 
 Description:
 
@@ -2616,13 +2646,13 @@ Sep 2 10:45:01
 
 macbox sandboxd[31416]: kill(31418) deny signal
 
-**E5A . R'14(4%0,**
+**5.4  - Modifiers**
 
 There are three available modifiers, although one just applies to a single operation. The modifiers 
 
 are send signal, no log, and no sandbox. To use them you will need the keyword "with".
 
-**E5A5- - H%*1 -,4<*"$**
+#### 5.4.1  Send signal
 
 Description:
 
@@ -2652,6 +2682,8 @@ Syntax:
 
 (with send signal SIGNAL)
 
+(deny file read* (w ith send signal SIGFPE))
+
 The target binary will crash with a floating point exception when it tries to read any file.
 
 Floating point exception
@@ -2659,6 +2691,8 @@ Floating point exception
                             - point exception,
 
 which will 
+
+#### 5.4.2  No log
 
 D escription:
 
@@ -2685,6 +2719,8 @@ y action.
 
 (with no log))
 
+#### 5.4.3  No sandbox
+
 Description:
 
 Applies only to allow action and process
@@ -2695,7 +2731,7 @@ Applies only to allow action and process
 
 ????
 
-**E5E - M+9%0 ;%D:'01,**
+### 5.5  Other keywords
 
 5.5.1 require any and require
 
@@ -2818,6 +2854,8 @@ You might feel it's easier than checking the logs and manually adding stuff, but
 
 automatic process.
 
+**6  - Special hardcoded cases**
+
 The following special cases 
 
 can be found inside the code:
@@ -2828,19 +2866,17 @@ can be found inside the code:
                   - read* is always allowed.
 - Never allow a sandboxed process to open a launchd socket.
 
-**,"*1#'J** 
+**7  - A sample**
+
+**sandbox**
+
+**profile**
 
 This is a working san
 
 dbox for Vienna 2.5.x version. It's still far from perfect but it works for normal 
 
 denied.
-
-**H@%34"$ 9"013'1%1 3",%,**
-
-**C ,"?@$%** 
-
-**@0'(4$%**
 
 usage from what I could test. It is much more granular from other profiles I could find. The 
 
@@ -3220,6 +3256,8 @@ toryService.membership_v1")
 
 v1.0
 
+- Where to find more information
+
 These are some links and books where you can fi
 
 Enterprise Mac Security book has a chapter dedicated to just this.
@@ -3247,6 +3285,8 @@ http://www.tomsick.net/projects/sandboxed
 http://tengrid.com/wiki1/index.php?title=Sandbox
 
 Chromium/Chrome sources
+
+### Appendix A
 
 All available operations
 
@@ -3276,8 +3316,6 @@ ipc*
 nd further information about this technology. The 
 
 By Charles Edge, William Barker, Beau 
-
-**C@@%*14J C**
 
 ipc posix*
 
@@ -3340,7 +3378,7 @@ job creation
 
 ------------ END HERE ------------
 
-**C@@%*14J L**
+**Appendix B**
 
 The IDC script I used to find the correspondence between
 
@@ -3416,8 +3454,6 @@ ring(myarrayid, myindex, operation);
 myindex++;
 
 Output is 
-
-J
 
 // get the first location that calls for _cred_check
 

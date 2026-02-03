@@ -51,6 +51,12 @@ futures.workspace = true
 # lopdf - local path dependency for PDF parsing
 lopdf = { path = "../../../lopdf", optional = true, default-features = false }
 
+# TrueType font parsing for embedded fonts (cmap table extraction)
+# WHY: Subset TrueType fonts (like Calibri/Cambria in Office PDFs) embed
+# their glyph→Unicode mapping in the cmap table, not in the PDF encoding.
+# ttf-parser: zero-allocation, safe, no_std compatible font parser
+ttf-parser = "0.25"
+
 # Parallel processing for multi-core extraction
 rayon = "1.10"
 

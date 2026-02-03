@@ -43,7 +43,7 @@ The Apple-Sandbox-Guide produces garbled text because EdgeQuake cannot handle fo
 
 3. **EdgeQuake falls back to WinAnsiEncoding**
    - Our fallback at line 128 of font_handling.rs
-   - WinAnsi maps byte 33 (0x21) to '!' 
+   - WinAnsi maps byte 33 (0x21) to '!'
    - But the font maps byte 33 to 'T'
 
 ## Solution Options
@@ -51,16 +51,19 @@ The Apple-Sandbox-Guide produces garbled text because EdgeQuake cannot handle fo
 ### Option A: Implement /Differences Array Parsing (HIGH EFFORT)
 
 Parse the font's `/Encoding` dictionary to extract:
+
 ```
 /Differences [ 33 /T /a /b /l /e /space /o /f ... ]
 ```
 
 This means:
+
 - Byte 33 (0x21) → glyph name 'T' → Unicode U+0054
 - Byte 34 (0x22) → glyph name 'a' → Unicode U+0061
 - etc.
 
 **Requires:**
+
 1. Parse `/Differences` array from font encoding dict
 2. Map glyph names to Unicode using Adobe Glyph List (lopdf has this!)
 3. Build a custom encoding table per font
@@ -73,6 +76,7 @@ This means:
 lopdf already has the Adobe Glyph List in `glyphnames.rs` (4502 lines!).
 
 We could:
+
 1. When encountering unknown encoding, try to extract /CharProcs or /Widths
 2. Use heuristics to map character codes to glyph names
 3. Convert glyph names to Unicode via lopdf's Glyph table
@@ -83,6 +87,7 @@ We could:
 ### Option C: PDF.js / Poppler Fallback (LOW EFFORT, HIGH DEPENDENCY)
 
 For PDFs that fail extraction quality threshold:
+
 1. Detect garbled output via heuristics (high non-ASCII ratio)
 2. Fall back to external tool (pdftotext, pdf.js)
 
@@ -92,6 +97,7 @@ For PDFs that fail extraction quality threshold:
 ## Recommended Solution: Option A
 
 Implement `/Differences` array parsing because:
+
 1. It's the correct PDF spec behavior
 2. lopdf already has the glyph name → Unicode mapping
 3. Many legacy PDFs use this encoding method
@@ -106,7 +112,7 @@ Implement `/Differences` array parsing because:
 /// Returns HashMap<u8, u16> mapping byte → Unicode
 fn parse_differences(doc: &Document, enc_dict: &Dictionary) -> HashMap<u8, u16> {
     let mut map = HashMap::new();
-    
+
     if let Ok(Object::Array(diffs)) = enc_dict.get(b"Differences") {
         let mut current_code: u8 = 0;
         for obj in diffs {
@@ -132,7 +138,7 @@ fn parse_differences(doc: &Document, enc_dict: &Dictionary) -> HashMap<u8, u16> 
 /// Convert glyph name to Unicode codepoint using Adobe Glyph List
 fn glyph_name_to_unicode(name: &[u8]) -> Option<u16> {
     let name_str = std::str::from_utf8(name).ok()?;
-    
+
     // Use lopdf's Glyph constants (4500+ mappings)
     match name_str {
         "A" => Some(Glyph::A),
@@ -146,6 +152,7 @@ fn glyph_name_to_unicode(name: &[u8]) -> Option<u16> {
 ### Phase 3: Integrate into Encoding Resolution
 
 Modify `get_encoding()` in font_handling.rs:
+
 ```rust
 Object::Reference(id) => {
     if let Ok(enc_dict) = doc.get_dictionary(*id) {
@@ -164,11 +171,11 @@ Object::Reference(id) => {
 
 ## Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Glyph name not in AGL | Medium | Medium | Fall back to character code |
-| Complex font hierarchies | Low | High | Log and skip unknown fonts |
-| Performance overhead | Low | Low | Cache encoding per font |
+| Risk                     | Likelihood | Impact | Mitigation                  |
+| ------------------------ | ---------- | ------ | --------------------------- |
+| Glyph name not in AGL    | Medium     | Medium | Fall back to character code |
+| Complex font hierarchies | Low        | High   | Log and skip unknown fonts  |
+| Performance overhead     | Low        | Low    | Cache encoding per font     |
 
 ## Success Criteria
 

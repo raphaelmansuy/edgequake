@@ -4,17 +4,25 @@
 //! - Font information extraction from PDF dictionaries
 //! - Bold/italic detection from font naming conventions
 //! - Encoding resolution (ToUnicode, WinAnsi, MacRoman, /Differences, etc.)
+//! - Embedded TrueType font parsing for subset fonts
 //!
 //! **WHY /Differences parsing is critical:**
 //! Many legacy PDFs (especially from tools like Apple's Pages or early LaTeX)
 //! use custom font encodings via /Differences arrays. Without parsing these,
 //! text extraction produces garbled output like "!"#$%" instead of "Table".
+//!
+//! **WHY embedded TrueType parsing is critical:**
+//! Subset TrueType fonts (like Calibri/Cambria from Microsoft Office) don't
+//! have an explicit encoding. The glyph→Unicode mapping is in the font's
+//! cmap table inside the /FontFile2 stream.
 
 use super::encodings;
 use super::encodings::Encoding;
 use super::glyph_list::glyph_to_unicode;
+use super::truetype_cmap;
 use lopdf::{Dictionary, Document as LopdfDocument, Object, Stream};
 use std::collections::HashMap;
+use tracing::trace;
 
 /// Information about a font in the PDF
 #[derive(Debug)]
@@ -127,7 +135,7 @@ impl FontInfo {
                         if let Some(diff_map) = Self::parse_differences(doc, enc_dict) {
                             return Encoding::DifferencesEncoding(diff_map);
                         }
-                        
+
                         // Fall back to BaseEncoding
                         if let Ok(base) = enc_dict.get(b"BaseEncoding") {
                             if let Ok(name) = base.as_name() {
@@ -155,8 +163,95 @@ impl FontInfo {
             }
         }
 
+        // No explicit encoding - try embedded TrueType font
+        // WHY: Subset TrueType fonts (like LHKJDD+Calibri-Bold) embed their
+        // glyph→Unicode mapping in the font's cmap table, not in the PDF encoding.
+        if let Some(encoding) = Self::try_embedded_truetype(doc, font_dict) {
+            return encoding;
+        }
+
         // Default to WinAnsi for Type1 and TrueType fonts
         Encoding::OneByteEncoding(&encodings::WIN_ANSI_ENCODING)
+    }
+
+    /// Try to parse embedded TrueType font from /FontFile2 stream.
+    ///
+    /// **WHY this method:**
+    /// Subset TrueType fonts (e.g., "LHKJDD+Calibri-Bold") have no explicit
+    /// encoding in the PDF. The glyph→Unicode mapping is in the embedded font's
+    /// cmap table. This method:
+    /// 1. Navigates FontDescriptor → FontFile2 → Stream
+    /// 2. Decompresses the stream to get raw TrueType font bytes
+    /// 3. Parses the font using ttf-parser to extract cmap table
+    /// 4. Builds a glyph ID → Unicode mapping
+    fn try_embedded_truetype(doc: &LopdfDocument, font_dict: &Dictionary) -> Option<Encoding> {
+        trace!("try_embedded_truetype: Checking font dictionary for FontDescriptor");
+
+        // Get FontDescriptor
+        let fd_obj = match font_dict.get(b"FontDescriptor") {
+            Ok(obj) => {
+                trace!("try_embedded_truetype: Found FontDescriptor");
+                obj
+            }
+            Err(_) => {
+                trace!("try_embedded_truetype: No FontDescriptor found");
+                return None;
+            }
+        };
+
+        let fd = match fd_obj {
+            Object::Reference(id) => {
+                trace!(
+                    "try_embedded_truetype: FontDescriptor is reference {:?}",
+                    id
+                );
+                match doc.get_dictionary(*id) {
+                    Ok(d) => d,
+                    Err(_) => return None,
+                }
+            }
+            Object::Dictionary(d) => d,
+            _ => return None,
+        };
+
+        // Get FontFile2 (embedded TrueType font)
+        let ff2_obj = match fd.get(b"FontFile2") {
+            Ok(obj) => {
+                trace!("try_embedded_truetype: Found FontFile2");
+                obj
+            }
+            Err(_) => {
+                trace!("try_embedded_truetype: No FontFile2 found");
+                return None;
+            }
+        };
+
+        let stream = Self::resolve_stream(doc, ff2_obj)?;
+
+        // Decompress the font data
+        let font_data = match stream.decompressed_content() {
+            Ok(data) => {
+                trace!(
+                    "try_embedded_truetype: Decompressed {} bytes of font data",
+                    data.len()
+                );
+                data
+            }
+            Err(e) => {
+                trace!("try_embedded_truetype: Failed to decompress: {:?}", e);
+                return None;
+            }
+        };
+
+        // Parse the TrueType font and extract cmap
+        let glyph_map = truetype_cmap::parse_embedded_truetype(&font_data)?;
+
+        trace!(
+            "try_embedded_truetype: Parsed {} glyph mappings from cmap",
+            glyph_map.len()
+        );
+
+        Some(Encoding::EmbeddedTrueType(glyph_map))
     }
 
     /// Parse a /Differences array from an encoding dictionary.
@@ -173,13 +268,11 @@ impl FontInfo {
     /// - `None` if no /Differences array or parsing failed
     fn parse_differences(doc: &LopdfDocument, enc_dict: &Dictionary) -> Option<HashMap<u8, char>> {
         let diffs = enc_dict.get(b"Differences").ok()?;
-        
+
         // Resolve reference if needed
         let diffs_array = match diffs {
             Object::Array(arr) => arr,
-            Object::Reference(id) => {
-                doc.get_object(*id).ok()?.as_array().ok()?
-            }
+            Object::Reference(id) => doc.get_object(*id).ok()?.as_array().ok()?,
             _ => return None,
         };
 
@@ -350,7 +443,7 @@ mod tests {
         assert!(is_bold);
         assert!(is_italic);
     }
-    
+
     #[test]
     fn test_differences_encoding_decode() {
         // Test DifferencesEncoding with a custom mapping for "Table"
@@ -362,7 +455,7 @@ mod tests {
         diff_map.insert(35, 'b');
         diff_map.insert(36, 'l');
         diff_map.insert(37, 'e');
-        
+
         let info = FontInfo {
             base_font: "CustomFont".to_string(),
             encoding: Encoding::DifferencesEncoding(diff_map),
@@ -370,19 +463,19 @@ mod tests {
             is_bold: false,
             is_italic: false,
         };
-        
+
         // bytes [33, 34, 35, 36, 37] should decode to "Table"
         let bytes = [33, 34, 35, 36, 37];
         let result = info.decode(&bytes);
         assert_eq!(result, "Table");
     }
-    
+
     #[test]
     fn test_differences_encoding_fallback_to_winansi() {
         // DifferencesEncoding should fall back to WinAnsi for unmapped bytes
         let mut diff_map = HashMap::new();
         diff_map.insert(33, 'X'); // Map 33 to 'X' instead of '!'
-        
+
         let info = FontInfo {
             base_font: "CustomFont".to_string(),
             encoding: Encoding::DifferencesEncoding(diff_map),
@@ -390,7 +483,7 @@ mod tests {
             is_bold: false,
             is_italic: false,
         };
-        
+
         // Byte 65 is not in diff_map, should fall back to WinAnsi ('A')
         let bytes = [33, 65]; // 33='X' (from diff), 65='A' (from WinAnsi fallback)
         let result = info.decode(&bytes);

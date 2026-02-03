@@ -828,6 +828,7 @@ pub static MAC_ROMAN_ENCODING: CodedCharacterSet = [
 /// - `OneByteEncoding`: Fixed tables (WinAnsi, MacRoman, Standard)
 /// - `ToUnicodeMap`: Custom per-font mappings via CMaps
 /// - `DifferencesEncoding`: Base encoding + glyph name overrides
+/// - `EmbeddedTrueType`: Glyph ID → Unicode from embedded font's cmap table
 /// - `Identity`: Direct UTF-16BE (for CID fonts)
 #[derive(Debug)]
 pub enum Encoding {
@@ -842,6 +843,16 @@ pub enum Encoding {
     /// The HashMap maps byte values (0-255) to Unicode characters.
     /// Missing entries fall back to WinAnsi encoding.
     DifferencesEncoding(std::collections::HashMap<u8, char>),
+    /// Embedded TrueType font encoding from /FontFile2 stream.
+    ///
+    /// **WHY this variant:**
+    /// Subset TrueType fonts (like "LHKJDD+Calibri-Bold") don't have explicit
+    /// encoding in the PDF dictionary. The glyph→Unicode mapping is inside
+    /// the embedded font's cmap table. We parse that using ttf-parser.
+    ///
+    /// The HashMap maps glyph IDs (u16) to Unicode characters.
+    /// This is different from DifferencesEncoding which maps byte values.
+    EmbeddedTrueType(std::collections::HashMap<u16, char>),
     Identity,
 }
 
@@ -904,6 +915,22 @@ impl Encoding {
                 }
                 result
             }
+            Encoding::EmbeddedTrueType(glyph_map) => {
+                // WHY: Embedded TrueType fonts use glyph IDs in the PDF stream.
+                // The glyph_map is built from parsing the font's cmap table.
+                // Each byte in the stream is a glyph ID that maps to a Unicode char.
+                let mut result = String::new();
+                for &b in bytes {
+                    let glyph_id = b as u16;
+                    if let Some(&c) = glyph_map.get(&glyph_id) {
+                        result.push(c);
+                    } else {
+                        // Unknown glyph - use replacement character
+                        result.push('\u{FFFD}');
+                    }
+                }
+                result
+            }
             Encoding::Identity => {
                 if bytes.len() >= 2 {
                     let utf16: Vec<u16> = bytes
@@ -959,11 +986,12 @@ impl ToUnicodeMap {
                 continue;
             }
             if in_bfchar {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
+                // Extract hex codes from line (handles both space-separated and concatenated)
+                let hex_codes = Self::extract_hex_codes(line);
+                if hex_codes.len() >= 2 {
                     if let (Some(src), Some(dst)) = (
-                        Self::parse_hex_code(parts[0]),
-                        Self::parse_hex_string(parts[1]),
+                        Self::parse_hex_code(hex_codes[0]),
+                        Self::parse_hex_string(hex_codes[1]),
                     ) {
                         map.mappings.insert(src, dst);
                     }
@@ -984,18 +1012,28 @@ impl ToUnicodeMap {
                 continue;
             }
             if in_bfrange {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 3 {
+                // Parse bfrange entries. Format can be:
+                // 1. Space-separated: <21> <21> <0054>
+                // 2. Concatenated: <21><21><0054>
+                // We need to extract three hex values: start, end, destination
+                
+                // Use regex-like pattern matching for hex codes
+                let hex_codes: Vec<&str> = Self::extract_hex_codes(line);
+                
+                if hex_codes.len() >= 3 {
                     if let (Some(start), Some(end)) = (
-                        Self::parse_hex_code(parts[0]),
-                        Self::parse_hex_code(parts[1]),
+                        Self::parse_hex_code(hex_codes[0]),
+                        Self::parse_hex_code(hex_codes[1]),
                     ) {
-                        if parts[2].starts_with('[') {
-                            let array_str: String = parts[2..].join(" ");
-                            let dest_codes: Vec<&str> = array_str
-                                .trim_matches(|c| c == '[' || c == ']')
-                                .split_whitespace()
-                                .collect();
+                        // Check if third element is an array (starts with '[')
+                        let remaining = line.find('[');
+                        if remaining.is_some() {
+                            // Array format: <start> <end> [<val1> <val2> ...]
+                            let array_start = line.find('[').unwrap();
+                            let array_end = line.rfind(']').unwrap_or(line.len());
+                            let array_content = &line[array_start + 1..array_end];
+                            let dest_codes = Self::extract_hex_codes(array_content);
+                            
                             for (i, code) in (start..=end).enumerate() {
                                 if i < dest_codes.len() {
                                     if let Some(dst) = Self::parse_hex_string(dest_codes[i]) {
@@ -1003,7 +1041,7 @@ impl ToUnicodeMap {
                                     }
                                 }
                             }
-                        } else if let Some(start_dst) = Self::parse_hex_string(parts[2]) {
+                        } else if let Some(start_dst) = Self::parse_hex_string(hex_codes[2]) {
                             if !start_dst.is_empty() {
                                 let base = start_dst[0] as u32;
                                 for (i, code) in (start..=end).enumerate() {
@@ -1039,6 +1077,40 @@ impl ToUnicodeMap {
             }
         }
         Some(result)
+    }
+
+    /// Extract hex codes from a line.
+    /// 
+    /// **WHY this function:**
+    /// ToUnicode CMap bfrange entries can be in two formats:
+    /// 1. Space-separated: `<21> <21> <0054>`
+    /// 2. Concatenated: `<21><21><0054>`
+    /// 
+    /// This function extracts all `<hex>` patterns regardless of spacing.
+    fn extract_hex_codes(line: &str) -> Vec<&str> {
+        let mut codes = Vec::new();
+        let bytes = line.as_bytes();
+        let mut i = 0;
+        
+        while i < bytes.len() {
+            if bytes[i] == b'<' {
+                // Find the closing >
+                if let Some(end_offset) = bytes[i..].iter().position(|&b| b == b'>') {
+                    let end = i + end_offset + 1;
+                    // Extract the slice including < and >
+                    if let Ok(code) = std::str::from_utf8(&bytes[i..end]) {
+                        codes.push(code);
+                    }
+                    i = end;
+                } else {
+                    i += 1;
+                }
+            } else {
+                i += 1;
+            }
+        }
+        
+        codes
     }
 
     /// Decode bytes using this CMap

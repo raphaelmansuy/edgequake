@@ -90,6 +90,8 @@ pub mod mock;
 pub mod spatial;
 #[cfg(feature = "lopdf")]
 pub mod text_grouping;
+#[cfg(feature = "lopdf")]
+pub mod truetype_cmap;
 
 #[cfg(feature = "lopdf")]
 pub use extraction_engine::ExtractionEngine;
