@@ -89,6 +89,13 @@ impl Processor for HeaderDetectionProcessor {
                     continue;
                 }
 
+                // OODA-27: Don't overwrite blocks that already have a level assigned
+                // WHY: HeadingBodySplitProcessor sets level=3 for Abstract, and we
+                // don't want HeaderDetection to overwrite that with level=2 based on font size
+                if block.level.is_some() {
+                    continue;
+                }
+
                 let text = block.text.trim();
 
                 // Position-aware length threshold
@@ -277,7 +284,7 @@ impl HeaderDetectionProcessor {
                 // Build the preceding string from chars to avoid UTF-8 boundary issues
                 let preceding: String = chars[..=i].iter().collect();
                 let preceding_lower = preceding.to_lowercase();
-                
+
                 let is_abbreviation = preceding_lower.ends_with("dr.")
                     || preceding_lower.ends_with("mr.")
                     || preceding_lower.ends_with("mrs.")
@@ -527,6 +534,115 @@ impl Processor for CodeBlockDetectionProcessor {
 
     fn name(&self) -> &str {
         "CodeBlockDetectionProcessor"
+    }
+}
+
+// =============================================================================
+// HeadingBodySplitProcessor (OODA-27)
+// =============================================================================
+
+/// Splits merged heading+body text blocks into separate heading and body blocks.
+///
+/// **WHY this processor exists:**
+/// PDF extraction often merges "Abstract. This paper reviews..." into a single
+/// block. The gold standard expects "### Abstract" as a separate heading.
+///
+/// **Detection Patterns (Generic):**
+/// - Single-word heading followed by period and continuation:
+///   `^(Abstract|Introduction|Conclusion|Summary|Acknowledgments)\.\s+(.+)$`
+/// - Keyword with period sentence boundary pattern
+///
+/// **First Principles:**
+/// - Uses sentence boundary detection (`. ` followed by capital letter)
+/// - Validates that first word is a known heading keyword
+/// - Creates new block with same styling for body text
+/// @implements FEAT0512
+pub struct HeadingBodySplitProcessor {
+    /// Regex for detecting merged heading patterns
+    heading_pattern: Regex,
+}
+
+impl HeadingBodySplitProcessor {
+    pub fn new() -> Self {
+        // WHY these keywords: Common academic/technical paper structure headings
+        // that are often rendered inline with period separator
+        // Pattern: Single word heading + period + optional space + continuation (capital letter)
+        // OODA-27 FIX: Changed \s+ to \s* to handle "Abstract.This" (no space after period)
+        let heading_pattern = Regex::new(
+            r"(?i)^(Abstract|Introduction|Conclusion|Summary|Acknowledgments|Acknowledgements|Background|Discussion|Methods|Results|References)\.\s*([A-Z].*)$"
+        ).expect("Invalid heading pattern regex");
+
+        Self { heading_pattern }
+    }
+}
+
+impl Default for HeadingBodySplitProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for HeadingBodySplitProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        for page in &mut document.pages {
+            let mut new_blocks = Vec::with_capacity(page.blocks.len() * 2);
+
+            for block in page.blocks.drain(..) {
+                // Only process unclassified text blocks
+                if block.block_type != BlockType::Text && block.block_type != BlockType::Paragraph {
+                    new_blocks.push(block);
+                    continue;
+                }
+
+                let text = block.text.trim();
+
+                // Check for heading pattern match
+                if let Some(captures) = self.heading_pattern.captures(text) {
+                    if let (Some(heading_match), Some(body_match)) =
+                        (captures.get(1), captures.get(2))
+                    {
+                        let heading_text = heading_match.as_str().to_string();
+                        let body_text = body_match.as_str().to_string();
+
+                        // Only split if body text is substantial
+                        if body_text.len() > 10 {
+                            // Create heading block (copy bbox but update text)
+                            let mut heading_block = block.clone();
+                            heading_block.text = heading_text.clone();
+                            // Clear spans to prevent renderer from using old merged text
+                            // The renderer uses spans if present, falling back to block.text
+                            heading_block.spans.clear();
+                            // Mark as section header with H3 level for abstract-level headings
+                            heading_block.block_type = BlockType::SectionHeader;
+                            heading_block.level = Some(3);
+
+                            new_blocks.push(heading_block);
+
+                            // Create body block with continuation text
+                            let mut body_block = block;
+                            body_block.text = body_text;
+                            // Keep spans for body - they may be useful for styling
+                            body_block.block_type = BlockType::Text;
+                            body_block.level = None;
+                            new_blocks.push(body_block);
+
+                            continue;
+                        }
+                    }
+                }
+
+                // No match - keep original block
+                new_blocks.push(block);
+            }
+
+            page.blocks = new_blocks;
+        }
+
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "HeadingBodySplitProcessor"
     }
 }
 

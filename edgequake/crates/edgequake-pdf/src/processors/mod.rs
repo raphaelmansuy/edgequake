@@ -53,7 +53,7 @@ pub use layout_processing::{
 // Structure detection processors
 pub use structure_detection::{
     CaptionDetectionProcessor, CodeBlockDetectionProcessor, HeaderDetectionProcessor,
-    ListDetectionProcessor,
+    HeadingBodySplitProcessor, ListDetectionProcessor,
 };
 
 // Table detection processors
