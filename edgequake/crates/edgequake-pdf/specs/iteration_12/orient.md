@@ -37,6 +37,7 @@ The root cause of the v2 PDF's poor structural fidelity (50.4%) is **cross-colum
 **File**: `src/backend/text_grouping.rs`, lines 241-262
 
 **Original Logic**:
+
 ```rust
 // Gap zone: within ±15pt of boundary
 if elem.x < column_boundary {
@@ -49,6 +50,7 @@ if elem.x < column_boundary {
 ## First Principles Analysis
 
 A two-column layout has:
+
 - Left column: typically X ∈ [~54, ~290]
 - Gap: X ∈ [~290, ~320]
 - Right column: typically X ∈ [~313, ~560]
@@ -60,6 +62,7 @@ The gap boundary (320) is detected from the whitespace between columns. But righ
 ## BlockMergeProcessor Enhancement
 
 Also added academic reference `[N]` pattern detection to prevent merging when next block starts with a reference marker. This prevents:
+
 - `...in ICRA., 2006.` + `[2] X. Cheng...` from merging
 
 ## Expected Impact

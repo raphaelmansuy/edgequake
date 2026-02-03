@@ -212,7 +212,12 @@ impl BlockMergeProcessor {
         // These must NOT be merged with preceding blocks
         let is_academic_ref = trimmed_b.len() > 2
             && trimmed_b.starts_with('[')
-            && trimmed_b.chars().skip(1).take_while(|c| c.is_ascii_digit()).count() >= 1
+            && trimmed_b
+                .chars()
+                .skip(1)
+                .take_while(|c| c.is_ascii_digit())
+                .count()
+                >= 1
             && trimmed_b.contains(']');
 
         if trimmed_b.starts_with("- ")
@@ -223,8 +228,11 @@ impl BlockMergeProcessor {
                 && trimmed_b.chars().next().unwrap().is_ascii_digit()
                 && trimmed_b.contains(". "))
         {
-            tracing::debug!("BlockMerge: skip - b looks like list item (ref={}, text='{}')", 
-                is_academic_ref, safe_truncate(trimmed_b, 30));
+            tracing::debug!(
+                "BlockMerge: skip - b looks like list item (ref={}, text='{}')",
+                is_academic_ref,
+                safe_truncate(trimmed_b, 30)
+            );
             return false;
         }
 
@@ -460,9 +468,39 @@ impl Processor for BlockMergeProcessor {
 
         for page in &mut document.pages {
             let block_count_before = page.blocks.len();
+
+            // OODA-13 DEBUG: Count ref blocks before merge
+            let refs_before = page
+                .blocks
+                .iter()
+                .filter(|b| {
+                    let t = b.text.trim();
+                    t.starts_with('[')
+                        && t.chars()
+                            .nth(1)
+                            .map(|c| c.is_ascii_digit())
+                            .unwrap_or(false)
+                })
+                .count();
+
             let blocks = std::mem::take(&mut page.blocks);
             let columns = &page.columns; // Capture columns before moving blocks
             page.blocks = self.merge_page_blocks(blocks, &stats, columns);
+
+            // OODA-13 DEBUG: Count ref blocks after merge
+            let refs_after = page
+                .blocks
+                .iter()
+                .filter(|b| {
+                    let t = b.text.trim();
+                    t.starts_with('[')
+                        && t.chars()
+                            .nth(1)
+                            .map(|c| c.is_ascii_digit())
+                            .unwrap_or(false)
+                })
+                .count();
+
             let block_count_after = page.blocks.len();
             tracing::debug!(
                 "BlockMergeProcessor: page {} blocks {} -> {} (columns={})",
@@ -471,6 +509,14 @@ impl Processor for BlockMergeProcessor {
                 block_count_after,
                 columns.len()
             );
+
+            if refs_before > 0 || refs_after > 0 {
+                eprintln!(
+                    "BMP-PAGE-{}: refs {} -> {} (blocks {} -> {})",
+                    page.number, refs_before, refs_after, block_count_before, block_count_after
+                );
+            }
+
             page.update_stats();
         }
 

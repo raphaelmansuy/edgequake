@@ -129,6 +129,15 @@ impl TextGrouper {
                 continue;
             }
 
+            // OODA-13 DEBUG: Track specific element
+            if elem.text.contains("Groom") {
+                info!(
+                    "GROOM-TRACK: Y={:.1} X={:.1} font={:.1} header_thresh={:.1} footer_thresh={:.1} text='{}'",
+                    elem.y, elem.x, elem.font_size, header_threshold, footer_threshold,
+                    Self::safe_truncate(&elem.text, 40)
+                );
+            }
+
             // WHY (OODA-05): After Y-normalization, Y=0 is at TOP of page, Y increases downward.
             // So footer (visual bottom) = LARGE Y, and title (visual top) = SMALL Y.
 
@@ -137,12 +146,44 @@ impl TextGrouper {
 
             // Check if element is in header region (visual top but small font = running header)
             // Running headers are at the very top (small Y) but with small font size
-            let is_header = elem.y < header_threshold && elem.font_size < large_font_threshold;
+            // OODA-13 FIX: Also check that text LOOKS like a running header
+            // Running headers are typically:
+            // - Short (< 80 chars) - paper titles, page numbers, journal names
+            // - Don't continue sentences (don't end with continuation chars like comma, hyphen, "the", etc.)
+            // - Often contain page numbers, dates, or all-caps words
+            // Body text at Y=0 (paragraph continuation from previous page) should NOT be classified as header
+            let looks_like_running_header = {
+                let text_len = elem.text.len();
+                let trimmed = elem.text.trim();
+                // Short text is more likely a header
+                let is_short = text_len < 80;
+                // Check if text looks like paragraph continuation (ends with hyphen, comma, lowercase)
+                let is_continuation = trimmed.ends_with('-')
+                    || trimmed.ends_with(',')
+                    || trimmed.ends_with("the")
+                    || trimmed.ends_with("a")
+                    || trimmed.ends_with("and")
+                    || trimmed.ends_with("or")
+                    || trimmed.ends_with("of");
+                // Headers often have numbers (page numbers) or are all caps
+                let has_page_number = trimmed.chars().any(|c| c.is_ascii_digit());
+                let has_uppercase_word = trimmed
+                    .split_whitespace()
+                    .any(|w| w.len() > 2 && w.chars().all(|c| c.is_uppercase()));
+
+                // It's a header if it's short AND NOT a continuation AND has header-like features
+                // OR if it's very short (likely just a page number)
+                (is_short && !is_continuation && (has_page_number || has_uppercase_word))
+                    || text_len < 15 // Very short = likely page number or header
+            };
+            let is_header = elem.y < header_threshold
+                && elem.font_size < large_font_threshold
+                && looks_like_running_header;
 
             // Check if element is affiliation/metadata (between body and footer)
             // These include: university names, emails, conference submission lines
             // Affiliation zone is near footer (large Y) but not quite at the bottom
-            let is_affiliation_zone = elem.y > affiliation_threshold && elem.y <= footer_threshold;
+            let _is_affiliation_zone = elem.y > affiliation_threshold && elem.y <= footer_threshold;
             let looks_like_affiliation = elem.text.contains('@')
                 || elem.text.contains("University")
                 || elem.text.contains("School of")
@@ -152,7 +193,38 @@ impl TextGrouper {
                 // REMOVED: "Conference" - this matches paper title lines like "Published at ICLR"
                 || elem.text.starts_with("1") && elem.text.len() < 5  // Affiliation numbers
                 || elem.text.starts_with("2") && elem.text.len() < 5;
-            let is_affiliation = is_affiliation_zone || looks_like_affiliation;
+
+            // WHY (OODA-13): REFERENCES section often has content near page bottom
+            // that's in the affiliation_zone by Y-position but is NOT affiliation.
+            // A reference line starts with "[number]" pattern - these should NOT be
+            // classified as affiliations even if in the affiliation zone.
+            let is_reference_content = {
+                let trimmed = elem.text.trim();
+                // Check for reference patterns: [1], [12], [123], etc.
+                trimmed.starts_with('[') && trimmed.len() > 2 && {
+                    let after_bracket = &trimmed[1..];
+                    after_bracket
+                        .chars()
+                        .take_while(|c| c.is_ascii_digit())
+                        .count()
+                        >= 1
+                        && after_bracket
+                            .chars()
+                            .skip_while(|c| c.is_ascii_digit())
+                            .next()
+                            == Some(']')
+                }
+            };
+
+            // WHY (OODA-13 FIX): PREVIOUS BUG was `is_affiliation_zone || looks_like_affiliation`
+            // which treated ALL content in the bottom 12% of page as affiliations.
+            // This caused REFERENCES content near page bottom to be routed to footer processing,
+            // where elements from left and right columns at similar Y got merged.
+            //
+            // FIX: Only treat as affiliation if it LOOKS like an affiliation (content-based).
+            // Zone check is intentionally NOT used - position alone is unreliable for affiliations
+            // since REFERENCES can also appear at page bottom.
+            let is_affiliation = looks_like_affiliation && !is_reference_content;
 
             // Handle spanning elements (titles):
             // - In title zone (near top of page = small Y after normalization)
@@ -205,44 +277,15 @@ impl TextGrouper {
                 }
             } else if elem.x < column_boundary - margin {
                 // Clearly in left column
-                // Log if text contains suspicious patterns
-                if elem.text.contains("paradigm")
-                    || elem.text.contains("updated")
-                    || elem.text.contains("approach")
-                    || elem.text.contains("trajectory")
-                    || elem.text.contains("temporal-control")
-                {
-                    info!(
-                        "LEFT-COL: Y={:.1} X={:.1} boundary={:.1} '{}'",
-                        elem.y,
-                        elem.x,
-                        column_boundary,
-                        Self::safe_truncate(&elem.text, 50)
-                    );
-                }
                 left_column.push(elem);
             } else if elem.x > column_boundary + margin {
                 // Clearly in right column
-                if elem.text.contains("paradigm")
-                    || elem.text.contains("updated")
-                    || elem.text.contains("approach")
-                    || elem.text.contains("trajectory")
-                    || elem.text.contains("temporal-control")
-                {
-                    info!(
-                        "RIGHT-COL: Y={:.1} X={:.1} boundary={:.1} '{}'",
-                        elem.y,
-                        elem.x,
-                        column_boundary,
-                        Self::safe_truncate(&elem.text, 50)
-                    );
-                }
                 right_column.push(elem);
             } else {
                 // WHY: Element is in the gap between columns (within ±15pt of boundary)
                 // OODA-12 FIX: Use midpoint between left column right edge and right column left edge
                 // The "boundary" is the gap center. Elements close to boundary need smarter assignment.
-                // 
+                //
                 // Observation: Reference [25] at X=313.2 with boundary=320 was incorrectly assigned
                 // to LEFT because 313.2 < 320. But X=313 is clearly the START of right column text.
                 //
@@ -376,6 +419,28 @@ impl TextGrouper {
         let (left_main, left_bottom) = self.split_by_vertical_gap(left_lines, 30.0);
         let (right_main, right_bottom) = self.split_by_vertical_gap(right_lines, 30.0);
 
+        // OODA-13 DEBUG: Log bottom content
+        if !left_bottom.is_empty() {
+            for line in &left_bottom {
+                let text: String = line
+                    .iter()
+                    .map(|e| e.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("");
+                info!("LEFT-BOTTOM: '{}'", Self::safe_truncate(&text, 60));
+            }
+        }
+        if !right_bottom.is_empty() {
+            for line in &right_bottom {
+                let text: String = line
+                    .iter()
+                    .map(|e| e.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("");
+                info!("RIGHT-BOTTOM: '{}'", Self::safe_truncate(&text, 60));
+            }
+        }
+
         info!(
             "TG-BEFORE-CONCAT: left_main={} right_main={}",
             left_main.len(),
@@ -429,11 +494,27 @@ impl TextGrouper {
         }
 
         if max_gap > gap_threshold {
-            debug!(
-                "Found vertical gap of {:.1}pt at line {}, splitting column content",
-                max_gap, split_idx
+            info!(
+                "SPLIT-GAP: gap={:.1}pt at line {} (threshold={:.1})",
+                max_gap, split_idx, gap_threshold
             );
             let (main, bottom) = lines.split_at(split_idx);
+
+            // OODA-13 DEBUG: Log if Groom gets split
+            for line in bottom {
+                let text: String = line
+                    .iter()
+                    .map(|e| e.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("");
+                if text.contains("Groom") {
+                    info!(
+                        "GROOM-SPLIT-TO-BOTTOM: '{}'",
+                        Self::safe_truncate(&text, 60)
+                    );
+                }
+            }
+
             (main.to_vec(), bottom.to_vec())
         } else {
             (lines, Vec::new())
@@ -499,6 +580,18 @@ impl TextGrouper {
     fn group_single_column_layout(&self, mut elements: Vec<TextElement>) -> Vec<Vec<TextElement>> {
         if elements.is_empty() {
             return Vec::new();
+        }
+
+        // OODA-13 DEBUG: Log elements containing Groom
+        for elem in &elements {
+            if elem.text.contains("Groom") {
+                info!(
+                    "GROOM-IN-GROUP: Y={:.1} X={:.1} text='{}'",
+                    elem.y,
+                    elem.x,
+                    Self::safe_truncate(&elem.text, 40)
+                );
+            }
         }
 
         // Sort by Y ascending (lower Y = top of page after normalization)

@@ -155,7 +155,7 @@ impl BlockBuilder {
                 );
             }
 
-            blocks.push(block);
+            blocks.push(block.clone());
         }
 
         blocks
