@@ -46,6 +46,9 @@ impl FontInfo {
         // - "sfbx" (SF Bold Extended) in arXiv/LaTeX fonts like TFFXIV+SFBX1200
         // - "cmbx" (Computer Modern Bold Extended)
         // - "-bold" suffix
+        // NOTE: We intentionally DON'T include "medi" (medium weight) because it's often
+        // used for section titles in Nimbus fonts, which we detect as headings separately.
+        // Including it would cause over-bolding of heading text.
         let is_bold = lower_name.contains("bold")
             || lower_name.contains("black")
             || lower_name.contains("heavy")
