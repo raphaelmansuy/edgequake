@@ -22,7 +22,7 @@ You must always assess the golden standard Markdown output using the Markitdown 
 
 ALWAY USE ASCII DIAGRAMS TO DEEPLY REFLECT YOUR THINKING about Data, geometric processing pipelines, architecture, workflows, etc. Search about PDF handling, text extraction, layout analysis, and Markdown formatting as needed. See other project such as Markitdown (https://github.com/microsoft/markitdown)
 
-Use markitdown mcp to compare extracted Markdown against gold standard references.
+Use markitdown mcp to compare extracted Markdown against gold standard references: but be very smart about quality of gold standards: if the gold standard is poor, your quality metrics will be misleading. You must ensure that the gold standard markdown files are of high quality and accurately represent the intended structure and content of the original PDFs. You want to exceed markitdown quality if possible: it why you are building your own PDF to Markdown converter. Always analyze the gold standard files for quality before using them as benchmarks: use your knowledge of Markdown syntax and best practices to assess their quality. If you find gold standard files that are subpar, document the issues and consider improving them or creating new high-quality references.
 
 VERY IMPORTANT: Optimize for speed and efficiency. Study the algoryithms used in text extraction and layout analysis to ensure they run quickly even on large documents. Use big notation (O notation) to analyze time complexity of your algorithms.
 

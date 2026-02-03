@@ -24,7 +24,7 @@ Add `merge_consecutive_title_lines()` function to TextGrouper to merge multi-lin
 /// 3. Merge into single line
 /// 4. Otherwise keep separate
 fn merge_consecutive_title_lines(
-    &self, 
+    &self,
     lines: Vec<Vec<TextElement>>
 ) -> Vec<Vec<TextElement>>
 ```
@@ -32,11 +32,13 @@ fn merge_consecutive_title_lines(
 ### Step 2: Call it after grouping spanning elements
 
 In `group_two_column_layout()`, after:
+
 ```rust
 let spanning_lines = self.group_single_column_layout(spanning_elements);
 ```
 
 Add:
+
 ```rust
 let spanning_lines = self.merge_consecutive_title_lines(spanning_lines);
 ```
@@ -79,7 +81,7 @@ fn merge_consecutive_title_lines(
         let should_merge = if let (Some(py), Some(pf)) = (prev_y, prev_font_size) {
             let y_gap = (line_y - py).abs();
             let font_diff = (line_font_size - pf).abs();
-            
+
             // WHY 1.5 × font_size: Normal title line spacing is 1.2-1.5× font
             // WHY 1pt font tolerance: Handle minor font size variations
             y_gap < line_font_size * 1.5 && font_diff < 1.0
@@ -120,11 +122,13 @@ fn merge_consecutive_title_lines(
 ```
 
 **Integration point**: In `group_two_column_layout()`, after:
+
 ```rust
 let spanning_lines = self.group_single_column_layout(spanning_elements);
 ```
 
 Insert:
+
 ```rust
 // OODA-17: Merge multi-line titles in spanning zone
 let spanning_lines = self.merge_consecutive_title_lines(spanning_lines);
@@ -132,10 +136,10 @@ let spanning_lines = self.merge_consecutive_title_lines(spanning_lines);
 
 ## Expected Impact
 
-| Document | Before | Expected After | Reason |
-|----------|--------|----------------|--------|
-| agent_2510.09244v1 | 80.1% | ~82% | Correct title structure |
-| Other multi-line titles | improved | improved | Same fix applies |
+| Document                | Before   | Expected After | Reason                  |
+| ----------------------- | -------- | -------------- | ----------------------- |
+| agent_2510.09244v1      | 80.1%    | ~82%           | Correct title structure |
+| Other multi-line titles | improved | improved       | Same fix applies        |
 
 ## Commit Message
 

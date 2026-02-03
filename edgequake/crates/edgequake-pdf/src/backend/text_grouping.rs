@@ -364,7 +364,7 @@ impl TextGrouper {
 
         // Process spanning elements first (titles, etc.)
         let spanning_lines = self.group_single_column_layout(spanning_elements);
-        
+
         // OODA-17: Merge multi-line titles in spanning zone
         // WHY: PDF titles often wrap across 2-3 lines. Each line becomes a separate
         // "spanning line" which would create separate heading blocks. By merging
@@ -733,7 +733,7 @@ impl TextGrouper {
     /// Example:
     /// - Line 1: Y=0.0  "Fundamentals of Building Autonomous LLM"
     /// - Line 2: Y=17.9 "Agents"
-    /// 
+    ///
     /// These should become ONE title block, not two separate headings.
     ///
     /// # Algorithm
@@ -742,10 +742,7 @@ impl TextGrouper {
     /// 1. If Y-gap < 1.5 × font_size (normal title line spacing)
     /// 2. AND font sizes match within 1pt
     /// 3. Then merge into single line
-    fn merge_consecutive_title_lines(
-        &self,
-        lines: Vec<Vec<TextElement>>,
-    ) -> Vec<Vec<TextElement>> {
+    fn merge_consecutive_title_lines(&self, lines: Vec<Vec<TextElement>>) -> Vec<Vec<TextElement>> {
         if lines.len() <= 1 {
             return lines;
         }
@@ -768,7 +765,7 @@ impl TextGrouper {
             let should_merge = if let (Some(py), Some(pf)) = (prev_y, prev_font_size) {
                 let y_gap = (line_y - py).abs();
                 let font_diff = (line_font_size - pf).abs();
-                
+
                 // WHY 1.5 × font_size: Normal title line spacing is 1.2-1.5× font
                 // For 14pt font: 14 × 1.5 = 21pt threshold
                 // Our test case has 17.9pt gap with 14.3pt font = OK to merge
@@ -1104,6 +1101,7 @@ mod tests {
             font_size,
             is_bold: false,
             is_italic: false,
+            is_rotated: false,
         }
     }
 

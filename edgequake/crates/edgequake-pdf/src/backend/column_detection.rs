@@ -570,6 +570,7 @@ mod tests {
             font_size: 12.0,
             is_bold: false,
             is_italic: false,
+            is_rotated: false,
         }
     }
 

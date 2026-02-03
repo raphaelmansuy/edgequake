@@ -13,11 +13,13 @@ Multi-line titles are being split into separate blocks, then rendered as separat
 ### Example: agent_2510.09244v1.pdf
 
 **Expected**:
+
 ```markdown
 # Fundamentals of Building Autonomous LLM Agents
 ```
 
 **Actual**:
+
 ```markdown
 # Fundamentals of Building Autonomous LLM
 
@@ -27,18 +29,21 @@ Multi-line titles are being split into separate blocks, then rendered as separat
 ### Root Cause Analysis
 
 The PDF title wraps across two text lines:
+
 ```
 Line 1: Y=0.0  X=152.9 font=14.3 "Fundamentals of Building Autonomous LLM"
 Line 2: Y=17.9 X=277.8 font=14.3 "Agents"
 ```
 
 Both lines are correctly detected as SPANNING (title zone + large font):
+
 ```
 SPANNING: Y=0.0 X=152.9 font=14.3 title_zone=true large_font=true 'Fundamentals of Building Autonomous LLM'
 SPANNING: Y=17.9 X=277.8 font=14.3 title_zone=true large_font=true 'Agents'
 ```
 
 But they become TWO separate blocks because:
+
 1. `group_single_column_layout()` groups by Y-coordinate
 2. Each Y-level becomes a separate "line"
 3. `block_builder.rs` creates one block per line
@@ -114,6 +119,7 @@ Add special handling for title blocks on first page.
 **Option A: Merge spanning lines in TextGrouper**
 
 The spanning elements are already grouped together. We just need to merge lines that:
+
 1. Have Y-spacing < 25pt (typical line spacing for titles)
 2. Have same font size
 3. Are in the title zone
@@ -123,5 +129,6 @@ This is the most efficient fix - prevents the problem rather than correcting it 
 ## Metrics Impact
 
 If we fix title merging:
+
 - agent_2510.09244v1 Structure should improve (correct H1 title)
 - Other documents with multi-line titles may also benefit

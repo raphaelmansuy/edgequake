@@ -35,6 +35,31 @@ impl ContentParser {
         Self {}
     }
 
+    /// OODA-19: Detect if a CTM matrix represents significantly rotated text.
+    ///
+    /// # WHY
+    ///
+    /// arXiv papers have a watermark (e.g., "arXiv:2510.09244v1 [cs.AI] 10 Oct 2025")
+    /// in the left margin, rotated 90 degrees. This text appears at the same Y coordinate
+    /// as body text but should NOT be merged with it.
+    ///
+    /// # Detection
+    ///
+    /// Normal 2D affine matrix: [a, b, c, d, tx, ty]
+    /// - No rotation: a ≈ 1, b ≈ 0, c ≈ 0, d ≈ 1
+    /// - 90° CCW: a ≈ 0, b ≈ 1, c ≈ -1, d ≈ 0
+    /// - 90° CW: a ≈ 0, b ≈ -1, c ≈ 1, d ≈ 0
+    ///
+    /// We detect rotation by checking if the diagonal (a, d) is near zero.
+    fn is_rotated_ctm(ctm: &[f32; 6]) -> bool {
+        let a = ctm[0].abs();
+        let d = ctm[3].abs();
+        
+        // If both a and d are small (< 0.1), text is rotated ~90°
+        // Normal text has a ≈ 1 and d ≈ 1
+        a < 0.1 && d < 0.1
+    }
+
     /// Extract text and graphical elements from a content stream.
     ///
     /// # Arguments
@@ -270,13 +295,17 @@ impl ContentParser {
                                 let visual_x = ctm[0] * raw_x + ctm[2] * raw_y + ctm[4];
                                 let visual_y = ctm[1] * raw_x + ctm[3] * raw_y + ctm[5];
 
+                                // OODA-19: Detect rotated text (e.g., arXiv margin watermark)
+                                let is_rotated = Self::is_rotated_ctm(&ctm);
+
                                 if text_elements.len() < 10 {
                                     tracing::info!(
-                                        "CP-TJ: text='{}' font_size={:.1} x={:.1} y={:.1}",
+                                        "CP-TJ: text='{}' font_size={:.1} x={:.1} y={:.1} rotated={}",
                                         &text,
                                         font_size,
                                         visual_x,
-                                        visual_y
+                                        visual_y,
+                                        is_rotated
                                     );
                                 }
 
@@ -288,6 +317,7 @@ impl ContentParser {
                                     font_name: current_font_name.clone(),
                                     is_bold,
                                     is_italic,
+                                    is_rotated,
                                 });
 
                                 // Advance text matrix by estimated text width.
@@ -368,6 +398,9 @@ impl ContentParser {
                                 let visual_x = ctm[0] * raw_x + ctm[2] * raw_y + ctm[4];
                                 let visual_y = ctm[1] * raw_x + ctm[3] * raw_y + ctm[5];
 
+                                // OODA-19: Detect rotated text
+                                let is_rotated = Self::is_rotated_ctm(&ctm);
+
                                 text_elements.push(TextElement {
                                     text: cleaned,
                                     x: visual_x,
@@ -376,6 +409,7 @@ impl ContentParser {
                                     font_name: current_font_name.clone(),
                                     is_bold,
                                     is_italic,
+                                    is_rotated,
                                 });
                             }
 
@@ -408,6 +442,9 @@ impl ContentParser {
                                 let visual_x = ctm[0] * raw_x + ctm[2] * raw_y + ctm[4];
                                 let visual_y = ctm[1] * raw_x + ctm[3] * raw_y + ctm[5];
 
+                                // OODA-19: Detect rotated text
+                                let is_rotated = Self::is_rotated_ctm(&ctm);
+
                                 text_elements.push(TextElement {
                                     text: cleaned.clone(),
                                     x: visual_x,
@@ -416,6 +453,7 @@ impl ContentParser {
                                     font_name: current_font_name.clone(),
                                     is_bold,
                                     is_italic,
+                                    is_rotated,
                                 });
 
                                 // Advance text matrix by estimated text width

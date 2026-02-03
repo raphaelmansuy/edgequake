@@ -294,6 +294,7 @@ mod tests {
             font_name: "Times-Roman".to_string(),
             is_bold: false,
             is_italic: false,
+            is_rotated: false,
         }
     }
 

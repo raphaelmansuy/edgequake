@@ -413,6 +413,33 @@ impl ExtractionEngine {
         // Preprocess elements: deduplicate OCR layers and merge fragmented text
         let elements = self.element_processor.process(elements);
 
+        // OODA-19: Filter out rotated text elements (e.g., arXiv margin watermarks)
+        // WHY: Rotated text like "arXiv:2510.09244v1 [cs.AI] 10 Oct 2025" appears in the
+        // left margin of academic papers at 90 degrees. These should NOT be merged with
+        // body text at the same Y coordinate.
+        //
+        // Instead of completely removing them, we:
+        // 1. Extract them separately (for metadata extraction if needed)
+        // 2. Remove them from the main text flow
+        let rotated_elements: Vec<_> = elements.iter().filter(|e| e.is_rotated).cloned().collect();
+        let elements: Vec<_> = elements.into_iter().filter(|e| !e.is_rotated).collect();
+        
+        if !rotated_elements.is_empty() {
+            info!(
+                "OODA19-ROTATED: Page {} has {} rotated text elements (filtered out)",
+                page_num,
+                rotated_elements.len()
+            );
+            for elem in rotated_elements.iter().take(3) {
+                info!(
+                    "  ROTATED: Y={:.1} X={:.1} text='{}'",
+                    elem.y,
+                    elem.x,
+                    &elem.text[..50.min(elem.text.len())]
+                );
+            }
+        }
+
         // OODA-05 DEBUG: Log first 10 elements after processing for page 1
         if page_num == 1 {
             for (i, elem) in elements.iter().take(10).enumerate() {
@@ -1122,6 +1149,7 @@ mod tests {
                 font_name: "Times-Roman".to_string(),
                 is_bold: false,
                 is_italic: false,
+                is_rotated: false,
             },
             TextElement {
                 text: "World".to_string(),
@@ -1131,6 +1159,7 @@ mod tests {
                 font_name: "Times-Bold".to_string(),
                 is_bold: true,
                 is_italic: false,
+                is_rotated: false,
             },
         ];
 
@@ -1152,6 +1181,7 @@ mod tests {
             font_name: "Times-Roman".to_string(),
             is_bold: false,
             is_italic: false,
+            is_rotated: false,
         }
     }
 

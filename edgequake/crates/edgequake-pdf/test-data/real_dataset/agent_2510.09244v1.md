@@ -38,13 +38,13 @@ Planning · Memory Systems · Action Systems · Multi-agent Systems
 
 Artificial intelligence (AI) is a powerful technology that is transforming cognitive automation and fundamentally reshaping the way tasks are performed [13,14,37].
 
-arXiv:2510.09244v1 [cs.AI] 10 Oct 2025 Today, one can develop remarkable systems without the need to write complex
+Today, one can develop remarkable systems without the need to write complex algorithms or master low-level code. We are closer than ever to realizing the
 
-algorithms or master low-level code. We are closer than ever to realizing the idea that "if you can think it, you can build it." Instead of relying solely on
+idea that "if you can think it, you can build it." Instead of relying solely on programming skills, what increasingly matters is understanding how a human
 
-programming skills, what increasingly matters is understanding how a human would reason through a problem, since LLM agents can learn and mimic human
+would reason through a problem, since LLM agents can learn and mimic human problem solving by externalizing intermediate reasoning and refining it through
 
-problem solving by externalizing intermediate reasoning and refining it through self-feedback [26,38,49,58,60,65,66].
+self-feedback [26,38,49,58,60,65,66].
 
 ⋆ This paper is based on a seminar technical report from the course Trends in Autonomous Agents: Advances in Architecture and Practice offered at TUM.
 

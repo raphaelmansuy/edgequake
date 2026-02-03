@@ -203,9 +203,31 @@ impl BlockMergeProcessor {
             return false;
         }
 
+        // OODA-19: Don't merge if a is an arxiv watermark or footnote marker
+        // WHY: These are margin annotations that should remain separate blocks
+        let trimmed_a = a.text.trim();
+        let trimmed_a_lower = trimmed_a.to_lowercase();
+        let a_is_arxiv = trimmed_a_lower.starts_with("arxiv:");
+        let a_is_footnote = trimmed_a.starts_with('⋆')
+            || trimmed_a.starts_with('†')
+            || trimmed_a.starts_with('‡')
+            || trimmed_a.starts_with('§')
+            || trimmed_a.starts_with('¶');
+
+        if a_is_arxiv || a_is_footnote {
+            tracing::debug!(
+                "BlockMerge: skip - a is arxiv/footnote (arxiv={}, fn={}, text='{}')",
+                a_is_arxiv,
+                a_is_footnote,
+                safe_truncate(trimmed_a, 30)
+            );
+            return false;
+        }
+
         // Don't merge if b looks like a new list item
         // WHY: Each list item should be a separate block for proper rendering
         let trimmed_b = b.text.trim();
+        let trimmed_b_lower = trimmed_b.to_lowercase();
 
         // OODA-12: Add academic reference detection [N] pattern
         // WHY: arXiv papers have 30-60 references like "[1] Author..."
@@ -220,17 +242,34 @@ impl BlockMergeProcessor {
                 >= 1
             && trimmed_b.contains(']');
 
+        // OODA-19: Detect arxiv identifier watermarks
+        // WHY: arXiv papers have a watermark like "arXiv:2510.09244v1 [cs.AI] 10 Oct 2025"
+        // These should NOT be merged with body text - they are margin annotations
+        let is_arxiv_watermark = trimmed_b_lower.starts_with("arxiv:");
+
+        // OODA-19: Detect footnote markers (⋆, †, *, ‡, §, ¶)
+        // WHY: Footnotes start with special symbols and should be separate blocks
+        let is_footnote_marker = trimmed_b.starts_with('⋆')
+            || trimmed_b.starts_with('†')
+            || trimmed_b.starts_with('‡')
+            || trimmed_b.starts_with('§')
+            || trimmed_b.starts_with('¶');
+
         if trimmed_b.starts_with("- ")
             || trimmed_b.starts_with("* ")
             || trimmed_b.starts_with("• ")
             || is_academic_ref
+            || is_arxiv_watermark
+            || is_footnote_marker
             || (trimmed_b.len() > 2
                 && trimmed_b.chars().next().unwrap().is_ascii_digit()
                 && trimmed_b.contains(". "))
         {
             tracing::debug!(
-                "BlockMerge: skip - b looks like list item (ref={}, text='{}')",
+                "BlockMerge: skip - b is special (ref={}, arxiv={}, footnote={}, text='{}')",
                 is_academic_ref,
+                is_arxiv_watermark,
+                is_footnote_marker,
                 safe_truncate(trimmed_b, 30)
             );
             return false;
