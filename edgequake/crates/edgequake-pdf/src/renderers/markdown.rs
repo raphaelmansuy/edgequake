@@ -662,10 +662,20 @@ impl MarkdownRenderer {
         output.push_str(&format!("![{}]()\n\n", alt_text));
     }
 
-    /// Render a caption.
+    /// Render a caption using blockquote format (OODA-25).
+    ///
+    /// **WHY blockquote format:**
+    /// Gold standard uses `> Figure N: description` format which:
+    /// 1. Provides visual separation from body text
+    /// 2. Semantically marks captions as distinct content
+    /// 3. Renders consistently across Markdown viewers
+    ///
+    /// **Format:** `> Figure N. Description text`
     fn render_caption(&self, block: &Block, output: &mut String) {
         let text = self.clean_text(&block.text);
-        output.push_str(&format!("*{}*\n\n", text));
+        // WHY single-line blockquote: Captions should be visually distinct
+        // but not overly emphasized (unlike italics which can be hard to read)
+        output.push_str(&format!("> {}\n>\n\n", text));
     }
 
     /// Render a footnote.
