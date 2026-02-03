@@ -28,11 +28,11 @@ use crate::config::PdfConfig;
 use crate::error::{PageError, PdfError};
 use crate::processors::{
     BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
-    GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor,
-    LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig, LlmEnhanceProcessor,
-    MarginFilterProcessor, PostProcessor, ProcessorChain, SectionNumberMergeProcessor,
-    SectionPatternProcessor, SpacedTextProcessor, StyleDetectionProcessor, TableDetectionProcessor,
-    TextTableReconstructionProcessor,
+    GarbledTextFilterProcessor, HeaderDetectionProcessor, HeadingBodySplitProcessor,
+    HyphenContinuationProcessor, LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig,
+    LlmEnhanceProcessor, MarginFilterProcessor, PostProcessor, ProcessorChain,
+    SectionNumberMergeProcessor, SectionPatternProcessor, SpacedTextProcessor,
+    StyleDetectionProcessor, TableDetectionProcessor, TextTableReconstructionProcessor,
 };
 use crate::progress::ProgressCallback;
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
@@ -347,12 +347,13 @@ impl PdfExtractor {
         tracing::info!("AFTER processors: {} total Table blocks", table_count_after);
 
         if let Some(page) = doc.pages.first() {
-            for (i, block) in page.blocks.iter().take(10).enumerate() {
-                let text_preview: String = block.text.chars().take(60).collect();
+            for (i, block) in page.blocks.iter().take(20).enumerate() {
+                let text_preview: String = block.text.chars().take(80).collect();
                 tracing::info!(
-                    "AFTER - page1 block {} ({:?}): '{}'",
+                    "AFTER - page1 block {} ({:?}) lvl={:?}: '{}'",
                     i,
                     block.block_type,
+                    block.level,
                     text_preview
                 );
             }
@@ -432,12 +433,14 @@ impl PdfExtractor {
         tracing::info!("AFTER processors: {} total Table blocks", table_count_after);
 
         if let Some(page) = doc.pages.first() {
-            for (i, block) in page.blocks.iter().take(10).enumerate() {
-                let text_preview: String = block.text.chars().take(60).collect();
+            tracing::info!("AFTER-PAGE1-TOTAL: {} blocks on page 1", page.blocks.len());
+            for (i, block) in page.blocks.iter().take(20).enumerate() {
+                let text_preview: String = block.text.chars().take(80).collect();
                 tracing::info!(
-                    "AFTER - page1 block {} ({:?}): '{}'",
+                    "AFTER-PAGE1 block {} ({:?}) lvl={:?}: '{}'",
                     i,
                     block.block_type,
+                    block.level,
                     text_preview
                 );
             }
@@ -518,20 +521,22 @@ impl PdfExtractor {
     /// 1. MarginFilter: Remove page numbers, headers, footers FIRST
     /// 2. GarbledTextFilter: Remove noise before layout analysis
     /// 3. LayoutProcessor: Establish block structure
-    /// 4. ListDetectionProcessor: BEFORE heading detection to prevent "1. Item" → H2
-    /// 5. SectionNumberMerge: Merge "1" + "Introduction" blocks
-    /// 6. StyleDetection: Font-based heading detection
-    /// 7. HeaderDetection: Content-based heading detection
-    /// 8. SectionPattern: Pattern-based section detection
-    /// 9. Caption/Table/Code: Semantic block detection
-    /// 10. BlockMerge: Join related blocks
-    /// 11. PostProcessor: Final cleanup
+    /// 4. HeadingBodySplit: Split "Abstract. This paper..." into heading + body (OODA-27)
+    /// 5. ListDetectionProcessor: BEFORE heading detection to prevent "1. Item" → H2
+    /// 6. SectionNumberMerge: Merge "1" + "Introduction" blocks
+    /// 7. StyleDetection: Font-based heading detection
+    /// 8. HeaderDetection: Content-based heading detection
+    /// 9. SectionPattern: Pattern-based section detection
+    /// 10. Caption/Table/Code: Semantic block detection
+    /// 11. BlockMerge: Join related blocks
+    /// 12. PostProcessor: Final cleanup
     async fn apply_processors(&self, document: Document) -> Result<Document> {
         let chain = ProcessorChain::new()
             .add(SpacedTextProcessor::new()) // OODA-05: Fix spaced text BEFORE garbled filter!
             .add(MarginFilterProcessor::new()) // Filter margin content (line numbers, page numbers)
             .add(GarbledTextFilterProcessor::new()) // Filter garbled figure annotations
             .add(LayoutProcessor::new())
+            .add(HeadingBodySplitProcessor::new()) // OODA-27: Split "Abstract. text" into separate blocks
             .add(ListDetectionProcessor::new()) // MOVED EARLY: Detect lists BEFORE heading processors
             .add(SectionNumberMergeProcessor::new()) // Merge standalone section numbers with titles
             .add(StyleDetectionProcessor::new()) // Detect bold/italic styles and H1/H2+ levels

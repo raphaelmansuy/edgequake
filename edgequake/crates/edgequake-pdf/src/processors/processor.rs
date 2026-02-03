@@ -669,34 +669,51 @@ impl Processor for StyleDetectionProcessor {
                 // OODA-26: Post-hoc inline label detection using adjacent block
                 // WHY: Labels like "Categorizing Tools for Perception" followed by
                 // continuation text should NOT be classified as headings.
+                // OODA-27 FIX: Don't revert known section names (Abstract, Introduction, etc.)
+                // These are valid headings even when followed by "This paper..."
                 if page.blocks[block_idx].block_type == BlockType::SectionHeader
                     && page.blocks[block_idx].level == Some(3)
                 {
-                    // Check if next block looks like continuation text
-                    if block_idx + 1 < block_count {
-                        let next_text = page.blocks[block_idx + 1].text.trim_start();
-                        let next_lower = next_text.to_lowercase();
+                    let block_text = page.blocks[block_idx].text.trim().to_lowercase();
+                    let is_known_section = block_text == "abstract"
+                        || block_text == "introduction"
+                        || block_text == "conclusion"
+                        || block_text == "background"
+                        || block_text == "methods"
+                        || block_text == "results"
+                        || block_text == "discussion"
+                        || block_text == "acknowledgments"
+                        || block_text == "acknowledgements"
+                        || block_text == "references";
+                    
+                    // Only apply inline label reversion to NON-section headers
+                    if !is_known_section {
+                        // Check if next block looks like continuation text
+                        if block_idx + 1 < block_count {
+                            let next_text = page.blocks[block_idx + 1].text.trim_start();
+                            let next_lower = next_text.to_lowercase();
 
-                        // Pattern 1: Next block starts with lowercase (continuation)
-                        let starts_lowercase = next_text
-                            .chars()
-                            .next()
-                            .map(|c| c.is_lowercase())
-                            .unwrap_or(false);
+                            // Pattern 1: Next block starts with lowercase (continuation)
+                            let starts_lowercase = next_text
+                                .chars()
+                                .next()
+                                .map(|c| c.is_lowercase())
+                                .unwrap_or(false);
 
-                        // Pattern 2: Next block starts with article (continuation)
-                        let starts_with_article = next_lower.starts_with("the ")
-                            || next_lower.starts_with("a ")
-                            || next_lower.starts_with("an ")
-                            || next_lower.starts_with("this ");
+                            // Pattern 2: Next block starts with article (continuation)
+                            let starts_with_article = next_lower.starts_with("the ")
+                                || next_lower.starts_with("a ")
+                                || next_lower.starts_with("an ")
+                                || next_lower.starts_with("this ");
 
-                        // Pattern 3: Next block starts with colon (split label)
-                        let starts_with_colon = next_text.starts_with(':');
+                            // Pattern 3: Next block starts with colon (split label)
+                            let starts_with_colon = next_text.starts_with(':');
 
-                        if starts_lowercase || starts_with_article || starts_with_colon {
-                            // Revert to text/paragraph - not a heading
-                            page.blocks[block_idx].block_type = BlockType::Text;
-                            page.blocks[block_idx].level = None;
+                            if starts_lowercase || starts_with_article || starts_with_colon {
+                                // Revert to text/paragraph - not a heading
+                                page.blocks[block_idx].block_type = BlockType::Text;
+                                page.blocks[block_idx].level = None;
+                            }
                         }
                     }
                 }
