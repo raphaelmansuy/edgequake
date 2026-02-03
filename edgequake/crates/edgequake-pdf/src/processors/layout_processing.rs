@@ -989,6 +989,21 @@ impl MarginFilterProcessor {
             return true;
         }
 
+        // OODA-24: Filter standalone single digits that are likely superscripts
+        // WHY: Author affiliation markers (¹, ², ³) are rendered as separate text elements
+        // at superscript positions. They appear as standalone "1", "2", "3" blocks.
+        // Detection: Single digit, very small bbox (superscript size), not at page edges
+        // Heuristic: bbox height < 8pt indicates superscript positioning
+        let bbox_height = bbox.y2 - bbox.y1;
+        if text.len() == 1 && text.chars().all(|c| c.is_ascii_digit()) && bbox_height < 8.0 {
+            tracing::debug!(
+                "OODA-24: Filtering standalone digit '{}' (height={:.1}, likely superscript)",
+                text,
+                bbox_height
+            );
+            return true;
+        }
+
         // OODA-28: Filter footer page numbers using normalized coordinates
         // High Y = bottom of page in normalized system
         let in_footer = bbox.y2 >= footer_threshold;
