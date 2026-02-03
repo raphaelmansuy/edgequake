@@ -204,6 +204,7 @@ impl PostProcessor {
             block.text = self.fix_concatenated_words(&block.text);
             block.text = self.cleanup_citations(&block.text);
             block.text = self.cleanup_markdown_artifacts(&block.text);
+            block.text = self.strip_footnote_markers(&block.text); // OODA-20: Strip footnote symbols
 
             // Process spans (renderer uses spans if present)
             for span in &mut block.spans {
@@ -216,6 +217,7 @@ impl PostProcessor {
                     span.text = self.fix_concatenated_words(&span.text);
                     span.text = self.cleanup_citations(&span.text);
                     span.text = self.cleanup_markdown_artifacts(&span.text);
+                    span.text = self.strip_footnote_markers(&span.text); // OODA-20
                 }
             }
 
@@ -455,6 +457,62 @@ impl PostProcessor {
         }
 
         result
+    }
+
+    /// OODA-20: Strip footnote marker symbols from the start of text.
+    ///
+    /// # WHY
+    ///
+    /// Academic papers use various symbols to mark footnotes:
+    /// - ⋆ (six-pointed asterisk, U+22C6)
+    /// - * (asterisk)
+    /// - † (dagger)
+    /// - ‡ (double dagger)
+    /// - § (section sign)
+    /// - ¶ (pilcrow)
+    ///
+    /// These appear at the start of footnote text in PDFs but should be
+    /// stripped in markdown output (gold files don't include them).
+    ///
+    /// # Example
+    ///
+    /// Input: "⋆ This paper is based on..."
+    /// Output: "This paper is based on..."
+    fn strip_footnote_markers(&self, text: &str) -> String {
+        let trimmed = text.trim_start();
+
+        // Check for footnote markers at the start
+        let footnote_markers = ['⋆', '†', '‡', '§', '¶'];
+
+        for marker in footnote_markers {
+            if trimmed.starts_with(marker) {
+                // Remove the marker and any following whitespace
+                let rest = trimmed.trim_start_matches(marker).trim_start();
+                return rest.to_string();
+            }
+        }
+
+        // Also handle asterisk at start (but only if followed by space, to avoid * list items)
+        if trimmed.starts_with("* ") && !trimmed.starts_with("* ") {
+            // This is actually a list item, don't strip
+        } else if trimmed.starts_with('*') && trimmed.len() > 1 {
+            let second_char = trimmed.chars().nth(1);
+            if second_char == Some(' ') {
+                // "* text" - could be list or footnote, check if it looks like prose
+                let rest = trimmed[2..].trim_start();
+                // If it starts with lowercase, it's likely a footnote continuation
+                if rest
+                    .chars()
+                    .next()
+                    .map(|c| c.is_lowercase())
+                    .unwrap_or(false)
+                {
+                    return rest.to_string();
+                }
+            }
+        }
+
+        text.to_string()
     }
 
     /// Normalize span boundaries to avoid double spaces.
