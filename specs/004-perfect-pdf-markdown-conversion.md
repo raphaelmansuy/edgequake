@@ -25,6 +25,12 @@ ALWAY USE ASCII DIAGRAMS TO DEEPLY REFLECT YOUR THINKING about Data, geometric p
 Use markitdown mcp to compare extracted Markdown against gold standard references: but be very smart about quality of gold standards: if the gold standard is poor, your quality metrics will be misleading. You must ensure that the gold standard markdown files are of high quality and accurately represent the intended structure and content of the original PDFs. You want to exceed markitdown quality if possible: it why you are building your own PDF to Markdown converter. Always analyze the gold standard files for quality before using them as benchmarks: use your knowledge of Markdown syntax and best practices to assess their quality. If you find gold standard files that are subpar, document the issues and consider improving them or creating new high-quality references.
 
 
+You can always challenge gold with markitdown if you don't understand the mistmatches: sometimes markitdown makes mistakes too. Use your deep knowledge of PDF internals, text extraction techniques, geometric processing, and Markdown formatting to guide your analysis. The gold data files where not created by markitdown: they were created by human experts. So you can always challenge markitdown if you find mistakes in the gold data files.
+
+
+Be careful about parallelizing too much: sometimes sequential processing is better for quality because you can use context from previous pages to inform extraction on later pages. Use your judgment to balance speed and quality based on document characteristics.
+
+
 Addeditional Important Guidelines:
 Be generic in your approach: avoid hardcoding for specific documents. Your algorithms should generalize well across diverse PDF layouts and content types. Create a rule for arvivx for example is a BIG BIG code smells --> You remove such kind of hardcoding by building generic algorithms that can handle a wide range of cases based on document structure and content analysis, using deep knowledge of PDF internals and text extraction techniques and geometric processing.
 

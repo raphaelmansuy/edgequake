@@ -76,16 +76,19 @@ impl Default for LayoutProcessor {
 impl Processor for LayoutProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
         for page in &mut document.pages {
-            // If page already has columns set by backend, still need to sort by reading order
+            // OODA-29 FIX: If page already has columns set by backend, skip re-sorting.
+            // WHY: The extraction_engine already establishes correct reading order:
+            // - For multi-column pages, text_grouping.rs sorts each column by Y
+            // - Then concatenates columns in correct order (left → right)
+            // - OODA-12 in extraction_engine skips Y-sort to preserve this order
+            // Re-sorting here was destroying the column-aware order and causing
+            // interleaving of left/right column content.
             if !page.columns.is_empty() {
                 tracing::info!(
-                    "LAYOUT: Page {} has {} columns from backend, sorting blocks by reading order",
+                    "LAYOUT: Page {} has {} columns from backend, SKIPPING re-sort (OODA-29)",
                     page.number,
                     page.columns.len()
                 );
-                // Sort blocks by reading order using the pre-detected columns
-                self.analyzer
-                    .sort_by_reading_order(&mut page.blocks, &page.columns);
                 continue;
             }
 
