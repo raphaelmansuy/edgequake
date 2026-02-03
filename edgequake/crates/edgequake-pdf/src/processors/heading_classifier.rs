@@ -116,7 +116,9 @@ impl HeadingClassifier {
     /// - Not too long (headings are concise)
     /// - No trailing period (headings aren't sentences)
     /// - Has lowercase chars (not all-caps like page headers)
-    /// - OODA-23: Not a figure/table caption
+    /// - OODA-25: No internal sentence boundaries (`. [A-Z]` pattern)
+    /// - No commas (prose indicator)
+    /// - No figure/table caption patterns
     fn is_valid_heading_text(&self, text: &str) -> bool {
         if text.is_empty() || text.len() > self.max_heading_length {
             return false;
@@ -126,9 +128,45 @@ impl HeadingClassifier {
             return false;
         }
 
-        // OODA-23: Filter out figure/table captions
-        // WHY: Captions like "Fig. 1. Key Components..." are sometimes styled
-        // like headings (bold, larger font) but should remain as body text.
+        // OODA-25: Generic sentence boundary detection
+        // WHY: Headings don't contain sentence breaks. Pattern `. [A-Z]` indicates
+        // a period followed by a new sentence, e.g., "Abstract. This paper..."
+        // This is a generic prose detector - no document-specific heuristics needed.
+        if self.contains_sentence_boundary(text) {
+            return false;
+        }
+
+        // Generic prose indicator: commas typically indicate complex sentences
+        if text.contains(',') {
+            return false;
+        }
+
+        // Generic prose detector: article/pronoun words after first position
+        // indicate sentence continuation, not heading structure
+        let words: Vec<&str> = text.split_whitespace().collect();
+        if words.len() >= 3 {
+            for i in 1..words.len().min(5) {
+                let word_lower = words[i].to_lowercase();
+                let is_prose_indicator = matches!(
+                    word_lower.as_str(),
+                    "the" | "a" | "an" | "it" | "this" | "that" | "as" | "is" | "are" | "was"
+                );
+                if is_prose_indicator {
+                    if i + 1 < words.len() {
+                        let next_char_lower = words[i + 1]
+                            .chars()
+                            .next()
+                            .map(|c| c.is_lowercase())
+                            .unwrap_or(false);
+                        if next_char_lower {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Generic caption pattern: figures and tables are labeled with standard prefixes
         let lower = text.to_lowercase();
         if lower.starts_with("fig.")
             || lower.starts_with("figure")
@@ -138,8 +176,50 @@ impl HeadingClassifier {
             return false;
         }
 
-        // Must have some lowercase (filters "RUNNING HEADER" style text)
+        // Must have some lowercase (filters all-caps running headers)
         text.chars().any(|c| c.is_lowercase())
+    }
+
+    /// Generic sentence boundary detection.
+    /// Returns true if text contains patterns like `. [A-Z]` indicating
+    /// a sentence break followed by a new sentence.
+    fn contains_sentence_boundary(&self, text: &str) -> bool {
+        let chars: Vec<char> = text.chars().collect();
+        for i in 0..chars.len().saturating_sub(2) {
+            // Pattern: sentence-ending punctuation + space + capital letter
+            let is_sentence_end = matches!(chars[i], '.' | '?' | '!');
+            let is_space = chars[i + 1] == ' ';
+            let is_capital = chars.get(i + 2).map(|c| c.is_uppercase()).unwrap_or(false);
+
+            if is_sentence_end && is_space && is_capital {
+                // Exception: common abbreviations like "Dr. Smith", "Fig. 1", "vs. The"
+                // Check if preceding word is a common abbreviation
+                let preceding = &text[..i + 1];
+                if !self.is_abbreviation_context(preceding) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Check if the text ends with a common abbreviation.
+    /// This prevents false positives like "Dr. Smith" or "Fig. 1" being treated as sentence breaks.
+    fn is_abbreviation_context(&self, text: &str) -> bool {
+        let lower = text.to_lowercase();
+        // Common abbreviations that appear before capitalized words
+        lower.ends_with("dr.")
+            || lower.ends_with("mr.")
+            || lower.ends_with("mrs.")
+            || lower.ends_with("ms.")
+            || lower.ends_with("prof.")
+            || lower.ends_with("fig.")
+            || lower.ends_with("tab.")
+            || lower.ends_with("eq.")
+            || lower.ends_with("vs.")
+            || lower.ends_with("et al.")
+            || lower.ends_with("e.g.")
+            || lower.ends_with("i.e.")
     }
 
     /// Calculate heading level from size ratio.
@@ -237,5 +317,30 @@ mod tests {
         assert!(!classifier.is_valid_heading_text("This is a sentence."));
         assert!(!classifier.is_valid_heading_text("RUNNING HEADER"));
         assert!(!classifier.is_valid_heading_text(""));
+
+        // OODA-25: Test sentence boundary detection
+        // "Abstract. This paper..." has `. T` pattern - should NOT be a heading
+        assert!(!classifier.is_valid_heading_text("Abstract. This paper reviews the architecture"));
+        // But single-word section names should be valid
+        assert!(classifier.is_valid_heading_text("Abstract"));
+    }
+
+    #[test]
+    fn test_sentence_boundary_detection() {
+        let classifier = HeadingClassifier::new();
+
+        // Should detect sentence boundaries
+        assert!(classifier.contains_sentence_boundary("Hello. World"));
+        assert!(classifier.contains_sentence_boundary("Done! Next step"));
+        assert!(classifier.contains_sentence_boundary("Ready? Start now"));
+
+        // Should NOT detect (no capital after punctuation)
+        assert!(!classifier.contains_sentence_boundary("Hello. world"));
+        assert!(!classifier.contains_sentence_boundary("version 1.0"));
+
+        // Abbreviations should NOT be detected as boundaries
+        assert!(!classifier.contains_sentence_boundary("Dr. Smith"));
+        assert!(!classifier.contains_sentence_boundary("Fig. 1"));
+        assert!(!classifier.contains_sentence_boundary("e.g. Example"));
     }
 }

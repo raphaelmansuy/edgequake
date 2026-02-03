@@ -20,6 +20,7 @@
 ## Why Initial Fix Was Insufficient
 
 The initial fix was added only to:
+
 - `heading_classifier.rs:is_valid_heading_text()` (Strategy 4)
 - `processor.rs:SectionPatternProcessor` (Strategy 2 regex filter)
 
@@ -28,6 +29,7 @@ But figure captions were being classified in `structure_detection.rs` and `proce
 ## Pattern Analysis
 
 Figure captions have a consistent pattern:
+
 - Start with "Fig." or "Figure" or "Table" or "Tab."
 - Followed by a number and period
 - Then the caption title
