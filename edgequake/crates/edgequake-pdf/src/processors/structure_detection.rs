@@ -183,10 +183,12 @@ impl Processor for HeaderDetectionProcessor {
                         let weight = span.style.weight.unwrap_or(400);
                         let is_bold = weight >= 600;
                         let is_larger = size > body_size * 1.15;
+                        // WHY: Prose text contains commas (sentences), headings don't
+                        let has_prose_markers = text.contains(',') || text.ends_with('.');
 
                         // Multi-signal: need font evidence AND structure
-                        let is_likely_section =
-                            (is_larger || is_bold) && is_title_cased || (is_larger && is_bold);
+                        let is_likely_section = !has_prose_markers
+                            && ((is_larger || is_bold) && is_title_cased || (is_larger && is_bold));
 
                         if is_likely_section {
                             block.block_type = BlockType::SectionHeader;
@@ -202,12 +204,20 @@ impl Processor for HeaderDetectionProcessor {
                     let weight = span.style.weight.unwrap_or(400);
                     let _is_bold = weight >= 600; // Reserved for potential future use
 
-                    let text_lower = text.to_lowercase();
-                    let is_arxiv_or_meta = text_lower.starts_with("arxiv:")
-                        || text_lower.contains("arxiv.org")
-                        || text_lower.starts_with("[cs.")
-                        || text_lower.starts_with("[stat.")
-                        || text_lower.starts_with("[math.");
+                    // OODA-25: Generic prose detection - no document-specific heuristics
+                    let is_url_or_identifier = text.contains("://")
+                        || text.contains(".org")
+                        || text.contains(".com")
+                        || text.contains(".edu");
+
+                    let is_bracketed_code =
+                        text.starts_with('[') && text.len() < 20 && text.contains('.');
+
+                    let is_metadata = is_url_or_identifier || is_bracketed_code;
+
+                    // OODA-25: Generic sentence boundary detection
+                    // Pattern `. [A-Z]` indicates embedded sentences like "Abstract. This paper..."
+                    let has_sentence_boundary = Self::contains_sentence_boundary(text);
 
                     let max_len_for_heading = if is_first_page && (is_top_of_page || is_large_font)
                     {
@@ -221,7 +231,8 @@ impl Processor for HeaderDetectionProcessor {
                         && !text.contains('@')
                         && !text.ends_with('.')
                         && !text.contains(',')
-                        && !is_arxiv_or_meta;
+                        && !is_metadata
+                        && !has_sentence_boundary;
 
                     // Section headers start with digit OR are all-caps
                     let looks_like_section = text.starts_with(|c: char| c.is_ascii_digit())
@@ -247,6 +258,45 @@ impl Processor for HeaderDetectionProcessor {
 
     fn name(&self) -> &str {
         "HeaderDetectionProcessor"
+    }
+}
+
+impl HeaderDetectionProcessor {
+    /// Generic sentence boundary detection.
+    /// Returns true if text contains `. [A-Z]` pattern (period + space + capital)
+    /// indicating a sentence break, NOT an abbreviation.
+    fn contains_sentence_boundary(text: &str) -> bool {
+        let chars: Vec<char> = text.chars().collect();
+        for i in 0..chars.len().saturating_sub(2) {
+            let is_sentence_end = matches!(chars[i], '.' | '?' | '!');
+            let is_space = chars[i + 1] == ' ';
+            let is_capital = chars.get(i + 2).map(|c| c.is_uppercase()).unwrap_or(false);
+
+            if is_sentence_end && is_space && is_capital {
+                // Check for common abbreviations by looking at preceding chars
+                // Build the preceding string from chars to avoid UTF-8 boundary issues
+                let preceding: String = chars[..=i].iter().collect();
+                let preceding_lower = preceding.to_lowercase();
+                
+                let is_abbreviation = preceding_lower.ends_with("dr.")
+                    || preceding_lower.ends_with("mr.")
+                    || preceding_lower.ends_with("mrs.")
+                    || preceding_lower.ends_with("ms.")
+                    || preceding_lower.ends_with("prof.")
+                    || preceding_lower.ends_with("fig.")
+                    || preceding_lower.ends_with("tab.")
+                    || preceding_lower.ends_with("eq.")
+                    || preceding_lower.ends_with("vs.")
+                    || preceding_lower.ends_with("et al.")
+                    || preceding_lower.ends_with("e.g.")
+                    || preceding_lower.ends_with("i.e.");
+
+                if !is_abbreviation {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 
@@ -327,23 +377,21 @@ impl Default for ListDetectionProcessor {
 
 impl Processor for ListDetectionProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
-        // WHY include en-dash and em-dash: PDF generators (like pandoc) use these
-        // for nested lists. Also include common Unicode bullet characters.
+        // Generic bullet detection: various dash types and bullet characters
+        // WHY: PDF generators use different bullet symbols across locales and tools
         let bullet_regex = Regex::new(r"^[-–—*•◦▪]\s+").unwrap();
-        // WHY: Match numbered lists like "1. " or "1)" - require space after marker
-        // This avoids matching section numbers like "1.1" (decimal)
+        // Generic numbered list: "1. " or "1)" with required space
+        // WHY: Space after marker distinguishes lists from decimal numbers like "1.1"
         let number_regex = Regex::new(r"^\d+[\.)]\s+").unwrap();
-        // OODA-14: Secondary pattern for "1.Text" (no space) but NOT "1.1" (decimal)
-        // Matches: digit(s) + period + uppercase letter (section start)
+        // Secondary pattern: "1.Text" (no space) followed by capital
+        // WHY: Some PDFs omit space after list marker
         let number_no_space_regex = Regex::new(r"^\d+\.[A-Z]").unwrap();
-        // WHY: Academic papers use [N] format for references. arXiv papers commonly
-        // have 30-60 references. This pattern matches "[1]", "[42]", or "[123]" at
-        // line start, with optional space before the citation text.
+        // Generic bracketed reference: [N] format common in academic/technical docs
+        // WHY: Citations, footnotes, references use [N] format universally
         let ref_regex = Regex::new(r"^\[\d{1,3}\]\s*").unwrap();
 
         for page in &mut document.pages {
             // Find left margin for indentation calculation
-            // WHY: We need a reference point for indentation levels
             let min_x = page
                 .blocks
                 .iter()

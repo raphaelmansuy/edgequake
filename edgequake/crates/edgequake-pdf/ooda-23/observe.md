@@ -20,11 +20,13 @@ Figure captions like "Fig. 1. Key Components of an Agent's LLM Architecture" wer
 ## Root Cause Analysis
 
 The heading classification happens in THREE places in the processing pipeline:
+
 1. `heading_classifier.rs` - font-based classification (Strategy 4 in processor.rs)
 2. `processor.rs:StyleDetectionProcessor` - font ratio and pattern-based detection
 3. `structure_detection.rs:HeaderDetectionProcessor` - subsection patterns and font-based
 
 Figure captions like "Fig. 1. Key Components..." pass through these filters because:
+
 - They have title-case text (first letter uppercase, contains lowercase)
 - They are short (< 80 chars) and don't end with a period (caption ends with title text)
 - Font size is often larger than body text (≥1.1x ratio)

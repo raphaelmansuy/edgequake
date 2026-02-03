@@ -403,20 +403,12 @@ impl PostProcessor {
             result = re.replace_all(&result, "$1 $2").to_string();
         }
 
-        // Repair common legitimate tokens
-        result = result.replace("ar Xiv", "arXiv");
+        // Generic text repairs: fix common OCR/extraction artifacts
+        // These patterns are universal PDF extraction issues, not document-specific
+        result = result.replace("ar Xiv", "arXiv"); // Split identifier repair
         result = result.replace("Ar Xiv", "ArXiv");
         result = result.replace("etal.", "et al.");
         result = result.replace("etal,", "et al.,");
-
-        // OODA-07: Repair commonly split CamelCase terms (defensive)
-        result = result.replace("Browse Comp", "BrowseComp");
-        result = result.replace("Report Bench", "ReportBench");
-        result = result.replace("Deep Hallu Bench", "DeepHalluBench");
-        result = result.replace("Deep Hallu", "DeepHallu");
-        result = result.replace("Hallu Bench", "HalluBench");
-        result = result.replace("Sci Fact", "SciFact");
-        result = result.replace("Mind2 Web", "Mind2Web");
 
         result
     }

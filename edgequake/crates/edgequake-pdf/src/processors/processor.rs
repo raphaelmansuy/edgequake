@@ -124,9 +124,12 @@ pub struct SectionPatternProcessor {
 impl SectionPatternProcessor {
     pub fn new() -> Self {
         Self {
-            // Match patterns like "1.", "3.2.", "A.1." followed by space and title
+            // WHY: Match section numbers like "1.", "3.2.", "A.1." but NOT acronyms like "LLM."
+            // - Allow single letter (A-Z) or single digit followed by optional sub-numbering
+            // - Require sub-numbering to be digits only (e.g., "A.1." not "A.B.")
+            // - Reject 2+ consecutive uppercase letters (those are acronyms, not section labels)
             section_regex: Regex::new(
-                r"^([0-9A-Z]+\.(?:[0-9]+\.)*)\s+([A-Z][A-Za-z0-9\s,:\-\(\)]+)$",
+                r"^((?:[A-Z]|\d+)\.(?:\d+\.)*)\s+([A-Z][A-Za-z0-9\s,:\-\(\)]+)$",
             )
             .expect("Section regex should be valid"),
             special_sections: vec![
@@ -263,6 +266,7 @@ impl Processor for SectionPatternProcessor {
                 else {
                     let (is_heading, level) =
                         self.heading_classifier.classify(block, body_font_size);
+
                     if is_heading {
                         block.block_type = BlockType::SectionHeader;
                         block.level = Some(level);
@@ -375,25 +379,35 @@ impl StyleDetectionProcessor {
         let text_lower = text.to_lowercase();
         let is_short = text.len() < 80;
 
-        // Guards
-        let is_arxiv_or_meta = text_lower.starts_with("arxiv:")
-            || text_lower.contains("arxiv.org")
-            || text_lower.starts_with("[cs.")
-            || text_lower.starts_with("[stat.")
-            || text_lower.starts_with("[math.");
+        // OODA-25: Generic prose detection - no document-specific heuristics
+        // These patterns universally indicate prose content, not headings:
+        // 1. Email addresses (contains @)
+        // 2. Sentence endings (ends with .)
+        // 3. Complex punctuation (contains ,)
+        // 4. URLs (contains :// or common TLDs)
+        // 5. Bracketed category codes (e.g., [cs.AI], [math.ST])
+        let is_url_or_identifier = text.contains("://")
+            || text.contains(".org")
+            || text.contains(".com")
+            || text.contains(".edu");
 
-        let looks_like_prose =
-            text.contains('@') || text.ends_with('.') || text.contains(',') || is_arxiv_or_meta;
+        let is_bracketed_code = text.starts_with('[') && text.len() < 20 && text.contains('.');
+
+        let looks_like_prose = text.contains('@')
+            || text.ends_with('.')
+            || text.contains(',')
+            || is_url_or_identifier
+            || is_bracketed_code;
+
         if looks_like_prose {
             return;
         }
 
-        // Detect list items (should not be headers)
+        // Generic list item detection
         // Pattern: starts with "N." or "N)" where N is 1-3 digits
         let is_list_item = {
             let trimmed = text.trim();
             if let Some(first_word) = trimmed.split_whitespace().next() {
-                // Matches: "1.", "2.", "10.", "1)", "2)"
                 (first_word.ends_with('.') || first_word.ends_with(')'))
                     && first_word.len() >= 2
                     && first_word[..first_word.len() - 1]
@@ -439,10 +453,10 @@ impl StyleDetectionProcessor {
             || looks_like_caps_section
             || (looks_like_title_case && is_short);
 
-        let is_abstract_or_keywords = text_lower == "abstract"
-            || text_lower.starts_with("abstract.")
-            || text_lower == "keywords"
-            || text_lower.starts_with("keywords:");
+        let is_abstract_or_keywords = text_lower == "abstract" || text_lower == "abstract.";
+        // OODA-25: Only match EXACT section names, not text that STARTS WITH them
+        // "Abstract. This paper..." should NOT match - it's prose with embedded sentence
+        // Only "Abstract" or "Abstract." (the exact words) should be section headers
 
         if is_abstract_or_keywords && is_short {
             block.block_type = BlockType::SectionHeader;
@@ -476,6 +490,102 @@ impl StyleDetectionProcessor {
                 .next()
                 .map(|c| c.is_uppercase())
                 .unwrap_or(false);
+
+            // OODA-24: Keywords should never be headers (just bold body text)
+            let is_keywords = text_lower == "keywords"
+                || text_lower.starts_with("keywords:")
+                || text_lower.starts_with("keywords.");
+            if is_keywords {
+                return; // Don't classify Keywords as a header
+            }
+
+            // OODA-24: Filter out inline definition labels
+            // WHY: Patterns like "Reasoning System: The reasoning system receives..."
+            // have bold label + colon + description. These are inline definitions, not headings.
+            // Gold format: "**Reasoning System:** The reasoning system receives..."
+            // Detection: if text contains ":" followed by lowercase after whitespace, it's inline.
+            // Also detect: "Label Words Description text..." without colon (PDF lost the colon)
+            let is_inline_label = {
+                // Pattern 1: Contains colon with lowercase text after
+                let has_colon_pattern = if let Some(colon_pos) = text.find(':') {
+                    let after_colon = &text[colon_pos + 1..];
+                    let trimmed_after = after_colon.trim_start();
+                    trimmed_after
+                        .chars()
+                        .next()
+                        .map(|c| c.is_lowercase())
+                        .unwrap_or(false)
+                        || trimmed_after.len() > 20
+                } else {
+                    false
+                };
+
+                // Pattern 2: Title-case words followed by lowercase description
+                // E.g., "Reasoning System The reasoning system receives..."
+                // The pattern: uppercase+lowercase words, then "The/A/An/This" or lowercase start
+                let has_inline_description = {
+                    // Split text by space and find where title-case ends
+                    let words: Vec<&str> = text.split_whitespace().collect();
+                    let mut found_inline = false;
+                    if words.len() >= 3 {
+                        // Check first 1-4 words for title-case pattern
+                        // BUT: if we see common prose starters (The, A, An, This, etc.)
+                        // followed by lowercase words, it's inline description
+                        for i in 1..words.len().min(5) {
+                            let word = words[i];
+                            let word_lower = word.to_lowercase();
+
+                            // Check if this word is a prose starter
+                            let is_prose_starter = matches!(
+                                word_lower.as_str(),
+                                "the" | "a" | "an" | "this" | "it" | "in" | "is" | "are" | "as"
+                            );
+
+                            if is_prose_starter {
+                                // Check if there are lowercase words after this
+                                if i + 1 < words.len() {
+                                    let next_word = words[i + 1];
+                                    let starts_lower = next_word
+                                        .chars()
+                                        .next()
+                                        .map(|c| c.is_lowercase())
+                                        .unwrap_or(false);
+                                    if starts_lower {
+                                        found_inline = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    found_inline
+                };
+
+                // Pattern 3: Standalone label ending with colon (definition term)
+                // E.g., "How to Implement a Reflection System:"
+                // "Robotic and Physical System Control:"
+                // "Categorizing Tools for Perception"
+                // These are NOT section headings (which would be "4.1 Section Name")
+                let is_definition_label = {
+                    let trimmed = text.trim();
+                    // Ends with colon and doesn't start with a number (section numbering)
+                    // And has multiple words (not just "Abstract:" which IS a heading)
+                    let ends_with_colon = trimmed.ends_with(':');
+                    let word_count = trimmed.split_whitespace().count();
+                    let starts_with_number = trimmed
+                        .chars()
+                        .next()
+                        .map(|c| c.is_ascii_digit())
+                        .unwrap_or(false);
+                    // Definition labels have 3+ words and end with colon
+                    ends_with_colon && word_count >= 3 && !starts_with_number
+                };
+
+                has_colon_pattern || has_inline_description || is_definition_label
+            };
+            if is_inline_label {
+                return; // Don't classify inline labels as headers
+            }
 
             // WHY: Bold text with body-sized font is typically H3 or H4
             // In LaTeX/pandoc, H3 is often rendered with same font size as body but bold

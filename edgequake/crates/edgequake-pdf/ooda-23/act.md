@@ -54,6 +54,7 @@ if lower.starts_with("fig.")
 **After fix**: 0 figure captions as H3 headings
 
 Figure captions now appear as body text with emphasis:
+
 ```
 *Fig. 1. Key Components of an Agent's LLM Architecture*
 ```
@@ -67,5 +68,5 @@ Note: No improvement in overall score because other heading issues exist (Keywor
 ## Files Changed
 
 - `src/processors/structure_detection.rs` - +12 lines
-- `src/processors/processor.rs` - +9 lines  
+- `src/processors/processor.rs` - +9 lines
 - `src/processors/heading_classifier.rs` - +13 lines (previous session)

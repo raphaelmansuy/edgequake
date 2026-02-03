@@ -203,36 +203,41 @@ impl BlockMergeProcessor {
             return false;
         }
 
-        // OODA-19: Don't merge if a is an arxiv watermark or footnote marker
-        // WHY: These are margin annotations that should remain separate blocks
+        // OODA-25: Generic watermark/identifier detection
+        // WHY: Documents have margin identifiers (DOI, version strings, timestamps)
+        // These are separate from body text and should not be merged
         let trimmed_a = a.text.trim();
-        let trimmed_a_lower = trimmed_a.to_lowercase();
-        let a_is_arxiv = trimmed_a_lower.starts_with("arxiv:");
+
+        // Generic identifier pattern: "prefix:value" format (e.g., "DOI:10.xxx", "arXiv:2510.xxx")
+        let a_is_identifier =
+            trimmed_a.contains(':') && trimmed_a.len() < 60 && !trimmed_a.contains(' ');
+
+        // Generic footnote marker detection (Unicode symbols commonly used)
         let a_is_footnote = trimmed_a.starts_with('⋆')
             || trimmed_a.starts_with('†')
             || trimmed_a.starts_with('‡')
             || trimmed_a.starts_with('§')
-            || trimmed_a.starts_with('¶');
+            || trimmed_a.starts_with('¶')
+            || trimmed_a.starts_with('*');
 
-        if a_is_arxiv || a_is_footnote {
+        if a_is_identifier || a_is_footnote {
             tracing::debug!(
-                "BlockMerge: skip - a is arxiv/footnote (arxiv={}, fn={}, text='{}')",
-                a_is_arxiv,
+                "BlockMerge: skip - a is identifier/footnote (id={}, fn={}, text='{}')",
+                a_is_identifier,
                 a_is_footnote,
                 safe_truncate(trimmed_a, 30)
             );
             return false;
         }
 
-        // Don't merge if b looks like a new list item
-        // WHY: Each list item should be a separate block for proper rendering
+        // Don't merge if b looks like a new structural element
         let trimmed_b = b.text.trim();
         let trimmed_b_lower = trimmed_b.to_lowercase();
 
-        // OODA-12: Add academic reference detection [N] pattern
-        // WHY: arXiv papers have 30-60 references like "[1] Author..."
-        // These must NOT be merged with preceding blocks
-        let is_academic_ref = trimmed_b.len() > 2
+        // OODA-25: Generic reference detection [N] pattern
+        // WHY: Academic references, citations, footnotes use [N] format
+        // This is universal across document types, not just arXiv
+        let is_bracketed_reference = trimmed_b.len() > 2
             && trimmed_b.starts_with('[')
             && trimmed_b
                 .chars()
@@ -242,33 +247,40 @@ impl BlockMergeProcessor {
                 >= 1
             && trimmed_b.contains(']');
 
-        // OODA-19: Detect arxiv identifier watermarks
-        // WHY: arXiv papers have a watermark like "arXiv:2510.09244v1 [cs.AI] 10 Oct 2025"
-        // These should NOT be merged with body text - they are margin annotations
-        let is_arxiv_watermark = trimmed_b_lower.starts_with("arxiv:");
+        // OODA-25: Generic identifier watermark (prefix:value pattern)
+        let is_identifier_watermark = trimmed_b.contains(':')
+            && trimmed_b.len() < 60
+            && trimmed_b.split_whitespace().count() <= 3
+            && (trimmed_b_lower.contains("doi")
+                || trimmed_b
+                    .chars()
+                    .next()
+                    .map(|c| c.is_lowercase())
+                    .unwrap_or(false)
+                || trimmed_b.starts_with(|c: char| c.is_ascii_digit()));
 
-        // OODA-19: Detect footnote markers (⋆, †, *, ‡, §, ¶)
-        // WHY: Footnotes start with special symbols and should be separate blocks
+        // Generic footnote markers
         let is_footnote_marker = trimmed_b.starts_with('⋆')
             || trimmed_b.starts_with('†')
             || trimmed_b.starts_with('‡')
             || trimmed_b.starts_with('§')
-            || trimmed_b.starts_with('¶');
+            || trimmed_b.starts_with('¶')
+            || trimmed_b.starts_with('*');
 
         if trimmed_b.starts_with("- ")
             || trimmed_b.starts_with("* ")
             || trimmed_b.starts_with("• ")
-            || is_academic_ref
-            || is_arxiv_watermark
+            || is_bracketed_reference
+            || is_identifier_watermark
             || is_footnote_marker
             || (trimmed_b.len() > 2
                 && trimmed_b.chars().next().unwrap().is_ascii_digit()
                 && trimmed_b.contains(". "))
         {
             tracing::debug!(
-                "BlockMerge: skip - b is special (ref={}, arxiv={}, footnote={}, text='{}')",
-                is_academic_ref,
-                is_arxiv_watermark,
+                "BlockMerge: skip - b is special (ref={}, id={}, footnote={}, text='{}')",
+                is_bracketed_reference,
+                is_identifier_watermark,
                 is_footnote_marker,
                 safe_truncate(trimmed_b, 30)
             );
