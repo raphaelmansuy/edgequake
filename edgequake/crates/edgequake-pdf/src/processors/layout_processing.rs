@@ -325,8 +325,12 @@ impl BlockMergeProcessor {
             max_vertical_gap
         };
 
-        // Check vertical proximity (PDF Y: higher = up)
-        let vertical_gap = (a.bbox.y1 - b.bbox.y2).abs();
+        // Check vertical proximity
+        // OODA-30 FIX: In document coordinates (Y=0 at TOP), blocks are ordered top-to-bottom.
+        // Block 'a' is ABOVE block 'b', so gap = b.y1 - a.y2 (bottom of a to top of b)
+        // WHY: Previous calculation (a.y1 - b.y2) was wrong - it compared top of a to bottom of b,
+        // giving incorrect gap measurements (e.g., 20pt instead of 2pt).
+        let vertical_gap = (b.bbox.y1 - a.bbox.y2).max(0.0);
         tracing::debug!(
             "BlockMerge: '{}...' vs '{}...' gap={:.1} threshold={:.1}",
             safe_truncate(&a.text, 15),
@@ -984,7 +988,38 @@ mod tests {
         let doc = create_test_document();
         let result = processor.process(doc).unwrap();
 
-        // With 20px gap, blocks shouldn't merge
+        // OODA-30: With correct gap calculation (b.y1 - a.y2 = 150 - 130 = 20pt),
+        // blocks with 20pt gap WILL merge because it's within threshold (2.5x line spacing).
+        // WHY: Adjacent paragraph blocks with small gaps should merge into one.
+        // To test non-merging, use create_document_with_large_gap() instead.
+        assert_eq!(result.pages[0].blocks.len(), 1);
+    }
+
+    #[test]
+    fn test_block_no_merge_with_large_gap() {
+        use crate::schema::{Block, BoundingBox, Document, Page};
+
+        let processor = BlockMergeProcessor::new();
+
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        // Block 1 at Y=100-130, Block 2 at Y=300-330 (gap = 170pt)
+        // WHY: Large gap (170pt) should prevent merging regardless of threshold
+        page.add_block(Block::text(
+            "First paragraph.",
+            BoundingBox::new(72.0, 100.0, 540.0, 130.0),
+        ));
+        page.add_block(Block::text(
+            "Second paragraph.",
+            BoundingBox::new(72.0, 300.0, 540.0, 330.0),
+        ));
+
+        doc.add_page(page);
+
+        let result = processor.process(doc).unwrap();
+
+        // With 170pt gap, blocks should NOT merge
         assert_eq!(result.pages[0].blocks.len(), 2);
     }
 
