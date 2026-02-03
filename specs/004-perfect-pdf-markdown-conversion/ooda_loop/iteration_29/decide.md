@@ -7,12 +7,14 @@ Implement `/Differences` array parsing with Adobe Glyph List fallback.
 ## Scope
 
 **In Scope:**
+
 1. Parse `/Differences` array from font encoding dictionary
 2. Map glyph names to Unicode using a glyph name lookup table
 3. Add new `DifferencesEncoding` variant to Encoding enum
 4. Add fast quality test for Apple-Sandbox-Guide
 
 **Out of Scope:**
+
 1. Complex CID fonts (deferred)
 2. TrueType cmap tables (deferred)
 3. Embedded font programs (deferred)
@@ -45,7 +47,7 @@ fn parse_differences(doc: &LopdfDocument, enc_dict: &Dictionary) -> Option<HashM
     let diffs = enc_dict.get(b"Differences").ok()?.as_array().ok()?;
     let mut map = HashMap::new();
     let mut code = 0u8;
-    
+
     for obj in diffs {
         match obj {
             Object::Integer(n) => code = *n as u8,
@@ -59,7 +61,7 @@ fn parse_differences(doc: &LopdfDocument, enc_dict: &Dictionary) -> Option<HashM
             _ => {}
         }
     }
-    
+
     Some(map)
 }
 ```
@@ -103,11 +105,11 @@ Add test for Apple-Sandbox-Guide:
 async fn test_apple_sandbox_font_encoding() {
     let pdf_path = PathBuf::from("../../../zz_test_docs/Apple-Sandbox-Guide-v1.0.pdf");
     if !pdf_path.exists() { return; }
-    
+
     let extractor = create_extractor();
     let pdf_bytes = fs::read(&pdf_path).unwrap();
     let result = extractor.extract_to_markdown(&pdf_bytes).await.unwrap();
-    
+
     // Key test: "Table of Contents" should NOT be "!"#$%"
     assert!(result.contains("Table"), "Should extract 'Table' correctly");
     assert!(!result.contains("!"#$%"), "Should not have garbled encoding");
@@ -116,12 +118,12 @@ async fn test_apple_sandbox_font_encoding() {
 
 ## Files to Create/Modify
 
-| File | Action | Lines |
-|------|--------|-------|
-| `src/backend/glyph_list.rs` | Create | ~150 |
-| `src/backend/encodings.rs` | Modify | ~20 |
-| `src/backend/font_handling.rs` | Modify | ~50 |
-| `tests/fast_quality.rs` | Modify | ~30 |
+| File                           | Action | Lines |
+| ------------------------------ | ------ | ----- |
+| `src/backend/glyph_list.rs`    | Create | ~150  |
+| `src/backend/encodings.rs`     | Modify | ~20   |
+| `src/backend/font_handling.rs` | Modify | ~50   |
+| `tests/fast_quality.rs`        | Modify | ~30   |
 
 ## Time Budget
 
@@ -140,6 +142,7 @@ async fn test_apple_sandbox_font_encoding() {
 ## Fallback Plan
 
 If /Differences parsing is more complex than expected:
+
 1. Commit the observation/orient/decide docs
 2. Create a simpler heuristic (detect garbled text, skip page)
 3. Address in OODA-30 with more investigation

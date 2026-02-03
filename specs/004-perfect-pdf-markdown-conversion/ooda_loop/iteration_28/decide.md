@@ -13,6 +13,7 @@ Re-read `specs/004-perfect-pdf-markdown-conversion.md` at iteration start.
 **Goal:** Measure extraction quality quickly (<5s total) on diverse document types.
 
 **Strategy:**
+
 1. Add tests for documents we extract WELL (validate our strengths)
 2. Add tests for documents we extract POORLY (track improvement)
 3. Keep each test <500ms to maintain fast feedback loop
@@ -24,6 +25,7 @@ Re-read `specs/004-perfect-pdf-markdown-conversion.md` at iteration start.
 **File:** `tests/fast_quality.rs`
 
 **Test:** `test_arxiv_two_column_reading`
+
 - PDF: Use existing `real_dataset/` paper or copy smaller one
 - Check: Title extracted, abstract detected, reading order correct
 - Time budget: 500ms
@@ -35,6 +37,7 @@ Re-read `specs/004-perfect-pdf-markdown-conversion.md` at iteration start.
 **File:** `tests/fast_quality.rs`
 
 **Test:** `test_business_document_extraction`
+
 - PDF: `Scottish SMEs Delegation*.pdf` (283KB) - clean single column
 - Check: Key terms present, basic structure
 - Time budget: 300ms
@@ -46,6 +49,7 @@ Re-read `specs/004-perfect-pdf-markdown-conversion.md` at iteration start.
 **File:** `tests/fast_quality.rs`
 
 **Test:** `test_encoding_challenge_apple_sandbox`
+
 - PDF: `Apple-Sandbox-Guide-v1.0.pdf` (354KB)
 - Check: Non-zero output, measure what % is readable
 - Time budget: 500ms
@@ -56,6 +60,7 @@ Re-read `specs/004-perfect-pdf-markdown-conversion.md` at iteration start.
 #### 4. Create Markitdown Gold Standards
 
 Save markitdown output as gold files for:
+
 - `Scottish SMEs*.pdf` → `test-data/scottish_smes.gold.md`
 
 **Why:** Enables automated comparison in tests.
@@ -72,7 +77,7 @@ async fn test_arxiv_two_column_reading() {
     // Threshold: extraction non-empty, >1000 chars
 }
 
-#[tokio::test]  
+#[tokio::test]
 async fn test_business_document_extraction() {
     // Uses Scottish SMEs PDF
     // Validates: key terms present
@@ -89,22 +94,22 @@ async fn test_encoding_quality_tracking() {
 
 ### Test Time Budget
 
-| Existing Tests | Time |
-|----------------|------|
-| test_text_preservation_fast | 1609ms |
-| test_structure_detection_fast | 1616ms |
-| test_simple_table_fast | 148ms |
-| test_two_column_reading_order_fast | 234ms |
-| test_fast_quality_summary | 0ms |
+| Existing Tests                     | Time   |
+| ---------------------------------- | ------ |
+| test_text_preservation_fast        | 1609ms |
+| test_structure_detection_fast      | 1616ms |
+| test_simple_table_fast             | 148ms  |
+| test_two_column_reading_order_fast | 234ms  |
+| test_fast_quality_summary          | 0ms    |
 
 Note: test_text_preservation_fast and test_structure_detection_fast are the same PDF
 extracted twice. Total unique extraction time: ~1.6s + 0.15s + 0.23s = ~2s
 
-| New Tests | Estimated Time |
-|-----------|---------------|
-| test_arxiv_two_column_reading | 400ms |
-| test_business_document_extraction | 300ms |
-| test_encoding_quality_tracking | 400ms |
+| New Tests                         | Estimated Time |
+| --------------------------------- | -------------- |
+| test_arxiv_two_column_reading     | 400ms          |
+| test_business_document_extraction | 300ms          |
+| test_encoding_quality_tracking    | 400ms          |
 
 **Total estimated:** ~3.1s (under 5s target ✅)
 

@@ -7,6 +7,7 @@
 ## Current Situation
 
 ### Symptom
+
 The Apple-Sandbox-Guide-v1.0.pdf (48 pages, 354KB) produces garbled text:
 
 ```
@@ -17,16 +18,19 @@ EdgeQuake Output:
 ```
 
 ### Markitdown Output (Gold Standard)
+
 ```
 Table	  of	  Contents
 1	  –	  Introduction
 2	  –	  What	  are	  we	  talking	  about?
 ```
+
 Markitdown extracts this PDF **perfectly**. Every word is correct.
 
 ## Root Cause Analysis
 
 ### PDF Font Structure
+
 The PDF uses fonts without a `/ToUnicode` CMap:
 
 ```
@@ -71,6 +75,7 @@ PDF fonts can map character codes to glyphs in several ways:
 ### Why Markitdown Works
 
 Markitdown likely uses one of these approaches:
+
 1. **Adobe Glyph List (AGL)** - Maps glyph names like `/exclam` to Unicode
 2. **/Differences array parsing** - Reads custom glyph mappings from font
 3. **pdfminer/pymupdf** backend that handles these edge cases
@@ -82,7 +87,7 @@ Markitdown likely uses one of these approaches:
 pub fn get_encoding(&self) -> Option<&EncodingType> {
     // Check ToUnicode first
     if self.to_unicode.is_some() { return ToUnicode }
-    
+
     // Check named encoding
     if let Some(encoding) = self.encoding_name.as_ref() {
         match encoding.as_str() {
@@ -91,7 +96,7 @@ pub fn get_encoding(&self) -> Option<&EncodingType> {
             // ...
         }
     }
-    
+
     // Fall back to WinAnsi ← THIS IS THE PROBLEM
     Some(&EncodingType::WinAnsi)
 }
@@ -100,6 +105,7 @@ pub fn get_encoding(&self) -> Option<&EncodingType> {
 ### The Core Issue
 
 When `/Encoding` is `None` and `/ToUnicode` is missing:
+
 - Current code falls back to WinAnsiEncoding
 - But the font may use a **custom encoding** defined by `/Differences`
 - Result: character code 0x21 ('!') should map to 'T' but maps to '!'
@@ -107,17 +113,18 @@ When `/Encoding` is `None` and `/ToUnicode` is missing:
 ## Font-Level Investigation Needed
 
 Need to examine the actual font dictionary to understand:
+
 1. Does it have a `/Differences` array?
 2. What are the glyph names?
 3. Can we use Adobe Glyph List to map glyph names → Unicode?
 
 ## Test Data
 
-| PDF | Pages | Size | Has ToUnicode | Extraction |
-|-----|-------|------|---------------|------------|
-| Apple-Sandbox-Guide | 48 | 354KB | No | ❌ Garbled |
-| AI_Services_Elitizon | 1 | 110KB | Yes | ✅ 98.9% TPS |
-| Scottish SMEs | 4 | 283KB | Yes | ✅ 85.3% TPS |
+| PDF                  | Pages | Size  | Has ToUnicode | Extraction   |
+| -------------------- | ----- | ----- | ------------- | ------------ |
+| Apple-Sandbox-Guide  | 48    | 354KB | No            | ❌ Garbled   |
+| AI_Services_Elitizon | 1     | 110KB | Yes           | ✅ 98.9% TPS |
+| Scottish SMEs        | 4     | 283KB | Yes           | ✅ 85.3% TPS |
 
 ## Files to Investigate
 
@@ -134,6 +141,7 @@ Need to examine the actual font dictionary to understand:
 ## Next Step
 
 Read the font dictionary from Apple-Sandbox-Guide to understand:
+
 1. What type of font is used (Type1, TrueType, CID)
 2. Whether `/Differences` array exists
 3. What glyph names are used

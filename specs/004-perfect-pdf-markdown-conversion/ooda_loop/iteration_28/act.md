@@ -20,6 +20,7 @@ Created a gold standard file using markitdown MCP:
 Modified `crates/edgequake-pdf/tests/fast_quality.rs`:
 
 #### Test 1: `test_business_document_extraction`
+
 ```rust
 // Tests Scottish SMEs PDF against gold standard
 // Metrics checked:
@@ -29,6 +30,7 @@ Modified `crates/edgequake-pdf/tests/fast_quality.rs`:
 ```
 
 #### Test 2: `test_arxiv_paper_extraction` (renamed)
+
 ```rust
 // Renamed to focus on two-column reading order validation
 // Uses 003_two_columns.pdf for speed
@@ -41,7 +43,7 @@ Modified `crates/edgequake-pdf/tests/fast_quality.rs`:
 ```
 running 7 tests
 test test_simple_table_fast ... ok
-test test_two_column_reading_order_fast ... ok  
+test test_two_column_reading_order_fast ... ok
 test test_structure_detection_fast ... ok
 test test_text_preservation_fast ... ok
 test test_business_document_extraction ... ok
@@ -53,11 +55,11 @@ test result: ok. 7 passed; 0 failed; finished in 2.02s
 
 ### 4. Key Metrics Achieved
 
-| Test | TPS | SFS | Time |
-|------|-----|-----|------|
-| Scottish SMEs | 85.3% | 100% | 2017ms |
-| AI Services | 98.9% | 87.5% | 1597ms |
-| Two-Column | N/A | 100% | <500ms |
+| Test          | TPS   | SFS   | Time   |
+| ------------- | ----- | ----- | ------ |
+| Scottish SMEs | 85.3% | 100%  | 2017ms |
+| AI Services   | 98.9% | 87.5% | 1597ms |
+| Two-Column    | N/A   | 100%  | <500ms |
 
 ## Files Changed
 
@@ -86,7 +88,6 @@ test result: ok. 7 passed; 0 failed; finished in 2.02s
 1. **Font Encoding Fix (Priority 1):**
    - Implement Adobe Glyph List (AGL) fallback
    - Handle /Differences array in font dictionaries
-   
 2. **Add More Gold Standards:**
    - Apple-Sandbox-Guide (after encoding fix)
    - Real arXiv papers
@@ -95,7 +96,7 @@ test result: ok. 7 passed; 0 failed; finished in 2.02s
 
 ```bash
 git add crates/edgequake-pdf/test-data/scottish_smes.pdf
-git add crates/edgequake-pdf/test-data/scottish_smes.gold.md  
+git add crates/edgequake-pdf/test-data/scottish_smes.gold.md
 git add crates/edgequake-pdf/tests/fast_quality.rs
 git add specs/004-perfect-pdf-markdown-conversion/ooda_loop/iteration_28/
 
