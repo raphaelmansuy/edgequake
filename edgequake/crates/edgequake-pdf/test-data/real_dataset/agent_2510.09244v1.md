@@ -1,5 +1,8 @@
 # Fundamentals of Building Autonomous LLM Agents
 
+
+**arXiv:2510.09244v1 [cs.AI] 10 Oct 2025** 
+
 Victor de Lamo Castrillo, Habtom Kahsay Gidey, Alexander Lenz, and
 
 Alois Knoll
@@ -46,7 +49,7 @@ would reason through a problem, since LLM agents can learn and mimic human probl
 
 self-feedback [26,38,49,58,60,65,66].
 
-⋆ This paper is based on a seminar technical report from the course Trends in Autonomous Agents: Advances in Architecture and Practice offered at TUM.
+This paper is based on a seminar technical report from the course Trends in Autonomous Agents: Advances in Architecture and Practice offered at TUM.
 
 
 ---

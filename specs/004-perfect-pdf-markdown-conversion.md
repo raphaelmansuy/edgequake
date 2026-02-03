@@ -24,6 +24,10 @@ ALWAY USE ASCII DIAGRAMS TO DEEPLY REFLECT YOUR THINKING about Data, geometric p
 
 Use markitdown mcp to compare extracted Markdown against gold standard references: but be very smart about quality of gold standards: if the gold standard is poor, your quality metrics will be misleading. You must ensure that the gold standard markdown files are of high quality and accurately represent the intended structure and content of the original PDFs. You want to exceed markitdown quality if possible: it why you are building your own PDF to Markdown converter. Always analyze the gold standard files for quality before using them as benchmarks: use your knowledge of Markdown syntax and best practices to assess their quality. If you find gold standard files that are subpar, document the issues and consider improving them or creating new high-quality references.
 
+
+Addeditional Important Guidelines:
+Be generic in your approach: avoid hardcoding for specific documents. Your algorithms should generalize well across diverse PDF layouts and content types. Create a rule for arvivx for example is a BIG BIG code smells --> You remove such kind of hardcoding by building generic algorithms that can handle a wide range of cases based on document structure and content analysis, using deep knowledge of PDF internals and text extraction techniques and geometric processing.
+
 VERY IMPORTANT: Optimize for speed and efficiency. Study the algoryithms used in text extraction and layout analysis to ensure they run quickly even on large documents. Use big notation (O notation) to analyze time complexity of your algorithms.
 
 

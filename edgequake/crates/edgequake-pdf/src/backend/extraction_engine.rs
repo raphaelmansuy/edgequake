@@ -424,6 +424,24 @@ impl ExtractionEngine {
         let rotated_elements: Vec<_> = elements.iter().filter(|e| e.is_rotated).cloned().collect();
         let elements: Vec<_> = elements.into_iter().filter(|e| !e.is_rotated).collect();
         
+        // OODA-21: Extract arXiv ID from rotated elements for metadata
+        // WHY: Gold files expect arXiv identifier at document top as bold text.
+        // We filter rotated text but should preserve arXiv metadata.
+        let arxiv_id: Option<String> = if page_num == 1 {
+            rotated_elements.iter().find_map(|e| {
+                if e.text.contains("arXiv:") {
+                    // Normalize the arXiv identifier (remove extra spaces)
+                    let text = e.text.trim();
+                    info!("OODA21-ARXIV: Found arXiv identifier: '{}'", text);
+                    Some(text.to_string())
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        };
+        
         if !rotated_elements.is_empty() {
             info!(
                 "OODA19-ROTATED: Page {} has {} rotated text elements (filtered out)",
@@ -694,6 +712,15 @@ impl ExtractionEngine {
         
         page.columns = columns; // Set detected columns to prevent LayoutProcessor re-analysis
         page.method = ExtractionMethod::Native;
+        
+        // OODA-21: Store arXiv ID in page metadata if found
+        if let Some(ref arxiv) = arxiv_id {
+            page.metadata.insert(
+                "arxiv_id".to_string(),
+                serde_json::Value::String(arxiv.clone()),
+            );
+        }
+        
         page.stats = PageStats {
             text_blocks: page.blocks.len(),
             tables: page
