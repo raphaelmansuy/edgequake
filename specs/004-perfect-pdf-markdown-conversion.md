@@ -26,6 +26,12 @@ Use markitdown mcp to compare extracted Markdown against gold standard reference
 
 VERY IMPORTANT: Optimize for speed and efficiency. Study the algoryithms used in text extraction and layout analysis to ensure they run quickly even on large documents. Use big notation (O notation) to analyze time complexity of your algorithms.
 
+
+
+
+
+OODA Loop directory: specs/004-perfect-pdf-markdown-conversion/ooda_loop/
+
 ## Test Acceleration Strategy ✅ IMPLEMENTED
 
 Tests have been split into three tiers for optimal performance:
