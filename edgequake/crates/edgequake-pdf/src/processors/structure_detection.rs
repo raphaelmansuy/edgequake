@@ -311,17 +311,81 @@ impl HeaderDetectionProcessor {
 // CaptionDetectionProcessor
 // =============================================================================
 
-/// Detects figure and table captions.
+/// Detects figure and table captions, including multi-line continuations.
 ///
 /// **Pattern:** "Figure N:" or "Table N:" prefix.
 ///
 /// **WHY regex, not font metrics:**
 /// Captions have consistent naming conventions across papers.
+///
+/// **WHY continuation detection (OODA-25):**
+/// Captions often wrap to multiple lines/blocks in PDFs.
+/// The continuation block doesn't start with "Figure N:" but is part of the caption.
+/// We detect continuations by:
+/// 1. Caption ends with hyphen (word continuation)
+/// 2. Next block starts lowercase (sentence continuation)
+/// 3. Blocks are vertically adjacent in same column
 pub struct CaptionDetectionProcessor {}
 
 impl CaptionDetectionProcessor {
     pub fn new() -> Self {
         Self {}
+    }
+
+    /// Check if a caption block appears to continue on the next block.
+    ///
+    /// **WHY:** Captions can wrap mid-word (hyphenation) or mid-sentence.
+    fn caption_continues(&self, caption: &Block, next: &Block) -> bool {
+        let caption_text = caption.text.trim();
+        let next_text = next.text.trim();
+
+        // Empty next block cannot be continuation
+        if next_text.is_empty() {
+            return false;
+        }
+
+        // Check 1: Caption ends with hyphen (word was split)
+        // WHY: "reposi-" + "tory" must be merged
+        let ends_with_hyphen = caption_text.ends_with('-');
+
+        // Check 2: Next block starts lowercase (sentence continues)
+        // WHY: New sentences start uppercase, continuations don't
+        let next_starts_lowercase = next_text
+            .chars()
+            .next()
+            .map(|c| c.is_lowercase())
+            .unwrap_or(false);
+
+        // Check 3: Blocks are spatially adjacent (same column, close vertically)
+        // WHY: Caption continuations are visually connected
+        // Block.bbox is BoundingBox with fields x1, y1, x2, y2
+        let cap_bbox = &caption.bbox;
+        let next_bbox = &next.bbox;
+
+        // Same column: X coordinates overlap significantly
+        let x_overlap = cap_bbox.x1.max(next_bbox.x1) < cap_bbox.x2.min(next_bbox.x2);
+        // Vertically close: gap less than typical line height (~15pt)
+        let y_gap = (next_bbox.y1 - cap_bbox.y2).abs();
+        let close_vertically = y_gap < 20.0;
+        let vertically_adjacent = x_overlap && close_vertically;
+
+        // Either hyphenation or lowercase continuation, AND spatially adjacent
+        (ends_with_hyphen || next_starts_lowercase) && vertically_adjacent
+    }
+
+    /// Merge caption text with its continuation, handling hyphenation.
+    fn merge_caption_text(&self, caption_text: &str, continuation_text: &str) -> String {
+        let cap_trimmed = caption_text.trim();
+        let cont_trimmed = continuation_text.trim();
+
+        if cap_trimmed.ends_with('-') {
+            // Hyphenated word: remove hyphen and join directly
+            // WHY: "reposi-" + "tory" → "repository"
+            format!("{}{}", &cap_trimmed[..cap_trimmed.len() - 1], cont_trimmed)
+        } else {
+            // Sentence continuation: add space
+            format!("{} {}", cap_trimmed, cont_trimmed)
+        }
     }
 }
 
@@ -336,6 +400,7 @@ impl Processor for CaptionDetectionProcessor {
         let caption_regex = Regex::new(r"^(Figure|Fig\.|Table|Tab\.)\s*\d+[:.]").unwrap();
 
         for page in &mut document.pages {
+            // Pass 1: Mark blocks starting with caption pattern
             for block in &mut page.blocks {
                 if block.block_type != BlockType::Text {
                     continue;
@@ -345,6 +410,58 @@ impl Processor for CaptionDetectionProcessor {
                 if caption_regex.is_match(text) {
                     block.block_type = BlockType::Caption;
                 }
+            }
+
+            // Pass 2: Detect and merge caption continuations (OODA-25)
+            // WHY separate pass: Need all captions marked first to find continuations
+            let mut merged_indices: Vec<usize> = Vec::new();
+
+            for i in 0..page.blocks.len() {
+                if page.blocks[i].block_type != BlockType::Caption {
+                    continue;
+                }
+
+                // Look for continuation in next block
+                if i + 1 < page.blocks.len() {
+                    let next_idx = i + 1;
+                    let (caption, next) = {
+                        let (left, right) = page.blocks.split_at_mut(next_idx);
+                        (&left[i], &right[0])
+                    };
+
+                    if next.block_type == BlockType::Text && self.caption_continues(caption, next) {
+                        // Merge the text
+                        let merged_text = self.merge_caption_text(&caption.text, &next.text);
+
+                        // Update caption text
+                        page.blocks[i].text = merged_text;
+
+                        // Extend bounding box to encompass both blocks
+                        // Block.bbox is BoundingBox with fields x1, y1, x2, y2
+                        let cap_bbox = page.blocks[i].bbox;
+                        let next_bbox = page.blocks[next_idx].bbox;
+                        page.blocks[i].bbox = crate::schema::BoundingBox::new(
+                            cap_bbox.x1.min(next_bbox.x1),
+                            cap_bbox.y1.min(next_bbox.y1),
+                            cap_bbox.x2.max(next_bbox.x2),
+                            cap_bbox.y2.max(next_bbox.y2),
+                        );
+
+                        // Mark for removal
+                        merged_indices.push(next_idx);
+
+                        tracing::debug!(
+                            "CaptionDetection: merged continuation block {} into caption {}",
+                            next_idx,
+                            i
+                        );
+                    }
+                }
+            }
+
+            // Remove merged blocks (reverse order to preserve indices)
+            for idx in merged_indices.into_iter().rev() {
+                page.blocks.remove(idx);
             }
         }
         Ok(document)

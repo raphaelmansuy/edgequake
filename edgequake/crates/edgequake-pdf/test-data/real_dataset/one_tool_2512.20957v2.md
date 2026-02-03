@@ -3,47 +3,42 @@
 
 **arXiv:2512.20957v2 [cs.SE] 25 Dec 2025** 
 
-### Abstract
-
 Zhaoxi ZhangYitong DuanYanzhi Zhang
+
+### Abstract
 
 Locating the files and functions requiring modification in large open-source software (OSS) repositories is challenging due to their scale and structural complexity. Existing large language model (LLM)-based methods typically treat this as a repository-level retrieval task and rely on multiple auxiliary tools, which overlook code execution logic and complicate model control. We propose RepoNavigator, an LLM agent equipped with a single execution-aware tool-jumping to the definition of a invoked symbol. This unified design reflects the actual flow of code execution while simplifying tool manipulation. RepoNavigator is trained end-to-end via Reinforcement
 
+> Figure 1.Illustration of a LLM navigating through a code repository. The LLM is equipped with a single yet powerful tool:jump,
+>
+
+In the domain of software engineering (SWE), although LLM agents can effectively handle simple programming tasks (Hui et al., 2024; Guo et al., 2024a), their ability to operate on large-scale open-source software (OSS) repositowhich is realized through a language server.
+
+ries remains limited. SWE-BENCH (Jimenez et al., 2023) currently serves as the most comprehensive benchmark for 
+
 Learning (RL) directly from a pretrained model, 
+
+(Jimenez et al., 2023) provides moderate gains, it remains far from enabling robust repository-level reasoning. 
 
 7B model outperforming 14B baselines, the 14B model surpassing 32B competitors, and even the 32B model exceeding closed-source models such 
 
+Schmidgall et al., 2025). In software engineering (SWE) tasks, tool usage is essential rather than optional: real-world repositories are far larger than the context window of current LLMs, making it impossible to process an entire codebase in a single forward pass. Agents must therefore iteratively 
+
 RL training provides an efficient and scalable solution for repository-level issue localization.
+
+calls. However, mainstream LLMs are rarely exposed to such agentic interaction patterns during pretraining and typically acquire tool usage only through few-shot prompting. Such 
 
 1. Introduction
 
 With the rapid advancement of Large Language Models (LLMs) (Liu et al., 2024; Team, 2024; Yang et al., 2025a), equipping LLMs with pre-built tools to form LLM agents 
 
-In the domain of software engineering (SWE), although LLM agents can effectively handle simple programming tasks (Hui et al., 2024; Guo et al., 2024a), their ability to operate on large-scale open-source software (OSS) reposito-
-
-*Figure 1.Illustration of a LLM navigating through a code reposi-*
-
-tory. The LLM is equipped with a single yet powerful tool:jump, which is realized through a language server.
-
-ries remains limited. SWE-BENCH (Jimenez et al., 2023) currently serves as the most comprehensive benchmark for 
-
-(Jimenez et al., 2023) provides moderate gains, it remains far from enabling robust repository-level reasoning. 
-
-Schmidgall et al., 2025). In software engineering (SWE) tasks, tool usage is essential rather than optional: real-world repositories are far larger than the context window of current LLMs, making it impossible to process an entire codebase in a single forward pass. Agents must therefore iteratively 
-
-calls. However, mainstream LLMs are rarely exposed to such agentic interaction patterns during pretraining and typically acquire tool usage only through few-shot prompting. Such 
-
 limited context windows. Moreover, because tool definition spaces are effectively unbounded, pretrained models cannot fully internalize their semantics without post-training. To 
-
-Learning with Verifiable Rewards (RLVR) (Yu et al., 2025a; Yue et al., 2025) have been applied, with promising results
-
-2
 
 1School of Computer Science, Peking University
 
-2Zhongguancun Academy. Correspondence to: Yitong Duan<duanyitong@zgci.ac.cn>, Yunfang Wu<wuyf@pku.edu. cn>. Submitted to International Conference on Machine Learning
+Learning with Verifiable Rewards (RLVR) (Yu et al., 2025a; Yue et al., 2025) have been applied, with promising results
 
-2
+2Zhongguancun Academy. Correspondence to: Yitong Duan<duanyitong@zgci.ac.cn>, Yunfang Wu<wuyf@pku.edu. cn>. Submitted to International Conference on Machine Learning
 
 in domains including retrieval agents (Jin et al., 2025), GUI agents (Hong et al., 2024), and math agents (Yan et al., 2025)., 2026.
 
@@ -98,16 +93,13 @@ bases as graphs and integrates them into LLMs, and ORCALOCA (Yu et al., 2025b), 
 
 2024; Guo et al., 2024b). However, because most pretrained LLMs are trained on texts only and developers can define
 
-through priority scheduling, action decomposition, and context pruning. From an open-source perspective, RE-
-
-2
+through priority scheduling, action decomposition, and context pruning. From an open-source perspective, RE- 2
 
 
 ---
 
-*Figure 2.Overview of our RepoNavigator. During the rollout phrase, the agent can call the*
-
-the definition code of the symbol. This process is trained by reinforcement learning.
+> Figure 2.Overview of our RepoNavigator. During the rollout phrase, the agent can call the the definition code of the symbol. This process is trained by reinforcement learning.
+>
 
 POSEARCHER (Ma et al., 2025), trained with distillation
 
@@ -186,9 +178,7 @@ where the first term is the standard policy gradient objective with an estimated
 
 the previous policyπ. This formulation ensures stable *θold*
 
-and consistent policy improvement by balancing reward
-
-The reward of GRPO process is calculated as:
+and consistent policy improvement by balancing reward The reward of GRPO process is calculated as:
 
 Dice is a common metric for set-level comparison, for set *Y and set Y*ˆ ∗
 
@@ -211,25 +201,27 @@ because the predicted locations and ground-truth locations are sets of strings, 
 
 ---
 
-*Table 1.Comparison of different agent pipelines on function-level and file-level Dice/IoU metrics. We use Qwen2.5-Instruct series as*
+> Table 1.Comparison of different agent pipelines on function-level and file-level Dice/IoU metrics. We use Qwen2.5-Instruct series as our base model. Bold numbers denote the best performance among same-size models;
+>
 
-| our | base | model. | Bold | numbers | denote | the | best | performance | among | same-size | models; |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| RepoSearcher Claude3.7-Sonnet 66.80 19.90 28.30 | 17.89 |  |  |  |  |  |  |  |  |  |  |
-| RepoNavigator Claude3.7-Sonnet 31.03 34.43 31.72 30.22 72.26 75.95 73.01 | 71.37 |  |  |  |  |  |  |  |  |  |  |
-| RepoNavigator GPT5-chat 30.42 34.56 31.17 29.67 58.17 61.87 58.88 | 57.33 |  |  |  |  |  |  |  |  |  |  |
-| RepoNavigator Claude4.5-Sonnet 43.97 45.76 43.62 | 41.31 |  |  |  |  |  |  |  |  |  |  |
-| Locagent Training Free 17.62 11.71 12.71 10.31 60.96 34.88 40.67 | 33.33 |  |  |  |  |  |  |  |  |  |  |
-| CoSIL Training Free | 29.30 |  |  |  |  |  |  |  |  |  |  |
-| 8.98 12.90 8.07 | 70.12 |  |  |  |  |  |  |  |  |  |  |
-| Agentless Training Free 24.92 12.93 15.31 11.74 63.01 19.32 27.82 | 18.85 |  |  |  |  |  |  |  |  |  |  |
-| Orcaloca Training Free 27.70 | 20.29 |  |  |  |  |  |  |  |  |  |  |
-| RepoSearcher Distillation+GRPO 63.26 19.24 27.37 | 17.59 |  |  |  |  |  |  |  |  |  |  |
-| RepoNavigator Training Free15.89 | 17.46 |  |  |  |  |  |  |  |  |  |  |
-| RepoNavigator GRPO 26.69 | 30.34 |  |  |  |  |  |  |  |  |  |  |
-| Locagent Training Free 35.62 13.32 17.71 12.32 71.42 31.66 40.77 | 30.64 |  |  |  |  |  |  |  |  |  |  |
+| free | performance | among | same-size | models;yellow | background | illustrates | training-free | RepoNavigator;blue | backgroundillustrates |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| RepoSearcher Claude3.7-Sonnet 66.80 19.90 28.30 | 17.89 |  |  |  |  |  |  |  |  |
+| RepoNavigator Claude3.7-Sonnet 31.03 34.43 31.72 30.22 72.26 75.95 73.01 | 71.37 |  |  |  |  |  |  |  |  |
+| RepoNavigator GPT5-chat 30.42 34.56 31.17 29.67 58.17 61.87 58.88 | 57.33 |  |  |  |  |  |  |  |  |
+| RepoNavigator Claude4.5-Sonnet 43.97 45.76 43.62 | 41.31 |  |  |  |  |  |  |  |  |
+| Locagent Training Free 17.62 11.71 12.71 10.31 60.96 34.88 40.67 | 33.33 |  |  |  |  |  |  |  |  |
+| CoSIL Training Free | 29.30 |  |  |  |  |  |  |  |  |
+| 8.98 12.90 8.07 | 70.12 |  |  |  |  |  |  |  |  |
+| Agentless Training Free 24.92 12.93 15.31 11.74 63.01 19.32 27.82 | 18.85 |  |  |  |  |  |  |  |  |
+| Orcaloca Training Free 27.70 | 20.29 |  |  |  |  |  |  |  |  |
+| RepoSearcher Distillation+GRPO 63.26 19.24 27.37 | 17.59 |  |  |  |  |  |  |  |  |
+| RepoNavigator Training Free15.89 | 17.46 |  |  |  |  |  |  |  |  |
+| RepoNavigator GRPO 26.69 | 30.34 |  |  |  |  |  |  |  |  |
+| Locagent Training Free 35.62 13.32 17.71 12.32 71.42 31.66 40.77 | 30.64 |  |  |  |  |  |  |  |  |
+| CoSIL Training Free 48.61 13.40 19.81 | 12.12 |  |  |  |  |  |  |  |  |
 
-CoSIL Training Free 48.61 13.40 19.81 12.12 Agentless Training Free 25.20 14.30 16.14 12.28 75.65 19.76 29.88 19.30 Orcaloca Training Free 29.92 20.98 22.77 18.92 52.17 52.15 50.93 48.72 RepoSearcher Training Free 26.13 11.96 14.35 10.60 74.77 18.80 28.79 18.15 RepoNavigator Training Free27.96 25.77 RepoNavigator GRPO 31.02 30.08
+Agentless Training Free 25.20 14.30 16.14 12.28 75.65 19.76 29.88 19.30 Orcaloca Training Free 29.92 20.98 22.77 18.92 52.17 52.15 50.93 48.72 RepoSearcher Training Free 26.13 11.96 14.35 10.60 74.77 18.80 28.79 18.15 RepoNavigator Training Free27.96 25.77 RepoNavigator GRPO 31.02 30.08
 
 Qwen2.5-32B
 
@@ -261,9 +253,7 @@ underline numbersdenote the best training-
 
 (Shen, 2024) as the training framework, and we apply vLLM (Kwon et al., 2023) as the inference engine. We train the model for 1 epoch, while the training batch size is fixed
 
-Baselines We compare our method against Locagent (Chen et al., 2025), CoSIL (Jiang et al., 2025), Agent-
-
-5
+Baselines We compare our method against Locagent (Chen et al., 2025), CoSIL (Jiang et al., 2025), Agent- 5
 
 (which is the averaged score of per-sample F1 values) and IoU (intersection out of union) as our core metrics. At the same time, we also present the recall and precision scores to align with previous methods, although they do not reflect the methods' performance fairly. Training For the 7B model, we conduct GRPO with 8 Tesla-A100-80G GPUs. For the 14B and 32B model, we train it with 16 Tesla-A100-80G GPUs. We apply verl
 
@@ -274,25 +264,27 @@ to 128 on 4k training samples filtered from SWE-smith, with maximum prompt lengt
 
 ---
 
-*Table 2.Comparison of different agent pipelines on function-level and file-level metrics on SWE-bench*
+> Table 2.Comparison of different agent pipelines on function-level and file-level metrics on SWE-bench numbers denote the best performance among same-size models; underline numbersdenote the best training-free performance among
+>
 
-| numbers | denote | the | best | performance | among | same-size | models; | underline | numbersdenote | the | best | training-free | performance | among |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| LocAgent Training Free 1.01 0.02 0.65 0.40 12.16 0.17 10.81 | 8.93 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| CoSIL Training Free 8.64 3.33 4.58 2.87 26.64 8.47 12.11 | 7.70 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Agentless Training Free 12.82 6.94 8.05 | 5.73 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| RepoSearcher Training Free 1.07 0.93 0.97 0.86 4.91 1.64 2.30 | 1.63 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| RepoNavigatorTraining Free9.84 14.65 | 10.67 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| RepoNavigator GRPO 12.33 21.26 | 14.29 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| LocAgent Training Free 6.22 0.13 3.65 2.65 15.58 0.21 11.69 | 9.53 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| CoSIL Training Free 10.73 4.67 5.96 3.94 34.31 9.97 14.81 | 9.30 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Agentless Training Free 10.49 6.75 7.41 5.28 41.42 13.42 19.02 | 12.37 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| RepoSearcher Training Free 2.79 1.38 1.69 1.14 17.37 5.17 7.60 | 4.84 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| RepoNavigatorTraining Free14.36 19.74 | 15.27 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| RepoNavigator GRPO 16.05 25.25 | 18.06 |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| LocAgent Training Free 8.72 0.17 4.30 2.90 25.73 0.38 19.77 | 16.50 |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| same-size | models;yellow | backgroundillustrates | training-free | RepoNavigator; |
+| --- | --- | --- | --- | --- |
+| LocAgent Training Free 1.01 0.02 0.65 0.40 12.16 0.17 10.81 | 8.93 |  |  |  |
+| CoSIL Training Free 8.64 3.33 4.58 2.87 26.64 8.47 12.11 | 7.70 |  |  |  |
+| Agentless Training Free 12.82 6.94 8.05 | 5.73 |  |  |  |
+| RepoSearcher Training Free 1.07 0.93 0.97 0.86 4.91 1.64 2.30 | 1.63 |  |  |  |
+| RepoNavigatorTraining Free9.84 14.65 | 10.67 |  |  |  |
+| RepoNavigator GRPO 12.33 21.26 | 14.29 |  |  |  |
+| LocAgent Training Free 6.22 0.13 3.65 2.65 15.58 0.21 11.69 | 9.53 |  |  |  |
+| CoSIL Training Free 10.73 4.67 5.96 3.94 34.31 9.97 14.81 | 9.30 |  |  |  |
+| Agentless Training Free 10.49 6.75 7.41 5.28 41.42 13.42 19.02 | 12.37 |  |  |  |
+| RepoSearcher Training Free 2.79 1.38 1.69 1.14 17.37 5.17 7.60 | 4.84 |  |  |  |
+| RepoNavigatorTraining Free14.36 19.74 | 15.27 |  |  |  |
+| RepoNavigator GRPO 16.05 25.25 | 18.06 |  |  |  |
+| LocAgent Training Free 8.72 0.17 4.30 2.90 25.73 0.38 19.77 | 16.50 |  |  |  |
+| CoSIL Training Free 15.00 6.35 8.14 5.21 45.37 13.04 19.42 | 12.36 |  |  |  |
 
-CoSIL Training Free 15.00 6.35 8.14 5.21 45.37 13.04 19.42 12.36 Agentless Training Free 11.08 7.31 7.98 5.80 43.07 13.89 20.07 13.11 RepoSearcher Training Free 2.00 1.29 1.45 1.00 13.51 3.43 5.31 3.24 RepoNavigatorTraining Free13.96 20.25 15.36 RepoNavigator GRPO 18.13 29.44 20.72
+Agentless Training Free 11.08 7.31 7.98 5.80 43.07 13.89 20.07 13.11 RepoSearcher Training Free 2.00 1.29 1.45 1.00 13.51 3.43 5.31 3.24 RepoNavigatorTraining Free13.96 20.25 15.36 RepoNavigator GRPO 18.13 29.44 20.72
 
 Pro for generalization. Bold
 
@@ -304,9 +296,7 @@ blue backgroundillustrates RepoNavigator trained with
 
 12.8750.24 63.24 53.48 48.50 17.16 53.49 68.69 57.57 52.44
 
-baseline methods are presented in Appendix. A.
-
-Results As illustrated in Table. 1, on balanced metrics 
+baseline methods are presented in Appendix. A. Results As illustrated in Table. 1, on balanced metrics 
 
 the same model size. Moreover, if we train RepoNavigator with GRPO, our 7B model surpasses 14B baselines, and our
 
@@ -320,18 +310,18 @@ less (Xia et al., 2024), Orcaloca (Yu et al., 2025b), and RepoSearcher (Ma et al
 
 pipelines. Compared with RepoSearcher, which is distilled from claude-3.7-sonnet (Anthropic, 2025) and reinforced by 6
 
-*Figure 3.Ablation study: comparison between RepoNavigator*
+> Figure 3.Ablation study: comparison between RepoNavigator with training free, RFT, GRPO with pure outcome and hybrid
+>
 
-with training free, RFT, GRPO with pure outcome and hybrid reward on Qwen2.5-7B-Instruct.
+reward on Qwen2.5-7B-Instruct.
 
 
 ---
 
 One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
 
-*Figure 4.Scaling law of tool-calling, where Pre and Post denote To assess the significance of tool-calling in RepoNavigator,*
-
-the corresponding metric before and after the RL training.
+> Figure 4.Scaling law of tool-calling, where Pre and Post denote To assess the significance of tool-calling in RepoNavigator, the corresponding metric before and after the RL training.
+>
 
 GRPO, trained RepoNavigator outperforms it on all metrices except recall. Moreover, we found that our training-free method outperforms RepoSearcher for 14B models. This is probably due to the simplified tool we integrate to the agent (see Sec. 5 for more details). To assess the generalizability of RepoNavigator, we present its performance on Python samples from the SWE-bench- Pro dataset (Yang et al., 2025b) in Table 2. The results on this dataset are consistent with those observed on SWEbenchVerified. While we cannot fully exclude the potential
 
@@ -345,9 +335,10 @@ To explore the capability of GRPO on agentic training, we
 
 Agent Pipeline Func-IoU(%) Resolved(%) Agentless 5.28 10.12 LocAgent 2.65 13.01 RepoNavigator 12.00 14.74 RepoNavigator+RL 14.58 15.03
 
-*Table 3.We use Qwen2.5-14B-Instruct as the localization model,*
+> Table 3.We use Qwen2.5-14B-Instruct as the localization model, and use Qwen2.5-32B-Instruct as the repair model on SWE-
+>
 
-and use Qwen2.5-32B-Instruct as the repair model on SWEbenchVerified.
+bench Verified.
 
 ### 4.4. Scaling Law of Tool-Calling
 
@@ -384,9 +375,10 @@ interfaces that large language models have not been exposed to during pretrainin
 
 One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
 
-*Figure 5.Venn graph illustrating access scope ofjump. Compared*
+> Figure 5.Venn graph illustrating access scope ofjump. Compared with the repository scope, the access scope has a much higher IoU
+>
 
-with the repository scope, the access scope has a much higher IoU with the groundtruth set.
+with the groundtruth set.
 
 ### 5.2. Impact on Tool-Calling Success Rate
 
@@ -416,11 +408,10 @@ Jump GetClass GetFunc GetStruc IoU ✓ ✓ ✓ ✓
 
 ✓ ✗ ✗ ✗ 24.28
 
-*Table 4.We change the tool set of RepoNavigator and present*
+> Table 4.We change the tool set of RepoNavigator and present the function-level IoU (%) on Qwen2.5-7B-Instruct. Apparently,
+>
 
-the function-level IoU (%) on Qwen2.5-7B-Instruct. Apparently, excessive tools do not boost RepoNavigator's performance.
-
-mantically activated by that entry point. Because every 
+excessive tools do not boost RepoNavigator's performance. mantically activated by that entry point. Because every 
 
 expansion. Therefore, the final access scope produced by 
 
@@ -598,15 +589,18 @@ Jump GetClass GetFunc GetStruc Recall Precision F1 IoU Recall Precision F1 IoU �
 
 ✓ ✗ ✗ ✗ 25.11 29.16
 
-*Table 5.We change the tool set of RepoNavigator and present the function-level IoU. Because the*
+25.7524.2855.81 58.71 56.3254.89
 
-for localization, excessive tools do not increase its performance.
+> Table 5.We change the tool set of RepoNavigator and present the function-level IoU. Because the for localization, excessive tools do not increase its performance.
+>
+
+jumptool is already powerful enough
 
 |Y ∩ Y|ˆ ∗
 
-Precision =
+repository-and dynamic imports can degrade the performance of the language server, as its functionality relies on static analysis techniques such as abstract syntax trees and symbol tables. When such circumstances occur, the tool returns an error message indicating that the definition of the current symbol cannot be located due to unknown reasons. Nevertheless, in our empirical evaluation, we did not observe any instances of monkey patching or dynamic imports
 
-Sample-F1 =
+Precision = Sample-F1 =
 
 |Y ∩ Y|ˆ ∗
 
@@ -614,31 +608,23 @@ Sample-F1 =
 
 |Y ∪ Y|ˆ ∗
 
+Language Server In practice, we apply a Python lanwithin the analyzed datasets.
+
 In practice, when the prediction set Yis empty (for instance, ˆ total failure), we set recall, precision, sample-F1, and IoU to zero. We use the function-level localization result of different methods and apply the patch generation backend 
-
-test units after applying the patch. 
-
-zero as its score. When the agent exceeds the maximum tool-calling times (which is 12), we add "You must not call tools anymore, and you must give the final answer" to the tool's response. Most of the time, the agent will stop calling tools and generate the final response. If not, we force it to 
-
-is generated, the agent loop will stop automatically. The aforementioned process is an automatic agentic framework, which allows the agent to explore in the environments with little constraints. Preventing Data Leakage It is a widespread concern that data leakage at the pre-training phrase threatens the validity of post-training methods. Nevertheless, we exclude this concern by results in Tabel. 2. The SWE-benchPro dataset was published in 2025, while the Qwen2.5 series were published in 2024. Moreover, we exclude the samples 
-
-Language Server In practice, we apply a Python lan-
-
-25.7524.2855.81 58.71 56.3254.89
-
-jumptool is already powerful enough
-
-repository-and dynamic imports can degrade the performance of the language server, as its functionality relies on static analysis techniques such as abstract syntax trees and symbol tables. When such circumstances occur, the tool returns an error message indicating that the definition of the current symbol cannot be located due to unknown reasons. Nevertheless, in our empirical evaluation, we did not observe any instances of monkey patching or dynamic imports
-
-within the analyzed datasets.
 
 ## C. Threats to Validity
 
 Groundtruth Retrieval A limitation of our work lies in the extraction of groundtruth locations. We extract modified locations directly from thegoldpatchin the datasets, which may ignore other patches that also resolve the issue. Our evaluation metrics do not take these correct alternatives 
 
-reveals golden locations (locations in golden patches), it undoubtedly contributes to the resolution of the issue, and the result in Table. 3 demonstrates this claim.
+test units after applying the patch. 
 
-Language Limit Another limitation is that we only evaluate Python repositories in our experiments. This is because each language (C/C++, Java, etc.) has its unique language server, and we only succeed in implementing the language server of python. We will implement more language servers and validate our approach on more programing languages in the future.
+zero as its score. When the agent exceeds the maximum tool-calling times (which is 12), we add "You must not call tools anymore, and you must give the final answer" to the tool's response. Most of the time, the agent will stop calling tools and generate the final response. If not, we force it to 
+
+reveals golden locations (locations in golden patches), it undoubtedly contributes to the resolution of the issue, and the result in Table. 3 demonstrates this claim. 
+
+is generated, the agent loop will stop automatically. The aforementioned process is an automatic agentic framework, which allows the agent to explore in the environments with little constraints. Preventing Data Leakage It is a widespread concern that data leakage at the pre-training phrase threatens the validity of post-training methods. Nevertheless, we exclude this concern by results in Tabel. 2. The SWE-benchPro dataset was published in 2025, while the Qwen2.5 series were published in 2024. Moreover, we exclude the samples 
+
+each language (C/C++, Java, etc.) has its unique language server, and we only succeed in implementing the language server of python. We will implement more language servers and validate our approach on more programing languages in the future.
 
 ## D. Case Study
 
@@ -648,9 +634,9 @@ full-automatically. This is distinct with Agentless (which
 
 guage server to extract the definition code corresponding to an invoked symbol within a repository. However, the presence of monkey patches-runtime modifications to the
 
-12
-
 has a fixed workflow), LocAgent (which predefines a specific step-by-step workflow in its system prompt), CoSIL and RepoSearcher (which is half-automatic because some
+
+12
 
 
 ---
