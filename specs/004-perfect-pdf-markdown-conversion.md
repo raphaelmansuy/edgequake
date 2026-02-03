@@ -9,7 +9,11 @@ Your mission is to achieve **production-grade, high-fidelity PDF to Markdown con
 3. **Quality Metrics**: Define measurable, objective quality metrics for conversion fidelity
 4. **Algorithm Perfection**: Iteratively improve the PDF extraction pipeline until all metrics pass
 
-Ensure to use First Principles thinking. Use your knowledge of PDF structures, text encoding, layout analysis, and Markdown syntax to guide your decisions. Use Donald Knuth knowledge about text composition and typesetting where applicable: space between letters, words, line breaks, paragraph structure, ligatures, font styles, etc. If you don't know something, research it thoroughly on the web: PDF, typesetting, Markdown, text extraction techniques.
+
+Extremely important:
+
+Ensure to use First Principles thinking. Use your knowledge of PDF structures, text encoding, layout analysis, and Markdown syntax to guide your decisions. Use Donald Knuth knowledge about text composition and typesetting where applicable: space between letters, words, line breaks, paragraph structure, ligatures, font styles, etc. If you don't know something, research it thoroughly on the web: PDF, typesetting, Markdown, text extraction techniques. When you take decision don't rely on easy an d short coming heuristics only: explain WHY you chose specific thresholds or algorithms using First Principles reasoning. Use comments in code to explain your thinking.
+
 
 You must also optimize the conversion process for speed and efficiency, ensuring that the extraction runs quickly even on large documents without sacrificing quality. Don't use image extraction by default in tests.
 
@@ -144,6 +148,9 @@ Use `mcp_markitdown_convert_to_markdown` tool to generate reference markdown fro
 
 ### Test Documents in `zz_test_docs/`
 
+
+Addition new documents have been added for evaluation, former documents:
+
 | Document                                    | Pages | Type                     | Status                    |
 | ------------------------------------------- | ----- | ------------------------ | ------------------------- |
 | `Qwen.pdf`                                  | 1     | Type3 fonts, web capture | ✅ Fixed (OODA-01/02)     |
@@ -152,6 +159,9 @@ Use `mcp_markitdown_convert_to_markdown` tool to generate reference markdown fro
 | `Apple-Sandbox-Guide-v1.0.pdf`              | ?     | Technical guide          | 🔄 New - needs evaluation |
 | `agentfail_2601.22984v1.pdf`                | ?     | arXiv paper              | 🔄 New - needs evaluation |
 | `hotmess_2601.23045v1.pdf`                  | ?     | arXiv paper              | 🔄 New - needs evaluation |
+
+
+List documents  to analyze for root causes of poor extraction quality.
 
 ### Current State Assessment
 

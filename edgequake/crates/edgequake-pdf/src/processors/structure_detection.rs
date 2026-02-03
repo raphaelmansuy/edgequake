@@ -318,7 +318,12 @@ impl Processor for ListDetectionProcessor {
         // WHY include en-dash and em-dash: PDF generators (like pandoc) use these
         // for nested lists. Also include common Unicode bullet characters.
         let bullet_regex = Regex::new(r"^[-–—*•◦▪]\s+").unwrap();
+        // WHY: Match numbered lists like "1. " or "1)" - require space after marker
+        // This avoids matching section numbers like "1.1" (decimal) 
         let number_regex = Regex::new(r"^\d+[\.)]\s+").unwrap();
+        // OODA-14: Secondary pattern for "1.Text" (no space) but NOT "1.1" (decimal)
+        // Matches: digit(s) + period + uppercase letter (section start)
+        let number_no_space_regex = Regex::new(r"^\d+\.[A-Z]").unwrap();
         // WHY: Academic papers use [N] format for references. arXiv papers commonly
         // have 30-60 references. This pattern matches "[1]", "[42]", or "[123]" at
         // line start, with optional space before the citation text.
@@ -346,8 +351,12 @@ impl Processor for ListDetectionProcessor {
                 }
 
                 let text = block.text.trim();
+                // OODA-14: Check both patterns for numbered lists
+                // - number_regex: "1. Text" with space (standard)
+                // - number_no_space_regex: "1.Text" no space but uppercase letter (not "1.1")
                 if bullet_regex.is_match(text)
                     || number_regex.is_match(text)
+                    || number_no_space_regex.is_match(text)
                     || ref_regex.is_match(text)
                 {
                     block.block_type = BlockType::ListItem;
