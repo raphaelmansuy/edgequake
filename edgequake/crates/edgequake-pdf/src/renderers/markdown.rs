@@ -401,6 +401,65 @@ impl MarkdownRenderer {
         self.render_spans_styled(spans, false, false)
     }
 
+    /// Consolidate adjacent spans with identical styles.
+    /// OODA-21: WHY? After block merge, we may have:
+    ///   Span1: "This paper is about..." (italic)
+    ///   Span2: " " (plain - merge joiner)
+    ///   Span3: "consist of S&P..." (italic)
+    /// Without consolidation, this renders as: `*This paper...* *consist...*`
+    /// With consolidation: `*This paper... consist...*`
+    fn consolidate_spans(&self, spans: &[TextSpan]) -> Vec<TextSpan> {
+        use crate::schema::TextSpan;
+
+        if spans.len() < 2 {
+            return spans.to_vec();
+        }
+
+        let mut consolidated: Vec<TextSpan> = Vec::new();
+
+        for span in spans {
+            if span.text.is_empty() {
+                continue;
+            }
+
+            // Check if we can merge with the last consolidated span
+            let can_merge = if let Some(last) = consolidated.last_mut() {
+                // Compare relevant style properties
+                let same_bold = last.style.weight.map(|w| w >= 600).unwrap_or(false)
+                    == span.style.weight.map(|w| w >= 600).unwrap_or(false);
+                let same_italic = last.style.italic == span.style.italic;
+                let same_code = last.style.looks_like_code() == span.style.looks_like_code();
+                let same_super = last.style.superscript == span.style.superscript;
+                let same_sub = last.style.subscript == span.style.subscript;
+
+                // Plain space joiner can be absorbed into styled spans
+                let is_plain_joiner = span.text.trim().is_empty()
+                    && !span.style.italic
+                    && span.style.weight.map(|w| w < 600).unwrap_or(true);
+
+                if is_plain_joiner {
+                    // Absorb plain space into previous styled span
+                    last.text.push_str(&span.text);
+                    true // Already merged
+                } else if same_bold && same_italic && same_code && same_super && same_sub {
+                    // Same style - merge text
+                    last.text.push_str(&span.text);
+                    true // Already merged
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if !can_merge {
+                consolidated.push(span.clone());
+            }
+        }
+
+        consolidated
+    }
+
     /// Render structured spans with optional style skipping.
     fn render_spans_styled(
         &self,
@@ -408,8 +467,11 @@ impl MarkdownRenderer {
         skip_bold: bool,
         skip_italic: bool,
     ) -> String {
+        // OODA-21: Consolidate spans before rendering to avoid *text1* *text2* fragmentation
+        let consolidated = self.consolidate_spans(spans);
+
         let mut result = String::new();
-        for span in spans {
+        for span in &consolidated {
             let content = &span.text;
             if content.is_empty() {
                 continue;
