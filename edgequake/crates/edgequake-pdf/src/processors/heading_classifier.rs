@@ -116,12 +116,25 @@ impl HeadingClassifier {
     /// - Not too long (headings are concise)
     /// - No trailing period (headings aren't sentences)
     /// - Has lowercase chars (not all-caps like page headers)
+    /// - OODA-23: Not a figure/table caption
     fn is_valid_heading_text(&self, text: &str) -> bool {
         if text.is_empty() || text.len() > self.max_heading_length {
             return false;
         }
 
         if text.ends_with('.') {
+            return false;
+        }
+
+        // OODA-23: Filter out figure/table captions
+        // WHY: Captions like "Fig. 1. Key Components..." are sometimes styled
+        // like headings (bold, larger font) but should remain as body text.
+        let lower = text.to_lowercase();
+        if lower.starts_with("fig.")
+            || lower.starts_with("figure")
+            || lower.starts_with("table")
+            || lower.starts_with("tab.")
+        {
             return false;
         }
 

@@ -33,20 +33,23 @@ Also fixed the `group_into_lines` function to accept pre-detected column boundar
 ## Results
 
 ### Before OODA-22
+
 - Overall Quality: 86.5%
 - Element loss on merge: 12 pages losing right column content
 
 ### After OODA-22
+
 - Overall Quality: **87.5%** (+1.0 percentage points)
 - Element loss on merge: 2 pages (edge cases with narrow columns)
 
 ### Per-Document Changes
-| Document | Before | After | Delta |
-|----------|--------|-------|-------|
-| 2502.v1.multi_modal | 86.6% | 90.5% | +3.9% |
-| 2502.v2.multi_modal | 85.7% | 88.3% | +2.6% |
-| one_tool_2512 | 82.8% | 83.3% | +0.5% |
-| **Overall** | 86.5% | 87.5% | **+1.0%** |
+
+| Document            | Before | After | Delta     |
+| ------------------- | ------ | ----- | --------- |
+| 2502.v1.multi_modal | 86.6%  | 90.5% | +3.9%     |
+| 2502.v2.multi_modal | 85.7%  | 88.3% | +2.6%     |
+| one_tool_2512       | 82.8%  | 83.3% | +0.5%     |
+| **Overall**         | 86.5%  | 87.5% | **+1.0%** |
 
 ## Verification
 

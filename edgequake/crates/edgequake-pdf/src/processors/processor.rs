@@ -236,12 +236,18 @@ impl Processor for SectionPatternProcessor {
                 }
 
                 // Strategy 2: Check for numbered section headers
+                // OODA-23: Skip figure/table captions that look like numbered sections
                 if let Some(captures) = self.section_regex.captures(text) {
                     if let (Some(num), Some(title)) = (captures.get(1), captures.get(2)) {
                         let section_num = num.as_str();
                         let title_text = title.as_str();
 
-                        if title_text.len() < 80 && !title_text.ends_with('.') {
+                        // OODA-23: Filter out "Fig." and "Table" captions
+                        // WHY: "Fig. 1. Title" matches section regex but isn't a section
+                        let is_caption = section_num.to_lowercase().starts_with("fig.")
+                            || section_num.to_lowercase().starts_with("table");
+
+                        if !is_caption && title_text.len() < 80 && !title_text.ends_with('.') {
                             let level = self.calculate_level(section_num);
                             block.block_type = BlockType::SectionHeader;
                             block.level = Some(level);
@@ -400,6 +406,17 @@ impl StyleDetectionProcessor {
 
         if is_list_item {
             return; // Don't classify list items as headers
+        }
+
+        // OODA-23: Filter out figure/table captions
+        // WHY: Captions like "Fig. 1. Key Components..." are styled like headings
+        // (bold, larger font, title-case) but should remain as body text.
+        let is_caption = text_lower.starts_with("fig.")
+            || text_lower.starts_with("figure")
+            || text_lower.starts_with("table")
+            || text_lower.starts_with("tab.");
+        if is_caption {
+            return; // Don't classify captions as headers
         }
 
         // Section pattern: starts with digit OR is all caps

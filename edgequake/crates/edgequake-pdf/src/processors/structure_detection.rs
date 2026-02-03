@@ -134,6 +134,18 @@ impl Processor for HeaderDetectionProcessor {
                 let is_short_for_heading =
                     text.len() < max_heading_len && !text.ends_with('.') && !has_inline_description;
 
+                // OODA-23: Filter out figure/table captions
+                // WHY: Captions like "Fig. 1. Key Components..." are styled like headings
+                // (bold, larger font, title-case) but should remain as body text.
+                let text_lower = text.to_lowercase();
+                let is_caption = text_lower.starts_with("fig.")
+                    || text_lower.starts_with("figure")
+                    || text_lower.starts_with("table")
+                    || text_lower.starts_with("tab.");
+                if is_caption {
+                    continue; // Don't classify captions as headers
+                }
+
                 // Check for subsection pattern first (e.g., "1.1 Motivation")
                 if is_short_for_heading && subsection_heading.is_match(text) {
                     let prefix: String = text
