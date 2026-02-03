@@ -195,6 +195,14 @@ impl BlockBuilder {
     }
 
     /// Calculate bounding box for a line.
+    ///
+    /// # OODA-20 FIX: Compute proper x2 including text width
+    ///
+    /// Previously, max_x was computed as max(e.x) which is the left edge of the
+    /// rightmost text element. This resulted in zero-width bboxes when all elements
+    /// have the same x position (common in single-column PDFs).
+    ///
+    /// Now we compute max_x as max(e.x + estimated_width) to get the actual right edge.
     fn calculate_line_bbox(
         &self,
         line: &[TextElement],
@@ -206,11 +214,19 @@ impl BlockBuilder {
             .map(|e| e.x)
             .min_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(0.0);
+
+        // OODA-20: Compute right edge as x + estimated text width
+        // Average char width is ~55% of font size for proportional fonts
         let max_x = line
             .iter()
-            .map(|e| e.x)
+            .map(|e| {
+                let char_count = e.text.chars().count() as f32;
+                let estimated_width = char_count * e.font_size * 0.55;
+                e.x + estimated_width
+            })
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(page_width);
+
         let y = line.first().map(|e| e.y).unwrap_or(0.0);
 
         BoundingBox::new(min_x, y, max_x, y + avg_font_size)

@@ -60,6 +60,30 @@ impl Processor for TableDetectionProcessor {
                 page.blocks.len()
             );
 
+            // OODA-34 FIX: SKIP table detection for multi-column pages with backend-set columns
+            // 
+            // WHY: The table detection algorithm sorts blocks by Y-coordinate (group_blocks_by_row),
+            // then iterates through Y-sorted rows to create new_blocks. This destroys the
+            // column-aware reading order established by text_grouping.rs and extraction_engine.rs.
+            //
+            // For multi-column pages:
+            // - Correct order: [left_col_block_1, left_col_block_2, ..., right_col_block_1, ...]
+            // - After Y-sort: [left_y100, right_y100, left_y112, right_y112, ...] (INTERLEAVED!)
+            //
+            // The OODA-12 and OODA-29 fixes preserved reading order in extraction_engine and
+            // LayoutProcessor, but TableDetectionProcessor was still re-sorting and breaking it.
+            //
+            // FIX: Skip table detection entirely for pages that have columns set by the backend.
+            // Tables within columns are rare and not worth the cost of destroying reading order.
+            if page.columns.len() > 1 {
+                eprintln!(
+                    "OODA-34: Skipping table detection for {}-column page {} (preserving reading order)",
+                    page.columns.len(),
+                    page.number
+                );
+                continue;
+            }
+
             // OODA-16: Enable table detection for multi-column pages with stricter criteria
             // WHY: Tables can appear within multi-column layouts (e.g., AlphaEvolve Table 1)
             // STRICT MODE: Use tighter Y-tolerance and text length checks to avoid

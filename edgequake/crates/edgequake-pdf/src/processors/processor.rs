@@ -268,8 +268,9 @@ impl Processor for SectionPatternProcessor {
                 }
                 // Strategy 4: Font-size based detection with adjacent block check
                 else {
-                    let (is_heading, level) =
-                        self.heading_classifier.classify(&page.blocks[i], body_font_size);
+                    let (is_heading, level) = self
+                        .heading_classifier
+                        .classify(&page.blocks[i], body_font_size);
 
                     if is_heading {
                         // OODA-26: Check if next block indicates this is an inline label
@@ -468,28 +469,29 @@ impl StyleDetectionProcessor {
             let is_numbered_name = {
                 // Check for "N." or "N)" prefix
                 let trimmed = text.trim();
-                let prefix_end = trimmed.find(|c: char| !c.is_ascii_digit() && c != '.' && c != ')' && c != ' ');
-                
+                let prefix_end =
+                    trimmed.find(|c: char| !c.is_ascii_digit() && c != '.' && c != ')' && c != ' ');
+
                 if let Some(pos) = prefix_end {
                     // Check if starts with digit + delimiter pattern
                     let prefix = &trimmed[..pos];
-                    let has_number_prefix = prefix.chars().any(|c| c.is_ascii_digit()) 
+                    let has_number_prefix = prefix.chars().any(|c| c.is_ascii_digit())
                         && (prefix.contains('.') || prefix.contains(')'));
-                    
+
                     if has_number_prefix && pos < trimmed.len() {
                         let after_prefix = trimmed[pos..].trim();
                         let words: Vec<&str> = after_prefix.split_whitespace().collect();
-                        
+
                         // Looks like names: 1-3 capitalized words, all short
-                        let looks_like_names = words.len() >= 1 
+                        let looks_like_names = words.len() >= 1
                             && words.len() <= 4
                             && words.iter().all(|w| {
                                 let first_char = w.chars().next();
-                                matches!(first_char, Some(c) if c.is_uppercase())
-                                    && w.len() <= 15  // Person name words are short
+                                matches!(first_char, Some(c) if c.is_uppercase()) && w.len() <= 15
+                                // Person name words are short
                             })
-                            && after_prefix.len() <= 40;  // Total name is short
-                        
+                            && after_prefix.len() <= 40; // Total name is short
+
                         // NOT a section header pattern
                         // Real sections have: Introduction, Motivation, Background, Methods, Results, etc.
                         let after_lower = after_prefix.to_lowercase();
@@ -514,7 +516,7 @@ impl StyleDetectionProcessor {
                             || after_lower.contains("implementation")
                             || after_lower.contains("appendix")
                             || after_lower.contains("reference");
-                        
+
                         looks_like_names && !looks_like_section
                     } else {
                         false
@@ -779,7 +781,7 @@ impl Processor for StyleDetectionProcessor {
                         || block_text == "acknowledgments"
                         || block_text == "acknowledgements"
                         || block_text == "references";
-                    
+
                     // Only apply inline label reversion to NON-section headers
                     if !is_known_section {
                         // Check if next block looks like continuation text

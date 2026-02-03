@@ -203,7 +203,17 @@ impl GeometricClusterer {
     }
 
     /// Convert x-coordinate clusters to column regions.
+    ///
+    /// # OODA-20: Added minimum column width filter
+    ///
+    /// Columns narrower than MIN_COLUMN_WIDTH are merged with adjacent columns.
+    /// This prevents indentation patterns (like bullet points at x=322 vs headers at x=300)
+    /// from being misdetected as separate columns.
     fn clusters_to_columns(&self, clusters: &[Cluster], page_width: f32) -> Vec<Column> {
+        // Minimum column width in points. Columns narrower than this are likely
+        // indentation patterns, not real multi-column layouts.
+        const MIN_COLUMN_WIDTH: f32 = 80.0;
+
         let mut columns = Vec::new();
 
         // Sort clusters by x-position (left to right)
@@ -237,9 +247,53 @@ impl GeometricClusterer {
         // If no valid columns, return single column
         if columns.is_empty() {
             columns.push(Column::new(0.0, page_width));
+            return columns;
         }
 
-        columns
+        // OODA-20: Merge narrow columns with adjacent columns
+        // This prevents indentation patterns from creating spurious columns
+        let mut merged_columns: Vec<Column> = Vec::new();
+        for col in columns {
+            let width = col.width();
+            if width < MIN_COLUMN_WIDTH {
+                // Narrow column - merge with previous or next
+                if let Some(last) = merged_columns.last_mut() {
+                    // Extend the previous column to include this narrow one
+                    last.x2 = col.x2;
+                } else {
+                    // No previous column, just add it (will merge with next)
+                    merged_columns.push(col);
+                }
+            } else if let Some(last) = merged_columns.last_mut() {
+                // Check if previous column was narrow (width < MIN_COLUMN_WIDTH)
+                if last.width() < MIN_COLUMN_WIDTH {
+                    // Extend narrow previous column to this one
+                    last.x2 = col.x2;
+                } else {
+                    merged_columns.push(col);
+                }
+            } else {
+                merged_columns.push(col);
+            }
+        }
+
+        // Final pass: if we have multiple columns but some are still too narrow, merge them
+        let mut final_columns: Vec<Column> = Vec::new();
+        for col in merged_columns {
+            if col.width() < MIN_COLUMN_WIDTH && !final_columns.is_empty() {
+                // Merge narrow column with previous
+                let last = final_columns.last_mut().unwrap();
+                last.x2 = col.x2;
+            } else {
+                final_columns.push(col);
+            }
+        }
+
+        if final_columns.is_empty() {
+            final_columns.push(Column::new(0.0, page_width));
+        }
+
+        final_columns
     }
 }
 
