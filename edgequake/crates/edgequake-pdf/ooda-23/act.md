@@ -1,72 +1,55 @@
-# OODA-23 Action
+# OODA-23 Act: Cross-Column Hyphenation Fix
 
-## Changes Made
+## Implementation Summary
 
-### 1. `structure_detection.rs` - HeaderDetectionProcessor
+### Changes Made
 
-Added filter at line ~135, after `is_short_for_heading` check:
+1. **layout_processing.rs** - Added `merge_cross_column_hyphenation()` function:
+   - Post-processing step in `merge_page_blocks()` for multi-column layouts
+   - Finds blocks ending with hyphen in column N
+   - Finds blocks starting with lowercase in column N+1
+   - Validates linguistic plausibility (rejects "reposito" + "tory" = "repositotory")
+   - Merges pairs that form valid word continuations
 
-```rust
-// OODA-23: Filter out figure/table captions
-let text_lower = text.to_lowercase();
-let is_caption = text_lower.starts_with("fig.")
-    || text_lower.starts_with("figure")
-    || text_lower.starts_with("table")
-    || text_lower.starts_with("tab.");
-if is_caption {
-    continue; // Don't classify captions as headers
-}
+2. **block.rs** - Extended fragment ending detection:
+   - Added "to", "ro", "po" to fragment endings list
+   - WHY: "reposito-ries" should be treated as continuation, not compound
+   - Prevents "reposito-" from being treated as compound word prefix
+
+### Algorithm Details
+
+The cross-column hyphenation fix works in two phases:
+
+**Phase 1: Block Merge Post-Processing (layout_processing.rs)**
+
+- Groups blocks by column
+- For each column pair (N, N+1):
+  - Find blocks in column N ending with "-"
+  - Find potential continuations in column N+1 (starts with lowercase)
+  - Validate: reject if fragment + continuation creates repeated syllables
+  - Merge valid pairs using Block.merge()
+
+**Phase 2: Hyphenation Handling (block.rs)**
+
+- Block.merge() detects hyphenation pattern (ends with "-", next starts lowercase)
+- Distinguishes compound words ("long-horizon") from continuations ("reposito-ries")
+- Extended `is_fragment_ending` to include common Latin suffixes: ti, ni, fi, si, gi, vi, ci, to, ro, po
+
+### Results
+
+Before fix:
+```
+22:...reposito-
+24:Figure 1.Illustration...
+28:ries remains limited
 ```
 
-### 2. `processor.rs` - StyleDetectionProcessor
-
-Added filter at line ~409, after `is_list_item` check in `detect_headers_with_context`:
-
-```rust
-// OODA-23: Filter out figure/table captions
-let is_caption = text_lower.starts_with("fig.")
-    || text_lower.starts_with("figure")
-    || text_lower.starts_with("table")
-    || text_lower.starts_with("tab.");
-if is_caption {
-    return; // Don't classify captions as headers
-}
+After fix:
+```
+20:...repositories remains limited...
 ```
 
-### 3. `heading_classifier.rs` - is_valid_heading_text (previous fix)
+### Validation
 
-Already had the filter in `is_valid_heading_text`:
-
-```rust
-// OODA-23: Filter out figure/table captions
-let lower = text.to_lowercase();
-if lower.starts_with("fig.")
-    || lower.starts_with("figure")
-    || lower.starts_with("table")
-    || lower.starts_with("tab.") {
-    return false;
-}
-```
-
-## Results
-
-**Before fix**: 5 figure captions as H3 headings in `agent_2510.09244v1.md`
-**After fix**: 0 figure captions as H3 headings
-
-Figure captions now appear as body text with emphasis:
-
-```
-*Fig. 1. Key Components of an Agent's LLM Architecture*
-```
-
-## Quality Impact
-
-Overall quality score: 87.5% (unchanged)
-
-Note: No improvement in overall score because other heading issues exist (Keywords being classified as heading, Abstract having extra text merged in). These are separate issues to address in future OODA cycles.
-
-## Files Changed
-
-- `src/processors/structure_detection.rs` - +12 lines
-- `src/processors/processor.rs` - +9 lines
-- `src/processors/heading_classifier.rs` - +13 lines (previous session)
+- Smoke tests: PASS
+- Specific PDF (one_tool_2512.20957v2.pdf): hyphenation correctly resolved

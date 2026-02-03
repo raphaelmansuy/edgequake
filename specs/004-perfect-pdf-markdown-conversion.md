@@ -14,6 +14,8 @@ Extremely important:
 
 Ensure to use First Principles thinking. Use your knowledge of PDF structures, text encoding, layout analysis, and Markdown syntax to guide your decisions. Use Donald Knuth knowledge about text composition and typesetting where applicable: space between letters, words, line breaks, paragraph structure, ligatures, font styles, etc. If you don't know something, research it thoroughly on the web: PDF, typesetting, Markdown, text extraction techniques. When you take decision don't rely on easy an d short coming heuristics only: explain WHY you chose specific thresholds or algorithms using First Principles reasoning. Use comments in code to explain your thinking.
 
+YOU MUST ENSURE THE TEST ARE EXECUTED QUICKLY: optimize for speed and efficiency. Use O notation to analyze time complexity of your algorithms. You must ensure that the extraction runs quickly even on large documents without sacrificing quality.
+
 
 You must also optimize the conversion process for speed and efficiency, ensuring that the extraction runs quickly even on large documents without sacrificing quality. Don't use image extraction by default in tests.
 

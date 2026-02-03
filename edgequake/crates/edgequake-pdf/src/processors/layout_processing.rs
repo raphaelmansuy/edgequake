@@ -449,6 +449,198 @@ impl BlockMergeProcessor {
         result
     }
 
+    /// OODA-23: Merge cross-column hyphenated words.
+    ///
+    /// WHY: In multi-column layouts, words at column boundaries may be hyphenated:
+    /// - "reposito-" at end of left column
+    /// - "ries remains" at start of right column
+    ///
+    /// Standard block merge rejects cross-column pairs. This post-processor:
+    /// 1. Finds blocks ending with hyphen in column N
+    /// 2. Finds blocks starting with lowercase in column N+1
+    /// 3. Validates the join makes linguistic sense (word fragment + continuation)
+    /// 4. Merges them if at similar Y positions (same line visually)
+    fn merge_cross_column_hyphenation(
+        &self,
+        blocks: Vec<Block>,
+        columns: &[BoundingBox],
+    ) -> Vec<Block> {
+        if blocks.is_empty() || columns.len() < 2 {
+            return blocks;
+        }
+
+        let mut result = blocks;
+        let mut merged_indices: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        let mut new_blocks: Vec<Block> = Vec::new();
+
+        // Group blocks by column
+        let mut column_blocks: Vec<Vec<(usize, &Block)>> = vec![Vec::new(); columns.len()];
+        for (idx, block) in result.iter().enumerate() {
+            let col = self.get_block_column(block, columns);
+            column_blocks[col].push((idx, block));
+        }
+
+        // Look for cross-column hyphenation pairs
+        for col_idx in 0..columns.len() - 1 {
+            let left_col = &column_blocks[col_idx];
+            let right_col = &column_blocks[col_idx + 1];
+
+            for &(left_idx, left_block) in left_col {
+                let left_text = left_block.text.trim_end();
+                if !left_text.ends_with('-') {
+                    continue;
+                }
+
+                // Extract the word fragment before the hyphen
+                // "...software reposito-" -> "reposito"
+                let word_fragment = left_text
+                    .trim_end_matches('-')
+                    .split_whitespace()
+                    .last()
+                    .unwrap_or("");
+
+                if word_fragment.is_empty() || word_fragment.len() < 3 {
+                    continue;
+                }
+
+                // Find continuation in right column (starts with lowercase, similar Y)
+                let left_y = left_block.bbox.y2; // Bottom of left block
+
+                for &(right_idx, right_block) in right_col {
+                    let right_text = right_block.text.trim();
+                    if right_text.is_empty() {
+                        continue;
+                    }
+
+                    let first_char = right_text.chars().next().unwrap();
+                    if !first_char.is_lowercase() {
+                        continue;
+                    }
+
+                    // Extract the continuation word
+                    // "ries remains limited" -> "ries"
+                    let continuation = right_text
+                        .split(|c: char| c.is_whitespace() || c == '.' || c == ',')
+                        .next()
+                        .unwrap_or("");
+
+                    if continuation.is_empty() {
+                        continue;
+                    }
+
+                    // OODA-23 FIX: Validate the join makes sense
+                    // The fragment + continuation should form a plausible word
+                    // "reposito" + "ries" = "repositories" ✓
+                    // "reposito" + "tory" = "repositotory" ✗ (likely wrong match)
+                    let combined = format!("{}{}", word_fragment, continuation);
+
+                    // Reject if combined word has duplicate/overlapping syllables
+                    // This catches cases where we're matching the wrong continuation
+                    // E.g., "reposito" should match "ries", not "tory"
+                    // "reposi" in caption matches "tory", creating "repositotory" (wrong!)
+                    let is_likely_wrong = {
+                        // Check for repeated character sequences at the join point
+                        let frag_suffix = if word_fragment.len() >= 2 {
+                            &word_fragment[word_fragment.len() - 2..]
+                        } else {
+                            word_fragment
+                        };
+                        let cont_prefix = if continuation.len() >= 2 {
+                            &continuation[..2]
+                        } else {
+                            continuation
+                        };
+
+                        // "to" at end of "reposito" vs "to" at start of "tory" - likely overlap
+                        // But "to" at end of "reposito" vs "ri" at start of "ries" - likely correct
+                        let has_overlap = frag_suffix
+                            .chars()
+                            .last()
+                            .map(|c| cont_prefix.starts_with(c))
+                            .unwrap_or(false);
+
+                        // Also check if continuation starts with part of fragment
+                        // "reposito" ends with "to", continuation "tory" starts with "to"
+                        let frag_last_two = if word_fragment.len() >= 2 {
+                            &word_fragment[word_fragment.len() - 2..]
+                        } else {
+                            ""
+                        };
+                        let cont_starts_with_frag_end =
+                            !frag_last_two.is_empty() && continuation.starts_with(frag_last_two);
+
+                        has_overlap || cont_starts_with_frag_end
+                    };
+
+                    if is_likely_wrong {
+                        tracing::debug!(
+                            "OODA-23: Rejecting unlikely match: '{}' + '{}' = '{}'",
+                            word_fragment,
+                            continuation,
+                            combined
+                        );
+                        continue;
+                    }
+
+                    // Check Y proximity (within ~20% of page height)
+                    let right_y = right_block.bbox.y1; // Top of right block
+                    let y_diff = (left_y - right_y).abs();
+
+                    // Allow significant Y difference since columns may be offset
+                    // Academic papers often have figure/title pushing content down
+                    if y_diff > 400.0 {
+                        continue;
+                    }
+
+                    // Found a match! Merge the blocks
+                    tracing::info!(
+                        "OODA-23: Cross-column hyphenation merge: '{}' + '{}' = '{}' (Y diff: {:.0})",
+                        word_fragment,
+                        continuation,
+                        combined,
+                        y_diff
+                    );
+
+                    // Create merged block
+                    let mut merged = result[left_idx].clone();
+                    merged.merge(&result[right_idx]);
+                    new_blocks.push(merged);
+                    merged_indices.insert(left_idx);
+                    merged_indices.insert(right_idx);
+
+                    break; // Only merge with first matching block
+                }
+            }
+        }
+
+        // If no merges happened, return original
+        if merged_indices.is_empty() {
+            return result;
+        }
+
+        // Build final result: non-merged blocks + newly merged blocks
+        let mut final_blocks: Vec<Block> = result
+            .into_iter()
+            .enumerate()
+            .filter(|(idx, _)| !merged_indices.contains(idx))
+            .map(|(_, block)| block)
+            .collect();
+
+        final_blocks.extend(new_blocks);
+
+        // Sort by position (Y then X) to maintain reading order
+        final_blocks.sort_by(|a, b| {
+            let y_cmp = a.bbox.y1.partial_cmp(&b.bbox.y1).unwrap();
+            if y_cmp == std::cmp::Ordering::Equal {
+                a.bbox.x1.partial_cmp(&b.bbox.x1).unwrap()
+            } else {
+                y_cmp
+            }
+        });
+
+        final_blocks
+    }
+
     fn merge_page_blocks(
         &self,
         blocks: Vec<Block>,
@@ -546,6 +738,15 @@ impl BlockMergeProcessor {
 
         if let Some(cur) = current {
             merged.push(cur);
+        }
+
+        // OODA-23: Cross-column hyphenation post-processing
+        // WHY: In multi-column layouts, a word may be hyphenated at the end of one column
+        // and continue at the start of the next column. Example: "reposito-" in left column,
+        // "ries remains" in right column. Standard merge rejects cross-column merges, but
+        // hyphenated words should be joined regardless of column boundaries.
+        if columns.len() >= 2 {
+            merged = self.merge_cross_column_hyphenation(merged, columns);
         }
 
         // Update positions

@@ -347,11 +347,44 @@ impl Block {
                     // WHY: These are complete words that form compound terms
                     let is_compound_prefix = matches!(
                         last_word_lower.as_str(),
-                        "long" | "short" | "self" | "hand" | "eye" | "high" | "low" | "well" |
-                        "full" | "half" | "co" | "pre" | "re" | "anti" | "non" | "multi" |
-                        "cross" | "whole" | "end" | "real" | "time" | "data" | "user" |
-                        "loco" | "semi" | "all" | "one" | "two" | "three" | "first" | "second" |
-                        "body" | "level" | "state" | "world" | "task" | "based" | "free"
+                        "long"
+                            | "short"
+                            | "self"
+                            | "hand"
+                            | "eye"
+                            | "high"
+                            | "low"
+                            | "well"
+                            | "full"
+                            | "half"
+                            | "co"
+                            | "pre"
+                            | "re"
+                            | "anti"
+                            | "non"
+                            | "multi"
+                            | "cross"
+                            | "whole"
+                            | "end"
+                            | "real"
+                            | "time"
+                            | "data"
+                            | "user"
+                            | "loco"
+                            | "semi"
+                            | "all"
+                            | "one"
+                            | "two"
+                            | "three"
+                            | "first"
+                            | "second"
+                            | "body"
+                            | "level"
+                            | "state"
+                            | "world"
+                            | "task"
+                            | "based"
+                            | "free"
                     );
 
                     // Also treat as compound if prefix has >= 4 chars AND contains vowel
@@ -361,13 +394,18 @@ impl Block {
                     let has_vowel = last_word
                         .chars()
                         .any(|c| matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u'));
+                    // OODA-23: Added "to", "ro", "po" as common fragment endings
+                    // WHY: "reposito-ries" is clearly a fragment, not compound "reposito-ries"
                     let is_fragment_ending = last_word_lower.ends_with("ti")
                         || last_word_lower.ends_with("ni")
                         || last_word_lower.ends_with("fi")
                         || last_word_lower.ends_with("si")
                         || last_word_lower.ends_with("gi")
                         || last_word_lower.ends_with("vi")
-                        || last_word_lower.ends_with("ci");
+                        || last_word_lower.ends_with("ci")
+                        || last_word_lower.ends_with("to")  // OODA-23: reposito-ries
+                        || last_word_lower.ends_with("ro")  // OODA-23: infra-structure
+                        || last_word_lower.ends_with("po"); // OODA-23: hypo-thesis
                     let is_likely_complete_word =
                         last_word.len() >= 4 && has_vowel && !is_fragment_ending;
 
@@ -397,10 +435,44 @@ impl Block {
                     // Common short words that should NEVER be joined without space
                     let is_complete_common_word = matches!(
                         last_word_lower.as_str(),
-                        "the" | "a" | "an" | "for" | "to" | "in" | "on" | "at" | "of" | "by" |
-                        "is" | "as" | "or" | "and" | "but" | "so" | "if" | "it" | "we" | "be" |
-                        "this" | "that" | "with" | "from" | "are" | "was" | "has" | "had" | "not" |
-                        "our" | "its" | "can" | "may" | "will" | "each" | "all" | "any" | "both"
+                        "the"
+                            | "a"
+                            | "an"
+                            | "for"
+                            | "to"
+                            | "in"
+                            | "on"
+                            | "at"
+                            | "of"
+                            | "by"
+                            | "is"
+                            | "as"
+                            | "or"
+                            | "and"
+                            | "but"
+                            | "so"
+                            | "if"
+                            | "it"
+                            | "we"
+                            | "be"
+                            | "this"
+                            | "that"
+                            | "with"
+                            | "from"
+                            | "are"
+                            | "was"
+                            | "has"
+                            | "had"
+                            | "not"
+                            | "our"
+                            | "its"
+                            | "can"
+                            | "may"
+                            | "will"
+                            | "each"
+                            | "all"
+                            | "any"
+                            | "both"
                     );
 
                     let last_char = self.text.trim_end().chars().last();

@@ -1,0 +1,1525 @@
+SpaceTimePilot: Generative Rendering of Dynamic Scenes Across
+
+Space and Time
+
+Zhening Huang1,2 Hyeonho Jeong2 Xuelin Chen2 Yulia Gryaditskaya2
+
+Tuanfeng Y. Wang2
+
+Joan Lasenby1 Chun-Hao Huang2
+
+1University of Cambridge
+
+2Adobe Research
+
+https://zheninghuang.github.io/Space-Time-Pilot/
+
+Figure 1. SpaceTimePilot enables unified control over both camera and time within a single diffusion model, producing continuous and
+coherent videos along arbitrary space–time trajectories. Given a source video (odd rows), our model synthesizes new videos (even rows)
+with retimed motion sequences, including slow motion, reverse motion, and bullet time, while precisely controlling camera movement
+according to a given camera trajectory.
+
+Abstract
+
+We present SpaceTimePilot, a video diffusion model that
+disentangles space and time for controllable generative ren-
+dering. Given a monocular video, SpaceTimePilot can
+independently alter the camera viewpoint and the motion
+sequence within the generative process, re-rendering the
+
+scene for continuous and arbitrary exploration across space
+and time. To achieve this, we introduce an effective an-
+imation time-embedding mechanism in the diffusion pro-
+cess, allowing explicit control of the output video’s motion
+sequence with respect to that of the source video. As no
+datasets provide paired videos of the same dynamic scene
+with continuous temporal variations, we propose a simple
+
+1
+
+t=80t=80reversemotiont=10t=0t=20t=40t=60Source VideoSynthesized Videot=70t=80t=60t=40t=20t=0bullet-timeat t=60Source VideoSynthesized Videot=10t=0t=20t=40t=60t=60t=60t=60t=60t=60t=60slow motionx0.5Source VideoSynthesized Videot=10t=0t=20t=40t=60t=5t=0t=10t=20t=30t=40Frame Number80 你的段落⽂字 Two ballet dancers in blue and white costumes performing a graceful routine on a dark stage with a red velvet curtain and dramatic spotlights.A couple in 18th-century Baroque attire dancing on a theater stage in front of a live symphony orchestra; warm theatrical lighting.A couple performing a retro swing dance on a Parisian bridge; woman in a red polka-dot dress, classic Haussmann buildings in the background.Camera Trajactory ControlAnimation Time Control0t=80
+
+yet effective temporal-warping training scheme that repur-
+poses existing multi-view datasets to mimic temporal dif-
+ferences. This strategy effectively supervises the model to
+learn temporal control and achieve robust space–time dis-
+entanglement. To further enhance the precision of dual
+control, we introduce two additional components: an im-
+proved camera-conditioning mechanism that allows alter-
+ing the camera from the first frame, and Cam×Time, the first
+synthetic Space and Time full-coverage rendering dataset
+that provides fully free space–time video trajectories within
+a scene. Joint training on the temporal-warping scheme
+and the Cam×Time dataset yields more precise temporal
+control. We evaluate SpaceTimePilot on both real-world
+and synthetic data, demonstrating clear space–time disen-
+tanglement and strong results compared to prior work.
+
+1. Introduction
+
+Videos are 2D projections of an evolving 3D world, where
+the underlying generative factors consist of spatial variation
+(camera viewpoint) and temporal evolution (dynamic scene
+motion). Learning to understand and disentangle these fac-
+tors from observed videos is fundamental for tasks such
+as scene understanding, 4D reconstruction, video editing,
+and generative rendering, to name a few.
+In this work,
+we approach this challenge from the perspective of gen-
+erative rendering. Given a single observed video of a dy-
+namic scene, our goal is to synthesize novel views (re-
+frame/reangle) and/or at different moments in time (retime),
+while remaining faithful to the underlying scene dynamic.
+
+A common strategy is to first reconstruct dynamic 3D
+content from 2D observations, i.e., perform 4D reconstruc-
+tion, and then re-render the scene. These methods model
+both spatial and temporal variations using representations
+such as NeRFs [22, 25] or Dynamic Gaussian Splatting
+[15, 42], often aided by cues like geometry [27, 28], op-
+tical flow [19, 20], depth [6, 47], or long-term 2D tracks
+[17, 37]. However, even full 4D reconstructions typi-
+cally show artifacts under novel viewpoints. More recent
+work [21, 43] uses multi-view video diffusion to gener-
+ate sparse, time-conditioned views and refines them via
+Gaussian-splatting optimization, but rendering quality re-
+mains limited. Advances in video diffusion models [3–
+5, 12, 16, 30, 39, 46, 51] further enable camera re-posing
+with more lightweight point cloud representations, reduc-
+ing the need for heavy 4D reconstruction. While effective in
+preserving identity, their reliance on per-frame depth and re-
+projection limits robustness under large viewpoint changes.
+To mitigate this, newer approaches condition generation
+solely on camera parameters, achieving strong novel-view
+synthesis on both static [14] and dynamic scenes [2, 9, 33].
+Autoregressive models like Genie-3 [29] even enable inter-
+active scene exploration from a single image, showing that
+
+Figure 2. Space–time controllability across methods. Blue cells
+denote the input video/views, while arrows and dots indicate gen-
+erated continuous videos or sparse frames. Camera-control V2V
+models [2, 33] modify only the camera trajectory while keeping
+time strictly monotonic. 4D multi-view models [21, 43] synthe-
+size discrete sparse views conditioned on space and time, but do
+not generate continuous video sequences. SpaceTimePilot enables
+free movement along both the camera and time axes with full con-
+trol over direction and speed, supporting bullet-time, slow-motion,
+reverse playback, and mixed space–time trajectories.
+
+diffusion models can encode implicit 4D priors. Nonethe-
+less, despite progress in spatial viewpoint control, current
+methods still lack full 4D exploration, i.e., the ability to
+navigate scenes freely across both space and time.
+In this work, we introduce SpaceTimePilot,
+
+the first
+video diffusion model that enables joint spatial and tem-
+poral control. SpaceTimePilot introduces a new notion of
+“animation time” to capture the temporal status of scene
+dynamics in the source video. As such, it naturally disen-
+tangles temporal control and camera control by expressing
+them as two independent signals. A high-level comparison
+between our approach and prior methods is illustrated in
+Fig. 2. Unlike previous methods, SpaceTimePilot enables
+free navigation along both the camera and time axes. Train-
+ing such a model requires dynamic videos that exhibit mul-
+tiple forms of temporal playback while simultaneously be-
+ing captured under multiple camera motions, which is only
+feasible in a controlled studio setups. Although temporal di-
+versity can be increased by combining multiple real datasets
+e.g. [23, 53], as done in [41, 43], this approach remains sub-
+optimal, as the coverage of temporal variation is still insuf-
+ficient to learn the underlying meaning of temporal control.
+Existing synthetic datasets [1, 2] also do not exhibit such
+properties.
+
+To address this limitation, we introduce a simple yet
+effective temporal-warping training scheme that augments
+existing multi-view video datasets [1, 2] to simulate di-
+verse conditioning types while preserving continuous video
+structure. By warping input sequences in time, the model
+is exposed to varied temporal behaviors without requiring
+additional data collection. This simple yet crucial strat-
+egy allows the model to learn temporal control signals, en-
+abling it to directly exhibit space–time disentanglement ef-
+fects during generation. We further ablate various temporal-
+conditioning schemes and introduce a convolution-based
+
+2
+
+CameraCameraCameraCamera Control Models4D Multi-View ModelsSpaceTimePilotTimeobserved inputsynthesized views or starting frames of videosframe progressionTimeTimetemporal-control mechanism that enables finer-grained ma-
+nipulation of temporal behavior and supports effects such
+as bullet-time at any timestep within the video. While tem-
+poral warping increases temporal diversity, it can still en-
+tangle camera and scene dynamics – for example, tempo-
+ral manipulation may inadvertently affect camera behavior.
+To further strengthen disentanglement, we introduce a new
+dataset that spans the full grid of camera–time combinations
+along a trajectory. Our synthetic Cam×Time dataset con-
+tains 180k videos rendered from 500 animations across 100
+scenes and three camera paths. Each path provides full-
+motion sequences for every camera pose, yielding dense
+multi-view and full-temporal coverage. This rich supervi-
+sion enables effective disentanglement of spatial and tem-
+poral control.
+
+Experimental results show that SpaceTimePilot success-
+fully disentangles space and time in generative rendering
+from single videos, outperforming adapted state-of-the-art
+baselines by a significant margin. Our main contributions
+are summarized as follows:
+• We introduce SpaceTimePilot, the first video diffusion
+model that disentangles spatial and temporal factors to en-
+able continuous and controllable novel view synthesis as
+well as temporal control from a single video.
+
+• We propose the temporal-warping strategy that repur-
+poses multi-view datasets to simulate diverse temporal
+variations. By training on these warped sequences, the
+model effectively learns temporal control without the
+need for explicitly constructed video pairs captured un-
+der different temporal settings.
+
+• We propose a more precise camera–time conditioning
+mechanism, illustrating how viewpoint and temporal em-
+beddings can be jointly integrated into diffusion models
+to achieve fine-grained spatiotemporal control.
+
+• We construct the Cam×Time Dataset, providing dense
+spatiotemporal sampling of dynamic scenes across cam-
+era trajectories and motion sequences. This dataset sup-
+plies the necessary supervision for learning disentangled
+4D representations and supports precise camera–time
+control in generative rendering.
+
+2. Related work
+
+We aim to re-render a video from new viewpoints with tem-
+poral control, a task closely related to Novel View Synthesis
+(NVS) from monocular video inputs.
+
+Video-based NVS. Prior video-based NVS methods can
+be broadly characterized along two axes: (i) whether they
+target static or dynamic scenes, and (ii) whether they incor-
+porate explicit 3D geometry in the generation pipeline.
+
+For static scenes, geometry-based methods reconstruct
+scene geometry from the input frames and use diffusion
+models to complete or hallucinate regions that are unseen
+
+under new viewpoints [13, 31, 44, 49]. Although these ap-
+proaches achieve high rendering quality, they rely on heavy
+3D preprocessing. Geometry-free approaches [2, 33, 52]
+bypass explicit geometry and directly condition the diffu-
+sion process on observed views and camera poses to syn-
+thesize new viewpoints.
+
+For dynamic scenes, inpainting-based methods such as
+TrajectoryCrafter [48], ReCapture [50], and Reangle [13]
+also adopt warp-and-inpaint pipelines, while GEN3C [31]
+extends this with an evolving 3D cache and EPiC [40] im-
+proves efficiency via a lightweight ControlNet framework.
+Geometry-free dynamic models [1, 2, 33, 35, 36] instead
+learn camera-conditioned generation from multi-view or 4D
+datasets (e.g., Kubric-4D [7]), enabling smoother and more
+stable NVS with minimal 3D inductive bias. Proprietary
+systems like Genie 3 [29] further demonstrate real-time,
+continuous camera control in dynamic scenes, underscor-
+ing the potential of video diffusion models for interactive
+viewpoint manipulation.
+
+Disentangling Space and Time. Despite great progress in
+camera controllability (space), the methods discussed above
+do not address temporal control (time). Meanwhile, disen-
+tangling spatial and temporal factors has become a central
+focus in 4D scene generation, recently advanced through
+diffusion-based models. 4DiM [41] introduces a Masked
+FiLM mechanism that defaults to identity transformations
+when conditioning signals (e.g., camera pose or time) are
+absent, enabling unified representations across both static
+and dynamic data through multi-modal supervision. Simi-
+larly, CAT4D [43] leverages multi-view images to conduct
+4D dynamic reconstruction to achieve space–time disen-
+tanglement but remains constrained by its reliance on ex-
+plicit 4D reconstruction pipelines, which limits scalability
+and controllability. In contrast, our approach builds upon
+text-to-video diffusion models and introduces a new tempo-
+ral embeddings module and refined camera conditioning to
+achieve fully controllable 4D generative reconstruction.
+
+3. Method
+
+We introduce SpaceTimePilot, a method that takes a source
+video Vsrc ∈ RF ×C×H×W as input and synthesizes a tar-
+get video Vtrg ∈ RF ×C×H×W , following an input cam-
+era trajectory ctrg ∈ RF ×3×4 and temporal control signal
+ttrg ∈ RF . Here, F denotes the number of frames, C the
+number of color channels, and H and W are the frame
+height and width, respectively. Each cf
+trg ∈ R3×4 represents
+the camera extrinsic parameters (rotation and translation) at
+frame f , with respect to the 1st frame of Vsrc. The target
+video Vtrg preserves the scene’s underlying dynamics, ge-
+ometry, and appearance in Vsrc, while adhering to the cam-
+era motion and temporal progression specified by ctrg and
+ttrg. A key feature of our method is the disentanglement
+
+3
+
+of spatial and temporal factors in the generative process,
+enabling effects such as bullet-time and retimed playback
+from novel viewpoints (see Fig. 1).
+
+3.1. Preliminaries
+
+Our framework builds upon recent advances in large-scale
+text-to-video diffusion models and camera-conditioned
+video generation. We adopt a latent video diffusion back-
+bone similar to modern text-to-video foundation models
+[34], consisting of a 3D Variational Auto-Encoder (VAE)
+for latent compression and a Transformer-based denoising
+model (DiT) operating over multi-modal tokens.
+
+Additionally,
+
+our design draws
+
+inspiration from
+[2], which introduces explicit camera
+ReCamMaster
+conditioning for video synthesis. Given an input camera
+trajectory c ∈ RF ×3×4, spatial conditioning is achieved by
+first projecting the camera sequence to the space of video
+tokens and adding it to the features:
+
+x′ = x + Ecam (c) ,
+
+(1)
+
+where x is the output of the patchifying module and x′ is
+the input to self-attention layers. The camera encoder Ecam
+maps each flattened 3 × 4 camera matrix (12-dimensional)
+into the target feature space, while also transforming the
+temporal dimension from F to F ′.
+
+3.2. Disentangling Space and Time
+
+We achieve spatial and temporal disentanglement through
+a two-fold approach: a dedicated time representation and
+specialized datasets.
+
+3.2.1. Time representation
+
+Recent video diffusion models include position embeddings
+for latent frame index f ′, such as RoPE(f ′). However, we
+found using RoPE(f ′) for temporal control to be ineffective,
+as it interferes with camera signals: RoPE(f ′) often con-
+strains both temporal and camera motion simultaneously.
+To address space and time disentanglement, we introduce a
+dedicated time control parameter t ∈ RF . By manipulating
+ttrg, we can control the temporal progression of the synthe-
+sized video Vtrg. For example, setting ttrg to a constant locks
+Vtrg to a specific timestamp in Vsrc, while reversing the frame
+indices produces a playback of Vsrc in reverse.
+
+(Top) For multi-view dynamic scene datasets, a set of
+temporal warping operations, including reverse, playback,
+zigzag motion, slow motion, and freeze are apppplied with
+teh source video as standford. This gives explicit supervi-
+sion for temporal control, without constructing additional
+temporally varied training data.
+
+(Bottom) Existing camera-control and joint dataset train-
+ing rely on monotonic time progression and static scene
+videos, making it difficult for models to understand tem-
+poral variation. The introduced temporal mappings from
+
+Figure 3. Temporal Wrapping for Spatiotemporal Disentan-
+glement. (Top) For multi-view dynamic scene datasets [2], a set
+of temporal warping operations (e.g.
+reverse playback, zigzag
+motion, slow motion, and freeze) are applied to the target video,
+with the source video kept as the standard forward reference, pro-
+viding explicit supervision for temporal control . (Bottom) Com-
+pared with existing camera-control [2, 33] and joint-dataset train-
+ing strategies [41, 43], which rely on monotonic time progression
+and static-scene videos to demonstrate temporal differences, Tem-
+poral Wrapping provide much more diverse and explicit signals of
+temporal variation, leading to disentanglement of space and time.
+
+multi-view video data, which provide diverse and clear sig-
+nal on tempral variation, and directly lead to disentangle-
+ment of space and time.
+
+Time Embedding. To inject temporal control into the dif-
+fusion model, we analyze several approaches. First, we can
+encode time similar to a frame index using RoPE embed-
+ding. However, we find it less suitable for time control
+Instead,
+(visual evaluations are provided in Supp. Mat.).
+we adopt sinusoidal time embeddings applied at the latent
+frame f ′ level, which provide a stable and continuous rep-
+resentation of each frame’s temporal position and offer a
+favorable trade-off between precision and stability. We fur-
+ther observe that each latent frame corresponds to a con-
+tinuous temporal chunk, and propose using embeddings of
+original frame indices f to support finer granularity of time
+control. To accomplish this, we introduce a time encod-
+ing approach Eani(t), where t ∈ RF . We first compute
+the sinusoidal time embeddings to represent the temporal
+sequence, esrc = SinPE(tsrc), etrg = SinPE(ttrg), where
+tsrc, ttrg ∈ RF . Next, we apply two 1D convolution lay-
+ers to progressively project these embeddings into the latent
+frame space, (cid:101)e = Conv1D2(Conv1D1(e)). Finally, we add
+these time features to the camera features and video tokens
+
+4
+
+1234567811223344556677881234555567855555555123456543211234567812345678(f) Freeze (a) Standard Forward(b) Reverse Playback(e) ZigZag Motion(d) Global Slow Motion x 0.5(c) Motion-to-FreezePivot P, Where [N/2] < P < NFreezing P for N/2 steps, Where 0 < P < NPivot PRepeat P for whole video, Where 0 < P < NSource VideoTarget VideoStandard Forwardframe index(a) Camera Control TI2V (c) Temporal Wrapping (ours)dynamic vidoes(2) Comparison of different training scheme for time control(b) Joint Dataset Trainingstatic scene videosdynamic vidoesframe indexframe indexanimation time t w.r.t. source animation time t w.r.t. source animation time t w.r.t. source (1) Temporal Warping Augmentationembeddings, updating Eq. (1) as follows:
+
+x′ = x + Ecam (c) + Eani (t) .
+
+(2)
+
+In Sec. 4.2, we compare our approach with alternative
+conditioning strategies, such as using sinusoidal embed-
+dings where tsrc, ttrg are directly defined in RF ′
+, and em-
+ploying an MLP instead of a 1D convolution for compres-
+sion. We demonstrate both qualitatively and quantitatively
+the advantages of our proposed method.
+
+3.2.2. Datasets
+
+To enable temporal manipulation in our approach, we re-
+quire paired training data that includes examples of time
+remapping. Achieving spatial-temporal disentanglement
+further requires data containing examples of both camera
+and temporal controls. To the best of our knowledge, no
+publicly available datasets satisfy these requirements. Only
+a few prior works, such as 4DiM [41] and CAT4D [43], have
+attempted to address spatial-temporal disentanglement. A
+common strategy is to jointly train on static-scene datasets
+and multi-view video datasets [23, 53]. The limited con-
+trol variability in these datasets leads to confusion between
+temporal evolution and spatial movement, resulting in en-
+tangled or unstable behaviors [41, 43]. We address this lim-
+itation by augmenting existing multi-view video data with
+temporal warping and by proposing a new synthetic dataset.
+
+src}F
+
+trg}F
+
+trg }F
+
+f =1 and a target video Vtrg = {I f
+
+Temporal Warping Augmentation. We introduce simple
+augmentations that add controllable temporal variations to
+multi-view video datasets. During training, given a source
+video Vsrc = {I f
+f =1,
+we apply a temporal warping function τ : [1, F ] → [1, F ]
+to the target sequence, producing a warped video V ′
+trg =
+{I τ (f )
+f =1. The source animation timestamps are uni-
+formly sampled, tsrc = 1 : F . Warped timestamps,
+ttrg = τ (tsrc), introduce non-linear temporal effects (see
+Fig. 3 top b–e): (i) reversal, (ii) acceleration, (iii) freez-
+ing, (iv) segmental slow motion, and (v) zigzag motion, in
+which the animation repeatedly reverses direction. After
+these augmentations, the paired video sequences (Vsrc, V ′
+trg)
+differ in both camera trajectories and temporal dynamics,
+providing the model with a clear signal for learning disen-
+tangled spatiotemporal representations.
+
+Synthetic Cam×Time Dataset for Precise Spatiotempo-
+ral Control. While our temporal warping augmentations
+encourage strong disentanglement between spatial and tem-
+poral factors, achieving fine-grained and continuous con-
+trol — that is, smooth and precise adjustment of tempo-
+ral dynamics — benefits from a dataset that systemati-
+cally covers both dimensions. To this end, we construct
+Cam×Time, a new synthetic spatiotemporal dataset ren-
+dered in Blender. Given a camera trajectory and an ani-
+mated subject, Cam×Time exhaustively samples the cam-
+era–time grid, capturing each dynamic scene across diverse
+
+5
+
+Table 1. Comparison of existing multi-view datasets for cam-
+era and temporal control against Cam×Time. Cam×Time pro-
+vides full-grid rendering (Figure 4), enabling target videos to sam-
+ple arbitrary temporal variations over the full range from 0 to 120.
+
+Dataset
+
+Dynamic scenes
+
+Src. Time: tsrc
+
+Tgt. Time: ttrg
+
+Camera
+
+RE10k [53]
+DL3DV10k [23]
+MannequinChallenge [32]
+Kubric-4D [33]
+ReCamMaster [2]
+SynCamMaster [1]
+
+Cam×Time (ours)
+
+✘
+✘
+✘
+✔
+✔
+✔
+
+✔
+
+1
+1
+1
+1:60
+1:80
+1:80
+
+1:120
+
+1
+1
+1
+1:60
+1:80
+1:80
+
+Moving
+Moving
+Moving
+Moving
+Moving
+Fixed
+{1, 2, . . . , 120}120 Moving
+
+Figure 4. Cam×Time dataset visualization. (Top) A space-time
+grid defined by a camera trajectory c = [c1, ..., cF ] and animation
+status t = [t1, ..., tF ]. Cam×Time renders images for all (c, t)
+pairs, covering the full grid for learning disentangled spatial and
+temporal control. Any two sampled sequences of F frames from
+the grid can form a source-target pair. (Bottom) One typical choice
+of source videos is taking the diagonal cells in green.
+
+combinations of camera viewpoints and temporal states
+(c, t), as illustrated in Fig. 4. The source video is obtained
+by sampling the diagonal frames of the dense grid (Fig. 4
+(bottom)), while the target videos are obtained by more
+free-form sampling of continuous sequences. We com-
+pare Cam×Time against existing datasets in Tab. 1. While
+[23, 32, 53] are real videos with complex camera path anno-
+tations, they either do not provide time-synchronized video
+pairs [32] or only provide pairs of static scenes [23, 53].
+Synthetic multi-view video datasets [1, 2, 33] provide pairs
+of dynamic videos but do not allow training for time control.
+In contrast, Cam×Time enables fine-grained manipulation
+of both camera motion and temporal dynamics, enabling
+bullet-time effects, motion stabilization, and flexible combi-
+nations of the controls. We designate part of Cam×Time as
+a test set, aiming for it to serve as a benchmark for control-
+lable video generation. We will release it to support future
+research on fine-grained spatiotemporal modeling.
+
+continuous camera traj.animation timefull space-time grid rendering ..................................................................source video............Table 2. Quantitative comparison across temporal controls (Direction (forward, backward motion), Speed (slow modes), Bullet Time). We
+report PSNR↑, SSIM↑, and LPIPS↓. Best results are in bold. SpaceTimeMethod showcase best performance for temporal control overall.
+
+Method
+
+PSNR↑
+
+SSIM↑
+
+LPIPS↓
+
+Dir.
+
+Speed Bullet Avg
+
+Dir.
+
+Speed Bullet
+
+Avg
+
+Dir.
+
+Speed Bullet
+
+Avg
+
+ReCamM+preshuffled†
+17.13 14.84 14.61 15.52 0.6623 0.6050 0.5965 0.6213 0.3930 0.4793 0.4863 0.4529
+ReCamM+jointdata
+18.32 17.57 17.69 17.86 0.7322 0.7220 0.7209 0.7250 0.2972 0.3158 0.3089 0.3073
+SpaceTimePilot (Ours) 21.75 20.87 20.85 21.16 0.7725 0.7645 0.7653 0.7674 0.1697 0.1917 0.1677 0.1764
+† Uses simple frame-rearrangement operators (reversal, repetition, freezing) applied prior to inference to emulate temporal manipulation.
+
+3.3. Precise Camera Conditioning
+
+We aim for full camera trajectory control in the target video.
+In contrast, the previous novel-view synthesis approach [2]
+assumes that the first frame is identical in source and target
+videos and that the target camera trajectory is defined rel-
+ative to it. This stems from the two limitations. First, the
+existing approach ignores the source video trajectory, yield-
+ing suboptimal source features computed using the target
+trajectory for consistency:
+
+x′
+src = xsrc + Ecam (ctrg) ,
+
+x′
+trg = xtrg + Ecam (ctrg) .
+
+Second, it is trained on datasets where the first frame is al-
+ways identical across the source and target videos. This
+latter limitation is addressed in our training datasets design.
+To overcome the former, we devise a source-aware cam-
+era conditioning. We estimate camera poses for both the
+source and target videos using a pretrained pose estimator,
+and inject them jointly into the diffusion model to provide
+explicit geometric context. Eq. 2 is therefore extended into:
+
+using temporal warping augmentations or by sampling from
+the dense space-time grid of our synthetic dataset. When
+temporal warping is applied, Vprv and Vtrg may originate
+from the same or different multi-view sequences represent-
+ing the same time interval. To maintain full flexibility of
+control, we do not enforce any other explicit correlations
+between Vprv and Vtrg, apart from specifying camera param-
+eters relative to the selected source video frame.
+
+Note that not constraining the source and target videos
+to share the same first frame (as discussed in Sec. 3.3) is
+crucial for achieving flexible camera control in longer se-
+quences. For instance, this design enables extended bullet-
+time effects: we can first generate a rotation around a se-
+lected point up to 45◦ (Vtrg,1), and then continue from 45◦
+to 90◦ (Vtrg,2). Conditioning on two consecutive source seg-
+ments allows the model to leverage information from newly
+generated viewpoints.
+In the bullet-time example, condi-
+tioning on the previously generated video enables the model
+to incorporate information from all newly synthesized view-
+points, rather than relying solely on the viewpoint of the
+corresponding moment in the source video.
+
+x′
+src = xsrc + Ecam (csrc) + Eani (tsrc) ,
+x′
+trg = xtrg + Ecam (ctrg) + Eani (ttrg) ,
+x′ = [x′
+src]frame-dim,
+
+trg, x′
+
+(3)
+
+4. Experiments
+
+where x′ denotes the input of the DiT model, which is the
+concatenation of target and source tokens along the frame
+dimension. This formulation provides the model with both
+source and target camera context, enabling spatially consis-
+tent generation and precise control over camera trajectories.
+
+3.4. Support for Longer Video Segments
+
+Finally, to showcase the full potential of our camera and
+temporal control, we adopt a simple autoregressive video
+generation strategy, generating each new segment Vtrg con-
+ditioned on the previously generated segment Vprv and a
+source video Vsrc to produce longer videos.
+
+To enable this capability during inference, we need to
+extend our training scenario to support conditioning on two
+videos, where one serves as Vsrc and the other as Vprv.
+The source video Vsrc is taken directly from the multi-view
+datasets or from our synthetic dataset, as was described pre-
+viously. Vprv is constructed in a similar way to Vtrg — either
+
+6
+
+Implementation details. We adopt the Wan-2.1 T2V-
+1.3B model [34], which produces F ′=21 latent frames
+and decodes them into F =81 RGB frames using a 3D-
+VAE. The network is conditioned on camera and animation-
+time controls as defined in Eq. 3. Unless otherwise spec-
+ified, SpaceTimePilot is trained with ReCamMaster and
+SynCamMaster datasets with the temporal warping aug-
+mentation described in Sec. 3.2.2, along with Cam×Time.
+Please refer to Supp. Mat. for complete network architec-
+ture and additional training details.
+
+4.1. Comparison with State-of-the-Art Baselines
+
+4.1.1. Time-Control Evaluation.
+
+We first evaluate the retiming capability of our model. To
+factor out the error induced by camera control, we condition
+SpaceTimePilot on a fixed camera pose while varying only
+the temporal control signal. Experiments are performed
+on the withheld Cam×Time test split, which contains 50
+scenes rendered with dense full-grid trajectories that can
+
+Figure 5. Qualitative results of SpaceTimePilot. Our model enables fully disentangled control over camera motion and temporal dy-
+namics. Each row shows a different combination of camera trajectory (left icons) and temporal warping (right icons). SpaceTimePilot
+produces coherent videos under diverse controls, including normal playback, reverse playback, bullet-time, slow-motion, replay motion,
+and complex camera paths (pan, tilt, zoom, and vertical motion).
+
+be retimed into arbitrary temporal sequences. For each test
+case, we take a moving-camera source video but set the tar-
+get camera trajectory to the first-frame pose. We then ap-
+ply a range of temporal control signals, including reverse,
+bullet-time, zigzag, slow motion, and normal playback, to
+synthesize the corresponding retimed outputs. Since we
+have ground-truth frames for all temporal configurations,
+we report perceptual losses: PSNR, SSIM, and LPIPS.
+
+We consider two baselines: (1) ReCamM+preshuffled:
+original ReCamMaster combined with input re-shuffling;
+and (2) ReCamM+jointdata: following [41, 43], we train
+ReCamMaster with additional static-scene datasets [18, 53]
+which provide only one single temporal pattern.
+
+While frame shuffling may succeed in simple scenar-
+ios, it fails to disentangle camera and temporal control. As
+shown in Table 2, this approach exhibits the weakest tem-
+poral controllability. Although incorporating static-scene
+datasets improves performance, particularly in the bullet-
+time category, relying on a single temporal control pattern
+remains insufficient for achieving robust temporal consis-
+tency. In contrast, SpaceTimePilot consistently outperforms
+all baselines across all temporal configurations.
+
+Table 3. VBench visual-quality evaluation across six dimensions.
+Higher is better for all metrics.
+
+Method
+
+ImgQ↑ BGCons↑ Motion↑ SubjCons↑ Flicker↑ Aesthetic↑
+
+Traj-Crafter [48] 0.6389
+ReCamM [2]
+0.6302
+ReCamM+Aug 0.6315
+STPilot (Ours) 0.6486
+
+0.9376
+0.9114
+0.9165
+0.9199
+
+0.9888
+0.9945
+0.9946
+0.9947
+
+0.9463
+0.9181
+0.9313
+0.9325
+
+0.9816
+0.9825
+0.9788
+0.9781
+
+0.5172
+0.5332
+0.5385
+0.5315
+
+4.1.2. Visual Quality Evaluation.
+
+Next, we evaluate the perceptual realism of our 1800 gen-
+erated videos using VBench [10]. We report all standard
+visual quality metrics to provide a comprehensive assess-
+ment of generative fidelity. Table 3 shows that our model
+achieves visual quality comparable to the baselines.
+
+4.1.3. Camera-Control Evaluation.
+
+Finlay, we evaluate the effectiveness of our camera control
+mechanism detailed in Sec. 3.3. Unlike the retiming evalu-
+ation above, which relies on synthetic ground-truth videos,
+here we construct a real-world 90-video evaluation set from
+OpenVideoHD [26], encompassing diverse dynamic human
+and object motions. Each method is evaluated across 20
+camera trajectories: 10 starting from the same initial pose
+as the source video and 10 from different initial poses,
+
+7
+
+bullet-timeat t=40bullet-timeat t=40slow motion40-80reversemotionslow motion40-80reversemotiont=40t=0t=80t=20t=40Source VideoSynthesized VideoSource VideoSynthesized VideoSource VideoSynthesized VideoSource VideoSynthesized VideoSource VideoSynthesized VideoSource VideoSynthesized VideoFrame Number800Frame Number800Table 4. Camera accuracy and first-frame estimation. For camera control,
+the enhanced camera control mechanism enables the generated video to start
+from an arbitrary camera angle while maintaining good camera accuracy.
+
+Table 5. Time-embedding compressor ablation. The pro-
+posed time-embedding method, trained with temporal warp-
+ing on the proposed dataset, yields sharper results overall.
+
+Method
+
+RelRot↓ RelTrans↓ AbsRot↓ AbsTrans↓ Rot† ↓ RTA15† ↑ RTA30† ↑
+
+Time Embedding
+
+PSNR↑ SSIM↑ LPIPS↓
+
+5.94
+Traj-Crafter [48]
+4.26
+ReCamM [2]
+ReCamM+Aug
+3.66
+SpaceTimePilot (ours) 2.71
+
+0.50
+0.32
+0.43
+0.33
+
+6.93
+10.08
+11.74
+5.63
+
+0.52
+0.34
+0.46
+0.34
+
+9.76
+7.49
+13.88
+4.09
+
+22.96% 25.93%
+7.61% 10.20%
+3.89%
+5.93%
+35.19% 54.44%
+
+14.10 0.5981 0.5039
+Uniform Sampling
+14.75 0.6134 0.4878
+1D-Conv
+1D-Conv + Joint Data
+15.41 0.6252 0.4830
+1D-Conv +Cam×Time 21.16 0.7674 0.1764
+
+† Evaluation based on first-frame camera accuracy.
+
+Figure 6. Qualitative comparison of disentangled camera-time
+control. In this example, we apply reverse playback (time) and
+a pan-right camera motion starting from the first-frame pose to a
+source video (top), whose original camera motion is dolly-in (red
+to blue). SpaceTimePilot, by explicitly disentangling space and
+time, achieves correct camera control (red boxes) together with
+accurate temporal control (green boxes). For TrajectoryCrafter, it
+first reverses the frames and then apply their method for viewpoint
+control, resulting in incorrect camera motion. ReCamMaster (with
+joint-dataset training) is unable to perform temporal control, lead-
+ing to failure cases.
+
+resulting in a total of 1800 generated videos. We apply
+SpatialTracker-v2 [45] to recover camera poses from the
+generated videos and compare them with the corresponding
+input camera poses. To ensure consistent scale, we align the
+magnitude of the first two camera locations. Trajectory ac-
+curacy is quantified using RotErr and TransErr follow-
+ing [8], under two protocols: (1) evaluating the raw trajecto-
+ries defined w.r.t. the first frame (relative protocol, RelRot,
+RelTrans) and (2) evaluating after aligning to the estimated
+pose of the first frame (absolute protocol, AbsRot, Ab-
+sTrans). Specifically, we transform the recovered raw tra-
+jectories by multiplying the relative pose between the gener-
+ated and source first frames, estimated by DUSt3R [38]. We
+also compare this DUSt3R pose with the target trajectory’s
+initial pose, and report RotErr, RTA@15 and RTA@30, as
+translation magnitude is scale-ambiguous.
+
+To measure only the impact of source camera condition-
+ing, we consider the original ReCamMaster [2] (ReCamM)
+and two variants. Since ReCamMaster is originally trained
+
+8
+
+Figure 7. Temporal compression ablation. Comparing uniform
+resampling, MLP, and 1D-Conv compressors under tilt-down and
+pan-right bullet-time controls, ttrg = [40, . . . , 40].
+
+on datasets where the first frame of the source and target
+videos are identical, the model always copies the first frame
+regardless of the input camera pose. For fairness, we re-
+train ReCamMaster with more data augmentations to in-
+clude non-identical first frames, denoted as ReCamM+Aug.
+Next, we condition the model additionally with source cam-
+eras csrc following Eq. 3, denoted as ReCamM+Aug+csrc.
+Finally we also report the results of TrajectoryCrafter [48].
+In Table 4, we observe that the absolute protocol pro-
+duces consistently higher errors, as trajectories must not
+only match the overall shape (relative protocol) but also
+align correctly in position and orientation.
+Interestingly,
+ReCamM+Aug yields higher errors than the original Re-
+CamM, whereas incorporating source cameras csrc results
+in the best overall performance. This suggests that, with-
+out explicit reference to csrc, exposure to more augmented
+videos with differing initial frames can instead confuse the
+model. The newly introduced conditioning signal on the
+source video’s trajectory csrc achieves substantially better
+camera-control accuracy across all metrics, more reliable
+first-frame alignment, and more faithful adherence to the
+full trajectory than all baselines.
+
+4.1.4. Qualitative results.
+
+Besides the quantitative evaluation, we also demonstrate the
+strength of SpaceTimePilot with visual examples. In Fig. 6,
+we show that only our method correctly synthesizes both
+the camera motion (red boxes) and the animation-time state
+(green boxes). While ReCamMaster handles camera control
+well, it cannot modify the temporal state, such as enabling
+
+t=0t=20t=40t=80t=80t=60t=40t=0t=80t=60t=40t=0t=80t=60t=40t=0Src VideoOursReCamMasterTrajectoryCrafterframe 0frame 20frame 40frame 80Camera: pan left. Time: freeze at t = 40.Camera: tilt-down. Time: freeze at t = 40.MLP Compressor1D-Conv CompressorUniform Resamplingframe 0frame 40frame 80MLP Compressor1D-Conv CompressorUniform Resamplingt=40t=40t=40frame 0frame 40frame 80t=40t=40t=40frame 0frame 40frame 80t=40t=40t=40frame 0frame 40frame 80t=40t=40t=40frame 0frame 40frame 80t=40t=40t=40frame 0frame 40frame 80t=40t=40t=40reverse playback. TrajectoryCrafter, in contrast, is confused
+by the reverse frame shuffle, causing the camera pose of the
+last source frame (blue boxes) to incorrectly appear in the
+first frame of the generated video. More visual results can
+be found in Fig. 5.
+
+4.2. Ablation Study
+
+To validate the effectiveness of the proposed Time embed-
+ding module, in Table 5, we follow the time-control eval-
+uation set up in Sec. 4.1.1 and compare our 1D convo-
+lutional time embedding against several variants and al-
+ternatives discussed in Sec. 3.2.1: (1) Uniform-Sampling:
+sampling the 81-frame embedding uniformly to a 21-frame
+sequence, which is equivalent to adopting sinusoidal em-
+beddings at the latent frame f ′ level; (2) 1D-Conv: us-
+ing 1D convolution layers to compress from t ∈ RF to
+t ∈ RF ′
+, trained with ReCamMaster and SynCamMaster
+datasets. (3) 1D-Conv+jointdata: row 2 but including addi-
+tionally static-scene datasets [18, 53]. (4) 1D-Conv (ours):
+row 2 but instead including the proposed Cam×Time. We
+observe that applying a 1D convolution to learn a compact
+representation by compressing the fine-grained F -dim em-
+beddings into a F ′-dim space performs notably better than
+directly constructing sinusoidal embeddings at the coarse
+f ′ level.
+Incorporating static-scene datasets yields only
+limited improvements, likely due to their restricted tem-
+poral control patterns. By contrast, using the proposed
+Cam×Time consistently delivers the largest gains across
+all three metrics, confirming the effectiveness of our newly
+introduced datasets. Furthermore, as shown in Fig. 7, we
+present a visual comparison of bullet-time results using uni-
+form sampling and an MLP instead of the 1D convolu-
+tion for compressing the temporal control signal. Uniform
+sampling produces noticeable artifacts, and the MLP com-
+pressor causes abrupt camera motion, whereas the 1D con-
+volution effectively locks the animation time and enables
+smooth camera movement.
+
+5. Conclusion
+
+We present SpaceTimePilot, the first video diffusion model
+to provide fully disentangled spatial and temporal control,
+enabling 4D space-time exploration from a single monoc-
+ular video. Our method introduces a new “animation
+time” representation together with a source-aware camera-
+control mechanism that leverages both source and target
+poses. This is supported by the synthetic Cam×Time and
+a temporal-warping training scheme, which supply dense
+spatiotemporal supervision. These components allow pre-
+cise camera and time manipulation, arbitrary initial poses,
+and flexible multi-round generation. Across extensive ex-
+periments, SpaceTimePilot consistently surpasses state-of-
+the-art baselines, offering significantly improved camera-
+control accuracy and reliable execution of complex retiming
+
+effects such as reverse playback, slow motion, and bullet-
+time.
+
+6. Acknowledgement
+
+We would like to extend our gratitude to Duygu Ceylan,
+Paul Guerrero, and Zifan Shi for insightful discussions and
+valuable feedback on the manuscript. We also thank Rudi
+Wu for helpful discussions on implementation details of
+CAT4D.
+
+References
+
+[1] Jianhong Bai, Menghan Xia, Xintao Wang, Ziyang Yuan,
+Xiao Fu, Zuozhu Liu, Haoji Hu, Pengfei Wan, and
+Di Zhang. SynCamMaster: Synchronizing multi-camera
+video generation from diverse viewpoints. arXiv preprint
+arXiv:2412.07760, 2024. 2, 3, 5, 14, 16, 17
+
+[2] Jianhong Bai, Menghan Xia, Xiao Fu, Xintao Wang, Lianrui
+Mu, Jinwen Cao, Zuozhu Liu, Haoji Hu, Xiang Bai, Pengfei
+Wan, and Di Zhang. ReCamMaster: Camera-controlled gen-
+erative rendering from a single video. In ICCV, 2025. 2, 3,
+4, 5, 6, 7, 8, 14, 16, 17
+
+[3] Omer Bar-Tal, Hila Chefer, Omer Tov, Charles Her-
+rmann, Roni Paiss, Shiran Zada, Ariel Ephrat, Junhwa Hur,
+Guanghui Liu, Amit Raj, et al. Lumiere: A space-time diffu-
+sion model for video generation. In SIGGRAPH Asia 2024
+Conference Papers, pages 1–11, 2024. 2
+
+[4] Andreas Blattmann, Tim Dockhorn, Sumith Kulal, Daniel
+Mendelevitch, Maciej Kilian, Dominik Lorenz, Yam Levi,
+Zion English, Vikram Voleti, Adam Letts, et al. Stable video
+diffusion: Scaling latent video diffusion models to large
+datasets. arXiv preprint arXiv:2311.15127, 2023.
+
+[5] Tim Brooks, Bill Peebles, Connor Holmes, Will DePue,
+Yufei Guo, Li Jing, David Schnurr, Joe Taylor, Troy Luh-
+man, Eric Luhman, Clarence Ng, Ricky Wang, and Aditya
+Ramesh. Video generation models as world simulators. 2024. 2
+
+[6] Chen Gao, Ayush Saraf, Johannes Kopf, and Jia-Bin Huang.
+Dynamic view synthesis from dynamic monocular video. In
+ICCV, pages 5712–5721, 2021. 2
+
+[7] Klaus Greff, Francois Belletti, Lucas Beyer, Carl Doersch,
+Yilun Du, Daniel Duckworth, David J Fleet, Dan Gnanapra-
+gasam, Florian Golemo, Charles Herrmann, Thomas Kipf,
+Abhijit Kundu, Dmitry Lagun,
+Issam Laradji, Hsueh-
+Ti
+(Derek) Liu, Henning Meyer, Yishu Miao, Derek
+Nowrouzezahrai, Cengiz Oztireli, Etienne Pot, Noha Rad-
+wan, Daniel Rebain, Sara Sabour, Mehdi S. M. Sajjadi,
+Matan Sela, Vincent Sitzmann, Austin Stone, Deqing Sun,
+Suhani Vora, Ziyu Wang, Tianhao Wu, Kwang Moo Yi,
+Fangcheng Zhong, and Andrea Tagliasacchi. Kubric: a scal-
+able dataset generator. In CVPR, 2022. 3
+
+[8] Hao He, Yinghao Xu, Yuwei Guo, Gordon Wetzstein, Bo
+Dai, Hongsheng Li, and Ceyuan Yang. CameraCtrl: En-
+abling camera control for text-to-video generation. In ICLR, 2025. 8
+
+[9] Hao He, Ceyuan Yang, Shanchuan Lin, Yinghao Xu, Meng
+Wei, Liangke Gui, Qi Zhao, Gordon Wetzstein, Lu Jiang, and
+
+9
+
+Hongsheng Li. CameraCtrl II: Dynamic scene exploration
+via camera-controlled video diffusion models. arXiv preprint
+arXiv:2503.10592, 2025. 2
+
+[10] Ziqi Huang, Yinan He, Jiashuo Yu, Fan Zhang, Chenyang Si,
+Yuming Jiang, Yuanhan Zhang, Tianxing Wu, Qingyang Jin,
+Nattapol Chanpaisit, Yaohui Wang, Xinyuan Chen, Limin
+Wang, Dahua Lin, Yu Qiao, and Ziwei Liu. VBench: Com-
+prehensive benchmark suite for video generative models. In
+CVPR, 2024. 7
+
+[11] Adobe Systems Inc. Mixamo, 2018. Accessed: 2025-03-07.
+
+12
+
+[12] Hyeonho Jeong, Chun-Hao Paul Huang, Jong Chul Ye, Niloy
+Mitra, and Duygu Ceylan. Track4Gen: Teaching video dif-
+fusion models to track points improves video generation. In
+CVPR, 2025. 2
+
+[13] Hyeonho Jeong, Suhyeon Lee, and Jong Chul Ye. Reangle-
+A-Video: 4d video generation as video-to-video translation.
+In ICCV, 2025. 3
+
+[14] Haian Jin, Hanwen Jiang, Hao Tan, Kai Zhang, Sai Bi,
+Tianyuan Zhang, Fujun Luan, Noah Snavely, and Zexiang
+Xu. LVSM: A large view synthesis model with minimal 3d
+inductive bias. In ICLR, 2025. 2
+
+[15] Bernhard Kerbl, Georgios Kopanas, Thomas Leimk¨uhler,
+and George Drettakis. 3d gaussian splatting for real-time
+radiance field rendering. ACM Trans. Graph., 42(4):139–1, 2023. 2
+
+[16] Weijie Kong, Qi Tian, Zijian Zhang, Rox Min, Zuozhuo Dai,
+Jin Zhou, Jiangfeng Xiong, Xin Li, Bo Wu, Jianwei Zhang,
+et al. Hunyuanvideo: A systematic framework for large video
+generative models. arXiv preprint arXiv:2412.03603, 2024.
+2
+
+[17] Jiahui Lei, Yijia Weng, Adam Harley, Leonidas Guibas, and
+Kostas Daniilidis. MoSca: Dynamic gaussian fusion from
+casual videos via 4d motion scaffolds. In CVPR, 2025. 2
+[18] Zhengqi Li, Tali Dekel, Forrester Cole, Richard Tucker,
+Noah Snavely, Ce Liu, and William T Freeman. Learning
+the depths of moving people by watching frozen people. In
+CVPR, 2019. 7, 9, 14, 16
+
+[19] Zhengqi Li, Simon Niklaus, Noah Snavely, and Oliver Wang.
+Neural scene flow fields for space-time view synthesis of dy-
+namic scenes. In CVPR, pages 6498–6508, 2021. 2
+
+[20] Zhengqi Li, Qianqian Wang, Forrester Cole, Richard Tucker,
+and Noah Snavely. Dynibar: Neural dynamic image-based
+rendering. In CVPR, 2023. 2
+
+[21] Hanwen Liang, Yuyang Yin, Dejia Xu, Hanxue Liang,
+Zhangyang Wang, Konstantinos N Plataniotis, Yao Zhao,
+and Yunchao Wei. Diffusion4D: Fast spatial-temporal con-
+sistent 4d generation via video diffusion models. In NeurIPS, 2024. 2
+
+[22] Jinwei Lin. Dynamic NeRF: A review.
+
+arXiv preprint
+
+arXiv:2405.08609, 2024. 2
+
+[23] Lu Ling, Yichen Sheng, Zhi Tu, Wentian Zhao, Cheng Xin,
+Kun Wan, Lantao Yu, Qianyu Guo, Zixun Yu, Yawen Lu,
+et al. DL3DV-10K: A large-scale scene dataset for deep
+In CVPR, pages 22160–22169,
+learning-based 3d vision. 2024. 2, 5
+
+[24] Jiaxin Lu, Chun-Hao Paul Huang, Uttaran Bhattacharya,
+Qixing Huang, and Yi Zhou. Humoto: A 4d dataset of mocap
+human object interactions. In Proceedings of the IEEE/CVF
+International Conference on Computer Vision (ICCV), pages
+10886–10897, 2025. 12
+
+[25] Ben Mildenhall, Pratul P Srinivasan, Matthew Tancik,
+Jonathan T Barron, Ravi Ramamoorthi, and Ren Ng. NeRF:
+Representing scenes as neural radiance fields for view syn-
+thesis. In ECCV, pages 99–106. ACM New York, NY, USA, 2021. 2
+
+[26] Kepan Nan, Rui Xie, Penghao Zhou, Tiehan Fan, Zhen-
+heng Yang, Zhijie Chen, Xiang Li, Jian Yang, and Ying Tai.
+OpenVid-1M: A large-scale high-quality dataset for text-to-
+video generation. arXiv preprint arXiv:2407.02371, 2024.
+7
+
+[27] Keunhong Park, Utkarsh Sinha, Jonathan T. Barron, Sofien
+Bouaziz, Dan B. Goldman, Steven M. Seitz, and Ricardo
+Martin-Brualla. Nerfies: Deformable neural radiance fields.
+In ICCV, pages 5865–5874, 2021. 2
+
+[28] Keunhong Park, Utkarsh Sinha, Peter Hedman, Jonathan T.
+Barron, Sofien Bouaziz, Dan B. Goldman, Ricardo Martin-
+Brualla, and Steven M. Seitz. HyperNeRF: A higher-
+dimensional representation for topologically varying neural
+radiance fields. ACM Transactions on Graphics (TOG), 40
+(6):238:1–238:12, 2021. 2
+
+[29] Jack Parker-Holder and Shlomi Fruchter. Genie 3: A new
+frontier for world models. Google DeepMind Blog, 2025.
+Accessed: ¡insert date you retrieved¿. 2, 3
+
+[30] Adam Polyak, Amit Zohar, Andrew Brown, Andros Tjandra,
+Animesh Sinha, Ann Lee, Apoorv Vyas, Bowen Shi, Chih-
+Yao Ma, Ching-Yao Chuang, David Yan, Dhruv Choudhary,
+Dingkang Wang, Geet Sethi, Guan Pang, Haoyu Ma, Ishan
+Misra, Ji Hou, Jialiang Wang, Kiran Jagadeesh, Kunpeng
+Li, Luxin Zhang, Mannat Singh, Mary Williamson, Matt
+Le, Matthew Yu, Mitesh Kumar Singh, Peizhao Zhang, Pe-
+ter Vajda, Quentin Duval, Rohit Girdhar, Roshan Sumbaly,
+Sai Saketh Rambhatla, Sam Tsai, Samaneh Azadi, Samyak
+Datta, Sanyuan Chen, Sean Bell, Sharadh Ramaswamy,
+Shelly Sheynin, Siddharth Bhattacharya, Simran Motwani,
+Tao Xu, Tianhe Li, Tingbo Hou, Wei-Ning Hsu, Xi Yin, Xi-
+aoliang Dai, Yaniv Taigman, Yaqiao Luo, Yen-Cheng Liu,
+Yi-Chiao Wu, Yue Zhao, Yuval Kirstain, Zecheng He, Zijian
+He, Albert Pumarola, Ali Thabet, Artsiom Sanakoyeu, Arun
+Mallya, Baishan Guo, Boris Araya, Breena Kerr, Carleigh
+Wood, Ce Liu, Cen Peng, Dimitry Vengertsev, Edgar Schon-
+feld, Elliot Blanchard, Felix Juefei-Xu, Fraylie Nord, Jeff
+Liang, John Hoffman, Jonas Kohler, Kaolin Fire, Karthik
+Sivakumar, Lawrence Chen, Licheng Yu, Luya Gao, Markos
+Georgopoulos, Rashel Moritz, Sara K. Sampson, Shikai Li,
+Simone Parmeggiani, Steve Fine, Tara Fowler, Vladan Petro-
+vic, and Yuming Du. Movie gen: A cast of media foundation
+models, 2024. 2
+
+[31] Xuanchi Ren, Tianchang Shen, Jiahui Huang, Huan Ling,
+Yifan Lu, Merlin Nimier-David, Thomas M¨uller, Alexander
+Keller, Sanja Fidler, and Jun Gao. GEN3C: 3d-informed
+world-consistent video generation with precise camera con-
+trol. In CVPR, 2025. 3
+
+10
+
+In Proceedings of the IEEE/CVF conference on computer vi-
+sion and pattern recognition, pages 20310–20320, 2024. 2
+
+[43] Rundi Wu, Ruiqi Gao, Ben Poole, Alex Trevithick, Changxi
+Zheng, Jonathan T Barron, and Aleksander Holynski.
+Cat4D: Create anything in 4d with multi-view video diffu-
+sion models. In CVPR, 2024. 2, 3, 4, 5, 7
+
+[44] Tong Wu, Shuai Yang, Ryan Po, Yinghao Xu, Ziwei Liu,
+Dahua Lin, and Gordon Wetzstein. Video world models with
+long-term spatial memory. arXiv preprint arXiv:2506.05284, 2025. 3
+
+[45] Yuxi Xiao, Jianyuan Wang, Nan Xue, Nikita Karaev, Iurii
+Makarov, Bingyi Kang, Xin Zhu, Hujun Bao, Yujun Shen,
+and Xiaowei Zhou. SpatialTrackerV2: 3d point tracking
+made easy. In ICCV, 2025. 8
+
+[46] Zhuoyi Yang, Jiayan Teng, Wendi Zheng, Ming Ding, Shiyu
+Huang, Jiazheng Xu, Yuanming Yang, Wenyi Hong, Xiao-
+han Zhang, Guanyu Feng, et al. Cogvideox: Text-to-video
+diffusion models with an expert transformer. arXiv preprint
+arXiv:2408.06072, 2024. 2
+
+[47] Jae Shin Yoon, Kihwan Kim, Orazio Gallo, Hyun Soo Park,
+and Jan Kautz. Novel view synthesis of dynamic scenes
+with globally coherent depths from a monocular camera. In
+CVPR, pages 5339–5348, 2020. 2
+
+[48] Mark YU, Wenbo Hu, Jinbo Xing, and Ying Shan. Tra-
+jectoryCrafter: Redirecting camera trajectory for monocular
+videos via diffusion models. In ICCV, 2025. 3, 7, 8
+
+[49] Wangbo Yu, Jinbo Xing, Li Yuan, Wenbo Hu, Xiaoyu Li,
+Zhipeng Huang, Xiangjun Gao, Tien-Tsin Wong, Ying Shan,
+and Yonghong Tian. Viewcrafter: Taming video diffusion
+models for high-fidelity novel view synthesis. arXiv preprint
+arXiv:2409.02048, 2024. 3
+
+[50] David Junhao Zhang, Roni Paiss, Shiran Zada, Nikhil Kar-
+nad, David E Jacobs, Yael Pritch, Inbar Mosseri, Mike Zheng
+Shou, Neal Wadhwa, and Nataniel Ruiz. ReCapture: Gen-
+erative video camera controls for user-provided videos using
+masked video fine-tuning. In CVPR, 2024. 3
+
+[51] David Junhao Zhang, Jay Zhangjie Wu, Jia-Wei Liu, Rui
+Zhao, Lingmin Ran, Yuchao Gu, Difei Gao, and Mike Zheng
+Shou. Show-1: Marrying pixel and latent diffusion models
+for text-to-video generation. IJCV, pages 1–15, 2024. 2
+[52] Jensen (Jinghao) Zhou, Hang Gao, Vikram Voleti, Aaryaman
+Vasishta, Chun-Han Yao, Mark Boss, Philip Torr, Christian
+Rupprecht, and Varun Jampani. Stable Virtual Camera: Gen-
+erative view synthesis with diffusion models. arXiv preprint, 2025. 3
+
+[53] Tinghui Zhou, Richard Tucker, John Flynn, Graham Fyffe,
+and Noah Snavely. Stereo magnification: Learning view syn-
+thesis using multiplane images. In SIGGRAPH, 2018. 2, 5,
+7, 9, 14, 16
+
+[32] Chris Rockwell, Joseph Tung, Tsung-Yi Lin, Ming-Yu Liu,
+David F. Fouhey, and Chen-Hsuan Lin. Dynamic camera
+poses and where to find them. In CVPR, 2025. 5
+
+[33] Basile Van Hoorick, Rundi Wu, Ege Ozguroglu, Kyle Sar-
+gent, Ruoshi Liu, Pavel Tokmakov, Achal Dave, Changxi
+Zheng, and Carl Vondrick. Generative camera dolly: Ex-
+treme monocular dynamic novel view synthesis. ECCV, 2024. 2, 3, 4, 5
+
+[34] Team Wan, Ang Wang, Baole Ai, Bin Wen, Chaojie Mao,
+Chen-Wei Xie, Di Chen, Feiwu Yu, Haiming Zhao, Jianx-
+iao Yang, Jianyuan Zeng, Jiayu Wang, Jingfeng Zhang, Jin-
+gren Zhou, Jinkai Wang, Jixuan Chen, Kai Zhu, Kang Zhao,
+Keyu Yan, Lianghua Huang, Mengyang Feng, Ningyi Zhang,
+Pandeng Li, Pingyu Wu, Ruihang Chu, Ruili Feng, Shiwei
+Zhang, Siyang Sun, Tao Fang, Tianxing Wang, Tianyi Gui,
+Tingyu Weng, Tong Shen, Wei Lin, Wei Wang, Wei Wang,
+Wenmeng Zhou, Wente Wang, Wenting Shen, Wenyuan Yu,
+Xianzhong Shi, Xiaoming Huang, Xin Xu, Yan Kou, Yangyu
+Lv, Yifei Li, Yijing Liu, Yiming Wang, Yingya Zhang, Yi-
+tong Huang, Yong Li, You Wu, Yu Liu, Yulin Pan, Yun
+Zheng, Yuntao Hong, Yupeng Shi, Yutong Feng, Zeyinzi
+Jiang, Zhen Han, Zhi-Fan Wu, and Ziyu Liu. Wan: Open
+and advanced large-scale video generative models. arXiv
+preprint arXiv:2503.20314, 2025. 4, 6
+
+[35] Chaoyang Wang, Ashkan Mirzaei, Vidit Goel, Willi
+Menapace, Aliaksandr Siarohin, Avalon Vinella, Michael
+Vasilkovsky, Ivan Skorokhodov, Vladislav Shakhrai, Sergey
+Korolev, Sergey Tulyakov, and Peter Wonka. 4real-video-
+v2: Fused view-time attention and feedforward reconstruc-
+tion for 4d scene generation. In Adv. Neural Inform. Process.
+Syst., 2025. 3
+
+[36] Chaoyang Wang, Peiye Zhuang, Tuan Duc Ngo, Willi Mena-
+pace, Aliaksandr Siarohin, Michael Vasilkovsky, Ivan Sko-
+rokhodov, Sergey Tulyakov, Peter Wonka, and Hsin-Ying
+Lee. 4real-video: Learning generalizable photo-realistic 4d
+video diffusion. In CVPR, 2025. 3
+
+[37] Qianqian Wang, Vickie Ye, Hang Gao, Jake Austin, Zhengqi
+Li, and Angjoo Kanazawa. Shape of motion: 4d reconstruc-
+tion from a single video. In ICCV, 2025. 2
+
+[38] Shuzhe Wang, Vincent Leroy, Yohann Cabon, Boris
+Chidlovskii, and Jerome Revaud. DUSt3R: Geometric 3d
+vision made easy. In CVPR, 2024. 8
+
+[39] Yaohui Wang, Xinyuan Chen, Xin Ma, Shangchen Zhou,
+Ziqi Huang, Yi Wang, Ceyuan Yang, Yinan He, Jiashuo Yu,
+Peiqing Yang, et al. Lavie: High-quality video generation
+IJCV, pages 1–20,
+with cascaded latent diffusion models. 2024. 2
+
+[40] Zun Wang, Jaemin Cho, Jialu Li, Han Lin, Jaehong Yoon,
+Yue Zhang, and Mohit Bansal. EPiC: Efficient Video Camera
+Control Learning with Precise Anchor-Video. arXiv preprint
+arXiv:2505.21876, 2025. 3
+
+[41] Daniel Watson, Saurabh Saxena, Lala Li, Andrea Tagliasac-
+chi, and David J. Fleet. Controlling space and time with
+diffusion models. In ICLR, 2025. 2, 3, 4, 5, 7
+
+[42] Guanjun Wu, Taoran Yi, Jiemin Fang, Lingxi Xie, Xiaopeng
+Zhang, Wei Wei, Wenyu Liu, Qi Tian, and Xinggang Wang.
+4d gaussian splatting for real-time dynamic scene rendering.
+
+11
+
+A. Network Architecture
+
+The network architecture of SpaceTimePilot is depicted in
+Fig. 8. The newly introduced animation-time embedder Eani
+encodes the source and target animation times, tsrc and ttrg,
+into tensors matching the shapes of xsrc and xtrg, which are
+then added to them respectively. During training, we train
+only the camera embedder Ecam, the animation-time embed-
+der Eani, the self-attention (full-3D attention), and the pro-
+jector layers before the cross-attention.
+
+Figure 8. Architecture of SpaceTimePilot. Our model jointly
+conditions on camera trajectories and temporal control signals via
+space–time attention, enabling non-monotonic motion generation
+such as reversals, repeats, accelerations, and zigzag time.
+
+B. Longer Space-Time Exploration Video with
+
+Disentangled Controls
+
+One of the central advantages of SpaceTimePilot is its abil-
+ity to freely navigate both spatial and temporal dimen-
+sions, with arbitrary starting points in each dimension and
+fully customizable trajectories through them. Although
+each individual generation is limited to an 81-frame win-
+dow, we show that SpaceTimePilot can effectively extend
+this window indefinitely through a multi-turn autoregres-
+sive inference scheme, enabling continuous and control-
+lable space–time exploration from a single input video. The
+overall pipeline is illustrated in Fig. 9.
+
+The core idea is to generate the final video in autore-
+gressive segments that connect seamlessly. For example,
+given a source video of 81 frames, we may first generate
+a 0.5× slow-motion sequence covering frames 0–40 with
+a new camera trajectory. Then, continuing both the visual
+context and the generated camera trajectory, we can pro-
+duce the next segment starting from the final camera pose
+
+12
+
+of the previous output, while temporally traversing the re-
+maining frames 40–81. This yields an autoregressive chain
+of viewpoint-controlled video segments that together create
+a continuous long-range space–time trajectory.
+
+A key property that enables this behavior is that our
+model can generate video segments whose camera poses do
+not need to start at the first frame. This allows precise con-
+trol over the starting point, both in time and viewpoint, for
+every generated chunk, ensuring smooth, consistent motion
+over extended sequences.
+
+To maintain contextual coherence across iterations, we
+introduce a lightweight memory mechanism. During train-
+ing, the model is conditioned on a pair of source videos,
+which enables consistent chaining during inference. Specif-
+ically:
+• At iteration i = 1, the model is conditioned only on the
+
+original source video.
+
+• At iteration i = 2, it is conditioned on both the source
+video and the previously generated 81-frame segment.
+• This process repeats, with each iteration conditioning on
+the source video as well as the most recent generated seg-
+ment.
+This simple yet effective strategy allows SpaceTimePilot
+to generate arbitrarily long, smoothly connected sequences
+with continuous and precise control over both temporal ma-
+nipulation and camera motion.
+
+Here, we showcase how this can be used to conduct large
+
+viewpoint changes, as demonstrated in Fig. 10.
+
+C. Additional Details on the Proposed
+
+Cam×Time Dataset.
+
+The Cam×Time dataset is built using high-quality, com-
+mercially licensed 3D environments that include both real-
+istic indoor and outdoor scenes. For each environment, we
+populate the space with multiple animated human charac-
+ters. The character assets are sourced from Mixamo [11]
+and HUMOTO [24], and each character is manually tex-
+tured and refined to ensure realistic geometry, appearance,
+and material quality. The animations span a diverse range
+of human motions, including locomotion, gestures, and
+human-object interactions. Examples of scenes are shown
+in Fig. 11. Please refer to the complementary website for
+the video examples.
+
+To capture rich spatial coverage, we generate four dis-
+tinct camera trajectories for every scene. Camera paths
+linear tracking motions, and
+include rotational orbits,
+smoothly curved arcs. A dedicated validity module ensures
+that each trajectory: (1) begins at a collision-free location
+with clear visibility of the main character, (2) maintains
+non-intersecting movement with the environment through-
+out the path, and (3) preserves full subject visibility across
+all viewpoints.
+
+fffffZsrcZtrgAdd noisePatchifySpace-Time DiTZ’trg3D-VAEDecoder3D-VAEencoderVt’ /t/tCameraembeddingTimeEmbeddingSelf-AttentionProjectorCross-AttentionFeed-forward NNcamcamcamcamcamcamcamcamtimetimetimetimetimetimetimetime(patchified Ztrg)(patchified Zsrc)Figure 9. Overview of the multi-turn autoregressive inference scheme. The model first generates an 81-frame segment conditioned
+on the source video and a chosen space–time trajectory. The resulting output is then reused as a secondary source video for subsequent
+iterations, each with its own camera and temporal trajectory. By chaining these iterations and stitching the outputs, SpaceTimePilot
+produces a long, coherent video that follows an arbitrary space–time path.
+
+Figure 10. Multi-turn autoregressive generation with SpaceTimePilot. Top row: source video frames. Rows 2–4: Turn-1, Turn-2,
+and Turn-3 generations. At each turn, SpaceTimePilot jointly conditions on (1) the original source video and (2) the previously generated
+chunk, ensuring temporal continuity, stable motion progression, and consistent camera geometry. This dual-conditioning design enables
+viewpoint changes far beyond the input video—such as rotating to the rear of the tiger or transitioning from a low-angle shot to a high
+bird’s-eye view—while preserving visual and motion coherence. Please refer to section “AR Demos” in the website for videos.
+
+Each trajectory is rendered into a 120-frame sequence at
+a resolution of 1080 × 1080 pixels, providing dense tem-
+poral sampling with high visual fidelity. This yields three
+multi-view video sequences per scene, each covering the
+full motion duration with consistent lighting, textures, and
+geometry. Overall, we rendered 1500 videos from 500 an-
+imations, each with 120 videos full grid rendering, leading
+to 180k videos.
+
+For temporal-control training, we could sample any time
+variants from these sequences, including slow motion, re-
+verse playback, bullet-time around arbitrary frames, and
+non-monotonic time patterns such as forward–backward os-
+cillation. These augmented temporal signals are illustrated
+in Fig. 12.
+
+13
+
+SpaceTimePilotdual src videoSource video1 (81 frames)camera traj 1(wrt src video 1)temporal traj 1 (wrt src video 1)SpaceTimePilotdual src videoOutput video 1(81 frames)Output video 2(81 frames)Video StitchingFinal Output. (81 \* n frames)camera traj 2(wrt src video 1)temporal traj 2 (wrt src video 1)SpaceTimePilotdual src videocamera traj 2(wrt src video 1)temporal traj 2 (wrt src video 1)Copy of Source video1...scene datasets naturally support bullet-time effects, they do
+not provide enough diversity of temporal control configura-
+tions for models to reliably learn time locking on their own,
+as shown in Fig. 14 (top). Please refer to section “Effective
+Temporal Warping” in the website for more videos.
+
+In Fig. 14 (bottom), we further show that freezing tempo-
+ral warping (3rd row) produces better results than training
+without freezing it. Please refer to section “Freeze Warping
+Ablations” in the website for more videos.
+
+D.2. Significance of Cam×Time Dataset
+
+Besides the quantitative results in the main paper (Table 5),
+in Fig. 15 (top), we provide visual comparisons demonstrat-
+ing the effectiveness of the proposed Cam×Time dataset.
+Clear artifacts appear in baselines trained without additional
+data or with only static-scene augmentation (highlighted
+in red boxes), whereas incorporating Cam×Time removes
+these artifacts, demonstrating its significance. Please re-
+fer to section “Dataset Ablations” in the website for more
+videos.
+
+D.3. Time Embedding Ablation
+
+As promised in Sec. 3.2.1 in the main paper, we compare
+several time-embedding strategies. RoPE(f ′) can freeze the
+scene dynamics at t=40, but it also undesirably locks the
+camera motion. Using MLP, by contrast, fails to lock the
+temporal state at all (red boxes). Conditioning on the la-
+tent frame f ′ (with uniform sampling) introduces notice-
+able artifacts. In comparison, the proposed 1D-Conv em-
+bedding enables SpaceTimePilot to preserve the intended
+scene dynamics while still generating accurate camera mo-
+tion. Adding Cam×Time to training further enhances the
+results. Please refer to section “Time-Embedding Method
+Ablation” in the website for more examples.
+
+E. Additional Qualitative Visualizations
+
+We show more qualitative results of SpaceTimePilot in
+Fig. 13. Our model provides fully disentangled control over
+camera motion and temporal dynamics. Each row presents
+a different pairing of temporal control inputs (top-left icon)
+and camera trajectories. SpaceTimePilot reliably generates
+coherent videos under diverse conditions, including normal
+and reverse playback, bullet-time, slow motion, replay mo-
+tion, and complex camera movements such as panning, tilt-
+ing, zooming, and vertical translation. Please refer to sec-
+tion “Video Demonstrations” in the website for more exam-
+ples.
+
+Figure 11. Example of Cam×Time. Multi-view, densely sam-
+pled sequences from the Cam×Time dataset. Each row shows
+frames from one camera trajectory, and each column samples dif-
+ferent timesteps (0–120). The dataset provides diverse environ-
+ments, human motions, and four camera paths per scene with full
+120-frame temporal coverage.
+
+Figure 12. Sampling from Cam×Time. By sampling from the
+Cam×Time dataset, we can extract frames corresponding to arbi-
+trary combinations of camera viewpoints and temporal positions,
+forming source-target pairs with rich camera and temporal control
+signals.
+
+D. Additional Ablation Studies
+
+D.1. Temporal Warping Augmentation
+
+Using [1, 2] as our default datasets, we compare training
+jointly with static-scene datasets [18, 53] with applying
+only temporal warping (TW) augmentation on the default
+datasets (Sec. 3.2.2 in the main paper). Although static-
+
+14
+
+Figure 13. More Qualitative results. Our model provides fully disentangled control over camera motion and temporal dynamics. Each
+row illustrates a different combination of temporal control inputs (top-left icon) and camera trajectories. SpaceTimePilot consistently
+produces coherent videos across a wide range of controls, including normal and reverse playback, bullet-time, slow motion, replay motion,
+and complex camera paths such as panning, tilting, zooming, and vertical motion.
+
+15
+
+bullet-timeat t=40reversemotionbounce40-80-40slow motion40-80Frame 0Frame 40Frame 80......Frame 0Frame 40Frame 80......bounce40-80-40bounce40-80-40slow motion40-80bounce40-80-40Figure 14. Ablation study. (Top) Using [1, 2] as default datasets, we compare the influence of adding static-scene datasets [18, 53] vs. just
+doing temporal warping (TW) augmentation (Sec. 3.2.2 in the main paper). Temporal warping definitely provide more variety of time
+control signals, allowing models to learn better camera-time disentanglement. (Bottom) We further compare different configurations of
+warping, where we show freezing temporal warping (3rd row) leads to better results than those trained without freezing temporal warping.
+
+16
+
+Src VideoDefault+RE10k+MCDefault w/ TWAblation 1: Temporal warping (TW) vs. Joint dataset training on bullet-time effect (t=40)Src Video1D-Conv1DConv+Cam×Timew/o FreezingTemproalWarping1DConv+Cam×Time wFreezingTemporalWarpingAblation 2: Varied temporal warping configuration on bullet-time effect (t=40) Figure 15. Ablation study. (Top) We verify the efficacy of the proposed Cam×Time dataset. Considering [1, 2] as default datasets,
+we compare the impact of different datasets on the generated videos. One can clearly see artifacts in baselines without any extra data or
+augmented with static-scene data, whereas training additionally with Cam×Time leads to no artifacts, confirming the usefulness of our
+dataset. (Bottom) We compare several time-embedding strategies. The MLP fails to lock the temporal state (red boxes), while RoPE(f ′)
+correctly freezes the scene dynamics at t=40 but unintentionally locks the camera motion too. Conditioning on the latent frame f ′ (with
+uniform sampling) introduces noticeable artifacts. In contrast, the proposed 1D-Conv embedding allows SpaceTimePilot to both freeze the
+scene dynamics at t=40 and produce intended camera motion. Incorporating Cam×Time during training further improves performance.
+
+17
+
+Src VideoDefault w/ TWDefault w/ TW ＋ Cam×TimeAblation 3: Dataset ablation: Cam×Time vs. static-scene datasets on bullet-time effect (t=40) Default w/ TW ＋ RE10k ＋ MC Src VideoMLPUniformSampling1D-Conv1D-Conv w/Cam×TimeAblation 4: Different time embedding schemes on bullet-time effect (t=40)RoPE(f’)

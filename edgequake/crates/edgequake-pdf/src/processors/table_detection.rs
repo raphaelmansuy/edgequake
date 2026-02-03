@@ -96,7 +96,7 @@ impl Processor for TableDetectionProcessor {
             );
 
             // OODA-34 FIX: SKIP table detection for multi-column pages with backend-set columns
-            // 
+            //
             // WHY: The table detection algorithm sorts blocks by Y-coordinate (group_blocks_by_row),
             // then iterates through Y-sorted rows to create new_blocks. This destroys the
             // column-aware reading order established by text_grouping.rs and extraction_engine.rs.
@@ -223,7 +223,7 @@ impl TableDetectionProcessor {
     ) -> Vec<Block> {
         let mut new_blocks = Vec::new();
         let mut i = 0;
-        
+
         // OODA-21: Get page width for paragraph detection
         let page_width = page.width;
 
@@ -237,7 +237,7 @@ impl TableDetectionProcessor {
                 i += 1;
                 continue;
             }
-            
+
             // Table candidate: row with multiple blocks
             if rows[i].len() > 1 {
                 let table_rows = self.find_table_extent(&rows, i, page);
@@ -274,7 +274,7 @@ impl TableDetectionProcessor {
     }
 
     /// Find extent of table starting at given row index.
-    /// 
+    ///
     /// **OODA-21:** Added paragraph detection to stop table extent when
     /// encountering prose blocks. Tables should only contain short data cells.
     fn find_table_extent(
@@ -285,7 +285,7 @@ impl TableDetectionProcessor {
     ) -> Vec<usize> {
         let mut table_rows = vec![start];
         let mut j = start + 1;
-        
+
         // OODA-21: Get page width for paragraph detection
         // WHY: We need to determine if blocks span >55% of page width
         let page_width = page.width;

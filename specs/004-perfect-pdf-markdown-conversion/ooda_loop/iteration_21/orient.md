@@ -70,11 +70,13 @@ Edgequake currently lacks paragraph detection when deciding table membership.
 ### 3. Global Column Boundary Calculation
 
 Markitdown:
+
 - Collects ALL x-positions from rows with 3+ columns
 - Clusters with 30px tolerance
 - Uses global boundaries for ALL rows
 
 Edgequake:
+
 - Calculates column boundaries per-page
 - No global document-level consistency
 
@@ -82,30 +84,30 @@ Edgequake:
 
 From test output:
 
-| Document | Text | Structure | Issue |
-|----------|------|-----------|-------|
-| ccn_2512.21804v1 | 80.5% | 85.9% | Missing text |
-| 2900_Goyal_et_al | 91.1% | 80.8% | Structure loss |
-| v2_2512.25072v1 | 85.1% | 76.8% | Structure loss |
-| AlphaEvolve | 85.6% | 74.3% | **Worst structure** |
-| agent_2510.09244v1 | 81.0% | 77.6% | Both issues |
-| 01_2512.25075v1 | 72.2% | 88.7% | **Worst text** |
-| one_tool_2512.20957v2 | 73.7% | 78.1% | Both issues |
+| Document              | Text  | Structure | Issue               |
+| --------------------- | ----- | --------- | ------------------- |
+| ccn_2512.21804v1      | 80.5% | 85.9%     | Missing text        |
+| 2900_Goyal_et_al      | 91.1% | 80.8%     | Structure loss      |
+| v2_2512.25072v1       | 85.1% | 76.8%     | Structure loss      |
+| AlphaEvolve           | 85.6% | 74.3%     | **Worst structure** |
+| agent_2510.09244v1    | 81.0% | 77.6%     | Both issues         |
+| 01_2512.25075v1       | 72.2% | 88.7%     | **Worst text**      |
+| one_tool_2512.20957v2 | 73.7% | 78.1%     | Both issues         |
 
 **Key Finding:** AlphaEvolve has worst structural fidelity (74.3%) - likely has tables.
 **Key Finding:** 01_2512.25075v1 has worst text (72.2%) - likely encoding issues.
 
 ## Comparison: Current Thresholds vs Markitdown
 
-| Parameter | Edgequake | Markitdown | Analysis |
-|-----------|-----------|------------|----------|
-| Y-tolerance (row grouping) | 10pt | 5pt | Ours too loose |
-| Min gap for column | 20pt | 30pt | Ours tighter |
-| Paragraph width threshold | Not used | 55% page | Missing feature |
-| Paragraph char threshold | Not used | 60 chars | Missing feature |
-| Max columns for table | Not set | 8 | Could reject dense text |
-| Min table rows | 3 | 3 | Same |
-| Long cell threshold | Not used | 30% | Missing feature |
+| Parameter                  | Edgequake | Markitdown | Analysis                |
+| -------------------------- | --------- | ---------- | ----------------------- |
+| Y-tolerance (row grouping) | 10pt      | 5pt        | Ours too loose          |
+| Min gap for column         | 20pt      | 30pt       | Ours tighter            |
+| Paragraph width threshold  | Not used  | 55% page   | Missing feature         |
+| Paragraph char threshold   | Not used  | 60 chars   | Missing feature         |
+| Max columns for table      | Not set   | 8          | Could reject dense text |
+| Min table rows             | 3         | 3          | Same                    |
+| Long cell threshold        | Not used  | 30%        | Missing feature         |
 
 ## Architecture Comparison
 
@@ -160,7 +162,7 @@ Adding paragraph detection would exclude long text blocks from table considerati
 fn is_paragraph(block: &Block, page_width: f32) -> bool {
     let block_width = block.bbox.x2 - block.bbox.x1;
     let text_len = block.text.chars().count();
-    
+
     // WHY 55%: Markitdown threshold, based on typical column width
     // WHY 60 chars: Long text = paragraph, not table cell
     block_width > page_width * 0.55 && text_len > 60
@@ -181,12 +183,12 @@ Tighter x/y tolerances in text grouping would improve word boundary accuracy.
 
 ## Risk Assessment
 
-| Change | Benefit | Risk | Mitigation |
-|--------|---------|------|------------|
-| Paragraph detection | Fewer false table positives | May miss table rows | Use conservative 55%/60 thresholds |
-| Tighter Y-tolerance | Better table row grouping | May split valid tables | Test on real tables first |
-| Long cell rejection | Reject prose-as-table | May reject large-cell tables | Use 30% threshold |
-| Tighter word grouping | Better text preservation | May over-segment | Test incrementally |
+| Change                | Benefit                     | Risk                         | Mitigation                         |
+| --------------------- | --------------------------- | ---------------------------- | ---------------------------------- |
+| Paragraph detection   | Fewer false table positives | May miss table rows          | Use conservative 55%/60 thresholds |
+| Tighter Y-tolerance   | Better table row grouping   | May split valid tables       | Test on real tables first          |
+| Long cell rejection   | Reject prose-as-table       | May reject large-cell tables | Use 30% threshold                  |
+| Tighter word grouping | Better text preservation    | May over-segment             | Test incrementally                 |
 
 ## Recommended Action Plan
 
@@ -199,9 +201,9 @@ Expected combined impact: +10-15% structural fidelity, +2-3% text preservation.
 
 ## Files to Modify
 
-| File | Change | Lines |
-|------|--------|-------|
-| processors/table_detection.rs | Add paragraph detection | ~50 lines |
-| processors/table_detection.rs | Tighten Y-tolerance | ~5 lines |
-| processors/table_detection.rs | Add long cell rejection | ~30 lines |
-| tests/comprehensive_quality.rs | Verify metrics improve | ~0 lines |
+| File                           | Change                  | Lines     |
+| ------------------------------ | ----------------------- | --------- |
+| processors/table_detection.rs  | Add paragraph detection | ~50 lines |
+| processors/table_detection.rs  | Tighten Y-tolerance     | ~5 lines  |
+| processors/table_detection.rs  | Add long cell rejection | ~30 lines |
+| tests/comprehensive_quality.rs | Verify metrics improve  | ~0 lines  |
