@@ -301,13 +301,13 @@ impl MarkdownRenderer {
             raw_text.find(' ').map(|i| i + 1).unwrap_or(0)
         } else if has_number {
             // OODA-31 FIX: Properly parse numbered list prefix (e.g., "1. ", "2.", "10)")
-            // WHY: The previous code searched for ". " or ") " anywhere in text, which 
+            // WHY: The previous code searched for ". " or ") " anywhere in text, which
             // incorrectly matched content like "(CoT) and" instead of the list prefix.
             // Now we extract just the numeric prefix and find the delimiter immediately after.
             //
             // Strategy: Find where digits end, then check if next char(s) form a list delimiter
             let digit_end = raw_text.chars().take_while(|c| c.is_ascii_digit()).count();
-            
+
             if digit_end > 0 {
                 let after_digits = &raw_text[digit_end..];
                 // Check for ". " (standard numbered list)
