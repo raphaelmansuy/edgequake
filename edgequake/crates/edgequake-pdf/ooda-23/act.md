@@ -38,6 +38,7 @@ The cross-column hyphenation fix works in two phases:
 ### Results
 
 Before fix:
+
 ```
 22:...reposito-
 24:Figure 1.Illustration...
@@ -45,6 +46,7 @@ Before fix:
 ```
 
 After fix:
+
 ```
 20:...repositories remains limited...
 ```

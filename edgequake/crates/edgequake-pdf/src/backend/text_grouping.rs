@@ -242,9 +242,17 @@ impl TextGrouper {
             // - In title zone (near top of page = small Y after normalization)
             // - Larger font size (typically > 11pt for titles)
             // - Not a header/footer
+            // - OODA-27 FIX: NOT in the right column (X < column_boundary)
+            //   WHY: Section headers at top of RIGHT column (e.g., "2 Methodology" at X=306)
+            //   were incorrectly classified as spanning because they meet the Y and font criteria.
+            //   But they're clearly in the right column and should stay there.
+            //   True spanning elements (paper titles, author names) are centered and start
+            //   before the column boundary.
             let is_title_zone = elem.y < title_threshold;
             let is_large_font = elem.font_size > large_font_threshold;
-            let is_spanning = is_title_zone && is_large_font && !is_footer && !is_header;
+            let is_in_right_column = elem.x > column_boundary;
+            let is_spanning =
+                is_title_zone && is_large_font && !is_footer && !is_header && !is_in_right_column;
 
             if is_spanning {
                 // Spanning elements go to beginning (will be processed first)
@@ -388,6 +396,16 @@ impl TextGrouper {
                 }
             }
         }
+
+        // OODA-27: Log the element separation for debugging
+        info!(
+            "TG-SEPARATION: spanning={}, left={}, right={}, left_footer={}, right_footer={}",
+            spanning_elements.len(),
+            left_column.len(),
+            right_column.len(),
+            left_footer.len(),
+            right_footer.len()
+        );
 
         debug!(
             "Two-column separation: spanning={}, left={}, right={}, left_footer={}, right_footer={}",

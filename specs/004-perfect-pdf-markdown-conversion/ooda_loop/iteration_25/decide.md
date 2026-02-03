@@ -15,6 +15,7 @@ Implement two-part fix for Figure/Table captions:
 **Location:** Lines 334-352 (process method)
 
 **Current:**
+
 ```rust
 fn process(&self, mut document: Document) -> Result<Document> {
     let caption_regex = Regex::new(r"^(Figure|Fig\.|Table|Tab\.)\s*\d+[:.]").unwrap();
@@ -35,6 +36,7 @@ fn process(&self, mut document: Document) -> Result<Document> {
 ```
 
 **New:**
+
 1. First pass: Mark blocks matching regex as Caption
 2. Second pass: For each Caption ending with hyphen, check if next block is continuation
 3. Mark continuation blocks as Caption too
@@ -45,6 +47,7 @@ fn process(&self, mut document: Document) -> Result<Document> {
 **Location:** Line ~666
 
 **Current:**
+
 ```rust
 fn render_caption(&self, block: &Block, output: &mut String) {
     let text = self.clean_text(&block.text);
@@ -53,6 +56,7 @@ fn render_caption(&self, block: &Block, output: &mut String) {
 ```
 
 **New:**
+
 ```rust
 fn render_caption(&self, block: &Block, output: &mut String) {
     let text = self.clean_text(&block.text);
@@ -65,6 +69,7 @@ fn render_caption(&self, block: &Block, output: &mut String) {
 ## Expected Outcome
 
 Before:
+
 ```
 *Figure 1.Illustration of a LLM navigating through a code reposi-*
 
@@ -72,6 +77,7 @@ tory. The LLM is equipped...
 ```
 
 After:
+
 ```
 > Figure 1. Illustration of a LLM navigating through a code repository. The LLM is equipped with a single yet powerful tool: jump, which is realized through a language server.
 >
@@ -79,11 +85,11 @@ After:
 
 ## Risk Assessment
 
-| Risk | Mitigation |
-|------|------------|
-| Over-merging unrelated blocks | Only merge if hyphenation detected or sentence continues |
-| Breaking existing captions | Run comprehensive tests to verify |
-| Format change breaking consumers | Blockquote is standard markdown, widely supported |
+| Risk                             | Mitigation                                               |
+| -------------------------------- | -------------------------------------------------------- |
+| Over-merging unrelated blocks    | Only merge if hyphenation detected or sentence continues |
+| Breaking existing captions       | Run comprehensive tests to verify                        |
+| Format change breaking consumers | Blockquote is standard markdown, widely supported        |
 
 ## Priority: HIGH
 
