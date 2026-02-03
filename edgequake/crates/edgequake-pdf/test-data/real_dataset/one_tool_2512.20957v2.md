@@ -3,40 +3,40 @@
 
 **arXiv:2512.20957v2 [cs.SE] 25 Dec 2025** 
 
-Zhaoxi ZhangYitong DuanYanzhi Zhang
-
 ### Abstract
+
+Zhaoxi ZhangYitong DuanYanzhi Zhang
 
 Locating the files and functions requiring modification in large open-source software (OSS) repositories is challenging due to their scale and structural complexity. Existing large language model (LLM)-based methods typically treat this as a repository-level retrieval task and rely on multiple auxiliary tools, which overlook code execution logic and complicate model control. We propose RepoNavigator, an LLM agent equipped with a single execution-aware tool-jumping to the definition of a invoked symbol. This unified design reflects the actual flow of code execution while simplifying tool manipulation. RepoNavigator is trained end-to-end via Reinforcement
 
-> Figure 1.Illustration of a LLM navigating through a code repository. The LLM is equipped with a single yet powerful tool:jump,
->
-
-In the domain of software engineering (SWE), although LLM agents can effectively handle simple programming tasks (Hui et al., 2024; Guo et al., 2024a), their ability to operate on large-scale open-source software (OSS) repositowhich is realized through a language server.
-
-ries remains limited. SWE-BENCH (Jimenez et al., 2023) currently serves as the most comprehensive benchmark for 
-
 Learning (RL) directly from a pretrained model, 
-
-(Jimenez et al., 2023) provides moderate gains, it remains far from enabling robust repository-level reasoning. 
 
 7B model outperforming 14B baselines, the 14B model surpassing 32B competitors, and even the 32B model exceeding closed-source models such 
 
-Schmidgall et al., 2025). In software engineering (SWE) tasks, tool usage is essential rather than optional: real-world repositories are far larger than the context window of current LLMs, making it impossible to process an entire codebase in a single forward pass. Agents must therefore iteratively 
-
 RL training provides an efficient and scalable solution for repository-level issue localization.
-
-calls. However, mainstream LLMs are rarely exposed to such agentic interaction patterns during pretraining and typically acquire tool usage only through few-shot prompting. Such 
 
 1. Introduction
 
 With the rapid advancement of Large Language Models (LLMs) (Liu et al., 2024; Team, 2024; Yang et al., 2025a), equipping LLMs with pre-built tools to form LLM agents 
 
+In the domain of software engineering (SWE), although LLM agents can effectively handle simple programming tasks (Hui et al., 2024; Guo et al., 2024a), their ability to operate on large-scale open-source software (OSS) repositowhich is realized through a language server.
+
+> Figure 1.Illustration of a LLM navigating through a code repository. The LLM is equipped with a single yet powerful tool:jump,
+>
+
+ries remains limited. SWE-BENCH (Jimenez et al., 2023) currently serves as the most comprehensive benchmark for 
+
+(Jimenez et al., 2023) provides moderate gains, it remains far from enabling robust repository-level reasoning. 
+
+Schmidgall et al., 2025). In software engineering (SWE) tasks, tool usage is essential rather than optional: real-world repositories are far larger than the context window of current LLMs, making it impossible to process an entire codebase in a single forward pass. Agents must therefore iteratively 
+
+calls. However, mainstream LLMs are rarely exposed to such agentic interaction patterns during pretraining and typically acquire tool usage only through few-shot prompting. Such 
+
 limited context windows. Moreover, because tool definition spaces are effectively unbounded, pretrained models cannot fully internalize their semantics without post-training. To 
 
-1School of Computer Science, Peking University
-
 Learning with Verifiable Rewards (RLVR) (Yu et al., 2025a; Yue et al., 2025) have been applied, with promising results
+
+1School of Computer Science, Peking University
 
 2Zhongguancun Academy. Correspondence to: Yitong Duan<duanyitong@zgci.ac.cn>, Yunfang Wu<wuyf@pku.edu. cn>. Submitted to International Conference on Machine Learning
 
@@ -589,16 +589,10 @@ Jump GetClass GetFunc GetStruc Recall Precision F1 IoU Recall Precision F1 IoU �
 
 ✓ ✗ ✗ ✗ 25.11 29.16
 
-25.7524.2855.81 58.71 56.3254.89
-
 > Table 5.We change the tool set of RepoNavigator and present the function-level IoU. Because the for localization, excessive tools do not increase its performance.
 >
 
-jumptool is already powerful enough
-
 |Y ∩ Y|ˆ ∗
-
-repository-and dynamic imports can degrade the performance of the language server, as its functionality relies on static analysis techniques such as abstract syntax trees and symbol tables. When such circumstances occur, the tool returns an error message indicating that the definition of the current symbol cannot be located due to unknown reasons. Nevertheless, in our empirical evaluation, we did not observe any instances of monkey patching or dynamic imports
 
 Precision = Sample-F1 =
 
@@ -608,21 +602,27 @@ Precision = Sample-F1 =
 
 |Y ∪ Y|ˆ ∗
 
-Language Server In practice, we apply a Python lanwithin the analyzed datasets.
-
 In practice, when the prediction set Yis empty (for instance, ˆ total failure), we set recall, precision, sample-F1, and IoU to zero. We use the function-level localization result of different methods and apply the patch generation backend 
-
-## C. Threats to Validity
-
-Groundtruth Retrieval A limitation of our work lies in the extraction of groundtruth locations. We extract modified locations directly from thegoldpatchin the datasets, which may ignore other patches that also resolve the issue. Our evaluation metrics do not take these correct alternatives 
 
 test units after applying the patch. 
 
 zero as its score. When the agent exceeds the maximum tool-calling times (which is 12), we add "You must not call tools anymore, and you must give the final answer" to the tool's response. Most of the time, the agent will stop calling tools and generate the final response. If not, we force it to 
 
-reveals golden locations (locations in golden patches), it undoubtedly contributes to the resolution of the issue, and the result in Table. 3 demonstrates this claim. 
-
 is generated, the agent loop will stop automatically. The aforementioned process is an automatic agentic framework, which allows the agent to explore in the environments with little constraints. Preventing Data Leakage It is a widespread concern that data leakage at the pre-training phrase threatens the validity of post-training methods. Nevertheless, we exclude this concern by results in Tabel. 2. The SWE-benchPro dataset was published in 2025, while the Qwen2.5 series were published in 2024. Moreover, we exclude the samples 
+
+Language Server In practice, we apply a Python lanwithin the analyzed datasets.
+
+25.7524.2855.81 58.71 56.3254.89
+
+jumptool is already powerful enough
+
+repository-and dynamic imports can degrade the performance of the language server, as its functionality relies on static analysis techniques such as abstract syntax trees and symbol tables. When such circumstances occur, the tool returns an error message indicating that the definition of the current symbol cannot be located due to unknown reasons. Nevertheless, in our empirical evaluation, we did not observe any instances of monkey patching or dynamic imports
+
+## C. Threats to Validity
+
+Groundtruth Retrieval A limitation of our work lies in the extraction of groundtruth locations. We extract modified locations directly from thegoldpatchin the datasets, which may ignore other patches that also resolve the issue. Our evaluation metrics do not take these correct alternatives 
+
+reveals golden locations (locations in golden patches), it undoubtedly contributes to the resolution of the issue, and the result in Table. 3 demonstrates this claim. 
 
 each language (C/C++, Java, etc.) has its unique language server, and we only succeed in implementing the language server of python. We will implement more language servers and validate our approach on more programing languages in the future.
 
@@ -634,9 +634,9 @@ full-automatically. This is distinct with Agentless (which
 
 guage server to extract the definition code corresponding to an invoked symbol within a repository. However, the presence of monkey patches-runtime modifications to the
 
-has a fixed workflow), LocAgent (which predefines a specific step-by-step workflow in its system prompt), CoSIL and RepoSearcher (which is half-automatic because some
-
 12
+
+has a fixed workflow), LocAgent (which predefines a specific step-by-step workflow in its system prompt), CoSIL and RepoSearcher (which is half-automatic because some
 
 
 ---

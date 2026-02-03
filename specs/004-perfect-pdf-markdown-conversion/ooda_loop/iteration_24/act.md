@@ -20,24 +20,27 @@ if text.len() == 1 && text.chars().all(|c| c.is_ascii_digit()) && bbox_height < 
 ### Problem Solved
 
 Before:
+
 ```
-5: 
+5:
 6: 2
-7: 
+7:
 8: 2
-9: 
+9:
 10: Zhaoxi ZhangYitong DuanYanzhi Zhang
 ```
 
 After:
+
 ```
-5: 
+5:
 6: Zhaoxi ZhangYitong DuanYanzhi Zhang
 ```
 
 ### Root Cause
 
 arXiv papers use superscript numbers (¹, ², ³) for author affiliations. The PDF renders these as separate text elements with:
+
 - Small font size (~7pt)
 - Small bounding box height (~5pt)
 - Positioned at superscript baseline
@@ -47,10 +50,12 @@ The extraction correctly captures these as separate blocks, but they should be f
 ### First Principles
 
 Superscripts in academic papers serve as visual markers linking authors to affiliations. In markdown, these should be:
+
 1. Either merged with author names (hard: requires position matching)
 2. Or filtered out (simple: they don't add semantic value in plain text)
 
 Chose option 2 because:
+
 - Superscripts are typically explained in footnotes
 - The affiliation list appears separately
 - Filtering is robust and simple

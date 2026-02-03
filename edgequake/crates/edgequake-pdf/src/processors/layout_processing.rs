@@ -471,7 +471,7 @@ impl BlockMergeProcessor {
 
         let mut result = blocks;
         let mut merged_indices: std::collections::HashSet<usize> = std::collections::HashSet::new();
-        let mut new_blocks: Vec<Block> = Vec::new();
+        let mut new_blocks: Vec<(usize, Block)> = Vec::new(); // (left_idx, merged_block)
 
         // Group blocks by column
         let mut column_blocks: Vec<Vec<(usize, &Block)>> = vec![Vec::new(); columns.len()];
@@ -604,7 +604,7 @@ impl BlockMergeProcessor {
                     // Create merged block
                     let mut merged = result[left_idx].clone();
                     merged.merge(&result[right_idx]);
-                    new_blocks.push(merged);
+                    new_blocks.push((left_idx, merged)); // Track which index to replace
                     merged_indices.insert(left_idx);
                     merged_indices.insert(right_idx);
 
@@ -618,25 +618,31 @@ impl BlockMergeProcessor {
             return result;
         }
 
-        // Build final result: non-merged blocks + newly merged blocks
-        let mut final_blocks: Vec<Block> = result
-            .into_iter()
-            .enumerate()
-            .filter(|(idx, _)| !merged_indices.contains(idx))
-            .map(|(_, block)| block)
-            .collect();
+        // OODA-26 FIX: Build final result PRESERVING original reading order
+        // WHY: The extraction engine established column-first order (OODA-12).
+        // Sorting by Y would interleave columns, destroying reading order.
+        // Instead, insert merged blocks at the position of their LEFT component.
+        let new_blocks_map: std::collections::HashMap<usize, Block> =
+            new_blocks.into_iter().collect();
 
-        final_blocks.extend(new_blocks);
+        let mut final_blocks: Vec<Block> = Vec::with_capacity(result.len());
 
-        // Sort by position (Y then X) to maintain reading order
-        final_blocks.sort_by(|a, b| {
-            let y_cmp = a.bbox.y1.partial_cmp(&b.bbox.y1).unwrap();
-            if y_cmp == std::cmp::Ordering::Equal {
-                a.bbox.x1.partial_cmp(&b.bbox.x1).unwrap()
+        for (idx, block) in result.into_iter().enumerate() {
+            if merged_indices.contains(&idx) {
+                // Check if this was the LEFT block of a merge
+                if let Some(merged_block) = new_blocks_map.get(&idx) {
+                    // Insert merged block at this position
+                    final_blocks.push(merged_block.clone());
+                }
+                // Skip RIGHT blocks (already merged into left)
             } else {
-                y_cmp
+                final_blocks.push(block);
             }
-        });
+        }
+
+        // NO Y-SORT! Preserve the column-first reading order from extraction engine.
+        // WHY: OODA-12 specifically skips Y-sort for multi-column pages to ensure
+        // left column is read completely before right column.
 
         final_blocks
     }
