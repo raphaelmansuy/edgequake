@@ -364,6 +364,13 @@ impl TextGrouper {
 
         // Process spanning elements first (titles, etc.)
         let spanning_lines = self.group_single_column_layout(spanning_elements);
+        
+        // OODA-17: Merge multi-line titles in spanning zone
+        // WHY: PDF titles often wrap across 2-3 lines. Each line becomes a separate
+        // "spanning line" which would create separate heading blocks. By merging
+        // consecutive lines with close Y-spacing and matching font sizes, we get
+        // a single title block that renders as one heading.
+        let spanning_lines = self.merge_consecutive_title_lines(spanning_lines);
 
         // Process each column into lines
         let left_lines = self.group_single_column_layout(left_column);
@@ -713,6 +720,95 @@ impl TextGrouper {
         }
 
         lines
+    }
+
+    /// OODA-17: Merge consecutive title lines that form a single multi-line title.
+    ///
+    /// # WHY
+    ///
+    /// PDF titles often wrap across 2-3 lines due to centering and length.
+    /// Each line is extracted as a separate text object with different Y-coordinates.
+    /// We need to merge them into a single block to render as one heading.
+    ///
+    /// Example:
+    /// - Line 1: Y=0.0  "Fundamentals of Building Autonomous LLM"
+    /// - Line 2: Y=17.9 "Agents"
+    /// 
+    /// These should become ONE title block, not two separate headings.
+    ///
+    /// # Algorithm
+    ///
+    /// For each consecutive pair of lines:
+    /// 1. If Y-gap < 1.5 × font_size (normal title line spacing)
+    /// 2. AND font sizes match within 1pt
+    /// 3. Then merge into single line
+    fn merge_consecutive_title_lines(
+        &self,
+        lines: Vec<Vec<TextElement>>,
+    ) -> Vec<Vec<TextElement>> {
+        if lines.len() <= 1 {
+            return lines;
+        }
+
+        let original_count = lines.len();
+        let mut result: Vec<Vec<TextElement>> = Vec::new();
+        let mut current_line: Vec<TextElement> = Vec::new();
+        let mut prev_y: Option<f32> = None;
+        let mut prev_font_size: Option<f32> = None;
+
+        for line in lines {
+            if line.is_empty() {
+                continue;
+            }
+
+            // Calculate line properties
+            let line_y = line.iter().map(|e| e.y).sum::<f32>() / line.len() as f32;
+            let line_font_size = line.iter().map(|e| e.font_size).sum::<f32>() / line.len() as f32;
+
+            let should_merge = if let (Some(py), Some(pf)) = (prev_y, prev_font_size) {
+                let y_gap = (line_y - py).abs();
+                let font_diff = (line_font_size - pf).abs();
+                
+                // WHY 1.5 × font_size: Normal title line spacing is 1.2-1.5× font
+                // For 14pt font: 14 × 1.5 = 21pt threshold
+                // Our test case has 17.9pt gap with 14.3pt font = OK to merge
+                //
+                // WHY 1pt font tolerance: Handle minor font size variations from
+                // kerning or rendering differences
+                y_gap < line_font_size * 1.5 && font_diff < 1.0
+            } else {
+                false
+            };
+
+            if should_merge {
+                // Merge with current line
+                current_line.extend(line);
+            } else {
+                // Start new line
+                if !current_line.is_empty() {
+                    result.push(std::mem::take(&mut current_line));
+                }
+                current_line = line;
+            }
+
+            prev_y = Some(line_y);
+            prev_font_size = Some(line_font_size);
+        }
+
+        if !current_line.is_empty() {
+            result.push(current_line);
+        }
+
+        // Log if we merged any lines
+        if result.len() < original_count {
+            tracing::info!(
+                "OODA-17: Merged {} title lines into {} blocks",
+                original_count,
+                result.len()
+            );
+        }
+
+        result
     }
 
     /// Sort elements within a line using run-aware sorting.
