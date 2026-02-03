@@ -603,15 +603,20 @@ impl MarginFilterProcessor {
         Self {}
     }
 
+    /// Check if a block is margin content that should be filtered.
+    ///
+    /// OODA-28: Uses normalized coordinate system where Y=0 is at TOP of page.
+    /// - header_threshold: blocks with Y1 <= this are in top margin
+    /// - footer_threshold: blocks with Y2 >= this are in bottom margin
     fn is_margin_content(
         &self,
         block: &Block,
         page_width: f32,
-        _page_height: f32,
+        page_height: f32,
         left_margin: f32,
         right_margin: f32,
-        _top_margin: f32,
-        bottom_margin: f32,
+        _header_threshold: f32, // Not used here, checked separately
+        footer_threshold: f32,
         line_number_edge: f32,
     ) -> bool {
         let bbox = &block.bbox;
@@ -653,18 +658,19 @@ impl MarginFilterProcessor {
             return true;
         }
 
-        // Filter footer page numbers (strict 5% bottom margin)
-        let in_footer = bbox.y1 <= bottom_margin;
+        // OODA-28: Filter footer page numbers using normalized coordinates
+        // High Y = bottom of page in normalized system
+        let in_footer = bbox.y2 >= footer_threshold;
         if in_footer && trimmed.parse::<i32>().is_ok() {
             return true;
         }
 
         // Extended page number detection - bottom 12% of page
         // WHY: Pandoc and other tools place page numbers at varying heights.
-        // This catches standalone page numbers that aren't in the strict margin.
-        let page_height = _page_height;
-        let extended_footer = bbox.y1 <= page_height * 0.12;
-        if extended_footer {
+        // OODA-28: Use normalized coordinates - high Y = bottom
+        let extended_footer_threshold = page_height * 0.88; // Top 88% = bottom 12%
+        let in_extended_footer = bbox.y2 >= extended_footer_threshold;
+        if in_extended_footer {
             // Standalone page number: 1-4 digits only
             if let Ok(num) = trimmed.parse::<u32>() {
                 if num <= 9999 && trimmed.len() <= 4 {
@@ -709,8 +715,12 @@ impl Processor for MarginFilterProcessor {
 
         for page in &document.pages {
             let page_height = page.height;
-            let top_margin = page_height * 0.05;
-            let bottom_margin = page_height * 0.05;
+            // OODA-28 FIX: Coordinate system uses Y=0 at TOP (normalized coordinates)
+            // WHY: Backend normalizes coordinates so Y=0 is at top of page
+            // - in_header = LOW Y (near 0 = top of page)
+            // - in_footer = HIGH Y (near page_height = bottom of page)
+            let header_threshold = page_height * 0.05; // Top 5% of page
+            let footer_threshold = page_height * 0.95; // Bottom 5% of page
 
             let mut header_seen: HashSet<String> = HashSet::new();
             let mut footer_seen: HashSet<String> = HashSet::new();
@@ -722,8 +732,9 @@ impl Processor for MarginFilterProcessor {
                 }
 
                 let bbox = &block.bbox;
-                let in_header = bbox.y2 >= page_height - top_margin;
-                let in_footer = bbox.y1 <= bottom_margin;
+                // OODA-28: Use normalized coordinate system (Y=0 at top)
+                let in_header = bbox.y1 <= header_threshold; // LOW Y = top of page
+                let in_footer = bbox.y2 >= footer_threshold; // HIGH Y = bottom of page
 
                 if in_header {
                     let key = normalize(trimmed);
@@ -761,8 +772,9 @@ impl Processor for MarginFilterProcessor {
 
             let left_margin = page_width * 0.08;
             let right_margin = page_width * 0.05;
-            let top_margin = page_height * 0.05;
-            let bottom_margin = page_height * 0.05;
+            // OODA-28: Use normalized coordinate thresholds (Y=0 at top)
+            let header_threshold = page_height * 0.05; // Top 5% of page
+            let footer_threshold = page_height * 0.95; // Bottom 5% of page
             let line_number_edge = page_width * 0.10;
 
             page.blocks.retain(|block| {
@@ -772,8 +784,8 @@ impl Processor for MarginFilterProcessor {
                     page_height,
                     left_margin,
                     right_margin,
-                    top_margin,
-                    bottom_margin,
+                    header_threshold,
+                    footer_threshold,
                     line_number_edge,
                 ) {
                     return false;
@@ -785,11 +797,19 @@ impl Processor for MarginFilterProcessor {
                 }
 
                 let bbox = &block.bbox;
-                let in_header = bbox.y2 >= page_height - top_margin;
-                let in_footer = bbox.y1 <= bottom_margin;
+                // OODA-28: Use normalized coordinate system (Y=0 at top)
+                let in_header = bbox.y1 <= header_threshold; // LOW Y = top of page
+                let in_footer = bbox.y2 >= footer_threshold; // HIGH Y = bottom of page
                 let key = normalize(trimmed);
 
-                if in_header && running_headers.contains(&key) {
+                // OODA-28 FIX: Don't filter large blocks as running headers
+                // WHY: Running headers are small (font ~9pt), titles are large (font ~14pt)
+                // Use bbox height as proxy for font size: titles are typically > 12pt tall
+                // This prevents filtering out the actual paper title on page 1
+                let bbox_height = bbox.y2 - bbox.y1;
+                let is_large_block = bbox_height > 12.0;
+
+                if in_header && running_headers.contains(&key) && !is_large_block {
                     return false;
                 }
                 if in_footer && running_footers.contains(&key) {

@@ -3,7 +3,7 @@
 //! This module provides algorithms for determining the correct reading order
 //! of blocks on a page, handling single-column, multi-column, and complex layouts.
 
-use crate::schema::{Block, BoundingBox};
+use crate::schema::{Block, BlockType, BoundingBox};
 
 /// Reading order result.
 #[derive(Debug, Clone)]
@@ -170,6 +170,22 @@ impl ReadingOrderDetector {
 
     /// Assign a block to a column.
     fn assign_to_column(&self, block: &Block, columns: &[BoundingBox]) -> Option<ColumnAssignment> {
+        // OODA-28 FIX: Detect potential titles that should span both columns
+        // WHY: Some titles have zero-width bboxes due to a bug in block_builder.rs
+        // Heuristic: If block is a level-1 heading at top of page (Y < 20), treat as spanning
+        // This ensures titles appear before column content regardless of bbox width
+        let is_title_candidate = block.block_type == BlockType::SectionHeader
+            && block.level == Some(1)
+            && block.bbox.y1 < 20.0; // Near top of page (normalized Y=0 at top)
+
+        // Also detect by content: long text at top of page in left margin
+        let text_len = block.text.len();
+        let is_long_text_at_top = text_len > 50 && block.bbox.y1 < 20.0 && block.bbox.x1 < 80.0;
+
+        if is_title_candidate || is_long_text_at_top {
+            return Some(ColumnAssignment::Spanning);
+        }
+
         let center_x = block.bbox.center().x;
 
         let mut containing_columns = Vec::new();
