@@ -107,11 +107,7 @@ impl Processor for LayoutProcessor {
                             i,
                             blk.bbox.x1,
                             blk.bbox.y1,
-                            if blk.text.len() > 50 {
-                                &blk.text[..50]
-                            } else {
-                                &blk.text
-                            }
+                            safe_truncate(&blk.text, 50)
                         );
                     }
                 }
@@ -625,11 +621,7 @@ impl Processor for BlockMergeProcessor {
                         side,
                         blk.bbox.x1,
                         blk.bbox.y1,
-                        if blk.text.len() > 50 {
-                            &blk.text[..50]
-                        } else {
-                            &blk.text
-                        }
+                        safe_truncate(&blk.text, 50)
                     );
                 }
             }
@@ -701,11 +693,7 @@ impl Processor for BlockMergeProcessor {
                         i,
                         blk.bbox.x1,
                         blk.bbox.y1,
-                        if blk.text.len() > 50 {
-                            &blk.text[..50]
-                        } else {
-                            &blk.text
-                        }
+                        safe_truncate(&blk.text, 50)
                     );
                 }
             }
