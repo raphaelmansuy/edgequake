@@ -5,6 +5,7 @@
 Implement three coordinated fixes:
 
 ### Fix 1: Proper BBox Width Calculation
+
 **File**: `block_builder.rs`
 **Function**: `calculate_line_bbox()`
 
@@ -18,6 +19,7 @@ max_x = max(e.x + text_width)
 **Rationale**: Text has non-zero width. Estimating based on character count and font size is simple and effective.
 
 ### Fix 2: Minimum Column Width Filter
+
 **File**: `geometric.rs`
 **Function**: `detect_columns()`
 
@@ -33,6 +35,7 @@ if column.width() < MIN_COLUMN_WIDTH {
 **Rationale**: 80pt is narrower than any reasonable text column but wider than indentation gaps.
 
 ### Fix 3: Left-Edge Column Assignment
+
 **File**: `layout_processing.rs`
 **Function**: `get_block_column()`
 
@@ -47,24 +50,27 @@ columns.iter().position(|col| col.contains_point(left_edge))
 ## Alternatives Considered
 
 ### Alternative A: Fuzzy Column Matching
+
 Use overlapping column boundaries with tolerance.
 **Rejected**: Over-complicated, hard to tune.
 
 ### Alternative B: Text-Based Paragraph Detection
+
 Look for sentence endings to detect paragraph breaks.
 **Rejected**: Violates "geometric first" principle.
 
 ### Alternative C: Ignore Columns for Merge
+
 Just merge vertically adjacent blocks.
 **Rejected**: Would merge across multi-column layouts.
 
 ## Risk Assessment
 
-| Fix | Risk | Mitigation |
-|-----|------|------------|
-| BBox width | Could over-estimate width | Use conservative 0.55 factor |
-| Min column | Could merge real narrow columns | 80pt is safe threshold |
-| Left-edge | Edge case with right-aligned text | Very rare in documents |
+| Fix        | Risk                              | Mitigation                   |
+| ---------- | --------------------------------- | ---------------------------- |
+| BBox width | Could over-estimate width         | Use conservative 0.55 factor |
+| Min column | Could merge real narrow columns   | 80pt is safe threshold       |
+| Left-edge  | Edge case with right-aligned text | Very rare in documents       |
 
 ## Test Impact
 

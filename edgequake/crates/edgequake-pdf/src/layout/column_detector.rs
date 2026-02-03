@@ -352,16 +352,11 @@ mod tests {
         ];
 
         let columns = detector.detect(&items, 612.0);
-        
+
         // OODA-20: With minimum column width filter (80pt), narrow margin columns
         // are merged with adjacent content columns. This is the correct behavior
         // for text merging - we want 2 content columns, not 3 including margins.
-        assert_eq!(
-            columns.len(),
-            2,
-            "Expected 2 columns, got {:?}",
-            columns
-        );
+        assert_eq!(columns.len(), 2, "Expected 2 columns, got {:?}", columns);
 
         // The two content columns should span from left margin to right margin
         let left_col = &columns[0];

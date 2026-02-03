@@ -370,15 +370,32 @@ impl BlockMergeProcessor {
             return false;
         }
 
-        // Horizontal alignment
+        // OODA-21: Horizontal alignment with generous indent tolerance
+        // WHY: Academic papers use various indentation patterns:
+        // - First-line indent (~10-20pt for paragraph starts)
+        // - Abstract indentation (entire block indented)
+        // - Block quotes (25-40pt indent)
+        // - Wrapped lines may start at different X due to font kerning
+        //
+        // The column_alignment_tolerance (2pt typical) is for detecting column
+        // alignment patterns, NOT for merge decisions. For merging, we need to
+        // allow standard typographic indentation.
         let margin_diff = (a.bbox.x1 - b.bbox.x1).abs();
+
+        // Max indent tolerance: ~1 inch (72pt) or 5x body font size, whichever smaller
+        // WHY: Standard paragraph indent is 0.25-0.5 inch (18-36pt)
+        // Block quotes can be 0.5-1 inch. Beyond that, likely different column.
+        let max_indent_tolerance = (stats.body_font_size * 5.0).min(72.0);
+
+        // For headers, allow even more (headers may span columns)
         let max_margin = if a.block_type == BlockType::SectionHeader {
-            stats.column_alignment_tolerance * 2.5
+            max_indent_tolerance * 1.5
         } else {
-            stats.column_alignment_tolerance
+            max_indent_tolerance
         };
 
-        // Column separation: blocks in different columns shouldn't merge
+        // Column separation: blocks clearly in different columns shouldn't merge
+        // WHY: Column gap is typically 15-20% of page width
         let horizontal_zone_threshold = stats.page_width * 0.15;
         if margin_diff > horizontal_zone_threshold {
             tracing::debug!(
@@ -392,7 +409,7 @@ impl BlockMergeProcessor {
         let accept = margin_diff <= max_margin;
         if !accept {
             tracing::debug!(
-                "BlockMerge: REJECT - margin {} > {}",
+                "BlockMerge: REJECT - margin {} > {} (indent tolerance)",
                 margin_diff,
                 max_margin
             );
@@ -405,17 +422,15 @@ impl BlockMergeProcessor {
     /// Determine which column a block belongs to.
     ///
     /// **WHY:** Allows BlockMergeProcessor to respect column boundaries.
-    /// 
+    ///
     /// **OODA-20 FIX:** Use block's LEFT EDGE (x1) for column assignment, not center.
     /// Block widths vary wildly (narrow "ROI." vs wide "Elitizon designs...").
     /// Using center point caused adjacent blocks to be assigned to different columns
     /// when one is narrow and another is wide. The left edge represents where the
     /// block STARTS in the document, which is the true column indicator.
     fn get_block_column(&self, block: &Block, columns: &[BoundingBox]) -> usize {
-        let left_edge_point = crate::schema::Point::new(
-            block.bbox.x1,
-            block.bbox.y1 + block.bbox.height() / 2.0,
-        );
+        let left_edge_point =
+            crate::schema::Point::new(block.bbox.x1, block.bbox.y1 + block.bbox.height() / 2.0);
 
         // Find column containing the block's left edge
         for (idx, col) in columns.iter().enumerate() {
