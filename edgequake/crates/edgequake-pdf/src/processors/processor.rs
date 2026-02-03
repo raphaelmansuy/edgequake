@@ -217,30 +217,34 @@ impl Processor for SectionPatternProcessor {
         // Second pass: identify running headers
         let running_headers = self.find_running_headers(&document);
 
-        // Third pass: process blocks
+        // Third pass: process blocks with index-based iteration
+        // WHY: Index-based access allows us to peek at adjacent blocks for inline label detection
         for page in &mut document.pages {
-            for block in &mut page.blocks {
+            let block_count = page.blocks.len();
+            for i in 0..block_count {
                 // Skip blocks already classified as list items
                 // WHY: List items like "1. Item" should not become headers
-                if block.block_type == BlockType::ListItem {
+                if page.blocks[i].block_type == BlockType::ListItem {
                     continue;
                 }
 
-                if block.block_type != BlockType::Text && block.block_type != BlockType::Paragraph {
+                if page.blocks[i].block_type != BlockType::Text
+                    && page.blocks[i].block_type != BlockType::Paragraph
+                {
                     continue;
                 }
 
-                let text = block.text.trim();
+                let text = page.blocks[i].text.trim().to_string();
 
                 // Strategy 1: Check for running headers
                 if running_headers.contains(&text.to_lowercase()) {
-                    block.block_type = BlockType::PageHeader;
+                    page.blocks[i].block_type = BlockType::PageHeader;
                     continue;
                 }
 
                 // Strategy 2: Check for numbered section headers
                 // OODA-23: Skip figure/table captions that look like numbered sections
-                if let Some(captures) = self.section_regex.captures(text) {
+                if let Some(captures) = self.section_regex.captures(&text) {
                     if let (Some(num), Some(title)) = (captures.get(1), captures.get(2)) {
                         let section_num = num.as_str();
                         let title_text = title.as_str();
@@ -252,24 +256,54 @@ impl Processor for SectionPatternProcessor {
 
                         if !is_caption && title_text.len() < 80 && !title_text.ends_with('.') {
                             let level = self.calculate_level(section_num);
-                            block.block_type = BlockType::SectionHeader;
-                            block.level = Some(level);
+                            page.blocks[i].block_type = BlockType::SectionHeader;
+                            page.blocks[i].level = Some(level);
                         }
                     }
                 }
                 // Strategy 3: Check for special section names
-                else if self.is_special_section(text) {
-                    block.block_type = BlockType::SectionHeader;
-                    block.level = Some(2);
+                else if self.is_special_section(&text) {
+                    page.blocks[i].block_type = BlockType::SectionHeader;
+                    page.blocks[i].level = Some(2);
                 }
-                // Strategy 4: Font-size based detection
+                // Strategy 4: Font-size based detection with adjacent block check
                 else {
                     let (is_heading, level) =
-                        self.heading_classifier.classify(block, body_font_size);
+                        self.heading_classifier.classify(&page.blocks[i], body_font_size);
 
                     if is_heading {
-                        block.block_type = BlockType::SectionHeader;
-                        block.level = Some(level);
+                        // OODA-26: Check if next block indicates this is an inline label
+                        // WHY: Inline labels like "**Categorizing Tools:**" may have their
+                        // colon and continuation text split into the next block during extraction.
+                        // If next block starts with continuation patterns, don't classify as heading.
+                        let has_continuation_next = if i + 1 < block_count {
+                            let next_text = page.blocks[i + 1].text.trim_start();
+                            // Pattern 1: Next block starts with colon (split during extraction)
+                            let starts_with_colon = next_text.starts_with(':');
+                            // Pattern 2: Next block starts with article/continuation
+                            // "The diverse landscape..." following "Categorizing Tools for Perception"
+                            let next_lower = next_text.to_lowercase();
+                            let starts_with_article = next_lower.starts_with("the ")
+                                || next_lower.starts_with("a ")
+                                || next_lower.starts_with("an ")
+                                || next_lower.starts_with("this ");
+                            // Pattern 3: Next block starts with lowercase (continuation text)
+                            let starts_lowercase = next_text
+                                .chars()
+                                .next()
+                                .map(|c| c.is_lowercase())
+                                .unwrap_or(false);
+
+                            starts_with_colon || starts_with_article || starts_lowercase
+                        } else {
+                            false
+                        };
+
+                        // Only classify as heading if no continuation pattern detected
+                        if !has_continuation_next {
+                            page.blocks[i].block_type = BlockType::SectionHeader;
+                            page.blocks[i].level = Some(level);
+                        }
                     }
                 }
             }
@@ -623,14 +657,52 @@ impl Processor for StyleDetectionProcessor {
 
         for page in &mut document.pages {
             let is_first_page = page.number == 1;
+            let block_count = page.blocks.len();
 
-            for (block_idx, block) in page.blocks.iter_mut().enumerate() {
-                processor.detect_styles(block);
+            // OODA-26: Index-based iteration for adjacent block access
+            for block_idx in 0..block_count {
+                processor.detect_styles(&mut page.blocks[block_idx]);
                 // Pass context: first block on first page is likely the title
                 let is_first_block = is_first_page && block_idx == 0;
-                processor.detect_headers_with_context(block, is_first_block);
+                processor.detect_headers_with_context(&mut page.blocks[block_idx], is_first_block);
 
-                for child in &mut block.children {
+                // OODA-26: Post-hoc inline label detection using adjacent block
+                // WHY: Labels like "Categorizing Tools for Perception" followed by
+                // continuation text should NOT be classified as headings.
+                if page.blocks[block_idx].block_type == BlockType::SectionHeader
+                    && page.blocks[block_idx].level == Some(3)
+                {
+                    // Check if next block looks like continuation text
+                    if block_idx + 1 < block_count {
+                        let next_text = page.blocks[block_idx + 1].text.trim_start();
+                        let next_lower = next_text.to_lowercase();
+
+                        // Pattern 1: Next block starts with lowercase (continuation)
+                        let starts_lowercase = next_text
+                            .chars()
+                            .next()
+                            .map(|c| c.is_lowercase())
+                            .unwrap_or(false);
+
+                        // Pattern 2: Next block starts with article (continuation)
+                        let starts_with_article = next_lower.starts_with("the ")
+                            || next_lower.starts_with("a ")
+                            || next_lower.starts_with("an ")
+                            || next_lower.starts_with("this ");
+
+                        // Pattern 3: Next block starts with colon (split label)
+                        let starts_with_colon = next_text.starts_with(':');
+
+                        if starts_lowercase || starts_with_article || starts_with_colon {
+                            // Revert to text/paragraph - not a heading
+                            page.blocks[block_idx].block_type = BlockType::Text;
+                            page.blocks[block_idx].level = None;
+                        }
+                    }
+                }
+
+                // Process children
+                for child in &mut page.blocks[block_idx].children {
                     processor.detect_styles(child);
                     processor.detect_headers_with_context(child, false);
                 }
