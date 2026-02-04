@@ -93,7 +93,14 @@ pub mod text_grouping;
 #[cfg(feature = "lopdf")]
 pub mod truetype_cmap;
 
+#[cfg(feature = "pdfium")]
+pub mod pdfium;
+
+pub use elements::RawChar;
 #[cfg(feature = "lopdf")]
 pub use extraction_engine::ExtractionEngine;
 pub use mock::MockBackend;
 pub use spatial::{LineRect, LineSpatialIndex};
+
+#[cfg(feature = "pdfium")]
+pub use pdfium::PdfiumExtractor;

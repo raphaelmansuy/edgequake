@@ -33,27 +33,34 @@ for PDF-to-Markdown quality evaluation, replacing hand-crafted gold files.
 ## Fix Applied: Author Name Spacing (OODA-40a)
 
 ### Problem
+
 Author names like "Zhaoxi ZhangYitong DuanYanzhi Zhang" were merged without spaces
 because `merge_line()` was calculating word gap as:
+
 ```rust
 let spacing = elem.x - prev.x;  // Wrong: start-to-start distance
 ```
 
 ### Solution
+
 Added `width` field to `TextElement` and updated gap calculation:
+
 ```rust
 // Now calculates actual visual gap between elements
 let gap = elem.x - (prev.x + prev.width);
 ```
 
 ### Files Modified
+
 - `src/backend/elements.rs` - Added `width: f32` field
 - `src/backend/content_parser.rs` - Populate width from font size estimate
 - `src/backend/text_grouping.rs` - Use gap calculation instead of spacing
 - `src/backend/*_tests` - Updated test helper functions
 
 ### Results After Fix
+
 Author names now properly spaced:
+
 - Before: "Alexander NovikovNgân VuMarvin Eisenberger"
 - After: "Alexander Novikov, Ngân Vu, Marvin Eisenberger"
 
@@ -67,12 +74,12 @@ F1 score remains at 0.686 (main issue is two-column interleaving, not spacing).
 
 ## Baseline Scores (per document)
 
-| Document               | F1    | Notes                             |
-| ---------------------- | ----- | --------------------------------- |
-| agent_2510.09244v1     | 0.814 | Best score, simple layout         |
-| ccn_2512.21804v1       | 0.807 | Technical paper, good extraction  |
-| 2900_Goyal_et_al       | 0.722 | Academic paper                    |
-| v2_2512.25072v1        | 0.689 | Two-column issues                 |
-| AlphaEvolve            | 0.620 | Complex layout, column interleave |
-| one_tool_2512.20957v2  | 0.596 | Multi-column degradation          |
-| 01_2512.25075v1        | 0.552 | Worst: heavy two-column issues    |
+| Document              | F1    | Notes                             |
+| --------------------- | ----- | --------------------------------- |
+| agent_2510.09244v1    | 0.814 | Best score, simple layout         |
+| ccn_2512.21804v1      | 0.807 | Technical paper, good extraction  |
+| 2900_Goyal_et_al      | 0.722 | Academic paper                    |
+| v2_2512.25072v1       | 0.689 | Two-column issues                 |
+| AlphaEvolve           | 0.620 | Complex layout, column interleave |
+| one_tool_2512.20957v2 | 0.596 | Multi-column degradation          |
+| 01_2512.25075v1       | 0.552 | Worst: heavy two-column issues    |

@@ -74,6 +74,7 @@ pub mod formula;
 pub mod image_extraction;
 pub mod image_ocr;
 pub mod layout;
+pub mod pipeline;
 pub mod processors;
 pub mod progress;
 pub mod renderers;
@@ -128,6 +129,10 @@ pub use image_extraction::{ImageExtractor, PageImageStats};
 
 // Re-export progress callback types
 pub use progress::{CountingProgress, LoggingProgress, NoopProgress, ProgressCallback};
+
+// Re-export pipeline types when pdfium feature is enabled
+#[cfg(feature = "pdfium")]
+pub use pipeline::{PipelineConfig, PymupdfPipeline};
 
 // Pdfium backend removed from this crate. Use a separate optional crate if needed.
 

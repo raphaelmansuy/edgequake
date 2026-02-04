@@ -19,6 +19,10 @@ path = "src/bin/trace_content.rs"
 # Default features include lopdf backend for native PDF parsing
 default = ["lopdf"]
 lopdf = ["dep:lopdf"]
+# pdfium backend for accurate text extraction (requires libpdfium at runtime)
+# WHY: PDFium (Chromium's PDF engine) provides accurate character positions
+# that lopdf cannot match. This enables F1 >= 0.95 on gold standard tests.
+pdfium = ["dep:pdfium-render"]
 # Vision mode with PDF page rendering (uses pdftoppm from poppler-utils)
 # Requires: brew install poppler (macOS) or apt-get install poppler-utils (Linux)
 vision = []
@@ -50,6 +54,12 @@ futures.workspace = true
 
 # lopdf - local path dependency for PDF parsing
 lopdf = { path = "../../../lopdf", optional = true, default-features = false }
+
+# pdfium-render - Rust bindings to Google's PDFium for accurate text extraction
+# WHY: PDFium provides character-level bounding boxes and accurate positions
+# that lopdf cannot match. License: MIT OR Apache-2.0 (permissive).
+# Requires libpdfium.dylib/so at runtime from bblanchon/pdfium-binaries
+pdfium-render = { version = "0.8", optional = true }
 
 # TrueType font parsing for embedded fonts (cmap table extraction)
 # WHY: Subset TrueType fonts (like Calibri/Cambria in Office PDFs) embed

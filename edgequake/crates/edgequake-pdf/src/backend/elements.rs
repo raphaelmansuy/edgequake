@@ -1,3 +1,60 @@
+/// A single character with exact bounding box from PDFium.
+///
+/// WHY character-level extraction:
+/// - PDFium provides accurate character positions (unlike lopdf)
+/// - Enables pymupdf4llm-style layout analysis algorithms
+/// - Character-level precision for multi-column detection
+///
+/// ## pdfium-render API mapping:
+/// - `bounds()` → `x0, y0, x1, y1` (PDF points)
+/// - `origin()` → character baseline origin
+/// - `font_size()` → size in points
+#[derive(Debug, Clone)]
+pub struct RawChar {
+    /// The character itself
+    pub char: char,
+    /// Left edge of bounding box (PDF points, origin at bottom-left)
+    pub x0: f32,
+    /// Bottom edge of bounding box
+    pub y0: f32,
+    /// Right edge of bounding box
+    pub x1: f32,
+    /// Top edge of bounding box
+    pub y1: f32,
+    /// Font size in points
+    pub font_size: f32,
+    /// Font name (if available)
+    pub font_name: Option<String>,
+    /// Page number (0-indexed)
+    pub page_num: usize,
+}
+
+impl RawChar {
+    /// Width of the character bounding box
+    #[inline]
+    pub fn width(&self) -> f32 {
+        self.x1 - self.x0
+    }
+
+    /// Height of the character bounding box
+    #[inline]
+    pub fn height(&self) -> f32 {
+        self.y1 - self.y0
+    }
+
+    /// Center X coordinate
+    #[inline]
+    pub fn center_x(&self) -> f32 {
+        (self.x0 + self.x1) / 2.0
+    }
+
+    /// Center Y coordinate
+    #[inline]
+    pub fn center_y(&self) -> f32 {
+        (self.y0 + self.y1) / 2.0
+    }
+}
+
 /// Text element with position and font info
 #[derive(Debug, Clone)]
 pub struct TextElement {

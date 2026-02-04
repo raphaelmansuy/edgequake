@@ -1,0 +1,355 @@
+//! Markdown rendering from structured text blocks.
+//!
+//! This module converts structured `Block`s into Markdown format,
+//! handling:
+//! - Headers with proper # prefixes
+//! - Bold/italic text from font styles
+//! - Code blocks with monospace detection
+//! - Lists (bullet and numbered)
+//! - Paragraph separation
+
+use super::pymupdf_structs::{Block, BlockType, Line};
+
+/// Markdown renderer configuration.
+#[derive(Debug, Clone)]
+pub struct MarkdownConfig {
+    /// Insert blank lines between blocks
+    pub block_spacing: bool,
+    /// Preserve bold/italic styling
+    pub preserve_styles: bool,
+    /// Render code blocks with fences
+    pub fenced_code: bool,
+    /// Maximum heading level (1-6)
+    pub max_heading_level: u8,
+}
+
+impl Default for MarkdownConfig {
+    fn default() -> Self {
+        Self {
+            block_spacing: true,
+            preserve_styles: true,
+            fenced_code: true,
+            max_heading_level: 6,
+        }
+    }
+}
+
+/// Renders structured blocks to Markdown text.
+pub struct MarkdownRenderer {
+    config: MarkdownConfig,
+}
+
+impl MarkdownRenderer {
+    /// Create a new renderer with default config.
+    pub fn new() -> Self {
+        Self {
+            config: MarkdownConfig::default(),
+        }
+    }
+
+    /// Create a renderer with custom config.
+    pub fn with_config(config: MarkdownConfig) -> Self {
+        Self { config }
+    }
+
+    /// Render blocks to Markdown string.
+    pub fn render(&self, blocks: &[Block]) -> String {
+        let mut output = String::new();
+        let mut last_page = 0;
+
+        for (i, block) in blocks.iter().enumerate() {
+            // Add page separator if page changed
+            if block.page_num != last_page && i > 0 {
+                output.push_str("\n---\n\n");
+                last_page = block.page_num;
+            }
+
+            // Render this block
+            let block_text = self.render_block(block);
+            output.push_str(&block_text);
+
+            // Add spacing between blocks
+            if self.config.block_spacing && i < blocks.len() - 1 {
+                output.push_str("\n\n");
+            }
+        }
+
+        output
+    }
+
+    fn render_block(&self, block: &Block) -> String {
+        match block.block_type {
+            BlockType::Header(level) => self.render_header(block, level),
+            BlockType::Code => self.render_code(block),
+            BlockType::ListItem => self.render_list_item(block),
+            BlockType::Table => self.render_table(block),
+            BlockType::Paragraph => self.render_paragraph(block),
+        }
+    }
+
+    fn render_header(&self, block: &Block, level: u8) -> String {
+        let level = level.min(self.config.max_heading_level);
+        let prefix = "#".repeat(level as usize);
+        let text = self.render_lines_inline(&block.lines);
+        format!("{} {}", prefix, text.trim())
+    }
+
+    fn render_code(&self, block: &Block) -> String {
+        if self.config.fenced_code {
+            let code = block.lines
+                .iter()
+                .map(|l| self.render_line_plain(l))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("```\n{}\n```", code)
+        } else {
+            // Indent with 4 spaces
+            block.lines
+                .iter()
+                .map(|l| format!("    {}", self.render_line_plain(l)))
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+    }
+
+    fn render_list_item(&self, block: &Block) -> String {
+        // First line should have the bullet/number
+        // Subsequent lines are continuation
+        let mut lines_iter = block.lines.iter();
+
+        if let Some(first_line) = lines_iter.next() {
+            let first_text = self.render_line_styled(first_line);
+
+            // Check if we need to normalize the bullet
+            let normalized = normalize_bullet(&first_text);
+
+            let continuation: String = lines_iter
+                .map(|l| format!("  {}", self.render_line_styled(l)))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            if continuation.is_empty() {
+                normalized
+            } else {
+                format!("{}\n{}", normalized, continuation)
+            }
+        } else {
+            String::new()
+        }
+    }
+
+    fn render_table(&self, block: &Block) -> String {
+        // For now, just render as paragraph
+        // TODO: Implement proper table detection and rendering
+        self.render_paragraph(block)
+    }
+
+    fn render_paragraph(&self, block: &Block) -> String {
+        self.render_lines_inline(&block.lines)
+    }
+
+    /// Render multiple lines joined by spaces (for flowing text).
+    fn render_lines_inline(&self, lines: &[Line]) -> String {
+        lines
+            .iter()
+            .map(|l| self.render_line_styled(l))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// Render a line with style markers (bold, italic).
+    fn render_line_styled(&self, line: &Line) -> String {
+        if !self.config.preserve_styles {
+            return self.render_line_plain(line);
+        }
+
+        let mut parts = Vec::new();
+
+        for span in &line.spans {
+            let text = &span.text;
+            if text.trim().is_empty() {
+                parts.push(text.clone());
+                continue;
+            }
+
+            // Apply style markers
+            let styled = if span.is_bold() && span.is_italic() {
+                format!("***{}***", text.trim())
+            } else if span.is_bold() {
+                format!("**{}**", text.trim())
+            } else if span.is_italic() {
+                format!("*{}*", text.trim())
+            } else if span.is_monospace() && !matches!(text.trim().chars().next(), Some('`')) {
+                format!("`{}`", text.trim())
+            } else {
+                text.clone()
+            };
+
+            parts.push(styled);
+        }
+
+        parts.join(" ")
+    }
+
+    /// Render a line without style markers (plain text).
+    fn render_line_plain(&self, line: &Line) -> String {
+        line.spans
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+}
+
+impl Default for MarkdownRenderer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Normalize bullet characters to standard Markdown bullets.
+fn normalize_bullet(text: &str) -> String {
+    let trimmed = text.trim_start();
+
+    // Common bullet characters to normalize
+    const BULLETS: &[char] = &['•', '●', '○', '◦', '▪', '▫', '–', '—'];
+
+    for &bullet in BULLETS {
+        if let Some(rest) = trimmed.strip_prefix(bullet) {
+            return format!("- {}", rest.trim_start());
+        }
+    }
+
+    // Already standard bullet
+    if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
+        return text.to_string();
+    }
+
+    // Numbered list - keep as is
+    text.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layout::Span;
+
+    fn make_span(text: &str, font_name: &str, font_size: f32) -> Span {
+        Span {
+            text: text.to_string(),
+            x0: 0.0,
+            y0: 0.0,
+            x1: 100.0,
+            y1: font_size,
+            font_size,
+            font_name: Some(font_name.to_string()),
+            page_num: 0,
+        }
+    }
+
+    fn make_line(spans: Vec<Span>) -> Line {
+        let (x0, y0, x1, y1) = spans.iter().fold(
+            (f32::MAX, f32::MAX, f32::MIN, f32::MIN),
+            |(x0, y0, x1, y1), s| (x0.min(s.x0), y0.min(s.y0), x1.max(s.x1), y1.max(s.y1)),
+        );
+        Line {
+            spans,
+            x0,
+            y0,
+            x1,
+            y1,
+            page_num: 0,
+        }
+    }
+
+    #[test]
+    fn test_render_header() {
+        let renderer = MarkdownRenderer::new();
+
+        let block = Block {
+            lines: vec![make_line(vec![make_span("Introduction", "Arial-Bold", 24.0)])],
+            x0: 0.0,
+            y0: 0.0,
+            x1: 200.0,
+            y1: 24.0,
+            page_num: 0,
+            block_type: BlockType::Header(1),
+        };
+
+        let md = renderer.render(&[block]);
+        assert!(md.contains("# "));
+        assert!(md.contains("Introduction"));
+    }
+
+    #[test]
+    fn test_render_bold_italic() {
+        let renderer = MarkdownRenderer::new();
+
+        let block = Block {
+            lines: vec![make_line(vec![
+                make_span("Normal", "Arial", 12.0),
+                make_span("bold", "Arial-Bold", 12.0),
+                make_span("italic", "Arial-Italic", 12.0),
+            ])],
+            x0: 0.0,
+            y0: 0.0,
+            x1: 200.0,
+            y1: 12.0,
+            page_num: 0,
+            block_type: BlockType::Paragraph,
+        };
+
+        let md = renderer.render(&[block]);
+        assert!(md.contains("**bold**"), "Missing bold: {}", md);
+        assert!(md.contains("*italic*"), "Missing italic: {}", md);
+    }
+
+    #[test]
+    fn test_render_code_block() {
+        let renderer = MarkdownRenderer::new();
+
+        let block = Block {
+            lines: vec![
+                make_line(vec![make_span("fn main() {", "Courier", 12.0)]),
+                make_line(vec![make_span("    println!(\"Hello\");", "Courier", 12.0)]),
+                make_line(vec![make_span("}", "Courier", 12.0)]),
+            ],
+            x0: 0.0,
+            y0: 0.0,
+            x1: 200.0,
+            y1: 36.0,
+            page_num: 0,
+            block_type: BlockType::Code,
+        };
+
+        let md = renderer.render(&[block]);
+        assert!(md.contains("```"), "Missing code fence: {}", md);
+        assert!(md.contains("fn main()"), "Missing code content: {}", md);
+    }
+
+    #[test]
+    fn test_normalize_bullet() {
+        assert_eq!(normalize_bullet("• Item one"), "- Item one");
+        assert_eq!(normalize_bullet("● Item two"), "- Item two");
+        assert_eq!(normalize_bullet("- Already normal"), "- Already normal");
+        assert_eq!(normalize_bullet("1. Numbered"), "1. Numbered");
+    }
+
+    #[test]
+    fn test_render_list() {
+        let renderer = MarkdownRenderer::new();
+
+        let block = Block {
+            lines: vec![make_line(vec![make_span("• First item", "Arial", 12.0)])],
+            x0: 0.0,
+            y0: 0.0,
+            x1: 200.0,
+            y1: 12.0,
+            page_num: 0,
+            block_type: BlockType::ListItem,
+        };
+
+        let md = renderer.render(&[block]);
+        assert!(md.contains("- First item"), "Missing normalized bullet: {}", md);
+    }
+}

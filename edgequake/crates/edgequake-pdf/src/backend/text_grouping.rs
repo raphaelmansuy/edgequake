@@ -1060,30 +1060,69 @@ impl TextGrouper {
                     // because it includes the width of the previous text.
                     let gap = elem.x - (prev.x + prev.width);
 
-                    // Avoid inserting spaces before punctuation.
-                    let starts_with_punct = elem
-                        .text
-                        .chars()
-                        .next()
-                        .map(|c| matches!(c, ',' | '.' | ':' | ';' | ')' | ']' | '}' | '?' | '!'))
-                        .unwrap_or(false);
+                    // OODA-42 FIX: Detect overlapping elements (negative gap)
+                    // WHY (First Principles): When two text elements have X positions that overlap,
+                    // they CANNOT be on the same visual line. This happens when Y-tolerance
+                    // incorrectly groups consecutive PDF lines together.
+                    // Example: "can" at X=316.6, width=21.9 ends at X=338.5
+                    //          "datasets" at X=317.2 starts BEFORE prev ends → gap=-21.3
+                    // The fix: ALWAYS insert a space when gap is significantly negative.
+                    // A negative gap > font_size indicates elements from different lines.
+                    let significant_overlap = gap < -(avg_font_size * 0.5);
 
-                    // If prev already has a space, require a much larger gap to insert another.
-                    // This handles cases like ' Mansu' -> 'y' where the leading space in prev
-                    // already accounts for word separation.
-                    let effective_threshold = if prev_has_space {
-                        word_gap_threshold * 2.0 // Much stricter: 3x typical spacing
-                    } else {
-                        word_gap_threshold // Normal: 1.5x typical spacing
-                    };
-
-                    // Only insert space if gap exceeds the effective threshold
-                    if gap > effective_threshold && !starts_with_punct {
+                    if significant_overlap {
+                        tracing::info!(
+                            "OODA-42: Negative gap detected, inserting space. prev='{}' curr='{}' gap={:.1}",
+                            &prev.text.chars().take(20).collect::<String>(),
+                            &elem.text.chars().take(20).collect::<String>(),
+                            gap
+                        );
                         text.push(' ');
                         if let Some(last) = spans.last_mut() {
                             last.text.push(' ');
                         } else {
                             spans.push(TextSpan::plain(" "));
+                        }
+                    } else {
+                        // OODA-40: Debug tracing for word gap detection
+                        tracing::debug!(
+                            "MERGE-GAP: prev='{}' x={:.1} w={:.1} | curr='{}' x={:.1} | gap={:.1} thresh={:.1}",
+                            &prev.text.chars().take(20).collect::<String>(),
+                            prev.x,
+                            prev.width,
+                            &elem.text.chars().take(20).collect::<String>(),
+                            elem.x,
+                            gap,
+                            word_gap_threshold
+                        );
+
+                        // Avoid inserting spaces before punctuation.
+                        let starts_with_punct = elem
+                            .text
+                            .chars()
+                            .next()
+                            .map(|c| {
+                                matches!(c, ',' | '.' | ':' | ';' | ')' | ']' | '}' | '?' | '!')
+                            })
+                            .unwrap_or(false);
+
+                        // If prev already has a space, require a much larger gap to insert another.
+                        // This handles cases like ' Mansu' -> 'y' where the leading space in prev
+                        // already accounts for word separation.
+                        let effective_threshold = if prev_has_space {
+                            word_gap_threshold * 2.0 // Much stricter: 3x typical spacing
+                        } else {
+                            word_gap_threshold // Normal: 1.5x typical spacing
+                        };
+
+                        // Only insert space if gap exceeds the effective threshold
+                        if gap > effective_threshold && !starts_with_punct {
+                            text.push(' ');
+                            if let Some(last) = spans.last_mut() {
+                                last.text.push(' ');
+                            } else {
+                                spans.push(TextSpan::plain(" "));
+                            }
                         }
                     }
                 }
