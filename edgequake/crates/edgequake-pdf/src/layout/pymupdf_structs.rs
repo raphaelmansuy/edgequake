@@ -98,12 +98,12 @@ impl Span {
         // A space is typically ~0.25-0.33 of font size
         let space_width = self.font_size * 0.25;
         let gap = ch.x0 - self.x1;
-        
+
         // If gap is larger than a space, it's a word boundary → new span
         if gap > space_width {
             return false;
         }
-        
+
         // If gap is negative (overlapping or backwards), reject
         // unless it's minor overlap from kerning
         let avg_char_width = (self.x1 - self.x0) / self.text.len().max(1) as f32;
@@ -207,6 +207,11 @@ impl Line {
     }
 
     /// Check if a span belongs on this line (same baseline).
+    ///
+    /// Returns false if:
+    /// - Span is on a different page
+    /// - Vertical alignment differs by more than tolerance
+    /// - There's a large horizontal gap (column gutter detection)
     pub fn can_add_span(&self, span: &Span, tolerance: f32) -> bool {
         if self.page_num != span.page_num {
             return false;
@@ -214,7 +219,29 @@ impl Line {
 
         // Compare baseline (bottom of character)
         // Also allow top alignment for consistency
-        (self.y0 - span.y0).abs() <= tolerance || (self.y1 - span.y1).abs() <= tolerance
+        let vertically_aligned = (self.y0 - span.y0).abs() <= tolerance 
+            || (self.y1 - span.y1).abs() <= tolerance;
+        
+        if !vertically_aligned {
+            return false;
+        }
+
+        // Check for column gutter - large horizontal gap suggests different column
+        // A typical column gutter in academic papers is 15-30pt
+        // We use 50pt as a generous threshold
+        let column_gap_threshold = 50.0;
+        
+        // Check if this span would be far from the current line extent
+        let gap_from_line = if span.x0 > self.x1 {
+            span.x0 - self.x1  // span is to the right
+        } else if self.x0 > span.x1 {
+            self.x0 - span.x1  // span is to the left
+        } else {
+            0.0  // overlapping
+        };
+        
+        // If the gap is larger than a typical column gutter, treat as different line
+        gap_from_line < column_gap_threshold
     }
 
     /// Add a span to this line.
@@ -234,11 +261,12 @@ impl Line {
     /// Get the full text of this line with appropriate spacing between spans.
     ///
     /// Uses gap analysis to determine if a space is needed between spans.
+    /// Avoids adding spaces before hyphens/dashes to preserve hyphenated words.
     pub fn text(&self) -> String {
         if self.spans.is_empty() {
             return String::new();
         }
-        
+
         if self.spans.len() == 1 {
             return self.spans[0].text.clone();
         }
@@ -249,13 +277,24 @@ impl Line {
                 // Check gap between this span and previous
                 let prev = &self.spans[i - 1];
                 let gap = span.x0 - prev.x1;
-                
+
                 // Only add space if there's a significant gap
                 // Use the average font size for threshold
                 let avg_size = (prev.font_size + span.font_size) / 2.0;
                 let space_threshold = avg_size * 0.15; // ~15% of font size
-                
-                if gap > space_threshold {
+
+                // Don't add space if current span starts with hyphen/dash
+                // This preserves hyphenated words like "Qwen2.5-7B-Instruct"
+                let starts_with_hyphen = span.text.starts_with('-') 
+                    || span.text.starts_with('–')  // en-dash
+                    || span.text.starts_with('—'); // em-dash
+
+                // Don't add space if previous span ends with hyphen
+                let ends_with_hyphen = prev.text.ends_with('-')
+                    || prev.text.ends_with('–')
+                    || prev.text.ends_with('—');
+
+                if gap > space_threshold && !starts_with_hyphen && !ends_with_hyphen {
                     result.push(' ');
                 }
             }

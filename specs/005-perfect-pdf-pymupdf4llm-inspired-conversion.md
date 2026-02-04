@@ -312,6 +312,11 @@ Mission file: `specs/005-perfect-pdf-pymupdf4llm-inspired-conversion.md`
 
 ---
 
+
+VERY IMPORTANT ENSURE the metrics used really reflect quaility of extraction compared to pymupdf4llm gold standards. Use First Principles to design the best metrics possible. What about Rouge / bleu / words difference / structural similarity, etc.
+
+When implementing, prioritize correctness and maintainability over micro-optimizations. Focus on clear, well-documented code that accurately replicates pymupdf4llm's algorithms. zz-explore/pymupdf4llm is your reference for algorithmic behavior. If you have better ideas that improve quality while adhering to constraints, document them thoroughly in the OODA loop.
+
 Important:
 
 Ensure to clean old implementations and document all changes thoroughly when pdfium-render is fully integrated.
