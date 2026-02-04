@@ -707,6 +707,24 @@ impl TextGrouper {
             if is_letter_subsection_header(trimmed) {
                 return BlockType::Header(3);
             }
+
+            // OODA-08: Check for numeric section headers (level 2)
+            // Patterns: "1. Introduction", "2. Related Works", "3. Method"
+            if is_numeric_section_header(trimmed) {
+                return BlockType::Header(2);
+            }
+
+            // OODA-08: Check for numeric subsection headers (level 3)
+            // Patterns: "2.1. Agentic Training", "3.2. Agent Architecture"
+            if is_numeric_subsection_header(trimmed) {
+                return BlockType::Header(3);
+            }
+
+            // OODA-08: Check for Abstract header
+            // Patterns: "Abstract", "ABSTRACT"
+            if is_abstract_header(trimmed) {
+                return BlockType::Header(2);
+            }
         }
 
         // Check for header (larger font size, single line usually)
@@ -826,6 +844,126 @@ fn is_letter_subsection_header(text: &str) -> bool {
         }
         _ => false,
     }
+}
+
+/// Check if text starts with a numeric section pattern.
+/// OODA-08: Detects "1. Introduction", "2. Related Works", etc.
+///
+/// WHY: ICML/NeurIPS-style papers use numbers for major sections.
+/// These are typically level 2 headings (##).
+fn is_numeric_section_header(text: &str) -> bool {
+    // Must have at least 4 chars: "1. X"
+    if text.len() < 4 {
+        return false;
+    }
+
+    // OODA-08 fix: Section headers are short (typically under 50 chars)
+    // Longer text is likely a sentence starting with a number, not a header
+    if text.len() > 50 {
+        return false;
+    }
+
+    let mut chars = text.chars().peekable();
+
+    // Check for 1-2 digits
+    let mut digit_count = 0;
+    while let Some(&c) = chars.peek() {
+        if c.is_ascii_digit() {
+            digit_count += 1;
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    // Must have exactly 1-2 digits (section numbers 1-99)
+    if digit_count == 0 || digit_count > 2 {
+        return false;
+    }
+
+    // Must be followed by "." and space
+    match (chars.next(), chars.next()) {
+        (Some('.'), Some(' ')) => {
+            // Rest should start with uppercase (section title)
+            // e.g., "1. Introduction" or "2. Related Works"
+            let rest: String = chars.collect();
+            // Additional check: no colon in the title (colons indicate definitions, not headers)
+            if rest.contains(':') {
+                return false;
+            }
+            rest.chars()
+                .next()
+                .map(|c| c.is_uppercase())
+                .unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
+/// Check if text starts with a numeric subsection pattern.
+/// OODA-08: Detects "2.1. Agentic Training", "3.2. Agent Architecture", etc.
+///
+/// WHY: Many papers use X.Y numbering for subsections.
+/// These are typically level 3 headings (###).
+fn is_numeric_subsection_header(text: &str) -> bool {
+    // Must have at least 6 chars: "1.1. X"
+    if text.len() < 6 {
+        return false;
+    }
+
+    let mut chars = text.chars().peekable();
+
+    // Check for first number (1-2 digits)
+    let mut has_first = false;
+    while let Some(&c) = chars.peek() {
+        if c.is_ascii_digit() {
+            has_first = true;
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    if !has_first {
+        return false;
+    }
+
+    // Must have "." separator
+    if chars.next() != Some('.') {
+        return false;
+    }
+
+    // Check for second number (1-2 digits)
+    let mut has_second = false;
+    while let Some(&c) = chars.peek() {
+        if c.is_ascii_digit() {
+            has_second = true;
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    if !has_second {
+        return false;
+    }
+
+    // Must be followed by "." and space (or just space for "2.1 Title" variant)
+    match chars.next() {
+        Some('.') => match chars.next() {
+            Some(' ') => chars.next().map(|c| c.is_uppercase()).unwrap_or(false),
+            _ => false,
+        },
+        Some(' ') => chars.next().map(|c| c.is_uppercase()).unwrap_or(false),
+        _ => false,
+    }
+}
+
+/// Check if text is an "Abstract" header.
+/// OODA-08: Detects "Abstract", "ABSTRACT", "Abstract:"
+fn is_abstract_header(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower == "abstract" || lower == "abstract:" || lower.starts_with("abstract ")
 }
 
 impl Default for TextGrouper {
