@@ -141,12 +141,29 @@ impl Span {
     }
 
     /// Check if this span is bold based on font name.
+    ///
+    /// Detects bold by looking for common patterns in font names:
+    /// - "bold" - Standard bold indicator
+    /// - "black" - Heavy weight (bolder than bold)
+    /// - "heavy" - Heavy weight
+    /// - "medi" - Medium weight (often used for emphasis in academic papers)
+    /// - "semi" - SemiBold weight
+    /// - "demi" - DemiBold weight
+    ///
+    /// WHY medi/semi/demi: Many PDFs use font naming conventions where
+    /// "Medium" or "Medi" indicates emphasis, not literal medium weight.
+    /// For example, NimbusRomNo9L-Medi is used for titles in IEEE papers.
     pub fn is_bold(&self) -> bool {
         self.font_name
             .as_ref()
             .map(|n| {
                 let lower = n.to_lowercase();
-                lower.contains("bold") || lower.contains("black") || lower.contains("heavy")
+                lower.contains("bold")
+                    || lower.contains("black")
+                    || lower.contains("heavy")
+                    || lower.contains("medi") // Medium (NimbusRomNo9L-Medi)
+                    || lower.contains("semi") // SemiBold
+                    || lower.contains("demi") // DemiBold
             })
             .unwrap_or(false)
     }
