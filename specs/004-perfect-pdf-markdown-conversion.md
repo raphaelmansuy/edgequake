@@ -11,17 +11,54 @@ Your mission is to achieve **production-grade, high-fidelity PDF to Markdown con
 
 ## 🚀 Primary Goals (Updated Feb 2026)
 
-| Goal                  | Target       | Current         | Priority      |
-| --------------------- | ------------ | --------------- | ------------- |
-| **Speed**             | <1s per page | 0.028-0.104s ✅ | ACHIEVED      |
-| **Quality (TPS)**     | ≥98%         | 81.3%           | P0 - Critical |
-| **Quality (SFS)**     | ≥95%         | 68.0%           | P0 - Critical |
-| **Smoke Test Time**   | <1s total    | 0.07s ✅        | Achieved      |
-| **Feature Test Time** | <5s total    | 0.32s ✅        | Achieved      |
-| **Micro Tests**       | <0.1s each   | 0.02-0.22s ✅   | Achieved      |
+| Goal                  | Target       | Current              | Priority      |
+| --------------------- | ------------ | -------------------- | ------------- |
+| **Speed**             | <1s per page | 0.028-0.104s ✅      | ACHIEVED      |
+| **Quality (TPS)**     | ≥98%         | 81.3%                | P0 - Critical |
+| **Quality (SFS)**     | ≥95%         | 68.0%                | P0 - Critical |
+| **vs pymupdf4llm F1** | ≥90%         | **68.6%** (baseline) | P0 - Critical |
+| **Smoke Test Time**   | <1s total    | 0.07s ✅             | Achieved      |
+| **Feature Test Time** | <5s total    | 0.32s ✅             | Achieved      |
+| **Micro Tests**       | <0.1s each   | 0.02-0.22s ✅        | Achieved      |
 
+## 📐 Gold Standard Strategy (OODA-40)
 
-Real code of zz-explore/pymupdf4llm is available for study to find algorithms and architecture patterns. Study in depth this code to find inspiration for your own implementation in Rust.
+### Reference Tool: pymupdf4llm
+
+We use **pymupdf4llm** (PyMuPDF's LLM-optimized extraction, 1.3K⭐) as the reference
+gold standard generator because:
+
+1. **Production-proven**: Used by major RAG pipelines
+2. **Pure extraction**: No ML models, no hallucination
+3. **Faithful to PDF structure**: Preserves physical layout accurately
+4. **Multi-column handling**: Proper left-to-right, top-to-bottom reading order
+
+### Gold Generation
+
+```bash
+# Generate pymupdf4llm gold standards for all test PDFs
+python3 scripts/generate_gold_pymupdf4llm.py --pdf-dir edgequake/crates/edgequake-pdf/test-data/real_dataset
+
+# Compare our output against pymupdf4llm gold
+python3 scripts/compare_against_pymupdf.py --pdf-dir edgequake/crates/edgequake-pdf/test-data/real_dataset
+```
+
+### Current Status vs pymupdf4llm (Feb 2026)
+
+| Document              | F1 Score  | Issue                                   |
+| --------------------- | --------- | --------------------------------------- |
+| agent_2510.09244v1    | 0.814     | Best performer                          |
+| ccn_2512.21804v1      | 0.807     | Good                                    |
+| 2900_Goyal_et_al      | 0.722     | Column interleaving                     |
+| v2_2512.25072v1       | 0.689     | Author spacing, column issues           |
+| AlphaEvolve           | 0.620     | Complex multi-column layout             |
+| one_tool_2512.20957v2 | 0.597     | Two-column interleaving, author spacing |
+| 01_2512.25075v1       | 0.553     | Worst - investigate column detection    |
+| **AVERAGE**           | **0.686** | Target: ≥0.90                           |
+
+---
+
+Real code of zz-explore/pymupdf4llm is available for study to find algorithms and architecture patterns. Study in depth this code to find inspiration for your own implementation in Rust. Use the layout feature package of pymupdf4llm to find inspiration about layout analysis algorithms.
 
 ---
 

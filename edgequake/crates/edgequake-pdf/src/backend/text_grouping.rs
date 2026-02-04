@@ -1053,8 +1053,12 @@ impl TextGrouper {
                     && !prev_ends_with_space
                     && !elem_starts_with_space
                 {
-                    // Calculate actual gap between elements
-                    let spacing = elem.x - prev.x;
+                    // WHY: Calculate actual visual gap between elements
+                    // Gap = current start - (previous start + previous width)
+                    // This is the KEY fix for author name spacing issues.
+                    // Using elem.x - prev.x gives start-to-start distance which is WRONG
+                    // because it includes the width of the previous text.
+                    let gap = elem.x - (prev.x + prev.width);
 
                     // Avoid inserting spaces before punctuation.
                     let starts_with_punct = elem
@@ -1073,8 +1077,8 @@ impl TextGrouper {
                         word_gap_threshold // Normal: 1.5x typical spacing
                     };
 
-                    // Only insert space if spacing exceeds the effective threshold
-                    if spacing > effective_threshold && !starts_with_punct {
+                    // Only insert space if gap exceeds the effective threshold
+                    if gap > effective_threshold && !starts_with_punct {
                         text.push(' ');
                         if let Some(last) = spans.last_mut() {
                             last.text.push(' ');
@@ -1186,6 +1190,8 @@ mod tests {
     use super::*;
 
     fn make_element(x: f32, y: f32, text: &str, font_size: f32) -> TextElement {
+        // Estimate width as char_count * font_size * 0.55 (average char width)
+        let estimated_width = text.chars().count() as f32 * font_size * 0.55;
         TextElement {
             text: text.to_string(),
             x,
@@ -1195,6 +1201,7 @@ mod tests {
             is_bold: false,
             is_italic: false,
             is_rotated: false,
+            width: estimated_width,
         }
     }
 

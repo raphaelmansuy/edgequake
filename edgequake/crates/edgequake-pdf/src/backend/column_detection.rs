@@ -47,7 +47,11 @@ impl ColumnDetector {
     /// Detect columns with fallback to hint.
     /// OODA-09: If standard detection fails but we have a hint,
     /// verify that elements exist on both sides of the hint boundary.
-    pub fn detect_columns_with_hint(&self, elements: &[TextElement], page_width: f32) -> Option<f32> {
+    pub fn detect_columns_with_hint(
+        &self,
+        elements: &[TextElement],
+        page_width: f32,
+    ) -> Option<f32> {
         // First try standard detection
         if let Some(boundary) = self.detect_columns(elements, page_width) {
             return Some(boundary);
@@ -282,7 +286,7 @@ impl ColumnDetector {
         // FIX: Use absolute pixel values for arXiv-style papers (612pt width)
         // For non-arXiv papers, scale proportionally but with better overlap tolerance.
         let column_boundary = page_width * 0.49; // ~300pt for 612pt page
-        let left_zone_end = page_width * 0.45;   // ~275pt - left column ends before gutter
+        let left_zone_end = page_width * 0.45; // ~275pt - left column ends before gutter
         let right_zone_start = page_width * 0.48; // ~294pt - right column starts after gutter
 
         let mut left_starts = 0;
@@ -310,7 +314,10 @@ impl ColumnDetector {
             );
             info!(
                 "Zone counts: left={}, gap={}, right={} (total={})",
-                left_starts, gap_starts, right_starts, elements.len()
+                left_starts,
+                gap_starts,
+                right_starts,
+                elements.len()
             );
         }
 
@@ -562,10 +569,12 @@ mod tests {
     use super::*;
 
     fn make_element(x: f32, y: f32, text: &str) -> TextElement {
+        let width = text.chars().count() as f32 * 12.0 * 0.55;
         TextElement {
             text: text.to_string(),
             x,
             y,
+            width,
             font_name: "test".to_string(),
             font_size: 12.0,
             is_bold: false,
@@ -675,12 +684,18 @@ mod tests {
         // for arXiv papers with tables/figures that have mostly left-column content.
         // With right_zone_start at 48% (293.8pt) and right elements at X=400,
         // zone detection finds: left=30, right=2, balance=6.25% > 3% → detects columns
-        assert!(result.is_some(), "Should detect columns with new 3% threshold");
-        
+        assert!(
+            result.is_some(),
+            "Should detect columns with new 3% threshold"
+        );
+
         // Verify boundary is reasonable (between left and right content)
         if let Some(boundary) = result {
-            assert!(boundary > 100.0 && boundary < 400.0, 
-                "Boundary {} should be between left (100) and right (400)", boundary);
+            assert!(
+                boundary > 100.0 && boundary < 400.0,
+                "Boundary {} should be between left (100) and right (400)",
+                boundary
+            );
         }
     }
 

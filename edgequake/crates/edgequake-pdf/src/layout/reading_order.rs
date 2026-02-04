@@ -117,6 +117,7 @@ impl ReadingOrderDetector {
         // Assign blocks to columns
         let mut column_blocks: Vec<Vec<usize>> = vec![Vec::new(); columns.len()];
         let mut spanning_blocks: Vec<usize> = Vec::new();
+        let mut footer_blocks: Vec<usize> = Vec::new(); // OODA-38: Footer/affiliation blocks
         let mut unassigned: Vec<usize> = Vec::new();
 
         for (idx, block) in blocks.iter().enumerate() {
@@ -142,6 +143,10 @@ impl ReadingOrderDetector {
                 Some(ColumnAssignment::Spanning) => {
                     spanning_blocks.push(idx);
                 }
+                Some(ColumnAssignment::Footer) => {
+                    // OODA-38: Footer blocks go at the very end
+                    footer_blocks.push(idx);
+                }
                 None => {
                     unassigned.push(idx);
                 }
@@ -149,10 +154,11 @@ impl ReadingOrderDetector {
         }
 
         tracing::info!(
-            "MULTI-COL: col0={} blocks, col1={} blocks, spanning={}, unassigned={}",
+            "MULTI-COL: col0={} blocks, col1={} blocks, spanning={}, footer={}, unassigned={}",
             column_blocks.first().map(|v| v.len()).unwrap_or(0),
             column_blocks.get(1).map(|v| v.len()).unwrap_or(0),
             spanning_blocks.len(),
+            footer_blocks.len(),
             unassigned.len()
         );
 
@@ -164,8 +170,17 @@ impl ReadingOrderDetector {
         // Sort spanning blocks by Y position
         self.sort_by_position(&mut spanning_blocks, blocks);
 
-        // Merge columns respecting spanning elements
-        self.merge_column_orders(&column_blocks, &spanning_blocks, &unassigned, blocks)
+        // Sort footer blocks by Y position (for consistent ordering)
+        self.sort_by_position(&mut footer_blocks, blocks);
+
+        // Merge columns respecting spanning elements, with footer at the end
+        self.merge_column_orders_with_footer(
+            &column_blocks,
+            &spanning_blocks,
+            &footer_blocks,
+            &unassigned,
+            blocks,
+        )
     }
 
     /// Assign a block to a column.
@@ -184,6 +199,39 @@ impl ReadingOrderDetector {
 
         if is_title_candidate || is_long_text_at_top {
             return Some(ColumnAssignment::Spanning);
+        }
+
+        // OODA-38 FIX: Detect footer/affiliation content that should appear at the end
+        // WHY: Affiliations like "1School of Computer Science, Peking University" were
+        // appearing between left column body and right column body. They should appear
+        // AFTER all body content from both columns.
+        //
+        // Heuristics for footer/affiliation detection:
+        // 1. Block is near bottom of page (Y > 550 in normalized coords where page ~650 tall)
+        // 2. Contains affiliation keywords (University, School of, Academy, @, etc.)
+        // 3. Starts with superscript number pattern (1, 2, etc.)
+        let is_near_bottom = block.bbox.y1 > 550.0;
+        let text = &block.text;
+        let looks_like_affiliation = text.contains("University")
+            || text.contains("School of")
+            || text.contains("Academy")
+            || text.contains("Department of")
+            || text.contains("Correspondence")
+            || text.contains('@')
+            || (text.starts_with('1')
+                && text.len() > 1
+                && !text.chars().nth(1).unwrap_or(' ').is_ascii_digit())
+            || (text.starts_with('2')
+                && text.len() > 1
+                && !text.chars().nth(1).unwrap_or(' ').is_ascii_digit());
+
+        if is_near_bottom && looks_like_affiliation {
+            tracing::debug!(
+                "OODA-38: Detected footer/affiliation: Y={:.1} '{}'",
+                block.bbox.y1,
+                &text[..text.len().min(50)]
+            );
+            return Some(ColumnAssignment::Footer);
         }
 
         let center_x = block.bbox.center().x;
@@ -312,6 +360,33 @@ impl ReadingOrderDetector {
         result
     }
 
+    /// OODA-38: Merge column orders with footer blocks at the very end.
+    ///
+    /// This ensures affiliations, footnotes, and other bottom-of-page content
+    /// appears AFTER all body content from all columns, not interleaved.
+    fn merge_column_orders_with_footer(
+        &self,
+        column_blocks: &[Vec<usize>],
+        spanning: &[usize],
+        footer_blocks: &[usize],
+        unassigned: &[usize],
+        blocks: &[Block],
+    ) -> Vec<usize> {
+        // First, use the standard merge for body content
+        let mut result = self.merge_column_orders(column_blocks, spanning, unassigned, blocks);
+
+        // OODA-38: Footer blocks go at the very end, after ALL body content
+        if !footer_blocks.is_empty() {
+            tracing::debug!(
+                "OODA-38: Appending {} footer blocks at end of reading order",
+                footer_blocks.len()
+            );
+            result.extend_from_slice(footer_blocks);
+        }
+
+        result
+    }
+
     /// Determine reading order with XY-cut tree.
     pub fn from_xy_cut_order(&self, xy_cut_order: &[usize]) -> ReadingOrder {
         ReadingOrder::new(xy_cut_order.to_vec())
@@ -331,6 +406,11 @@ enum ColumnAssignment {
     Single(usize),
     /// Block spans multiple columns
     Spanning,
+    /// Block is footer/affiliation content that should appear at the end
+    /// WHY (OODA-38): Affiliations like "1School of Computer Science" were being
+    /// assigned to left column and appearing between left body and right body.
+    /// They should appear AFTER all body content from both columns.
+    Footer,
 }
 
 #[cfg(test)]

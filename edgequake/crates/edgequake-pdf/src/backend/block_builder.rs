@@ -323,10 +323,12 @@ mod tests {
     use super::*;
 
     fn make_element(text: &str, x: f32, y: f32) -> TextElement {
+        let width = text.chars().count() as f32 * 12.0 * 0.55;
         TextElement {
             text: text.to_string(),
             x,
             y,
+            width,
             font_size: 12.0,
             font_name: "Times-Roman".to_string(),
             is_bold: false,
