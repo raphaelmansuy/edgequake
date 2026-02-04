@@ -375,6 +375,83 @@ impl TextGrouper {
             }
         }
 
+        // OODA-07 FIX: Rescue title-zone elements from right_column that belong to the same line
+        // as left_column elements that are ALSO in the title metadata zone.
+        //
+        // WHY: Author names are often centered and span across the column boundary. For example:
+        //   "Haozhi Qi, Yen-Jen Wang, ... Koushil Sreenath ∗" at X=96 (left column)
+        //   ", Jitendra Malik †" at X=433 (right column)
+        //
+        // Both have Y ≈ 27-31, meaning they're on the same visual line. But the second fragment
+        // gets classified as right_column because X > column_boundary. This causes the author
+        // name to appear in the middle of body text instead of at the top with other authors.
+        //
+        // CONSTRAINT: Only apply when there are spanning elements detected (indicating a title page).
+        // AND only for elements in the title metadata zone (Y < header zone, i.e., very near top).
+        // This prevents rescuing body text that happens to have left_column content at same Y.
+        let mut rescued_to_left: Vec<TextElement> = Vec::new();
+        let mut keep_in_right: Vec<TextElement> = Vec::new();
+
+        // OODA-07: Only rescue elements that meet ALL of these criteria:
+        // 1. There ARE spanning elements (indicating this is a title page)
+        // 2. The element's Y > 15 (author lines are below title, not at Y=0 where body text often starts)
+        // 3. The element's Y < 60 (authors are near top, not in body)
+        // 4. There's a left_column element at the SAME Y (±5pt) that's also in this Y range
+        // 5. The element looks like an author continuation (starts with comma, or contains name-like text)
+        //
+        // WHY these constraints:
+        // - Y > 15: Titles are at Y≈0, authors at Y≈25-45. Body text can also start at Y=0.
+        // - Y < 60: Authors don't go past Y=60 typically
+        // - Same-Y check: Author fragments must be on the same visual line
+        // - Continuation check: `, Jitendra Malik` starts with comma
+
+        for elem in right_column.drain(..) {
+            let should_rescue = if !spanning_elements.is_empty() {
+                // Only consider elements between Y=15 and Y=60 (author zone)
+                let in_author_zone = elem.y > 15.0 && elem.y < 60.0;
+                
+                if in_author_zone {
+                    // Check if there's a left_column element at EXACTLY same Y (tight tolerance)
+                    let y_tolerance = elem.font_size.max(5.0);
+                    let has_left_sibling = left_column.iter().any(|left| {
+                        (left.y - elem.y).abs() < y_tolerance 
+                            && left.y > 15.0 
+                            && left.y < 60.0
+                    });
+
+                    // Also check if element looks like author continuation
+                    // Common patterns: starts with comma, contains superscript symbols, short text
+                    let looks_like_continuation = elem.text.trim().starts_with(',')
+                        || elem.text.contains('†')
+                        || elem.text.contains('∗')
+                        || elem.text.contains('*')
+                        || (elem.text.len() < 30 && elem.y > 20.0);
+
+                    has_left_sibling && looks_like_continuation
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if should_rescue {
+                info!(
+                    "OODA-07: Rescuing right element Y={:.1} X={:.1} to left: '{}'",
+                    elem.y,
+                    elem.x,
+                    Self::safe_truncate(&elem.text, 40)
+                );
+                rescued_to_left.push(elem);
+            } else {
+                keep_in_right.push(elem);
+            }
+        }
+
+        // Merge rescued elements into left_column (they'll be sorted by Y later)
+        left_column.extend(rescued_to_left);
+        right_column = keep_in_right;
+
         // OODA-27: Log the element separation for debugging
         info!(
             "TG-SEPARATION: spanning={}, left={}, right={}, left_footer={}, right_footer={}",
