@@ -96,7 +96,8 @@ impl MarkdownRenderer {
 
     fn render_code(&self, block: &Block) -> String {
         if self.config.fenced_code {
-            let code = block.lines
+            let code = block
+                .lines
                 .iter()
                 .map(|l| self.render_line_plain(l))
                 .collect::<Vec<_>>()
@@ -104,7 +105,8 @@ impl MarkdownRenderer {
             format!("```\n{}\n```", code)
         } else {
             // Indent with 4 spaces
-            block.lines
+            block
+                .lines
                 .iter()
                 .map(|l| format!("    {}", self.render_line_plain(l)))
                 .collect::<Vec<_>>()
@@ -360,7 +362,11 @@ mod tests {
         let renderer = MarkdownRenderer::new();
 
         let block = Block {
-            lines: vec![make_line(vec![make_span("Introduction", "Arial-Bold", 24.0)])],
+            lines: vec![make_line(vec![make_span(
+                "Introduction",
+                "Arial-Bold",
+                24.0,
+            )])],
             x0: 0.0,
             y0: 0.0,
             x1: 200.0,
@@ -443,6 +449,10 @@ mod tests {
         };
 
         let md = renderer.render(&[block]);
-        assert!(md.contains("- First item"), "Missing normalized bullet: {}", md);
+        assert!(
+            md.contains("- First item"),
+            "Missing normalized bullet: {}",
+            md
+        );
     }
 }

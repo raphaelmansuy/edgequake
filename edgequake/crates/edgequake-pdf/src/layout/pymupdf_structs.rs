@@ -95,12 +95,14 @@ impl Span {
         }
 
         // Check horizontal gap for word boundary detection
-        // A space is typically ~0.25-0.33 of font size
-        let space_width = self.font_size * 0.25;
+        // WHY: Characters within a word have minimal gaps (kerning, ~0-15% of font size)
+        // Word boundaries have larger gaps (space character ~25-33% of font size)
+        // Using 25% threshold to detect word boundaries
+        let space_threshold = self.font_size * 0.25;
         let gap = ch.x0 - self.x1;
 
-        // If gap is larger than a space, it's a word boundary → new span
-        if gap > space_width {
+        // If gap is larger than threshold, it's a word boundary → new span
+        if gap > space_threshold {
             return false;
         }
 
@@ -208,40 +210,27 @@ impl Line {
 
     /// Check if a span belongs on this line (same baseline).
     ///
+    /// OODA-04 FIX: Simplified to match pymupdf4llm's get_raw_lines.py behavior.
+    /// Only checks vertical alignment - column detection happens at block level.
+    ///
+    /// WHY: The previous implementation checked horizontal gaps during line joining,
+    /// which breaks when spans are processed in non-left-to-right order (e.g., sorted
+    /// by Y first). pymupdf4llm only checks vertical alignment here.
+    ///
     /// Returns false if:
     /// - Span is on a different page
     /// - Vertical alignment differs by more than tolerance
-    /// - There's a large horizontal gap (column gutter detection)
     pub fn can_add_span(&self, span: &Span, tolerance: f32) -> bool {
         if self.page_num != span.page_num {
             return false;
         }
 
-        // Compare baseline (bottom of character)
-        // Also allow top alignment for consistency
+        // Compare baseline (y0) or top (y1) - matches pymupdf4llm get_raw_lines.py:178
+        // "if any of top or bottom coordinates are close enough, join..."
         let vertically_aligned = (self.y0 - span.y0).abs() <= tolerance 
             || (self.y1 - span.y1).abs() <= tolerance;
         
-        if !vertically_aligned {
-            return false;
-        }
-
-        // Check for column gutter - large horizontal gap suggests different column
-        // A typical column gutter in academic papers is 15-30pt
-        // We use 50pt as a generous threshold
-        let column_gap_threshold = 50.0;
-        
-        // Check if this span would be far from the current line extent
-        let gap_from_line = if span.x0 > self.x1 {
-            span.x0 - self.x1  // span is to the right
-        } else if self.x0 > span.x1 {
-            self.x0 - span.x1  // span is to the left
-        } else {
-            0.0  // overlapping
-        };
-        
-        // If the gap is larger than a typical column gutter, treat as different line
-        gap_from_line < column_gap_threshold
+        vertically_aligned
     }
 
     /// Add a span to this line.

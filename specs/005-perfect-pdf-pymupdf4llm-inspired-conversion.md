@@ -405,3 +405,5 @@ Ensure to clean old implementations and document all changes thoroughly when pdf
 | 02   | 2026-02-04 | Space character synthesis                        | Word F1: 0.874→0.892 (+0.018)     |
 | 03   | 2026-02-04 | **NEW METRICS**: Comprehensive Quality Score     | Revealed Quality=0.573 (was 0.877)|
 | 03   | 2026-02-04 | Added ROUGE-L, BLEU-4, Structure, Format metrics | Gap identified: 0.377 vs 0.073    |
+| 04   | 2025-01-27 | **FIX**: Removed column gutter check from line join | Quality: 0.573→0.675 (+18%)    |
+| 04   | 2025-01-27 | Line fragmentation fixed (9892→1814 lines)       | ROUGE-L: 0.491→0.702 (+43%)       |
