@@ -756,14 +756,11 @@ impl TextGrouper {
         }
 
         // Check for list item
+        // OODA-09: Expanded bullet detection based on pymupdf4llm's BULLETS list
         if let Some(first_line) = block.lines.first() {
             let text = first_line.text();
             let trimmed = text.trim_start();
-            if trimmed.starts_with("• ")
-                || trimmed.starts_with("- ")
-                || trimmed.starts_with("* ")
-                || is_numbered_list_item(trimmed)
-            {
+            if is_bullet_item(trimmed) || is_numbered_list_item(trimmed) {
                 return BlockType::ListItem;
             }
         }
@@ -964,6 +961,57 @@ fn is_numeric_subsection_header(text: &str) -> bool {
 fn is_abstract_header(text: &str) -> bool {
     let lower = text.to_lowercase();
     lower == "abstract" || lower == "abstract:" || lower.starts_with("abstract ")
+}
+
+/// OODA-09: Check if text starts with a bullet character.
+/// Based on pymupdf4llm's comprehensive BULLETS list.
+///
+/// WHY: PDFs use many different bullet characters beyond just `•`, `-`, `*`.
+/// This includes various Unicode bullet points, dashes, and geometric shapes.
+fn is_bullet_item(text: &str) -> bool {
+    if text.is_empty() {
+        return false;
+    }
+
+    // Get the first character
+    let first_char = text.chars().next().unwrap();
+
+    // Check if it's a known bullet character
+    let is_bullet = matches!(
+        first_char,
+        '\u{2A}'     // * asterisk
+        | '\u{2D}'   // - hyphen-minus
+        | '\u{3E}'   // > greater-than
+        | '\u{6F}'   // o lowercase o (sometimes used as bullet)
+        | '\u{B6}'   // ¶ pilcrow
+        | '\u{B7}'   // · middle dot
+        | '\u{2010}' // ‐ hyphen
+        | '\u{2011}' // ‑ non-breaking hyphen
+        | '\u{2012}' // ‒ figure dash
+        | '\u{2013}' // – en dash
+        | '\u{2014}' // — em dash
+        | '\u{2015}' // ― horizontal bar
+        | '\u{2020}' // † dagger
+        | '\u{2021}' // ‡ double dagger
+        | '\u{2022}' // • bullet
+        | '\u{2212}' // − minus sign
+        | '\u{2219}' // ∙ bullet operator
+        | '\u{F0A7}' // private use (common in PDFs)
+        | '\u{F0B7}' // private use (common in PDFs)
+        | '\u{FFFD}' // replacement character
+        | '\u{25A0}'..='\u{25FF}' // geometric shapes block (squares, circles, etc.)
+    );
+
+    // If first char is bullet, check that it's followed by space
+    if is_bullet {
+        // Must be followed by a space to be a list item
+        if text.len() > first_char.len_utf8() {
+            let rest = &text[first_char.len_utf8()..];
+            return rest.starts_with(' ') || rest.starts_with('\t');
+        }
+    }
+
+    false
 }
 
 impl Default for TextGrouper {
