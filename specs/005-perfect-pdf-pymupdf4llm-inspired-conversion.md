@@ -4,6 +4,8 @@
 
 Your mission is to implement a completely new PDF-to-Markdown extraction pipeline using **pure Rust** with **pdfium-render** as the PDF backend. The goal is to achieve F1 >= 0.95 against pymupdf4llm gold standards by implementing pymupdf4llm's core algorithms in Rust.
 
+FULLY  Read THIS MISSION FILE at the start of every OODA iteration.
+
 ## Context
 
 - **Location**: `edgequake/crates/edgequake-pdf/src/`
@@ -245,18 +247,88 @@ For block Q:
 
 ---
 
-## Success Metrics
+## Quality Metrics (Multi-Dimensional Evaluation)
 
-| Metric                | Baseline | Target  | Status        |
-| --------------------- | -------- | ------- | ------------- |
-| Average F1            | 0.685    | >= 0.95 | [In Progress] |
-| 01_2512.25075v1       | 0.552    | >= 0.90 | [Pending]     |
-| one_tool_2512.20957v2 | 0.596    | >= 0.90 | [Pending]     |
-| AlphaEvolve           | 0.620    | >= 0.90 | [Pending]     |
-| v2_2512.25072v1       | 0.689    | >= 0.90 | [Pending]     |
-| 2900_Goyal_et_al      | 0.722    | >= 0.90 | [Pending]     |
-| ccn_2512.21804v1      | 0.807    | >= 0.90 | [Pending]     |
-| agent_2510.09244v1    | 0.810    | >= 0.90 | [Pending]     |
+### CRITICAL: Why Word F1 Alone is Misleading
+
+The original word-set F1 metric has fatal flaws:
+
+1. **SET ignores ORDER**: "the cat sat" vs "sat cat the" score identically
+2. **SET ignores DUPLICATES**: Common words in academic papers are lost
+3. **Strips markdown**: Doesn't verify headers, bold, italic preservation
+4. **False confidence**: Old F1=0.877 vs Real Quality=0.573 (43% overestimated!)
+
+### Comprehensive Quality Score (NEW - Feb 2025)
+
+We now use a 4-dimensional evaluation:
+
+```
+QUALITY = 0.40×ROUGE-L + 0.30×Word_F1 + 0.15×Structure + 0.10×Format + 0.05×BLEU-4
+```
+
+#### Dimension 1: Content Accuracy (Word F1)
+- **What**: Bag-of-words F1 with multiset (counts duplicates)
+- **Captures**: Vocabulary coverage - are the right words present?
+- **Weight**: 30% of quality score
+
+#### Dimension 2: Order Preservation (ROUGE-L)
+- **What**: Longest Common Subsequence F1
+- **Captures**: Reading order - are words in correct sequence?
+- **Weight**: 40% of quality score (MOST IMPORTANT)
+- **Formula**: `ROUGE-L = F1(LCS/extracted, LCS/gold)`
+
+#### Dimension 3: Structural Fidelity
+- **What**: Heading count, paragraph count, line count ratios
+- **Captures**: Document layout preservation
+- **Weight**: 15% of quality score
+- **Components**: `0.4×headings + 0.3×paragraphs + 0.3×lines`
+
+#### Dimension 4: Formatting Fidelity
+- **What**: Bold, italic, list marker count ratios
+- **Captures**: Markdown formatting preservation
+- **Weight**: 10% of quality score
+- **Components**: `0.4×bold + 0.4×italic + 0.2×lists`
+
+### Current Status (Feb 2025)
+
+| Metric                | Current  | Target  | Gap     |
+| --------------------- | -------- | ------- | ------- |
+| **Quality Score**     | 0.573    | >= 0.95 | -0.377  |
+| ROUGE-L (order)       | 0.491    | >= 0.90 | -0.409  |
+| Word F1 (content)     | 0.914    | >= 0.95 | -0.036  |
+| Structure Score       | 0.295    | >= 0.80 | -0.505  |
+| Format Score          | 0.312    | >= 0.70 | -0.388  |
+
+### Per-File Breakdown
+
+| File                  | Quality | ROUGE-L | Word F1 | Struct | Format |
+| --------------------- | ------- | ------- | ------- | ------ | ------ |
+| ccn_2512.21804v1      | 0.652   | 0.555   | 0.941   | 0.349  | 0.597  |
+| 2900_Goyal_et_al      | 0.606   | 0.591   | 0.937   | 0.200  | 0.329  |
+| v2_2512.25072v1       | 0.577   | 0.437   | 0.919   | 0.621  | 0.000  |
+| 01_2512.25075v1       | 0.562   | 0.439   | 0.880   | 0.331  | 0.435  |
+| AlphaEvolve           | 0.546   | 0.445   | 0.865   | 0.186  | 0.655  |
+| agent_2510.09244v1    | 0.543   | 0.505   | 0.951   | 0.131  | 0.154  |
+| one_tool_2512.20957v2 | 0.525   | 0.468   | 0.902   | 0.249  | 0.014  |
+
+### Key Insight: The Real Problem
+
+**Content extraction is working (F1=0.914)** but **reading order is broken (ROUGE-L=0.491)**.
+
+The pipeline is extracting ~91% of words correctly but only ~49% are in the correct order.
+This indicates problems in:
+1. Block sorting/reading order algorithm
+2. Multi-column detection
+3. Line grouping tolerances
+
+### Evaluation Script
+
+Run comprehensive evaluation:
+```bash
+python3 scripts/eval_comprehensive.py           # All files
+python3 scripts/eval_comprehensive.py --verbose  # With details
+python3 scripts/eval_comprehensive.py -f Alpha   # Single file
+```
 
 ---
 
@@ -315,6 +387,9 @@ Mission file: `specs/005-perfect-pdf-pymupdf4llm-inspired-conversion.md`
 
 VERY IMPORTANT ENSURE the metrics used really reflect quaility of extraction compared to pymupdf4llm gold standards. Use First Principles to design the best metrics possible. What about Rouge / bleu / words difference / structural similarity, etc.
 
+
+Fully review how F1 score is computed and ensure it captures all aspects of quality. If needed, propose new metrics or adjustments to existing ones to better reflect extraction fidelity.
+
 When implementing, prioritize correctness and maintainability over micro-optimizations. Focus on clear, well-documented code that accurately replicates pymupdf4llm's algorithms. zz-explore/pymupdf4llm is your reference for algorithmic behavior. If you have better ideas that improve quality while adhering to constraints, document them thoroughly in the OODA loop.
 
 Important:
@@ -323,7 +398,10 @@ Ensure to clean old implementations and document all changes thoroughly when pdf
 
 ## Changelog
 
-| OODA | Date       | Change                               | F1 Impact                 |
-| ---- | ---------- | ------------------------------------ | ------------------------- |
-| 01   | 2026-02-04 | Initial mission creation             | Baseline: 0.685           |
-| 01   | 2026-02-04 | Changed to pure Rust + pdfium-render | N/A (architecture change) |
+| OODA | Date       | Change                                           | Quality Impact                    |
+| ---- | ---------- | ------------------------------------------------ | --------------------------------- |
+| 01   | 2026-02-04 | Initial mission creation                         | Baseline: Word F1=0.685           |
+| 01   | 2026-02-04 | Changed to pure Rust + pdfium-render             | N/A (architecture change)         |
+| 02   | 2026-02-04 | Space character synthesis                        | Word F1: 0.874→0.892 (+0.018)     |
+| 03   | 2026-02-04 | **NEW METRICS**: Comprehensive Quality Score     | Revealed Quality=0.573 (was 0.877)|
+| 03   | 2026-02-04 | Added ROUGE-L, BLEU-4, Structure, Format metrics | Gap identified: 0.377 vs 0.073    |
