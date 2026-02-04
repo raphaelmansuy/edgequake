@@ -148,6 +148,7 @@ impl PdfiumExtractor {
             .map_err(|e| PdfError::Backend(format!("Failed to get page text: {e}")))?;
 
         let mut chars = Vec::new();
+        let mut last_x1: f32 = 0.0; // Track last character's right edge
 
         for char_obj in text.chars().iter() {
             // Get the character - unicode_char() returns Option<char>
@@ -156,29 +157,44 @@ impl PdfiumExtractor {
                 None => continue, // Skip chars without unicode representation
             };
 
-            // Skip whitespace characters that don't have meaningful bounds
-            if c.is_whitespace() {
+            // Skip control characters (but NOT spaces/tabs/newlines)
+            if c.is_control() && c != ' ' && c != '\n' && c != '\t' {
                 continue;
             }
 
             // Get bounds - tight_bounds() returns Result<PdfRect, PdfiumError>
-            let bounds = match char_obj.tight_bounds() {
-                Ok(rect) => rect,
-                Err(_) => continue, // Skip chars without bounds
+            // WHY: Spaces often don't have tight bounds in PDFium, but they mark word boundaries.
+            // For spaces, we synthesize a position based on the last character.
+            let (x0, y0, x1, y1, font_size, font_name) = if c.is_whitespace() {
+                // Space character - synthesize bounds from last character
+                // Use last_x1 as position and small width
+                let fs = char_obj.scaled_font_size().value;
+                // Position the space right after the last character
+                (last_x1, 0.0, last_x1 + fs * 0.25, fs, fs, Some(char_obj.font_name()))
+            } else {
+                // Normal character - get actual bounds
+                let bounds = match char_obj.tight_bounds() {
+                    Ok(rect) => rect,
+                    Err(_) => continue, // Skip chars without bounds
+                };
+                let fs = char_obj.scaled_font_size().value;
+                last_x1 = bounds.right().value;
+                (
+                    bounds.left().value,
+                    bounds.bottom().value,
+                    bounds.right().value,
+                    bounds.top().value,
+                    fs,
+                    Some(char_obj.font_name()),
+                )
             };
-
-            // Get font size - scaled_font_size() returns PdfPoints
-            let font_size = char_obj.scaled_font_size().value;
-
-            // Get font name
-            let font_name = Some(char_obj.font_name());
 
             chars.push(RawChar {
                 char: c,
-                x0: bounds.left().value,
-                y0: bounds.bottom().value,
-                x1: bounds.right().value,
-                y1: bounds.top().value,
+                x0,
+                y0,
+                x1,
+                y1,
                 font_size,
                 font_name,
                 page_num,

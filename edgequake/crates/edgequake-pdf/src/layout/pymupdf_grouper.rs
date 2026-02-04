@@ -29,7 +29,9 @@ impl Default for GroupingParams {
     fn default() -> Self {
         Self {
             line_tolerance: 3.0,
-            block_gap: 20.0,
+            // WHY: pymupdf4llm uses 10pt as max vertical gap for joining blocks
+            // (multi_column.py line 242: `abs(r0.y1 - r.y0) <= 10`)
+            block_gap: 10.0,
             column_overlap: 0.5,
         }
     }
@@ -53,6 +55,24 @@ impl TextGrouper {
         Self { params }
     }
 
+    /// Check if a character is horizontal text (not rotated/vertical).
+    ///
+    /// Rotated text (like arXiv margin dates) has bbox where height >> width.
+    /// For horizontal text, width is typically similar to or greater than height.
+    ///
+    /// WHY: pymupdf4llm filters non-horizontal text at get_text_lines.py:121
+    /// `if abs(1 - line_dir[0]) > 1e-3: continue`
+    /// Since PDFium doesn't give us direction vectors, we approximate using bbox aspect ratio.
+    ///
+    /// NOTE: This filter is currently disabled because PDFium character bboxes
+    /// often have height > width even for horizontal text. Need better heuristic.
+    #[allow(dead_code)]
+    fn is_horizontal_char(_ch: &RawChar) -> bool {
+        // TODO: Implement proper vertical text detection using character sequence analysis
+        // The aspect ratio approach doesn't work because normal text often has height > width
+        true
+    }
+
     /// Group raw characters into spans.
     ///
     /// Characters are grouped when they have:
@@ -70,9 +90,20 @@ impl TextGrouper {
         let mut current_span = Span::new(chars[0].page_num);
 
         for ch in chars {
-            // Skip control characters and zero-width chars
-            if ch.char.is_control() || ch.x0 >= ch.x1 {
+            // Skip control characters (except space) and zero-width chars
+            if (ch.char.is_control() && !ch.char.is_whitespace()) || ch.x0 >= ch.x1 {
                 continue;
+            }
+
+            // WHY: Spaces are word boundary markers - they should break spans but not be included
+            // This is how pymupdf4llm handles spaces: they mark word boundaries in the text stream
+            if ch.char.is_whitespace() {
+                // Space character forces word boundary - save current span and start fresh
+                if !current_span.text.is_empty() {
+                    spans.push(current_span);
+                }
+                current_span = Span::new(ch.page_num);
+                continue; // Don't include the space in any span
             }
 
             if current_span.can_append(ch) {
@@ -184,10 +215,96 @@ impl TextGrouper {
             }
         }
 
+        // WHY: Phase 2 normalization from pymupdf4llm (multi_column.py lines 213-245)
+        // Normalizes x0/x1 boundaries within 3pt tolerance, then merges close blocks
+        Self::join_blocks_phase2(&mut all_blocks);
+
         // Apply reading order sorting (left column first, then right)
         self.sort_blocks_reading_order(&mut all_blocks);
 
         all_blocks
+    }
+
+    /// Phase 2 block joining from pymupdf4llm (multi_column.py lines 213-245).
+    ///
+    /// Algorithm:
+    /// 1. Normalize x0/x1 boundaries: align to nearest neighbor within 3pt
+    /// 2. Merge blocks with same boundaries and vertical gap <= 10pt
+    ///
+    /// WHY: This reduces fragmentation by merging paragraphs that should be together.
+    fn join_blocks_phase2(blocks: &mut Vec<Block>) {
+        const BOUNDARY_TOLERANCE: f32 = 3.0;
+        const VERTICAL_GAP_MAX: f32 = 10.0;
+
+        if blocks.len() < 2 {
+            return;
+        }
+
+        // Phase 2a: Normalize x0/x1 boundaries
+        // For each block, find the most common x0/x1 within tolerance and align to it
+        let x0_values: Vec<f32> = blocks.iter().map(|b| b.x0).collect();
+        let x1_values: Vec<f32> = blocks.iter().map(|b| b.x1).collect();
+
+        for block in blocks.iter_mut() {
+            // Normalize x0 to min of nearby values
+            let min_x0 = x0_values
+                .iter()
+                .filter(|&&x| (x - block.x0).abs() <= BOUNDARY_TOLERANCE)
+                .fold(block.x0, |acc, &x| acc.min(x));
+            block.x0 = min_x0;
+
+            // Normalize x1 to max of nearby values
+            let max_x1 = x1_values
+                .iter()
+                .filter(|&&x| (x - block.x1).abs() <= BOUNDARY_TOLERANCE)
+                .fold(block.x1, |acc, &x| acc.max(x));
+            block.x1 = max_x1;
+        }
+
+        // Sort by (page, x0, y1 descending)
+        blocks.sort_by(|a, b| {
+            a.page_num
+                .cmp(&b.page_num)
+                .then(a.x0.partial_cmp(&b.x0).unwrap())
+                .then(b.y1.partial_cmp(&a.y1).unwrap()) // top to bottom
+        });
+
+        // Phase 2b: Merge blocks with similar boundaries and close Y
+        let mut i = 0;
+        while i < blocks.len().saturating_sub(1) {
+            let can_merge = {
+                let current = &blocks[i];
+                let next = &blocks[i + 1];
+
+                // Same page
+                current.page_num == next.page_num
+                    // Similar left boundary
+                    && (current.x0 - next.x0).abs() <= BOUNDARY_TOLERANCE
+                    // Similar right boundary
+                    && (current.x1 - next.x1).abs() <= BOUNDARY_TOLERANCE
+                    // Close vertically (current is above next, gap <= 10pt)
+                    && (current.y0 - next.y1).abs() <= VERTICAL_GAP_MAX
+            };
+
+            if can_merge {
+                // Merge next into current
+                let next = blocks.remove(i + 1);
+                let current = &mut blocks[i];
+                current.lines.extend(next.lines);
+                current.y0 = current.y0.min(next.y0);
+                current.y1 = current.y1.max(next.y1);
+                current.x0 = current.x0.min(next.x0);
+                current.x1 = current.x1.max(next.x1);
+                // Don't increment i - check the merged block again
+            } else {
+                i += 1;
+            }
+        }
+
+        // Re-sort lines within each block
+        for block in blocks.iter_mut() {
+            block.sort_lines();
+        }
     }
 
     /// Detect column boundaries from lines.
@@ -336,34 +453,103 @@ impl TextGrouper {
         all_blocks
     }
 
-    /// Sort blocks in reading order: left column first (top-to-bottom), then right column.
+    /// Sort blocks in reading order using pymupdf4llm's smart sort key.
     ///
-    /// This is different from simple (y, x) sorting because we want to read
-    /// all of column 1 before column 2.
+    /// WHY: pymupdf4llm uses a sophisticated reading order algorithm (multi_column.py lines 283-305):
+    /// For each block Q, find the left-most block P with vertical overlap.
+    /// Sort key = (P.y0, Q.x0), ensuring Q comes after P in reading order.
+    ///
+    /// ```text
+    ///        Q +---------+
+    ///          | next is |
+    ///    P +-------+  this  |   For block Q: sort key = (P.y0, Q.x0)
+    ///      | left  |  block |   This ensures Q comes after P
+    ///      | block |        |
+    ///      +-------+--------+
+    /// ```
     fn sort_blocks_reading_order(&self, blocks: &mut [Block]) {
         if blocks.is_empty() {
             return;
         }
 
-        // Calculate page center for column assignment
-        let page_left = blocks.iter().map(|b| b.x0).fold(f32::MAX, f32::min);
-        let page_right = blocks.iter().map(|b| b.x1).fold(f32::MIN, f32::max);
-        let page_center = (page_left + page_right) / 2.0;
+        // Create blocks with computed sort keys
+        let mut keyed_blocks: Vec<(&Block, (usize, i32, i32))> = blocks
+            .iter()
+            .enumerate()
+            .map(|(idx, block)| {
+                let key = self.compute_smart_sort_key(idx, blocks);
+                (block, key)
+            })
+            .collect();
 
-        // Sort: first by column (left < right), then by y within column
-        blocks.sort_by(|a, b| {
-            let a_center = (a.x0 + a.x1) / 2.0;
-            let b_center = (b.x0 + b.x1) / 2.0;
+        // Sort by computed key (page, y_key, x_key)
+        keyed_blocks.sort_by_key(|(_, key)| *key);
 
-            // Determine column (0 = left, 1 = right)
-            let a_col = if a_center < page_center { 0 } else { 1 };
-            let b_col = if b_center < page_center { 0 } else { 1 };
+        // Get the sorted indices
+        let sorted_indices: Vec<usize> = keyed_blocks.iter().enumerate().map(|(_, (b, _))| {
+            blocks.iter().position(|x| std::ptr::eq(x, *b)).unwrap()
+        }).collect();
 
-            a.page_num
-                .cmp(&b.page_num)
-                .then(a_col.cmp(&b_col)) // left column first
-                .then(b.y1.partial_cmp(&a.y1).unwrap()) // top to bottom within column
-        });
+        // Reorder blocks in-place using the sorted order
+        // Create a new sorted vector and swap
+        let mut sorted: Vec<Block> = Vec::with_capacity(blocks.len());
+        for &idx in &sorted_indices {
+            sorted.push(blocks[idx].clone());
+        }
+        blocks.clone_from_slice(&sorted);
+    }
+
+    /// Compute smart sort key for a block using pymupdf4llm algorithm.
+    ///
+    /// WHY: (multi_column.py lines 283-305)
+    /// Find the right-most block that is:
+    /// 1. To the left of current block (x1 < current.x0)
+    /// 2. Has vertical overlap with current block
+    ///
+    /// Sort key = (left_block.y0, current.x0) if found
+    /// Otherwise = (current.y0, current.x0)
+    fn compute_smart_sort_key(&self, block_idx: usize, blocks: &[Block]) -> (usize, i32, i32) {
+        let block = &blocks[block_idx];
+
+        // Find blocks to the left with vertical overlap
+        let left_blocks: Vec<&Block> = blocks
+            .iter()
+            .filter(|b| {
+                // Must be to the left
+                b.x1 < block.x0
+                    // Same page
+                    && b.page_num == block.page_num
+                    // Must have vertical overlap
+                    && Self::has_vertical_overlap(b, block)
+            })
+            .collect();
+
+        // Find the right-most of the left blocks (highest x1)
+        let y_key = if let Some(left_block) = left_blocks.iter().max_by(|a, b| {
+            a.x1.partial_cmp(&b.x1).unwrap()
+        }) {
+            // Use left block's top Y as the sort key Y
+            left_block.y0 as i32
+        } else {
+            // No left block found, use own Y
+            block.y0 as i32
+        };
+
+        // Convert to integers for stable sorting (Y is inverted because PDF Y=0 is at bottom)
+        let y_inverted = -y_key;  // Higher Y (top of page) should come first
+        let x_key = block.x0 as i32;
+
+        (block.page_num, y_inverted, x_key)
+    }
+
+    /// Check if two blocks have vertical overlap using pymupdf4llm's check.
+    ///
+    /// WHY: pymupdf4llm uses (box.y0 <= r.y0 <= box.y1 or box.y0 <= r.y1 <= box.y1)
+    /// This checks if either the top (y0) or bottom (y1) of block `a` falls within
+    /// the vertical range of block `b`.
+    fn has_vertical_overlap(a: &Block, b: &Block) -> bool {
+        // Either a's top is within b's vertical range, or a's bottom is within b's range
+        (b.y0 <= a.y0 && a.y0 <= b.y1) || (b.y0 <= a.y1 && a.y1 <= b.y1)
     }
 
     /// Full pipeline: chars → spans → lines → blocks
