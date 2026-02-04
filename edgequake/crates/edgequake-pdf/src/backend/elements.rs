@@ -62,7 +62,8 @@ pub struct TextElement {
     pub x: f32,
     pub y: f32,
     /// Estimated width of the text element in PDF points.
-    /// Calculated as char_count * font_size * 0.55 for proportional fonts.
+    /// OODA-06: Calculated as char_count * font_size * 0.48 based on PyMuPDF analysis.
+    /// Empirical data shows actual char width ratio is 0.43-0.53 (mean ~0.48).
     /// Used for accurate word gap detection in merge_line().
     pub width: f32,
     pub font_size: f32,

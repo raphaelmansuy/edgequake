@@ -30,11 +30,13 @@ impl ElementProcessor {
     pub fn new() -> Self {
         Self {
             position_tolerance: 2.0,
-            // WHY 0.55: Average character width is typically 55% of font size for most fonts.
-            // This is more accurate than the previous 0.4 which caused false gap detection.
-            // For 12pt font: 0.55 * 12 = 6.6pt average char width (realistic for body text)
-            // For 18pt heading: 0.55 * 18 = 9.9pt (close to actual ~10pt spacing seen in PDFs)
-            char_width_factor: 0.55,
+            // OODA-06: Empirically measured char_width_factor from PyMuPDF analysis.
+            // Original 0.55 was too high, causing width overestimates → negative gaps.
+            // Actual ratios measured on author names:
+            //   "Zhening Huang" (13 chars, 12pt): 74.7/12/13 = 0.48
+            //   "Yulia Gryaditskaya" (18 chars, 12pt): 92.0/12/18 = 0.43
+            // Using 0.48 as a balanced estimate prevents word gaps from being missed.
+            char_width_factor: 0.48,
         }
     }
 

@@ -72,12 +72,18 @@ impl FontInfo {
             || lower_name.contains("medi")   // OODA-09: Medium weight in Nimbus (NimbusRomNo9L-Medi)
             || lower_name.contains("-bold");
 
+        // OODA-05: Detect italic from font naming conventions.
+        // PyMuPDF uses font flags (bitmask) which is more reliable, but we only have font names.
+        // Computer Modern fonts from LaTeX use these conventions:
+        // - CMTI = CM Text Italic, CMMI = CM Math Italic, CMSY = CM Symbol (italic style)
+        // - CMMIB = CM Math Italic Bold
         let is_italic = lower_name.contains("italic") 
             || lower_name.contains("oblique")
             || lower_name.contains("ital")   // OODA-09: Abbreviated form used by Nimbus fonts (ReguItal, MediItal)
             || lower_name.contains("sfti")   // SF Text Italic - e.g., TXAXLJ+SFTI0900
             || lower_name.contains("cmti")   // Computer Modern Text Italic
             || lower_name.contains("cmmi")   // Computer Modern Math Italic
+            || lower_name.contains("cmsy")   // OODA-05: Computer Modern Symbol - italic style in arXiv papers
             || lower_name.contains("cmmib")  // Computer Modern Math Italic Bold
             || lower_name.contains("-italic");
 

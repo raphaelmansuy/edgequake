@@ -58,8 +58,11 @@ pub struct ReadingOrderDetector {
 impl ReadingOrderDetector {
     /// Create a new reading order detector.
     pub fn new() -> Self {
+        // OODA-04: Line tolerance changed from 5.0 to 3.0 to match pymupdf4llm
+        // WHY: 5pt was causing lines to incorrectly merge. pymupdf4llm uses 3pt
+        // which matches typical PDF coordinate precision.
         Self {
-            line_tolerance: 5.0,
+            line_tolerance: 3.0,
             _column_tolerance: 20.0,
         }
     }
@@ -176,8 +179,9 @@ impl ReadingOrderDetector {
 
         // OODA-41: Use smart sort key for WITHIN-column sorting
         // This ensures blocks at the same vertical level within a column are ordered correctly
+        // OODA-04 FIX: Actually call sort_by_smart_key (was incorrectly calling sort_by_position)
         for col_blocks in &mut column_blocks {
-            self.sort_by_position(col_blocks, blocks);
+            self.sort_by_smart_key(col_blocks, blocks);
         }
 
         // Sort spanning blocks by Y position

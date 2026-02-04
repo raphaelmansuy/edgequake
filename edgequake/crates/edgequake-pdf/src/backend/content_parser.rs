@@ -299,9 +299,15 @@ impl ContentParser {
                                 let is_rotated = Self::is_rotated_ctm(&ctm);
 
                                 // OODA-40: Calculate estimated width for word gap detection
-                                // Average char width is ~55% of font size for proportional fonts
+                                // OODA-06 FIX: Changed from 0.55 to 0.48 based on PyMuPDF analysis:
+                                // - Empirical data shows actual char width ratio is 0.43-0.53 (mean ~0.48)
+                                // - Using 0.55 caused gap underestimation, leading to missing spaces
+                                // - Example: 'Zhening Huang' (13 chars) at 12pt:
+                                //   - Old: 13*12*0.55 = 85.8pt (overestimate)
+                                //   - Actual: 74.7pt (ratio 0.48)
+                                //   - New: 13*12*0.48 = 74.9pt (accurate!)
                                 let char_count = text.chars().count() as f32;
-                                let estimated_width = char_count * font_size * 0.55;
+                                let estimated_width = char_count * font_size * 0.48;
 
                                 text_elements.push(TextElement {
                                     text: text.clone(),
@@ -339,9 +345,9 @@ impl ContentParser {
                                             self.decode_text_operand(item, current_font)
                                         {
                                             combined_text.push_str(&text);
-                                            // Add estimated width of this text run
+                                            // OODA-06: Add estimated width (0.48 ratio, not 0.55)
                                             let char_count = text.chars().count() as f32;
-                                            total_displacement += char_count * font_size * 0.55;
+                                            total_displacement += char_count * font_size * 0.48;
                                         }
                                     }
                                     Object::Integer(n) => {
@@ -393,9 +399,9 @@ impl ContentParser {
                                 // OODA-19: Detect rotated text
                                 let is_rotated = Self::is_rotated_ctm(&ctm);
 
-                                // OODA-40: Store width for word gap detection
+                                // OODA-40/OODA-06: Store width (0.48 ratio based on empirical data)
                                 let char_count = cleaned.chars().count() as f32;
-                                let estimated_width = char_count * font_size * 0.55;
+                                let estimated_width = char_count * font_size * 0.48;
 
                                 text_elements.push(TextElement {
                                     text: cleaned,
@@ -442,9 +448,9 @@ impl ContentParser {
                                 // OODA-19: Detect rotated text
                                 let is_rotated = Self::is_rotated_ctm(&ctm);
 
-                                // OODA-40: Calculate width for word gap detection
+                                // OODA-40/OODA-06: Calculate width (0.48 ratio based on PyMuPDF data)
                                 let char_count = cleaned.chars().count() as f32;
-                                let estimated_width = char_count * font_size * 0.55;
+                                let estimated_width = char_count * font_size * 0.48;
 
                                 text_elements.push(TextElement {
                                     text: cleaned.clone(),
