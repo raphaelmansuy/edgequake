@@ -161,6 +161,8 @@ impl MarkdownRenderer {
     ///
     /// This method applies style markers while respecting actual spacing
     /// between spans to avoid fragmenting words or adding extra spaces.
+    /// It also merges consecutive spans with the same style to avoid
+    /// creating invalid markdown like `*word**another*`.
     fn render_line_styled(&self, line: &Line) -> String {
         if !self.config.preserve_styles {
             return self.render_line_plain(line);
@@ -179,56 +181,67 @@ impl MarkdownRenderer {
             return self.style_text(text, span);
         }
 
-        // Build result with proper spacing
-        let mut result = String::new();
+        // Group consecutive spans with same style, including spaces within groups
+        let mut groups: Vec<(String, StyleType)> = Vec::new();
+        let mut current_text = String::new();
+        let mut current_style = get_style_type(&line.spans[0]);
+
         for (i, span) in line.spans.iter().enumerate() {
             // Determine if we need a space before this span
-            if i > 0 {
+            let needs_space = if i > 0 {
                 let prev = &line.spans[i - 1];
                 let gap = span.x0 - prev.x1;
                 let avg_size = (prev.font_size + span.font_size) / 2.0;
                 let space_threshold = avg_size * 0.15;
 
-                // Don't add space if current span starts with hyphen
                 let starts_with_hyphen = span.text.starts_with('-')
                     || span.text.starts_with('–')
                     || span.text.starts_with('—');
-
-                // Don't add space if previous span ends with hyphen
                 let ends_with_hyphen = prev.text.ends_with('-')
                     || prev.text.ends_with('–')
                     || prev.text.ends_with('—');
 
-                if gap > space_threshold && !starts_with_hyphen && !ends_with_hyphen {
-                    result.push(' ');
+                gap > space_threshold && !starts_with_hyphen && !ends_with_hyphen
+            } else {
+                false
+            };
+
+            let span_style = get_style_type(span);
+
+            // Only flush when style actually changes
+            if span_style != current_style {
+                if !current_text.is_empty() {
+                    groups.push((current_text.clone(), current_style));
+                    current_text.clear();
                 }
+                // Add space to the NEW group if needed
+                if needs_space {
+                    current_text.push(' ');
+                }
+                current_style = span_style;
+            } else if needs_space {
+                // Same style, just add space within the group
+                current_text.push(' ');
             }
 
-            // Apply styling to span text
-            let styled = self.style_text(&span.text, span);
-            result.push_str(&styled);
+            current_text.push_str(&span.text);
         }
 
-        result
+        // Don't forget the last group
+        if !current_text.is_empty() {
+            groups.push((current_text, current_style));
+        }
+
+        // Render each group with appropriate style
+        groups
+            .into_iter()
+            .map(|(text, style)| apply_style(&text, style))
+            .collect::<String>()
     }
 
     /// Apply style markers (bold/italic) to text based on span properties.
     fn style_text(&self, text: &str, span: &super::pymupdf_structs::Span) -> String {
-        if text.trim().is_empty() {
-            return text.to_string();
-        }
-
-        if span.is_bold() && span.is_italic() {
-            format!("***{}***", text.trim())
-        } else if span.is_bold() {
-            format!("**{}**", text.trim())
-        } else if span.is_italic() {
-            format!("*{}*", text.trim())
-        } else if span.is_monospace() && !matches!(text.trim().chars().next(), Some('`')) {
-            format!("`{}`", text.trim())
-        } else {
-            text.to_string()
-        }
+        apply_style(text, get_style_type(span))
     }
 
     /// Render a line without style markers (plain text).
@@ -238,6 +251,46 @@ impl MarkdownRenderer {
             .map(|s| s.text.as_str())
             .collect::<Vec<_>>()
             .join(" ")
+    }
+}
+
+/// Style types for span grouping.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StyleType {
+    Plain,
+    Bold,
+    Italic,
+    BoldItalic,
+    Code,
+}
+
+/// Get the style type of a span.
+fn get_style_type(span: &super::pymupdf_structs::Span) -> StyleType {
+    if span.is_bold() && span.is_italic() {
+        StyleType::BoldItalic
+    } else if span.is_bold() {
+        StyleType::Bold
+    } else if span.is_italic() {
+        StyleType::Italic
+    } else if span.is_monospace() {
+        StyleType::Code
+    } else {
+        StyleType::Plain
+    }
+}
+
+/// Apply style markers to text.
+fn apply_style(text: &str, style: StyleType) -> String {
+    if text.trim().is_empty() {
+        return text.to_string();
+    }
+
+    match style {
+        StyleType::BoldItalic => format!("***{}***", text.trim()),
+        StyleType::Bold => format!("**{}**", text.trim()),
+        StyleType::Italic => format!("*{}*", text.trim()),
+        StyleType::Code if !text.trim().starts_with('`') => format!("`{}`", text.trim()),
+        _ => text.to_string(),
     }
 }
 
