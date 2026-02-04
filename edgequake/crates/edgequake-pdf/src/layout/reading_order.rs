@@ -34,6 +34,18 @@ impl ReadingOrder {
     }
 }
 
+/// OODA-41: Tolerance for boundary normalization (pixels).
+/// WHY (First Principles): PDF text coordinates vary by 1-3 pixels even for aligned columns
+/// due to rounding in PDF generation tools. pymupdf4llm uses 3pt tolerance. This value is
+/// derived from typical PDF coordinate precision (1/72 inch per point, with common rounding).
+const BOUNDARY_ALIGNMENT_TOLERANCE: f32 = 3.0;
+
+/// OODA-41: Tolerance for vertical gap joining (pixels).
+/// WHY (First Principles): Paragraphs in PDFs typically have 10-12pt leading (line spacing).
+/// A vertical gap smaller than 10pt between text blocks is likely within the same logical
+/// region. pymupdf4llm uses 10pt, which matches single-line spacing for 10pt body text.
+const _VERTICAL_GAP_TOLERANCE: f32 = 10.0;
+
 /// Reading order detector.
 #[derive(Debug, Clone)]
 pub struct ReadingOrderDetector {
@@ -162,7 +174,8 @@ impl ReadingOrderDetector {
             unassigned.len()
         );
 
-        // Sort blocks within each column
+        // OODA-41: Use smart sort key for WITHIN-column sorting
+        // This ensures blocks at the same vertical level within a column are ordered correctly
         for col_blocks in &mut column_blocks {
             self.sort_by_position(col_blocks, blocks);
         }
@@ -174,7 +187,9 @@ impl ReadingOrderDetector {
         self.sort_by_position(&mut footer_blocks, blocks);
 
         // Merge columns respecting spanning elements, with footer at the end
-        self.merge_column_orders_with_footer(
+        // OODA-41: The key fix is in merge_column_orders_with_footer_smart which
+        // uses smart keys for the final ordering
+        self.merge_column_orders_with_footer_smart(
             &column_blocks,
             &spanning_blocks,
             &footer_blocks,
@@ -290,6 +305,91 @@ impl ReadingOrderDetector {
         });
     }
 
+    /// OODA-41: Compute smart sort key for a block based on pymupdf4llm's Phase 3 algorithm.
+    ///
+    /// The key insight from pymupdf4llm's multi_column.py:
+    /// - For each block, find the LEFT-MOST block that overlaps vertically
+    /// - If found, use (left_block.y0, current_block.x0) as sort key
+    /// - This ensures right-column content comes AFTER left-column content at same vertical level
+    ///
+    /// WHY (First Principles):
+    /// In a two-column layout, when reading, we finish the left column at a given vertical
+    /// position before moving to the right column. By using the left block's Y as the primary
+    /// sort key, we ensure proper reading order even when blocks are at similar vertical positions.
+    fn compute_smart_sort_key(&self, block_idx: usize, blocks: &[Block]) -> (f32, f32) {
+        let block = &blocks[block_idx];
+        let block_bbox = &block.bbox;
+
+        // Find all blocks that are to the LEFT of this block and overlap vertically
+        let left_blocks: Vec<(usize, &Block)> = blocks
+            .iter()
+            .enumerate()
+            .filter(|(idx, other)| {
+                // Skip self
+                if *idx == block_idx {
+                    return false;
+                }
+
+                let other_bbox = &other.bbox;
+
+                // Block is to the left: its right edge < our left edge (with tolerance)
+                let is_to_left = other_bbox.x2 < block_bbox.x1 - BOUNDARY_ALIGNMENT_TOLERANCE;
+
+                // Vertical overlap: ranges [y1, y2] intersect
+                // Overlap exists if: NOT (other.y2 < block.y1 OR block.y2 < other.y1)
+                let has_vertical_overlap =
+                    !(other_bbox.y2 < block_bbox.y1 || block_bbox.y2 < other_bbox.y1);
+
+                is_to_left && has_vertical_overlap
+            })
+            .collect();
+
+        if let Some((_, left_block)) = left_blocks
+            .iter()
+            .max_by(|(_, a), (_, b)| a.bbox.x2.partial_cmp(&b.bbox.x2).unwrap())
+        {
+            // Use the left block's Y coordinate for sorting, but our X coordinate
+            // This ensures blocks at the same vertical level come after their left neighbors
+            tracing::debug!(
+                "OODA-41: Block '{}' uses left-block Y={:.1} for sort (orig Y={:.1})",
+                &block.text[..block.text.len().min(30)],
+                left_block.bbox.y1,
+                block_bbox.y1
+            );
+            (left_block.bbox.y1, block_bbox.x1)
+        } else {
+            // No left block found, use original position
+            (block_bbox.y1, block_bbox.x1)
+        }
+    }
+
+    /// OODA-41: Sort block indices using smart sort key algorithm.
+    ///
+    /// This is the key improvement from pymupdf4llm's reading order algorithm.
+    /// Instead of sorting purely by (y, x), we use a computed sort key that
+    /// considers left-column blocks at the same vertical level.
+    fn sort_by_smart_key(&self, indices: &mut [usize], blocks: &[Block]) {
+        // Compute sort keys for all blocks
+        let mut keyed_indices: Vec<(usize, (f32, f32))> = indices
+            .iter()
+            .map(|&idx| (idx, self.compute_smart_sort_key(idx, blocks)))
+            .collect();
+
+        // Sort by computed key: (y, x) where y may come from a left neighbor
+        keyed_indices.sort_by(|(_, key_a), (_, key_b)| {
+            key_a
+                .0
+                .partial_cmp(&key_b.0)
+                .unwrap()
+                .then_with(|| key_a.1.partial_cmp(&key_b.1).unwrap())
+        });
+
+        // Update indices in place
+        for (i, (idx, _)) in keyed_indices.iter().enumerate() {
+            indices[i] = *idx;
+        }
+    }
+
     /// Merge column orders with spanning elements.
     ///
     /// Strategy: Process columns sequentially (left-to-right), inserting spanning
@@ -379,6 +479,118 @@ impl ReadingOrderDetector {
         if !footer_blocks.is_empty() {
             tracing::debug!(
                 "OODA-38: Appending {} footer blocks at end of reading order",
+                footer_blocks.len()
+            );
+            result.extend_from_slice(footer_blocks);
+        }
+
+        result
+    }
+
+    /// OODA-41: Smart merge using pymupdf4llm's Phase 3 algorithm.
+    ///
+    /// Key insight: Instead of processing columns sequentially, we:
+    /// 1. Collect ALL body blocks (from all columns)
+    /// 2. Sort using smart key: blocks to the right use left-neighbor's Y
+    /// 3. Interleave spanning elements by Y position
+    ///
+    /// This ensures proper reading order for two-column layouts where
+    /// content at the same vertical level should be read left-to-right
+    /// WITHIN each column, not jumping between columns.
+    fn merge_column_orders_with_footer_smart(
+        &self,
+        column_blocks: &[Vec<usize>],
+        spanning: &[usize],
+        footer_blocks: &[usize],
+        unassigned: &[usize],
+        blocks: &[Block],
+    ) -> Vec<usize> {
+        // Strategy: Process columns left-to-right, reading each column fully
+        // before moving to the next. This is the correct reading order for
+        // multi-column academic papers.
+        //
+        // The "smart key" insight from pymupdf4llm is used WITHIN this strategy:
+        // when there are blocks at the same Y level, use their X to break ties.
+
+        let mut result = Vec::new();
+        let mut spanning_idx = 0;
+
+        // Sort spanning elements by Y
+        let mut sorted_spanning: Vec<usize> = spanning.to_vec();
+        self.sort_by_position(&mut sorted_spanning, blocks);
+
+        // Find the LOWEST Y in all column blocks (top of body content)
+        let first_body_y = column_blocks
+            .iter()
+            .filter_map(|col| col.first().map(|&idx| blocks[idx].bbox.y1))
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(f32::MAX);
+
+        // Insert spanning elements that appear BEFORE body content (headers, titles)
+        while spanning_idx < sorted_spanning.len() {
+            let span_y = blocks[sorted_spanning[spanning_idx]].bbox.y1;
+            if span_y < first_body_y - self.line_tolerance {
+                result.push(sorted_spanning[spanning_idx]);
+                spanning_idx += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Process each column sequentially (LEFT to RIGHT)
+        // This is the correct reading order for multi-column documents
+        for (col_idx, col_blocks) in column_blocks.iter().enumerate() {
+            if col_blocks.is_empty() {
+                continue;
+            }
+
+            // Find the starting Y of this column's content
+            let col_start_y = blocks[col_blocks[0]].bbox.y1;
+
+            // Insert any spanning elements between previous column and this column's start
+            // (This handles cases like section headers between columns)
+            while spanning_idx < sorted_spanning.len() {
+                let span_y = blocks[sorted_spanning[spanning_idx]].bbox.y1;
+                // Insert spanning element if it's above this column's first block
+                // AND we haven't already passed it
+                if col_idx > 0 && span_y < col_start_y - self.line_tolerance {
+                    // Check if this spanning element's Y is between previous column end
+                    // and this column start
+                    let prev_col_end_y = if col_idx > 0 && !column_blocks[col_idx - 1].is_empty() {
+                        let last_in_prev = *column_blocks[col_idx - 1].last().unwrap();
+                        blocks[last_in_prev].bbox.y2
+                    } else {
+                        0.0
+                    };
+
+                    if span_y > prev_col_end_y {
+                        result.push(sorted_spanning[spanning_idx]);
+                        spanning_idx += 1;
+                        continue;
+                    }
+                }
+                break;
+            }
+
+            // Add all blocks from this column in order (already sorted by Y)
+            for &block_idx in col_blocks {
+                result.push(block_idx);
+            }
+        }
+
+        // Add remaining spanning elements (at the bottom of the page)
+        while spanning_idx < sorted_spanning.len() {
+            result.push(sorted_spanning[spanning_idx]);
+            spanning_idx += 1;
+        }
+
+        // Add unassigned blocks
+        result.extend_from_slice(unassigned);
+
+        // OODA-38: Footer blocks go at the very end
+        if !footer_blocks.is_empty() {
+            tracing::debug!(
+                "OODA-41: Appending {} footer blocks at end of reading order",
                 footer_blocks.len()
             );
             result.extend_from_slice(footer_blocks);

@@ -52,6 +52,13 @@ pub enum PdfError {
 
     #[error("Font decoding error: {0}")]
     FontDecoding(String),
+
+    /// Backend-specific errors (e.g., pdfium-render, lopdf)
+    ///
+    /// WHY: Different PDF backends have their own error types.
+    /// This variant wraps them with a descriptive message.
+    #[error("PDF backend error: {0}")]
+    Backend(String),
 }
 
 impl From<std::io::Error> for PdfError {

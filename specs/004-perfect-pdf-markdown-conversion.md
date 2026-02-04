@@ -58,7 +58,132 @@ python3 scripts/compare_against_pymupdf.py --pdf-dir edgequake/crates/edgequake-
 
 ---
 
-Real code of zz-explore/pymupdf4llm is available for study to find algorithms and architecture patterns. Study in depth this code to find inspiration for your own implementation in Rust. Use the layout feature package of pymupdf4llm to find inspiration about layout analysis algorithms.
+## 🔍 CRITICAL: pymupdf4llm Algorithmic Analysis (OODA-41+)
+
+**After deep analysis of `zz-explore/pymupdf4llm/pymupdf4llm/pymupdf4llm/helpers/`**, the following key algorithmic differences explain our F1=0.686 gap vs their gold standard:
+
+### Key Algorithmic Gaps (Our Implementation vs pymupdf4llm)
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  CRITICAL DIFFERENCE: TEXT LINE EXTRACTION                                  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  pymupdf4llm: get_raw_lines() → groups spans by Y-coordinate with tolerance │
+│  - Uses bbox-based clustering, NOT character-by-character                   │
+│  - Tolerance parameter (default=3pt) for line grouping                     │
+│  - Returns (line_rect, spans) tuples sorted by reading order               │
+│                                                                              │
+│  edgequake-pdf: Character extraction → block building                       │
+│  - Character-level extraction then grouping (more complex, less accurate)  │
+│  - No tolerance-based line clustering                                       │
+│  - Prone to over-splitting or over-merging lines                           │
+│                                                                              │
+│  WHY IT MATTERS: Line boundaries affect word boundaries and reading order  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  CRITICAL DIFFERENCE: READING ORDER (column_boxes in multi_column.py)       │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  pymupdf4llm 3-Phase Rectangle Joining:                                     │
+│                                                                              │
+│  Phase 1: join_rects_phase1() - Join vertically adjacent (gap <= 10pt)     │
+│  ────────────────────────────────────────────────────────────────────────── │
+│     For each rect, extend downward if gap < 10pt and no conflicts          │
+│                                                                              │
+│  Phase 2: join_rects_phase2() - Align column boundaries (tolerance <=3pt)  │
+│  ────────────────────────────────────────────────────────────────────────── │
+│     Normalize x0/x1 to nearest common boundary if within 3pt               │
+│     Then join vertically if boundaries match and gap <= 10pt               │
+│                                                                              │
+│  Phase 3: join_rects_phase3() - Final merge with background awareness      │
+│  ────────────────────────────────────────────────────────────────────────── │
+│     Never join across columns (x1 < x0 check)                              │
+│     Never join different background colors                                  │
+│     Uses spatial sort key: (min_left_rect.y0, current.x0)                  │
+│                                                                              │
+│  edgequake-pdf: Single-pass column detection with DBSCAN clustering        │
+│  - Missing vertical gap tolerance (10pt) for joins                         │
+│  - Missing boundary normalization (3pt tolerance)                          │
+│  - Missing background color tracking                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  CRITICAL DIFFERENCE: HEADER DETECTION (IdentifyHeaders class)              │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  pymupdf4llm:                                                               │
+│  1. Scan ALL pages to build font-size histogram                            │
+│  2. Most frequent font size = body text (body_limit)                        │
+│  3. Larger sizes → header levels (up to 6 levels)                          │
+│  4. body_limit = max(12pt, most_frequent_size)                              │
+│                                                                              │
+│  edgequake-pdf:                                                             │
+│  - Uses per-page heuristics with magic thresholds                          │
+│  - No global font histogram analysis                                        │
+│  - Header detection based on relative size to page average                 │
+│                                                                              │
+│  WHY IT MATTERS: Consistent header detection across document                │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  CRITICAL DIFFERENCE: STYLED TEXT RENDERING (get_styled_text)               │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  pymupdf4llm:                                                               │
+│  - Tracks "suffix" for style continuation across spans                     │
+│  - Smart hyphenation handling: if ends with "-" and span crosses blocks    │
+│  - Superscript detection via flags AND origin Y comparison                 │
+│  - Proper bold/italic/mono/strikeout flag decoding                         │
+│                                                                              │
+│  edgequake-pdf:                                                             │
+│  - Simpler span rendering without suffix tracking                          │
+│  - Missing hyphenation resolution                                           │
+│  - Limited superscript detection                                            │
+│                                                                              │
+│  WHY IT MATTERS: Smoother text flow, proper word joining                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Implementation Priority (OODA-41 to OODA-50)
+
+| OODA | Algorithm                     | Impact | Effort | Files to Modify                          |
+| ---- | ----------------------------- | ------ | ------ | ---------------------------------------- |
+| 41   | 3-Phase Rectangle Joining     | HIGH   | Medium | `reading_order.rs`, `column_detector.rs` |
+| 42   | get_raw_lines with tolerance  | HIGH   | Medium | `text_grouping.rs`, `block_builder.rs`   |
+| 43   | Global Font Histogram Headers | MEDIUM | Low    | `extractor.rs`, new `header_detector.rs` |
+| 44   | Styled Text with Suffix       | MEDIUM | Low    | `renderers/markdown.rs`                  |
+| 45   | Hyphenation Resolution        | LOW    | Low    | `renderers/markdown.rs`                  |
+| 46   | Superscript Detection         | LOW    | Low    | `element_processing.rs`                  |
+| 47   | Background Color Tracking     | LOW    | Medium | `content_parser.rs`                      |
+| 48   | Table-Text Interleaving       | MEDIUM | Medium | `block_builder.rs`                       |
+| 49   | List Item Level Hierarchy     | LOW    | Low    | `renderers/markdown.rs`                  |
+| 50   | Final Integration Testing     | HIGH   | Low    | tests + comparison script                |
+
+### Key Constants from pymupdf4llm (First Principles)
+
+```python
+# multi_column.py - Rectangle joining tolerances
+VERTICAL_GAP_TOLERANCE = 10  # pixels - join if gap <= this
+BOUNDARY_ALIGNMENT_TOLERANCE = 3  # pixels - align if diff <= this
+
+# get_text_lines.py - Line grouping
+LINE_TOLERANCE = 3  # pixels - group spans into same line if Y diff <= this
+
+# pymupdf_rag.py - Header detection
+DEFAULT_BODY_LIMIT = 12  # points - minimum body text size
+MAX_HEADER_LEVELS = 6  # levels - # to ######
+
+# pymupdf_rag.py - Line break detection
+LINE_BREAK_THRESHOLD = 1.5  # × line height for paragraph break
+```
 
 ---
 

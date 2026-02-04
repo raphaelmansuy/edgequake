@@ -6,14 +6,21 @@
 //! - Geometric clustering for spatial analysis (DBSCAN)
 //! - Reading order determination
 //! - Margin detection
+//! - PyMuPDF4LLM-inspired text structures (Span, Line, Block)
 
 mod column_detector;
 mod geometric;
+mod pymupdf_grouper;
+mod pymupdf_renderer;
+mod pymupdf_structs;
 mod reading_order;
 mod xy_cut;
 
 pub use column_detector::{ColumnDetector, ColumnLayout};
 pub use geometric::{dbscan_1d, Cluster, Column, GeometricClusterer};
+pub use pymupdf_grouper::{GroupingParams, TextGrouper};
+pub use pymupdf_renderer::{MarkdownConfig, MarkdownRenderer};
+pub use pymupdf_structs::{Block as TextBlock, BlockType, Line, Span};
 pub use reading_order::{ReadingOrder, ReadingOrderDetector};
 pub use xy_cut::{XYCut, XYCutNode, XYCutParams};
 
