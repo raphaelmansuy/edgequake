@@ -28,7 +28,10 @@ pub struct GroupingParams {
 impl Default for GroupingParams {
     fn default() -> Self {
         Self {
-            line_tolerance: 3.0,
+            // WHY: Increased from 3pt to 5pt to handle font style variations
+            // (italic/bold fonts have different baseline positions).
+            // PDFium character bboxes vary more than pymupdf's pre-grouped spans.
+            line_tolerance: 5.0,
             // WHY: pymupdf4llm uses 10pt as max vertical gap for joining blocks
             // (multi_column.py line 242: `abs(r0.y1 - r.y0) <= 10`)
             block_gap: 10.0,
@@ -187,7 +190,8 @@ impl TextGrouper {
         }
 
         // Group lines by page
-        let mut pages: std::collections::HashMap<usize, Vec<Line>> = std::collections::HashMap::new();
+        let mut pages: std::collections::HashMap<usize, Vec<Line>> =
+            std::collections::HashMap::new();
         for line in lines {
             pages.entry(line.page_num).or_default().push(line);
         }
@@ -486,9 +490,11 @@ impl TextGrouper {
         keyed_blocks.sort_by_key(|(_, key)| *key);
 
         // Get the sorted indices
-        let sorted_indices: Vec<usize> = keyed_blocks.iter().enumerate().map(|(_, (b, _))| {
-            blocks.iter().position(|x| std::ptr::eq(x, *b)).unwrap()
-        }).collect();
+        let sorted_indices: Vec<usize> = keyed_blocks
+            .iter()
+            .enumerate()
+            .map(|(_, (b, _))| blocks.iter().position(|x| std::ptr::eq(x, *b)).unwrap())
+            .collect();
 
         // Reorder blocks in-place using the sorted order
         // Create a new sorted vector and swap
@@ -525,9 +531,10 @@ impl TextGrouper {
             .collect();
 
         // Find the right-most of the left blocks (highest x1)
-        let y_key = if let Some(left_block) = left_blocks.iter().max_by(|a, b| {
-            a.x1.partial_cmp(&b.x1).unwrap()
-        }) {
+        let y_key = if let Some(left_block) = left_blocks
+            .iter()
+            .max_by(|a, b| a.x1.partial_cmp(&b.x1).unwrap())
+        {
             // Use left block's top Y as the sort key Y
             left_block.y0 as i32
         } else {
@@ -536,7 +543,7 @@ impl TextGrouper {
         };
 
         // Convert to integers for stable sorting (Y is inverted because PDF Y=0 is at bottom)
-        let y_inverted = -y_key;  // Higher Y (top of page) should come first
+        let y_inverted = -y_key; // Higher Y (top of page) should come first
         let x_key = block.x0 as i32;
 
         (block.page_num, y_inverted, x_key)
@@ -577,15 +584,18 @@ impl TextGrouper {
         }
 
         // Check for code block (all monospace)
-        let all_mono = block.lines.iter().all(|line| {
-            line.spans.iter().all(|span| span.is_monospace())
-        });
+        let all_mono = block
+            .lines
+            .iter()
+            .all(|line| line.spans.iter().all(|span| span.is_monospace()));
         if all_mono {
             return BlockType::Code;
         }
 
         // Check for header (larger font size, single line usually)
-        let dominant_size = block.lines.iter()
+        let dominant_size = block
+            .lines
+            .iter()
             .map(|l| l.dominant_font_size())
             .fold(0.0_f32, |a, b| a.max(b));
 
