@@ -6,9 +6,9 @@ Your mission is to implement a completely new PDF-to-Markdown extraction pipelin
 
 Always compare with pymupdf4llm outputs to ensure fidelity. Ensure to check algorithm details in `zz-explore/pymupdf4llm/pymupdf4llm/helpers/`.
 
-Accelerate the tests in order to validate progress quickly and speedup OODA iterations.
+Accelerate the tests in order to validate progress quickly and speedup OODA iterations. The full test is very slow.
 
-Create dedicated micro-tests for each algorithmic component to isolate issues.
+Create dedicated micro-tests for each algorithmic component to isolate issues. (VERY IMPORTANT)
 
 FULLY Read THIS MISSION FILE at the start of every OODA iteration.
 
@@ -423,4 +423,8 @@ Ensure to clean old implementations and document all changes thoroughly when pdf
 | 06   | 2025-01-27 | Line breaks: Changed join(" ") to join("\\n")       | Structure: 0.453→0.602 (+33%)      |
 | 06   | 2025-01-27 | Lines now match gold paragraph format               | Quality: 0.702→0.724 (+3%)         |
 | 07   | 2025-01-28 | Author line rescue: Fragments at X>boundary rescued | Specific fix (no aggregate change) |
+| 07   | 2025-01-28 | v2_2512: Jitendra Malik now block 2 (was block 10)  | Reading order fix for title pages  |
+| 08   | 2026-02-04 | **FIX**: Update width during element merge          | Specific fix (test_qwen_reading)   |
+| 08   | 2026-02-04 | Word splitting: "Push ing" → "Pushing" fixed        | test_qwen_reading_order PASS       |
+| 08   | 2026-02-04 | Relaxed OODA-42 threshold (0.5× → 1× font_size)     | Handles width estimation error     |
 | 07   | 2025-01-28 | v2_2512: Jitendra Malik now block 2 (was block 10)  | Reading order fix for title pages  |

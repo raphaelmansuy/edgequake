@@ -61,18 +61,20 @@ impl FontInfo {
         // - "sfbx" (SF Bold Extended) in arXiv/LaTeX fonts like TFFXIV+SFBX1200
         // - "cmbx" (Computer Modern Bold Extended)
         // - "-bold" suffix
-        // NOTE: We intentionally DON'T include "medi" (medium weight) because it's often
-        // used for section titles in Nimbus fonts, which we detect as headings separately.
-        // Including it would cause over-bolding of heading text.
+        // - "medi" (medium weight in Nimbus fonts) - OODA-09: Re-enabled for abstract bold text
+        //   The previous concern about over-bolding headings is addressed: headings are detected
+        //   by font size ratio, and bold is rendered separately from header level.
         let is_bold = lower_name.contains("bold")
             || lower_name.contains("black")
             || lower_name.contains("heavy")
             || lower_name.contains("sfbx")   // SF Bold Extended (arXiv/LaTeX) - TFFXIV+SFBX1200
             || lower_name.contains("cmbx")   // Computer Modern Bold Extended
+            || lower_name.contains("medi")   // OODA-09: Medium weight in Nimbus (NimbusRomNo9L-Medi)
             || lower_name.contains("-bold");
 
         let is_italic = lower_name.contains("italic") 
             || lower_name.contains("oblique")
+            || lower_name.contains("ital")   // OODA-09: Abbreviated form used by Nimbus fonts (ReguItal, MediItal)
             || lower_name.contains("sfti")   // SF Text Italic - e.g., TXAXLJ+SFTI0900
             || lower_name.contains("cmti")   // Computer Modern Text Italic
             || lower_name.contains("cmmi")   // Computer Modern Math Italic

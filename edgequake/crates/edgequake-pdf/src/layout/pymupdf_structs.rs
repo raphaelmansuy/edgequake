@@ -169,12 +169,17 @@ impl Span {
     }
 
     /// Check if this span is italic based on font name.
+    /// 
+    /// OODA-09: Added "ital" pattern to catch Nimbus fonts like
+    /// NimbusRomNo9L-ReguItal, NimbusRomNo9L-MediItal.
     pub fn is_italic(&self) -> bool {
         self.font_name
             .as_ref()
             .map(|n| {
                 let lower = n.to_lowercase();
-                lower.contains("italic") || lower.contains("oblique")
+                lower.contains("italic") 
+                    || lower.contains("oblique")
+                    || lower.contains("ital")  // OODA-09: Abbreviated form (Nimbus fonts)
             })
             .unwrap_or(false)
     }
