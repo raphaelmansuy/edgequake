@@ -5,16 +5,18 @@
 ### Fix 1: Add "ital" pattern for italic detection
 
 **Files to modify:**
+
 1. `font_handling.rs` (lopdf backend)
 2. `pymupdf_structs.rs` (pdfium backend)
 
 **Change:**
+
 ```rust
 // Before
 lower.contains("italic") || lower.contains("oblique")
 
-// After  
-lower.contains("italic") 
+// After
+lower.contains("italic")
     || lower.contains("oblique")
     || lower.contains("ital")  // Catches ReguItal, MediItal
 ```
@@ -22,10 +24,12 @@ lower.contains("italic")
 ### Fix 2: Re-enable "medi" pattern for bold detection
 
 **Files to modify:**
+
 1. `font_handling.rs` (lopdf backend)
 2. `pymupdf_structs.rs` (pdfium backend - already has it)
 
 **Change in font_handling.rs:**
+
 ```rust
 // Before: "medi" was intentionally disabled
 let is_bold = lower.contains("bold")

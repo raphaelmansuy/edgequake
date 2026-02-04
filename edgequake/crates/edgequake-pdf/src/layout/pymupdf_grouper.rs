@@ -538,10 +538,10 @@ impl TextGrouper {
             .max_by(|a, b| a.x1.partial_cmp(&b.x1).unwrap())
         {
             // Use left block's top Y as the sort key Y
-            left_block.y1 as i32  // y1 = TOP in PDFium coords
+            left_block.y1 as i32 // y1 = TOP in PDFium coords
         } else {
             // No left block found, use own Y
-            block.y1 as i32  // y1 = TOP in PDFium coords
+            block.y1 as i32 // y1 = TOP in PDFium coords
         };
 
         // Convert to integers for stable sorting (Y is inverted because PDF Y=0 is at bottom)
@@ -594,6 +594,29 @@ impl TextGrouper {
             return BlockType::Code;
         }
 
+        // Get first line text for pattern matching
+        let first_text = block.lines.first().map(|l| l.text()).unwrap_or_default();
+        let trimmed = first_text.trim();
+
+        // OODA-10: Pattern-based header detection for academic papers
+        // WHY: Many IEEE-style papers use Roman numerals (I., II.) for sections
+        // and letters (A., B.) for subsections, but these often have the SAME
+        // font size as body text. Font-size detection fails for these.
+        // Text pattern matching is more reliable for structured documents.
+        if block.lines.len() <= 2 {
+            // Check for Roman numeral section headers (level 2)
+            // Patterns: "I. INTRODUCTION", "II. RELATED WORKS", "III. METHOD"
+            if is_roman_numeral_header(trimmed) {
+                return BlockType::Header(2);
+            }
+
+            // Check for letter subsection headers (level 3)
+            // Patterns: "A. Background", "B. Policy Representations"
+            if is_letter_subsection_header(trimmed) {
+                return BlockType::Header(3);
+            }
+        }
+
         // Check for header (larger font size, single line usually)
         let dominant_size = block
             .lines
@@ -636,6 +659,80 @@ impl TextGrouper {
         }
 
         BlockType::Paragraph
+    }
+}
+
+/// Check if text starts with a Roman numeral section pattern.
+/// OODA-10: Detects "I. INTRODUCTION", "II. RELATED WORKS", etc.
+///
+/// WHY: IEEE-style papers use Roman numerals (I-X) for major sections.
+/// These sections are typically level 2 headings (##).
+fn is_roman_numeral_header(text: &str) -> bool {
+    // Must have at least 3 chars: "I. X"
+    if text.len() < 4 {
+        return false;
+    }
+
+    let mut chars = text.chars().peekable();
+
+    // Collect Roman numeral characters (I, V, X)
+    let mut has_roman = false;
+    while let Some(&c) = chars.peek() {
+        if c == 'I' || c == 'V' || c == 'X' {
+            has_roman = true;
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    if !has_roman {
+        return false;
+    }
+
+    // Must be followed by "." and space
+    match (chars.next(), chars.next()) {
+        (Some('.'), Some(' ')) => {
+            // Rest should be mostly uppercase (section title)
+            let rest: String = chars.collect();
+            let uppercase_count = rest.chars().filter(|c| c.is_uppercase()).count();
+            let alpha_count = rest.chars().filter(|c| c.is_alphabetic()).count();
+            // At least 50% uppercase indicates a section title
+            alpha_count > 0 && (uppercase_count as f32 / alpha_count as f32) >= 0.5
+        }
+        _ => false,
+    }
+}
+
+/// Check if text starts with a letter subsection pattern.
+/// OODA-10: Detects "A. Background", "B. Policy Representations", etc.
+///
+/// WHY: IEEE-style papers use single letters (A-Z) for subsections.
+/// These are typically level 3 headings (###).
+///
+/// NOTE: Excludes I, V, X which are Roman numerals (handled by is_roman_numeral_header).
+fn is_letter_subsection_header(text: &str) -> bool {
+    // Must have at least 4 chars: "A. X"
+    if text.len() < 4 {
+        return false;
+    }
+
+    let mut chars = text.chars();
+    let first = chars.next();
+    let second = chars.next();
+    let third = chars.next();
+
+    // Pattern: single uppercase letter + "." + space
+    // Exclude I, V, X which are Roman numerals (they're handled by is_roman_numeral_header)
+    match (first, second, third) {
+        (Some(c), Some('.'), Some(' '))
+            if c.is_ascii_uppercase() && c != 'I' && c != 'V' && c != 'X' =>
+        {
+            // Rest should start with uppercase (subsection title)
+            // e.g., "A. Background" or "A. Humanoid Manipulation"
+            chars.next().map(|c| c.is_uppercase()).unwrap_or(false)
+        }
+        _ => false,
     }
 }
 
