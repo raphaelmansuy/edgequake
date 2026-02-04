@@ -7,6 +7,7 @@
 ## Priority: CRITICAL
 
 This bug affects all PDFs with concatenated bfrange entries, which includes:
+
 - Microsoft Office documents (Word, PowerPoint, Excel)
 - Many professional typesetting systems
 - Subset fonts with custom glyph mappings

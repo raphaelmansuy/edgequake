@@ -1,3 +1,5 @@
+## Page 1
+
 # Fundamentals of Building Autonomous LLM Agents
 
 
@@ -40,6 +42,8 @@ Trends in Auoffered at TUM.
 
 ---
 
+## Page 2
+
 LLM agents represent a new paradigm that breaks traditional barriers. They enable the execution of tasks that were previously costly, time-consuming, or even infeasible. More than tools, agents act as collaborators, assisting humans in dynamic environments and automating decision-making in critical systems. However, this transformation is still in its early stages. Engaging with LLM agents is comparable to engaging with a new species, one that we are only beginning to understand, train, and guide [3]. This raises a crucial question: How can we build agents who think and act intelligently? How should we structure their 'minds' so that they can interpret information, reason, plan effectively, and make decisions that we can trust? Building on this vision of LLM agents as intelligent collaborators, this review explores and defines the architectural foundations that enable their autonomous and effective performance in complex tasks [20].
 
 ### 1.2 Review Objective
@@ -72,6 +76,8 @@ Building LLM agents to automate complex tasks can offer useful opportunities but
 
 
 ---
+
+## Page 3
 
 challenge [23]. The purpose of this study is to address these issues by reviewing each system's implementation options, assessing their contributions, and contrasting various strategies. Benchmarks such as OSworld [71], alongside studies on autonomous software agents [13,15,16], reveal key limitations in multimodal agents, highlighting the
 
@@ -130,6 +136,8 @@ Building Autonomous LLM Agents 3
 
 ---
 
+## Page 4
+
 4. RQ4, Memory impact, How do long-term and short-term memory mech-
 
 anisms, for example, RAG and context management, influence accuracy, robustness to context length limits, and adaptation in long-horizon tasks?
@@ -163,6 +171,8 @@ to function as autonomous agents. They are well-suited for dynamic tasks because
 
 ---
 
+## Page 5
+
 However, simply augmenting an LLM with modules, tools, or predefined steps does not make it an agent, in any case, that would make it a workflow.
 
 ### 2.3 Workflows vs. Agents
@@ -190,6 +200,8 @@ Building Autonomous LLM Agents 5
 
 ---
 
+## Page 6
+
 **Action System Finally, the action system is responsible for translating abstract**
 
 decisions into concrete actions that impact the environment. This module ensures that the agent's instructions are carried out in the real or simulated world, completing the interaction cycle by executing what has been decided. This can involve using a set of tools, such as calling APIs or writing code to execute mouse movements in a software environment [39].
@@ -209,6 +221,8 @@ The simplest form in which the environment is described is purely in text. The L
 
 
 ---
+
+## Page 7
 
 This approach offers low computational overhead for perception and integrates directly with the LLM's core capabilities. However, it is limited to environments that give the response to LLM interactions in text. This is practical for chats or text-driven simulations.
 
@@ -234,6 +248,8 @@ Building Autonomous LLM Agents 7
 
 
 ---
+
+## Page 8
 
 are fed to the LLM. The LLM processes these representations, answering using the semantic understanding of the inputs.
 
@@ -263,6 +279,8 @@ enhance visual perception with visual encoders:
 
 ---
 
+## Page 9
+
 perception modalities. It functions as an adapter to a base MM-LLM, enabling the model to process "control inputs" such as segmentation maps (offering fine-grained object and background information) and depth maps (providing spatial relationship details). Information from these inputs is projected into the LLM's embedding space via additional vision encoders [45].
 
 > Fig. 3. Usage of segmentation and depth maps for MM-LLM perception [28]
@@ -276,6 +294,8 @@ Building Autonomous LLM Agents 9
 
 
 ---
+
+## Page 10
 
 > Fig. 4. Image with Set-of-Mark [64]
 >
@@ -311,6 +331,8 @@ to access vast amounts of up-to-date information, facts, and specific data point
 
 ---
 
+## Page 11
+
 perceive real-time events, verify facts, or retrieve details beyond their training data cutoff. This helps the agent fill in missing environmental information and is crucial for tasks requiring current affairs knowledge or factual accuracy [40, 44,47].
 
 **-Specialized APIs: Agents can use domain-specific APIs designed for specific**
@@ -337,6 +359,8 @@ Building Autonomous LLM Agents 11
 
 
 ---
+
+## Page 12
 
 GUI components, such as buttons, text fields, links, and list items-along with their roles, labels, states (e.g., "unread"). Such data is typically extracted through browser automation tools. The accessibility tree and the visual encoder output combine to create a perception system. This system allows the agent to understand the interface: its visual layout, the semantics and roles of individual elements, and their spatial structure. When combined with the image understanding capabilities of a MM- LLM, this perception system enables the agent to build a rich, actionable model of the GUI environment. Despite the robustness of this perception system, it has a number of drawbacks and restrictions that can impact its performance and reliability.
 
@@ -369,8 +393,12 @@ directly affects the reasoning and planning modules. Therefore, continuous advan
 
 ---
 
+## Page 13
+
 
 ---
+
+## Page 14
 
 Having established how the perception system equips an LLM agent with a comprehensive understanding of the GUI environment, as summarized in the preceding table, the next critical component is the reasoning system. This system leverages the processed perceptual input to make informed decisions and execute complex tasks.
 
@@ -390,6 +418,8 @@ DPPM tackles these problems with the following methods: First, it decomposes the
 
 ---
 
+## Page 15
+
 tolerance, although excessively long trajectories in complex tasks can sometimes lead to hallucinations or deviation from original goals [26]. Further advancements in task decomposition and planning strategies include approaches such as RePrompting and ReWOO. RePrompting involves checking if each step of a plan meets necessary prerequisites before execution. If a step fails due to unmet prerequisites, a precondition error message is introduced, prompting the LLM to regenerate the plan with corrective actions [35]. ReWOO introduces a modular paradigm that decouples reasoning from external observations, where agents first generate comprehensive plans and obtain observations independently, then combine them to derive final results [63].
 
 > Fig. 5. Comparison of different types of planning frameworks, including sequential decomposition-planning, interleaved decomposition-planning, and DPPM [36].
@@ -403,6 +433,8 @@ Building Autonomous LLM Agents 15
 
 
 ---
+
+## Page 16
 
 **-Self-consistent CoT (CoT-SC):** This approach generates various reasoning paths and their corresponding answers using Chain of Thought (CoT), then selects the answer with the highest frequency as the final output [58].
 
@@ -421,6 +453,8 @@ solutions within expansive search spaces. However, this comes with trade-offs li
 
 
 ---
+
+## Page 17
 
 increased computational demands. Furthermore, the reliance on LLMs for plan evaluation introduces challenges regarding their performance in ranking tasks and the potential for randomness due to the stochastic nature of LLMs, which can affect the consistency and reliability of chosen plans [26]. 
 
@@ -457,6 +491,8 @@ Building Autonomous LLM Agents 17
 
 ---
 
+## Page 18
+
 storing and using these reflections in the next iterations. Here's a brief explanation of how to implement such a system: Core Components:
 
 **-Actor: This is typically a LLM that generates text and actions based on the**
@@ -482,6 +518,8 @@ continues with the next group of steps.
 
 ---
 
+## Page 19
+
 Minor error: The actions were close but not entirely accurate (e.g., the agent missed clicking a button because the coordinates were slightly off). In this case, the steps would be adjusted and corrected accordingly.
 
 3. Execution failure: The plan cannot be completed as-is (e.g., the button to be
@@ -497,6 +535,8 @@ Building Autonomous LLM Agents 19
 
 
 ---
+
+## Page 20
 
 Having illustrated how a single LLM agent can leverage a reasoning system 
 
@@ -530,6 +570,8 @@ tools [12, 18]; and a Security Expert for mitigating vulnerabilities, promoting 
 
 
 ---
+
+## Page 21
 
 Having outlined some possible experts within multi-agent systems, we now turn to the practical process of designing and building these experts.
 
@@ -572,6 +614,8 @@ Building Autonomous LLM Agents 21
 
 ---
 
+## Page 22
+
 which tools to use and how to use them. If executable code is needed beyond basic actions, the coding expert is called upon to produce it. Once actions are executed, feedback from the environment is received and processed by the reflection expert, which works together with the error handling expert to diagnose issues and propose solutions. Based on this diagnosis, the reflection expert decides how to proceed. To improve its recommendations, the memory expert retrieves past experiences or successful workflows related to similar tasks. This knowledge is used to inform and enhance the next steps proposed to the planning or execution experts.
 
 > Fig. 8. Example of the communication between agents in a multi-agent system
@@ -580,11 +624,17 @@ which tools to use and how to use them. If executable code is needed beyond basi
 
 ---
 
+## Page 23
+
 
 ---
 
+## Page 24
+
 
 ---
+
+## Page 25
 
 Having explored how reasoning systems enable LLM agents to plan, reflect, and collaborate on complex tasks, we now consider the memory system, which provides the critical foundation for retaining and applying past experiences to inform and enhance these reasoning processes.
 
@@ -615,6 +665,8 @@ Building Autonomous LLM Agents 25
 
 ---
 
+## Page 26
+
 ### 5.2 Short-term memory
 
 Short-term memory in LLM agents is analogous to the input information maintained within the context window, which acts as a temporary workspace [54]. Regardless of whether it's for long-term retention or immediate contextual awareness, the memory module's effectiveness hinges on what kind of data to store.
@@ -638,6 +690,8 @@ facts, such as data from articles, company-specific information, details about m
 
 ---
 
+## Page 27
+
 their parents are from). Mechanisms like MemoryBank aim to comprehend and adapt to a user's personality over time by synthesizing information from previous interactions, which inherently involves storing and utilizing these personal details [69]. While defining what kind of data to store is crucial for an LLM agent's effectiveness, the utility and management of this stored information are inherently subject to several limitations.
 
 ### 5.4 Limitations
@@ -657,11 +711,17 @@ Building Autonomous LLM Agents 27
 
 ---
 
+## Page 28
+
 
 ---
 
+## Page 29
+
 
 ---
+
+## Page 30
 
 With its robust memory system supporting processed observations and formulated plans, an LLM agent's operational flow then progresses to the execution system. This critical component is responsible for translating that internal understanding and knowledge into concrete interactions and actions within its environment.
 
@@ -683,6 +743,8 @@ Visual Interface Automation: LLM agents can control graphical user interfaces th
 
 
 ---
+
+## Page 31
 
 Code Generation and Execution: A particularly powerful multimodal capability is dynamic code generation where agents write executable code in various programming languages to solve specific problems. This approach is especially valuable for data manipulation tasks, complex calculations, file processing, and integration between different systems. Agents can write Python scripts for data analysis, generate SQL queries for database operations, create shell scripts for system administration, or produce HTML/CSS/JavaScript for web-based solu- tions [10,42].
 
@@ -715,6 +777,8 @@ Building Autonomous LLM Agents 31
 
 ---
 
+## Page 32
+
 ### 7.2 Implications
 
 The review presented in this paper has significant implications for the future of artificial intelligence. By demonstrating that LLM agents can move beyond simple language generation to exhibit capabilities akin to human cognition, we open doors for their application in highly complex domains requiring nuanced understanding and decision-making, such as scientific discovery, personalized education, and advanced robotics. The modular design and the integration of specialized components suggest a promising path towards building more robust and adaptable AI systems that can learn and evolve. Furthermore, the memory capabilities highlighted in this review could lead to the development of AI assistants that are not only more helpful but also more reliable and context- aware.
@@ -732,12 +796,16 @@ This paper set out to explore the intricate design and implementation strategies
 
 ---
 
+## Page 33
+
 Building Autonomous LLM Agents 33
 
 and generalized LLM agents, moving beyond simple workflow automation towards truly autonomous and intelligent entities.
 
 
 ---
+
+## Page 34
 
 ## References
 
@@ -807,6 +875,8 @@ tion for Autonomous Agents. In: Proceedings of the Second International Workshop
 
 
 ---
+
+## Page 35
 
 Gidey, H.K., Hueber, N., Lenz, A., Knoll, A.: Visual perception patterns for software agents (2025), preprint Gidey, H.K., Kesseler, M., Stangl, P., Hillmann, P., Karcher, A.: Document-based knowledge discovery with microservices architecture. In: Bennour, A., Ensari, T., Kessentini, Y., Eom, S. (eds.) Intelligent Systems and Pattern Recognition: ISPR
 
@@ -886,6 +956,8 @@ Building Autonomous LLM Agents 35
 
 ---
 
+## Page 36
+
 augmented generation for knowledge-intensive nlp tasks. arXiv preprint (2021),
 
 https://arxiv.org/abs/2005.11401
@@ -954,6 +1026,8 @@ connected with massive apis. arXiv preprint (2023), https://arxiv.org/pdf/2305. 
 
 
 ---
+
+## Page 37
 
 45. Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G.,
 
@@ -1031,6 +1105,8 @@ Building Autonomous LLM Agents 37
 
 
 ---
+
+## Page 38
 
 62. Xiang, J., Tao, T., Gu, Y., Shu, T., Wang, Z., Yang, Z., Hu, Z.: Language models
 

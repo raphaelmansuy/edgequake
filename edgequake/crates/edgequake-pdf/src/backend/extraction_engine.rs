@@ -644,21 +644,6 @@ impl ExtractionEngine {
         // Convert lines to blocks using BlockBuilder
         let mut blocks = self.block_builder.build(lines, page_width);
 
-        // DEBUG: Track page 1 blocks with Abstract and Figure 1
-        if page_num == 1 {
-            eprintln!("PAGE1-BLOCKS (first 45 of {}):", blocks.len());
-            for (i, blk) in blocks.iter().take(45).enumerate() {
-                let marker = if blk.text.contains("Figure 1") { ">>>" } 
-                            else if blk.text.contains("Abstract") { "ABS" }
-                            else { "   " };
-                // WHY: Use char_indices to safely truncate UTF-8 strings at character boundaries
-                // because direct byte slicing (e.g., &text[..45]) can panic on multi-byte characters
-                // like curly quotes (' ' " ") which are 3 bytes each in UTF-8
-                let truncated: String = blk.text.chars().take(45).collect();
-                eprintln!("{}  [{}] X={:.0} Y={:.0} '{}'", marker, i, blk.bbox.x1, blk.bbox.y1, truncated);
-            }
-        }
-
         // Insert detected tables back into the existing reading order.
         // We intentionally do NOT re-sort `blocks` globally (that can break multi-column reading
         // order), but we also do not want tables to be appended at the end of the page.
@@ -712,13 +697,6 @@ impl ExtractionEngine {
             });
         } else {
             // Multi-column: trust text_grouping's column-aware order
-            // OODA-12 TEMP DEBUG: Print to verify this branch is taken
-            eprintln!(
-                "OODA-12: Skipping Y-sort for {}-column page {} (blocks={})",
-                columns.len(),
-                page_num,
-                blocks.len()
-            );
             debug!(
                 "OODA-12: Skipping Y-sort for {}-column page (blocks={}, using text_grouping order)",
                 columns.len(),

@@ -11,14 +11,17 @@ Your mission is to achieve **production-grade, high-fidelity PDF to Markdown con
 
 ## 🚀 Primary Goals (Updated Feb 2026)
 
-| Goal | Target | Current | Priority |
-|------|--------|---------|----------|
-| **Speed** | <1s per page | 0.028-0.104s ✅ | ACHIEVED |
-| **Quality (TPS)** | ≥98% | 81.3% | P0 - Critical |
-| **Quality (SFS)** | ≥95% | 68.0% | P0 - Critical |
-| **Smoke Test Time** | <1s total | 0.07s ✅ | Achieved |
-| **Feature Test Time** | <5s total | 0.32s ✅ | Achieved |
-| **Micro Tests** | <0.1s each | 0.02-0.22s ✅ | Achieved |
+| Goal                  | Target       | Current         | Priority      |
+| --------------------- | ------------ | --------------- | ------------- |
+| **Speed**             | <1s per page | 0.028-0.104s ✅ | ACHIEVED      |
+| **Quality (TPS)**     | ≥98%         | 81.3%           | P0 - Critical |
+| **Quality (SFS)**     | ≥95%         | 68.0%           | P0 - Critical |
+| **Smoke Test Time**   | <1s total    | 0.07s ✅        | Achieved      |
+| **Feature Test Time** | <5s total    | 0.32s ✅        | Achieved      |
+| **Micro Tests**       | <0.1s each   | 0.02-0.22s ✅   | Achieved      |
+
+
+Real code of zz-explore/pymupdf4llm is available for study to find algorithms and architecture patterns. Study in depth this code to find inspiration for your own implementation in Rust.
 
 ---
 
@@ -29,12 +32,14 @@ Study these leading Python tools for inspiration on architecture and algorithms:
 ### 1. Marker (31K⭐) - [github.com/datalab-to/marker](https://github.com/datalab-to/marker)
 
 **Key Insights:**
+
 - **Pipeline Architecture**: Providers → Builders → Processors → Renderers
 - **LLM Hybrid Mode**: Optional LLM enhancement for tables, math, forms
 - **Batch Processing**: 25 pages/second on H100 in batch mode
 - **Performance**: 122 pages/second projected throughput
 
 **Applicable Patterns:**
+
 ```
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌──────────────┐
 │  Providers  │ →  │   Builders   │ →  │ Processors  │ →  │  Renderers   │
@@ -45,12 +50,14 @@ Study these leading Python tools for inspiration on architecture and algorithms:
 ### 2. Docling (52K⭐) - [github.com/docling-project/docling](https://github.com/docling-project/docling)
 
 **Key Insights:**
+
 - **Unified DoclingDocument Format**: Expressive intermediate representation
 - **Heron Layout Model**: New fast layout detection
 - **VLM Support**: GraniteDocling for vision-language processing
 - **Multiple Export Formats**: Markdown, HTML, DocTags, JSON
 
 **Applicable Patterns:**
+
 - Strong typing with Pydantic models
 - Layout detection as separate pipeline stage
 - Modular format-agnostic export
@@ -58,12 +65,14 @@ Study these leading Python tools for inspiration on architecture and algorithms:
 ### 3. PyMuPDF4LLM (1.3K⭐) - [github.com/pymupdf/pymupdf4llm](https://github.com/pymupdf/pymupdf4llm)
 
 **Key Insights:**
+
 - **Lightweight**: No ML models, pure extraction
 - **Multi-column**: Automatic column detection and reading order
 - **Page Chunks**: `page_chunks=True` for RAG-optimized output
 - **Speed**: Very fast, relies on MuPDF's C library
 
 **Applicable Patterns:**
+
 - Character-level bbox extraction
 - Geometric clustering for columns
 - Minimal dependencies for speed
@@ -71,12 +80,14 @@ Study these leading Python tools for inspiration on architecture and algorithms:
 ### 4. MarkItDown (86K⭐) - [github.com/microsoft/markitdown](https://github.com/microsoft/markitdown)
 
 **Key Insights:**
+
 - **MCP Server**: Model Context Protocol for LLM agents
 - **Multi-format**: PDF, DOCX, PPTX, XLSX, HTML, EPUB
 - **Streaming API**: `convert_stream()` for memory efficiency
 - **Plugin System**: Extensible with 3rd-party plugins
 
 **Applicable Patterns:**
+
 - Stream-based processing (no temp files)
 - Plugin architecture for extensibility
 - Azure Document Intelligence integration option
@@ -87,12 +98,12 @@ Study these leading Python tools for inspiration on architecture and algorithms:
 
 ### Algorithm Complexity Targets
 
-| Operation | Current | Target | Approach |
-|-----------|---------|--------|----------|
-| Text Extraction | O(n²) suspected | O(n) | Direct character stream |
-| Column Detection | O(n²) | O(n log n) | Interval tree clustering |
-| Table Detection | O(cells²) | O(cells) | Lattice line detection |
-| Block Merging | O(blocks²) | O(blocks) | Spatial indexing (R-tree) |
+| Operation        | Current         | Target     | Approach                  |
+| ---------------- | --------------- | ---------- | ------------------------- |
+| Text Extraction  | O(n²) suspected | O(n)       | Direct character stream   |
+| Column Detection | O(n²)           | O(n log n) | Interval tree clustering  |
+| Table Detection  | O(cells²)       | O(cells)   | Lattice line detection    |
+| Block Merging    | O(blocks²)      | O(blocks)  | Spatial indexing (R-tree) |
 
 ### Speed Improvements Roadmap
 
@@ -124,9 +135,7 @@ Ensure to use First Principles thinking. Use your knowledge of PDF structures, t
 
 YOU MUST ENSURE THE TEST ARE EXECUTED QUICKLY: optimize for speed and efficiency. Use O notation to analyze time complexity of your algorithms. You must ensure that the extraction runs quickly even on large documents without sacrificing quality.
 
-
 You must also optimize the conversion process for speed and efficiency, ensuring that the extraction runs quickly even on large documents without sacrificing quality. Don't use image extraction by default in tests.
-
 
 You must always assess the golden standard Markdown output using the Markitdown MCP tool to compare against your extracted Markdown.
 
@@ -134,21 +143,14 @@ ALWAY USE ASCII DIAGRAMS TO DEEPLY REFLECT YOUR THINKING about Data, geometric p
 
 Use markitdown mcp to compare extracted Markdown against gold standard references: but be very smart about quality of gold standards: if the gold standard is poor, your quality metrics will be misleading. You must ensure that the gold standard markdown files are of high quality and accurately represent the intended structure and content of the original PDFs. You want to exceed markitdown quality if possible: it why you are building your own PDF to Markdown converter. Always analyze the gold standard files for quality before using them as benchmarks: use your knowledge of Markdown syntax and best practices to assess their quality. If you find gold standard files that are subpar, document the issues and consider improving them or creating new high-quality references.
 
-
 You can always challenge gold with markitdown if you don't understand the mistmatches: sometimes markitdown makes mistakes too. Use your deep knowledge of PDF internals, text extraction techniques, geometric processing, and Markdown formatting to guide your analysis. The gold data files where not created by markitdown: they were created by human experts. So you can always challenge markitdown if you find mistakes in the gold data files.
 
-
 Be careful about parallelizing too much: sometimes sequential processing is better for quality because you can use context from previous pages to inform extraction on later pages. Use your judgment to balance speed and quality based on document characteristics.
-
 
 Addeditional Important Guidelines:
 Be generic in your approach: avoid hardcoding for specific documents. Your algorithms should generalize well across diverse PDF layouts and content types. Create a rule for arvivx for example is a BIG BIG code smells --> You remove such kind of hardcoding by building generic algorithms that can handle a wide range of cases based on document structure and content analysis, using deep knowledge of PDF internals and text extraction techniques and geometric processing.
 
 VERY IMPORTANT: Optimize for speed and efficiency. Study the algoryithms used in text extraction and layout analysis to ensure they run quickly even on large documents. Use big notation (O notation) to analyze time complexity of your algorithms.
-
-
-
-
 
 OODA Loop directory: specs/004-perfect-pdf-markdown-conversion/ooda_loop/
 
@@ -192,6 +194,7 @@ cargo test --package edgequake-pdf --test micro_structure # 0.02s - headers/list
 ```
 
 **Files to create:**
+
 - `tests/micro_text.rs` - Single paragraph extraction (1 tiny PDF)
 - `tests/micro_tables.rs` - 2x2 table detection (1 tiny PDF)
 - `tests/micro_columns.rs` - 2-column reading order (1 tiny PDF)
@@ -199,6 +202,7 @@ cargo test --package edgequake-pdf --test micro_structure # 0.02s - headers/list
 - `tests/micro_structure.rs` - H1-H3 detection (1 tiny PDF)
 
 **Design principles:**
+
 - Each test uses **exactly 1 minimal PDF** (< 10KB)
 - PDFs are **generated programmatically** or embedded as bytes
 - No file I/O in hot path (use `include_bytes!`)
@@ -243,12 +247,12 @@ cargo test --package edgequake-pdf --test comprehensive_quality --features compr
 
 ### Optimization Results
 
-| Test Tier           | Before           | After  | Speedup | Use Case        |
-| ------------------- | ---------------- | ------ | ------- | --------------- |
-| **Micro**           | N/A              | 0.02s  | ∞       | Per-keystroke   |
-| **Smoke**           | 116s (all tests) | 0.07s  | 1657x   | Every save      |
-| **Feature**         | 116s             | 0.32s  | 362x    | Before commit   |
-| **Comprehensive**   | 116s             | 118s   | 1x      | Before release  |
+| Test Tier         | Before           | After | Speedup | Use Case       |
+| ----------------- | ---------------- | ----- | ------- | -------------- |
+| **Micro**         | N/A              | 0.02s | ∞       | Per-keystroke  |
+| **Smoke**         | 116s (all tests) | 0.07s | 1657x   | Every save     |
+| **Feature**       | 116s             | 0.32s | 362x    | Before commit  |
+| **Comprehensive** | 116s             | 118s  | 1x      | Before release |
 
 ### Speed-Quality Tradeoff Matrix
 
@@ -378,13 +382,13 @@ pub enum QualityMode {
 
 **Algorithm Selection by Mode:**
 
-| Feature | Fast | Balanced | Quality | LLM |
-|---------|------|----------|---------|-----|
-| Text extraction | ✅ | ✅ | ✅ | ✅ |
-| Column detection | Skip | Heuristic | R-tree | R-tree |
-| Table detection | Skip | Lattice only | Lattice+Stream | +LLM fix |
-| Reading order | Simple | Geometric | Graph-based | +LLM |
-| Font fallback | None | Guess | Full CMap | +LLM |
+| Feature          | Fast   | Balanced     | Quality        | LLM      |
+| ---------------- | ------ | ------------ | -------------- | -------- |
+| Text extraction  | ✅     | ✅           | ✅             | ✅       |
+| Column detection | Skip   | Heuristic    | R-tree         | R-tree   |
+| Table detection  | Skip   | Lattice only | Lattice+Stream | +LLM fix |
+| Reading order    | Simple | Geometric    | Graph-based    | +LLM     |
+| Font fallback    | None   | Guess        | Full CMap      | +LLM     |
 
 ---
 
@@ -405,7 +409,6 @@ Use `mcp_markitdown_convert_to_markdown` tool to generate reference markdown fro
 
 ### Test Documents in `zz_test_docs/`
 
-
 Addition new documents have been added for evaluation, former documents:
 
 | Document                                    | Pages | Type                     | Status                    |
@@ -417,8 +420,7 @@ Addition new documents have been added for evaluation, former documents:
 | `agentfail_2601.22984v1.pdf`                | ?     | arXiv paper              | 🔄 New - needs evaluation |
 | `hotmess_2601.23045v1.pdf`                  | ?     | arXiv paper              | 🔄 New - needs evaluation |
 
-
-List documents  to analyze for root causes of poor extraction quality.
+List documents to analyze for root causes of poor extraction quality.
 
 ### Current State Assessment
 
@@ -564,7 +566,7 @@ const MICRO_PDF: &[u8] = include_bytes!("test-pdfs/micro_text.pdf");
 fn test_basic_text_extraction() {
     let extractor = PdfExtractor::from_bytes(MICRO_PDF).unwrap();
     let md = extractor.to_markdown().unwrap();
-    
+
     assert!(md.contains("Hello World"));
     assert!(md.len() > 10);
 }
@@ -700,13 +702,13 @@ time marker_single "$PDF" --output_format markdown > /dev/null
 
 Compare output quality on the same PDFs:
 
-| Tool | TPS | SFS | ROA | Speed (pages/s) |
-|------|-----|-----|-----|-----------------|
-| **EdgeQuake (target)** | ≥98% | ≥95% | ≥95% | ≥1.0 |
-| EdgeQuake (current) | 81% | 68% | TBD | 0.06 |
-| Marker (reported) | 95.7% | - | - | 2.8 |
-| PyMuPDF4LLM | ~85% | ~60% | ~80% | 10+ |
-| Docling | 86.7% | - | - | 0.3 |
+| Tool                   | TPS   | SFS  | ROA  | Speed (pages/s) |
+| ---------------------- | ----- | ---- | ---- | --------------- |
+| **EdgeQuake (target)** | ≥98%  | ≥95% | ≥95% | ≥1.0            |
+| EdgeQuake (current)    | 81%   | 68%  | TBD  | 0.06            |
+| Marker (reported)      | 95.7% | -    | -    | 2.8             |
+| PyMuPDF4LLM            | ~85%  | ~60% | ~80% | 10+             |
+| Docling                | 86.7% | -    | -    | 0.3             |
 
 ### Competitive Analysis: What They Do Better
 
@@ -824,18 +826,21 @@ Compare output quality on the same PDFs:
 Target: <1 second per page extraction
 
 **Hotspots to Profile:**
+
 - Character extraction loop (suspected O(n²))
 - Block merging algorithm (nested loops)
 - Font lookup/decoding per character
 - Table cell detection (exhaustive search)
 
 **Quick Wins:**
+
 1. **Lazy font loading**: Don't parse all fonts upfront
 2. **Character buffering**: Batch character insertions
 3. **Skip invisible text**: Early exit for white-on-white
 4. **Page independence**: Parallel page extraction
 
 **Benchmark Commands:**
+
 ```bash
 # Time per operation breakdown
 RUST_LOG=edgequake_pdf::timing=trace cargo run --release --example convert_test_docs
@@ -854,17 +859,20 @@ python -c "import pymupdf4llm; print(pymupdf4llm.to_markdown('test.pdf'))" | wc 
 ### Priority 2: Table Detection
 
 **Inspired by Marker's approach:**
+
 - Lattice tables: Line-based detection (fast)
 - Stream tables: Whitespace alignment (slower)
 - LLM fallback: For complex nested tables
 
 **Algorithm Complexity:**
+
 - Current: O(cells²) - checking all cell pairs
 - Target: O(cells log cells) - spatial indexing
 
 ### Priority 3: Layout Analysis
 
 **Inspired by Docling's Heron model:**
+
 - Column detection using vertical gap analysis
 - Reading order via topological sort
 - Block merging with confidence scoring

@@ -28,11 +28,11 @@
 
 ### Actual Performance Status
 
-| Metric | Target | Actual | Status |
-|--------|--------|--------|--------|
-| Per-page time | <1.0s | 0.028-0.104s | ✅ ACHIEVED |
-| Parallel utilization | >200% CPU | 448% CPU | ✅ ACHIEVED |
-| Release vs Debug | 5x | 5x | ✅ EXPECTED |
+| Metric               | Target    | Actual       | Status      |
+| -------------------- | --------- | ------------ | ----------- |
+| Per-page time        | <1.0s     | 0.028-0.104s | ✅ ACHIEVED |
+| Parallel utilization | >200% CPU | 448% CPU     | ✅ ACHIEVED |
+| Release vs Debug     | 5x        | 5x           | ✅ EXPECTED |
 
 ## Optimization Opportunities (For Further Improvement)
 
@@ -80,11 +80,11 @@ for page in pages {
 
 ### Risk Assessment
 
-| Action | Risk | Reward |
-|--------|------|--------|
-| Add font caching | Low | 10-15% faster |
-| Focus on quality | Low | Better output |
-| Complex streaming | High | Minimal gain |
+| Action            | Risk | Reward        |
+| ----------------- | ---- | ------------- |
+| Add font caching  | Low  | 10-15% faster |
+| Focus on quality  | Low  | Better output |
+| Complex streaming | High | Minimal gain  |
 
 ## Conclusion
 

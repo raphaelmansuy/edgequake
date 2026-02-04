@@ -141,8 +141,43 @@ impl TextGrouper {
             // WHY (OODA-05): After Y-normalization, Y=0 is at TOP of page, Y increases downward.
             // So footer (visual bottom) = LARGE Y, and title (visual top) = SMALL Y.
 
+            // OODA-36 FIX: Protect figure/table captions from being classified as footer/header.
+            // WHY: Figure captions often appear at bottom of pages (high Y position) and would
+            // otherwise be classified as footer content. But they're high-value semantic content
+            // that should NEVER be filtered out.
+            // Pattern: "Figure N." or "Table N." where N is 1-3 digits
+            let is_figure_or_table_caption = {
+                let trimmed = elem.text.trim();
+                (trimmed.starts_with("Figure ") || trimmed.starts_with("Table "))
+                    && trimmed.len() > 8
+                    && {
+                        // Check for "Figure N." or "Table N." pattern
+                        let after_prefix = if trimmed.starts_with("Figure ") {
+                            &trimmed[7..]
+                        } else {
+                            &trimmed[6..]
+                        };
+                        // Must have digit(s) followed by period
+                        let digit_count = after_prefix
+                            .chars()
+                            .take_while(|c| c.is_ascii_digit())
+                            .count();
+                        digit_count >= 1 && after_prefix.chars().nth(digit_count) == Some('.')
+                    }
+            };
+
+            if is_figure_or_table_caption {
+                debug!(
+                    "OODA-36: Protected figure/table caption: Y={:.1} X={:.1} '{}'",
+                    elem.y,
+                    elem.x,
+                    Self::safe_truncate(&elem.text, 50)
+                );
+            }
+
             // Check if element is in footer region (visual bottom = large Y)
-            let is_footer = elem.y > footer_threshold;
+            // OODA-36: Figure/table captions are NEVER footer content
+            let is_footer = elem.y > footer_threshold && !is_figure_or_table_caption;
 
             // Check if element is in header region (visual top but small font = running header)
             // Running headers are at the very top (small Y) but with small font size
@@ -188,9 +223,11 @@ impl TextGrouper {
                             .chars()
                             .all(|c| c.is_ascii_digit() || c.is_whitespace()))
             };
+            // OODA-36: Figure/table captions are NEVER header content
             let is_header = elem.y < header_threshold
                 && elem.font_size < large_font_threshold
-                && looks_like_running_header;
+                && looks_like_running_header
+                && !is_figure_or_table_caption;
 
             // Check if element is affiliation/metadata (between body and footer)
             // These include: university names, emails, conference submission lines
@@ -236,7 +273,9 @@ impl TextGrouper {
             // FIX: Only treat as affiliation if it LOOKS like an affiliation (content-based).
             // Zone check is intentionally NOT used - position alone is unreliable for affiliations
             // since REFERENCES can also appear at page bottom.
-            let is_affiliation = looks_like_affiliation && !is_reference_content;
+            // OODA-36: Figure/table captions are NEVER affiliation content
+            let is_affiliation =
+                looks_like_affiliation && !is_reference_content && !is_figure_or_table_caption;
 
             // Handle spanning elements (titles):
             // - In title zone (near top of page = small Y after normalization)
@@ -266,12 +305,6 @@ impl TextGrouper {
                     is_large_font,
                     Self::safe_truncate(&elem.text, 50)
                 );
-                // DEBUG: Track Figure 1 if it goes to spanning
-                if elem.text.contains("Figure") {
-                    eprintln!("FIGURE->SPANNING: Y={:.1} X={:.1} font={:.1} title_thresh={:.1} large_font_thresh={:.1} text='{}'",
-                        elem.y, elem.x, elem.font_size, title_threshold, large_font_threshold,
-                        Self::safe_truncate(&elem.text, 60));
-                }
                 spanning_elements.push(elem);
             } else if is_footer || is_header || is_affiliation {
                 // WHY: Footer/header/affiliation must ALSO respect column boundaries
@@ -295,19 +328,6 @@ impl TextGrouper {
                     Self::safe_truncate(&elem.text, 40)
                 );
 
-                // DEBUG: Track Figure elements going to footer
-                if elem.text.contains("Figure") {
-                    eprintln!(
-                        "FIGURE->FOOTER: Y={:.1} X={:.1} header={} footer={} affil={} text='{}'",
-                        elem.y,
-                        elem.x,
-                        is_header,
-                        is_footer,
-                        is_affiliation,
-                        Self::safe_truncate(&elem.text, 60)
-                    );
-                }
-
                 // Assign footer to appropriate column
                 if elem.x < column_boundary {
                     left_footer.push(elem);
@@ -316,31 +336,9 @@ impl TextGrouper {
                 }
             } else if elem.x < column_boundary - margin {
                 // Clearly in left column
-                // DEBUG: Track Figure elements
-                if elem.text.contains("Figure") {
-                    eprintln!(
-                        "FIGURE->LEFT: X={:.1} boundary={:.1}-{}={:.1} text='{}'",
-                        elem.x,
-                        column_boundary,
-                        margin,
-                        column_boundary - margin,
-                        Self::safe_truncate(&elem.text, 60)
-                    );
-                }
                 left_column.push(elem);
             } else if elem.x > column_boundary + margin {
                 // Clearly in right column
-                // DEBUG: Track Figure elements
-                if elem.text.contains("Figure") {
-                    eprintln!(
-                        "FIGURE->RIGHT: X={:.1} boundary={:.1}+{}={:.1} text='{}'",
-                        elem.x,
-                        column_boundary,
-                        margin,
-                        column_boundary + margin,
-                        Self::safe_truncate(&elem.text, 60)
-                    );
-                }
                 right_column.push(elem);
             } else {
                 // WHY: Element is in the gap between columns (within ±15pt of boundary)
@@ -362,16 +360,6 @@ impl TextGrouper {
                         page_center,
                         Self::safe_truncate(&elem.text, 30)
                     );
-                    // DEBUG: Track Figure elements going to GAP->LEFT
-                    if elem.text.contains("Figure") {
-                        eprintln!(
-                            "FIGURE->GAP-LEFT: X={:.1} boundary={:.1} center={:.1} text='{}'",
-                            elem.x,
-                            column_boundary,
-                            page_center,
-                            Self::safe_truncate(&elem.text, 60)
-                        );
-                    }
                     left_column.push(elem);
                 } else {
                     info!(
@@ -382,16 +370,6 @@ impl TextGrouper {
                         page_center,
                         Self::safe_truncate(&elem.text, 30)
                     );
-                    // DEBUG: Track Figure elements going to GAP->RIGHT
-                    if elem.text.contains("Figure") {
-                        eprintln!(
-                            "FIGURE->GAP-RIGHT: X={:.1} boundary={:.1} center={:.1} text='{}'",
-                            elem.x,
-                            column_boundary,
-                            page_center,
-                            Self::safe_truncate(&elem.text, 60)
-                        );
-                    }
                     right_column.push(elem);
                 }
             }

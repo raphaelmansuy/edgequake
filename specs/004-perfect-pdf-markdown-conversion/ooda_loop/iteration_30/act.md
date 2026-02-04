@@ -12,18 +12,18 @@
 
 ```rust
 /// Extract hex codes from a line.
-/// 
+///
 /// **WHY this function:**
 /// ToUnicode CMap bfrange entries can be in two formats:
 /// 1. Space-separated: `<21> <21> <0054>`
 /// 2. Concatenated: `<21><21><0054>`
-/// 
+///
 /// This function extracts all `<hex>` patterns regardless of spacing.
 fn extract_hex_codes(line: &str) -> Vec<&str> {
     let mut codes = Vec::new();
     let bytes = line.as_bytes();
     let mut i = 0;
-    
+
     while i < bytes.len() {
         if bytes[i] == b'<' {
             if let Some(end_offset) = bytes[i..].iter().position(|&b| b == b'>') {
@@ -53,7 +53,7 @@ if in_bfrange {
     // 1. Space-separated: <21> <21> <0054>
     // 2. Concatenated: <21><21><0054>
     let hex_codes: Vec<&str> = Self::extract_hex_codes(line);
-    
+
     if hex_codes.len() >= 3 {
         // ... rest of parsing logic unchanged ...
     }
@@ -96,6 +96,7 @@ test result: ok. 8 passed; 0 failed
 ## Before/After Comparison
 
 ### Page 2 - Before Fix:
+
 ```
 **!"#$% '( )'*+%*+,**
 
@@ -105,6 +106,7 @@ test result: ok. 8 passed; 0 failed
 ```
 
 ### Page 2 - After Fix:
+
 ```
 **Table of Contents**
 
@@ -117,10 +119,10 @@ test result: ok. 8 passed; 0 failed
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
+| File                       | Change                                                      |
+| -------------------------- | ----------------------------------------------------------- |
 | `src/backend/encodings.rs` | Added `extract_hex_codes()`, updated bfchar/bfrange parsing |
-| `tests/fast_quality.rs` | Fixed timing threshold, updated assertions |
+| `tests/fast_quality.rs`    | Fixed timing threshold, updated assertions                  |
 
 ## Impact
 
