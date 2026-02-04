@@ -144,15 +144,137 @@ impl TextGrouper {
     }
 
     /// Group lines into blocks based on column alignment and vertical proximity.
+    ///
+    /// This method now includes column detection to handle multi-column layouts:
+    /// 1. Separate lines by page
+    /// 2. For each page, detect column boundaries
+    /// 3. Group lines within each column independently
+    /// 4. Process columns in reading order (left to right)
     pub fn lines_to_blocks(&self, lines: Vec<Line>) -> Vec<Block> {
         if lines.is_empty() {
             return vec![];
         }
 
+        // Group lines by page
+        let mut pages: std::collections::HashMap<usize, Vec<Line>> = std::collections::HashMap::new();
+        for line in lines {
+            pages.entry(line.page_num).or_default().push(line);
+        }
+
+        let mut all_blocks: Vec<Block> = Vec::new();
+
+        // Get sorted page numbers for deterministic output
+        let mut page_nums: Vec<usize> = pages.keys().cloned().collect();
+        page_nums.sort();
+
+        // Process each page in order
+        for page_num in page_nums {
+            let page_lines = pages.remove(&page_num).unwrap();
+            // Detect columns for this page
+            let columns = self.detect_columns(&page_lines);
+
+            if columns.is_empty() {
+                // Single column - use simple grouping
+                let page_blocks = self.group_lines_simple(page_lines);
+                all_blocks.extend(page_blocks);
+            } else {
+                // Multi-column - assign lines to columns, then group within each
+                let page_blocks = self.group_lines_by_column(page_lines, &columns);
+                all_blocks.extend(page_blocks);
+            }
+        }
+
+        // Apply reading order sorting (left column first, then right)
+        self.sort_blocks_reading_order(&mut all_blocks);
+
+        all_blocks
+    }
+
+    /// Detect column boundaries from lines.
+    ///
+    /// Algorithm:
+    /// 1. Find horizontal gaps between line bounding boxes
+    /// 2. If a gap appears consistently across many lines, it's a column gutter
+    fn detect_columns(&self, lines: &[Line]) -> Vec<(f32, f32)> {
+        if lines.len() < 4 {
+            return vec![];
+        }
+
+        // Calculate page bounds
+        let page_left = lines.iter().map(|l| l.x0).fold(f32::MAX, f32::min);
+        let page_right = lines.iter().map(|l| l.x1).fold(f32::MIN, f32::max);
+        let page_width = page_right - page_left;
+
+        if page_width < 100.0 {
+            return vec![];
+        }
+
+        // Collect all line boundaries
+        let mut line_bounds: Vec<(f32, f32)> = lines.iter().map(|l| (l.x0, l.x1)).collect();
+        line_bounds.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        // Check for gaps near the center of the page
+        let center = page_left + page_width / 2.0;
+        let search_range = page_width * 0.2; // Search within ±20% of center
+
+        // Scan for lines that don't cross the center region
+        let mut left_count = 0;
+        let mut right_count = 0;
+        let mut gap_start = center - search_range;
+        let mut gap_end = center + search_range;
+
+        for &(x0, x1) in &line_bounds {
+            // Skip lines that span most of the page (headers, etc.)
+            if x1 - x0 > page_width * 0.8 {
+                continue;
+            }
+
+            // Check if this line is fully to the left or right of center
+            if x1 < center - search_range * 0.1 {
+                left_count += 1;
+                gap_start = gap_start.max(x1);
+            } else if x0 > center + search_range * 0.1 {
+                right_count += 1;
+                gap_end = gap_end.min(x0);
+            }
+        }
+
+        // Find candidate gutters
+        let mut gutter_candidates: Vec<(f32, f32, usize)> = vec![]; // (start, end, count)
+
+        // Need at least 3 lines on each side
+        let min_lines_per_column = 3;
+
+        if left_count >= min_lines_per_column && right_count >= min_lines_per_column {
+            // Refine gutter bounds
+            let gutter_width = gap_end - gap_start;
+            if gutter_width >= 10.0 && gutter_width < page_width * 0.3 {
+                gutter_candidates.push((gap_start, gap_end, left_count + right_count));
+            }
+        }
+
+        // Return column boundaries
+        if !gutter_candidates.is_empty() {
+            // Sort by count (most evidence first)
+            gutter_candidates.sort_by_key(|&(_, _, count)| std::cmp::Reverse(count));
+            let best = gutter_candidates[0];
+            let gutter_center = (best.0 + best.1) / 2.0;
+
+            // Return two columns: left and right of gutter
+            vec![(page_left, gutter_center), (gutter_center, page_right)]
+        } else {
+            vec![]
+        }
+    }
+
+    /// Simple grouping without column detection.
+    fn group_lines_simple(&self, mut lines: Vec<Line>) -> Vec<Block> {
+        // Sort lines top-to-bottom
+        lines.sort_by(|a, b| b.y1.partial_cmp(&a.y1).unwrap());
+
         let mut blocks: Vec<Block> = Vec::new();
 
         for line in lines {
-            // Try to add to an existing block
             let mut added = false;
             for block in &mut blocks {
                 if block.can_add_line(&line, self.params.block_gap) {
@@ -167,20 +289,81 @@ impl TextGrouper {
             }
         }
 
-        // Sort lines within each block
         for block in &mut blocks {
             block.sort_lines();
         }
 
-        // Sort blocks by page, then reading order (top-to-bottom, left-to-right)
+        blocks
+    }
+
+    /// Group lines by column, then within each column.
+    fn group_lines_by_column(&self, lines: Vec<Line>, columns: &[(f32, f32)]) -> Vec<Block> {
+        // Assign each line to a column
+        let mut column_lines: Vec<Vec<Line>> = vec![vec![]; columns.len()];
+
+        for line in lines {
+            let line_center = (line.x0 + line.x1) / 2.0;
+
+            // Find which column this line belongs to
+            let mut assigned = false;
+            for (i, &(col_start, col_end)) in columns.iter().enumerate() {
+                if line_center >= col_start && line_center <= col_end {
+                    column_lines[i].push(line.clone());
+                    assigned = true;
+                    break;
+                }
+            }
+
+            // If line spans multiple columns (like a header), assign to first column
+            if !assigned && !column_lines.is_empty() {
+                column_lines[0].push(line);
+            }
+        }
+
+        // Group lines within each column, then concatenate
+        // Blocks are already in reading order within each column
+        // We just need to process left column fully before right column
+        let mut all_blocks = Vec::new();
+        for col_lines in column_lines {
+            if !col_lines.is_empty() {
+                let mut col_blocks = self.group_lines_simple(col_lines);
+                // Sort blocks within column: top to bottom
+                col_blocks.sort_by(|a, b| b.y1.partial_cmp(&a.y1).unwrap());
+                all_blocks.extend(col_blocks);
+            }
+        }
+
+        all_blocks
+    }
+
+    /// Sort blocks in reading order: left column first (top-to-bottom), then right column.
+    ///
+    /// This is different from simple (y, x) sorting because we want to read
+    /// all of column 1 before column 2.
+    fn sort_blocks_reading_order(&self, blocks: &mut [Block]) {
+        if blocks.is_empty() {
+            return;
+        }
+
+        // Calculate page center for column assignment
+        let page_left = blocks.iter().map(|b| b.x0).fold(f32::MAX, f32::min);
+        let page_right = blocks.iter().map(|b| b.x1).fold(f32::MIN, f32::max);
+        let page_center = (page_left + page_right) / 2.0;
+
+        // Sort: first by column (left < right), then by y within column
         blocks.sort_by(|a, b| {
+            let a_center = (a.x0 + a.x1) / 2.0;
+            let b_center = (b.x0 + b.x1) / 2.0;
+
+            // Determine column (0 = left, 1 = right)
+            let a_col = if a_center < page_center { 0 } else { 1 };
+            let b_col = if b_center < page_center { 0 } else { 1 };
+
             a.page_num
                 .cmp(&b.page_num)
-                .then(b.y1.partial_cmp(&a.y1).unwrap()) // top first
-                .then(a.x0.partial_cmp(&b.x0).unwrap()) // left first
+                .then(a_col.cmp(&b_col)) // left column first
+                .then(b.y1.partial_cmp(&a.y1).unwrap()) // top to bottom within column
         });
-
-        blocks
     }
 
     /// Full pipeline: chars → spans → lines → blocks

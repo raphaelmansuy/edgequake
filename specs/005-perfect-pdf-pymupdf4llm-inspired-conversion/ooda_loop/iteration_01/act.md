@@ -8,26 +8,26 @@ Successfully integrated pdfium-render as pure Rust PDF backend with accurate cha
 
 ### New Files Created
 
-| File | Purpose | Lines |
-|------|---------|-------|
-| `src/backend/pdfium.rs` | PDFium-based character extractor | ~250 |
-| `src/layout/pymupdf_structs.rs` | Span/Line/Block structures | ~540 |
-| `src/layout/pymupdf_grouper.rs` | Text grouping algorithms | ~440 |
-| `src/layout/pymupdf_renderer.rs` | Markdown renderer | ~250 |
-| `src/pipeline/pymupdf_pipeline.rs` | High-level pipeline API | ~250 |
-| `src/pipeline/mod.rs` | Pipeline module exports | ~15 |
-| `examples/test_pdfium_load.rs` | Test/demo binary | ~60 |
+| File                               | Purpose                          | Lines |
+| ---------------------------------- | -------------------------------- | ----- |
+| `src/backend/pdfium.rs`            | PDFium-based character extractor | ~250  |
+| `src/layout/pymupdf_structs.rs`    | Span/Line/Block structures       | ~540  |
+| `src/layout/pymupdf_grouper.rs`    | Text grouping algorithms         | ~440  |
+| `src/layout/pymupdf_renderer.rs`   | Markdown renderer                | ~250  |
+| `src/pipeline/pymupdf_pipeline.rs` | High-level pipeline API          | ~250  |
+| `src/pipeline/mod.rs`              | Pipeline module exports          | ~15   |
+| `examples/test_pdfium_load.rs`     | Test/demo binary                 | ~60   |
 
 ### Files Modified
 
-| File | Change |
-|------|--------|
-| `Cargo.toml` | Added `pdfium` feature and `pdfium-render = "0.8"` |
-| `src/lib.rs` | Added pipeline module, re-exported types |
-| `src/backend/mod.rs` | Added pdfium module export |
-| `src/backend/elements.rs` | Added `RawChar` struct for character data |
-| `src/layout/mod.rs` | Added pymupdf modules and exports |
-| `src/error.rs` | Added `Backend(String)` variant to PdfError |
+| File                      | Change                                             |
+| ------------------------- | -------------------------------------------------- |
+| `Cargo.toml`              | Added `pdfium` feature and `pdfium-render = "0.8"` |
+| `src/lib.rs`              | Added pipeline module, re-exported types           |
+| `src/backend/mod.rs`      | Added pdfium module export                         |
+| `src/backend/elements.rs` | Added `RawChar` struct for character data          |
+| `src/layout/mod.rs`       | Added pymupdf modules and exports                  |
+| `src/error.rs`            | Added `Backend(String)` variant to PdfError        |
 
 ## Pipeline Architecture
 
@@ -41,31 +41,36 @@ PDF → PDFium → RawChars → Spans → Lines → Blocks → Markdown
 ## Key Algorithms Implemented
 
 ### 1. Character → Span Grouping
+
 - Groups consecutive characters with same font style
 - Detects word boundaries via horizontal gap analysis
 - Space threshold: ~25% of font size
 
-### 2. Span → Line Grouping  
+### 2. Span → Line Grouping
+
 - Groups spans on same baseline (±3pt tolerance)
 - Inserts spaces based on gap analysis
 - Space insertion threshold: ~15% of font size
 
 ### 3. Line → Block Grouping
+
 - Groups lines in same column/region
 - Checks horizontal overlap (≥50%)
 - Maximum line gap: 20pt
 
 ### 4. Block Classification
+
 - **Headers**: Font size ≥120% of body, ≤2 lines
   - H1: ratio ≥2.0x, H2: ≥1.7x, H3: ≥1.5x, etc.
 - **Code**: All spans monospace
-- **Lists**: Starts with •, -, *, or 1.
+- **Lists**: Starts with •, -, \*, or 1.
 - **Default**: Paragraph
 
 ### 5. Markdown Rendering
+
 - Headers: # prefixes
 - Bold: **text** from font name containing "bold"
-- Italic: *text* from font name containing "italic"
+- Italic: _text_ from font name containing "italic"
 - Code: `text` from monospace fonts, ``` for blocks
 - Lists: Normalized to - prefix
 
@@ -97,7 +102,7 @@ Rahul Gupta Stanford University 353 Serra Mall, Stanford, CA 94305
 ## Known Limitations (for OODA-02)
 
 1. **Multi-column interleaving**: Two-column layouts mix left/right content
-2. **Over-bolding**: Title words each wrapped in ** separately
+2. **Over-bolding**: Title words each wrapped in \*\* separately
 3. **No table detection**: Tables render as plain text
 
 ## Dependencies
@@ -115,6 +120,7 @@ let markdown = pipeline.convert_file("document.pdf")?;
 ```
 
 Or with environment variable:
+
 ```bash
 PDFIUM_DYNAMIC_LIB_PATH=/path/to/libpdfium.dylib cargo run ...
 ```

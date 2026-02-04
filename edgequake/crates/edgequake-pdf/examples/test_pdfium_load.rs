@@ -6,25 +6,25 @@
 fn main() {
     let lib_path = std::env::var("PDFIUM_DYNAMIC_LIB_PATH")
         .expect("Set PDFIUM_DYNAMIC_LIB_PATH environment variable");
-    
+
     println!("Attempting to load PDFium from: {lib_path}");
-    
+
     // Check file exists
     if !std::path::Path::new(&lib_path).exists() {
         eprintln!("ERROR: File does not exist!");
         std::process::exit(1);
     }
     println!("✓ File exists");
-    
+
     #[cfg(feature = "pdfium")]
     {
         use edgequake_pdf::pipeline::PymupdfPipeline;
-        
+
         println!("Creating PymupdfPipeline...");
         match PymupdfPipeline::with_library_path(&lib_path) {
             Ok(pipeline) => {
                 println!("✓ Pipeline created successfully!");
-                
+
                 // Try to convert a PDF if provided
                 if let Some(pdf_path) = std::env::args().nth(1) {
                     println!("\n=== Converting: {pdf_path} ===\n");
@@ -50,7 +50,7 @@ fn main() {
             }
         }
     }
-    
+
     #[cfg(not(feature = "pdfium"))]
     {
         eprintln!("ERROR: pdfium feature not enabled");
