@@ -411,3 +411,6 @@ Ensure to clean old implementations and document all changes thoroughly when pdf
 | 03   | 2026-02-04 | Added ROUGE-L, BLEU-4, Structure, Format metrics    | Gap identified: 0.377 vs 0.073     |
 | 04   | 2025-01-27 | **FIX**: Removed column gutter check from line join | Quality: 0.573→0.675 (+18%)        |
 | 04   | 2025-01-27 | Line fragmentation fixed (9892→1814 lines)          | ROUGE-L: 0.491→0.702 (+43%)        |
+| 05   | 2025-01-27 | Font style: Added "medi/semi/demi" bold detection   | Structure: 0.350→0.453 (+29%)      |
+| 05   | 2025-01-27 | Header levels: Adjusted ratio thresholds            | Format: 0.343→0.470 (+37%)         |
+| 05   | 2025-01-27 | Combined effect                                     | Quality: 0.675→0.702 (+4%)         |
