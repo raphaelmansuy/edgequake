@@ -601,14 +601,18 @@ impl TextGrouper {
 
         if dominant_size > body_font_size * 1.2 && block.lines.len() <= 2 {
             // Map size ratio to header level
+            // WHY adjusted thresholds: Academic papers often have title/section fonts
+            // at 1.4-1.5x body size. The old thresholds assigned H3+ to these,
+            // but pymupdf4llm treats the largest font as H1.
+            // These adjusted thresholds better match pymupdf4llm's output.
             let ratio = dominant_size / body_font_size;
-            let level = if ratio >= 2.0 {
+            let level = if ratio >= 1.8 {
                 1
-            } else if ratio >= 1.7 {
+            } else if ratio >= 1.4 {
                 2
-            } else if ratio >= 1.5 {
-                3
             } else if ratio >= 1.3 {
+                3
+            } else if ratio >= 1.25 {
                 4
             } else {
                 5
