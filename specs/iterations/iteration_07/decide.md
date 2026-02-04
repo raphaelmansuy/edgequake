@@ -9,23 +9,29 @@ Fix the Y-coordinate used in `compute_smart_sort_key` to use `y1` (top) instead 
 ### File: `layout/pymupdf_grouper.rs`
 
 #### Change 1: Line ~536
+
 **Before:**
+
 ```rust
 left_block.y0 as i32
 ```
 
 **After:**
+
 ```rust
 left_block.y1 as i32  // y1 = TOP in PDFium coords
 ```
 
 #### Change 2: Line ~540
+
 **Before:**
+
 ```rust
 block.y0 as i32
 ```
 
 **After:**
+
 ```rust
 block.y1 as i32  // y1 = TOP in PDFium coords
 ```

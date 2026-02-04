@@ -2,7 +2,13 @@
 
 ## Task
 
-Your mission is to implement a completely new PDF-to-Markdown extraction pipeline using **pure Rust** with **pdfium-render** as the PDF backend. The goal is to achieve F1 >= 0.95 against pymupdf4llm gold standards by implementing pymupdf4llm's core algorithms in Rust.
+Your mission is to implement a completely new PDF-to-Markdown extraction pipeline using **pure Rust** with **pdfium-render** as the PDF backend. The goal is to achieve Quality >= 0.95 against pymupdf4llm gold standards by implementing pymupdf4llm's core algorithms in Rust.
+
+Always compare with pymupdf4llm outputs to ensure fidelity. Ensure to check algorithm details in `zz-explore/pymupdf4llm/pymupdf4llm/helpers/`.
+
+Accelerate the tests in order to validate progress quickly and speedup OODA iterations.
+
+Create dedicated micro-tests for each algorithmic component to isolate issues.
 
 FULLY Read THIS MISSION FILE at the start of every OODA iteration.
 
@@ -414,3 +420,7 @@ Ensure to clean old implementations and document all changes thoroughly when pdf
 | 05   | 2025-01-27 | Font style: Added "medi/semi/demi" bold detection   | Structure: 0.350→0.453 (+29%)      |
 | 05   | 2025-01-27 | Header levels: Adjusted ratio thresholds            | Format: 0.343→0.470 (+37%)         |
 | 05   | 2025-01-27 | Combined effect                                     | Quality: 0.675→0.702 (+4%)         |
+| 06   | 2025-01-27 | Line breaks: Changed join(" ") to join("\\n")       | Structure: 0.453→0.602 (+33%)      |
+| 06   | 2025-01-27 | Lines now match gold paragraph format               | Quality: 0.702→0.724 (+3%)         |
+| 07   | 2025-01-28 | Author line rescue: Fragments at X>boundary rescued | Specific fix (no aggregate change) |
+| 07   | 2025-01-28 | v2_2512: Jitendra Malik now block 2 (was block 10)  | Reading order fix for title pages  |

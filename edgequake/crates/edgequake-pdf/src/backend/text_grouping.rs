@@ -409,14 +409,12 @@ impl TextGrouper {
             let should_rescue = if !spanning_elements.is_empty() {
                 // Only consider elements between Y=15 and Y=60 (author zone)
                 let in_author_zone = elem.y > 15.0 && elem.y < 60.0;
-                
+
                 if in_author_zone {
                     // Check if there's a left_column element at EXACTLY same Y (tight tolerance)
                     let y_tolerance = elem.font_size.max(5.0);
                     let has_left_sibling = left_column.iter().any(|left| {
-                        (left.y - elem.y).abs() < y_tolerance 
-                            && left.y > 15.0 
-                            && left.y < 60.0
+                        (left.y - elem.y).abs() < y_tolerance && left.y > 15.0 && left.y < 60.0
                     });
 
                     // Also check if element looks like author continuation
@@ -1143,13 +1141,25 @@ impl TextGrouper {
                     // incorrectly groups consecutive PDF lines together.
                     // Example: "can" at X=316.6, width=21.9 ends at X=338.5
                     //          "datasets" at X=317.2 starts BEFORE prev ends → gap=-21.3
-                    // The fix: ALWAYS insert a space when gap is significantly negative.
-                    // A negative gap > font_size indicates elements from different lines.
-                    let significant_overlap = gap < -(avg_font_size * 0.5);
+                    //
+                    // OODA-08 refinement: Distinguish between:
+                    // 1. Moderate negative gap (width estimation error): Just merge without space
+                    // 2. Extreme negative gap (line grouping error): Insert space as separator
+                    //
+                    // The width estimation uses 0.55 * font_size per character, but actual
+                    // character widths vary. For tightly-kerned fonts, actual width can be
+                    // 0.4-0.45 * font_size. This can create ~25% overestimate.
+                    // For a 4-char element at font_size 60: estimated width = 132, actual ~100
+                    // Max gap error = ~32 points.
+                    //
+                    // We use font_size * 1.0 (100%) as the threshold for "real line break":
+                    // - gap in (-font_size, 0): Width estimation error → merge without space
+                    // - gap < -font_size: True line break → insert space
+                    let significant_overlap = gap < -avg_font_size;
 
                     if significant_overlap {
-                        tracing::info!(
-                            "OODA-42: Negative gap detected, inserting space. prev='{}' curr='{}' gap={:.1}",
+                        tracing::debug!(
+                            "OODA-42: Significant overlap, inserting space. prev='{}' curr='{}' gap={:.1}",
                             &prev.text.chars().take(20).collect::<String>(),
                             &elem.text.chars().take(20).collect::<String>(),
                             gap

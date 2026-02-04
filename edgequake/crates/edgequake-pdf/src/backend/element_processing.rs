@@ -202,6 +202,13 @@ impl ElementProcessor {
                         current.text.push(' ');
                     }
                     current.text.push_str(&next.text);
+                    // OODA-08: Update width to reflect merged text length
+                    // WHY: Without this, merge_line() uses stale width from original element
+                    // which causes incorrect gap calculations and spurious space insertions
+                    // (e.g., "Push ing" instead of "Pushing")
+                    current.width = current.text.chars().count() as f32
+                        * current.font_size
+                        * self.char_width_factor;
                     // OODA-09: Update end_x to include the merged element
                     let next_end_x = next.x + next.text.chars().count() as f32 * char_width;
                     current_end_x = current_end_x.max(next_end_x);

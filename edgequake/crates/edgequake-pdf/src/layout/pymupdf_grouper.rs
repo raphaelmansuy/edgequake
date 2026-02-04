@@ -531,15 +531,17 @@ impl TextGrouper {
             .collect();
 
         // Find the right-most of the left blocks (highest x1)
+        // WHY (OODA-07): Use y1 (TOP of block) for PDFium coords, not y0 (BOTTOM)
+        // PyMuPDF uses y0=TOP (origin at top-left), PDFium uses y1=TOP (origin at bottom-left)
         let y_key = if let Some(left_block) = left_blocks
             .iter()
             .max_by(|a, b| a.x1.partial_cmp(&b.x1).unwrap())
         {
             // Use left block's top Y as the sort key Y
-            left_block.y0 as i32
+            left_block.y1 as i32  // y1 = TOP in PDFium coords
         } else {
             // No left block found, use own Y
-            block.y0 as i32
+            block.y1 as i32  // y1 = TOP in PDFium coords
         };
 
         // Convert to integers for stable sorting (Y is inverted because PDF Y=0 is at bottom)

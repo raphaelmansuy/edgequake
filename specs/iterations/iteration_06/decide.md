@@ -11,11 +11,13 @@ Change paragraph line rendering from space-joined to newline-joined.
 **Line**: ~156
 
 **Before**:
+
 ```rust
 .join(" ")
 ```
 
 **After**:
+
 ```rust
 .join("\n")
 ```
