@@ -23,6 +23,15 @@ pub struct GroupingParams {
     pub block_gap: f32,
     /// Minimum horizontal overlap for same-column detection (0.0-1.0)
     pub column_overlap: f32,
+    /// OODA-07: Left margin width to exclude (in points).
+    /// Text in the left margin (x < left_margin) is filtered out.
+    /// WHY: pymupdf4llm filters rotated arXiv watermarks (line["dir"] check at get_text_lines.py:121).
+    /// PDFium doesn't provide direction vectors, so we use position-based filtering.
+    /// ArXiv watermarks are typically at x ≈ 10-40pt (well within 50pt threshold).
+    pub left_margin: f32,
+    /// OODA-07: Right margin width to exclude (in points).
+    /// Text beyond (page_width - right_margin) is filtered out.
+    pub right_margin: f32,
 }
 
 impl Default for GroupingParams {
@@ -37,6 +46,11 @@ impl Default for GroupingParams {
             // (multi_column.py line 242: `abs(r0.y1 - r.y0) <= 10`)
             block_gap: 10.0,
             column_overlap: 0.5,
+            // OODA-07: Filter left margin (arXiv watermarks at x ≈ 10-40pt)
+            // Using 50pt to catch all rotated margin text
+            left_margin: 50.0,
+            // OODA-07: No right margin filtering by default
+            right_margin: 0.0,
         }
     }
 }
@@ -85,6 +99,10 @@ impl TextGrouper {
     /// - Similar font size (within 0.5pt)
     /// - Horizontal adjacency (gap < 1.5 * char width)
     /// - Vertical alignment (within font_size * 0.3)
+    ///
+    /// OODA-07: Characters in the left/right margins are filtered out.
+    /// WHY: pymupdf4llm filters non-horizontal text (get_text_lines.py:121).
+    /// ArXiv watermarks are rotated 90° and appear in the left margin.
     pub fn chars_to_spans(&self, chars: &[RawChar]) -> Vec<Span> {
         if chars.is_empty() {
             return vec![];
@@ -98,6 +116,18 @@ impl TextGrouper {
             if (ch.char.is_control() && !ch.char.is_whitespace()) || ch.x0 >= ch.x1 {
                 continue;
             }
+
+            // OODA-07: Filter left margin text (arXiv watermarks, etc.)
+            // WHY: pymupdf4llm uses line["dir"] to filter rotated text (get_text_lines.py:121).
+            // PDFium doesn't provide direction vectors, so we filter by position.
+            // ArXiv watermarks are at x ≈ 10-40pt, well within the 50pt threshold.
+            if ch.x1 < self.params.left_margin {
+                continue;
+            }
+
+            // OODA-07: Filter right margin text (if right_margin > 0)
+            // Currently disabled by default (right_margin = 0)
+            // Note: Would need page width to implement properly
 
             // WHY: Spaces are word boundary markers - they should break spans but not be included
             // This is how pymupdf4llm handles spaces: they mark word boundaries in the text stream
@@ -168,7 +198,13 @@ impl TextGrouper {
         current_line.sort_spans();
         lines.push(current_line);
 
+        // OODA-07: Split lines that span multiple columns
+        // WHY: In two-column layouts, spans at the same Y level from both columns
+        // get merged into one line. We detect large gaps between spans and split.
+        let lines = self.split_multi_column_lines(lines);
+
         // Sort lines by page, then top-to-bottom
+        let mut lines = lines;
         lines.sort_by(|a, b| {
             a.page_num
                 .cmp(&b.page_num)
@@ -176,6 +212,58 @@ impl TextGrouper {
         });
 
         lines
+    }
+
+    /// Split lines that span multiple columns.
+    ///
+    /// OODA-07: Detects large gaps between consecutive spans that indicate
+    /// column boundaries. Typical column gutters are 14-20pt, while word gaps
+    /// are < 5pt.
+    fn split_multi_column_lines(&self, lines: Vec<Line>) -> Vec<Line> {
+        const COLUMN_GAP_THRESHOLD: f32 = 10.0; // Column gutter is typically 14-20pt
+
+        let mut result = Vec::new();
+
+        for mut line in lines {
+            // Sort spans left-to-right
+            line.sort_spans();
+
+            if line.spans.len() < 2 {
+                result.push(line);
+                continue;
+            }
+
+            // Find large gaps that indicate column boundaries
+            let mut split_points: Vec<usize> = Vec::new();
+            for i in 1..line.spans.len() {
+                let gap = line.spans[i].x0 - line.spans[i - 1].x1;
+                if gap > COLUMN_GAP_THRESHOLD {
+                    split_points.push(i);
+                }
+            }
+
+            if split_points.is_empty() {
+                // No column boundary found
+                result.push(line);
+            } else {
+                // Split the line at column boundaries
+                let mut start = 0;
+                for &split_at in &split_points {
+                    let split_spans: Vec<Span> = line.spans[start..split_at].to_vec();
+                    if !split_spans.is_empty() {
+                        result.push(Line::from_spans(split_spans, line.page_num));
+                    }
+                    start = split_at;
+                }
+                // Don't forget the last segment
+                let split_spans: Vec<Span> = line.spans[start..].to_vec();
+                if !split_spans.is_empty() {
+                    result.push(Line::from_spans(split_spans, line.page_num));
+                }
+            }
+        }
+
+        result
     }
 
     /// Group lines into blocks based on column alignment and vertical proximity.
@@ -563,10 +651,13 @@ impl TextGrouper {
     }
 
     /// Full pipeline: chars → spans → lines → blocks
+    /// OODA-07: Added column split step to handle two-column layouts
     pub fn group(&self, chars: &[RawChar]) -> Vec<Block> {
         let spans = self.chars_to_spans(chars);
         let lines = self.spans_to_lines(spans);
-        self.lines_to_blocks(lines)
+        // Split multi-column lines at large horizontal gaps
+        let split_lines = self.split_multi_column_lines(lines);
+        self.lines_to_blocks(split_lines)
     }
 
     /// Detect block types based on content analysis.

@@ -230,14 +230,40 @@ impl Line {
         }
     }
 
+    /// Create a new line from multiple spans.
+    /// OODA-07: Used when splitting multi-column lines.
+    pub fn from_spans(spans: Vec<Span>, page_num: usize) -> Self {
+        if spans.is_empty() {
+            return Self {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 0.0,
+                y1: 0.0,
+                page_num,
+                spans: vec![],
+            };
+        }
+
+        let x0 = spans.iter().map(|s| s.x0).fold(f32::MAX, f32::min);
+        let y0 = spans.iter().map(|s| s.y0).fold(f32::MAX, f32::min);
+        let x1 = spans.iter().map(|s| s.x1).fold(f32::MIN, f32::max);
+        let y1 = spans.iter().map(|s| s.y1).fold(f32::MIN, f32::max);
+
+        Self {
+            x0,
+            y0,
+            x1,
+            y1,
+            page_num,
+            spans,
+        }
+    }
+
     /// Check if a span belongs on this line (same baseline).
     ///
-    /// OODA-04 FIX: Simplified to match pymupdf4llm's get_raw_lines.py behavior.
-    /// Only checks vertical alignment - column detection happens at block level.
-    ///
-    /// WHY: The previous implementation checked horizontal gaps during line joining,
-    /// which breaks when spans are processed in non-left-to-right order (e.g., sorted
-    /// by Y first). pymupdf4llm only checks vertical alignment here.
+    /// OODA-04 FIX: Only checks vertical alignment.
+    /// OODA-07 NOTE: Horizontal gap check was attempted but caused issues.
+    /// Column separation is now handled at the block level in lines_to_blocks.
     ///
     /// Returns false if:
     /// - Span is on a different page
