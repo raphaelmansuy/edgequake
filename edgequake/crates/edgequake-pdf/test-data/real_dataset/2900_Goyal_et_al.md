@@ -1,6 +1,5 @@
-LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the 24th ISWC LLMs4OL 2025 Task Participant Long Papers
-
-https://doi.org/10.52825/ocp.v6i.2900
+✅ Converted crates/edgequake-pdf/test-data/real_dataset/2900_Goyal_et_al.pdf to crates/edgequake-pdf/test-data/real_dataset/2900_Goyal_et_al.md
+📄 Markdown (30775 bytes)
 
 © Authors. This work is licensed under a Creative Commons Attribution 4.0 International License Published: 01 Oct. 2025
 
@@ -41,7 +40,7 @@ The f rst iteration of the Large Language Models for Ontology Learning (LLMs4OL)
 
 ---
 
-complex relation extraction, where hybrid or knowledge-enriched methods yield better performance. Building upon our previous participation, we took part in the second iteration of the LLMs4OL Challenge [1], which introduced a more comprehensive benchmark composed of four tasks: (A) Text2Onto, (B) Term Typing, (C) Taxonomy Discovery, and (D) Non- Taxonomic Relation Extraction. These tasks together aimed to facilitate the transition from unstructured text to structured ontologies, encompassing entity and class extraction, semantic typing, hierarchical classif cation, and semantic relation modeling. In this work, we propose a clustering-based methodology that leverages the representational strengths of state-of-the-art LLMs to address the complexity of these ontology learning tasks. Specif cally, we employed domain-specialized transformer models such aspranav-s/MaterialsBERT [2],dmis-lab/biobert-v1.1[3], and LLMs fromgrok.coandgrok.com[4]. These models were selected for their domain alignment with the sub-tasks of the challenge, allowing us to form semantically coherent clusters of terms and types. Our approach aimed to bridge lexical variation and domain-specif c semantics by combining deep contextual embeddings with unsupervised clustering and adaptive prompting strategies. The results across multiple subtasks conf rm that clustering-driven representations, powered by specialized LLMs, can effectively enhance performance in both taxonomic and non-taxonomic relation inference. Furthermore, our comparative evaluation across biomedical, material science, and environmental datasets illustrates the adaptability of the proposed framework for diverse ontology learning domains. Details of the primary tasks: Text2Onto, Term Typing, Taxonomy Discovery, and Non-Taxonomic Relation Extraction are described below.
+complex relation extraction, where hybrid or knowledge-enriched methods yield better performance. Building upon our previous participation, we took part in the second iteration of the LLMs4OL Challenge [1], which introduced a more comprehensive benchmark composed of four tasks: (A) Text2Onto, (B) Term Typing, (C) Taxonomy Discovery, and (D) Non- Taxonomic Relation Extraction. These tasks together aimed to facilitate the transition from unstructured text to structured ontologies, encompassing entity and class extraction, semantic typing, hierarchical classif cation, and semantic relation modeling. In this work, we propose a clustering-based methodology that leverages the representational strengths of state-of-the-art LLMs to address the complexity of these ontology learning tasks. Specif cally, we employed domain-specialized transformer models such aspranav-s/MaterialsBERT[2],dmis-lab/biobert-v1.1[3], and LLMs fromgrok.coandgrok.com[4]. These models were selected for their domain alignment with the sub-tasks of the challenge, allowing us to form semantically coherent clusters of terms and types. Our approach aimed to bridge lexical variation and domain-specif c semantics by combining deep contextual embeddings with unsupervised clustering and adaptive prompting strategies. The results across multiple subtasks conf rm that clustering-driven representations, powered by specialized LLMs, can effectively enhance performance in both taxonomic and non-taxonomic relation inference. Furthermore, our comparative evaluation across biomedical, material science, and environmental datasets illustrates the adaptability of the proposed framework for diverse ontology learning domains. Details of the primary tasks: Text2Onto, Term Typing, Taxonomy Discovery, and Non-Taxonomic Relation Extraction are described below.
 
 ### 1.1 Task A: Text2Onto
 
@@ -102,7 +101,7 @@ demonstrating promising results in term typing and relationship extraction, but 
 
 ### 3.1 Methodology for Task A: Text-to-Ontology (Text2Onto)
 
-Our approach targets three specialized domains- arly-and leverages the inferential capabilities of the large language model (LLM) gemini-2.5-flash. The overall pipeline is organized into three primary phases:
+Our approach targets three specialized domains- *arly-and leverages the inferential capabilities of the large language model (LLM)* gemini-2.5-flash. The overall pipeline is organized into three primary phases:
 
 1. Corpus Preparation and Representation
 2. Hierarchical Relation Extraction
@@ -116,7 +115,7 @@ Domain-specif c corpora were provided in JSON Lines ( record contains a unique d
 
 We developed two complementary strategies to extract term-type (hyponym-hypernym) relationships from text using the LLM, distinguished primarily by their approach to
 
-contextual guidance: Method A: Heuristic-Guided Direct Extraction This method applies a static, domain-agnostic prompt to extract term-type pairs directly from documents f ltered via a keyword heuristic. Documents containing lexemes such astype(s)subtype(s),, or their capitalized forms-common in def nitional or taxonomic contexts-were selected for analysis. For each candidate document, the prompt included: •Clear instructions to identify and extract terms alongside their corresponding types.
+contextual guidance: *Method A: Heuristic-Guided Direct Extraction* This method applies a static, domain-agnostic prompt to extract term-type pairs directly from documents f ltered via a keyword heuristic. Documents containing lexemes such astype(s)subtype(s),, or their capitalized forms-common in def nitional or taxonomic contexts-were selected for analysis. For each candidate document, the prompt included: •Clear instructions to identify and extract terms alongside their corresponding types.
 
 - A one-shot example demonstrating the expected input-output JSON format.
 
@@ -124,9 +123,9 @@ contextual guidance: Method A: Heuristic-Guided Direct Extraction This method ap
 
 **in every prompt to contextualize the model's inference process.**
 
-Method B: Retrieval-Augmented Extraction (RAE)
+*Method B: Retrieval-Augmented Extraction (RAE)*
 
-ecologyengineering,, andschol-
+*ecologyengineering,, andschol-*
 
 .jsonl) format, where each
 
@@ -161,7 +160,7 @@ Both methods submitted their respective prompts to the conf gured to respond usi
 
 ### 3.2 Methodology for Task B: Term Typing
 
-The objective of this task was to assign semantic categories (e.g., unit) to a given list of technical terms from the material science domain. We designed a multi-stage hybrid approach combining deterministic lexical clustering with Large Language Model (LLM) based semantic disambiguation. The workfow consisted of
+The objective of this task was to assign semantic categories (e.g., *unit) to a given list of technical terms from the material science domain. We designed* a multi-stage hybrid approach combining deterministic lexical clustering with Large Language Model (LLM) based semantic disambiguation. The workfow consisted of
 
 three phases:
 
@@ -175,7 +174,7 @@ Terms were modeled as nodes in an undirected graph, where edges represented shar
 
 gemini-2.5-flashmodel, MIME type. This structured output
 
-propertymaterial,,
+*propertymaterial,,*
 
 lexical overlap. The union of semantic types within this cluster formed a candidate type pool for that term. For test clusters, candidate pools of member terms were merged to form a f nal candidate type list. Terms lacking lexical matches defaulted to the full set of training types to maximize recall.
 
@@ -313,7 +312,7 @@ With the terms represented as vectors, we apply a standard clustering algorithm 
 group them based on semantic proximity.
 
 1. Input: The term embeddings generated in the previous step.
-2. Process: We employ theK-Means clustering algorithm. To determine the optimal
+2. Process: We employ theK-Meansclustering algorithm. To determine the optimal
 
 number of clusters (k), we use the **Elbow Method, which analyzes the Within-** for food-related terms) to generate a
 
@@ -416,15 +415,15 @@ The task organizers provided the data used in this study as part of the "LLMs4OL
 
 - [1]H. Babaei Giglou, J. D'Souza, N. Mihindukulasooriya, and S. Auer, "Llms4ol 2025 overview:
 
-The 2nd large language models for ontology learning challenge", Proceedings, 2025.
+The 2nd large language models for ontology learning challenge", *Proceedings, 2025.*
 
 - [2]P. Shetty et al., "A general-purpose material property data extraction pipeline from large
 
 polymer corpora using natural language processing",
 
-Open Conference
+*Open Conference*
 
-npj Computational Materials, vol. 9,
+*npj Computational Materials, vol. 9,*
 
 ## Author Contributions
 
@@ -456,19 +455,19 @@ biomedical text mining",Bioinformatics
 - [4]Chat & ask ai: Your advanced ai chatbot https://askaichat.app/chat,, Accessed July 2025.
 - [5]Y. Peng, Y. Mou, B. Zhu, S. Sowe, and S. Decker, "Rwth-dbis at llms4ol 2024 tasks a and
 
-b: Knowledge-enhanced domain-specif c continual learning and prompt-tuning of large language models for ontology learning", Open Conference Proceedings, vol. 4, pp. 49-63,
+b: Knowledge-enhanced domain-specif c continual learning and prompt-tuning of large language models for ontology learning", *Open Conference Proceedings, vol. 4, pp. 49-63,*
 
 Oct. 2024. DOI:10.52825/ocp.v4i.2491 ex.php/ocp/article/view/2491.
 
-- [6] P. Kumar Goyal, S. Singh, and U. Shanker Tiwary, "Silp
+- [6]P. Kumar Goyal, S. Singh, and U. Shanker Tiwary, "Silp
 
 c: Ontology learning through prompts with llms", pp. 31-38, Oct. 2024. DOI:10.52825/ocp.v4i.2485 .org/ojs/index.php/ocp/article/view/2485
 
 - [7]H. Abi Akl, "Dsti at llms4ol 2024 task a: Intrinsic versus extrinsic knowledge for type
 
-classif cation: Applications on wordnet and geonames datasets", Proceedings, vol. 4, pp. 93-101, Oct. 2024. DOI: Available:https://www.tib-op.org/ojs/index.php/ocp/article/view/2492
+classif cation: Applications on wordnet and geonames datasets", *Proceedings, vol. 4, pp. 93-101, Oct. 2024. DOI:* Available:https://www.tib-op.org/ojs/index.php/ocp/article/view/2492
 
-- [8] A. Barua, S. Saki Norouzi, and P. Hitzler, "Daselab at llms4ol 2024 task a: Towards term
+- [8]A. Barua, S. Saki Norouzi, and P. Hitzler, "Daselab at llms4ol 2024 task a: Towards term
 
 typing in ontology learning",Open Conference Proceedings
 
@@ -476,15 +475,15 @@ DOI:10.52825/ocp.v4i.2489. [Online]. Available: /article/view/2489.
 
 - [9]T. Phuttaamart, N. Kertkeidkachorn, and A. Trongratsameethong, "The ghost at llms4ol
 
-2024 task a: Prompt-tuning-based large language models for term typing", Conference Proceedings, vol. 4, pp. 85-91, Oct. 2024. DOI: [Online]. Available:https://www.tib-op.org/ojs/index.php/ocp/article/view/2486
+2024 task a: Prompt-tuning-based large language models for term typing", *Conference Proceedings, vol. 4, pp. 85-91, Oct. 2024. DOI:* [Online]. Available:https://www.tib-op.org/ojs/index.php/ocp/article/view/2486
 
-- [10] S. M. H. Hashemi, M. Karimi Manesh, and M. Shamsfard, "Skh-nlp at llms4ol 2024 task b:
+- [10]S. M. H. Hashemi, M. Karimi Manesh, and M. Shamsfard, "Skh-nlp at llms4ol 2024 task b:
 
 Taxonomy discovery in ontologies using bert and llama 3", vol. 4, pp. 103-111, Oct. 2024. DOI:10.52825/ocp.v4i.2483 ww.tib-op.org/ojs/index.php/ocp/article/view/2483
 
 - [11]C. A. Atezong Ymele and A. Jiomekong, "Tsotsalearning at llms4ol tasks a and b
 
-: Combining rules to large language model for ontology learning", Proceedings, vol. 4, pp. 65-76, Oct. 2024. DOI:
+: Combining rules to large language model for ontology learning", *Proceedings, vol. 4, pp. 65-76, Oct. 2024. DOI:*
 
 https://www.tib-op.org/ojs/index.php/ocp/article/view/2484
 
@@ -498,9 +497,9 @@ Retrieval augmented generation for ontology learning", vol. 4, pp. 39-47, Oct. 2
 
 . [Online]. Available:https://www.tib-op.org/ojs/ind
 
-nlp at llms4ol 2024 tasks a, b, and Open Conference Proceedings, vol. 4, . [Online]. Available:https://www.tib-op
+nlp at llms4ol 2024 tasks a, b, and *Open Conference Proceedings, vol. 4,* . [Online]. Available:https://www.tib-op
 
-Open Conference
+*Open Conference*
 
 10.52825/ocp.v4i.2492 . [Online].
 
@@ -508,20 +507,20 @@ Open Conference
 
 https://www.tib-op.org/ojs/index.php/ocp
 
-Open
+*Open*
 
 10.52825/ocp.v4i.2486.
 
-Open Conference Proceedings, . [Online]. Available:https://w
+*Open Conference Proceedings,* . [Online]. Available:https://w
 
-Open Conference
+*Open Conference*
 
 10.52825/ocp.v4i.2484. [Online]. Available:
 
-Open Conference Proceedings, . [Online]. Available:https://www
+*Open Conference Proceedings,* . [Online]. Available:https://www
 
 the elbow method and early centroid determination based on mean and median formula", in Proceedings of the 2nd International Seminar on Science and Technology (ISSTEC
 
-2019), Atlantis Press, 2020, pp. 121-129, ISBN: 978-94-6239-168-0. DOI: r.k.201010.019. [Online]. Available:https://doi.org/10.2991/assehr.k.201010.019
+*2019), Atlantis Press, 2020, pp. 121-129, ISBN: 978-94-6239-168-0. DOI:* r.k.201010.019. [Online]. Available:https://doi.org/10.2991/assehr.k.201010.019
 
 10.2991/asseh

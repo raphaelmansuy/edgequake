@@ -1,13 +1,6 @@
-# Fundamentals of Building Autonomous LLM Agents
-
-
-**arXiv:2510.09244v1 [cs.AI] 10 Oct 2025** 
-
-Victor de Lamo Castrillo, Habtom Kahsay Gidey
-
-Alois Knoll
-
-Universitat Politècnica de Catalunya, Barcelona, Spain Technische Universität München, München, Germany
+✅ Converted crates/edgequake-pdf/test-data/real_dataset/agent_2510.09244v1.pdf to crates/edgequake-pdf/test-data/real_dataset/agent_2510.09244v1.md
+📄 Markdown (75840 bytes)
+niversitat Politècnica de Catalunya, Barcelona, Spain Technische Universität München, München, Germany
 
 ### Abstract
 
@@ -24,8 +17,6 @@ Planning · Memory Systems · Action Systems · Multi-agent Systems
 ### 1.1 Motivation
 
 Artificial intelligence (AI) is a powerful technology that is transforming cognitive automation and fundamentally reshaping the way tasks are performed [13,14,37]. Today, one can develop remarkable systems without the need to write complex algorithms or master low-level code. We are closer than ever to realizing the idea that "if you can think it, you can build it." Instead of relying solely on programming skills, what increasingly matters is understanding how a human would reason through a problem, since LLM agents can learn and mimic human
-
-, Alexander Lenz, and
 
 victor.de.lamo@estudiantat.upc.edu {habtom.gidey, alex.lenz, knoll}@tum.de
 
@@ -226,7 +217,7 @@ inputs from various modalities, such as images, videos, or even audio and
 
 LLM. It acts as a bridge, transforming the visual embeddings into a format that the LLM can comprehend and integrate alongside textual inputs. This processing ensures that the visual embeddings are effectively supplied to the LLM, enabling the LLM to leverage its pre-trained linguistic knowledge for multimodal reasoning [34,50].
 
-- LLM Backbone: This is the core reasoning engine. The processed and
+**-LLM Backbone: This is the core reasoning engine. The processed and**
 
 aligned multimodal representations (visual embeddings and textual features)
 
@@ -286,7 +277,7 @@ Building Autonomous LLM Agents 9
 
 ated by the Windows API for representing GUI components, incorporating descriptive labels to facilitate semantic grounding.
 
-- HTML Utilization: Meanwhile, DUALVCR [30] captures both the visual
+**-HTML Utilization: Meanwhile, DUALVCR [30] captures both the visual**
 
 features of the screenshot and the descriptions of associated HTML elements to obtain a robust representation of the visual screenshot.
 
@@ -321,7 +312,7 @@ data types. Examples include weather APIs (for perceiving current and forecasted
 
 LLM agent does not directly interface with physical hardware sensors, its perception system can be augmented to interpret data originating from them. This is achieved through intermediary tools or services that convert raw sensory data (e.g., temperature readings, GPS coordinates, accelerometer data) from real-world or simulated environments into a digestible format (textual descriptions, structured data like JSON). This allows the agent to perceive physical properties and spatial relationships of its environment, crucial for tasks in robotics or interactive simulations [2,7].
 
-- Code Execution Tools: These tools enable agents to execute code for data
+**-Code Execution Tools: These tools enable agents to execute code for data**
 
 processing and calculations. By generating and executing code (e.g., Python scripts via an interpreter), agents can perceive insights from raw data, such as parsing complex log files, running statistical analyses on datasets, or querying local databases. This allows for dynamic and flexible data interpretation beyond simple text matching [10,42]. Let's now explore how integrating the diverse perception system approaches empowers an LLM agent to effectively handle tasks, as illustrated in a practical example.
 
@@ -372,20 +363,24 @@ directly affects the reasoning and planning modules. Therefore, continuous advan
 
 ---
 
-Having established how the perception system equips an LLM agent with a comprehensive understanding of the GUI environment, as summarized in the preceding table, the next critical component is the reasoning system. This system leverages the processed perceptual input to make informed decisions and execute complex tasks.
+Having established how the perception system equips an LLM agent with a
+
+Current methodologies for task decomposition broadly fall into two categories:
+
+In contrast, interleaved decomposition methods, such as Chain-of-Thought comprehensive understanding of the GUI environment, as summarized in the preceding table, the next critical component is the reasoning system. This system leverages the processed perceptual input to make informed decisions and execute complex tasks.
 
 ## 4 Reasoning System
 
 ### 4.1 Task Decomposition
 
-A key tactic for helping LLM agents solve complicated problems is task decomposition. This strategy divides the problem into smaller and easier-to-manage subtasks. This approach, akin to the "divide and conquer" algorithmic paradigm, simplifies the planning process. The procedure involves two main steps: first, the "decompose" step, where the complex task is broken into a set of subtasks; and second, the "subplan" step, where for each subtask a plan is formulated [26]. This systematic breakdown helps in navigating intricate real-world scenarios that would otherwise be challenging to address with a single-step planning process. Current methodologies for task decomposition broadly fall into two categories: Decomposition first and Interleaved decomposition [26]. Decomposition first methods, as seen in systems like HuggingGPT [48] and Plan-and-Solve [55], initially decompose the entire task into sub-goals and then proceed to plan for each sub-goal sequentially. HuggingGPT, for instance, explicitly instructs the LLM to break down multimodal tasks and define dependencies between subtasks [48]. A slightly modified version of the Decomposition first approach is DPPM (Decompose, Plan in Parallel, and Merge). It addresses the limitations of existing planning methods, such as:
+A key tactic for helping LLM agents solve complicated problems is task decomposition. This strategy divides the problem into smaller and easier-to-manage subtasks. This approach, akin to the "divide and conquer" algorithmic paradigm, simplifies the planning process. The procedure involves two main steps: first, the "decompose" step, where the complex task is broken into a set of subtasks; and second, the "subplan" step, where for each subtask a plan is formulated [26]. This systematic breakdown helps in navigating intricate real-world scenarios that would otherwise be challenging to address with a single-step planning process. Decomposition first and Interleaved decomposition [26]. Decomposition first methods, as seen in systems like HuggingGPT [48] and Plan-and-Solve [55], initially decompose the entire task into sub-goals and then proceed to plan for each sub-goal sequentially. HuggingGPT, for instance, explicitly instructs the LLM to break down multimodal tasks and define dependencies between subtasks [48]. A slightly modified version of the Decomposition first approach is DPPM (Decompose, Plan in Parallel, and Merge). It addresses the limitations of existing planning methods, such as:
 
 1. Handling heavy constraints
 2. Carrying errors from the planning of previous steps
 3. Forgetting the main goal
 4. Cohesion between subtasks
 
-DPPM tackles these problems with the following methods: First, it decomposes the complex task into subtasks. Second, it generates subplans for each of these subtasks concurrently using individual LLM agents. This parallel planning allows each agent to focus only on its assigned subtask, promoting independent work and avoiding the cascading errors that can occur when subplans are sequentially dependent. Finally, DPPM merges these independently generated local subplans into a coherent global plan [36]. Although this method can struggle to adapt well to unexpected environmental problems, this limitation can be mitigated by reflecting on the plan after each execution step. In contrast, interleaved decomposition methods, such as Chain-of-Thought (CoT) [60] and ReAct [66], interleave the decomposition and subtask planning process, revealing only one or two subtasks at a time based on the current state. This dynamic adjustment based on environmental feedback enhances fault
+DPPM tackles these problems with the following methods: First, it decomposes the complex task into subtasks. Second, it generates subplans for each of these subtasks concurrently using individual LLM agents. This parallel planning allows each agent to focus only on its assigned subtask, promoting independent work and avoiding the cascading errors that can occur when subplans are sequentially dependent. Finally, DPPM merges these independently generated local subplans into a coherent global plan [36]. Although this method can struggle to adapt well to unexpected environmental problems, this limitation can be mitigated by reflecting on the plan after each execution step. (CoT) [60] and ReAct [66], interleave the decomposition and subtask planning process, revealing only one or two subtasks at a time based on the current state. This dynamic adjustment based on environmental feedback enhances fault
 
 
 ---
@@ -413,7 +408,7 @@ ates plans using a tree-like reasoning structure where each node represents an i
 > Fig. 6. Schematic illustrating various approaches to problem solving with LLMs [65].
 >
 
-- LLM-MCTS and RAP: These methods leverage LLMs as a heuristic policy
+**-LLM-MCTS and RAP: These methods leverage LLMs as a heuristic policy**
 
 function for the Monte Carlo Tree Search (MCTS). Multiple potential actions (or plans) are obtained through multiple calls to the LLM during the MCTS process [68]. RAP [24] specifically builds a world model to simulate potential benefits of different plans using MCTS to generate the final plan. Once a set of candidate plans is generated, the next step is plan selection, where different search algorithms are employed [26]. Self-consistency, for instance, utilizes a simple majority vote strategy to identify the most suitable plan [58]. More advanced methods like Tree-of-Thought leverage tree search algorithms such as conventional Breadth-First Search (BFS) and Depth-First Search (DFS) for expansion and selection, evaluating multiple actions to choose the optimal 
 
@@ -514,7 +509,7 @@ decomposition. Its role is to break down complex objectives into a series of man
 
 overall performance. This aligns with the evaluator component discussed in the reflection system [33].
 
-- Error Handling Expert: Specifically focused on identifying, diagnosing,
+**-Error Handling Expert: Specifically focused on identifying, diagnosing,**
 
 and suggesting recovery strategies for errors. This expert could analyze logs, identify common failure patterns, and propose fixes. For example, it could propose to scroll down if an item is not found in a webpage [51]. It can also support self-healing behaviors in adaptive architectures [19].
 
@@ -553,7 +548,7 @@ experts be consulted or take over? [33].
 
 knowledge. This can be achieved by:
 
-- Targeted Prompting: Crafting precise and detailed prompts to steer the
+**-Targeted Prompting: Crafting precise and detailed prompts to steer the**
 
 LLM toward performing as the expert, incorporating specific prompting techniques such as Chain-of-Thought to enhance its reasoning process.
 
@@ -642,9 +637,7 @@ their parents are from). Mechanisms like MemoryBank aim to comprehend and adapt 
 
 ### 5.4 Limitations
 
-- Context Window: Large Language Models (LLMs) operate with a funda-
-
-mental constraint known as the "context window" or "context length." This refers to the maximum amount of text (measured in "tokens," which can be words, parts of words, or punctuation) that an LLM can process and consider at any one time when generating a response or performing a task. The primary impact of a limited context window is that LLMs cannot directly integrate or utilize all information in very long sequences. The easiest way to overcome this is to truncate large texts or summarize them [57].
+-Context Window: Large Language Models (LLMs) operate with a fundamental constraint known as the "context window" or "context length." This refers to the maximum amount of text (measured in "tokens," which can be words, parts of words, or punctuation) that an LLM can process and consider at any one time when generating a response or performing a task. The primary impact of a limited context window is that LLMs cannot directly integrate or utilize all information in very long sequences. The easiest way to overcome this is to truncate large texts or summarize them [57].
 
 **-Memory Duplication: When storing information in memory, a potential**
 

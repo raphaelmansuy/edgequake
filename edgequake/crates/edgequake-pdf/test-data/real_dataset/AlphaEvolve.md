@@ -1,8 +1,6 @@
-# *AlphaEvolve: A coding agent for scientific and*algorithmic discovery
-
-**Alexander Novikov, Ngân Vu, Marvin Eisenberger, Emilien Dupont** * **˜***
-
-**Sergey Shirobokov, Borislav Kozlovskii, Francisco J. R. Ruiz, Abbas Mehrabian, M. Pawan Kumar, Abigail** *
+✅ Converted crates/edgequake-pdf/test-data/real_dataset/AlphaEvolve.pdf to crates/edgequake-pdf/test-data/real_dataset/AlphaEvolve.md
+📄 Markdown (113916 bytes)
+robokov, Borislav Kozlovskii, Francisco J. R. Ruiz, Abbas Mehrabian, M. Pawan Kumar, Abigail** *
 
 **See, Swarat Chaudhuri, George Holland, Alex Davies, Sebastian Nowozin, Pushmeet Kohli and Matej Balog**
 
@@ -17,8 +15,6 @@ Google DeepMind
 Discovering new high-value knowledge, such as making a novel scientific discovery or developing a commercially valuable algorithm, generally requires a prolonged process of ideation, exploration, backtracking on unpromising hypotheses, experimentation, and validation. There has been much recent interest in using large language models (LLMs) to automate significant parts of this process. Hopes of success here are driven by the breathtaking power of recent LLMs [32,76], which can enhance their capabilities using test-time compute, and the rise ofagentsthat combine language generation and action [ improved performance across a range of established benchmarks and accelerated discoveryoriented tasks like hypothesis generation [ 34] and experiment design [7,43]. However,
 
 getting LLM pipelines all the way to making entirely new scientific or practical discoveries remains challenging. In this white paper, we present an LLM code superoptimization agent, called that takes on this challenge using a combination of evolutionary computation and LLM-based
-
-***, Po-Sen Huang, Adam Zsolt Wagner,** *
 
 ***AlphaEvolveorchestrates an autonomous***
 
@@ -155,11 +151,7 @@ Any user-provided code inside such evolution blocks serves as the initial soluti
 
 ### 2.2. Prompt sampling
 
-AsAlphaEvolveleverages SOTA LLMs, it supports various types of customization and providing long contexts as part of the primary evolution prompt. This prompt comprises multiple previously discovered solutions sampled from the program database, as well as system instructions on how to propose changes to a particular solution. Beyond these key ingredients, users can further tailor prompts to their specific needs in different ways, such as the following. •Explicit context: details about the problem being solved, such as fixed human-written instructions, equations, code snippets, or relevant literature (e.g., pdf files).
-
-- Stochastic formatting: template placeholders with human-provided alternatives for
-
-increased diversity, instantiated using probability distributions provided in a separate config file. •Rendered evaluation results: usually this will include a program, the result of executing that program, and the scores assigned by the •Meta prompt evolution: instructions and context suggested by the LLM itself in an additional prompt-generation step, co-evolved in a separate database analogous to the solution programs.
+AsAlphaEvolveleverages SOTA LLMs, it supports various types of customization and providing long contexts as part of the primary evolution prompt. This prompt comprises multiple previously discovered solutions sampled from the program database, as well as system instructions on how to propose changes to a particular solution. Beyond these key ingredients, users can further tailor prompts to their specific needs in different ways, such as the following. •Explicit context: details about the problem being solved, such as fixed human-written instructions, equations, code snippets, or relevant literature (e.g., pdf files). •*Stochastic formatting: template placeholders with human-provided alternatives for* increased diversity, instantiated using probability distributions provided in a separate config file. •Rendered evaluation results: usually this will include a program, the result of executing that program, and the scores assigned by the •Meta prompt evolution: instructions and context suggested by the LLM itself in an additional prompt-generation step, co-evolved in a separate database analogous to the solution programs.
 
 *AlphaEvolvecan evolve the solution in raw*
 
@@ -337,7 +329,7 @@ and=======is the exact segment to match
 
 can be configured to instruct the LLM to
 
-•LLM-generated feedback: in some applications, desirable solutions have certain characteristics that are difficult to capture precisely in the user-provided evaluation function •Evaluation cascade (hypothesis testing): the user can specify ensembles of test cases of increasing difficulty, such that new solutions are evaluated on the next stage only if they achieve sufficiently promising results in all earlier stages. This helps to prune out less promising solutions more quickly. Moreover, new solutions are initially evaluated on a small scale before being subjected to the main test cases, to filter out faulty programs early.
+•LLM-generated feedback: in some applications, desirable solutions have certain characteristics that are difficult to capture precisely in the user-provided evaluation function •Evaluation cascade (hypothesis testing) : the user can specify ensembles of test cases of increasing difficulty, such that new solutions are evaluated on the next stage only if they achieve sufficiently promising results in all earlier stages. This helps to prune out less promising solutions more quickly. Moreover, new solutions are initially evaluated on a small scale before being subjected to the main test cases, to filter out faulty programs early.
 
 ℎon the generated
 
@@ -352,7 +344,7 @@ evolving objects that achieve a high score under one or multiple evaluation metr
 
 ### 2.5. Evolution
 
-During its evolutionary procedure,AlphaEvolve solutions with evaluation results (scores and program outputs) attached to them. These solutions are stored in an evolutionary database, the primary goal of which is to optimally resurface previously explored ideas in future generations. A key challenge in designing such databases is balancing exploration and exploitation, to continuously improve the best programs while maintaining diversity to encourage exploration of the entire search space. InAlphaEvolve, the evolutionary database implements an algorithm that is inspired by a combination of the MAP elites algorithm [74] and island-based population models [83,97].
+During its evolutionary procedure,AlphaEvolve solutions with evaluation results (scores and program outputs) attached to them. These solutions are stored in an evolutionary database, the primary goal of which is to optimally resurface previously explored ideas in future generations. A key challenge in designing such databases is balancing exploration and exploitation, to continuously improve the best programs while maintaining diversity to encourage exploration of the entire search space. InAlphaEvolve, the evolutionary database implements an algorithm that is inspired by a combination of the MAP elites algorithm [74 ] and island-based population models [83,97].
 
 *AlphaEvolvemakes it feasible to spend*
 
@@ -697,10 +689,9 @@ Efficiently scheduling compute jobs onto a cluster of machines is a critical opt
 
 ```
 defalpha_evolve_score(required, free):
-cpu_residual = required.cpu / free. cpu
 ```
 
-3 `mem_residual = required.mem / free. mem`
+3 `mem_residual = required.mem / free.mem`
 
 5 `return-1.0 * (cpu_residual + mem_residual`
 
@@ -711,7 +702,7 @@ cpu_residual / mem_residual)
 
 **Figure 6|Left: The heuristic function discovered by**
 
-workloads and capacity. Right: Visualization of the heuristic scoring function. Yellow regions represent high scores, while purple regions represent low scores. of computational footprint. This recovery is essential to accommodate growing compute needs without a proportional increase in resource consumption. Furthermore, this problem is challenging since it combines typical engineering difficulties, such as debuggability and scale, on top of the classically difficult bin-packing problem. We address this challenge by framing the online job scheduling problem as a vector bin-packing problem with two variables. In this context, machines represent bins with defined capacities for CPU and memory, and incoming jobs are items with specific resource demands. A heuristic function takes as input a pending job's CPU and memory requirements and a potential machine's CPU and memory availability. This function then outputs a priority score for the machine. The Borg scheduler subsequently assigns the pending job to the machine with the highest priority score as determined by the heuristic function, among other objectives. Because this heuristic only influences the ranking of machines already determined by Borg to be available and capable of running each pending job, the resulting scheduling decisions are effectively correct by construction. An early version of AlphaEvolvewas used to discover a remarkably simple yet effective heuristic function (shown in Figure 6), evolving from the existing one in production. We use a simulator of our data centers to provide feedback to snapshots of workloads and capacity across Google's fleet. We measure the performance of *AlphaEvolve's heuristic function on an unseen test dataset of recent workloads and capacity* to ensure generalization. Observing that AlphaEvolve one in production, we rolled out AlphaEvolve deployment measurements across Google's fleet confirmed the simulator results, revealing that this heuristic function continuously recovers on average 0.7% of Google's fleet-wide compute resources, which would otherwise be stranded. deep reinforcement learning approach because its code solution not only leads to better performance, but also offers clear advantages in interpretability, debuggability, predictability,
+workloads and capacity. Right: Visualization of the heuristic scoring function. Yellow regions represent high scores, while purple regions represent low scores. of computational footprint. This recovery is essential to accommodate growing compute needs without a proportional increase in resource consumption. Furthermore, this problem is challenging since it combines typical engineering difficulties, such as debuggability and scale, on top of the classically difficult bin-packing problem. We address this challenge by framing the online job scheduling problem as a vector bin-packing problem with two variables. In this context, machines represent bins with defined capacities for CPU and memory, and incoming jobs are items with specific resource demands. A heuristic function takes as input a pending job's CPU and memory requirements and a potential machine's CPU and memory availability. This function then outputs a priority score for the machine. The Borg scheduler subsequently assigns the pending job to the machine with the highest priority score as determined by the heuristic function, among other objectives. Because this heuristic only influences the ranking of machines already determined by Borg to be available and capable of running each pending job, the resulting scheduling decisions are effectively correct by construction. An early version of AlphaEvolvewas used to discover a remarkably simple yet effective heuristic function (shown in Figure 6 ), evolving from the existing one in production. We use a simulator of our data centers to provide feedback to snapshots of workloads and capacity across Google's fleet. We measure the performance of *AlphaEvolve's heuristic function on an unseen test dataset of recent workloads and capacity* to ensure generalization. Observing that AlphaEvolve one in production, we rolled out AlphaEvolve deployment measurements across Google's fleet confirmed the simulator results, revealing that this heuristic function continuously recovers on average 0.7% of Google's fleet-wide compute resources, which would otherwise be stranded. deep reinforcement learning approach because its code solution not only leads to better performance, but also offers clear advantages in interpretability, debuggability, predictability,
 
 *AlphaEvolve, tailored to Google's*
 
@@ -817,7 +808,7 @@ have succeeded in symbolic regression applications [ algorithmic [16] discovery,
 
 **Evolutionary methods.AlphaEvolveextends a long tradition of research on**
 
-orgenetic programming[54], where one repeatedly uses a set of mutation and crossover operators to evolve a pool of programs [5,51]. In particular, classical evolutionary techniques
+orgenetic programming[54], where one repeatedly uses a set of mutation and crossover operators to evolve a pool of programs [5,51 ]. In particular, classical evolutionary techniques
 
 *evolutionary*
 
@@ -950,8 +941,6 @@ These authors contributed equally: Alexander Novikov, Ngân V Dupont, Po-Sen Hua
 
 *AlphaEvolve; Bogdan AlphaEvolveto*
 
-u, Marvin Eisenberger, Emilien˜
-
 *AlphaEvolve.*
 
 S.S. worked on applying AlphaEvolveto directly optimize compiler-generated code. M.E. performed the ablation experiments. M.B., A.N., M.E., S.S. and P.-S. H. performed the
@@ -960,7 +949,7 @@ S.S. worked on applying AlphaEvolveto directly optimize compiler-generated code.
 
 ### Contributions.A.N. and M.B. designed and implemented the initial version of
 
-M.B., A.N., N.V. and P.K. developed project vision and scoped problems. N.V. and P.- S.H. oversaw the practical applications. E.D. and M.E. implemented the first benchmark problem used for iterating on AlphaEvolve, with input from F.J.R.R. and M.B. A.N. and M.E. developed the final version of AlphaEvolve, with contributions from S.S., P.-S.H., and input from M.B., E.D., A.Z.W. and N.V. A.N., S.S., P.-S.H. and M.E. maintained the infrastructure underlying AlphaEvolve. M.E. and E.D. used matrix multiplication, with input from F.J.R.R. A.Z.W. worked on the applications to open mathematical problems, with help from A.M., M.E., and A.N. A.N. contributed to the Borg scheduling application. P.-S.H. and N.V. worked on the application to Gemini kernel engineering. P.-S.H. and A.N. contributed to the TPU circuit design application. B.K. and
+M.B., A.N., N.V. and P.K. developed project vision and scoped problems. N.V. and P.- S.H. oversaw the practical applications. E.D. and M.E. implemented the first benchmark problem used for iterating on AlphaEvolve, with input from F.J.R.R. and M.B. A.N. and M.E. developed the final version of AlphaEvolve , with contributions from S.S., P.-S.H., and input from M.B., E.D., A.Z.W. and N.V. A.N., S.S., P.-S.H. and M.E. maintained the infrastructure underlying AlphaEvolve. M.E. and E.D. used matrix multiplication, with input from F.J.R.R. A.Z.W. worked on the applications to open mathematical problems, with help from A.M., M.E., and A.N. A.N. contributed to the Borg scheduling application. P.-S.H. and N.V. worked on the application to Gemini kernel engineering. P.-S.H. and A.N. contributed to the TPU circuit design application. B.K. and
 
 *AlphaEvolveto discover new algorithms for*
 
@@ -975,7 +964,7 @@ majority of code reviews. M.B., E.D., S.C., N.V., A.Z.W., F.J.R.R., M.E., A.N., 
 
 - [1]J. Abramson, J. Adler, J. Dunger, R. Evans, T. Green, A. Pritzel, O. Ronneberger, L. Will- `https://deepmind.g`
 
-more, A. J. Ballard, J. Bambrick, et al. Accurate structure prediction of biomolecular interactions with alphafold 3.Nature, 630(8016):493-500, 2024.
+more, A. J. Ballard, J. Bambrick, et al. Accurate structure prediction of biomolecular interactions with alphafold 3.Nature , 630(8016):493-500, 2024.
 
 - [2]V. Aglietti, I. Ktena, J. Schrouff, E. Sgouritsa, F. J. R. Ruiz, A. Malek, A. Bellot, and
 
@@ -989,7 +978,7 @@ International Mathematical Olympiad problems, 2024. URL
 oogle/discover/blog/ai-solves-imo-problems-at-silver-medal-lev
 ```
 
-- [4] D. Bahdanau, K. Cho, and Y. Bengio. Neural machine translation by jointly learning
+- [4]D. Bahdanau, K. Cho, and Y. Bengio. Neural machine translation by jointly learning
 
 to align and translate.arXiv preprint arXiv:1409.0473
 
@@ -1003,7 +992,7 @@ K. Satzinger, M. Y. Niu, S. Blackwell, G. Holland, D. Kafri, J. Atalaya, C. Gidn
 
 - [7]D. A. Boiko, R. MacKnight, B. Kline, and G. Gomes. Autonomous chemical research
 
-with large language models.Nature, 624(7992):570-578, 2023. doi: 10.1038/s415 86-023-06792-0.
+with large language models.Nature , 624(7992):570-578, 2023. doi: 10.1038/s415 86-023-06792-0.
 
 - [8]P. Boyvalenkov, S. Dodunekov, and O. Musin. A survey on the kissing numbers.
 
@@ -1062,7 +1051,7 @@ automating-gpu-kernel-generation-with-deepseek-r1-and-inference
 -time-scaling.
 ```
 
-- [16] X. Chen, C. Liang, D. Huang, E. Real, K. Wang, H. Pham, X. Dong, T. Luong, C.-J.
+- [16]X. Chen, C. Liang, D. Huang, E. Real, K. Wang, H. Pham, X. Dong, T. Luong, C.-J.
 
 Hsieh, Y. Lu, and Q. V. Le. Symbolic discovery of optimization algorithms. *in Neural Information Processing Systems*
 
@@ -1162,7 +1151,7 @@ tions in quantum physics research via dynamic word embeddings. *Science and Tech
 pdates-march-2025.
 ```
 
-- [33] F. Gonçalves, D. O. e Silva, and S. Steinerberger. Hermite polynomials, linear flows
+- [33]F. Gonçalves, D. O. e Silva, and S. Steinerberger. Hermite polynomials, linear flows
 
 on the torus, and an uncertainty principle for roots. *and Applications, 451(2):678-711, 2017.*
 
@@ -1217,7 +1206,7 @@ graphs and LLMs: Evaluations with 100 research group leaders. In
 
 for advancing scientific discovery. In *Proceedings of the IEEE International Conference on Big Data, pages 1746-1755, 2024. doi: 10.1109/bigdata62323.2024.10825618.*
 
-- [39] K. Gyarmati, F. Hennecart, and I. Z. Ruzsa. Sums and differences of finite sets.
+- [39]K. Gyarmati, F. Hennecart, and I. Z. Ruzsa. Sums and differences of finite sets.
 
 *Functiones et Approximatio Commentarii Mathematici*
 
@@ -1293,11 +1282,11 @@ algorithms of size(, ,6).ACM Commun. Comput. Algebra ISSN 1932-2232. doi: 10.114
 
 *preprint arXiv:2505.05896, 2025.*
 
-- [50] D. P. Kingma and J. Ba. Adam: A method for stochastic optimization. In
+- [50]D. P. Kingma and J. Ba. Adam: A method for stochastic optimization. In
 
 *Conference on Learning Representations (ICLR)*
 
-- [51] J. R. Koza. Genetic programming as a means for programming computers by natural
+- [51]J. R. Koza. Genetic programming as a means for programming computers by natural
 
 selection.Statistics and Computing, 4(2):87-112, 1994. doi: 10.1007/BF00175355.
 
@@ -1372,11 +1361,11 @@ A. Yazdanbakhsh, D. Altinbüken, F. Papa, et al. ECO: An LLM-driven efficient co
 
 Y. Shmueli, A. dos Santos Costa, M. Fazel-Zarandi, T. Sercu, S. Candido, and A. Rives. Evolutionary-scale prediction of atomic-level protein structure with a language model. *Science, 379(6637):1123-1130, 2023. doi: 10.1126/science.ade2574.*
 
-- [63] F. Liu, X. Tong, M. Yuan, X. Lin, F. Luo, Z. Wang, Z. Lu, and Q. Zhang. Evolution of
+- [63]F. Liu, X. Tong, M. Yuan, X. Lin, F. Luo, Z. Wang, Z. Lu, and Q. Zhang. Evolution of
 
 heuristics: Towards efficient automatic algorithm design using large language model. *arXiv preprint arXiv:2401.02051, 2024.*
 
-- [64] F. Luo, J. Zhang, Q. Wang, and C. Yang. Leveraging prompt engineering in large
+- [64]F. Luo, J. Zhang, Q. Wang, and C. Yang. Leveraging prompt engineering in large
 
 language models for accelerating chemical research. 10.1021/acscentsci.4c01935.
 
@@ -1418,7 +1407,7 @@ M. Freeman, editors,Proceedings of the Second International Conference on Archit
 
 - [71]S. Miret and N. M. A. Krishnan. Are LLMs ready for real-world materials discovery?
 
-InarXiv preprint arXiv:2402.05200, 2024.
+InarXiv preprint arXiv:2402.05200 , 2024.
 
 28
 
@@ -1431,15 +1420,15 @@ InarXiv preprint arXiv:2402.05200, 2024.
 
 schemes.arXiv preprint arXiv:2502.04514
 
-- [73] C. Morris, M. Jurado, and J. Zutty. Llm guided evolution-the automation of mod-*arXiv preprint*
+- [73]C. Morris, M. Jurado, and J. Zutty. Llm guided evolution-the automation of mod-*arXiv preprint*
 
 els advancing models. InProceedings of the Genetic and Evolutionary Computation *Conference, pages 377-384, 2024.*
 
-- [74] J.-B. Mouret and J. Clune. Illuminating search spaces by mapping elites.
+- [74]J.-B. Mouret and J. Clune. Illuminating search spaces by mapping elites.
 
 *arXiv:1504.04909, 2015.*
 
-- [75] V. Naumov, D. Zagirova, S. Lin, Y. Xie, W. Gou, A. Urban, N. Tikhonova, K. Alawi,
+- [75]V. Naumov, D. Zagirova, S. Lin, Y. Xie, W. Gou, A. Urban, N. Tikhonova, K. Alawi,
 
 M. Durymanov, F. Galkin, S. Chen, D. Sidorenko, M. Korzinkin, M. Scheibye-Knudsen, A. Aspuru-Guzik, E. Izumchenko, D. Gennert, F. W. Pun, M. Zhang, P. Kamya, A. Aliper, F. Ren, and A. Zhavoronkov. DORA AI scientist: Multi-agent virtual research team for scientific exploration discovery and automated report generation. In
 
@@ -1447,7 +1436,7 @@ M. Durymanov, F. Galkin, S. Chen, D. Sidorenko, M. Korzinkin, M. Scheibye-Knudse
 
 10.1101/2025.03.06.641840.
 
-- [76] OpenAI. Introducing OpenAI o3 and o4-mini, 2025. URL
+- [76]OpenAI. Introducing OpenAI o3 and o4-mini, 2025. URL
 
 ```
 ndex/introducing-o3-and-o4-mini/
@@ -1529,13 +1518,13 @@ R. Bodík, editors,Architectural Support for Programming Languages and Operating
 
 *Science, 324(5923):81-85, 2009. doi: 10.1126/science.1165893.*
 
-- [88] N. Shinn, F. Cassano, A. Gopinath, K. Narasimhan, and S. Yao. Reflexion: Language
+- [88]N. Shinn, F. Cassano, A. Gopinath, K. Narasimhan, and S. Yao. Reflexion: Language
 
 agents with verbal reinforcement learning. *Advances in Neural Information Processing Systems, 36:8634-8652, 2023.*
 
 - [89]P. Shojaee, K. Meidani, S. Gupta, A. B. Farimani, and C. K. Reddy. LLM-SR: Scientific
 
-equation discovery via programming with large language models. In *Conference on Learning Representations*, 2025.
+equation discovery via programming with large language models. In *Conference on Learning Representations* , 2025.
 
 - [90]C. Si, D. Yang, and T. Hashimoto. Can LLMs generate novel research ideas? a large- *arXiv*
 
@@ -1605,11 +1594,11 @@ cehre. Algorithm discovery with LLMs: Evolutionary search meets reinforcement le
 
 Michigan, 1989.
 
-- [98] A. Thakur, G. Tsoukalas, Y. Wen, J. Xin, and S. Chaudhuri. An in-context learning
+- [98]A. Thakur, G. Tsoukalas, Y. Wen, J. Xin, and S. Chaudhuri. An in-context learning
 
 agent for formal theorem-proving. In *Conference on Language Models, 2024.*
 
-- [99] T. H. Trinh, Y. Wu, Q. V. Le, H. He, and T. Luong. Solving olympiad geometry without
+- [99]T. H. Trinh, Y. Wu, Q. V. Le, H. He, and T. Luong. Solving olympiad geometry without
 
 human demonstrations.Nature, 625(7995):476-482, 2024.
 
@@ -1756,7 +1745,7 @@ language models. In L. Peled-Cohen, N. Calderon, S. Lissak, and R. Reichart, edi
 
 ---
 
-*Proceedings of the 1st Workshop on NLP for Science (NLP4Science)*, pages 117-139. Association for Computational Linguistics, 2024. doi: 10.18653/v1/2024.nlp4scien ce-1.10.
+*Proceedings of the 1st Workshop on NLP for Science (NLP4Science)* , pages 117-139. Association for Computational Linguistics, 2024. doi: 10.18653/v1/2024.nlp4scien ce-1.10.
 
 33
 
@@ -1773,10 +1762,14 @@ we considered 54 matrix multiplication sizes in our experiments. These were chos
 
 | decomposition | for | all | considered | parameters. | Of | the | 54 | targets, |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ⟨2,2,2⟩AlphaEvolveuse complex-valued multiplications which can be used for exact multiplication7 [95⟨2,]3,6⟩30 [7⟨93,4],4⟩ 38 [3093] | 38 |  |  |  |  |  |  |  |
-| ⟨2,2,4⟩of complex or real-valued matrices. The decompositions shown in this table can be found in14 [⟨932,]3,8⟩1440 [⟨93,4],6⟩ 56 [4048] | 54 |  |  |  |  |  |  |  |
-| ⟨2,2,5⟩the accompanying Google Colab.18 [⟨932,]3,9⟩1845 [⟨93,4],7⟩ 66 [4591] | 63 |  |  |  |  |  |  |  |
-| ⟨2,2,8⟩ Note: Concurrent work [49] has also found a rank-28 [⟨932,]4,5⟩ 2833 [⟨423,5],6⟩ 70 [3248] | 68 |  |  |  |  |  |  |  |
+| ⟨2,2,2⟩ AlphaEvolveuse complex-valued multiplications which can be used for exact multiplication 7 [95⟨2,]3,6⟩ 30 [7⟨93,4],4⟩ 38 [3093] | 38 |  |  |  |  |  |  |  |
+| ⟨2,2,3⟩11 [⟨932,]3,7⟩ 1135 [⟨93,4],5⟩ 47 [3526] | 47 |  |  |  |  |  |  |  |
+| ⟨2,2,4⟩ of complex or real-valued matrices. The decompositions shown in this table can be found in 14 [⟨932,]3,8⟩ 1440 [⟨93,4],6⟩ 56 [4048] | 54 |  |  |  |  |  |  |  |
+| ⟨2,2,5⟩ the accompanying Google Colab. 18 [⟨932,]3,9⟩ 1845 [⟨93,4],7⟩ 66 [4591] | 63 |  |  |  |  |  |  |  |
+| ⟨2,2,6⟩21 [⟨293,3],10⟩ 2150 [⟨93,4],8⟩ 75 [5091] | 74 |  |  |  |  |  |  |  |
+| ⟨2,2,7⟩25 [⟨932,]4,4⟩ 2526 [⟨93,5],5⟩ 58 [2691] | 58 |  |  |  |  |  |  |  |
+| ⟨2,2,8⟩Note: Concurrent work [49] has also found a rank- 28 [⟨932,]4,5⟩ 2833 [⟨423,5],6⟩ 70 [3248] | 68 |  |  |  |  |  |  |  |
+| ⟨2,2,9⟩32 [⟨932,]4,6⟩ 3239 [⟨93,5],7⟩ 82 [3991] | 80 |  |  |  |  |  |  |  |
 | ⟨2,2,13⟩ 46 [⟨932,]5,6⟩ Figure 4 (left), which corresponds to the program that discovers a decomposition of rank 48 4648 [⟨934,4],7⟩87 [4793, 95] | 85 |  |  |  |  |  |  |  |
 
 discovered programs which either match or
@@ -1787,7 +1780,9 @@ discovered programs which either match or
 
 108
 
-⟨2,3,5⟩ 25 [⟨93,]3,8⟩ 2555 [⟨936,6],6⟩ 153 [5572] 156
+⟨2,3,3⟩15 [⟨93,]3,6⟩ 1540 [⟨934,5],6⟩ 93 [4048] **90**
+
+⟨2,3,4⟩20 [⟨93,]3,7⟩ 2049 [⟨935,5],5⟩ 93 [4972] 93 ⟨2,3,5⟩25 [⟨93,]3,8⟩ 2555 [⟨936,6],6⟩ 153 [5572] 156
 
 34
 
@@ -1825,7 +1820,13 @@ decomposition = optax. apply_updates (decomposition , updates)
 
 22 + # `Add a small amount of gradient noise to help with exploration`
 
-24 + decomposition 25 + lambda
+24 + decomposition
+
+```
+= jax.tree_util .tree_map(
+```
+
+25 + lambda
 
 ```
 shape),
@@ -1839,7 +1840,13 @@ shape),
 , start=self.hypers
 ```
 
-34 + ) 35 + decomposition 36 + lambda 37 + decomposition 38 + ) 41 + cycle_length
+34 + ) 35 + decomposition
+
+```
+= jax.tree_util .tree_map(
+```
+
+36 + lambda 37 + decomposition 38 + ) 41 + cycle_length
 
 ```
 = 2000 # Number of steps per cycle
@@ -1928,7 +1935,13 @@ algorithm to multiply4×4matrices (1/3).
 < -threshold ,
 ```
 
-73 + x_im_clipped 74 + ) 76 + return 78 + decomposition 79 + lambda
+73 + x_im_clipped 74 + ) 76 + return 78 + decomposition
+
+```
+= jax.tree_util .tree_map(
+```
+
+79 + lambda
 
 ```
 x: soft_clip (x, clip_threshold
@@ -1968,7 +1981,7 @@ values)
 = self.hypers. hallucination_scale
 ```
 
-101 + def `hallucinate (x, hallucination_rng`
+101 + def `hallucinate(x, hallucination_rng`
 
 104 + hallucination_rng
 
@@ -1976,13 +1989,13 @@ values)
 , x.shape
 ```
 
-105 + ) 106 + return 109 + decomposition 110 + lambda
+105 + ) 106 + return 109 + decomposition
 
 ```
-x: hallucinate (x, jax.random.split(factor_rng )[0]) ,
+= jax.tree_util .tree_map(
 ```
 
-111 + decomposition 112 + )
+110 + lambda 111 + decomposition 112 + )
 
 ```
 # Add a batch dimension to`target_tensor
@@ -2081,7 +2094,7 @@ jnp.abs(x - jnp.round (x))
 144 + global_step
 
 ```
-, start =0.0 , end =self.hypers. discretization_weight
+, start =0.0 , end=self.hypers. discretization_weight
 ```
 
 145 + ) 147 + # `Cosine annealing for half -integer`
@@ -2176,7 +2189,7 @@ numbers ."""
 
 **Figure 9c|Magnified version of Figure 4**
 
-algorithm to multiply4×4matrices (3/3). Herehyperis a user-provided library for generating hyperparameter sweeps.
+algorithm to multiply4×4matrices (3/3 ). Herehyperis a user-provided library for generating hyperparameter sweeps.
 
 (left), giving the program that discovers a faster
 
@@ -2251,9 +2264,9 @@ with the lower bound coming from a step function construction [ a step function 
 
 ### B.3. Third autocorrelation inequality
 
-Let 3be the largest constant satisfying
+Let3be the largest constant satisfying
 
-max |∗()≥
+max|∗()≥
 
 −1/2≤≤1/2
 
@@ -2274,7 +2287,9 @@ for any function:ℝ→ ℝ. Clearly≤ negative values. There is a step functio
 
 Given a function:ℝ→ℝ, define the Fourier transform
 
-Let 4be the largest constant for which one has
+():=inf{ >0 :() ≥0for all|| ≥}.
+
+Let4be the largest constant for which one has
 
 ()() ≥4
 
@@ -2284,9 +2299,9 @@ for all evenwithmax((0),(0))<0. It is known [ ˆ
 
 (The upper bound is stated as0.353in the paper, but rounding their solution to the fourth digit gives0.3523). We improved the upper bound to combination as in [33], but with refined constants that were found by To obtain upper bounds for, one constructs a specific "test function" 4
 
-conditions and calculates the value() ()for this function, which provides an upperˆ bound 4≤ ()(). Following the approach in [ ˆ ()= ()−, where()is an even polynomial constructed as a linear combination of Hermite polynomials(). This form is particularly useful because the Fourier transform of4 ()−is ()−. For an even polynomial of()is()= ˆ 4 4() =( 4
+conditions and calculates the value() ()for this function, which provides an upper ˆ bound4≤ ()(). Following the approach in [ ˆ ()= ()−, where()is an even polynomial constructed as a linear combination of Hermite polynomials(). This form is particularly useful because the Fourier transform of4 ()−is()−. For an even polynomial of()is()=ˆ 4 4() =( 4
 
-to the largest positive root of(), and ()is related to the largest positive root of().ˆ Specifically, if() ≥0for large||,()is the largest positive root of largest positive root of(), implying() = (). The inequality becomes≤ (()).4 The method involves finding coefficients 0
+to the largest positive root of(), and ()is related to the largest positive root of(). ˆ Specifically, if() ≥0for large||,()is the largest positive root of largest positive root of(), implying() = (). The inequality becomes≤ (()).4 The method involves finding coefficients 0
 
 41()+ ()+. . . such that()satisfies certain constraints (related to and being positive for large||) and minimizes the largest positive root of approach, the polynomial()is constructed such that optimization process to simplify constraints), meaning positive rootof()is then the largest positive root of max
 
@@ -2300,13 +2315,13 @@ linear combination is very similar to the one found in [ hypothesis the construc
 
 ### 0.3284. By incorporating their refined approach into
 
-ˆ():= () −2 and
+ˆ():= ()−2 and
 
 33] that
 
 4≤0.3523.
 
-4 ≤0.3521with a similar linear
+4≤0.3521with a similar linear
 
 *AlphaEvolve.* satisfying the
 
@@ -2320,7 +2335,9 @@ linear combination is very similar to the one found in [ hypothesis the construc
 
 (0)<0,(0)<0 ˆ (). In our
 
-(0)=0(a condition used in the ()has a factor of. The largest ()/. The upper bound on 4
+(0)=0(a condition used in the ()has a factor of. The largest ()/. The upper bound on4
+
+for()= 0 0() +4() +()are
 
 −5]. Using these coefficients to construct
 
@@ -2341,11 +2358,11 @@ constant further to 0.3216. For details, we refer to the accompanying
 
 ### B.5. Erdős' minimum overlap problem
 
-Let 5be the largest constant for which
+Let5be the largest constant for which
 
 sup ()(+)
 
-∈[−2,2] −1
+∈[−2,2]−1
 
 for all non-negative, :[−1,1] → [0,1] with+ =1on[−1,1]and extend, by zero outside of[−1,1]. This constant controls the asymptotics of the Minimum Overlap Problem of [25]. The bounds
 
@@ -2383,11 +2400,11 @@ for the minimum overlap problem of Erdős.
 
 ### B.6. Sums and differences of finite sets
 
-Let 6be the largest constant for which the following statement holds: there exist arbitrarily large finite sets of integers, with|+ | ≪ ||and|− | ≫ |+ |. (Here+ {+ : ∈, ∈ }and −={− : ∈, ∈ }denote the sumset and difference set, respectively. The notation≪means that sets, (for sufficiently large sets, ). The notation positive constantindependent of the sets ′
+Let6be the largest constant for which the following statement holds: there exist arbitrarily large finite sets of integers, with|+ | ≪ ||and|− | ≫ |+ |. (Here+ {+ : ∈, ∈ }and−={− : ∈, ∈ }denote the sumset and difference set, respectively. The notation≪means that sets, (for sufficiently large sets, ). The notation positive constantindependent of the sets ′
 
 , (for sufficiently large sets, ).) ≤ for some constantindependent of the
 
-≫ means that≥ ′for some
+≫means that≥′for some
 
 
 ---
@@ -2412,9 +2429,7 @@ Consider the problem of packingdisjoint regular hexagons with unit side length i
 
 39]:
 
-log |−|
-
-log2 max() +1(
+log|−|
 
 |− | ≤2max() +1. 1.1479≤ 6, and 1.1584≤ 6.
 
@@ -2487,7 +2502,7 @@ two variants of the Heilbronn problem. Left: 11 points in a unit-area triangle w
 
 min∥− ∥: ≠ {
 
-*Then unit spheres centred at:∈* ∥∥ *form a valid kissing configuration in dimension. In particular, the kissing number in dimension Proof.For any≠* ∈ , the inequality∥ − ∥≥max{∥∥,∥∥}implies 2⟨, ⟩ ≤ ∥∥+ ∥∥−max{∥∥ where the last inequality holds because the minimum of two positive numbers is less than or n equal to their geometric mean. The points at them are tangent to a unit sphere centred at the origin. The last step is to show that these spheres do not overlap. This is equivalent to showing, for all
+*Then unit spheres centred at:∈* ∥∥ *form a valid kissing configuration in dimension. In particular, the kissing number in dimension Proof.For any≠*∈ , the inequality∥− ∥≥max{∥∥,∥∥}implies 2⟨, ⟩ ≤ ∥∥+ ∥∥−max{∥∥ where the last inequality holds because the minimum of two positive numbers is less than or n equal to their geometric mean. The points at them are tangent to a unit sphere centred at the origin. The last step is to show that these spheres do not overlap. This is equivalent to showing, for all
 
 ∥∥
 

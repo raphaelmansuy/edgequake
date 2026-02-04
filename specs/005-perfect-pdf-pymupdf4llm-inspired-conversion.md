@@ -8,6 +8,8 @@ Always compare with pymupdf4llm outputs to ensure fidelity. Ensure to check algo
 
 Accelerate the tests in order to validate progress quickly and speedup OODA iterations. The full test is very slow.
 
+Use first principles to guide design decisions, always check pymupdf4llm behavior, and isolate issues with micro-tests. speed up with micro tests to learn about algorithmic issues quickly.
+
 Create dedicated micro-tests for each algorithmic component to isolate issues. (VERY IMPORTANT)
 
 FULLY Read THIS MISSION FILE at the start of every OODA iteration.
@@ -326,6 +328,7 @@ QUALITY = 0.40×ROUGE-L + 0.30×Word_F1 + 0.15×Structure + 0.10×Format + 0.05�
 **Format dimension improved significantly** (0.470→0.573, +22%) thanks to italic detection.
 
 Remaining gaps:
+
 1. ROUGE-L: -0.202 (reading order still the biggest issue)
 2. Structure: -0.198 (headings/paragraphs/lines)
 3. Format: -0.127 (closer to target now)
