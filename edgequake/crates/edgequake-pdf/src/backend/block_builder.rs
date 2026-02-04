@@ -266,6 +266,27 @@ impl BlockBuilder {
         text_occurrences: &HashMap<String, usize>,
     ) -> BlockType {
         let normalized = text.to_lowercase();
+        let trimmed = text.trim();
+
+        // WHY: Figure/Table captions are critical content that must NEVER be classified as
+        // PageHeader, even if they appear multiple times. The pattern "Figure N." or "Table N."
+        // at the start of text definitively identifies a caption. This protection ensures
+        // captions like "Figure 4. Cam×Time dataset..." are not filtered out in markdown.
+        let is_figure_or_table_caption = {
+            let starts_with_figure_pattern = trimmed.starts_with("Figure ")
+                && trimmed.len() > 7
+                && trimmed.chars().nth(7).map_or(false, |c| c.is_ascii_digit());
+            let starts_with_table_pattern = trimmed.starts_with("Table ")
+                && trimmed.len() > 6
+                && trimmed.chars().nth(6).map_or(false, |c| c.is_ascii_digit());
+            starts_with_figure_pattern || starts_with_table_pattern
+        };
+
+        // Short-circuit: captions are always Text, never PageHeader
+        if is_figure_or_table_caption {
+            return BlockType::Text;
+        }
+
         let is_running_header = text_occurrences.get(&normalized).copied().unwrap_or(0) >= 3;
 
         if is_running_header {

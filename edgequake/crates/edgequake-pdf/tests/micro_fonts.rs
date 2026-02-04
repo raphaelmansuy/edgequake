@@ -52,7 +52,7 @@ async fn extract_markdown(pdf_bytes: &[u8]) -> String {
 async fn font_extraction_produces_output() {
     let extractor = create_extractor();
     let result = extractor.extract_to_markdown(FONT_EDGE_CASE_PDF).await;
-    
+
     // For edge case PDFs, we accept either:
     // 1. Successful extraction (even if empty)
     // 2. Graceful error handling

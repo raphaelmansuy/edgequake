@@ -13,6 +13,7 @@ endbfrange
 ```
 
 The specification allows BOTH formats:
+
 1. **Space-separated:** `<21> <21> <0054>`
 2. **Concatenated:** `<21><21><0054>`
 
@@ -23,7 +24,7 @@ Many PDF generators (especially Microsoft Office) use the concatenated format.
 For Calibri-Bold in Apple-Sandbox-Guide:
 
 | Byte | ASCII | Expected Unicode | Character |
-|------|-------|------------------|-----------|
+| ---- | ----- | ---------------- | --------- |
 | 0x21 | '!'   | U+0054           | 'T'       |
 | 0x22 | '"'   | U+0061           | 'a'       |
 | 0x23 | '#'   | U+0062           | 'b'       |
@@ -63,6 +64,7 @@ AFTER FIX:
 ## Solution Strategy
 
 Replace `split_whitespace()` with a custom `extract_hex_codes()` function that:
+
 1. Scans for `<` characters
 2. Extracts content until matching `>`
 3. Returns list of all hex codes regardless of whitespace

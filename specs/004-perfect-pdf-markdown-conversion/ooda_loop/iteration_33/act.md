@@ -8,21 +8,21 @@
 
 ### Release Mode Performance
 
-| PDF | Pages | Time | Per-Page |
-|-----|-------|------|----------|
-| Apple-Sandbox-Guide | 48 | 1.35s | **0.028s** |
-| agentfail | 39 | 1.82s | **0.047s** |
-| hotmess | 40 | 4.15s | **0.104s** |
-| **Average** | 127 | 7.33s | **0.058s** |
+| PDF                 | Pages | Time  | Per-Page   |
+| ------------------- | ----- | ----- | ---------- |
+| Apple-Sandbox-Guide | 48    | 1.35s | **0.028s** |
+| agentfail           | 39    | 1.82s | **0.047s** |
+| hotmess             | 40    | 4.15s | **0.104s** |
+| **Average**         | 127   | 7.33s | **0.058s** |
 
 **All well under 1s per page target!**
 
 ### Debug vs Release
 
-| Mode | Per-PDF (avg) | Speedup |
-|------|---------------|---------|
-| Debug | ~12s | 1x |
-| Release | ~2.4s | **5x** |
+| Mode    | Per-PDF (avg) | Speedup |
+| ------- | ------------- | ------- |
+| Debug   | ~12s          | 1x      |
+| Release | ~2.4s         | **5x**  |
 
 ### Why Earlier Tests Showed Slow Performance
 
@@ -42,6 +42,7 @@
 ```
 
 Also:
+
 - Updated TPS/SFS to P0 priority (now the bottleneck)
 - Added Micro Tests row showing achievement
 
@@ -63,6 +64,7 @@ Also:
 **Speed is NO LONGER the priority.**
 
 New focus:
+
 1. **Quality (SFS):** 68% → 95% target (27% gap)
 2. **Quality (TPS):** 81% → 98% target (17% gap)
 3. **Table detection:** Primary SFS contributor

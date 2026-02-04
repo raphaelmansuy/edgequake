@@ -6,11 +6,11 @@
 
 ### Rationale
 
-| Metric | Target | Current | Status |
-|--------|--------|---------|--------|
-| Speed (per page) | <1.0s | 0.028-0.104s | ✅ ACHIEVED |
-| TPS (Text Preservation) | ≥98% | 81.3% | ❌ 17% gap |
-| SFS (Structure Fidelity) | ≥95% | 68.0% | ❌ 27% gap |
+| Metric                   | Target | Current      | Status      |
+| ------------------------ | ------ | ------------ | ----------- |
+| Speed (per page)         | <1.0s  | 0.028-0.104s | ✅ ACHIEVED |
+| TPS (Text Preservation)  | ≥98%   | 81.3%        | ❌ 17% gap  |
+| SFS (Structure Fidelity) | ≥95%   | 68.0%        | ❌ 27% gap  |
 
 **Quality is now the PRIMARY bottleneck, not speed.**
 

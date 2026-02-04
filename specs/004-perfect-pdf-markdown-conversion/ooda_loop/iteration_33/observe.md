@@ -8,12 +8,12 @@ Profiled PDF extraction in release mode to identify performance hotspots.
 
 ### Test PDFs (from zz_test_docs/)
 
-| PDF | Pages | Time | Per-Page |
-|-----|-------|------|----------|
-| Apple-Sandbox-Guide | 48 | 1.35s | 0.028s |
-| agentfail | 39 | 1.82s | 0.047s |
-| hotmess | 40 | 4.15s | 0.104s |
-| **Total** | 127 | 7.33s | 0.058s avg |
+| PDF                 | Pages | Time  | Per-Page   |
+| ------------------- | ----- | ----- | ---------- |
+| Apple-Sandbox-Guide | 48    | 1.35s | 0.028s     |
+| agentfail           | 39    | 1.82s | 0.047s     |
+| hotmess             | 40    | 4.15s | 0.104s     |
+| **Total**           | 127   | 7.33s | 0.058s avg |
 
 ### Performance Analysis
 
@@ -44,16 +44,17 @@ Theoretical: 34.89s / 4.48 cores = 7.8s ✓
 
 ### Debug vs Release Comparison
 
-| Mode | Time per PDF | Speedup |
-|------|--------------|---------|
-| Debug | ~12s | 1x |
-| Release | ~2.4s | 5x |
+| Mode    | Time per PDF | Speedup |
+| ------- | ------------ | ------- |
+| Debug   | ~12s         | 1x      |
+| Release | ~2.4s        | 5x      |
 
 ### Variance Analysis
 
 **Why is hotmess 3x slower per page than Apple-Sandbox?**
 
 Possible causes:
+
 1. **Complex fonts** - Type3 fonts with custom glyph definitions
 2. **Dense content** - More text elements per page
 3. **Table detection** - More lattice line processing

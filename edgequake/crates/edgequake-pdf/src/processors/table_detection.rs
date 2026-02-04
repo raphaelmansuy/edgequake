@@ -111,7 +111,7 @@ impl Processor for TableDetectionProcessor {
             // FIX: Skip table detection entirely for pages that have columns set by the backend.
             // Tables within columns are rare and not worth the cost of destroying reading order.
             if page.columns.len() > 1 {
-                eprintln!(
+                tracing::debug!(
                     "OODA-34: Skipping table detection for {}-column page {} (preserving reading order)",
                     page.columns.len(),
                     page.number
@@ -860,7 +860,19 @@ impl TextTableReconstructionProcessor {
             let b = &page.blocks[j];
             let t = b.text.trim();
 
-            if t.is_empty() || Self::is_hard_break(b) || Self::looks_like_table_caption(t) {
+            // OODA-37 FIX: Stop scanning when hitting Figure captions
+            // WHY: Figure captions like "Figure 4. Cam×Time dataset..." were being consumed
+            // as table content because only "Table N" patterns triggered the break.
+            // This caused Figure 4 and Figure 7 to disappear from 01_2512 output.
+            let is_figure_caption = t.starts_with("Figure ")
+                && t.len() > 7
+                && t.chars().nth(7).map_or(false, |c| c.is_ascii_digit());
+
+            if t.is_empty()
+                || Self::is_hard_break(b)
+                || Self::looks_like_table_caption(t)
+                || is_figure_caption
+            {
                 break;
             }
 

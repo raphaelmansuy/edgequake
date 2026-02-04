@@ -90,28 +90,6 @@ impl Processor for LayoutProcessor {
                     page.columns.len()
                 );
 
-                // DEBUG: Trace page 1 blocks after LayoutProcessor (should be unchanged)
-                if page.number == 1 {
-                    eprintln!("LAYOUT-SKIP PAGE1 (first 15 of {}):", page.blocks.len());
-                    for (i, blk) in page.blocks.iter().take(15).enumerate() {
-                        let marker = if blk.text.contains("Figure 1") {
-                            ">>>"
-                        } else if blk.text.contains("Abstract") {
-                            "ABS"
-                        } else {
-                            "   "
-                        };
-                        eprintln!(
-                            "{}  [{}] X={:.0} Y={:.0} '{}'",
-                            marker,
-                            i,
-                            blk.bbox.x1,
-                            blk.bbox.y1,
-                            safe_truncate(&blk.text, 50)
-                        );
-                    }
-                }
-
                 continue;
             }
 
@@ -779,93 +757,11 @@ impl Processor for BlockMergeProcessor {
         );
 
         for page in &mut document.pages {
-            // DEBUG: Trace page 1 blocks BEFORE merge - show column transition
-            if page.number == 1 {
-                eprintln!(
-                    "BMP-BEFORE-MERGE PAGE1 ({} blocks, {} columns):",
-                    page.blocks.len(),
-                    page.columns.len()
-                );
-                // Show first left block, last left block, first right block
-                let left_boundary = 200.0; // Approximate left/right boundary
-                let mut last_left_idx = 0;
-                let mut first_right_idx = None;
-                for (i, blk) in page.blocks.iter().enumerate() {
-                    if blk.bbox.x1 < left_boundary {
-                        last_left_idx = i;
-                    } else if first_right_idx.is_none() {
-                        first_right_idx = Some(i);
-                    }
-                }
-                // Show blocks around the transition
-                let start_show = last_left_idx.saturating_sub(3);
-                let end_show = first_right_idx
-                    .unwrap_or(last_left_idx + 1)
-                    .saturating_add(3)
-                    .min(page.blocks.len());
-                eprintln!(
-                    "  Showing blocks [{}..{}] (last left={}, first right={:?}):",
-                    start_show, end_show, last_left_idx, first_right_idx
-                );
-                for i in start_show..end_show {
-                    let blk = &page.blocks[i];
-                    let side = if blk.bbox.x1 < left_boundary {
-                        "L"
-                    } else {
-                        "R"
-                    };
-                    let marker = if blk.text.contains("Figure 1") {
-                        ">>>"
-                    } else if blk.text.contains("Abstract") {
-                        "ABS"
-                    } else {
-                        "   "
-                    };
-                    eprintln!(
-                        "{}  [{:2}] {}  X={:.0} Y={:.0} '{}'",
-                        marker,
-                        i,
-                        side,
-                        blk.bbox.x1,
-                        blk.bbox.y1,
-                        safe_truncate(&blk.text, 50)
-                    );
-                }
-            }
-
             let block_count_before = page.blocks.len();
-
-            // OODA-13 DEBUG: Count ref blocks before merge
-            let refs_before = page
-                .blocks
-                .iter()
-                .filter(|b| {
-                    let t = b.text.trim();
-                    t.starts_with('[')
-                        && t.chars()
-                            .nth(1)
-                            .map(|c| c.is_ascii_digit())
-                            .unwrap_or(false)
-                })
-                .count();
 
             let blocks = std::mem::take(&mut page.blocks);
             let columns = &page.columns; // Capture columns before moving blocks
             page.blocks = self.merge_page_blocks(blocks, &stats, columns);
-
-            // OODA-13 DEBUG: Count ref blocks after merge
-            let refs_after = page
-                .blocks
-                .iter()
-                .filter(|b| {
-                    let t = b.text.trim();
-                    t.starts_with('[')
-                        && t.chars()
-                            .nth(1)
-                            .map(|c| c.is_ascii_digit())
-                            .unwrap_or(false)
-                })
-                .count();
 
             let block_count_after = page.blocks.len();
             tracing::debug!(
@@ -875,35 +771,6 @@ impl Processor for BlockMergeProcessor {
                 block_count_after,
                 columns.len()
             );
-
-            if refs_before > 0 || refs_after > 0 {
-                eprintln!(
-                    "BMP-PAGE-{}: refs {} -> {} (blocks {} -> {})",
-                    page.number, refs_before, refs_after, block_count_before, block_count_after
-                );
-            }
-
-            // DEBUG: Trace page 1 blocks after merge
-            if page.number == 1 {
-                eprintln!("BMP-AFTER-MERGE PAGE1 (first 20 of {}):", page.blocks.len());
-                for (i, blk) in page.blocks.iter().take(20).enumerate() {
-                    let marker = if blk.text.contains("Figure 1") {
-                        ">>>"
-                    } else if blk.text.contains("Abstract") {
-                        "ABS"
-                    } else {
-                        "   "
-                    };
-                    eprintln!(
-                        "{}  [{}] X={:.0} Y={:.0} '{}'",
-                        marker,
-                        i,
-                        blk.bbox.x1,
-                        blk.bbox.y1,
-                        safe_truncate(&blk.text, 50)
-                    );
-                }
-            }
 
             page.update_stats();
         }

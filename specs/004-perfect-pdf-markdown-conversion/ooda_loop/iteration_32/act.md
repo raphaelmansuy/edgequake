@@ -11,6 +11,7 @@ Created 5 micro-test files per mission spec for instant feedback (<0.1s) during 
 **Purpose:** Basic text extraction tests
 **PDF:** 001_simple_text.pdf (1.7KB)
 **Tests:**
+
 - `text_extraction_produces_output` - Non-empty output check
 - `text_extraction_reasonable_length` - >50 chars
 - `text_extraction_no_panic` - Crash prevention
@@ -21,6 +22,7 @@ Created 5 micro-test files per mission spec for instant feedback (<0.1s) during 
 **Purpose:** Table detection tests
 **PDF:** 004_simple_table_2x3.pdf (1.9KB)
 **Tests:**
+
 - `table_extraction_produces_output` - Basic output
 - `table_extraction_contains_structure` - Table markers (|)
 - `table_extraction_no_panic` - Stability
@@ -31,6 +33,7 @@ Created 5 micro-test files per mission spec for instant feedback (<0.1s) during 
 **Purpose:** Two-column layout tests
 **PDF:** 003_two_columns.pdf (2.0KB)
 **Tests:**
+
 - `column_extraction_produces_output` - Basic output
 - `column_extraction_no_panic` - Stability
 - `column_extraction_has_structure` - Multiple lines
@@ -42,6 +45,7 @@ Created 5 micro-test files per mission spec for instant feedback (<0.1s) during 
 **Purpose:** Font encoding edge case tests
 **PDF:** 024_embedded_fonts_obfuscated.pdf (1.7KB)
 **Tests:**
+
 - `font_extraction_produces_output` - Graceful handling
 - `font_extraction_no_panic` - Crash prevention
 - `font_extraction_minimal_replacement_chars` - <10% U+FFFD
@@ -52,9 +56,10 @@ Created 5 micro-test files per mission spec for instant feedback (<0.1s) during 
 **Purpose:** Header and list detection tests
 **PDF:** legacy/002_headers_and_lists.pdf (1.9KB)
 **Tests:**
+
 - `structure_extraction_produces_output` - Basic output
 - `structure_extraction_no_panic` - Stability
-- `structure_extraction_has_headers` - # or ** detection
+- `structure_extraction_has_headers` - # or \*\* detection
 - `structure_extraction_has_sections` - Multiple lines
 - `structure_extraction_coherent_output` - Lists or paragraphs
 

@@ -66,6 +66,7 @@ PDF Parsing Flow (current):
 ```
 
 **Likely hotspots:**
+
 1. Font loading/parsing for each page (should cache)
 2. Content decompression (unavoidable, but can parallelize)
 3. Character decoding with CMap lookup (should cache ToUnicode)
@@ -73,37 +74,42 @@ PDF Parsing Flow (current):
 ### Strategic Direction
 
 **Phase 1: Create Micro-Tests (OODA-31-32)**
+
 - Create minimal test PDFs
 - Establish instant feedback loop
 - Enable focused debugging
 
 **Phase 2: Speed Profiling (OODA-33-35)**
+
 - Add timing instrumentation
 - Identify actual hotspots
 - Target O(n²) algorithms if any remain
 
 **Phase 3: Speed Optimization (OODA-36-40)**
+
 - Lazy font loading
 - Font caching across pages
 - Parallel page processing enhancement
 
 **Phase 4: Quality Improvements (OODA-41-100)**
+
 - Table detection refinement
 - Reading order accuracy
 - Font encoding edge cases
 
 ### Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Micro-test PDFs don't cover edge cases | Medium | Low | Add more as discovered |
-| Speed optimization breaks quality | High | High | Run comprehensive tests before commit |
-| Parallel processing race conditions | Low | Medium | Use Rayon's safe parallelism |
-| Font caching memory bloat | Low | Medium | LRU cache with size limit |
+| Risk                                   | Likelihood | Impact | Mitigation                            |
+| -------------------------------------- | ---------- | ------ | ------------------------------------- |
+| Micro-test PDFs don't cover edge cases | Medium     | Low    | Add more as discovered                |
+| Speed optimization breaks quality      | High       | High   | Run comprehensive tests before commit |
+| Parallel processing race conditions    | Low        | Medium | Use Rayon's safe parallelism          |
+| Font caching memory bloat              | Low        | Medium | LRU cache with size limit             |
 
 ### Recommended Action for OODA-31
 
 **Clean up compiler warnings first** (quick win):
+
 - Fix 5 unused variable/code warnings
 - Improves code quality
 - Shows immediate progress

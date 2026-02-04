@@ -9,6 +9,7 @@ Apple-Sandbox-Guide-v1.0.pdf Page 2 extracts garbled text like `!"#$% '( )'*+%*+
 ### Font Analysis (check_fonts.py)
 
 Page 2 uses these fonts:
+
 - `/F4.1 Cambria` - No Encoding, has FontFile2 (5739 bytes)
 - `/F5.1 Calibri` - No Encoding, has FontFile2 (12108 bytes)
 - `/F3.1 Calibri-Bold` - No Encoding, has FontFile2 (14930 bytes)
