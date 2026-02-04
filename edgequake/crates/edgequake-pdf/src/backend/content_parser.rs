@@ -298,10 +298,16 @@ impl ContentParser {
                                 // OODA-19: Detect rotated text (e.g., arXiv margin watermark)
                                 let is_rotated = Self::is_rotated_ctm(&ctm);
 
+                                // OODA-40: Calculate estimated width for word gap detection
+                                // Average char width is ~55% of font size for proportional fonts
+                                let char_count = text.chars().count() as f32;
+                                let estimated_width = char_count * font_size * 0.55;
+
                                 text_elements.push(TextElement {
                                     text: text.clone(),
                                     x: visual_x,
                                     y: visual_y,
+                                    width: estimated_width,
                                     font_size,
                                     font_name: current_font_name.clone(),
                                     is_bold,
@@ -311,10 +317,7 @@ impl ContentParser {
 
                                 // Advance text matrix by estimated text width.
                                 // WHY: PDF text showing operators advance the cursor.
-                                // Average char width is ~55% of font size for proportional fonts.
                                 // Without this, consecutive text operators appear at same position.
-                                let char_count = text.chars().count() as f32;
-                                let estimated_width = char_count * font_size * 0.55;
                                 text_matrix[4] += estimated_width;
                             }
                         }
@@ -390,10 +393,15 @@ impl ContentParser {
                                 // OODA-19: Detect rotated text
                                 let is_rotated = Self::is_rotated_ctm(&ctm);
 
+                                // OODA-40: Store width for word gap detection
+                                let char_count = cleaned.chars().count() as f32;
+                                let estimated_width = char_count * font_size * 0.55;
+
                                 text_elements.push(TextElement {
                                     text: cleaned,
                                     x: visual_x,
                                     y: visual_y,
+                                    width: estimated_width,
                                     font_size,
                                     font_name: current_font_name.clone(),
                                     is_bold,
@@ -434,10 +442,15 @@ impl ContentParser {
                                 // OODA-19: Detect rotated text
                                 let is_rotated = Self::is_rotated_ctm(&ctm);
 
+                                // OODA-40: Calculate width for word gap detection
+                                let char_count = cleaned.chars().count() as f32;
+                                let estimated_width = char_count * font_size * 0.55;
+
                                 text_elements.push(TextElement {
                                     text: cleaned.clone(),
                                     x: visual_x,
                                     y: visual_y,
+                                    width: estimated_width,
                                     font_size,
                                     font_name: current_font_name.clone(),
                                     is_bold,
@@ -446,8 +459,6 @@ impl ContentParser {
                                 });
 
                                 // Advance text matrix by estimated text width
-                                let char_count = cleaned.chars().count() as f32;
-                                let estimated_width = char_count * font_size * 0.55;
                                 text_matrix[4] += estimated_width;
                             }
                         }

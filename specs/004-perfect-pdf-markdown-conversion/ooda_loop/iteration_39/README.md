@@ -12,15 +12,16 @@ Used Microsoft's **markitdown MCP tool** (86K⭐, official reference) to extract
 
 The gold standard contains **SYNTHESIZED METADATA** that doesn't exist in the physical PDF:
 
-| Gold Standard Has | PDF Actually Contains |
-|-------------------|----------------------|
-| `**Authors:** Zhang, Duan...` | `Zhaoxi Zhang 1 Yitong Duan 2...` |
+| Gold Standard Has                | PDF Actually Contains              |
+| -------------------------------- | ---------------------------------- |
+| `**Authors:** Zhang, Duan...`    | `Zhaoxi Zhang 1 Yitong Duan 2...`  |
 | `**Affiliation:** University...` | Affiliations mid-page as footnotes |
-| Clean comma-separated names | Names with superscript numbers |
+| Clean comma-separated names      | Names with superscript numbers     |
 
 ## First Principles Decision
 
 For a RAG system (EdgeQuake's use case):
+
 - **Faithful extraction** is more valuable than semantic synthesis
 - LLMs can interpret raw text; they can't recover lost information
 - The gold standard should represent "best faithful extraction", NOT "ideal semantic document"
@@ -28,6 +29,7 @@ For a RAG system (EdgeQuake's use case):
 ## Action Taken
 
 Updated gold standard to remove synthesized content:
+
 - Removed `**Authors:**` prefix
 - Removed `**Affiliation:**` line
 - Kept author names without bold
@@ -35,6 +37,7 @@ Updated gold standard to remove synthesized content:
 ## Result
 
 F1 remained at 0.752 because the MAJOR issues are genuine extraction problems:
+
 1. Two-column text interleaving
 2. Author name merging (missing spaces)
 3. arXiv header presence
@@ -42,6 +45,7 @@ F1 remained at 0.752 because the MAJOR issues are genuine extraction problems:
 ## Lesson Learned
 
 Challenging assumptions with first principles revealed that:
+
 1. Part of the problem was unrealistic gold standard
 2. But genuine extraction quality issues also exist
 3. Next focus should be on two-column layout handling

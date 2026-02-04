@@ -4,6 +4,10 @@ pub struct TextElement {
     pub text: String,
     pub x: f32,
     pub y: f32,
+    /// Estimated width of the text element in PDF points.
+    /// Calculated as char_count * font_size * 0.55 for proportional fonts.
+    /// Used for accurate word gap detection in merge_line().
+    pub width: f32,
     pub font_size: f32,
     pub font_name: String,
     pub is_bold: bool,
