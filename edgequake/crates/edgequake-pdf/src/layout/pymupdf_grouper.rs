@@ -31,7 +31,8 @@ impl Default for GroupingParams {
             // WHY: Increased from 3pt to 5pt to handle font style variations
             // (italic/bold fonts have different baseline positions).
             // PDFium character bboxes vary more than pymupdf's pre-grouped spans.
-            line_tolerance: 5.0,
+            // OODA-04: Changed from 5.0 to 3.0 to match pymupdf4llm default
+            line_tolerance: 3.0,
             // WHY: pymupdf4llm uses 10pt as max vertical gap for joining blocks
             // (multi_column.py line 242: `abs(r0.y1 - r.y0) <= 10`)
             block_gap: 10.0,

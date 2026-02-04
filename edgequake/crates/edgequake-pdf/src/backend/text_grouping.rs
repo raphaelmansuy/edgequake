@@ -395,26 +395,28 @@ impl TextGrouper {
         // OODA-07: Only rescue elements that meet ALL of these criteria:
         // 1. There ARE spanning elements (indicating this is a title page)
         // 2. The element's Y > 15 (author lines are below title, not at Y=0 where body text often starts)
-        // 3. The element's Y < 60 (authors are near top, not in body)
+        // 3. The element's Y < 80 (authors are near top, not in body)
+        //    OODA-06: Increased from 60 to 80 to handle papers with more title lines
+        //    Example: 01_2512.25075v1.pdf has authors at Y=61.4
         // 4. There's a left_column element at the SAME Y (±5pt) that's also in this Y range
         // 5. The element looks like an author continuation (starts with comma, or contains name-like text)
         //
         // WHY these constraints:
-        // - Y > 15: Titles are at Y≈0, authors at Y≈25-45. Body text can also start at Y=0.
-        // - Y < 60: Authors don't go past Y=60 typically
+        // - Y > 15: Titles are at Y≈0, authors at Y≈25-75. Body text can also start at Y=0.
+        // - Y < 80: Authors don't go past Y=80 typically
         // - Same-Y check: Author fragments must be on the same visual line
         // - Continuation check: `, Jitendra Malik` starts with comma
 
         for elem in right_column.drain(..) {
             let should_rescue = if !spanning_elements.is_empty() {
-                // Only consider elements between Y=15 and Y=60 (author zone)
-                let in_author_zone = elem.y > 15.0 && elem.y < 60.0;
+                // Only consider elements between Y=15 and Y=80 (author zone)
+                let in_author_zone = elem.y > 15.0 && elem.y < 80.0;
 
                 if in_author_zone {
                     // Check if there's a left_column element at EXACTLY same Y (tight tolerance)
                     let y_tolerance = elem.font_size.max(5.0);
                     let has_left_sibling = left_column.iter().any(|left| {
-                        (left.y - elem.y).abs() < y_tolerance && left.y > 15.0 && left.y < 60.0
+                        (left.y - elem.y).abs() < y_tolerance && left.y > 15.0 && left.y < 80.0
                     });
 
                     // Also check if element looks like author continuation
@@ -1193,14 +1195,15 @@ impl TextGrouper {
                             })
                             .unwrap_or(false);
 
-                        // If prev already has a space, require a much larger gap to insert another.
-                        // This handles cases like ' Mansu' -> 'y' where the leading space in prev
-                        // already accounts for word separation.
-                        let effective_threshold = if prev_has_space {
-                            word_gap_threshold * 2.0 // Much stricter: 3x typical spacing
-                        } else {
-                            word_gap_threshold // Normal: 1.5x typical spacing
-                        };
+                        // OODA-06 FIX: Removed prev_has_space doubling of threshold.
+                        // PREVIOUSLY: If prev contained ANY space (e.g., "Hyeonho Jeong"), we doubled
+                        // the threshold from 10.8 to 21.6. This caused legitimate word gaps (19.8pt)
+                        // to be missed, resulting in "JeongXuelin" instead of "Jeong Xuelin".
+                        //
+                        // The original intent was to prevent double-spacing when prev already has
+                        // a trailing space. But prev_ends_with_space handles that case already.
+                        // Internal spaces (like in "Hyeonho Jeong") are irrelevant for post-gap spacing.
+                        let effective_threshold = word_gap_threshold;
 
                         // Only insert space if gap exceeds the effective threshold
                         if gap > effective_threshold && !starts_with_punct {

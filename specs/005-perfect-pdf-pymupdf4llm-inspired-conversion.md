@@ -12,6 +12,9 @@ Use first principles to guide design decisions, always check pymupdf4llm behavio
 
 Create dedicated micro-tests for each algorithmic component to isolate issues. (VERY IMPORTANT)
 
+
+ALWAYS CHALLENGE OUR ALGORITHMS using first principles against pymupdf4llm behavior: for example italic, bold, font detections, etc, layout, etc ....  If you find better approaches that improve quality while adhering to constraints, document them thoroughly in the OODA loop.
+
 FULLY Read THIS MISSION FILE at the start of every OODA iteration.
 
 ## Context
