@@ -4,7 +4,7 @@
 
 Your mission is to implement a completely new PDF-to-Markdown extraction pipeline using **pure Rust** with **pdfium-render** as the PDF backend. The goal is to achieve Quality >= 0.95 against pymupdf4llm gold standards by implementing pymupdf4llm's core algorithms in Rust.
 
-Always compare with pymupdf4llm outputs to ensure fidelity. Ensure to check algorithm details in `zz-explore/pymupdf4llm/pymupdf4llm/helpers/`.
+Always compare with pymupdf4llm outputs to ensure fidelity. Ensure to check algorithm details in `zz-explore/pymupdf4llm/pymupdf4llm/helpers/`. Eliminate other backends such as lopdf.
 
 Accelerate the tests in order to validate progress quickly and speedup OODA iterations. The full test is very slow.
 
@@ -299,38 +299,36 @@ QUALITY = 0.40×ROUGE-L + 0.30×Word_F1 + 0.15×Structure + 0.10×Format + 0.05�
 - **Weight**: 10% of quality score
 - **Components**: `0.4×bold + 0.4×italic + 0.2×lists`
 
-### Current Status (Feb 2025)
+### Current Status (OODA-09)
 
 | Metric            | Current | Target  | Gap    |
 | ----------------- | ------- | ------- | ------ |
-| **Quality Score** | 0.573   | >= 0.95 | -0.377 |
-| ROUGE-L (order)   | 0.491   | >= 0.90 | -0.409 |
-| Word F1 (content) | 0.914   | >= 0.95 | -0.036 |
-| Structure Score   | 0.295   | >= 0.80 | -0.505 |
-| Format Score      | 0.312   | >= 0.70 | -0.388 |
+| **Quality Score** | 0.732   | >= 0.95 | -0.218 |
+| ROUGE-L (order)   | 0.698   | >= 0.90 | -0.202 |
+| Word F1 (content) | 0.893   | >= 0.95 | -0.057 |
+| Structure Score   | 0.602   | >= 0.80 | -0.198 |
+| Format Score      | 0.573   | >= 0.70 | -0.127 |
 
-### Per-File Breakdown
+### Per-File Breakdown (OODA-09)
 
 | File                  | Quality | ROUGE-L | Word F1 | Struct | Format |
 | --------------------- | ------- | ------- | ------- | ------ | ------ |
-| ccn_2512.21804v1      | 0.652   | 0.555   | 0.941   | 0.349  | 0.597  |
-| 2900_Goyal_et_al      | 0.606   | 0.591   | 0.937   | 0.200  | 0.329  |
-| v2_2512.25072v1       | 0.577   | 0.437   | 0.919   | 0.621  | 0.000  |
-| 01_2512.25075v1       | 0.562   | 0.439   | 0.880   | 0.331  | 0.435  |
-| AlphaEvolve           | 0.546   | 0.445   | 0.865   | 0.186  | 0.655  |
-| agent_2510.09244v1    | 0.543   | 0.505   | 0.951   | 0.131  | 0.154  |
-| one_tool_2512.20957v2 | 0.525   | 0.468   | 0.902   | 0.249  | 0.014  |
+| agent_2510.09244v1    | 0.874   | 0.932   | 0.934   | 0.951  | 0.354  |
+| 2900_Goyal_et_al      | 0.861   | 0.939   | 0.939   | 0.535  | 0.795  |
+| AlphaEvolve           | 0.801   | 0.851   | 0.873   | 0.602  | 0.700  |
+| ccn_2512.21804v1      | 0.702   | 0.615   | 0.929   | 0.489  | 0.653  |
+| one_tool_2512.20957v2 | 0.677   | 0.570   | 0.872   | 0.668  | 0.525  |
+| 01_2512.25075v1       | 0.618   | 0.493   | 0.838   | 0.545  | 0.558  |
+| v2_2512.25072v1       | 0.593   | 0.486   | 0.865   | 0.424  | 0.427  |
 
-### Key Insight: The Real Problem
+### Key Insight: Current Focus
 
-**Content extraction is working (F1=0.914)** but **reading order is broken (ROUGE-L=0.491)**.
+**Format dimension improved significantly** (0.470→0.573, +22%) thanks to italic detection.
 
-The pipeline is extracting ~91% of words correctly but only ~49% are in the correct order.
-This indicates problems in:
-
-1. Block sorting/reading order algorithm
-2. Multi-column detection
-3. Line grouping tolerances
+Remaining gaps:
+1. ROUGE-L: -0.202 (reading order still the biggest issue)
+2. Structure: -0.198 (headings/paragraphs/lines)
+3. Format: -0.127 (closer to target now)
 
 ### Evaluation Script
 
@@ -427,4 +425,6 @@ Ensure to clean old implementations and document all changes thoroughly when pdf
 | 08   | 2026-02-04 | **FIX**: Update width during element merge          | Specific fix (test_qwen_reading)   |
 | 08   | 2026-02-04 | Word splitting: "Push ing" → "Pushing" fixed        | test_qwen_reading_order PASS       |
 | 08   | 2026-02-04 | Relaxed OODA-42 threshold (0.5× → 1× font_size)     | Handles width estimation error     |
-| 07   | 2025-01-28 | v2_2512: Jitendra Malik now block 2 (was block 10)  | Reading order fix for title pages  |
+| 09   | 2026-02-04 | Add "ital" pattern for Nimbus italic fonts          | Quality: 0.724→0.732 (+0.8%)       |
+| 09   | 2026-02-04 | Re-enable "medi" bold detection (was disabled)      | Format: 0.470→0.573 (+22%)         |
+| 09   | 2026-02-04 | v2_2512 Italic: 0% → 28.5%, Bold improved           | 2900_Goyal Format: +75%            |
