@@ -1,5 +1,49 @@
 //! Text grouping and line merging utilities.
 //!
+//! ## Two-Column Layout Detection (OODA-17)
+//!
+//! Academic papers often use two-column layouts. This module detects and handles
+//! them by:
+//!
+//! 1. **Detecting column boundary** at ~page_width/2
+//! 2. **Classifying elements** into regions based on Y and X position
+//! 3. **Processing columns** separately to preserve reading order
+//! 4. **Merging results** with proper interleaving
+//!
+//! ## Page Zones (Y-normalized: Y=0 is TOP of page)
+//!
+//! ```text
+//! Y=0    ┌────────────────────────────────────────┐
+//!        │ HEADER (running headers, page numbers)  │
+//! Y~15   ├────────────────────────────────────────┤
+//!        │ TITLE/AUTHORS (spanning, large font)    │
+//! Y~100  ├────────────────────────────────────────┤
+//!        │         │ column  │                     │
+//!        │  LEFT   │ boundary│  RIGHT              │
+//!        │ COLUMN  │  ±15pt  │ COLUMN              │
+//!        │         │ margin  │                     │
+//! Y~700  ├────────────────────────────────────────┤
+//!        │ FOOTER (page numbers, affiliations)     │
+//! Y=792  └────────────────────────────────────────┘
+//!
+//! WHY Y-normalization: PDFium returns Y with origin at BOTTOM of page.
+//! We normalize so Y=0 is at TOP, making Y increase downward (reading order).
+//! ```
+//!
+//! ## Reading Order
+//!
+//! For two-column papers, content is read column-by-column:
+//! - All of left column top-to-bottom
+//! - All of right column top-to-bottom
+//! - NOT interleaved by Y position (which would cause cross-column mixing)
+//!
+//! ## Key Thresholds (see OODA-09)
+//!
+//! - **column_boundary**: page_width / 2 (~306pt for US Letter)
+//! - **margin**: 15pt gap zone around column boundary
+//! - **header_threshold**: ~15pt from top
+//! - **footer_threshold**: ~700pt from top (varies by content)
+//!
 //! This module handles grouping text elements into lines and handling column layouts.
 //! It includes:
 //! - Single-column text grouping
