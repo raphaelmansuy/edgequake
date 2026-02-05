@@ -5,6 +5,7 @@
 ### Two-Column Layout Algorithm
 
 The algorithm processes a page in these phases:
+
 1. Calculate adaptive region thresholds
 2. Classify elements into: spanning, left_column, right_column, left_footer, right_footer
 3. Process each region separately
@@ -40,6 +41,7 @@ Y=792  └───────────────────────�
 ## Prioritization
 
 Add ASCII diagram to module doc comment explaining:
+
 1. Y-coordinate system (Y=0 at top)
 2. Region zones with thresholds
 3. Column boundary with margin zones

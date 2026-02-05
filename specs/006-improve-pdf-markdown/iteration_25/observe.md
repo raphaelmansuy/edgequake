@@ -26,6 +26,7 @@ The `elements.rs` module (102 lines) has no unit tests despite containing helper
 ## Recommendation
 
 Add unit tests for the helper methods:
+
 - `width()` / `height()` computation
 - `center_x()` / `center_y()` calculation
 - Edge case: zero-width/height

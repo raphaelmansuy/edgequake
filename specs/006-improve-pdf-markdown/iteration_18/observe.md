@@ -17,6 +17,7 @@ From scanning the codebase, these files already have excellent documentation:
 ## Observation
 
 The layout module is very well documented with:
+
 - ASCII diagrams (column_detector, pymupdf_structs)
 - WHY comments (reading_order)
 - Algorithm references (xy_cut)
@@ -25,6 +26,7 @@ The layout module is very well documented with:
 ## Next Target
 
 Need to look at:
+
 1. `backend/elements.rs` - Core data structures
 2. `pipeline/pymupdf_pipeline.rs` - Main pipeline orchestration
 3. `extractor.rs` - Public API

@@ -3,6 +3,7 @@
 ## Strategy
 
 Replace generic TODO comments with specific KNOWN LIMITATION comments that:
+
 1. Document WHY the limitation exists
 2. Link to relevant issues/discussions if any
 3. Suggest future implementation approaches

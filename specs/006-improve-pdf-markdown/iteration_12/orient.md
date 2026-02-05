@@ -5,6 +5,7 @@
 ### ratio >= 2.0 (heading level 1)
 
 **Purpose**: Classify very large text as H1 (#)
+
 - 2.0x = double body size
 - Typical paper titles are 14-16pt on 10pt body = 1.4-1.6x
 - 2.0x catches document titles and major sections
@@ -14,6 +15,7 @@
 ### ratio >= 1.7 (heading level 2)
 
 **Purpose**: Classify large text as H2 (##)
+
 - 1.7x = 70% larger than body
 - Sub-section headings are often 12pt on 10pt = 1.2x
 - 1.7x is between subsection (1.5) and title (2.0)
@@ -23,6 +25,7 @@
 ### 0.5 uppercase ratio
 
 **Purpose**: Detect all-caps sections like "ABSTRACT"
+
 - 0.5 = 50% uppercase letters
 - True all-caps would be 100%, but mixed-case exists
 - 50% catches "REFERENCES" with some lowercase

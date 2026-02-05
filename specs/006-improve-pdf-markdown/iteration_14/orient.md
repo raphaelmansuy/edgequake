@@ -4,12 +4,12 @@
 
 ### Current Test Coverage
 
-| Ratio | Expected Type | Tested? |
-|-------|---------------|---------|
-| >= 2.0 | Header(1) | ✅ 24pt/12pt |
-| 1.7-2.0 | Header(2) | ❌ Missing |
-| 1.5-1.7 | Header(1) | ❌ Missing |
-| < 1.5 | Paragraph | ❌ Missing |
+| Ratio   | Expected Type | Tested?      |
+| ------- | ------------- | ------------ |
+| >= 2.0  | Header(1)     | ✅ 24pt/12pt |
+| 1.7-2.0 | Header(2)     | ❌ Missing   |
+| 1.5-1.7 | Header(1)     | ❌ Missing   |
+| < 1.5   | Paragraph     | ❌ Missing   |
 
 ### Test Cases to Add
 

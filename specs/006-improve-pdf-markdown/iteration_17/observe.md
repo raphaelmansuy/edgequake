@@ -3,6 +3,7 @@
 ## Current State
 
 The `text_grouping.rs` module has:
+
 - Brief description of module purpose
 - No ASCII diagram explaining the two-column layout algorithm
 - Complex logic for column detection without visual documentation
@@ -10,6 +11,7 @@ The `text_grouping.rs` module has:
 ## Gap Identified
 
 The module doc comment at the top is minimal. Need to add:
+
 1. ASCII diagram showing two-column layout with regions
 2. Visual explanation of column boundary detection
 3. Algorithm flow description
@@ -17,6 +19,7 @@ The module doc comment at the top is minimal. Need to add:
 ## Evidence
 
 Current module docs (lines 1-9):
+
 ```rust
 //! Text grouping and line merging utilities.
 //!
@@ -29,6 +32,7 @@ Current module docs (lines 1-9):
 ```
 
 Missing:
+
 - ASCII diagram for column layout
 - Region threshold explanation
 - Algorithm flow visualization

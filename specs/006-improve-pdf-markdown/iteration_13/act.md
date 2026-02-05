@@ -16,13 +16,14 @@
 
 ## Constants Now Documented in pdfium.rs
 
-| Value | Purpose |
-|-------|---------|
-| 0.25 | Space width as fraction of font size |
+| Value | Purpose                              |
+| ----- | ------------------------------------ |
+| 0.25  | Space width as fraction of font size |
 
 ## Documentation Status
 
 The pdfium.rs file is now fully documented with WHY comments for:
+
 - Why PDFium over other PDF libraries
 - Bold detection threshold (>= 700 weight)
 - Font name matching unreliability

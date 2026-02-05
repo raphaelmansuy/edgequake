@@ -15,6 +15,18 @@ use crate::schema::BoundingBox;
 use std::collections::HashMap;
 
 /// Geometric clusterer using DBSCAN algorithm.
+///
+/// **WHY DBSCAN for PDF column detection?**
+/// 
+/// Compared to histogram binning with magic thresholds:
+/// - No need to specify number of columns a priori
+/// - Handles variable-width columns (narrow/wide mix)
+/// - Robust to noise (scattered text elements)
+/// - Adapts to any document scale or language
+///
+/// **Key Parameters:**
+/// - `min_samples=3`: Prevents single outlier text spans from forming clusters
+/// - Epsilon (eps): Calculated adaptively from coordinate distribution
 #[derive(Debug, Clone)]
 pub struct GeometricClusterer {
     /// Minimum points to form a core point in DBSCAN
@@ -495,6 +507,35 @@ mod tests {
         assert_eq!(cluster.min_x(), 0.0, "Min should be 0.0");
         assert_eq!(cluster.max_x(), 20.0, "Max should be 20.0");
         assert_eq!(cluster.width(), 20.0, "Width should be 20.0");
+    }
+
+    // ==========================================================================
+    // OODA-28: Tests for dbscan_1d()
+    // ==========================================================================
+
+    #[test]
+    fn test_dbscan_1d_two_clusters() {
+        // Two clear clusters separated by large gap
+        let values = vec![1.0, 1.5, 2.0, 10.0, 10.5, 11.0];
+        let clusters = dbscan_1d(&values, 2.0, 2);
+        assert_eq!(clusters.len(), 2, "Should detect 2 clusters");
+    }
+
+    #[test]
+    fn test_dbscan_1d_single_cluster() {
+        // All values very close together - single cluster
+        // With eps=3.0 and min_samples=2, all points connect
+        let values = vec![1.0, 2.0, 2.5, 3.0];
+        let clusters = dbscan_1d(&values, 3.0, 2);
+        assert_eq!(clusters.len(), 1, "Should detect 1 cluster");
+    }
+
+    #[test]
+    fn test_dbscan_1d_empty() {
+        // Edge case: empty input
+        let values: Vec<f32> = vec![];
+        let clusters = dbscan_1d(&values, 2.0, 2);
+        assert!(clusters.is_empty(), "Empty input should return no clusters");
     }
 }
 

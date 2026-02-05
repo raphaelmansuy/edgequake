@@ -8,16 +8,17 @@
 
 ## Code Quality Metrics
 
-| Metric | edgequake-pdf |
-|--------|--------------|
-| Clippy warnings | 0 |
-| Tests | 466 |
-| Documented magic numbers | ~30 |
-| ASCII diagrams | 5+ |
+| Metric                   | edgequake-pdf |
+| ------------------------ | ------------- |
+| Clippy warnings          | 0             |
+| Tests                    | 466           |
+| Documented magic numbers | ~30           |
+| ASCII diagrams           | 5+            |
 
 ## Next Focus
 
 Since code quality is good, let me look at:
+
 1. Adding more integration tests with real PDFs
 2. Improving error messages
 3. Adding performance benchmarks

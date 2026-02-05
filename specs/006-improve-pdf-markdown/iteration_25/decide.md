@@ -19,9 +19,9 @@ Add unit tests to `elements.rs` for the `RawChar` helper methods.
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     fn make_char(x0: f32, y0: f32, x1: f32, y1: f32) -> RawChar { ... }
-    
+
     #[test] fn test_raw_char_dimensions() { ... }
     #[test] fn test_raw_char_center_point() { ... }
     #[test] fn test_raw_char_zero_size() { ... }

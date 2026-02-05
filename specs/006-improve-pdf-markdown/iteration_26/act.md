@@ -11,15 +11,16 @@ Added 4 unit tests for `is_rotated_ctm()` in `src/backend/content_parser.rs`:
 
 ## Results
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Tests | 473 | 477 (+4) |
-| content_parser.rs rotation tests | 0 | 4 |
-| Clippy warnings | 0 | 0 |
+| Metric                           | Before | After    |
+| -------------------------------- | ------ | -------- |
+| Tests                            | 473    | 477 (+4) |
+| content_parser.rs rotation tests | 0      | 4        |
+| Clippy warnings                  | 0      | 0        |
 
 ## Test Coverage
 
 The tests validate the rotation detection threshold (0.1) is appropriate:
+
 - Identity matrix [1,0,0,1,tx,ty]: a=1, d=1 → NOT rotated ✓
 - 90° CCW [0,1,-1,0,tx,ty]: a=0, d=0 → rotated ✓
 - 90° CW [0,-1,1,0,tx,ty]: a=0, d=0 → rotated ✓

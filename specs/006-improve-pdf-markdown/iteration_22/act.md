@@ -40,6 +40,7 @@ cargo test --lib
 ## Remaining TODOs
 
 4 more TODOs in edgequake-pdf:
+
 - `extractor.rs:539` - Extract images
 - `layout/pymupdf_grouper.rs:163` - Vertical text detection
 - `layout/pymupdf_renderer.rs:156` - Table detection

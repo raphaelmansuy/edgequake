@@ -3,12 +3,14 @@
 ## Current State
 
 The `test_block_classifier` test only checks:
+
 - H1 detection (24pt font on 12pt body = 2.0x ratio)
 - List item detection
 
 ## Gap Identified
 
 Missing tests for:
+
 1. H2 detection (1.7-2.0x ratio)
 2. Paragraph detection (< 1.5x ratio)
 3. Edge case at exactly 1.5x threshold
@@ -17,6 +19,7 @@ Missing tests for:
 ## Evidence
 
 From the classification logic:
+
 ```rust
 let level = if ratio >= 2.0 {
     1 // Very large = #

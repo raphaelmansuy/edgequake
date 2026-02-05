@@ -7,6 +7,7 @@ Update each TODO with a detailed KNOWN LIMITATION comment.
 ## Changes
 
 ### 1. extractor.rs:539
+
 ```rust
 images: Vec::new(),
 // KNOWN LIMITATION: Image extraction not implemented in text mode
@@ -16,6 +17,7 @@ images: Vec::new(),
 ```
 
 ### 2. pymupdf_grouper.rs:163
+
 ```rust
 // KNOWN LIMITATION: Vertical text detection not implemented
 // WHY: PDFium character bboxes don't indicate text direction reliably
@@ -25,6 +27,7 @@ images: Vec::new(),
 ```
 
 ### 3. pymupdf_renderer.rs:156
+
 ```rust
 // KNOWN LIMITATION: Proper table rendering not implemented
 // WHY: Requires cell boundary detection which is complex:
@@ -36,6 +39,7 @@ images: Vec::new(),
 ```
 
 ### 4. pdfium_backend.rs:296
+
 ```rust
 has_images: false,
 // KNOWN LIMITATION: Image presence detection not implemented

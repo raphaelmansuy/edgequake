@@ -20,11 +20,11 @@
 
 ## Test Coverage Matrix
 
-| Function | Valid Cases | Invalid Cases |
-|----------|-------------|---------------|
-| `is_letter_subsection_header` | ✅ A/B/Z. X | ✅ A.NoSpace, AB., 1. |
-| `is_numeric_section_header` | ✅ 1./2. X | ✅ 1.1., lowercase, 2 X |
-| `is_numeric_subsection_header` | ✅ 2.1./3.2 | ✅ 2., no pattern |
+| Function                       | Valid Cases | Invalid Cases           |
+| ------------------------------ | ----------- | ----------------------- |
+| `is_letter_subsection_header`  | ✅ A/B/Z. X | ✅ A.NoSpace, AB., 1.   |
+| `is_numeric_section_header`    | ✅ 1./2. X  | ✅ 1.1., lowercase, 2 X |
+| `is_numeric_subsection_header` | ✅ 2.1./3.2 | ✅ 2., no pattern       |
 
 ## Next Steps
 

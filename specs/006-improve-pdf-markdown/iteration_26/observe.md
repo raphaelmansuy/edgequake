@@ -31,6 +31,7 @@ The `content_parser.rs` module (665 lines) has only 2 WHY comments and limited t
 ## Recommendation
 
 Add unit tests for `is_rotated_ctm()`:
+
 - Normal text (no rotation): should return false
 - 90° CCW rotation: should return true
 - 90° CW rotation: should return true

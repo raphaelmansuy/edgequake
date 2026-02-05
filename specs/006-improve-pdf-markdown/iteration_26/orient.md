@@ -6,11 +6,11 @@ The `is_rotated_ctm()` function detects text rotated 90 degrees (like arXiv wate
 
 ## Risk Assessment
 
-| Factor | Risk | Mitigation |
-|--------|------|------------|
-| False positives | High | Could reject legitimate text |
-| False negatives | Medium | Would merge watermarks into body |
-| Edge cases | Medium | Near-threshold values need testing |
+| Factor          | Risk   | Mitigation                         |
+| --------------- | ------ | ---------------------------------- |
+| False positives | High   | Could reject legitimate text       |
+| False negatives | Medium | Would merge watermarks into body   |
+| Edge cases      | Medium | Near-threshold values need testing |
 
 ## The Function Logic
 
@@ -23,6 +23,7 @@ fn is_rotated_ctm(ctm: &[f32; 6]) -> bool {
 ```
 
 **Matrix interpretation:**
+
 - Normal: [1, 0, 0, 1, tx, ty] → a=1, d=1 → NOT rotated
 - 90° CCW: [0, 1, -1, 0, tx, ty] → a=0, d=0 → rotated
 - 90° CW: [0, -1, 1, 0, tx, ty] → a=0, d=0 → rotated
@@ -30,6 +31,7 @@ fn is_rotated_ctm(ctm: &[f32; 6]) -> bool {
 ## Alignment with Mission
 
 Mission 006 goals:
+
 - ✅ Improve test coverage → Adding tests for rotation detection
 - ✅ Clean code → Tests validate edge case handling
 - ✅ Quality extraction → Prevents watermark contamination

@@ -11,11 +11,11 @@ Added 4 unit tests to `src/backend/elements.rs`:
 
 ## Results
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Tests | 469 | 473 (+4) |
-| elements.rs tests | 0 | 4 |
-| Clippy warnings | 0 | 0 |
+| Metric            | Before | After    |
+| ----------------- | ------ | -------- |
+| Tests             | 469    | 473 (+4) |
+| elements.rs tests | 0      | 4        |
+| Clippy warnings   | 0      | 0        |
 
 ## Test Details
 
@@ -28,6 +28,7 @@ fn make_char(x0: f32, y0: f32, x1: f32, y1: f32) -> RawChar {
 ```
 
 Tests validate:
+
 - Basic arithmetic: width = x1 - x0, height = y1 - y0
 - Center computation: (min + max) / 2
 - Zero dimensions don't cause division errors

@@ -13,22 +13,22 @@ fn test_subsection_patterns() {
     assert!(is_letter_subsection_item("A. Background"));
     assert!(is_letter_subsection_item("B. Policy Representations"));
     assert!(is_letter_subsection_item("Z. Final Section"));
-    
+
     assert!(!is_letter_subsection_item("A.NoSpace"));
     assert!(!is_letter_subsection_item("ABC. Too Long"));
     assert!(!is_letter_subsection_item("1. Not a letter"));
-    
+
     // Number section (ICML-style): "1. INTRODUCTION"
     assert!(is_number_section_header("1. INTRODUCTION"));
     assert!(is_number_section_header("2 METHODS"));
-    
+
     assert!(!is_number_section_header("1.1. Subsection"));
     assert!(!is_number_section_header("1. lowercase"));
-    
+
     // Number subsection: "2.1. Agentic Training"
     assert!(is_number_subsection_item("2.1. Agentic Training"));
     assert!(is_number_subsection_item("3.2 Architecture"));
-    
+
     assert!(!is_number_subsection_item("2. Main section"));
     assert!(!is_number_subsection_item("Not a subsection"));
 }

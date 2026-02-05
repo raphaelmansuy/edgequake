@@ -7,6 +7,7 @@ Add WHY comments to undocumented constants in block_classifier.rs.
 ## Implementation Plan
 
 ### Change 1: Heading level ratios (lines 133, 135)
+
 ```rust
 let ratio = dominant_size / body_font_size;
 // WHY (OODA-12): Heading level based on size ratio to body text.
@@ -23,6 +24,7 @@ let level = if ratio >= 2.0 {
 ```
 
 ### Change 2: Uppercase ratio (line 291)
+
 ```rust
 // WHY (OODA-12): 50% uppercase threshold for all-caps section detection.
 // True all-caps = 100%, but OCR/extraction may have errors.

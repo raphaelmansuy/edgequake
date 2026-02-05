@@ -418,13 +418,22 @@ mod tests {
         let columns = vec![]; // Single column
         let reading_order = vec![0, 1, 2, 3, 4]; // All 5 blocks
         let regions = vec![
-            LayoutRegion::new(BoundingBox::new(0.0, 0.0, 100.0, 100.0), RegionType::TextBody),
-            LayoutRegion::new(BoundingBox::new(0.0, 100.0, 100.0, 200.0), RegionType::TextBody),
+            LayoutRegion::new(
+                BoundingBox::new(0.0, 0.0, 100.0, 100.0),
+                RegionType::TextBody,
+            ),
+            LayoutRegion::new(
+                BoundingBox::new(0.0, 100.0, 100.0, 200.0),
+                RegionType::TextBody,
+            ),
         ];
 
         let confidence =
             analyzer.calculate_confidence(block_count, &columns, &reading_order, &regions);
-        assert!(confidence >= 0.95, "Perfect case should have high confidence");
+        assert!(
+            confidence >= 0.95,
+            "Perfect case should have high confidence"
+        );
     }
 
     #[test]

@@ -7,6 +7,7 @@ Add WHY comment for the space width ratio in pdfium.rs.
 ## Implementation Plan
 
 ### Change: line 266 (space width)
+
 ```rust
 // WHY (OODA-13): Space width = 25% of font size is a conservative estimate.
 // Proportional fonts: 0.2-0.3 of em. Monospace: ~0.6 of em.

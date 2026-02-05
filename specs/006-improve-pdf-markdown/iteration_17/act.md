@@ -8,10 +8,8 @@ Added comprehensive ASCII diagram and documentation to `text_grouping.rs` module
    - 4-step algorithm overview
    - ASCII diagram showing page zones (header, title/authors, columns, footer)
    - Y-normalization explanation
-   
 2. **Reading Order section**:
    - Explains column-by-column reading (not Y-interleaved)
-   
 3. **Key Thresholds section**:
    - References OODA-09 for threshold documentation
    - Lists column_boundary, margin, header/footer thresholds
