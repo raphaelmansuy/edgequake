@@ -130,6 +130,10 @@ impl BlockClassifier {
             && total_chars < self.max_header_chars
         {
             let ratio = dominant_size / body_font_size;
+            // WHY (OODA-12): Heading level based on size ratio to body text.
+            // - 2.0x: Very large (double body) = major heading (#)
+            // - 1.7x: Large (70% bigger) = secondary heading (##)
+            // - 1.5x: Medium = default to # (conservative)
             let level = if ratio >= 2.0 {
                 1 // Very large = #
             } else if ratio >= 1.7 {
@@ -288,6 +292,9 @@ pub fn is_roman_numeral_header(text: &str) -> bool {
             let rest: String = chars.collect();
             let uppercase_count = rest.chars().filter(|c| c.is_uppercase()).count();
             let alpha_count = rest.chars().filter(|c| c.is_alphabetic()).count();
+            // WHY (OODA-12): 50% uppercase threshold for all-caps section detection.
+            // True all-caps = 100%, but OCR/extraction may have errors.
+            // 50% catches "ABSTRACT", "REFERENCES" with some lowercase mixed in.
             alpha_count > 0 && (uppercase_count as f32 / alpha_count as f32) >= 0.5
         }
         _ => false,

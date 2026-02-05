@@ -3,6 +3,7 @@
 ## Analysis
 
 ### Page Layout Context
+
 US Letter page: 612pt × 792pt (8.5" × 11" at 72 DPI)
 A4 page: 595pt × 842pt (210mm × 297mm at 72 DPI)
 
@@ -36,6 +37,7 @@ A4 page: 595pt × 842pt (210mm × 297mm at 72 DPI)
 ## Prioritization
 
 Most critical to document:
+
 1. **30.0pt gap threshold** - affects section ordering
 2. **100.0pt top zone** - affects header/body classification
 3. **15.0/80.0pt author zone** - affects author detection
@@ -43,6 +45,7 @@ Most critical to document:
 ## Hypothesis
 
 Adding WHY comments will:
+
 - Improve code maintainability
 - Help future developers understand layout assumptions
 - Document PDF page coordinate conventions

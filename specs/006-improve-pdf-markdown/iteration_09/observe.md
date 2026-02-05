@@ -13,6 +13,7 @@ The `text_grouping.rs` file has several magic numbers without WHY comments:
 ## Evidence
 
 From grep results, many numbers have WHY comments already:
+
 - ✅ Line 141: Y-normalization explanation
 - ✅ Line 145: Figure caption position
 - ✅ Line 245: REFERENCES section
@@ -23,6 +24,7 @@ From grep results, many numbers have WHY comments already:
 ## Context from Code
 
 These numbers relate to:
+
 - Academic paper page layout (US Letter: 792pt tall)
 - Author name zones (typically top 10% of page)
 - Vertical gap detection for section boundaries

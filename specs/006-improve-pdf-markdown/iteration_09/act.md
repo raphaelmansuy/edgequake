@@ -28,14 +28,14 @@
 
 ## Magic Numbers Now Documented
 
-| Value | Location | Purpose |
-|-------|----------|---------|
-| 100.0pt | line ~309 | Top zone for logging |
-| 15.0pt | line ~412 | Author zone lower bound |
-| 80.0pt | line ~412 | Author zone upper bound |
-| 30.0pt | line ~576 | Vertical gap threshold |
-| 20.0pt | line ~425 | Continuation detection |
-| 30 chars | line ~425 | Short text threshold |
+| Value    | Location  | Purpose                 |
+| -------- | --------- | ----------------------- |
+| 100.0pt  | line ~309 | Top zone for logging    |
+| 15.0pt   | line ~412 | Author zone lower bound |
+| 80.0pt   | line ~412 | Author zone upper bound |
+| 30.0pt   | line ~576 | Vertical gap threshold  |
+| 20.0pt   | line ~425 | Continuation detection  |
+| 30 chars | line ~425 | Short text threshold    |
 
 ## Next Steps
 
