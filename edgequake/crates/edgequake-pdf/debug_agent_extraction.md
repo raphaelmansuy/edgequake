@@ -19,7 +19,7 @@ into meaningful representations; a reasoning system that formulates plans, adapt
 
 1.1 Motivation Artificial intelligence (AI) is a powerful technology that is transforming cognitive automation and fundamentally reshaping the way tasks are performed [13,14,37]. Today, one can develop remarkable systems without the need to write complex algorithms or master low-level code. We are closer than ever to realizing the idea that "if you can think it, you can build it." Instead of relying solely on programming skills, what increasingly matters is understanding how a human would reason through a problem, since LLM agents can learn and mimic human
 
- · Multi-agent Systems
+                  - · Multi-agent Systems
 
 victor.de.lamo@estudiantat.upc.edu {habtom.gidey, alex.lenz, knoll}@tum.de
 

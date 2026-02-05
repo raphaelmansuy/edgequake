@@ -71,11 +71,12 @@ test result: ok. 4 passed; 0 failed
 
 ```markdown
 TABLE OUTPUT:
+
 ## Page 1
 
-| Name | Age |
-| --- | --- |
-| Alice | 30 |
+| Name  | Age |
+| ----- | --- |
+| Alice | 30  |
 ```
 
 ## Conclusion

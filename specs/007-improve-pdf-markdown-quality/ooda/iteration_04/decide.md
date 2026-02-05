@@ -29,16 +29,18 @@ Function: `render_table()` (line ~158)
 ### Expected Output
 
 Input (TableCell children):
+
 ```
 [Cell y0=100: "Name", Cell y0=100: "Age"]
 [Cell y0=115: "Alice", Cell y0=115: "30"]
 ```
 
 Output:
+
 ```markdown
-| Name | Age |
-| --- | --- |
-| Alice | 30 |
+| Name  | Age |
+| ----- | --- |
+| Alice | 30  |
 ```
 
 ### Tests to Add

@@ -398,6 +398,22 @@ impl Line {
         }
     }
 
+    /// OODA-IT07: Create an empty line with explicit bounding box.
+    ///
+    /// WHY: Used in tests to create lines with known positions
+    /// for column detection algorithm verification.
+    #[cfg(test)]
+    pub fn new_with_bbox(x0: f32, y0: f32, x1: f32, y1: f32) -> Self {
+        Self {
+            x0,
+            y0,
+            x1,
+            y1,
+            page_num: 0,
+            spans: vec![],
+        }
+    }
+
     /// Check if a span belongs on this line (same baseline).
     ///
     /// OODA-04 FIX: Only checks vertical alignment.

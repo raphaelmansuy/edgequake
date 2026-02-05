@@ -57,8 +57,7 @@ use crate::layout::pymupdf_structs::{
 };
 use crate::progress::ProgressCallback;
 use crate::schema::{
-    Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, FontStyle, Page,
-    TextSpan,
+    Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, FontStyle, Page, TextSpan,
 };
 use crate::Result;
 
@@ -161,7 +160,10 @@ impl PdfBackend for PdfiumBackend {
         document.method = ExtractionMethod::Native;
 
         for page_num in 0..chars_by_page.len() {
-            let page_chars = chars_by_page.get(&page_num).map(|v| v.as_slice()).unwrap_or(&[]);
+            let page_chars = chars_by_page
+                .get(&page_num)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
 
             // Group into text blocks
             let text_blocks = grouper.group(page_chars);
@@ -245,7 +247,10 @@ impl PdfBackend for PdfiumBackend {
         for page_num in 0..page_count {
             callback.on_page_start(page_num, page_count);
 
-            let page_chars = chars_by_page.get(&page_num).map(|v| v.as_slice()).unwrap_or(&[]);
+            let page_chars = chars_by_page
+                .get(&page_num)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
 
             // Group into text blocks
             let text_blocks = grouper.group(page_chars);
@@ -361,7 +366,11 @@ fn classify_blocks(blocks: &[TextBlock], body_size: f32) -> Vec<TextBlock> {
             let not_list = !text.starts_with('•')
                 && !text.starts_with('-')
                 && !text.starts_with('*')
-                && !text.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false);
+                && !text
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false);
 
             if is_larger && is_short && not_list {
                 // Calculate header level based on size ratio
@@ -378,9 +387,10 @@ fn classify_blocks(blocks: &[TextBlock], body_size: f32) -> Vec<TextBlock> {
                 classified.block_type = LayoutBlockType::Header(level);
             } else {
                 // Check for code (monospace font)
-                let is_code = block.lines.iter().any(|line| {
-                    line.spans.iter().any(|span| span.is_monospace())
-                });
+                let is_code = block
+                    .lines
+                    .iter()
+                    .any(|line| line.spans.iter().any(|span| span.is_monospace()));
 
                 if is_code {
                     classified.block_type = LayoutBlockType::Code;
@@ -553,7 +563,11 @@ mod tests {
         let text_span = convert_span_to_text_span(&span);
 
         assert_eq!(text_span.text, "Bold text");
-        assert_eq!(text_span.style.weight, Some(700), "Bold should have weight 700");
+        assert_eq!(
+            text_span.style.weight,
+            Some(700),
+            "Bold should have weight 700"
+        );
         assert!(!text_span.style.italic, "Should not be italic");
         assert!(text_span.bbox.is_some(), "Should have bounding box");
     }
@@ -575,8 +589,10 @@ mod tests {
 
         assert_eq!(text_span.text, "Italic text");
         assert!(text_span.style.italic, "Should be italic");
-        assert!(text_span.style.weight.is_none() || text_span.style.weight == Some(400), 
-                "Non-bold should not have weight 700");
+        assert!(
+            text_span.style.weight.is_none() || text_span.style.weight == Some(400),
+            "Non-bold should not have weight 700"
+        );
     }
 
     #[test]
@@ -614,7 +630,11 @@ mod tests {
         // Verify spans are populated
         assert_eq!(schema_block.spans.len(), 2, "Should have 2 spans");
         assert_eq!(schema_block.spans[0].text, "Bold");
-        assert_eq!(schema_block.spans[0].style.weight, Some(700), "First span should be bold");
+        assert_eq!(
+            schema_block.spans[0].style.weight,
+            Some(700),
+            "First span should be bold"
+        );
         assert_eq!(schema_block.spans[1].text, "normal");
     }
 }
