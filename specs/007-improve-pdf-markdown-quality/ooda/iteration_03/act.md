@@ -12,7 +12,8 @@
 **File**: `edgequake/crates/edgequake-pdf/src/processors/structure_detection.rs`
 
 Added `get_bullets()` function with 372 bullet characters:
-- Common bullets: *, -, •, ◦, ▪
+
+- Common bullets: \*, -, •, ◦, ▪
 - Dashes: –, —, ‐, ‑, ‒, ―
 - Daggers: †, ‡
 - Geometric shapes: entire 0x25A0-0x25FF block (96 chars)

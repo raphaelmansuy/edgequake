@@ -527,11 +527,26 @@ impl TextGrouper {
         }
     }
 
-    /// Detect column boundaries from lines.
+    /// Detect column boundaries from lines using histogram-based gutter detection.
     ///
-    /// Algorithm:
-    /// 1. Find horizontal gaps between line bounding boxes
-    /// 2. If a gap appears consistently across many lines, it's a column gutter
+    /// ## OODA-IT07: N-Column Support
+    ///
+    /// Previous algorithm only found ONE gutter near center (50%), breaking 3-column layouts.
+    /// New algorithm scans full width to find ALL gutters, supporting any number of columns.
+    ///
+    /// ## Algorithm
+    ///
+    /// ```text
+    /// 1. Build coverage histogram (how many lines cover each X position)
+    /// 2. Find runs of zero coverage (gutters)
+    /// 3. Convert gutters to column boundaries
+    ///
+    /// Example (3-column):
+    ///   Lines:    ████████    ████████    ████████
+    ///   X:        0   100  120  220  240   340
+    ///   Gutters:        [100-120]   [220-240]
+    ///   Columns:  [0,110]   [110,230]   [230,340]
+    /// ```
     fn detect_columns(&self, lines: &[Line]) -> Vec<(f32, f32)> {
         if lines.len() < 4 {
             return vec![];
@@ -549,62 +564,96 @@ impl TextGrouper {
             return vec![];
         }
 
-        // Collect all line boundaries
-        let mut line_bounds: Vec<(f32, f32)> = lines.iter().map(|l| (l.x0, l.x1)).collect();
-        line_bounds.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        // Build coverage histogram with 5pt resolution
+        // WHY 5pt: Balances accuracy vs noise. Smaller catches narrow gutters,
+        // but also catches inter-word gaps. Typical gutters are 14-20pt.
+        let bucket_width = 5.0;
+        let num_buckets = ((page_width / bucket_width).ceil() as usize).max(1);
+        let mut coverage = vec![0usize; num_buckets];
 
-        // Check for gaps near the center of the page
-        let center = page_left + page_width / 2.0;
-        let search_range = page_width * 0.2; // Search within ±20% of center
-
-        // Scan for lines that don't cross the center region
-        let mut left_count = 0;
-        let mut right_count = 0;
-        let mut gap_start = center - search_range;
-        let mut gap_end = center + search_range;
-
-        for &(x0, x1) in &line_bounds {
-            // Skip lines that span most of the page (headers, etc.)
-            if x1 - x0 > page_width * 0.8 {
+        // Count how many lines cover each bucket
+        for line in lines {
+            // Skip lines that span most of the page (headers, titles)
+            if line.x1 - line.x0 > page_width * 0.8 {
                 continue;
             }
 
-            // Check if this line is fully to the left or right of center
-            if x1 < center - search_range * 0.1 {
-                left_count += 1;
-                gap_start = gap_start.max(x1);
-            } else if x0 > center + search_range * 0.1 {
-                right_count += 1;
-                gap_end = gap_end.min(x0);
+            let start = ((line.x0 - page_left) / bucket_width) as usize;
+            let end = ((line.x1 - page_left) / bucket_width) as usize;
+            for i in start..=end.min(num_buckets - 1) {
+                coverage[i] += 1;
             }
         }
 
-        // Find candidate gutters
-        let mut gutter_candidates: Vec<(f32, f32, usize)> = vec![]; // (start, end, count)
+        // Find gutters: runs of zero (or very low) coverage
+        // WHY: Gutters are regions where no text exists
+        let mut gutters: Vec<f32> = vec![];
+        let min_gutter_buckets = 2; // ~10pt minimum gutter width
+        let max_coverage = 1; // Allow up to 1 line to cross (tolerates stray chars)
+        let mut gutter_start: Option<usize> = None;
 
-        // Need at least 3 lines on each side
-        let min_lines_per_column = 3;
-
-        if left_count >= min_lines_per_column && right_count >= min_lines_per_column {
-            // Refine gutter bounds
-            let gutter_width = gap_end - gap_start;
-            if gutter_width >= 10.0 && gutter_width < page_width * 0.3 {
-                gutter_candidates.push((gap_start, gap_end, left_count + right_count));
+        for (i, &count) in coverage.iter().enumerate() {
+            if count <= max_coverage {
+                if gutter_start.is_none() {
+                    gutter_start = Some(i);
+                }
+            } else if let Some(start) = gutter_start {
+                let gutter_width_buckets = i - start;
+                if gutter_width_buckets >= min_gutter_buckets {
+                    // Gutter center position
+                    let gutter_x = page_left + ((start + i) as f32 / 2.0) * bucket_width;
+                    // Verify there are lines on both sides
+                    let has_left = coverage[..start].iter().any(|&c| c >= 2);
+                    let has_right = coverage[i..].iter().any(|&c| c >= 2);
+                    if has_left && has_right {
+                        gutters.push(gutter_x);
+                    }
+                }
+                gutter_start = None;
             }
         }
 
-        // Return column boundaries
-        if !gutter_candidates.is_empty() {
-            // Sort by count (most evidence first)
-            gutter_candidates.sort_by_key(|&(_, _, count)| std::cmp::Reverse(count));
-            let best = gutter_candidates[0];
-            let gutter_center = (best.0 + best.1) / 2.0;
-
-            // Return two columns: left and right of gutter
-            vec![(page_left, gutter_center), (gutter_center, page_right)]
-        } else {
-            vec![]
+        // Handle gutter at end of page
+        if let Some(start) = gutter_start {
+            let gutter_width_buckets = num_buckets - start;
+            if gutter_width_buckets >= min_gutter_buckets {
+                let gutter_x = page_left + ((start + num_buckets) as f32 / 2.0) * bucket_width;
+                let has_left = coverage[..start].iter().any(|&c| c >= 2);
+                if has_left {
+                    gutters.push(gutter_x);
+                }
+            }
         }
+
+        // Convert gutters to column boundaries
+        if gutters.is_empty() {
+            return vec![];
+        }
+
+        // Build columns from gutters
+        let mut columns: Vec<(f32, f32)> = vec![];
+        let mut prev = page_left;
+        for gutter in &gutters {
+            columns.push((prev, *gutter));
+            prev = *gutter;
+        }
+        columns.push((prev, page_right));
+
+        // Filter out tiny columns (less than 50pt ≈ 0.7 inch)
+        columns.retain(|(x0, x1)| x1 - x0 >= 50.0);
+
+        // If filtering removed too many, fall back to single column
+        if columns.len() < 2 {
+            return vec![];
+        }
+
+        tracing::debug!(
+            "OODA-IT07: Detected {} columns from {} gutters",
+            columns.len(),
+            gutters.len()
+        );
+
+        columns
     }
 
     /// Simple grouping without column detection.
@@ -1377,5 +1426,118 @@ mod tests {
             "Expected 1 span after header+footer filtering"
         );
         assert_eq!(spans[0].text, "OK");
+    }
+
+    /// OODA-IT07: Test two-column detection with histogram algorithm.
+    /// WHY: Validates that detect_columns correctly finds a gutter between two text columns.
+    #[test]
+    fn test_detect_two_columns() {
+        let grouper = TextGrouper::new();
+
+        // Create two columns of lines:
+        // Column 1: x=[50, 200], Column 2: x=[300, 450]
+        // Gutter at x=[200, 300] (100pt gap)
+        let lines = vec![
+            // Left column lines
+            Line::new_with_bbox(50.0, 100.0, 200.0, 112.0),
+            Line::new_with_bbox(50.0, 120.0, 200.0, 132.0),
+            Line::new_with_bbox(50.0, 140.0, 200.0, 152.0),
+            Line::new_with_bbox(50.0, 160.0, 200.0, 172.0),
+            // Right column lines
+            Line::new_with_bbox(300.0, 100.0, 450.0, 112.0),
+            Line::new_with_bbox(300.0, 120.0, 450.0, 132.0),
+            Line::new_with_bbox(300.0, 140.0, 450.0, 152.0),
+            Line::new_with_bbox(300.0, 160.0, 450.0, 172.0),
+        ];
+
+        let columns = grouper.detect_columns(&lines);
+
+        // Should detect 2 columns
+        assert_eq!(columns.len(), 2, "Expected 2 columns, got {}", columns.len());
+
+        // First column should cover [50, ~250] (left edge to mid-gutter)
+        assert!(
+            columns[0].0 < 100.0 && columns[0].1 > 200.0 && columns[0].1 < 300.0,
+            "Column 1 bounds unexpected: {:?}",
+            columns[0]
+        );
+
+        // Second column should cover [~250, 450] (mid-gutter to right edge)
+        assert!(
+            columns[1].0 > 200.0 && columns[1].0 < 300.0 && columns[1].1 > 400.0,
+            "Column 2 bounds unexpected: {:?}",
+            columns[1]
+        );
+    }
+
+    /// OODA-IT07: Test three-column detection with histogram algorithm.
+    /// WHY: Previous detect_columns only supported 2 columns (searched near center).
+    /// This test verifies the histogram-based algorithm finds multiple gutters.
+    #[test]
+    fn test_detect_three_columns() {
+        let grouper = TextGrouper::new();
+
+        // Create three columns of lines:
+        // Column 1: x=[50, 150], Column 2: x=[200, 300], Column 3: x=[350, 450]
+        // Gutters at x=[150, 200] and x=[300, 350] (50pt gaps)
+        let lines = vec![
+            // Left column lines
+            Line::new_with_bbox(50.0, 100.0, 150.0, 112.0),
+            Line::new_with_bbox(50.0, 120.0, 150.0, 132.0),
+            Line::new_with_bbox(50.0, 140.0, 150.0, 152.0),
+            Line::new_with_bbox(50.0, 160.0, 150.0, 172.0),
+            // Middle column lines
+            Line::new_with_bbox(200.0, 100.0, 300.0, 112.0),
+            Line::new_with_bbox(200.0, 120.0, 300.0, 132.0),
+            Line::new_with_bbox(200.0, 140.0, 300.0, 152.0),
+            Line::new_with_bbox(200.0, 160.0, 300.0, 172.0),
+            // Right column lines
+            Line::new_with_bbox(350.0, 100.0, 450.0, 112.0),
+            Line::new_with_bbox(350.0, 120.0, 450.0, 132.0),
+            Line::new_with_bbox(350.0, 140.0, 450.0, 152.0),
+            Line::new_with_bbox(350.0, 160.0, 450.0, 172.0),
+        ];
+
+        let columns = grouper.detect_columns(&lines);
+
+        // Should detect 3 columns
+        assert_eq!(columns.len(), 3, "Expected 3 columns, got {}", columns.len());
+
+        // Verify column order (left to right)
+        assert!(
+            columns[0].0 < columns[1].0 && columns[1].0 < columns[2].0,
+            "Columns should be ordered left to right: {:?}",
+            columns
+        );
+
+        // Each column should have reasonable bounds
+        for (i, col) in columns.iter().enumerate() {
+            assert!(col.0 < col.1, "Column {} has invalid bounds: {:?}", i, col);
+        }
+    }
+
+    /// OODA-IT07: Test single-column (no gutter) detection.
+    /// WHY: When lines span the full width, should return empty (single column = no detection needed).
+    #[test]
+    fn test_detect_single_column() {
+        let grouper = TextGrouper::new();
+
+        // Create full-width lines (no gutter)
+        let lines = vec![
+            Line::new_with_bbox(50.0, 100.0, 450.0, 112.0),
+            Line::new_with_bbox(50.0, 120.0, 450.0, 132.0),
+            Line::new_with_bbox(50.0, 140.0, 450.0, 152.0),
+            Line::new_with_bbox(50.0, 160.0, 450.0, 172.0),
+        ];
+
+        let columns = grouper.detect_columns(&lines);
+
+        // Should return empty (no columns detected = single column layout)
+        // WHY: detect_columns returns [] for single-column, not [(0, width)]
+        assert!(
+            columns.is_empty(),
+            "Expected empty columns for full-width text, got {:?}",
+            columns
+        );
     }
 }

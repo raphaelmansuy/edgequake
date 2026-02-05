@@ -8,10 +8,12 @@
 ### 1. Table Detection (`processors/table_detection.rs`)
 
 **Two Processors:**
+
 - `TableDetectionProcessor` - Spatial detection from block arrangement
 - `TextTableReconstructionProcessor` - Text pattern-based detection
 
 **Algorithm (TableDetectionProcessor):**
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │              TABLE DETECTION ALGORITHM                       │
@@ -28,6 +30,7 @@
 ```
 
 **Key Heuristics:**
+
 - `is_paragraph()`: Block > 55% page width AND > 60 chars = NOT table cell
 - `is_likely_table()`: 3+ rows with multi-col = table candidate
 - Y-tolerance: 10pt normal, 2pt strict mode
@@ -36,6 +39,7 @@
 ### 2. Table Rendering (`layout/pymupdf_renderer.rs`)
 
 **CRITICAL ISSUE:**
+
 ```rust
 fn render_table(&self, block: &Block) -> String {
     // KNOWN LIMITATION: Proper table rendering not implemented
@@ -50,6 +54,7 @@ fn render_table(&self, block: &Block) -> String {
 ### 3. PyMuPDF4LLM Reference (`pymupdf_rag.py`)
 
 **Critical Difference:**
+
 ```python
 # PyMuPDF4LLM uses native PyMuPDF table detection:
 tabs = page.find_tables(clip=parms.clip, strategy=table_strategy)
@@ -60,6 +65,7 @@ this_md += parms.tabs[i].to_markdown(clean=False)
 ```
 
 **PyMuPDF's table detection advantages:**
+
 1. Uses PDF graphics (lines/rules) to detect cell boundaries
 2. Identifies header rows
 3. Handles merged cells (colspan/rowspan)
@@ -67,13 +73,13 @@ this_md += parms.tabs[i].to_markdown(clean=False)
 
 ### 4. Gap Analysis
 
-| Feature | PyMuPDF4LLM | EdgeQuake | Gap |
-|---------|-------------|-----------|-----|
-| Graphics-based detection | ✅ Uses PDF line paths | ❌ Spatial only | HIGH |
-| Markdown table output | ✅ `to_markdown()` | ❌ Falls back to paragraph | CRITICAL |
-| Header row identification | ✅ Built-in | ❌ No header detection | HIGH |
-| Merged cell handling | ✅ Supported | ❌ Not supported | MEDIUM |
-| Pipe table format | ✅ `\| A \| B \|` | ❌ No pipe format | CRITICAL |
+| Feature                   | PyMuPDF4LLM            | EdgeQuake                  | Gap      |
+| ------------------------- | ---------------------- | -------------------------- | -------- |
+| Graphics-based detection  | ✅ Uses PDF line paths | ❌ Spatial only            | HIGH     |
+| Markdown table output     | ✅ `to_markdown()`     | ❌ Falls back to paragraph | CRITICAL |
+| Header row identification | ✅ Built-in            | ❌ No header detection     | HIGH     |
+| Merged cell handling      | ✅ Supported           | ❌ Not supported           | MEDIUM   |
+| Pipe table format         | ✅ `\| A \| B \|`      | ❌ No pipe format          | CRITICAL |
 
 ## Root Cause
 
