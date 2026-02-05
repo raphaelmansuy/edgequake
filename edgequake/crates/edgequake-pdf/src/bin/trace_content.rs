@@ -67,7 +67,8 @@ fn main() {
         // Simulate ContentParser exactly
         let mut text_elements: Vec<TextElement> = Vec::new();
         let mut current_font: Option<&FontInfo> = None;
-        let mut current_font_name = String::new();
+        // WHY: _current_font_name prefixed with _ as it's only used for debug assignment
+        let mut _current_font_name = String::new();
         let mut font_size: f32 = 12.0;
         let mut text_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
         let mut line_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
@@ -121,10 +122,10 @@ fn main() {
                         if let Object::Name(name) = &op.operands[0] {
                             if let Some((_, info)) = fonts.get(name) {
                                 current_font = Some(info);
-                                current_font_name = String::from_utf8_lossy(name).to_string();
+                                _current_font_name = String::from_utf8_lossy(name).to_string();
                             } else {
                                 current_font = None;
-                                current_font_name = String::from_utf8_lossy(name).to_string();
+                                _current_font_name = String::from_utf8_lossy(name).to_string();
                             }
                         }
                         if let Some(size) = get_number(&op.operands[1]) {

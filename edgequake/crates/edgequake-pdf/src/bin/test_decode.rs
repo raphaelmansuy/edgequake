@@ -49,56 +49,55 @@ fn main() {
                     };
                     
                     if let Ok(font_dict) = doc.get_dictionary(font_id) {
-                        if let Ok(to_unicode) = font_dict.get(b"ToUnicode") {
-                            if let Object::Reference(ref_id) = to_unicode {
-                                if let Ok(Object::Stream(s)) = doc.get_object(*ref_id) {
-                                    if let Ok(data) = s.decompressed_content() {
-                                        println!("=== Parsing ToUnicode CMap ===");
-                                        let cmap = ToUnicodeMap::parse(&data);
+                        // WHY: Combined Ok and Reference patterns per clippy suggestion
+                        if let Ok(Object::Reference(ref_id)) = font_dict.get(b"ToUnicode") {
+                            if let Ok(Object::Stream(s)) = doc.get_object(*ref_id) {
+                                if let Ok(data) = s.decompressed_content() {
+                                    println!("=== Parsing ToUnicode CMap ===");
+                                    let cmap = ToUnicodeMap::parse(&data);
 
-                                        // Print all mappings
-                                        println!("\n=== Mappings ({} total) ===", cmap.mappings.len());
-                                        let mut keys: Vec<_> = cmap.mappings.keys().collect();
-                                        keys.sort();
-                                        for key in keys {
-                                            let val = &cmap.mappings[key];
-                                            let chars: String = val
-                                                .iter()
-                                                .filter_map(|&c| char::from_u32(c as u32))
-                                                .collect();
-                                            println!(
-                                                "  0x{:04X} -> {:?} = '{}'",
-                                                key, val, chars
-                                            );
-                                        }
-
-                                        // Test decoding the actual bytes from the PDF
-                                        println!("\n=== Test decoding ===");
-
-                                        // From the content stream: <0037> should be 'T'
-                                        let bytes1 = [0x00, 0x37];
-                                        let result1 = cmap.decode(&bytes1);
+                                    // Print all mappings
+                                    println!("\n=== Mappings ({} total) ===", cmap.mappings.len());
+                                    let mut keys: Vec<_> = cmap.mappings.keys().collect();
+                                    keys.sort();
+                                    for key in keys {
+                                        let val = &cmap.mappings[key];
+                                        let chars: String = val
+                                            .iter()
+                                            .filter_map(|&c| char::from_u32(c as u32))
+                                            .collect();
                                         println!(
-                                            "decode([0x00, 0x37]) = '{}' (expected 'T')",
-                                            result1
-                                        );
-
-                                        // <004C0057004F0048001D> should be "itle:"
-                                        let bytes2 = [0x00, 0x4C, 0x00, 0x57, 0x00, 0x4F, 0x00, 0x48, 0x00, 0x1D];
-                                        let result2 = cmap.decode(&bytes2);
-                                        println!(
-                                            "decode([0x00,0x4C,...]) = '{}' (expected 'itle:')",
-                                            result2
-                                        );
-
-                                        // <0003> should be space
-                                        let bytes3 = [0x00, 0x03];
-                                        let result3 = cmap.decode(&bytes3);
-                                        println!(
-                                            "decode([0x00, 0x03]) = '{}' (expected ' ')",
-                                            result3
+                                            "  0x{:04X} -> {:?} = '{}'",
+                                            key, val, chars
                                         );
                                     }
+
+                                    // Test decoding the actual bytes from the PDF
+                                    println!("\n=== Test decoding ===");
+
+                                    // From the content stream: <0037> should be 'T'
+                                    let bytes1 = [0x00, 0x37];
+                                    let result1 = cmap.decode(&bytes1);
+                                    println!(
+                                        "decode([0x00, 0x37]) = '{}' (expected 'T')",
+                                        result1
+                                    );
+
+                                    // <004C0057004F0048001D> should be "itle:"
+                                    let bytes2 = [0x00, 0x4C, 0x00, 0x57, 0x00, 0x4F, 0x00, 0x48, 0x00, 0x1D];
+                                    let result2 = cmap.decode(&bytes2);
+                                    println!(
+                                        "decode([0x00,0x4C,...]) = '{}' (expected 'itle:')",
+                                        result2
+                                    );
+
+                                    // <0003> should be space
+                                    let bytes3 = [0x00, 0x03];
+                                    let result3 = cmap.decode(&bytes3);
+                                    println!(
+                                        "decode([0x00, 0x03]) = '{}' (expected ' ')",
+                                        result3
+                                    );
                                 }
                             }
                         }

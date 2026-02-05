@@ -1107,7 +1107,7 @@ impl SectionNumberMergeProcessor {
         let words: Vec<&str> = trimmed.split_whitespace().collect();
 
         // Check if it looks like a person name (2-4 short capitalized words)
-        let looks_like_person_name = words.len() >= 1
+        let looks_like_person_name = !words.is_empty()
             && words.len() <= 4
             && words.iter().all(|w| {
                 let first_char = w.chars().next();

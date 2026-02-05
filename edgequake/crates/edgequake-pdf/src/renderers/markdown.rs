@@ -943,7 +943,7 @@ mod tests {
 
         // Debug: print the actual output
         eprintln!("ACTUAL OUTPUT:\n{}", result);
-        
+
         // Headers are now wrapped in bold to match pymupdf4llm format
         assert!(result.contains("Test Document"));
         assert!(result.contains("**Introduction**"));

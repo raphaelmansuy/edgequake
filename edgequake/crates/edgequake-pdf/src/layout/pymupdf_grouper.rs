@@ -3,14 +3,76 @@
 //! This module provides the `TextGrouper` that converts a stream of `RawChar`s
 //! into structured `Span`s, `Line`s, and `Block`s.
 //!
-//! ## Algorithm
+//! ## Algorithm (OODA-45 SRP Refactoring)
 //!
-//! 1. **Char → Span**: Group consecutive chars with same font style
-//! 2. **Span → Line**: Group spans on same baseline (vertical tolerance)
-//! 3. **Line → Block**: Group lines in same column with vertical proximity
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────┐
+//! │                    TEXT GROUPING PIPELINE                               │
+//! ├─────────────────────────────────────────────────────────────────────────┤
+//! │  RawChar[] ──► chars_to_spans() ──► Span[]                              │
+//! │                     │                                                   │
+//! │  Span[]   ──► spans_to_lines() ──► Line[]                               │
+//! │                     │                                                   │
+//! │  Line[]   ──► lines_to_blocks() ──► Block[]                             │
+//! │                     │                                                   │
+//! │  Block[]  ──► classify_blocks() ──► Block[] (with BlockType)           │
+//! │                     │                                                   │
+//! │                     ▼                                                   │
+//! │            Uses: BlockClassifier (from block_classifier.rs)            │
+//! └─────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## Font Style Preservation (OODA-46)
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────┐
+//! │                    FONT STYLE PROPAGATION                               │
+//! ├─────────────────────────────────────────────────────────────────────────┤
+//! │                                                                         │
+//! │  Step 1: RawChar carries style flags from PDFium                        │
+//! │  ═══════════════════════════════════════════                            │
+//! │                                                                         │
+//! │  RawChar {                                                              │
+//! │      char: 'T',                                                         │
+//! │      is_bold: true,      ← from font_weight() >= 700                    │
+//! │      is_italic: false,   ← from font_is_italic()                        │
+//! │      font_name: "Arial-Bold",                                           │
+//! │      ...                                                                │
+//! │  }                                                                      │
+//! │                                                                         │
+//! │  Step 2: Span inherits style from first char                            │
+//! │  ═══════════════════════════════════════════                            │
+//! │                                                                         │
+//! │  chars_to_spans() creates Span with:                                    │
+//! │  - flags bit 4 = bold (from RawChar.is_bold)                            │
+//! │  - flags bit 1 = italic (from RawChar.is_italic)                        │
+//! │                                                                         │
+//! │  Span {                                                                 │
+//! │      text: "Title",                                                     │
+//! │      flags: 0b10000,   ← bit 4 = bold                                   │
+//! │      ...                                                                │
+//! │  }                                                                      │
+//! │                                                                         │
+//! │  Step 3: Spans preserved through Line/Block grouping                    │
+//! │  ═══════════════════════════════════════════════════                    │
+//! │                                                                         │
+//! │  Line { spans: [Span{flags: bold}, Span{flags: normal}, ...] }          │
+//! │  Block { lines: [Line1, Line2, ...] }                                   │
+//! │                                                                         │
+//! │  Step 4: Renderer reads flags and applies markdown                      │
+//! │  ══════════════════════════════════════════════                         │
+//! │                                                                         │
+//! │  pymupdf_renderer.rs:render_span()                                      │
+//! │      if flags & 0b10000 → wrap with **bold**                            │
+//! │      if flags & 0b00010 → wrap with *italic*                            │
+//! │      if flags & 0b01000 → wrap with `code`                              │
+//! │                                                                         │
+//! └─────────────────────────────────────────────────────────────────────────┘
+//! ```
 //!
 //! This mirrors the pymupdf4llm approach but implemented in pure Rust.
 
+use super::block_classifier::{is_bullet_item, is_numbered_list_item, BlockClassifier};
 use super::pymupdf_structs::{Block, BlockType, Line, Span};
 use crate::backend::elements::RawChar;
 
@@ -56,8 +118,13 @@ impl Default for GroupingParams {
 }
 
 /// Groups raw characters into spans, lines, and blocks.
+///
+/// OODA-45 SRP: This struct handles ONLY grouping logic.
+/// Classification is delegated to `BlockClassifier` from `block_classifier.rs`.
 pub struct TextGrouper {
     params: GroupingParams,
+    /// OODA-45: Block classifier for type detection
+    classifier: BlockClassifier,
 }
 
 impl TextGrouper {
@@ -65,12 +132,16 @@ impl TextGrouper {
     pub fn new() -> Self {
         Self {
             params: GroupingParams::default(),
+            classifier: BlockClassifier::default(),
         }
     }
 
     /// Create a text grouper with custom parameters.
     pub fn with_params(params: GroupingParams) -> Self {
-        Self { params }
+        Self {
+            params,
+            classifier: BlockClassifier::default(),
+        }
     }
 
     /// Check if a character is horizontal text (not rotated/vertical).
@@ -669,102 +740,15 @@ impl TextGrouper {
 
     /// Detect block types based on content analysis.
     ///
+    /// OODA-45 SRP: Delegates to `BlockClassifier` from `block_classifier.rs`.
+    ///
     /// This analyzes:
     /// - Font size relative to body text → headers
     /// - Monospace fonts → code blocks
     /// - Bullet/number prefixes → list items
     pub fn classify_blocks(&self, blocks: &mut [Block], body_font_size: f32) {
-        for block in blocks {
-            block.block_type = self.classify_block(block, body_font_size);
-        }
-    }
-
-    fn classify_block(&self, block: &Block, body_font_size: f32) -> BlockType {
-        if block.lines.is_empty() {
-            return BlockType::Paragraph;
-        }
-
-        // Check for code block (all monospace)
-        let all_mono = block
-            .lines
-            .iter()
-            .all(|line| line.spans.iter().all(|span| span.is_monospace()));
-        if all_mono {
-            return BlockType::Code;
-        }
-
-        // Get first line text for pattern matching
-        let first_text = block.lines.first().map(|l| l.text()).unwrap_or_default();
-        let trimmed = first_text.trim();
-
-        // OODA-10: Pattern-based header detection DISABLED
-        // WHY: Comparison with pymupdf4llm gold standards shows that pymupdf4llm
-        // uses MuPDF's native page.get_layout() which is VERY conservative about
-        // marking headers. The gold files have 1-2 headers (paper title only) while
-        // our pattern-based detection produces 25-40 headers (section numbers, abstracts).
-        //
-        // OODA-11: Disable pattern-based detection entirely. Rely only on font size.
-        // Pattern matching creates false positives for:
-        // - Section numbers like "1. Introduction" (gold keeps as regular text)
-        // - Roman numerals like "I. INTRODUCTION" (gold keeps as regular text)
-        // - "Abstract" keyword (gold keeps as regular text or bold)
-        //
-        // Keep the patterns for reference but don't use them:
-        let _first_text = &trimmed;
-        let _ = is_roman_numeral_header;
-        let _ = is_letter_subsection_header;
-        let _ = is_numeric_section_header;
-        let _ = is_numeric_subsection_header;
-        let _ = is_abstract_header;
-
-        // Check for header based ONLY on font size
-        // OODA-12: Match pymupdf4llm's conservative header detection
-        // pymupdf4llm only marks the LARGEST font sizes as headers (typically 1-2 levels).
-        // Subsection headers (1.1, 3.1.1, etc.) are rendered as bold text, NOT headers.
-        //
-        // CRITICAL: pymupdf4llm finds the most frequent font size (body text), then
-        // only considers font sizes STRICTLY LARGER than body text as potential headers.
-        // Only the top 6 largest font sizes can be headers (H1-H6).
-        //
-        // Raising threshold to 1.50x (50% larger than body) to be more conservative.
-        // This matches observed behavior where:
-        // - Paper title at ~14pt vs body 10pt = 1.4x → H1
-        // - Major sections at ~12pt vs body 10pt = 1.2x → NOT a header (bold text)
-        let dominant_size = block
-            .lines
-            .iter()
-            .map(|l| l.dominant_font_size())
-            .fold(0.0_f32, |a, b| a.max(b));
-
-        let total_chars: usize = block.lines.iter().map(|l| l.text().len()).sum();
-
-        // WHY 1.50x threshold: Conservative to match pymupdf4llm gold standards.
-        // Gold files show only paper title as H1, major sections as H2.
-        // Subsections (1.1, 3.1.1, etc.) are bold text, not headers.
-        if dominant_size > body_font_size * 1.50 && block.lines.len() <= 2 && total_chars < 150 {
-            // Map size ratio to header level
-            let ratio = dominant_size / body_font_size;
-            let level = if ratio >= 2.0 {
-                1 // Very large = #
-            } else if ratio >= 1.7 {
-                2 // Large = ##
-            } else {
-                1 // Title = # (only the largest gets headers now)
-            };
-            return BlockType::Header(level);
-        }
-
-        // Check for list item
-        // OODA-09: Expanded bullet detection based on pymupdf4llm's BULLETS list
-        if let Some(first_line) = block.lines.first() {
-            let text = first_line.text();
-            let trimmed = text.trim_start();
-            if is_bullet_item(trimmed) || is_numbered_list_item(trimmed) {
-                return BlockType::ListItem;
-            }
-        }
-
-        BlockType::Paragraph
+        // OODA-45: Delegate to BlockClassifier for DRY compliance
+        self.classifier.classify_blocks(blocks, body_font_size);
     }
 
     /// OODA-11: Split blocks DISABLED - was causing header over-detection.
@@ -903,295 +887,24 @@ impl TextGrouper {
     }
 }
 
-/// Check if text starts with a Roman numeral section pattern.
-/// OODA-10: Detects "I. INTRODUCTION", "II. RELATED WORKS", etc.
-///
-/// WHY: IEEE-style papers use Roman numerals (I-X) for major sections.
-/// These sections are typically level 2 headings (##).
-fn is_roman_numeral_header(text: &str) -> bool {
-    // Must have at least 3 chars: "I. X"
-    if text.len() < 4 {
-        return false;
-    }
-
-    let mut chars = text.chars().peekable();
-
-    // Collect Roman numeral characters (I, V, X)
-    let mut has_roman = false;
-    while let Some(&c) = chars.peek() {
-        if c == 'I' || c == 'V' || c == 'X' {
-            has_roman = true;
-            chars.next();
-        } else {
-            break;
-        }
-    }
-
-    if !has_roman {
-        return false;
-    }
-
-    // Must be followed by "." and space
-    match (chars.next(), chars.next()) {
-        (Some('.'), Some(' ')) => {
-            // Rest should be mostly uppercase (section title)
-            let rest: String = chars.collect();
-            let uppercase_count = rest.chars().filter(|c| c.is_uppercase()).count();
-            let alpha_count = rest.chars().filter(|c| c.is_alphabetic()).count();
-            // At least 50% uppercase indicates a section title
-            alpha_count > 0 && (uppercase_count as f32 / alpha_count as f32) >= 0.5
-        }
-        _ => false,
-    }
-}
-
-/// Check if text starts with a letter subsection pattern.
-/// OODA-10: Detects "A. Background", "B. Policy Representations", etc.
-///
-/// WHY: IEEE-style papers use single letters (A-Z) for subsections.
-/// These are typically level 3 headings (###).
-///
-/// NOTE: Excludes I, V, X which are Roman numerals (handled by is_roman_numeral_header).
-fn is_letter_subsection_header(text: &str) -> bool {
-    // Must have at least 4 chars: "A. X"
-    if text.len() < 4 {
-        return false;
-    }
-
-    let mut chars = text.chars();
-    let first = chars.next();
-    let second = chars.next();
-    let third = chars.next();
-
-    // Pattern: single uppercase letter + "." + space
-    // Exclude I, V, X which are Roman numerals (they're handled by is_roman_numeral_header)
-    match (first, second, third) {
-        (Some(c), Some('.'), Some(' '))
-            if c.is_ascii_uppercase() && c != 'I' && c != 'V' && c != 'X' =>
-        {
-            // Rest should start with uppercase (subsection title)
-            // e.g., "A. Background" or "A. Humanoid Manipulation"
-            chars.next().map(|c| c.is_uppercase()).unwrap_or(false)
-        }
-        _ => false,
-    }
-}
-
-/// Check if text starts with a numeric section pattern.
-/// OODA-08: Detects "1. Introduction", "2. Related Works", etc.
-///
-/// WHY: ICML/NeurIPS-style papers use numbers for major sections.
-/// These are typically level 2 headings (##).
-fn is_numeric_section_header(text: &str) -> bool {
-    // Must have at least 4 chars: "1. X"
-    if text.len() < 4 {
-        return false;
-    }
-
-    // OODA-08 fix: Section headers are short (typically under 50 chars)
-    // Longer text is likely a sentence starting with a number, not a header
-    if text.len() > 50 {
-        return false;
-    }
-
-    let mut chars = text.chars().peekable();
-
-    // Check for 1-2 digits
-    let mut digit_count = 0;
-    while let Some(&c) = chars.peek() {
-        if c.is_ascii_digit() {
-            digit_count += 1;
-            chars.next();
-        } else {
-            break;
-        }
-    }
-
-    // Must have exactly 1-2 digits (section numbers 1-99)
-    if digit_count == 0 || digit_count > 2 {
-        return false;
-    }
-
-    // Must be followed by "." and space
-    match (chars.next(), chars.next()) {
-        (Some('.'), Some(' ')) => {
-            // Rest should start with uppercase (section title)
-            // e.g., "1. Introduction" or "2. Related Works"
-            let rest: String = chars.collect();
-            // Additional check: no colon in the title (colons indicate definitions, not headers)
-            if rest.contains(':') {
-                return false;
-            }
-            rest.chars()
-                .next()
-                .map(|c| c.is_uppercase())
-                .unwrap_or(false)
-        }
-        _ => false,
-    }
-}
-
-/// Check if text starts with a numeric subsection pattern.
-/// OODA-08: Detects "2.1. Agentic Training", "3.2. Agent Architecture", etc.
-///
-/// WHY: Many papers use X.Y numbering for subsections.
-/// These are typically level 3 headings (###).
-fn is_numeric_subsection_header(text: &str) -> bool {
-    // Must have at least 6 chars: "1.1. X"
-    if text.len() < 6 {
-        return false;
-    }
-
-    let mut chars = text.chars().peekable();
-
-    // Check for first number (1-2 digits)
-    let mut has_first = false;
-    while let Some(&c) = chars.peek() {
-        if c.is_ascii_digit() {
-            has_first = true;
-            chars.next();
-        } else {
-            break;
-        }
-    }
-
-    if !has_first {
-        return false;
-    }
-
-    // Must have "." separator
-    if chars.next() != Some('.') {
-        return false;
-    }
-
-    // Check for second number (1-2 digits)
-    let mut has_second = false;
-    while let Some(&c) = chars.peek() {
-        if c.is_ascii_digit() {
-            has_second = true;
-            chars.next();
-        } else {
-            break;
-        }
-    }
-
-    if !has_second {
-        return false;
-    }
-
-    // Must be followed by "." and space (or just space for "2.1 Title" variant)
-    match chars.next() {
-        Some('.') => match chars.next() {
-            Some(' ') => chars.next().map(|c| c.is_uppercase()).unwrap_or(false),
-            _ => false,
-        },
-        Some(' ') => chars.next().map(|c| c.is_uppercase()).unwrap_or(false),
-        _ => false,
-    }
-}
-
-/// Check if text is an "Abstract" header.
-/// OODA-08: Detects "Abstract", "ABSTRACT", "Abstract:"
-fn is_abstract_header(text: &str) -> bool {
-    let lower = text.to_lowercase();
-    lower == "abstract" || lower == "abstract:" || lower.starts_with("abstract ")
-}
-
-/// OODA-09: Check if text starts with a bullet character.
-/// Based on pymupdf4llm's comprehensive BULLETS list.
-///
-/// WHY: PDFs use many different bullet characters beyond just `•`, `-`, `*`.
-/// This includes various Unicode bullet points, dashes, and geometric shapes.
-fn is_bullet_item(text: &str) -> bool {
-    if text.is_empty() {
-        return false;
-    }
-
-    // Get the first character
-    let first_char = text.chars().next().unwrap();
-
-    // Check if it's a known bullet character
-    let is_bullet = matches!(
-        first_char,
-        '\u{2A}'     // * asterisk
-        | '\u{2D}'   // - hyphen-minus
-        | '\u{3E}'   // > greater-than
-        | '\u{6F}'   // o lowercase o (sometimes used as bullet)
-        | '\u{B6}'   // ¶ pilcrow
-        | '\u{B7}'   // · middle dot
-        | '\u{2010}' // ‐ hyphen
-        | '\u{2011}' // ‑ non-breaking hyphen
-        | '\u{2012}' // ‒ figure dash
-        | '\u{2013}' // – en dash
-        | '\u{2014}' // — em dash
-        | '\u{2015}' // ― horizontal bar
-        | '\u{2020}' // † dagger
-        | '\u{2021}' // ‡ double dagger
-        | '\u{2022}' // • bullet
-        | '\u{2212}' // − minus sign
-        | '\u{2219}' // ∙ bullet operator
-        | '\u{F0A7}' // private use (common in PDFs)
-        | '\u{F0B7}' // private use (common in PDFs)
-        | '\u{FFFD}' // replacement character
-        | '\u{25A0}'..='\u{25FF}' // geometric shapes block (squares, circles, etc.)
-    );
-
-    // If first char is bullet, check that it's followed by space
-    if is_bullet {
-        // Must be followed by a space to be a list item
-        if text.len() > first_char.len_utf8() {
-            let rest = &text[first_char.len_utf8()..];
-            return rest.starts_with(' ') || rest.starts_with('\t');
-        }
-    }
-
-    false
-}
+// =============================================================================
+// OODA-45: Pattern detection functions moved to block_classifier.rs
+// =============================================================================
+// The following functions are now imported from super::block_classifier:
+//   - is_bullet_item
+//   - is_numbered_list_item
+//   - is_roman_numeral_header (not exported, used internally by BlockClassifier)
+//   - is_letter_subsection_header (not exported, used internally)
+//   - is_numeric_section_header (not exported, used internally)
+//   - is_numeric_subsection_header (not exported, used internally)
+//   - is_abstract_header (not exported, used internally)
+//
+// This follows SRP: TextGrouper handles grouping, BlockClassifier handles classification.
+// =============================================================================
 
 impl Default for TextGrouper {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Check if text starts with a numbered list item pattern.
-///
-/// OODA-10: Excludes numeric section header patterns (X.Y.) which look similar.
-/// A true list item is "1. Item" but NOT "2.1. Subsection Title".
-fn is_numbered_list_item(text: &str) -> bool {
-    let trimmed = text.trim_start();
-    let mut chars = trimmed.chars().peekable();
-
-    // Check for digit(s) for the first number
-    let mut has_digit = false;
-    while let Some(&c) = chars.peek() {
-        if c.is_ascii_digit() {
-            has_digit = true;
-            chars.next();
-        } else {
-            break;
-        }
-    }
-
-    if !has_digit {
-        return false;
-    }
-
-    // Check for separator (., ), :)
-    match chars.next() {
-        Some('.') => {
-            // Check if this is a section header pattern (X.Y.)
-            // If the next char is a digit, this is likely a section header like "2.1."
-            if let Some(&next_c) = chars.peek() {
-                if next_c.is_ascii_digit() {
-                    // This looks like "2.1" - likely a section header, not a list item
-                    return false;
-                }
-            }
-            true
-        }
-        Some(')') | Some(':') => true,
-        _ => false,
     }
 }
 

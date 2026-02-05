@@ -76,6 +76,13 @@ impl HeadingClassifier {
         // Step 4: Determine level from size ratio and boldness
         let level = self.calculate_level(font_stats.max_size, body_font_size, is_bold);
 
+        // OODA-12: Level 6 means "not a header" in conservative mode
+        // WHY: pymupdf4llm only creates H1 and H2 headers for paper titles and
+        // major sections. Anything else should be bold text, not a header.
+        if level >= 6 {
+            return (false, 0);
+        }
+
         (true, level)
     }
 
@@ -151,8 +158,8 @@ impl HeadingClassifier {
                     word_lower.as_str(),
                     "the" | "a" | "an" | "it" | "this" | "that" | "as" | "is" | "are" | "was"
                 );
-                if is_prose_indicator {
-                    if i + 1 < words.len() {
+                if is_prose_indicator
+                    && i + 1 < words.len() {
                         let next_char_lower = words[i + 1]
                             .chars()
                             .next()
@@ -162,7 +169,6 @@ impl HeadingClassifier {
                             return false;
                         }
                     }
-                }
             }
         }
 
@@ -224,37 +230,31 @@ impl HeadingClassifier {
 
     /// Calculate heading level from size ratio.
     ///
-    /// **Mapping (aligned with StyleDetectionProcessor):**
-    /// - >= 1.5x body size → H1 (very large, document title)
-    /// - >= 1.3x → H2 (large, main sections)
-    /// - >= 1.2x → H3 (moderate, subsections)
-    /// - >= 1.1x → H4 (slightly large, minor sections)
-    /// - >= 1.05x → H5 (small, sub-subsections)
-    /// - < 1.05x → H6 (smallest, paragraph-level headings)
+    /// OODA-12: Conservative heading detection to match pymupdf4llm gold standards.
+    /// pymupdf4llm only creates H1 and H2 headers - subsections are bold text.
+    ///
+    /// **Mapping (conservative to match gold standards):**
+    /// - >= 1.5x body size → H1 (very large, document title only)
+    /// - >= 1.4x → H2 (large, main sections like "1. Introduction")
+    /// - < 1.4x → NOT a header (return H6 which gets filtered out)
     ///
     /// **WHY these thresholds?**
-    /// - Aligned with StyleDetectionProcessor ratios
-    /// - H1: ratio > 1.5 (main title)
-    /// - H2: ratio > 1.2 (numbered sections)
-    /// - H3: ratio > 1.1 (subsections)
-    /// - H4-H6: Smaller size distinctions for detailed document structure
+    /// - Gold file 2900_Goyal_et_al.pymupdf.gold.md has only 10 headers
+    /// - 1 H1 (paper title), 9 H2 (major sections)
+    /// - Subsections (1.1, 3.1.1, etc.) are NOT headers - they're bold text
+    /// - Previous thresholds (1.2x→H3, 1.1x→H4) created 33+ headers
     fn calculate_level(&self, max_size: f32, body_size: f32, is_bold: bool) -> u8 {
         let ratio = max_size / body_size;
 
         if ratio >= 1.5 {
-            1
-        } else if ratio >= 1.3 {
-            2
-        } else if ratio >= 1.2 {
-            3
-        } else if ratio >= 1.1 {
-            4
-        } else if ratio >= 1.05 {
-            5
-        } else if is_bold {
-            // Bold text with body-sized font is typically H4-H6
-            4
+            1 // Very large = H1 (paper title only)
+        } else if ratio >= 1.4 {
+            2 // Large = H2 (major sections)
         } else {
+            // OODA-12: Return 6 for anything else - will be filtered out
+            // Bold text with smaller font ratios should NOT become headers
+            // in pymupdf4llm's conservative approach
+            let _ = is_bold; // Silence unused warning
             6
         }
     }
@@ -285,26 +285,25 @@ mod tests {
     fn test_level_calculation() {
         let classifier = HeadingClassifier::new();
 
-        // Very large (>= 1.5x) = H1
+        // OODA-12: Conservative thresholds matching pymupdf4llm gold standard
+        // Only H1 (>=1.5x) and H2 (>=1.4x) are recognized as headers
+        // Everything else becomes H6 (filtered out)
+
+        // Very large (>= 1.5x) = H1 (paper title only)
         assert_eq!(classifier.calculate_level(18.0, 12.0, false), 1); // 1.5x
 
-        // Large (>= 1.3x) = H2
-        assert_eq!(classifier.calculate_level(15.6, 12.0, false), 2); // 1.3x
+        // Large (>= 1.4x) = H2 (major sections)
+        assert_eq!(classifier.calculate_level(16.8, 12.0, false), 2); // 1.4x
 
-        // Moderate (>= 1.2x) = H3
-        assert_eq!(classifier.calculate_level(14.5, 12.0, false), 3); // 1.208x - safely above 1.2
+        // Below 1.4x = H6 (filtered out - not a header in pymupdf approach)
+        assert_eq!(classifier.calculate_level(15.6, 12.0, false), 6); // 1.3x - too small
+        assert_eq!(classifier.calculate_level(14.5, 12.0, false), 6); // 1.208x - too small
+        assert_eq!(classifier.calculate_level(14.0, 12.0, false), 6); // 1.17x - too small
+        assert_eq!(classifier.calculate_level(13.0, 12.0, false), 6); // 1.083x - too small
+        assert_eq!(classifier.calculate_level(12.5, 12.0, false), 6); // 1.042x - too small
 
-        // Slightly large (>= 1.1x) = H4
-        assert_eq!(classifier.calculate_level(14.0, 12.0, false), 4); // 1.17x
-
-        // Small (>= 1.05x) = H5
-        assert_eq!(classifier.calculate_level(13.0, 12.0, false), 5); // 1.083x
-
-        // Smallest (< 1.05x) = H6
-        assert_eq!(classifier.calculate_level(12.5, 12.0, false), 6); // 1.042x
-
-        // Bold text with body-sized font = H4
-        assert_eq!(classifier.calculate_level(12.0, 12.0, true), 4); // Bold text
+        // Bold text with body-sized font = H6 (not a header in pymupdf approach)
+        assert_eq!(classifier.calculate_level(12.0, 12.0, true), 6);
     }
 
     #[test]

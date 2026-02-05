@@ -2,6 +2,41 @@
 //!
 //! This module provides column detection using first-principles geometric
 //! clustering instead of histogram-based heuristics.
+//!
+//! ## Algorithm (OODA-46)
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────┐
+//! │                    COLUMN DETECTION PIPELINE                            │
+//! ├─────────────────────────────────────────────────────────────────────────┤
+//! │  Input: BoundingBox[] (text blocks from page)                          │
+//! │                                                                         │
+//! │  Step 1: Filter wide items (>80% page width)                           │
+//! │          WHY: Headers/footers span multiple columns - ignore them      │
+//! │                                                                         │
+//! │  Step 2: DBSCAN clustering on x-coordinates (via GeometricClusterer)   │
+//! │          WHY: No magic bin sizes, epsilon adapts to document density   │
+//! │                                                                         │
+//! │  Step 3: Merge adjacent clusters into column boundaries                │
+//! │          Each cluster's x-extent becomes a column                       │
+//! │                                                                         │
+//! │  Step 4: Calculate confidence score                                     │
+//! │          confidence = items_in_detected_columns / total_items          │
+//! │                                                                         │
+//! │  Output: ColumnLayout { columns, confidence, gutter_width }            │
+//! └─────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## Usage
+//!
+//! ```rust,ignore
+//! let detector = ColumnDetector::new();
+//! let layout = detector.analyze(&bounding_boxes, page_width);
+//! if layout.is_multi_column() {
+//!     println!("Found {} columns with {:.0}% confidence",
+//!         layout.count(), layout.confidence * 100.0);
+//! }
+//! ```
 
 use crate::layout::geometric::{Column as GeomColumn, GeometricClusterer};
 use crate::schema::BoundingBox;
@@ -86,7 +121,12 @@ impl ColumnDetector {
             return Vec::new();
         }
 
-        // Filter out items that are too wide (likely headers or spanning elements)
+        // WHY 0.8 threshold: Items spanning >80% of page width are typically:
+        // - Document headers/titles
+        // - Footnotes spanning columns
+        // - Table captions
+        // These should NOT influence column detection.
+        // The 0.8 value is empirically validated on IEEE/arXiv two-column papers.
         let filtered_items: Vec<BoundingBox> = items
             .iter()
             .filter(|bbox| bbox.width() < page_width * 0.8)
