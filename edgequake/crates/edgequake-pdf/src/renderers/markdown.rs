@@ -134,15 +134,56 @@ impl MarkdownRenderer {
 
     /// Render a page to Markdown with optional arXiv ID insertion after first header.
     /// OODA-21: Insert arXiv ID after the title on page 1.
+    ///
+    /// OODA-IT17: Paragraph continuation detection.
+    /// WHY: PDF backends extract bold/styled words as separate blocks, fragmenting
+    /// paragraphs like "focus on **workflows** teams" into 3 blocks. We detect
+    /// when consecutive Text blocks are continuations of the same paragraph and
+    /// join them with a space instead of paragraph breaks (\n\n).
     fn render_page_with_arxiv(&self, page: &Page, output: &mut String, arxiv_id: Option<&str>) {
         if self.style.page_numbers {
             output.push_str(&format!("## Page {}\n\n", page.number));
         }
 
         let mut arxiv_inserted = false;
+        // OODA-IT17: Track whether previous block was rendered as a paragraph continuation
+        // If true, the next block may need to continue the paragraph (no \n\n prefix).
+        let mut in_paragraph_continuation = false;
 
         for (i, block) in page.blocks.iter().enumerate() {
-            self.render_block(block, output);
+            let next_block = page.blocks.get(i + 1);
+
+            // OODA-IT17: Check if this block is a continuation of the previous paragraph.
+            // If so, render it inline (with space, no \n\n) instead of as a new paragraph.
+            if in_paragraph_continuation
+                && matches!(
+                    block.block_type,
+                    BlockType::Text | BlockType::Paragraph | BlockType::TextInlineMath
+                )
+            {
+                self.render_text_continuation(block, output);
+            } else {
+                self.render_block(block, output);
+            }
+
+            // OODA-IT17: Determine if the NEXT block is a paragraph continuation.
+            // We set the flag here so it's ready for the next iteration.
+            in_paragraph_continuation = if let Some(next) = next_block {
+                Self::is_paragraph_continuation(block, next)
+            } else {
+                false
+            };
+
+            // If we just rendered a block and the next IS a continuation,
+            // we need to strip the trailing \n\n that render_text added,
+            // replacing it with a space for inline joining.
+            if in_paragraph_continuation {
+                // Strip trailing \n\n from output and replace with space
+                if output.ends_with("\n\n") {
+                    output.truncate(output.len() - 2);
+                    output.push(' ');
+                }
+            }
 
             // OODA-21: Insert arXiv after the first header block (title)
             if !arxiv_inserted {
@@ -279,6 +320,188 @@ impl MarkdownRenderer {
             output.push_str(&text);
             output.push_str("\n\n");
         }
+    }
+
+    /// OODA-IT17: Render text block as a paragraph continuation (inline, no \n\n).
+    ///
+    /// WHY: When a paragraph is fragmented across blocks (e.g., bold word as
+    /// separate block), we render the continuation inline to preserve paragraph
+    /// coherence. The text is appended directly without trailing newlines.
+    fn render_text_continuation(&self, block: &Block, output: &mut String) {
+        let span_text: String = block.spans.iter().map(|s| s.text.as_str()).collect();
+        let spans_valid = if block.spans.is_empty() {
+            false
+        } else {
+            let normalized_span = span_text.split_whitespace().collect::<Vec<_>>().join(" ");
+            let normalized_text = block.text.split_whitespace().collect::<Vec<_>>().join(" ");
+            normalized_span == normalized_text || normalized_text.starts_with(&normalized_span)
+        };
+
+        let text = if spans_valid {
+            self.render_spans(&block.spans)
+        } else {
+            self.clean_text(&block.text)
+        };
+
+        if !text.is_empty() {
+            // No \n\n - this is a continuation within the same paragraph
+            output.push_str(&text);
+            // Add \n\n only to finalize the paragraph (caller manages this)
+            output.push_str("\n\n");
+        }
+    }
+
+    /// OODA-IT17: Detect if `curr` block is a paragraph continuation of `prev` block.
+    ///
+    /// WHY: PDF backends extract bold/styled text as separate blocks, fragmenting
+    /// paragraphs. Example: "focus on **workflows** teams" becomes 3 blocks:
+    ///   block A: "focus on"
+    ///   block B: "workflows"     (bold, separate block)
+    ///   block C: "teams move..." (continuation)
+    ///
+    /// We detect continuations by checking:
+    /// 1. Both blocks are text-like (not headers, lists, tables, etc.)
+    /// 2. Previous block does NOT end with sentence-ending punctuation
+    /// 3. Vertical gap is within normal line spacing (not a new paragraph)
+    /// 4. Current block is short (inline fragment) OR starts with lowercase
+    ///
+    /// ```text
+    /// ┌──────────────────────────────────────────────────┐
+    /// │  Continuation Detection Logic                     │
+    /// ├──────────────────────────────────────────────────┤
+    /// │  prev = "Elitizon designs... with a focus on"    │
+    /// │  curr = "workflows"  (bold, short, no punct end) │
+    /// │                                                   │
+    /// │  Check 1: Both Text/Paragraph?        YES        │
+    /// │  Check 2: prev ends with . ! ? : ;?   NO         │
+    /// │  Check 3: Gap < 2x line height?       YES        │
+    /// │  Check 4: curr short OR lowercase?    YES (short)│
+    /// │  → CONTINUATION: join with space                  │
+    /// └──────────────────────────────────────────────────┘
+    /// ```
+    fn is_paragraph_continuation(prev: &Block, curr: &Block) -> bool {
+        // Check 1: Both must be text-like blocks
+        let prev_is_text = matches!(
+            prev.block_type,
+            BlockType::Text | BlockType::Paragraph | BlockType::TextInlineMath
+        );
+        let curr_is_text = matches!(
+            curr.block_type,
+            BlockType::Text | BlockType::Paragraph | BlockType::TextInlineMath
+        );
+        if !prev_is_text || !curr_is_text {
+            return false;
+        }
+
+        let prev_text = prev.text.trim();
+        let curr_text = curr.text.trim();
+
+        // Skip empty blocks
+        if prev_text.is_empty() || curr_text.is_empty() {
+            return false;
+        }
+
+        // Check 2: Previous block must NOT end with sentence-ending punctuation
+        // WHY: If prev ends with ".", "!", "?", it's a complete sentence/paragraph
+        let last_char = prev_text.chars().last().unwrap_or(' ');
+        if matches!(last_char, '.' | '!' | '?' | ':' | ';') {
+            return false;
+        }
+
+        // OODA-IT17 FIX: Reject if prev block looks like a section heading.
+        // WHY: Short title-case blocks like "What we deliver", "Value framing"
+        // are visual headings in PDFs. They should NOT be merged with following
+        // body text, even though they don't end with punctuation.
+        //
+        // Heuristic: A block is heading-like if:
+        // - Short (< 60 chars)
+        // - Starts with uppercase
+        // - Contains 1-6 words (typical heading length)
+        // - NOT a sentence (doesn't contain common sentence patterns)
+        if prev_text.len() < 60 {
+            let prev_first = prev_text.chars().next().unwrap_or(' ');
+            let prev_word_count = prev_text.split_whitespace().count();
+            if prev_first.is_uppercase() && prev_word_count <= 6 {
+                // Additional check: if prev looks like it could be a title
+                // (doesn't contain articles/prepositions mid-sentence that
+                // would indicate it's a sentence fragment)
+                let has_sentence_structure = prev_text.contains(", ")
+                    || prev_text.contains(" that ")
+                    || prev_text.contains(" which ")
+                    || prev_text.contains(" with ")
+                    || prev_text.contains(" from ")
+                    || prev_text.contains(" into ");
+                if !has_sentence_structure {
+                    return false;
+                }
+            }
+        }
+
+        // Check 3: Vertical gap must be small (within ~2x typical line height)
+        // WHY: Large gaps indicate intentional paragraph breaks
+        // Typical line height in PDFs is ~12-16pt, so 2x = ~32pt max gap
+        let vertical_gap = (curr.bbox.y1 - prev.bbox.y2).max(0.0);
+        let typical_line_height = (prev.bbox.y2 - prev.bbox.y1).max(12.0);
+        if vertical_gap > typical_line_height * 2.5 {
+            return false;
+        }
+
+        // Check 4: Current block should look like a fragment, not a new paragraph
+        // - Short text (< 80 chars): likely an inline formatting fragment
+        // - Starts with lowercase: continuation of previous sentence
+        // - Does NOT look like a structural element
+        let curr_first_char = curr_text.chars().next().unwrap_or(' ');
+
+        // Reject if current looks like a header or structural element
+        if curr_text.starts_with('#')
+            || curr_text.starts_with("- ")
+            || curr_text.starts_with("* ")
+            || curr_text.starts_with("> ")
+            || curr_text.starts_with('|')
+        {
+            return false;
+        }
+
+        // Reject if curr starts with a numbered list pattern
+        if curr_first_char.is_ascii_digit() {
+            let after_digit: String = curr_text
+                .chars()
+                .skip_while(|c| c.is_ascii_digit())
+                .collect();
+            if after_digit.starts_with(". ") || after_digit.starts_with(") ") {
+                return false;
+            }
+        }
+
+        // OODA-IT17 FIX: Also reject if curr looks heading-like
+        // WHY: Short uppercase blocks following text should stay separate
+        // But single-word fragments like "ROI" or "APIs" are inline, not headings
+        if curr_text.len() < 60 {
+            let cw = curr_text.split_whitespace().count();
+            if (2..=6).contains(&cw) && curr_first_char.is_uppercase() {
+                // Check if it's a known heading-like pattern
+                let has_sentence_structure = curr_text.contains(", ")
+                    || curr_text.contains(" that ")
+                    || curr_text.contains(" which ");
+                if !has_sentence_structure {
+                    return false;
+                }
+            }
+        }
+
+        // Accept if current starts with lowercase (clear continuation signal)
+        if curr_first_char.is_lowercase() {
+            return true;
+        }
+
+        // Accept if current is a very short fragment (< 20 chars, single word)
+        // that starts with uppercase - likely a bold formatted word
+        // WHY: Words like "ROI" or "APIs" are short uppercase fragments within paragraphs
+        if curr_text.len() < 20 && curr_text.split_whitespace().count() == 1 {
+            return true;
+        }
+
+        false
     }
 
     /// Render a list item.
@@ -902,6 +1125,14 @@ impl MarkdownRenderer {
             }
         }
 
+        // OODA-IT16: Join lines broken mid-word during PDF extraction
+        // WHY: PDF text boxes often break words at visual boundaries, creating
+        // fragments like "netw\norking" instead of "networking". This reconstructs
+        // proper word boundaries for better readability and LLM processing.
+        // NOTE: Handles both immediate breaks (netw\norking) and breaks across
+        // empty lines (netw\n\norking) that occur from render_text's \n\n suffix.
+        result = Self::join_broken_lines(&result);
+
         // OODA-IT14: Clean up TOC leader dots
         // WHY: Table of Contents entries often have dots like "Chapter 1 ........ 5"
         // These leader dots are visual artifacts from PDFs and clutter the markdown output.
@@ -1007,7 +1238,11 @@ impl MarkdownRenderer {
 
                 // Check if this looks like a header candidate
                 let is_short = trimmed.len() < 60;
-                let starts_upper = trimmed.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                let starts_upper = trimmed
+                    .chars()
+                    .next()
+                    .map(|c| c.is_uppercase())
+                    .unwrap_or(false);
                 let ends_with_punctuation = trimmed.ends_with(':')
                     || trimmed.ends_with('.')
                     || trimmed.ends_with('?')
@@ -1021,7 +1256,8 @@ impl MarkdownRenderer {
 
                 // Convert to header if it meets the criteria
                 // Caption patterns like "Figure 1" are excluded unless explicitly allowed
-                if is_short && starts_upper && !ends_with_punctuation && (!is_caption || is_allowed) {
+                if is_short && starts_upper && !ends_with_punctuation && (!is_caption || is_allowed)
+                {
                     result_lines.push(format!("## **{}**", trimmed));
                 } else {
                     result_lines.push(line.to_string());
@@ -1032,6 +1268,293 @@ impl MarkdownRenderer {
         }
 
         result_lines.join("\n")
+    }
+
+    /// OODA-IT16: Join lines that were broken mid-word during PDF extraction.
+    ///
+    /// WHY: PDF text extraction preserves original text box boundaries, which
+    /// often break words at the line end. For example:
+    /// - "TCP/IP netw" + "orking" → "TCP/IP networking"
+    /// - "sockets-" + "based" → "sockets-based"
+    ///
+    /// Rules:
+    /// 1. Join when line ends with lowercase + next starts with lowercase (word split)
+    /// 2. Preserve hyphen when line ends with `word-` + next starts with lowercase
+    /// 3. Preserve: empty lines, markdown syntax, code blocks, list items
+    fn join_broken_lines(text: &str) -> String {
+        // Iterate until no more joins happen (handles chained breaks)
+        let mut current_text = text.to_string();
+        loop {
+            let result = Self::join_broken_lines_single_pass(&current_text);
+            if result == current_text {
+                // No changes made, we're done
+                break;
+            }
+            current_text = result;
+        }
+        current_text
+    }
+
+    /// Single pass of join_broken_lines - joins one level of breaks.
+    fn join_broken_lines_single_pass(text: &str) -> String {
+        let lines: Vec<&str> = text.lines().collect();
+        if lines.is_empty() {
+            return String::new();
+        }
+
+        let mut result: Vec<String> = Vec::new();
+        let mut i = 0;
+
+        while i < lines.len() {
+            let current = lines[i];
+
+            // Check if we should try to join with next line
+            if i + 1 < lines.len() {
+                let next = lines[i + 1];
+
+                // Don't join if current line is empty
+                let current_trimmed = current.trim();
+                if current_trimmed.is_empty() || Self::is_code_fence(current_trimmed) {
+                    result.push(current.to_string());
+                    i += 1;
+                    continue;
+                }
+
+                let next_trimmed = next.trim();
+
+                // OODA-IT16 FIX: If next line is empty, check line after that
+                // This handles cases where render_text adds \n\n after each block,
+                // splitting words like "netw\n\norking" across an empty line
+                if next_trimmed.is_empty() && i + 2 < lines.len() {
+                    let next_next = lines[i + 2];
+                    let next_next_trimmed = next_next.trim();
+
+                    // Don't skip over empty line to structural elements
+                    if !next_next_trimmed.is_empty()
+                        && !Self::is_code_fence(next_next_trimmed)
+                        && !Self::is_markdown_structural_line(next_next_trimmed)
+                    {
+                        // Check if we should join across the empty line
+                        if Self::should_join_lines(current_trimmed, next_next_trimmed) {
+                            // Join lines, removing the empty line between them
+                            let joined = Self::join_two_lines(current, next_next);
+                            result.push(joined);
+                            i += 3; // Skip current, empty, and next_next
+                            continue;
+                        }
+                    }
+                }
+
+                // Don't join if next line is empty, a code fence, or starts markdown structure
+                // BUT: First check if this is a broken hyphenated word (Rule 3 in should_join_lines)
+                // because "- based" looks like a list item but might be a broken "sockets-based"
+
+                // Skip empty and code fences
+                if next_trimmed.is_empty() || Self::is_code_fence(next_trimmed) {
+                    result.push(current.to_string());
+                    i += 1;
+                    continue;
+                }
+
+                // Check if this looks like a broken word FIRST (before checking structural)
+                // This handles the case where "- based" looks like a list item but is actually
+                // part of "sockets-based" that got split with hyphen on the next line
+                if Self::should_join_lines(current_trimmed, next_trimmed) {
+                    // Join the lines
+                    let joined = Self::join_two_lines(current, next);
+                    result.push(joined);
+                    i += 2; // Skip the next line since we consumed it
+                    continue;
+                }
+
+                // Only now check for structural markdown (lists, headers, etc.)
+                // This comes AFTER the broken word check so we don't miss "- based" patterns
+                if Self::is_markdown_structural_line(next_trimmed) {
+                    result.push(current.to_string());
+                    i += 1;
+                    continue;
+                }
+            }
+
+            result.push(current.to_string());
+            i += 1;
+        }
+
+        result.join("\n")
+    }
+
+    /// Check if a line is a markdown structural element that should not be joined.
+    fn is_markdown_structural_line(line: &str) -> bool {
+        let trimmed = line.trim();
+        // Headers
+        if trimmed.starts_with('#') {
+            return true;
+        }
+        // List items (bullet or numbered)
+        if trimmed.starts_with("- ")
+            || trimmed.starts_with("* ")
+            || trimmed.starts_with("+ ")
+            || trimmed
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false)
+                && trimmed.contains(". ")
+        {
+            return true;
+        }
+        // Blockquotes
+        if trimmed.starts_with('>') {
+            return true;
+        }
+        // Table rows
+        if trimmed.starts_with('|') || trimmed.contains(" | ") {
+            return true;
+        }
+        // Horizontal rules
+        if trimmed == "---" || trimmed == "***" || trimmed == "___" {
+            return true;
+        }
+        false
+    }
+
+    /// Check if a line is a code fence marker.
+    fn is_code_fence(line: &str) -> bool {
+        let trimmed = line.trim();
+        trimmed.starts_with("```") || trimmed.starts_with("~~~")
+    }
+
+    /// Determine if two lines should be joined (word was broken across lines).
+    fn should_join_lines(prev: &str, next: &str) -> bool {
+        // Get last character of previous line (ignoring trailing whitespace)
+        let prev_trimmed_end = prev.trim_end();
+        let prev_chars: Vec<char> = prev_trimmed_end.chars().collect();
+        if prev_chars.is_empty() {
+            return false;
+        }
+
+        let last_char = prev_chars[prev_chars.len() - 1];
+
+        // Get first character of next line (ignoring leading whitespace)
+        let next_trimmed = next.trim_start();
+        let first_char = match next_trimmed.chars().next() {
+            Some(c) => c,
+            None => return false,
+        };
+
+        // Rule 1: Previous ends with lowercase letter, next starts with lowercase
+        // This indicates a word was split
+        if last_char.is_lowercase() && first_char.is_lowercase() {
+            // But NOT if previous line ends with sentence punctuation
+            // followed by space then word
+            let ends_with_sentence = prev_trimmed_end.ends_with('.')
+                || prev_trimmed_end.ends_with('!')
+                || prev_trimmed_end.ends_with('?')
+                || prev_trimmed_end.ends_with(':')
+                || prev_trimmed_end.ends_with(';')
+                || prev_trimmed_end.ends_with(',');
+
+            if !ends_with_sentence {
+                return true;
+            }
+        }
+
+        // Rule 2: Previous ends with hyphen after lowercase (hyphenated word break)
+        // Like "net-\nwork" or "sockets-\nbased"
+        if last_char == '-' && prev_chars.len() > 1 {
+            let second_last = prev_chars[prev_chars.len() - 2];
+            if second_last.is_lowercase() && first_char.is_lowercase() {
+                return true;
+            }
+        }
+
+        // Rule 3: Next line STARTS with hyphen followed by lowercase (hyphen moved to next line)
+        // Like "sockets\n- based" which should become "sockets-based"
+        // This happens when PDF extraction splits "sockets-based" putting the hyphen on next line
+        if first_char == '-' && next_trimmed.len() > 1 {
+            let second_char = next_trimmed.chars().nth(1);
+            // If prev ends with lowercase and next is "- " followed by lowercase word
+            // this is likely a hyphenated word that got split with hyphen on wrong line
+            if last_char.is_lowercase() {
+                if let Some(c2) = second_char {
+                    // "- based" pattern: hyphen, space, then lowercase
+                    if c2 == ' ' {
+                        let after_hyphen_space = next_trimmed.get(2..);
+                        if let Some(rest) = after_hyphen_space {
+                            let first_word_char = rest.chars().next();
+                            if let Some(fc) = first_word_char {
+                                if fc.is_lowercase() {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    // "-based" pattern: hyphen directly followed by lowercase
+                    else if c2.is_lowercase() {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Join two lines that were broken mid-word.
+    fn join_two_lines(prev: &str, next: &str) -> String {
+        let prev_trimmed = prev.trim_end();
+        let next_trimmed = next.trim_start();
+
+        // Case 1: Next line STARTS with hyphen (e.g., "sockets\n- based" → "sockets-based")
+        // The hyphen was moved to the start of the next line during PDF extraction
+        if next_trimmed.starts_with('-') {
+            // "- based" pattern: hyphen, space, word
+            if next_trimmed.starts_with("- ") {
+                let word_after = &next_trimmed[2..]; // Skip "- "
+                return format!("{}-{}", prev_trimmed, word_after);
+            }
+            // "-based" pattern: hyphen directly followed by word
+            else if next_trimmed.len() > 1
+                && next_trimmed
+                    .chars()
+                    .nth(1)
+                    .map(|c| c.is_lowercase())
+                    .unwrap_or(false)
+            {
+                // Keep the hyphen from next
+                return format!("{}{}", prev_trimmed, next_trimmed);
+            }
+        }
+
+        // Case 2: Previous ends with hyphen (e.g., "net-\nwork" or "well-\nknown")
+        if prev_trimmed.ends_with('-') {
+            // Check if this is a soft hyphen (word break) or a real hyphen
+            // If next starts with lowercase after removing hyphen, it's likely a word break
+            // Keep the hyphen for compound words like "well-" + "known"
+            let without_hyphen = &prev_trimmed[..prev_trimmed.len() - 1];
+            let last_word = without_hyphen.split_whitespace().last().unwrap_or("");
+
+            // Simple heuristic: keep hyphen if the word before it is a common prefix
+            // like "well", "self", "anti", "pre", etc.
+            let common_prefixes = [
+                "well", "self", "anti", "pre", "post", "non", "semi", "multi", "co", "re", "un",
+                "all", "ex", "sub", "super", "ultra", "over", "under", "out", "cross", "inter",
+            ];
+            let is_compound_prefix = common_prefixes
+                .iter()
+                .any(|p| last_word.eq_ignore_ascii_case(p));
+
+            if is_compound_prefix {
+                // Keep the hyphen for compound words
+                format!("{}{}", prev_trimmed, next_trimmed)
+            } else {
+                // Remove hyphen for word breaks (soft hyphenation)
+                format!("{}{}", without_hyphen, next_trimmed)
+            }
+        } else {
+            // Case 3: No hyphen - just join (word was split without hyphen)
+            format!("{}{}", prev_trimmed, next_trimmed)
+        }
     }
 }
 
@@ -1806,10 +2329,7 @@ mod tests {
         // Bold within a line should NOT be affected
         let input = "This has **bold** text inline";
         let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
-        assert_eq!(
-            result, input,
-            "Inline bold should be preserved unchanged"
-        );
+        assert_eq!(result, input, "Inline bold should be preserved unchanged");
     }
 
     #[test]
@@ -1835,6 +2355,238 @@ More text about methods."#;
         assert!(
             result.contains("Some paragraph text here."),
             "Paragraph text should be preserved"
+        );
+    }
+
+    // OODA-IT16: Tests for join_broken_lines functionality
+    #[test]
+    fn test_join_broken_lines_word_split() {
+        // Word split across lines without hyphen
+        let input = "TCP/IP netw\norking is prohibited.";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert_eq!(
+            result, "TCP/IP networking is prohibited.",
+            "Split word should be joined: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_hyphenated_break() {
+        // Word split with soft hyphen (should remove hyphen)
+        let input = "net-\nworking";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert_eq!(
+            result, "networking",
+            "Hyphenated word break should be joined without hyphen: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_compound_word() {
+        // Compound word with real hyphen (should keep hyphen)
+        let input = "well-\nknown";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert_eq!(
+            result, "well-known",
+            "Compound word hyphen should be preserved: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_preserve_sentence_break() {
+        // Sentence ending should NOT be joined with next
+        let input = "First sentence.\nSecond sentence.";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert_eq!(
+            result, "First sentence.\nSecond sentence.",
+            "Sentence breaks should be preserved: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_preserve_list_items() {
+        // List items should NOT be joined
+        let input = "- First item\n- Second item";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert_eq!(
+            result, "- First item\n- Second item",
+            "List items should be preserved: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_preserve_headers() {
+        // Headers should NOT be joined
+        let input = "# Header\nSome text below.";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert!(
+            result.contains("# Header\n"),
+            "Headers should be preserved: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_preserve_code_blocks() {
+        // Code blocks should NOT be joined
+        let input = "```rust\nlet x = 5;\n```";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert!(
+            result.contains("```rust\n"),
+            "Code blocks should be preserved: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_multiple_breaks() {
+        // Multiple broken words in sequence
+        let input = "This docu-\nment describes configu-\nration options.";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert_eq!(
+            result, "This document describes configuration options.",
+            "Multiple breaks should be fixed: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_preserve_empty_lines() {
+        // Empty lines (paragraph breaks) should be preserved
+        let input = "First paragraph.\n\nSecond paragraph.";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert_eq!(
+            result, "First paragraph.\n\nSecond paragraph.",
+            "Empty lines should be preserved: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_real_world_example() {
+        // Real-world example from Apple PDF
+        let input = r#"- kSBXProfileNoInternet : TCP/IP netw
+orking is prohibited.
+- kSBXProfileNoNetwork : All sockets
+              - based networking is prohibited."#;
+        let result = MarkdownRenderer::join_broken_lines(input);
+        // First line should be joined (word split)
+        assert!(
+            result.contains("TCP/IP networking is prohibited"),
+            "Word split should be joined: got '{}'",
+            result
+        );
+        // The weird "- based" should be detected as non-joinable due to structural nature
+        // This is a tricky case - let's just verify the list structure is preserved
+        assert!(
+            result.contains("- kSBXProfileNoInternet"),
+            "List structure should be preserved: got '{}'",
+            result
+        );
+    }
+
+    // =====================================================================
+    // OODA-IT17: Paragraph continuation detection tests
+    // =====================================================================
+
+    /// Helper to create a test Block with given type, text, and bbox
+    fn make_test_block(block_type: BlockType, text: &str, y1: f32, y2: f32) -> Block {
+        Block {
+            id: crate::schema::BlockId::generate(),
+            block_type,
+            bbox: crate::schema::BoundingBox::new(0.0, y1, 200.0, y2),
+            page: 0,
+            position: 0,
+            text: text.to_string(),
+            html: None,
+            spans: Vec::new(),
+            children: Vec::new(),
+            confidence: 1.0,
+            level: None,
+            source: None,
+            metadata: std::collections::HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_paragraph_continuation_lowercase_start() {
+        // "focus on" + "workflows" → continuation (lowercase start, short)
+        let prev = make_test_block(BlockType::Text, "with a focus on", 100.0, 116.0);
+        let curr = make_test_block(BlockType::Text, "workflows", 118.0, 134.0);
+        assert!(
+            MarkdownRenderer::is_paragraph_continuation(&prev, &curr),
+            "lowercase fragment should be continuation"
+        );
+    }
+
+    #[test]
+    fn test_paragraph_continuation_sentence_boundary() {
+        // "ends with period." + "New sentence" → NOT continuation
+        let prev = make_test_block(BlockType::Text, "This sentence ends.", 100.0, 116.0);
+        let curr = make_test_block(BlockType::Text, "New paragraph starts", 118.0, 134.0);
+        assert!(
+            !MarkdownRenderer::is_paragraph_continuation(&prev, &curr),
+            "After sentence-ending punctuation should not be continuation"
+        );
+    }
+
+    #[test]
+    fn test_paragraph_continuation_heading_like_prev() {
+        // "What we deliver" (heading-like) + "body text" → NOT continuation
+        let prev = make_test_block(BlockType::Text, "What we deliver", 100.0, 116.0);
+        let curr = make_test_block(BlockType::Text, "vs-buy, and investment", 118.0, 134.0);
+        assert!(
+            !MarkdownRenderer::is_paragraph_continuation(&prev, &curr),
+            "Heading-like prev should not be continued"
+        );
+    }
+
+    #[test]
+    fn test_paragraph_continuation_large_gap() {
+        // Large vertical gap → NOT continuation
+        let prev = make_test_block(BlockType::Text, "text without ending", 100.0, 116.0);
+        let curr = make_test_block(BlockType::Text, "far away text", 200.0, 216.0);
+        assert!(
+            !MarkdownRenderer::is_paragraph_continuation(&prev, &curr),
+            "Large gap should not be continuation"
+        );
+    }
+
+    #[test]
+    fn test_paragraph_continuation_different_types() {
+        // Header + Text → NOT continuation
+        let prev = make_test_block(BlockType::SectionHeader, "Introduction", 100.0, 116.0);
+        let curr = make_test_block(BlockType::Text, "body text here", 118.0, 134.0);
+        assert!(
+            !MarkdownRenderer::is_paragraph_continuation(&prev, &curr),
+            "Different block types should not be continuation"
+        );
+    }
+
+    #[test]
+    fn test_paragraph_continuation_list_item() {
+        // Text + "- list item" → NOT continuation
+        let prev = make_test_block(BlockType::Text, "some text without end", 100.0, 116.0);
+        let curr = make_test_block(BlockType::Text, "- list item", 118.0, 134.0);
+        assert!(
+            !MarkdownRenderer::is_paragraph_continuation(&prev, &curr),
+            "List items should not be continuation"
+        );
+    }
+
+    #[test]
+    fn test_paragraph_continuation_uppercase_single_word() {
+        // "focus on" + "ROI" (short uppercase) → continuation (single short word)
+        let prev = make_test_block(BlockType::Text, "with a focus on", 100.0, 116.0);
+        let curr = make_test_block(BlockType::Text, "ROI", 118.0, 134.0);
+        assert!(
+            MarkdownRenderer::is_paragraph_continuation(&prev, &curr),
+            "Short uppercase single word should be continuation"
         );
     }
 }
