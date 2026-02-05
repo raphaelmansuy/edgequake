@@ -260,6 +260,9 @@ impl PdfiumExtractor {
                 // WHY: Spaces must inherit Y coordinates and style from previous char
                 let fs = char_obj.scaled_font_size().value;
                 // Position the space right after the last character, with same Y
+                // WHY (OODA-13): Space width = 25% of font size is a conservative estimate.
+                // Proportional fonts: 0.2-0.3 of em. Monospace: ~0.6 of em.
+                // 0.25 works well for word boundary detection in both font types.
                 (
                     last_x1,
                     last_y0,
