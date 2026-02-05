@@ -11,6 +11,7 @@
 ### 1.1 Scope
 
 Add configurable header and footer margin parameters to filter out noise from:
+
 - Page headers (page numbers, chapter titles)
 - Page footers (footnotes, copyright)
 - Running headers that span columns
@@ -22,6 +23,7 @@ Add configurable header and footer margin parameters to filter out noise from:
 **Changes Required**:
 
 1. **Add margin parameters to GroupingParams**
+
    ```rust
    pub struct GroupingParams {
        pub header_margin: f32,  // NEW: pixels from top to ignore
@@ -41,11 +43,11 @@ Add configurable header and footer margin parameters to filter out noise from:
 
 ### 1.3 Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/layout/pymupdf_grouper.rs` | Add margin filtering |
-| `src/config.rs` | Add margin config options |
-| `src/extractor.rs` | Pass margins to grouper |
+| File                            | Change                    |
+| ------------------------------- | ------------------------- |
+| `src/layout/pymupdf_grouper.rs` | Add margin filtering      |
+| `src/config.rs`                 | Add margin config options |
+| `src/extractor.rs`              | Pass margins to grouper   |
 
 ### 1.4 Tests to Add
 
@@ -60,7 +62,7 @@ Add configurable header and footer margin parameters to filter out noise from:
 - [ ] Defaults are sensible (50px each)
 - [ ] All existing tests pass
 - [ ] New tests cover margin logic
-- [ ] AI_Services__Elitizon.pdf output improved
+- [ ] AI_Services\_\_Elitizon.pdf output improved
 
 ---
 
@@ -84,17 +86,18 @@ Add configurable header and footer margin parameters to filter out noise from:
 
 ## 4. Success Metrics
 
-| Metric | Before | Target |
-|--------|--------|--------|
-| Test pass rate | 494/494 | 494/494 |
-| AI_Services output quality | 60/100 | 70/100 |
-| Code coverage | - | Maintain or improve |
+| Metric                     | Before  | Target              |
+| -------------------------- | ------- | ------------------- |
+| Test pass rate             | 494/494 | 494/494             |
+| AI_Services output quality | 60/100  | 70/100              |
+| Code coverage              | -       | Maintain or improve |
 
 ---
 
 ## 5. Rollback Plan
 
 If margin filtering causes issues:
+
 1. Revert changes via git
 2. Document failure mode
 3. Adjust approach in next iteration
