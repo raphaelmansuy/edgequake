@@ -12,6 +12,7 @@
 **File**: `edgequake/crates/edgequake-pdf/src/layout/reading_order.rs`
 
 **Before** (WRONG):
+
 ```rust
 if let Some((_, left_block)) = left_blocks
     .iter()
@@ -19,6 +20,7 @@ if let Some((_, left_block)) = left_blocks
 ```
 
 **After** (CORRECT):
+
 ```rust
 // OODA-02 FIX: Use LEFT-MOST block (min x1), not RIGHT-MOST (max x2)
 // WHY (First Principles - per pymupdf4llm multi_column.py lines 290-304):
@@ -35,6 +37,7 @@ if let Some((_, left_block)) = left_blocks
 **Test**: `test_smart_sort_key_uses_leftmost_block`
 
 Verifies that:
+
 - When multiple left blocks overlap vertically with a right block
 - The LEFT-MOST block's Y coordinate is used for sort key
 - Not the RIGHT-MOST block's Y

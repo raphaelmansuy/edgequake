@@ -14,10 +14,12 @@
 ## Implementation Plan
 
 ### Step 1: Modify compute_smart_sort_key()
+
 **File**: `edgequake/crates/edgequake-pdf/src/layout/reading_order.rs`
 **Location**: ~line 354
 
 Change from:
+
 ```rust
 if let Some((_, left_block)) = left_blocks
     .iter()
@@ -25,6 +27,7 @@ if let Some((_, left_block)) = left_blocks
 ```
 
 To:
+
 ```rust
 if let Some((_, left_block)) = left_blocks
     .iter()
@@ -32,15 +35,18 @@ if let Some((_, left_block)) = left_blocks
 ```
 
 ### Step 2: Update WHY comment
+
 Explain why left-most (not right-most) is correct per PyMuPDF4LLM algorithm.
 
 ### Step 3: Run tests
+
 ```bash
 cargo test --lib reading_order
 cargo test --lib
 ```
 
 ### Step 4: Add regression test
+
 Test case verifying that right-column blocks use left-column Y when computing sort key.
 
 ---
