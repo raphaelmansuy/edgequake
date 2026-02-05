@@ -1,0 +1,77 @@
+{
+  "summary": {
+    "table_accuracy": 7.997058190428357,
+    "style_accuracy": 40.14136106775151,
+    "robustness": 100.0,
+    "performance": 90.0,
+    "composite": 38.25536770327195,
+    "document_count": 7,
+    "crash_count": 0,
+    "invalid_markdown_count": 0
+  },
+  "documents": [
+    {
+      "name": "01_2512.25075v1",
+      "table_accuracy": 50.0,
+      "style_accuracy": 70.0,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 67.0,
+      "errors": []
+    },
+    {
+      "name": "2900_Goyal_et_al",
+      "table_accuracy": 0.0,
+      "style_accuracy": 4.040404040404041,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 20.61616161616162,
+      "errors": []
+    },
+    {
+      "name": "AlphaEvolve",
+      "table_accuracy": 5.524861878453039,
+      "style_accuracy": 86.13535265384287,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 55.664085812918366,
+      "errors": []
+    },
+    {
+      "name": "agent_2510.09244v1",
+      "table_accuracy": 0.0,
+      "style_accuracy": 61.16279069767442,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 43.46511627906977,
+      "errors": []
+    },
+    {
+      "name": "ccn_2512.21804v1",
+      "table_accuracy": 0.0,
+      "style_accuracy": 0.0,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 19.0,
+      "errors": []
+    },
+    {
+      "name": "one_tool_2512.20957v2",
+      "table_accuracy": 0.0,
+      "style_accuracy": 52.404603270745,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 39.961841308298,
+      "errors": []
+    },
+    {
+      "name": "v2_2512.25072v1",
+      "table_accuracy": 0.4545454545454546,
+      "style_accuracy": 7.246376811594203,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 22.080368906455867,
+      "errors": []
+    }
+  ]
+}

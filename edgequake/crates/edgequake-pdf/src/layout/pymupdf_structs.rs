@@ -316,10 +316,10 @@ impl Line {
 
         // Compare baseline (y0) or top (y1) - matches pymupdf4llm get_raw_lines.py:178
         // "if any of top or bottom coordinates are close enough, join..."
-        let vertically_aligned = (self.y0 - span.y0).abs() <= tolerance 
-            || (self.y1 - span.y1).abs() <= tolerance;
         
-        vertically_aligned
+        
+        (self.y0 - span.y0).abs() <= tolerance 
+            || (self.y1 - span.y1).abs() <= tolerance
     }
 
     /// Add a span to this line.

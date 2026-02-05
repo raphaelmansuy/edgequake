@@ -6,8 +6,25 @@
 //! - Geometric clustering for spatial analysis (DBSCAN)
 //! - Reading order determination
 //! - Margin detection
+//! - Block classification (header, list, code, paragraph)
 //! - PyMuPDF4LLM-inspired text structures (Span, Line, Block)
+//!
+//! ## Module Organization (OODA-45 SRP)
+//!
+//! ```text
+//! layout/
+//! ├── mod.rs              ← This file: public exports
+//! ├── block_classifier.rs ← Block type detection (header/list/code)
+//! ├── column_detector.rs  ← Multi-column layout detection
+//! ├── reading_order.rs    ← Reading order algorithms
+//! ├── pymupdf_grouper.rs  ← Core text grouping (chars→spans→lines→blocks)
+//! ├── pymupdf_renderer.rs ← Markdown rendering
+//! ├── pymupdf_structs.rs  ← Data structures (Span, Line, Block)
+//! ├── geometric.rs        ← DBSCAN clustering utilities
+//! └── xy_cut.rs           ← XY-cut segmentation algorithm
+//! ```
 
+mod block_classifier;
 mod column_detector;
 mod geometric;
 mod pymupdf_grouper;
@@ -16,6 +33,8 @@ pub mod pymupdf_structs; // OODA-43: Made public for pdfium_backend imports
 mod reading_order;
 mod xy_cut;
 
+// OODA-45: Export block classification functions for DRY compliance
+pub use block_classifier::{is_bullet_item, is_numbered_list_item, BlockClassifier};
 pub use column_detector::{ColumnDetector, ColumnLayout};
 pub use geometric::{dbscan_1d, Cluster, Column, GeometricClusterer};
 pub use pymupdf_grouper::{GroupingParams, TextGrouper};

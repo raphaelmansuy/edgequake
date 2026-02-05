@@ -2,7 +2,6 @@
 //!
 //! Run with: cargo run --bin debug_page1
 
-use lopdf::Document;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -82,6 +81,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// WHY: Allow dead_code - this utility function is kept for debugging sessions
+#[allow(dead_code)]
 fn extract_text_from_operand(operand: &lopdf::Object) -> String {
     match operand {
         lopdf::Object::String(bytes, _) => String::from_utf8_lossy(bytes).to_string(),

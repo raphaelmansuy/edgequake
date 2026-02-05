@@ -275,10 +275,10 @@ impl BlockBuilder {
         let is_figure_or_table_caption = {
             let starts_with_figure_pattern = trimmed.starts_with("Figure ")
                 && trimmed.len() > 7
-                && trimmed.chars().nth(7).map_or(false, |c| c.is_ascii_digit());
+                && trimmed.chars().nth(7).is_some_and(|c| c.is_ascii_digit());
             let starts_with_table_pattern = trimmed.starts_with("Table ")
                 && trimmed.len() > 6
-                && trimmed.chars().nth(6).map_or(false, |c| c.is_ascii_digit());
+                && trimmed.chars().nth(6).is_some_and(|c| c.is_ascii_digit());
             starts_with_figure_pattern || starts_with_table_pattern
         };
 

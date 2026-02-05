@@ -1,6 +1,8 @@
-✅ Converted crates/edgequake-pdf/test-data/real_dataset/AlphaEvolve.pdf to crates/edgequake-pdf/test-data/real_dataset/AlphaEvolve.md
-📄 Markdown (113916 bytes)
-robokov, Borislav Kozlovskii, Francisco J. R. Ruiz, Abbas Mehrabian, M. Pawan Kumar, Abigail** *
+# *AlphaEvolve: A coding agent for scientific and* algorithmic discovery
+
+**Alexander Novikov , Ngân Vu, Marvin Eisenberger, Emilien Dupont** * **˜***
+
+**Sergey Shirobokov , Borislav Kozlovskii, Francisco J. R. Ruiz, Abbas Mehrabian, M. Pawan Kumar, Abigail** *
 
 **See, Swarat Chaudhuri, George Holland, Alex Davies, Sebastian Nowozin, Pushmeet Kohli and Matej Balog**
 
@@ -8,7 +10,7 @@ Google DeepMind
 
 **In this white paper, we present AlphaEvolve, an evolutionary coding agent that substantially enhances capabilities of state-of-the-art LLMs on highly challenging tasks such as tackling open scientific problems or optimizing critical pieces of computational infrastructure. pipeline of LLMs, whose task is to improve an algorithm by making direct changes to the code. Using an evolutionary approach, continuously receiving feedback from one or more evaluators, iteratively improves the algorithm, potentially leading to new scientific and practical discoveries. We** 
 
-**stacks at Google,AlphaEvolvedeveloped a more efficient scheduling algorithm for data centers, found a functionally equivalent simplification in the circuit design of hardware accelerators, and acceler- ated the training of the LLM underpinning AlphaEvolve novel, provably correct algorithms that surpass state-of-the-art solutions on a spectrum of problems in mathematics and computer science, significantly expanding the scope of prior automated discovery methods (Romera-Paredes et al., 2023). Notably,** ***AlphaEvolvedeveloped a search algorithm that found a*** **procedure to multiply two4×4complex-valued matrices using first improvement, after 56 years, over Strassen's algorithm in this setting. We believe coding agents like it can have a significant impact in improving solutions of problems across many areas of science and computation.**
+**stacks at Google,AlphaEvolvedeveloped a more efficient scheduling algorithm for data centers, found a functionally equivalent simplification in the circuit design of hardware accelerators, and acceler- ated the training of the LLM underpinning AlphaEvolve novel, provably correct algorithms that surpass state-of-the-art solutions on a spectrum of problems in mathematics and computer science, significantly expanding the scope of prior automated discovery methods (Romera-Paredes et al., 2023). Notably,*****AlphaEvolvedeveloped a search algorithm that found a*** **procedure to multiply two4×4complex-valued matrices using first improvement, after 56 years, over Strassen's algorithm in this setting. We believe coding agents like it can have a significant impact in improving solutions of problems across many areas of science and computation.**
 
 1. Introduction
 
@@ -30,7 +32,7 @@ code generation.AlphaEvolvefocuses on the broad spectrum of scientific and engin
 
 1See Acknowledgments and Author information section.
 
-©2025 Google DeepMind. All rights reserved
+© 2025 Google DeepMind. All rights reserved
 
 ∗Equal contributions.
 
@@ -57,7 +59,7 @@ needs fast evaluation (≤20min on 1 CPU) can evaluate for hours, in parallel, o
 
 thousands of LLM samples suffice
 
-small LLMs used; no benefit from larger benefits from SOTA LLMs minimal context (only previous solutions) rich context and feedback in prompts optimizes single metric
+small LLMs used; no benefit from larger benefits from SOTA LLMs minimal context (only previous solutions)rich context and feedback in prompts optimizes single metric
 
 can simultaneously optimize multiple metrics to avoid any incorrect suggestions from leverages modern LLMs' ability to respond to
 
@@ -71,13 +73,11 @@ problems in algorithm design and constructive mathematics, as well as the optimi
 
 **Table 1|Capabilities and typical behaviours of**
 
-While the use of an automated evaluation metric offers is also a limitation-in particular, it puts tasks that require manual experimentation out of our scope. Because problems in mathematics, computer science, and system optimization typically permit automated evaluation metrics, our efforts on domains. Specifically, we use AlphaEvolve to make progress on several well-known open
+While the use of an automated evaluation metric offers is also a limitation-in particular, it puts tasks that require manual experimentation out of our scope. Because problems in mathematics, computer science, and system optimization typically permit automated evaluation metrics, our efforts on domains. Specifically, we use AlphaEvolveto make progress on several well-known open
 
 *AlphaEvolveand our previous agent.*
 
-*AlphaEvolvea key advantage, it*
-
-*AlphaEvolvefocus on these*
+*AlphaEvolvea key advantage, it AlphaEvolvefocus on these*
 
 
 ---
@@ -102,8 +102,9 @@ AlphaEvolveis a coding agent that orchestrates an autonomous pipeline of computa
 
 ```
 //colab.research.google.com/github/google-deepmind/alphaevolve_results/blob/maste
-r/mathematical_results.ipynb.
 ```
+
+`r/mathematical_results.ipynb`.
 
 2
 
@@ -113,7 +114,7 @@ https:
 
 ### 2.1. Task specification
 
-**Evaluation.SinceAlphaEvolvetackles problems with machine-gradeable solutions, the user**
+**Evaluation. SinceAlphaEvolvetackles problems with machine-gradeable solutions, the user**
 
 must provide a mechanism for automatically assessing generated solutions. This mechanism takes the form of a functionℎmapping a solution to a set of scalar evaluation metrics. By convention, these metrics are maximized. In our current setup,
 
@@ -124,30 +125,33 @@ must provide a mechanism for automatically assessing generated solutions. This m
 
 ---
 
-**Figure 2|Expanded view of the AlphaEvolve** discovery process. The user provides an initial program (with components to evolve marked), evaluation code, and optional configurations (Section 2.1).AlphaEvolvethen initiates an evolutionary loop. The programs from the Program databaseto construct rich prompts ( prompts, theLLMsgenerate code modifications (diffs), which are applied to create new programs (Section 2.3). These are then scored by *Evaluators(Section 2.4), and promising* solutions are registered back into the Program database (Section 2.5), driving the iterative discovery of better and better programs. as a Python function, calledevaluate, with a fixed input/output signature, returning a dictionary of scalars. Depending on the application, executing this function may take only seconds on a single device or spawn extensive computations. For mathematical problems, the function typically very simple. For example, when wishing to find largest possible graphs satisfying a given property,ℎinvokes the evolved code to generate a graph, checks whether the property holds, and then simply returns the size of the graph as the score. In more complicated cases, the functionℎmight involve performing an evolved search algorithm, or training and evaluating a machine learning model.
+**Figure 2|Expanded view of the AlphaEvolve**discovery process. The user provides an initial program (with components to evolve marked), evaluation code, and optional configurations (Section 2.1).AlphaEvolvethen initiates an evolutionary loop. The programs from the Program databaseto construct rich prompts ( prompts, theLLMsgenerate code modifications (diffs), which are applied to create new programs (Section 2.3). These are then scored by solutions are registered back into the Program database discovery of better and better programs. as a Python function, calledevaluate, with a fixed input/output signature, returning a dictionary of scalars. Depending on the application, executing this function may take only seconds on a single device or spawn extensive computations. For mathematical problems, the function typically very simple. For example, when wishing to find largest possible graphs satisfying a given property,ℎinvokes the evolved code to generate a graph, checks whether the property holds, and then simply returns the size of the graph as the score. In more complicated cases, the functionℎmight involve performing an evolved search algorithm, or training and evaluating a machine learning model.
 
 *Prompt sampleruses* Section 2.2). Given these
 
-only minimal changes, simply by adding special markers ( `# EVOLVE-BLOCK-STARTand#`
+*Evaluators(Section 2.4), and promising* (Section 2.5), driving the iterative
+
+ℎis
+
+only minimal changes, simply by adding special markers (
 
 ```
 EVOLVE-BLOCK-END) as comments into the code.
+# EVOLVE-BLOCK-START and#
 ```
 
-**API.To support evolving multiple components across a codebase,**
+**API. To support evolving multiple components across a codebase,**
 
 input API where blocks of code can be annotated as to-be-evolved-by-the-system; see Figure for an illustration. This design facilitates integrating it with existing codebases while requiring
-
-ℎis
 
 *AlphaEvolveexposes an*
 
 
 ---
 
-Any user-provided code inside such evolution blocks serves as the initial solution to be improved by AlphaEvolve, and the rest of the code forms a skeleton that ties the evolved pieces together, so that they can be invoked from `evaluate. While this initial implementation` must be complete, it can be rudimentary-for instance, consisting of single-line functions that return constants of the appropriate types.
+Any user-provided code inside such evolution blocks serves as the initial solution to be improved by AlphaEvolve, and the rest of the code forms a skeleton that ties the evolved pieces together, so that they can be invoked from`evaluate. While this initial implementation` must be complete, it can be rudimentary-for instance, consisting of single-line functions that return constants of the appropriate types.
 
-**Flexibility in choosing the abstraction.** *AlphaEvolvecan be applied to the same problem* in very different ways-especially when the evolved programs are not the final output but a means to discover solutions. For example, string representation (as in classical evolutionary algorithms); evolve a function of a definite form that specifies how to construct the solution from scratch (the approach taken in [ evolve a bespoke search algorithm to find the solution within some fixed compute budget; or even co-evolve intermediate solutions and search algorithms together, such that each search algorithm is specifically tailored to further improve upon a particular intermediate solution. We find that different levels of abstraction work better for different problems. For example, we hypothesize that for problems with highly symmetric solutions it is advantageous to evolve constructor functions as these tend to be more concise [ with non-symmetric solutions it works better to evolve customized search algorithms.
+**Flexibility in choosing the abstraction.***AlphaEvolvecan be applied to the same problem* in very different ways-especially when the evolved programs are not the final output but a means to discover solutions. For example, string representation (as in classical evolutionary algorithms); evolve a function of a definite form that specifies how to construct the solution from scratch (the approach taken in [ evolve a bespoke search algorithm to find the solution within some fixed compute budget; or even co-evolve intermediate solutions and search algorithms together, such that each search algorithm is specifically tailored to further improve upon a particular intermediate solution. We find that different levels of abstraction work better for different problems. For example, we hypothesize that for problems with highly symmetric solutions it is advantageous to evolve constructor functions as these tend to be more concise [ with non-symmetric solutions it works better to evolve customized search algorithms.
 
 ### 2.2. Prompt sampling
 
@@ -194,7 +198,7 @@ import jax
 def__init__(self, num_classes): ...
 def__call__(self, inputs, is_training): ...
 defsweep():
-returnhyper.zipit([...])
+return hyper.zipit([...])
 # EVOLVE-BLOCK-END
 ```
 
@@ -203,7 +207,7 @@ defevaluate(eval_inputs) -> dict[str, float]:
 ```
 
 ```
-returnmetrics
+return metrics
 The current model uses a simple ResNet architecture with only
 three ResNet blocks. We can improve its performance by
 increasing the model capacity and adding regularization. This
@@ -224,10 +228,10 @@ self._block2 = ResNetBlock(num_channels, stride=1)
 >>>>>>> REPLACE
 <<<<<<< SEARCH
 defoptimizer(self, learning_rate):
-returnoptax.adam(learning_rate)
+return optax.adam(learning_rate)
 =======
 defoptimizer(self, learning_rate):
-returnoptax.adamw(learning_rate, weight_decay=1e-4)
+return optax.adamw(learning_rate, weight_decay=1e-4)
 >>>>>>> REPLACE
 Act as an expert software developer. Your task is to iteratively
 improve the provided codebase. [...]
@@ -287,7 +291,7 @@ expert knowledge of optimization and machine learning.
 Describe each change with a SEARCH/REPLACE block.
 ```
 
-**Figure 3|Illustrative example of applying** *AlphaEvolveto evolving a supervised learning* pipeline. All snippets are abbreviated, with ellipsis (...) indicating skipped lines. (a) The user-provided file with blocks marked for evolution, and the special that can be invoked to score the current version of the code. (b) Example of an assembled prompt to be provided to the LLMs. (c) Example output generated by the LLM. The proposed diffs in (c) will be applied to the "current program" shown in the prompt (b), and the resulting modified program will then be sent to the evaluators. The evaluators will invoke the
+Figure 3|Illustrative example of applying AlphaEvolveto evolving a supervised learning pipeline. All snippets are abbreviated, with ellipsis (...) indicating skipped lines. (a) The user-provided file with blocks marked for evolution, and the special that can be invoked to score the current version of the code. (b) Example of an assembled prompt to be provided to the LLMs. (c) Example output generated by the LLM. The proposed diffs in (c) will be applied to the "current program" shown in the prompt (b), and the resulting modified program will then be sent to the evaluators. The evaluators will invoke the
 
 ```
 evaluatefunction from (a) in order to obtain the scores of the newly proposed program.
@@ -297,9 +301,7 @@ evaluatefunction
 
 ---
 
-**Output format.WhenAlphaEvolveasks an LLM to modify existing code, especially within**
-
-larger codebases, it requests the changes to be provided as a sequence of diff blocks in a
+**Output format.** When AlphaEvolveasks an LLM to modify existing code, especially within larger codebases, it requests the changes to be provided as a sequence of diff blocks in a
 
 specific format:
 
@@ -313,18 +315,16 @@ specific format:
 
 Here, the code between<<<<<<< SEARCH in the current program version. The code between new segment that will replace the original one. This allows for targeted updates to specific parts of the code. In cases where the code being evolved is very short, or when a complete rewrite is more appropriate than a small modification,AlphaEvolve output the entire code block directly, rather than using the diff format.
 
-**Models used.AlphaEvolveemploys an ensemble of large language models. Specifically, we**
-
-utilize a combination of Gemini 2.0 Flash and Gemini 2.0 Pro. This ensemble approach allows us to balance computational throughput with the quality of generated solutions. Gemini 2.0 Flash, with its lower latency, enables a higher rate of candidate generation, increasing the number of ideas explored per unit of time. Concurrently, Gemini 2.0 Pro, possessing greater capabilities, provides occasional, higher-quality suggestions that can significantly advance the evolutionary search and potentially lead to breakthroughs. This strategic mix optimizes the overall discovery process by maximizing the volume of evaluated ideas while retaining the potential for substantial improvements driven by the more powerful model.
+**Models used.** *AlphaEvolveemploys an ensemble of large language models. Specifically, we* utilize a combination of Gemini 2.0 Flash and Gemini 2.0 Pro. This ensemble approach allows us to balance computational throughput with the quality of generated solutions. Gemini 2.0 Flash, with its lower latency, enables a higher rate of candidate generation, increasing the number of ideas explored per unit of time. Concurrently, Gemini 2.0 Pro, possessing greater capabilities, provides occasional, higher-quality suggestions that can significantly advance the evolutionary search and potentially lead to breakthroughs. This strategic mix optimizes the overall discovery process by maximizing the volume of evaluated ideas while retaining the potential for substantial improvements driven by the more powerful model.
 
 ### 2.4. Evaluation
 
 To track AlphaEvolve's progress and to select which ideas to propagate in future generations, each new solution proposed by the LLMs is automatically evaluated. In principle, this process amounts to simply executing the user-provided evaluation function solution. In practice,AlphaEvolvesupports optional mechanisms to make this evaluation more flexible and more efficient:
 
-and=======is the exact segment to match
+and======= is the exact segment to match
 
 ```
-=======and>>>>>>> REPLACEis the
+=======and>>>>>>> REPLACE is the
 ```
 
 can be configured to instruct the LLM to
@@ -338,7 +338,7 @@ can be configured to instruct the LLM to
 
 ℎ; for example, simplicity of the discovered program. These properties can be graded using separate LLM calls and added to the dictionary of scores to steer evolution, or they can be used to discard solutions when a criterion is not fulfilled. •Parallelized evaluation: the sample efficiency of on the order of 100 compute-hours to evaluate any new solution. However, unless individual evaluations are parallelized to reduce their wall-clock duration, this can slow down the rate at which new generations appear, limiting the ability of the evolutionary algorithm to apply several consecutive mutations. In many applications, evaluation is embarrassingly parallel (for example, running a search algorithm from multiple random- ized initializations), allowing AlphaEvolve calls to an evaluation cluster.
 
-**Multiple scores.AlphaEvolveallows for optimizing multiple user-provided scores, i.e.,**
+**Multiple scores. AlphaEvolveallows for optimizing multiple user-provided scores, i.e.,**
 
 evolving objects that achieve a high score under one or multiple evaluation metrics. This has both an intrinsic and instrumental value. While in multiple applications we genuinely care about developing solutions for multiple evaluation metrics (or one solution that is strong on all of them simultaneously), we find that even if one metric is of particular interest, optimizing for multiple metrics often improves results for the single target metric. Perhaps this occurs because programs excelling under different evaluation criteria often possess distinct structures or logic and, by incorporating examples of these diverse, high-performing programs-each representing a different definition of "good"-into the prompts provided to the language model, we can stimulate the generation of more varied candidate solutions, increasing the chances of discovering novel approaches that are highly effective for the target metric.
 
@@ -369,7 +369,7 @@ asyncio
 
 **Table 2|Upper bounds on the rank of the tensor**
 
-matrix and an× matrix, i.e. the number of scalar multiplications required to compute this matrix product. Beyond the examples shown here, for all parameters either matched or surpassed the best known solutions, and provided exact algorithms (see Table 3 in appendix for full results). For ⟨3,4,7⟩,⟨4,4,4⟩, and⟨4,4,8⟩, the algorithms discovered by AlphaEvolveuse complex-valued multiplications which can be used for exact multiplication of complex or real-valued matrices. The decompositions shown in this table can be found in the accompanying Google Colab
+matrix and an× matrix, i.e. the number of scalar multiplications required to compute this matrix product. Beyond the examples shown here, for all parameters either matched or surpassed the best known solutions, and provided exact algorithms (see Table 3 in appendix for full results). For ⟨3,4,7⟩,⟨4,4,4⟩, and⟨4,4,8⟩, the algorithms discovered by AlphaEvolveuse complex-valued multiplications which can be used for exact multiplication of complex or real-valued matrices. The decompositions shown in this table can be found in the accompanying Google Colab .
 
 3. Results
 
@@ -391,8 +391,6 @@ represented as decompositions of a given 3D tensor into rank-one tensors. The ra
 
 , , ≤5,AlphaEvolve
 
-.
-
 Starting from the problem description and a standard gradient-based algorithm (including an initializer, a reconstruction loss function, and an Adam optimizer [
 
 **32**
@@ -406,7 +404,7 @@ Starting from the problem description and a standard gradient-based algorithm (i
 
 ---
 
-able to develop sophisticated tensor decomposition algorithms that outperform existing approaches. To evaluate each evolved program, we choose a set of matrix multiplication targets and run the algorithm, initialized with multiple random seeds using the evaluation cascade described in Section 2.4. The performance is then measured as the best (lowest) rank achieved on each target as well as the fraction of seeds that achieved this rank, providing a signal for AlphaEvolveto hill-climb. To ensure the exactness of the decomposition and avoid any potential numerical error, when evaluating, we round each element to the nearest integer or the nearest half-integer; and, to encourage the algorithm to generate near-integral solutions, we include this request in natural language in the LLM's prompt. In Table 2, one can see that the various algorithms developed by state of the art for 14 different matrix multiplication targets. Notably, for multiplying two 4×4matrices, applying the algorithm of Strassen with rank (number of scalar multiplications) equal to 49, which works over any field. For the very specific case of multiplying in the field with 2 elements, Fawzi et al. algorithm with rank 47. For 56 years, designing an algorithm with rank less than 49 over any field with characteristic 0 was an open problem. a rank-48algorithm to multiply two4×4 complex-valued matrices. As shown in Figure 4,AlphaEvolvemakes significant changes to the initial program, introducing several original ideas to design increasingly better algorithms. While most results in Table 2 (including⟨4,4,4⟩) were obtained from a simple initial program, we found that for some parameters, seeding the initial program with our own ideas (such as adding stochasticity to the evaluation function or using evolutionary approaches) could further boost performance, highlighting the possibility of scientific collaboration between researchers and *AlphaEvolve.*
+able to develop sophisticated tensor decomposition algorithms that outperform existing approaches. To evaluate each evolved program, we choose a set of matrix multiplication targets and run the algorithm, initialized with multiple random seeds using the evaluation cascade described in Section 2.4. The performance is then measured as the best (lowest) rank achieved on each target as well as the fraction of seeds that achieved this rank, providing a signal for AlphaEvolveto hill-climb. To ensure the exactness of the decomposition and avoid any potential numerical error, when evaluating, we round each element to the nearest integer or the nearest half-integer; and, to encourage the algorithm to generate near-integral solutions, we include this request in natural language in the LLM's prompt. In Table 2, one can see that the various algorithms developed by state of the art for 14 different matrix multiplication targets. Notably, for multiplying two 4×4matrices, applying the algorithm of Strassen with rank (number of scalar multiplications) equal to 49, which works over any field. For the very specific case of multiplying in the field with 2 elements, Fawzi et al. algorithm with rank 47. For 56 years, designing an algorithm with rank less than 49 over any field with characteristic 0 was an open problem. a rank-48algorithm to multiply two4×4complex-valued matrices. As shown in Figure 4, AlphaEvolvemakes significant changes to the initial program, introducing several original ideas to design increasingly better algorithms. While most results in Table 2 (including⟨4,4,4⟩) were obtained from a simple initial program, we found that for some parameters, seeding the initial program with our own ideas (such as adding stochasticity to the evaluation function or using evolutionary approaches) could further boost performance, highlighting the possibility of scientific collaboration between researchers and *AlphaEvolve.*
 
 **3.2.Finding tailored search algorithms for a wide range of open mathematical problems**
 
@@ -439,7 +437,7 @@ to a curated set of over 50 mathematical
 ```
 # EVOLVE -BLOCK -START
 def _get_optimizer (self) -> optax. GradientTransformation :
-""" Returns optimizer ."""
+""" Returns optimizer
 + return optax.adamw(
 ```
 
@@ -459,10 +457,10 @@ def _get_init_fn (self) -> jax.nn. initializers .Initializer:
                 - return initializers
 
 ```
-complex64)
+complex64 )
 + # Initialize
-solutions.
-+ # Increase scale slightly for better exploration
+solutions .
++ # Increase
 + return initializers
 """ Computes ( batched ) loss on learned decomposition
 ```
@@ -498,7 +496,6 @@ integer).
 + ) # average across all factors and loss components
 + discretization_weight
 + global_step
-+ # Cosine annealing for half -integer loss.
 + cycle_length
 per cycle
 + cycle_progress
@@ -530,32 +527,33 @@ half_int_multiplier
 return hyper.zipit ([
 ```
 
-3 hyper
+3hyper.uniform(
 
-4 hyper
+4hyper.uniform(
 
-5 `+ hyper`
+5`+ hyper.uniform(`
 
-6 `+ hyper`
+6`+ hyper.uniform(`
 
-7 `+ hyper`
+7`+ hyper.uniform(`
 
-8 `+ hyper`
+8`+ hyper.uniform(`
 
-9 `+ hyper`
+9`+ hyper.uniform(`
 
 ```
 0.01)),
-+ # Add noise to the gradient to aid in exploration
++ # Add noise to the gradient
 ```
 
 ```
 # EVOLVE -BLOCK -END
+."""
 .hypers.learning_rate , weight_decay =self.hypers.
 function ."""
 .normal (0.0 , self.hypers.init_scale , jnp.
 with a smaller scale to encourage finding low -rank
-.
+scale slightly for better exploration .
 ."""
 loss.
 # (B, N
@@ -566,30 +564,29 @@ loss (encourage entries to be multiples of 1/2 or
 += jnp.mean( dist_to_half_ints (factor))
 += jnp.mean( dist_to_ints (factor))
 , start =0.0 , end=self.hypers. discretization_weight
+for half -integer loss.
 = self.config. training_steps // 4 # Number of steps
 % cycle_length
 # Normalized progress within the current cycle
 + self.hypers. half_int_start
 ```
 
-                              - `* discretization_loss *`
+                            - `* discretization_loss *`
 
 ```
-.uniform('init_scale ', hyper.interval (0.2 , 1.5)),
-.uniform('learning_rate ', hyper.interval (0.05 , 0.3)),
-.uniform('init_scale ', hyper.interval (0.1 , 1.0)),
-.uniform('learning_rate ', hyper.interval (0.01 , 0.2)),
-.uniform('discretization_weight ', hyper.interval (0.0 , 0.1))
-.uniform('hallucination_prob ', hyper.interval (0.0 , 0.2)),
-.uniform('hallucination_scale ', hyper.interval (0.0 , 0.2)),
-.uniform('noise_std', hyper.interval (0.0 , 0.01)),
-.uniform('target_noise_std ', hyper.interval (0.0 , 0.01)),
-.uniform('weight_decay ', hyper.interval (0.00001 , 0.001)),
-.uniform('clip_min', hyper.interval (0.0 , 0.5)),
-.uniform('clip_max', hyper.interval (1.0 , 3.0)),
-.
-.uniform('grad_noise_std ', hyper.interval (0.0 , 0.001)),
-.uniform('half_int_start ', hyper.interval (0.0 , 1.0)),
+'init_scale ', hyper.interval (0.2 , 1.5)),
+'learning_rate ', hyper.interval (0.05 , 0.3)),
+'init_scale ', hyper.interval (0.1 , 1.0)),
+'learning_rate ', hyper.interval (0.01 , 0.2)),
+'discretization_weight ', hyper.interval (0.0 , 0.1))
+'hallucination_prob ', hyper.interval (0.0 , 0.2)),
+'hallucination_scale ', hyper.interval (0.0 , 0.2)),
+'noise_std ', hyper.interval (0.0 , 0.01)),
+'target_noise_std ', hyper.interval (0.0 , 0.01)),
+'clip_min ', hyper.interval (0.0 , 0.5)),
+'clip_max ', hyper.interval (1.0 , 3.0)),
+to aid in exploration .
+'half_int_start ', hyper.interval (0.0 , 1.0)),
 ```
 
 1 `@@ -45,9 +45 ,14 @@`
@@ -646,7 +643,7 @@ Full list of problems and details are provided in Appendix
 
 •Analysis
 
-**-Autocorrelation inequalities.** *AlphaEvolvewas able to improve the best known* bounds on several autocorrelation inequalities.
+**-Autocorrelation inequalities.***AlphaEvolvewas able to improve the best known* bounds on several autocorrelation inequalities.
 
 **-Uncertainty principles.AlphaEvolve**
 
@@ -656,11 +653,9 @@ for a problem arising in Fourier analysis, by polishing an uncertainty principle
 
 for the minimum overlap problem [ record [40]. •Geometry and packing
 
-**-Kissing number problem.In 11 dimensions,**
+**-Kissing number problem.** In 11 dimensions,AlphaEvolveimproved the lower bound on the kissing number, finding a configuration of 593 non-overlapping unit spheres that can simultaneously touch a central unit sphere, surpassing the previous record of 592 [31].
 
-bound on the kissing number, finding a configuration of 593 non-overlapping unit spheres that can simultaneously touch a central unit sphere, surpassing the previous record of 592 [31].
-
--Packing problems.AlphaEvolve achieved several new results in packing problems, such as packingpoints in a shape to minimize the ratio of the maximum and minimum distance, packing various polygons in other polygons in the most efficient way, and variants of the Heilbronn problem concerning point sets avoiding small-area triangles [29]. The full list of problems appears in Appendix AlphaEvolvecan be found in the accompanying on these problems and the methods used will be provided in an upcoming paper. Most of these discoveries are on open problems suggested to us by external mathematicians Javier Gomez Serrano and Terence Tao, who also advised on how to best formulate them as inputs to AlphaEvolve. This highlights the potential for synergistic partnerships between AI-driven discovery engines like AlphaEvolveand human mathematical expertise.
+-Packing problems.AlphaEvolveachieved several new results in packing problems, such as packing points in a shape to minimize the ratio of the maximum and minimum distance, packing various polygons in other polygons in the most efficient way, and variants of the Heilbronn problem concerning point sets avoiding small-area triangles [29]. The full list of problems appears in Appendix AlphaEvolvecan be found in the accompanying on these problems and the methods used will be provided in an upcoming paper. Most of these discoveries are on open problems suggested to us by external mathematicians Javier Gomez Serrano and Terence Tao, who also advised on how to best formulate them as inputs to AlphaEvolve. This highlights the potential for synergistic partnerships between AI-driven discovery engines like AlphaEvolveand human mathematical expertise.
 
 ### 3.3. Optimizing Google's computing ecosystem
 
@@ -669,8 +664,6 @@ In addition to the scientific applications presented in preceding sections, here
 was able to produce a refined configuration
 
 *AlphaEvolveestablished a new upper bound* 25], slightly improving upon the previous
-
-*AlphaEvolveimproved the lower*
 
  B and the new constructions found by Google Colab. More examples and details
 
@@ -693,7 +686,7 @@ defalpha_evolve_score(required, free):
 
 3 `mem_residual = required.mem / free.mem`
 
-5 `return-1.0 * (cpu_residual + mem_residual`
+5 `return -1.0 * (cpu_residual + mem_residual`
 
 ```
 mem_residual / cpu_residual
@@ -702,7 +695,7 @@ cpu_residual / mem_residual)
 
 **Figure 6|Left: The heuristic function discovered by**
 
-workloads and capacity. Right: Visualization of the heuristic scoring function. Yellow regions represent high scores, while purple regions represent low scores. of computational footprint. This recovery is essential to accommodate growing compute needs without a proportional increase in resource consumption. Furthermore, this problem is challenging since it combines typical engineering difficulties, such as debuggability and scale, on top of the classically difficult bin-packing problem. We address this challenge by framing the online job scheduling problem as a vector bin-packing problem with two variables. In this context, machines represent bins with defined capacities for CPU and memory, and incoming jobs are items with specific resource demands. A heuristic function takes as input a pending job's CPU and memory requirements and a potential machine's CPU and memory availability. This function then outputs a priority score for the machine. The Borg scheduler subsequently assigns the pending job to the machine with the highest priority score as determined by the heuristic function, among other objectives. Because this heuristic only influences the ranking of machines already determined by Borg to be available and capable of running each pending job, the resulting scheduling decisions are effectively correct by construction. An early version of AlphaEvolvewas used to discover a remarkably simple yet effective heuristic function (shown in Figure 6 ), evolving from the existing one in production. We use a simulator of our data centers to provide feedback to snapshots of workloads and capacity across Google's fleet. We measure the performance of *AlphaEvolve's heuristic function on an unseen test dataset of recent workloads and capacity* to ensure generalization. Observing that AlphaEvolve one in production, we rolled out AlphaEvolve deployment measurements across Google's fleet confirmed the simulator results, revealing that this heuristic function continuously recovers on average 0.7% of Google's fleet-wide compute resources, which would otherwise be stranded. deep reinforcement learning approach because its code solution not only leads to better performance, but also offers clear advantages in interpretability, debuggability, predictability,
+workloads and capacity. Right: Visualization of the heuristic scoring function. Yellow regions represent high scores, while purple regions represent low scores. of computational footprint. This recovery is essential to accommodate growing compute needs without a proportional increase in resource consumption. Furthermore, this problem is challenging since it combines typical engineering difficulties, such as debuggability and scale, on top of the classically difficult bin-packing problem. We address this challenge by framing the online job scheduling problem as a vector bin-packing problem with two variables. In this context, machines represent bins with defined capacities for CPU and memory, and incoming jobs are items with specific resource demands. A heuristic function takes as input a pending job's CPU and memory requirements and a potential machine's CPU and memory availability. This function then outputs a priority score for the machine. The Borg scheduler subsequently assigns the pending job to the machine with the highest priority score as determined by the heuristic function, among other objectives. Because this heuristic only influences the ranking of machines already determined by Borg to be available and capable of running each pending job, the resulting scheduling decisions are effectively correct by construction. An early version of AlphaEvolvewas used to discover a remarkably simple yet effective heuristic function (shown in Figure 6), evolving from the existing one in production. We use a simulator of our data centers to provide feedback to snapshots of workloads and capacity across Google's fleet. We measure the performance of *AlphaEvolve's heuristic function on an unseen test dataset of recent workloads and capacity* to ensure generalization. Observing that AlphaEvolve one in production, we rolled out AlphaEvolve deployment measurements across Google's fleet confirmed the simulator results, revealing that this heuristic function continuously recovers on average 0.7% of Google's fleet-wide compute resources, which would otherwise be stranded. deep reinforcement learning approach because its code solution not only leads to better performance, but also offers clear advantages in interpretability, debuggability, predictability,
 
 *AlphaEvolve, tailored to Google's*
 
@@ -710,9 +703,7 @@ and ease of deployment-essential qualities for a mission-critical system.
 
 14
 
-*AlphaEvolvebased on historical*
-
-'s heuristic function outperforms the 's heuristic function to the entire fleet. Post-
+*AlphaEvolvebased on historical* 's heuristic function outperforms the 's heuristic function to the entire fleet. Post-
 
 *AlphaEvolvewas chosen over a*
 
@@ -725,11 +716,9 @@ a heuristic that automatically chooses the right tile size ( difficult because o
 
 ### *3.3.2. Enhancing Gemini kernel engineering*
 
-Training large models like Gemini requires substantial computational resources. Gemini is built on JAX [9], and Pallas is an extension to JAX that enables writing custom, highly specialized programs (kernels) tailored for optimal execution on hardware accelerators. Therefore, efficient Pallas kernels are crucial for optimizing Gemini's training performance. A critical aspect of kernel optimization is tuning the tiling strategy for matrix multiplication operations (see Figure 7). This technique involves dividing a large matrix multiplication computation into smaller subproblems to better balance computation with data movement, which is key to accelerating the overall computation. Traditionally, kernel engineers rely on either search-based autotuning or manually crafted heuristics to determine near-optimal tiling configurations for various input shapes. Search-based tuning interrupts the research workflow, necessitating retuning for every input shape change. Conversely, manually crafting effective tiling heuristics is a major engineering bottleneck due to its complexity, demanding a deep understanding of both kernel functionality and hardware intricacies. The key advantage of a performant heuristic is its ability to deliver high performance across arbitrary input shapes. Consequently, to expedite the design of performant kernels for emerging hardware and to simplify their utilization by model developers, we aim to facilitate the heuristic generation process. We address this challenge by employing *AlphaEvolveto optimize tiling heuristics for an* important matrix multiplication kernel used to train Gemini. The objective is to minimize the kernel's actual runtime.AlphaEvolveiteratively explores and refines tiling heuristics for this kernel by proposing candidate code, aiming to minimize this runtime on various input
+Training large models like Gemini requires substantial computational resources. Gemini is built on JAX [9], and Pallas is an extension to JAX that enables writing custom, highly specialized programs (kernels) tailored for optimal execution on hardware accelerators. Therefore, efficient Pallas kernels are crucial for optimizing Gemini's training performance. A critical aspect of kernel optimization is tuning the tiling strategy for matrix multiplication operations (see Figure 7). This technique involves dividing a large matrix multiplication computation into smaller subproblems to better balance computation with data movement, which is key to accelerating the overall computation. Traditionally, kernel engineers rely on either search-based autotuning or manually crafted heuristics to determine near-optimal tiling configurations for various input shapes. Search-based tuning interrupts the research workflow, necessitating retuning for every input shape change. Conversely, manually crafting effective tiling heuristics is a major engineering bottleneck due to its complexity, demanding a deep understanding of both kernel functionality and hardware intricacies. The key advantage of a performant heuristic is its ability to deliver high performance across arbitrary input shapes. Consequently, to expedite the design of performant kernels for emerging hardware and to simplify their utilization by model developers, we aim to facilitate the heuristic generation process. We address this challenge by employing AlphaEvolveto optimize tiling heuristics for an important matrix multiplication kernel used to train Gemini. The objective is to minimize the kernel's actual runtime.AlphaEvolveiteratively explores and refines tiling heuristics for this kernel by proposing candidate code, aiming to minimize this runtime on various input
 
-= . Creating
-
-,,) for all input shapes is
+=. Creating
 
 shapes on real TPU accelerators. The kernel's correctness is maintained by construction because AlphaEvolveis optimizing the tiling strategy for this kernel rather than altering
 
@@ -763,7 +752,7 @@ to discover a heuristic that yields an
 
 The transformer architecture [100] is used in the majority of modern neural networks, ranging from LLMs to AlphaFold [1]. The core computation of transformers is the attention mechanism [4], which is most commonly implemented using FlashAttention [ 
 
-these stages, improved decisions on memory access orchestration or computation scheduling can significantly reduce runtime on specific hardware. We challenged AlphaEvolveto directly optimize the XLA-generated IRs encapsulating the FlashAttention kernel along with pre-and postprocessing code. We optimized a configuration corresponding to a highly impactful transformer model used for inference at scale on GPUs, with the goal of minimizing the module's overall execution time. This was a particularly challenging task, because (1) the IR is designed for debugging purposes rather than for direct editing by developers, and (2) it is compiler-generated and already highly optimized. Each modification proposed by AlphaEvolvewas checked against the reference (unmodified) code on randomized inputs in order to ensure numerical correctness throughout optimization. The final version of the code was rigorously confirmed by human experts to be correct for all possible inputs. AlphaEvolvewas able to provide meaningful optimizations for both levels of abstraction exposed by the IR. Firstly, the FlashAttention kernel for the configuration of interest was sped up by 32%. Secondly,AlphaEvolvefound improvements in pre-and postprocessing of kernel inputs and outputs, resulting in a 15% speed up in this part. These results demonstrate the ability of AlphaEvolveto optimize compiler-generated code, offering the potential of incorporating discovered optimizations into existing compilers for specific use cases, or, in the longer term, incorporating AlphaEvolve into the compiler workflow itself.
+these stages, improved decisions on memory access orchestration or computation scheduling can significantly reduce runtime on specific hardware. We challenged AlphaEvolveto directly optimize the XLA-generated IRs encapsulating the FlashAttention kernel along with pre-and postprocessing code. We optimized a configuration corresponding to a highly impactful transformer model used for inference at scale on GPUs, with the goal of minimizing the module's overall execution time. This was a particularly challenging task, because (1) the IR is designed for debugging purposes rather than for direct editing by developers, and (2) it is compiler-generated and already highly optimized. Each modification proposed by AlphaEvolvewas checked against the reference (unmodified) code on randomized inputs in order to ensure numerical correctness throughout optimization. The final version of the code was rigorously confirmed by human experts to be correct for all possible inputs. AlphaEvolvewas able to provide meaningful optimizations for both levels of abstraction exposed by the IR. Firstly, the FlashAttention kernel for the configuration of interest was sped up by 32%. Secondly,AlphaEvolvefound improvements in pre-and postprocessing of kernel inputs and outputs, resulting in a 15% speed up in this part. These results demonstrate the ability of AlphaEvolveto optimize compiler-generated code, offering the potential of incorporating discovered optimizations into existing compilers for specific use cases, or, in the longer term, incorporating AlphaEvolveinto the compiler workflow itself.
 
 4. Ablations
 
@@ -784,19 +773,19 @@ Section 3.2),
 
 ---
 
-**Figure 8|Left: Ablations of AlphaEvolveon the problem of finding low-rank tensor decom-** relies on a mixture of small and large lan-
+**Figure 8|Left: Ablations of AlphaEvolveon the problem of finding low-rank tensor decom-**
 
-position for faster matrix multiplication. Right: Ablations of finding sphere packings for improving kissing numbers. Each curve shows the performance of an individual setting with increasing compute budget, averaged over all considered targets (higher values on the target metric are better). The shades indicate intra-target standard deviation, averaged over three independent runs of random seeds. •Meta prompts.AlphaEvolvealso uses meta prompts in order to improve the prompts that are provided to the language model. This allows it to potentially surpass the performance one can obtain using a human prompter. To test the efficacy of meta prompting, we disable it for the task of tensor decomposition. We refer to this approach as "No meta prompt evolution". •Full-file evolution.Unlike previous approaches such as FunSearch, 
+position for faster matrix multiplication. Right: Ablations of finding sphere packings for improving kissing numbers. Each curve shows the performance of an individual setting with increasing compute budget, averaged over all considered targets (higher values on the target metric are better). The shades indicate intra-target standard deviation, averaged over three independent runs of random seeds. •Meta prompts. AlphaEvolvealso uses meta prompts in order to improve the prompts that are provided to the language model. This allows it to potentially surpass the performance one can obtain using a human prompter. To test the efficacy of meta prompting, we disable it for the task of tensor decomposition. We refer to this approach as "No meta prompt evolution". •Full-file evolution.Unlike previous approaches such as FunSearch, 
 
-decomposition where only the loss function is evolved. We refer to this approach as "No full-file evolution". •Powerful language models.AlphaEvolve guage models in order to obtain highly diverse samples. To understand the importance of this component, we consider an alternative where only a single small base model is used. We refer to this approach as "Small base LLM only". Figure 8 shows the results of the all-inclusive alternatives listed above. As can be seen, each of the components is responsible for a significant improvement in the results.
+decomposition where only the loss function is evolved. We refer to this approach as "No full-file evolution". 
+
+of this component, we consider an alternative where only a single small base model is used. We refer to this approach as "Small base LLM only". Figure 8 shows the results of the all-inclusive alternatives listed above. As can be seen, each of the components is responsible for a significant improvement in the results.
 
 *AlphaEvolveon the problem of*
 
 *AlphaEvolve, initialized with different*
 
 *AlphaEvolvecan*
-
-*AlphaEvolveapproach as well as the various*
 
 have succeeded in symbolic regression applications [ algorithmic [16] discovery, and scheduling [ 118] problems. However, a challenge with these
 
@@ -806,9 +795,9 @@ have succeeded in symbolic regression applications [ algorithmic [16] discovery,
 
 5. Related work
 
-**Evolutionary methods.AlphaEvolveextends a long tradition of research on**
+**Evolutionary methods.** *AlphaEvolveextends a long tradition of research on* orgenetic programming[54], where one repeatedly uses a set of mutation and crossover operators to evolve a pool of programs [5,51 ]. In particular, classical evolutionary techniques
 
-orgenetic programming[54], where one repeatedly uses a set of mutation and crossover operators to evolve a pool of programs [5,51 ]. In particular, classical evolutionary techniques
+*AlphaEvolveapproach as well as the various*
 
 *evolutionary*
 
@@ -887,9 +876,7 @@ Many of these methods use LLMs to automate several distinct stages of the scient
 
 61]. Other
 
- Section 3.
-
-Over the last decade, AI systems have been
+ Section 3. Over the last decade, AI systems have been
 
 53]. In particular, there are numerous 12,64], bioinformatics [67,85], geoscience
 
@@ -899,9 +886,7 @@ Over the last decade, AI systems have been
 
 28,62,82,105,116]. Finally, there 80].AlphaEvolvediffers from most of
 
-23]. In this context,
-
-26].
+23]. In this context, 26].
 
 20
 
@@ -947,7 +932,7 @@ S.S. worked on applying AlphaEvolveto directly optimize compiler-generated code.
 
 22
 
-### Contributions.A.N. and M.B. designed and implemented the initial version of
+### Contributions. A.N. and M.B. designed and implemented the initial version of
 
 M.B., A.N., N.V. and P.K. developed project vision and scoped problems. N.V. and P.- S.H. oversaw the practical applications. E.D. and M.E. implemented the first benchmark problem used for iterating on AlphaEvolve, with input from F.J.R.R. and M.B. A.N. and M.E. developed the final version of AlphaEvolve , with contributions from S.S., P.-S.H., and input from M.B., E.D., A.Z.W. and N.V. A.N., S.S., P.-S.H. and M.E. maintained the infrastructure underlying AlphaEvolve. M.E. and E.D. used matrix multiplication, with input from F.J.R.R. A.Z.W. worked on the applications to open mathematical problems, with help from A.M., M.E., and A.N. A.N. contributed to the Borg scheduling application. P.-S.H. and N.V. worked on the application to Gemini kernel engineering. P.-S.H. and A.N. contributed to the TPU circuit design application. B.K. and
 
@@ -958,7 +943,7 @@ M.B., A.N., N.V. and P.K. developed project vision and scoped problems. N.V. and
 
 majority of code reviews. M.B., E.D., S.C., N.V., A.Z.W., F.J.R.R., M.E., A.N., B.K., S.S., A.M., and M.P.K. wrote the paper, with input from A.S., P.-S.H and P.K. N.V., E.D., M.E., S.C., A.N., and A.Z.W. created the figures. F.J.R.R., A.M., and A.Z.W. assembled the accompanying Google Colab. S.N., A.D. and P.K. advised and enabled multiple strands of this work. M.B., A.N., N.V. and G.H. coordinated the team. P.K. supervised and coordinated the research program.
 
-**Corresponding authors.Matej Balog, Alexander Novikov and Pushmeet Kohli.**
+**Corresponding authors.** Matej Balog, Alexander Novikov and Pushmeet Kohli.
 
 ## References
 
@@ -992,7 +977,7 @@ K. Satzinger, M. Y. Niu, S. Blackwell, G. Holland, D. Kafri, J. Atalaya, C. Gidn
 
 - [7]D. A. Boiko, R. MacKnight, B. Kline, and G. Gomes. Autonomous chemical research
 
-with large language models.Nature , 624(7992):570-578, 2023. doi: 10.1038/s415 86-023-06792-0.
+with large language models.Nature, 624(7992):570-578, 2023. doi: 10.1038/s415 86-023-06792-0.
 
 - [8]P. Boyvalenkov, S. Dodunekov, and O. Musin. A survey on the kissing numbers.
 
@@ -1133,7 +1118,7 @@ breeder: Self-referential self-improvement via prompt evolution.
 
 *Machine Intelligence, 4(6):521-532, 2022.*
 
-- [29]E. Friedman. Erich's Packing Center. `https://erich-friedman.github.io/pa`
+- [29]E. Friedman. Erich's Packing Center.`https://erich-friedman.github.io/pa`
 
 ```
 cking/, 2025. Accessed: 2025-04-22.
@@ -1167,9 +1152,7 @@ co-scientist.arXiv preprint arXiv:2502.18864
 
 *Nature,*
 
-*arXiv preprint*
-
-*Nature*
+*arXiv preprint Nature*
 
 *Machine Learning:*
 
@@ -1267,9 +1250,7 @@ Highly accurate protein structure prediction with AlphaFold.
 
 26
 
-*Nature, 596(7873):*
-
-*Proceedings*
+*Nature, 596(7873): Proceedings*
 
 
 ---
@@ -1326,9 +1307,7 @@ model framework for literature-based disease-gene association prediction. *Bioin
 
 , 58(1):1-11, Jan. 2025.
 
-*arXiv*
-
-*International*
+*arXiv International*
 
 , 2015.
 
@@ -1407,7 +1386,7 @@ M. Freeman, editors,Proceedings of the Second International Conference on Archit
 
 - [71]S. Miret and N. M. A. Krishnan. Are LLMs ready for real-world materials discovery?
 
-InarXiv preprint arXiv:2402.05200 , 2024.
+InarXiv preprint arXiv:2402.05200, 2024.
 
 28
 
@@ -1482,15 +1461,11 @@ F. J. R. Ruiz, J. Ellenberg, P. Wang, O. Fawzi, P. Kohli, and A. Fawzi. Mathemat
 https://openai.com/i
 ```
 
-.
-
-.
+. .
 
 *arXiv preprint arXiv:2503.05854,*
 
-*arXiv preprint arXiv:2402.01386, 2024.*
-
-*arXiv preprint arXiv:2503.24047, 2025.*
+*arXiv preprint arXiv:2402.01386, 2024. arXiv preprint arXiv:2503.24047, 2025.*
 
 *Proceedings of the National Academy of*
 
@@ -1596,7 +1571,7 @@ Michigan, 1989.
 
 - [98]A. Thakur, G. Tsoukalas, Y. Wen, J. Xin, and S. Chaudhuri. An in-context learning
 
-agent for formal theorem-proving. In *Conference on Language Models, 2024.*
+agent for formal theorem-proving. In*Conference on Language Models, 2024.*
 
 - [99]T. H. Trinh, Y. Wu, Q. V. Le, H. He, and T. Luong. Solving olympiad geometry without
 
@@ -1645,9 +1620,7 @@ A. H. Awadallah, R. W. White, D. Burger, and C. Wang. AutoGen: Enabling next-gen
 
 *Proceedings of the Tenth European*
 
-*International Conference on Machine*
-
-. PhD thesis, Universidad Autónoma de
+*International Conference on Machine* . PhD thesis, Universidad Autónoma de
 
 *International*
 
@@ -1756,33 +1729,23 @@ language models. In L. Peled-Cohen, N. Calderon, S. Lissak, and R. Reichart, edi
 
 **Full table of results.We provide the best ranks obtained by**
 
-we considered 54 matrix multiplication sizes in our experiments. These were chosen roughly representing sizes⟨, , ⟩where2≤, ≤5, with some reasonable cutoff for. Due to symmetries of the underlying matrix multiplication tensor, there exist equivalent algorithms for any permutations of the three axes, hence we focus on sorted sizes In all but two considered sizes,AlphaEvolve surpass the best known rank. Anecdotally, we encountered some difficulty when increasing the problem size: when we run the discovered programs on sizes beyond random seeds on evaluators with a single GPU accelerator, we often run out of memory. Hence, extending our setup to larger matrix sizes requires further optimization.
+we considered 54 matrix multiplication sizes in our experiments. These were chosen roughly representing sizes⟨, , ⟩where2≤, ≤5, with some reasonable cutoff for. Due to symmetries of the underlying matrix multiplication tensor, there exist equivalent algorithms for any permutations of the three axes, hence we focus on sorted sizes In all but two considered sizes,AlphaEvolve discovered programs which either match or surpass the best known rank. Anecdotally, we encountered some difficulty when increasing the problem size: when we run the discovered programs on sizes beyond random seeds on evaluators with a single GPU accelerator, we often run out of memory. Hence, extending our setup to larger matrix sizes requires further optimization.
 
 **Table 3|Full version of Table 2, showing the best ranks obtained by**
 
 | decomposition | for | all | considered | parameters. | Of | the | 54 | targets, |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ⟨2,2,2⟩ AlphaEvolveuse complex-valued multiplications which can be used for exact multiplication 7 [95⟨2,]3,6⟩ 30 [7⟨93,4],4⟩ 38 [3093] | 38 |  |  |  |  |  |  |  |
-| ⟨2,2,3⟩11 [⟨932,]3,7⟩ 1135 [⟨93,4],5⟩ 47 [3526] | 47 |  |  |  |  |  |  |  |
-| ⟨2,2,4⟩ of complex or real-valued matrices. The decompositions shown in this table can be found in 14 [⟨932,]3,8⟩ 1440 [⟨93,4],6⟩ 56 [4048] | 54 |  |  |  |  |  |  |  |
-| ⟨2,2,5⟩ the accompanying Google Colab. 18 [⟨932,]3,9⟩ 1845 [⟨93,4],7⟩ 66 [4591] | 63 |  |  |  |  |  |  |  |
-| ⟨2,2,6⟩21 [⟨293,3],10⟩ 2150 [⟨93,4],8⟩ 75 [5091] | 74 |  |  |  |  |  |  |  |
-| ⟨2,2,7⟩25 [⟨932,]4,4⟩ 2526 [⟨93,5],5⟩ 58 [2691] | 58 |  |  |  |  |  |  |  |
-| ⟨2,2,8⟩Note: Concurrent work [49] has also found a rank- 28 [⟨932,]4,5⟩ 2833 [⟨423,5],6⟩ 70 [3248] | 68 |  |  |  |  |  |  |  |
-| ⟨2,2,9⟩32 [⟨932,]4,6⟩ 3239 [⟨93,5],7⟩ 82 [3991] | 80 |  |  |  |  |  |  |  |
-| ⟨2,2,13⟩ 46 [⟨932,]5,6⟩ Figure 4 (left), which corresponds to the program that discovers a decomposition of rank 48 4648 [⟨934,4],7⟩87 [4793, 95] | 85 |  |  |  |  |  |  |  |
-
-discovered programs which either match or
-
-⟨5,5,5⟩on 1000
+| ⟨2,2,8⟩Note: Concurrent work [49] has also found a rank- 28 [93⟨2],4,5⟩ 2833 [⟨423,]5,6⟩ 70 [3248] | 68 |  |  |  |  |  |  |  |
+| ⟨2,2,13⟩ Figure 4 (left), which corresponds to the program that discovers a decomposition of rank 48 46 [93⟨2],5,6⟩ 4648 [⟨934,]4,7⟩87 [4793, 95] | 85 |  |  |  |  |  |  |  |
+| ⟨5,5,5⟩on | 1000 |  |  |  |  |  |  |  |
 
 *AlphaEvolvefor tensor AlphaEvolvematches the*
 
 108
 
-⟨2,3,3⟩15 [⟨93,]3,6⟩ 1540 [⟨934,5],6⟩ 93 [4048] **90**
+⟨2,3,3⟩15 [93⟨3],3,6⟩ 1540 [⟨934,]5,6⟩ 93 [4048]**90**
 
-⟨2,3,4⟩20 [⟨93,]3,7⟩ 2049 [⟨935,5],5⟩ 93 [4972] 93 ⟨2,3,5⟩25 [⟨93,]3,8⟩ 2555 [⟨936,6],6⟩ 153 [5572] 156
+⟨2,3,4⟩20 [93⟨3],3,7⟩ 2049 [⟨935,]5,5⟩ 93 [4972]93 ⟨2,3,5⟩25 [93⟨3],3,8⟩ 2555 [⟨936,]6,6⟩ 153 [5572] 156
 
 34
 
@@ -1799,401 +1762,236 @@ def _get_optimizer (self) -> optax. GradientTransformation :
 """ Returns optimizer ."""
 ```
 
-5 return optax.adam(self.hypers. learning_rate )
+- return optax.adam(self.hypers. learning_rate
 
-6 + return `optax.adamw(`
+6`+ return optax.adamw(`
 
-7 + self
-
-```
-.hypers.learning_rate , weight_decay
-```
-
-8 + )
+8`+ )`
 
 ```
 def _get_init_fn (self) -> jax.nn. initializers .Initializer :
 """ Returns initializer function ."""
-solutions.
++ # Initialize with a smaller scale to encourage
+solutions .
++ # Increase scale slightly for better exploration
 decomposition = optax. apply_updates (decomposition , updates)
-```
-
-22 + # `Add a small amount of gradient noise to help with exploration`
-
-24 + decomposition
-
-```
-= jax.tree_util .tree_map(
-```
-
-25 + lambda
-
-```
++ # Add a small amount of gradient noise to help with exploration
 shape),
++ decomposition ,
 ```
 
-27 + decomposition 28 + ) 30 + # `Add noise to the decomposition parameters`
+30`+ # Add noise to the decomposition parameters`
 
-33 + global_step
+32`+ noise_std = self. _linear_schedule (`
 
-```
-, start=self.hypers
-```
+33`+ global_step , start=self.hypers.noise_std , end =0.0`
 
-34 + ) 35 + decomposition
+34`+ )`
 
-```
-= jax.tree_util .tree_map(
-```
+35`+ decomposition = jax.tree_util .tree_map`
 
-36 + lambda 37 + decomposition 38 + ) 41 + cycle_length
+37`+ decomposition ,`
 
-```
-= 2000 # Number of steps per cycle
-```
+38`+ )`
 
-42 + cycle_progress 43 + global_step
+40`+ # Cyclical annealing for clipping threshold`
 
-```
-% cycle_length
-```
+41`+ cycle_length = 2000 # Number of steps`
 
-46 + # `Map cycle progress to a sinusoidal`
+43`+ global_step % cycle_length`
 
-47 + clip_threshold_multiplier 49 + clip_threshold 50 + self
+46`+ # Map cycle progress to a sinusoidal`
 
-```
-.hypers.clip_max - self.hypers.clip_min
-```
+49`+ clip_threshold = self.hypers.clip_min`
 
-51 + )
+50+ self.hypers.clip_max self. hypers.clip_min
 
-58 + x_re_clipped
+51`+ )`
 
-```
-= jnp.where(
-```
+53`+ def soft_clip(x, threshold):`
 
-59 + x_re 60 + ) 61 + x_re_clipped
+54`+ # Clipping the real and imaginary parts separately`
 
-```
-= jnp.where(
-```
+55`+ x_re = jnp.real(x)`
 
-62 + x_re_clipped
+56`+ x_im = jnp.imag(x)`
+
+58`+ x_re_clipped = jnp.where(`
+
+59`+ x_re`
+
+60`+ )`
+
+61`+ x_re_clipped = jnp.where(`
+
+62`+ x_re_clipped`
 
 ```
 < -threshold ,
 ```
 
-64 + x_re_clipped 65 + )
+64`+ x_re_clipped`
+
+65`+ )`
 
 ```
 =self.hypers. weight_decay
-to encourage finding low -rank
-exploration.
-( exploration ).
-.noise_std , end =0.0
-.random.normal(noise_rng , x.shape),
-threshold .
-curve. Ranges from 0 to 1.
-parts separately.
+finding low -rank
 ```
 
-1 @@ -45,9 `+45 ,14 @@`
+```
+( exploration ).
+```
 
-10 11
+```
+per cycle
+within the current cycle [0,
+curve. Ranges from 0 to 1.
+```
 
-17 19 20 21
+1`@@ -45,9 +45 ,14 @@`
 
-**Figure 9a|Magnified version of Figure 4**
+10 11 12 13 14 15 16 17 18`@@ -80,6 +85 ,66 @@`
 
-algorithm to multiply4×4matrices (1/3).
+19 20 21 22 23 24 25 26 27 28 29
 
-(left), giving the program that discovers a faster
+**Figure 9a|Magnified version of Figure 4**(left), giving the program that discovers a faster algorithm to multiply4×4matrices (1/3).
 
 35
+
+```
+) * 0.1,
+```
 
 
 ---
 
-67 + x_im_clipped
-
-```
-= jnp.where(
-```
-
-68 + x_im 69 + ) 70 + x_im_clipped
-
-```
-= jnp.where(
-```
-
-71 + x_im_clipped
+71`+ x_im_clipped`
 
 ```
 < -threshold ,
 ```
 
-73 + x_im_clipped 74 + ) 76 + return 78 + decomposition
+73`+ x_im_clipped`
 
-```
-= jax.tree_util .tree_map(
-```
+74`+ )`
 
-79 + lambda
+78`+ decomposition = jax.tree_util .tree_map`
 
-```
-x: soft_clip (x, clip_threshold
-```
+79`+ lambda x: soft_clip(x, clip_threshold`
 
-80 + ) 83 84 `def _loss_fn(`
+80`+ )`
 
-86 `""" Computes ( batched ) loss on learned decomposition`
+83 84 `def` `_loss_fn(`
 
-92 + target_noise
+85 86 `""" Computes ( batched ) loss on learned`
 
-```
-= self.hypers. target_noise_std
-```
+90`+ # Add noise to the target tensor ( robustness`
 
-93 + noise_rng
+91`+ rng , noise_rng = jax.random.split (rng)`
 
-```
-, self. target_tensor
-```
+92`+ target_noise = self.hypers. target_noise_std`
 
-94 + ) 95 + noisy_target_tensor
+93`+ noise_rng , self. target_tensor .shape`
+
+94`+ )`
+
+95`+ noisy_target_tensor = self. target_tensor + target_noise`
+
+97`+ # Hallucination loss (encourages exploration`
 
 ```
 values)
 ```
 
-98 + hallucination_prob
+98`+ hallucination_prob = self.hypers. hallucination_prob`
+
+99`+ hallucination_scale = self.hypers. hallucination_scale`
 
 ```
-= self.hypers. hallucination_prob
-```
-
-99 + hallucination_scale
-
-```
-= self.hypers. hallucination_scale
-```
-
-101 + def `hallucinate(x, hallucination_rng`
-
-104 + hallucination_rng
-
-```
++ def hallucinate (x, hallucination_rng
++ hallucination_rng
 , x.shape
-```
-
-105 + ) 106 + return 109 + decomposition
-
-```
-= jax.tree_util .tree_map(
-```
-
-110 + lambda 111 + decomposition 112 + )
-
-```
-# Add a batch dimension to`target_tensor
++ lambda x: hallucinate (x, jax.random.split(factor_rng
++ decomposition ,
+# Add a batch dimension to `target_tensor
 broadcasting .
 # Define the loss as the L2 reconstruction
-```
-
-116 rec_loss = l2_loss_complex (self. target_tensor [None , ...] , rec_tensor
-
-```
 # We must return a real - valued loss.
-```
-
-120 return jnp.real(rec_loss)
-
-122 + # `Discretization loss (encourage entries to be multiples of 1/2 or`
-
-```
++ # Discretization loss (encourage entries
 integer).
-```
-
-123 + def `dist_to_half_ints (x):`
-
-126 + return
-
-```
-jnp.minimum(
-```
-
-127 + jnp 128 + jnp 129 + )
-
-```
++ def dist_to_half_ints (x):
++ return jnp.minimum(
+) * 0.1,
 ), decomposition
-."""
-(rng)
+decomposition ."""
 ```
 
-                            - `* jax.random.normal(`
+                          - `* jax.random.normal(`
 
 ```
-.shape
 by randomly replacing
-`to ensure correct
-error.
+)[0]) ,
+` to ensure correct
+error .
 ```
 
-114 115 118 119 121
+66 67 68 69 70
 
-**Figure 9b|Magnified version of Figure 4**
+100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130
 
-algorithm to multiply4×4matrices (2/3).
-
-(left), giving the program that discovers a faster
+**Figure 9b|Magnified version of Figure 4**(left), giving the program that discovers a faster algorithm to multiply4×4matrices (2/3).
 
 36
+
+```
+to be multiples of 1/2 or
+```
 
 
 ---
 
-131 + def `dist_to_ints (x):`
-
-132 + return
-
 ```
-jnp.abs(x - jnp.round (x))
-```
-
-134 + discretization_loss
-
-```
-= 0.0
-```
-
-135 + for `factor in decomposition :`
-
-136 + discretization_loss
-
-```
-+= jnp.mean( dist_to_half_ints
-```
-
-137 + discretization_loss
-
-```
-+= jnp.mean( dist_to_ints (factor))
-```
-
-139 + discretization_loss 140 + len 141 + ) `# average across all factors and loss components`
-
-143 + discretization_weight
-
-```
-= self. _linear_schedule
-```
-
-144 + global_step
-
-```
-, start =0.0 , end=self.hypers. discretization_weight
-```
-
-145 + ) 147 + # `Cosine annealing for half -integer`
-
-148 + cycle_length
-
-```
-= self.config. training_steps
++ def dist_to_ints (x):
++ for factor in decomposition :
++ discretization_loss += jnp.mean( dist_to_ints (factor))
++ ) # average across all factors and loss components
++ # Cosine annealing for half -integer loss.
 cycle
-```
-
-149 + cycle_progress 150 + global_step
-
-```
-% cycle_length
-```
-
-151 + ) `/ cycle_length # Normalized progress within the current cycle [0,`
-
-152 + half_int_multiplier 153 + half_int_multiplier
-
-154 + 1 self.hypers. half_int_start
-
-157 + total_loss 158 + rec_loss
-
-```
++ rec_loss
 half_int_multiplier
-```
-
-160 + ) 162 + # `Add penalty for large values (stability ).`
-
-163 + large_value_penalty
-
-```
-= 0.0
-```
-
-164 + for `factor in decomposition :`
-
-165 + large_value_penalty 166 + large_value_penalty 167 + total_loss
-
-```
-+= self.hypers. large_value_penalty_weight
++ for factor in decomposition :
 large_value_penalty
++ return jnp.real(total_loss)
 def l2_loss_complex (x: jnp.ndarray , y: jnp.ndarray) -> jnp.ndarray:
-""" Elementwise L2 loss for complex
+""" Elementwise L2 loss for complex numbers
 return hyper.zipit ([
-```
-
-180 + hyper`.uniform('discretization_weight`
-
-181 + hyper`.uniform('hallucination_prob`
-
-182 + hyper`.uniform('hallucination_scale`
-
-183 + hyper`.uniform('noise_std', hyper`
-
-184 + hyper`.uniform('target_noise_std`
-
-186 + hyper`.uniform('clip_min', hyper`
-
-187 + hyper`.uniform('clip_max', hyper`
-
-188 + hyper`.uniform('large_value_penalty_weight`
-
-```
++ hyper.uniform( 'discretization_weight
++ hyper.uniform( 'hallucination_prob
++ hyper.uniform( 'hallucination_scale
++ hyper.uniform( 'target_noise_std
++ hyper.uniform( 'large_value_penalty_weight
 0.01)),
-```
-
-189 + # `Add noise to the gradient to aid in exploration`
-
-```
++ # Add noise to the gradient to aid in exploration
 # EVOLVE -BLOCK -END
 (factor))
-loss.
 // 4 # Number of steps per
+within the current cycle [0,
 )) / 2
-numbers ."""
-.interval (0.2 , 1.5)),
-.interval (0.1 , 1.0)),
-.interval (0.0 , 0.01)),
-.interval (0.0 , 0.5)),
-.interval (1.0 , 3.0)),
-.
+."""
 ```
 
-171 172 173 174 @@ -117,6 `+255 ,18 @@`
+131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159 160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 `@@ -117,6 +255 ,18 @@`
 
-175
+175 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193
 
-192 193
-
-**Figure 9c|Magnified version of Figure 4**
-
-algorithm to multiply4×4matrices (3/3 ). Herehyperis a user-provided library for generating hyperparameter sweeps.
-
-(left), giving the program that discovers a faster
+**Figure 9c|Magnified version of Figure 4**(left), giving the program that discovers a faster algorithm to multiply4×4matrices (3/3). Herehyper is a user-provided library for generating hyperparameter sweeps.
 
 37
+
+```
+.
+```
 
 
 ---
@@ -2204,17 +2002,17 @@ The data and verification code for all constructions reported in this section ap
 
 ### B.1. First autocorrelation inequality
 
-For any function:ℝ→ℝ, define theautoconvolution
+For any function:ℝ→ ℝ, define theautoconvolution
 
-∗()B
+∗ ()B
 
 Let denote the largest constant satisfying
 
-max ∗() ≥
+max ∗ () ≥
 
 −1/2≤≤1/2
 
-for all non-negative:ℝ→ℝ. This problem arises in additive combinatorics, relating to the size of Sidon sets. It is currently known that
+for all non-negative:ℝ→ ℝ. This problem arises in additive combinatorics, relating to the size of Sidon sets. It is currently known that
 
 1.28≤
 
@@ -2224,9 +2022,9 @@ with the lower bound achieved in [17] and the upper bound achieved in [ function
 
 Let be the smallest constant for which one has
 
-∥∗∥
+∥ ∗ ∥
 
-for all non-negative:ℝ→ℝ. It is known that
+for all non-negative:ℝ→ ℝ. It is known that
 
 0.88922≤
 
@@ -2244,7 +2042,7 @@ with the lower bound coming from a step function construction [ a step function 
 
 ≤1.5053.
 
-≤ ∥∗∥∥∗∥ ∞
+≤ ∥ ∗ ∥∥ ∗ ∥ ∞
 
 ≤1
 
@@ -2266,17 +2064,17 @@ with the lower bound coming from a step function construction [ a step function 
 
 Let3be the largest constant satisfying
 
-max|∗()≥
+max |∗ ()≥
 
 −1/2≤≤1/2
 
-for any function:ℝ→ ℝ. Clearly≤ negative values. There is a step function that gives the upper bound
+for any function :ℝ→ ℝ. Clearly negative values. There is a step function that gives the upper bound
 
 | 3 ()
 
 −1/4
 
-3, since we now allowto take positive and
+3≤, since we now allow to take positive and
 
 ≤1.45810[104, page
 
@@ -2285,33 +2083,27 @@ for any function:ℝ→ ℝ. Clearly≤ negative values. There is a step functio
 
 ### B.4. An uncertainty inequality
 
-Given a function:ℝ→ℝ, define the Fourier transform
-
-():=inf{ >0 :() ≥0for all|| ≥}.
+Given a function:ℝ→ ℝ, define the Fourier transform
 
 Let4be the largest constant for which one has
 
-()() ≥4
+()() ≥ 4
 
 for all evenwithmax((0),(0))<0. It is known [ ˆ
 
 0.2025≤
 
-(The upper bound is stated as0.353in the paper, but rounding their solution to the fourth digit gives0.3523). We improved the upper bound to combination as in [33], but with refined constants that were found by To obtain upper bounds for, one constructs a specific "test function" 4
+(The upper bound is stated as0.353in the paper, but rounding their solution to the fourth digit gives0.3523). We improved the upper bound to combination as in [33], but with refined constants that were found by To obtain upper bounds for , one constructs a specific "test function" 4
 
-conditions and calculates the value() ()for this function, which provides an upper ˆ bound4≤ ()(). Following the approach in [ ˆ ()= ()−, where()is an even polynomial constructed as a linear combination of Hermite polynomials(). This form is particularly useful because the Fourier transform of4 ()−is()−. For an even polynomial of()is()=ˆ 4 4() =( 4
+conditions and calculates the value() ()for this function, which provides an upper ˆ bound4≤()(). Following the approach in [ ˆ ()=()−, where ()is an even polynomial constructed as a linear combination of Hermite polynomials4(). This form is particularly useful because the Fourier transform of ()−is()−. For an even polynomial of ()is()=ˆ 4 4() =( 4
 
-to the largest positive root of(), and ()is related to the largest positive root of(). ˆ Specifically, if() ≥0for large||,()is the largest positive root of largest positive root of(), implying() = (). The inequality becomes≤ (()).4 The method involves finding coefficients 0
+to the largest positive root of(), and()is related to the largest positive root of(). ˆ Specifically, if() ≥0for large||, ()is the largest positive root of largest positive root of(), implying()= The method involves finding coefficients 0
 
-41()+ ()+. . . such that()satisfies certain constraints (related to and being positive for large||) and minimizes the largest positive root of approach, the polynomial()is constructed such that optimization process to simplify constraints), meaning positive rootof()is then the largest positive root of max
-
-derived from this construction is/(2) max. The refined constants found by AlphaEvolve
+4()+ 8()+. . .such that()satisfies certain constraints (related to and being positive for large||) and minimizes the largest positive root of approach, the polynomial ()is constructed such that optimization process to simplify constraints), meaning positive rootmaxof ()is then the largest positive root of derived from this construction is/(2) max. The refined constants found by AlphaEvolve
 
 ×10
 
-(), finding its largest positive root max(by finding the largest positive root of()/), and calculating/(2)yields the improved upper bound max
-
-linear combination is very similar to the one found in [ hypothesis the construction is nearly optimal. *Note: After publishing the first version of this manuscript, Henry Cohn pointed out that in* a recent paper [18] they used a similar, but more refined approach to get the better constant
+(), finding its largest positive root max(by finding the largest positive root of()/ ), and calculatingmax/(2)yields the improved upper bound linear combination is very similar to the one found in [ hypothesis the construction is nearly optimal. *Note: After publishing the first version of this manuscript, Henry Cohn pointed out that in* a recent paper [18] they used a similar, but more refined approach to get the better constant
 
 ### 0.3284. By incorporating their refined approach into
 
@@ -2327,17 +2119,19 @@ linear combination is very similar to the one found in [ hypothesis the construc
 
 33], the test function is sought in the form
 
-()= 44(), the Fourier transform ())−= ()−. Thus,()is related
+()= 44(), the Fourier transform ())−=()−. Thus,()is related
 
 4
 
-(), and()is the ˆ
+(), and ()is the ˆ
 
-(0)<0,(0)<0 ˆ (). In our
+(). The inequality becomes ˆ
 
-(0)=0(a condition used in the ()has a factor of. The largest ()/. The upper bound on4
+4≤ (()). (0)<0,(0)<0 ˆ (). In our
 
-for()= 0 0() +4() +()are
+(0)=0(a condition used in the ()has a factor of. The largest ()/ . The upper bound on 4
+
+for ()= 00() + 4() + 8()are
 
 −5]. Using these coefficients to construct
 
@@ -2362,21 +2156,21 @@ Let5be the largest constant for which
 
 sup ()(+)
 
-∈[−2,2]−1
+∈[−2,2] −1
 
-for all non-negative, :[−1,1] → [0,1] with+ =1on[−1,1]and extend, by zero outside of[−1,1]. This constant controls the asymptotics of the Minimum Overlap Problem of [25]. The bounds
+for all non-negative, :[−1,1] → [0,1]with extend, by zero outside of[−1,1]. This constant controls the asymptotics of the Minimum Overlap Problem of [25]. The bounds
 
-0.379005≤
+0.379005 ≤
 
 are known, where the lower bound was obtained in [ It is known (see [40]) that this constant is equal to the infimum, over all step functions on[0,2]with values in[0,1]and satisfying
 
-max ℎ()(1−ℎ(+ )).
+max ℎ()(1−ℎ( + )).
 
 The upper bound to the Erdős minimum overlap problem was then obtained by using this result, in [40] by a step function construction. The step function depicted in ever so slightly better than the previous bound, giving the upper bound of
 
 for the minimum overlap problem of Erdős.
 
-=1, where we
++=1on[−1,1]and =1, where we
 
 5≤0.380927 107] via convex programming methods. ℎ() =1of
 
@@ -2400,11 +2194,9 @@ for the minimum overlap problem of Erdős.
 
 ### B.6. Sums and differences of finite sets
 
-Let6be the largest constant for which the following statement holds: there exist arbitrarily large finite sets of integers, with|+ | ≪ ||and|− | ≫ |+ |. (Here+ {+ : ∈, ∈ }and−={− : ∈, ∈ }denote the sumset and difference set, respectively. The notation≪means that sets, (for sufficiently large sets, ). The notation positive constantindependent of the sets ′
+Let6be the largest constant for which the following statement holds: there exist arbitrarily large finite sets of integers, with|+ | ≪ ||and|− {+: ∈, ∈}and−={−: ∈, ∈ respectively. The notation≪ means that sets, (for sufficiently large sets, ). The notation positive constantindependent of the sets ′
 
-, (for sufficiently large sets, ).) ≤ for some constantindependent of the
-
-≫means that≥′for some
+}denote the sumset and difference set, ≤ for some constantindependent of the ≫means that≥′for some (for sufficiently large sets, ).)
 
 
 ---
@@ -2415,11 +2207,11 @@ unit hexagons into a regular hexagon of side length 3.931. Right: Packing 12 uni
 
 6≥1+
 
-for any finite setof non-negative integers containing zero satisfying *AlphaEvolvefound a setof size 2003 improving the lower bound to* another setof size 54265 further improving the lower bound to
+for any finite setof non-negative integers containing zero satisfying *AlphaEvolvefound a set* of size 2003 improving the lower bound to1.1479 ≤ another set of size 54265 further improving the lower bound to
 
 ### B.7. Packing unit regular hexagons inside a regular hexagon
 
-Consider the problem of packingdisjoint regular hexagons with unit side length into a larger regular hexagon, minimizing the side length of the outer hexagon. For =12, the best known constructions use outer hexagons of side lengths respectively [29].AlphaEvolvefound packing arrangements that improve these bounds to
+Consider the problem of packing disjoint regular hexagons with unit side length into a larger regular hexagon, minimizing the side length of the outer hexagon. For =12, the best known constructions use outer hexagons of side lengths respectively [29].AlphaEvolvefound packing arrangements that improve these bounds to
 
 3.931and3.942, respectively. These arrangements are shown in
 
@@ -2429,9 +2221,9 @@ Consider the problem of packingdisjoint regular hexagons with unit side length i
 
 39]:
 
-log|−|
+log|− |
 
-|− | ≤2max() +1. 1.1479≤ 6, and 1.1584≤ 6.
+|− | ≤2max() +1. 1.1584≤ 6.
 
 =11and 3.943and4.0,
 
@@ -2442,13 +2234,13 @@ log|−|
 
 2
 
-the best known bound of12.890[29]. (In this reference, instead of the ratio itself, the square of the ratio is reported, and we use the same convention.)
+the best known bound of 12.890[29]. (In this reference, instead of the ratio itself, the square of the ratio is reported, and we use the same convention.)
 
 41
 
 ### B.8. Minimizing the ratio of maximum to minimum distance
 
-For anyand, the goal of this problem is to find to minimize the ratio between the maximum and minimum pairwise distances. found two new constructions improving the best known bounds. The found constructions are shown in Figure 12. In 2 dimensions,AlphaEvolvefound 16 points with ratio
+For any and, the goal of this problem is to find to minimize the ratio between the maximum and minimum pairwise distances. found two new constructions improving the best known bounds. The found constructions are shown in Figure 12. In 2 dimensions,AlphaEvolvefound 16 points with ratio
 
 points in the-dimensional space so as
 
@@ -2459,7 +2251,11 @@ points in the-dimensional space so as
 
 ---
 
-**Figure 12|Left: 16 points in 2 dimensions achieving a ratio of maximum distance to** √ minimum distance of≈12.889266112. Right: 14 points in 3 dimensions achieving a ratio √ of≈ 4.165849767. Both constructions improve the best known bounds. In 3 dimensions,AlphaEvolvefound 14 points with ratio √ best known bound of4.168[29].
+**Figure 12|Left: 16 points in 2 dimensions achieving a ratio of maximum distance to** √ minimum distance of≈ √
+
+### 12.889266112. Right: 14 points in 3 dimensions achieving a ratio
+
+of≈ 4.165849767. Both constructions improve the best known bounds. In 3 dimensions,AlphaEvolvefound 14 points with ratio √ best known bound of 4.168[29].
 
 ### B.9. The Heilbronn problem for triangles
 
@@ -2496,25 +2292,23 @@ The kissing problem asks how many disjoint unit spheres can be packed tangent to
 
 **Figure 13|New constructions found by AlphaEvolve**
 
-two variants of the Heilbronn problem. Left: 11 points in a unit-area triangle with all formed triangles having area≥0.0365. Middle: 13 points inside a convex region with unit area with all formed triangles having area≥0.0309. Right: 14 points inside a unit convex region with minimum area≥0.0278. this to 593. To prove the lower bound of 593 for the kissing number in dimension 11, *AlphaEvolvefound 593 many 11-dimensional non-zero points with integral coordinates such* that the maximum norm of these points is smaller than their minimum pairwise distance. By the following lemma, this implies the kissing number in dimension 11 is at least 593.
+two variants of the Heilbronn problem. Left: 11 points in a unit-area triangle with all formed triangles having area≥0.0365. Middle: 13 points inside a convex region with unit area with all formed triangles having area≥0.0309. Right: 14 points inside a unit convex region with minimum area ≥0.0278. this to 593. To prove the lower bound of 593 for the kissing number in dimension 11, *AlphaEvolvefound 593 many 11-dimensional non-zero points with integral coordinates such* that the maximum norm of these points is smaller than their minimum pairwise distance. By the following lemma, this implies the kissing number in dimension 11 is at least 593.
 
-**Lemma 1.Let⊂ℝ be a set of points satisfying**
+**Lemma 1.** *Let* ⊂ℝ *be a set of points satisfying*
 
-min∥− ∥: ≠ {
+min ∥−{∥: ≠∈
 
-*Then unit spheres centred at:∈* ∥∥ *form a valid kissing configuration in dimension. In particular, the kissing number in dimension Proof.For any≠*∈ , the inequality∥− ∥≥max{∥∥,∥∥}implies 2⟨, ⟩ ≤ ∥∥+ ∥∥−max{∥∥ where the last inequality holds because the minimum of two positive numbers is less than or n equal to their geometric mean. The points at them are tangent to a unit sphere centred at the origin. The last step is to show that these spheres do not overlap. This is equivalent to showing, for all
+*Then unit spheres centred at: ∈* ∥∥ *form a valid kissing configuration in dimension. In particular, the kissing number in dimension Proof.For any*≠∈ , the inequality∥− 2⟨, ⟩ ≤ ∥∥+ ∥∥−max{∥∥ where the last inequality holds because the minimum of two positive numbers is less than or n equal to their geometric mean. The points at them are tangent to a unit sphere centred at the origin. The last step is to show that these spheres do not overlap. This is equivalent to showing, for all
 
 ∥∥
 
-After simplifying, this is equivalent to2⟨, n o unit spheres centred at: ∈ ∥∥ form a valid kissing configuration in dimension, as required.
+After simplifying, this is equivalent to2⟨, n o unit spheres centred at∥∥: ∈form a valid kissing configuration in dimension, as required.
 
 improving the best known bounds on
 
-0∉ *and* }≥max ∥∥: ∈ {}.
+0∉ *and* }≥max {∥∥: ∈}.
 
-*is at least||.*
-
-,∥∥}=min{∥∥,∥∥} ≤ ∥∥ · ∥∥,
+*is at least||.* ∥ ≥max{∥∥,∥∥}implies ,∥∥}=min{∥∥,∥∥} ≤ ∥∥ · ∥∥,
 
 ∥∥: ∈have norm 2, so unit spheres centred
 
@@ -2541,7 +2335,7 @@ For =26, the SOTA was2.634, and AlphaEvolve improved it to (left). For=32, the S
 
 ### B.13. Packing circles inside a rectangle of perimeter 4 to maximize sum of radii
 
-Given a positive integer, the problem is to pack perimeter 4 so as to maximize the sum of their radii. for=21, improving the state of the art from 2.364[29] to2.3658; see Figure 14 (right).
+Given a positive integer, the problem is to pack perimeter 4 so as to maximize the sum of their radii. for =21, improving the state of the art from2.364[29] to2.3658; see Figure 14 (right).
 
 disjoint circles inside a rectangle of *AlphaEvolvefound a new construction*
 

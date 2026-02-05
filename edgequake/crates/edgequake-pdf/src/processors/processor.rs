@@ -133,7 +133,7 @@ impl SectionPatternProcessor {
             )
             .expect("Section regex should be valid"),
             special_sections: vec![
-                "Abstract",
+                // OODA-12: "Abstract" removed - pymupdf4llm formats it as inline bold
                 "Introduction",
                 "Related Work",
                 "Background",
@@ -151,6 +151,20 @@ impl SectionPatternProcessor {
                 "References",
                 "Bibliography",
                 "Appendix",
+                // OODA-12: Additional special sections from academic papers
+                "Data availability statement",
+                "Data Availability Statement",
+                "Author Contributions",
+                "Author contributions",
+                "Competing interests",
+                "Competing Interests",
+                "Conflict of Interest",
+                "Conflicts of Interest",
+                "Funding",
+                "Ethics Statement",
+                "Supplementary Material",
+                "Supplementary Materials",
+                "Declarations",
             ],
             font_analyzer: super::FontAnalyzer::new(),
             heading_classifier: super::HeadingClassifier::new(),
@@ -244,6 +258,8 @@ impl Processor for SectionPatternProcessor {
 
                 // Strategy 2: Check for numbered section headers
                 // OODA-23: Skip figure/table captions that look like numbered sections
+                // OODA-12: Only top-level sections (1., 2., etc.) become headers
+                // WHY: pymupdf4llm gold standards show subsections (1.1, 3.1.1) as bold text
                 if let Some(captures) = self.section_regex.captures(&text) {
                     if let (Some(num), Some(title)) = (captures.get(1), captures.get(2)) {
                         let section_num = num.as_str();
@@ -254,10 +270,19 @@ impl Processor for SectionPatternProcessor {
                         let is_caption = section_num.to_lowercase().starts_with("fig.")
                             || section_num.to_lowercase().starts_with("table");
 
-                        if !is_caption && title_text.len() < 80 && !title_text.ends_with('.') {
-                            let level = self.calculate_level(section_num);
+                        // OODA-12: Only create headers for top-level sections (no dots in number)
+                        // "1. Introduction" → H2 header
+                        // "3.2. Methods" → NOT a header (bold text instead)
+                        let dots_count = section_num.matches('.').count();
+                        let is_top_level = dots_count == 1; // e.g., "1." has 1 dot
+
+                        if !is_caption
+                            && title_text.len() < 80
+                            && !title_text.ends_with('.')
+                            && is_top_level
+                        {
                             page.blocks[i].block_type = BlockType::SectionHeader;
-                            page.blocks[i].level = Some(level);
+                            page.blocks[i].level = Some(2); // Always H2 for major sections
                         }
                     }
                 }
@@ -483,7 +508,7 @@ impl StyleDetectionProcessor {
                         let words: Vec<&str> = after_prefix.split_whitespace().collect();
 
                         // Looks like names: 1-3 capitalized words, all short
-                        let looks_like_names = words.len() >= 1
+                        let looks_like_names = !words.is_empty()
                             && words.len() <= 4
                             && words.iter().all(|w| {
                                 let first_char = w.chars().next();
@@ -583,15 +608,11 @@ impl StyleDetectionProcessor {
             || looks_like_caps_section
             || (looks_like_title_case && is_short);
 
-        let is_abstract_or_keywords = text_lower == "abstract" || text_lower == "abstract.";
-        // OODA-25: Only match EXACT section names, not text that STARTS WITH them
-        // "Abstract. This paper..." should NOT match - it's prose with embedded sentence
-        // Only "Abstract" or "Abstract." (the exact words) should be section headers
+        // OODA-12: Removed Abstract/Keywords special handling
+        // WHY: pymupdf4llm formats "Abstract" as inline bold, not as a header
+        // let is_abstract_or_keywords = text_lower == "abstract" || text_lower == "abstract.";
 
-        if is_abstract_or_keywords && is_short {
-            block.block_type = BlockType::SectionHeader;
-            block.level = Some(3);
-        } else if ratio > 1.5 && is_short {
+        if ratio > 1.5 && is_short {
             // Large font ratio (>=1.5x) is always H1
             block.block_type = BlockType::SectionHeader;
             block.level = Some(1);
@@ -601,20 +622,21 @@ impl StyleDetectionProcessor {
             // Pandoc typically uses ~1.3x for H1 titles
             block.block_type = BlockType::SectionHeader;
             block.level = Some(1);
-        } else if ratio > 1.2 && is_short && looks_like_section {
+        } else if ratio > 1.4 && is_short && looks_like_section {
+            // OODA-12: Raised threshold from 1.2 to 1.4 to be more conservative
             block.block_type = BlockType::SectionHeader;
             block.level = Some(2);
-        } else if ratio > 1.1 && is_short && looks_like_section {
-            block.block_type = BlockType::SectionHeader;
-            block.level = Some(3);
-        } else {
+        }
+        // OODA-12: REMOVED H3 detection (ratio > 1.1)
+        // This was creating too many subsection headers
+        else {
             let is_bold = block
                 .spans
                 .first()
                 .map(|s| s.style.weight.unwrap_or(400) >= 600)
                 .unwrap_or(false);
 
-            let is_first_char_upper = text
+            let _is_first_char_upper = text
                 .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ' ')
                 .chars()
                 .next()
@@ -717,25 +739,17 @@ impl StyleDetectionProcessor {
                 return; // Don't classify inline labels as headers
             }
 
-            // WHY: Bold text with body-sized font is typically H3 or H4
-            // In LaTeX/pandoc, H3 is often rendered with same font size as body but bold
-            // H2 is typically rendered with slightly larger font (ratio > 1.1)
-            if is_bold
-                && is_short
-                && is_first_char_upper
-                && looks_like_section
-                && !looks_like_prose
-                && !is_abstract_or_keywords
-            {
-                block.block_type = BlockType::SectionHeader;
-                // If font is body-sized (ratio <= 1.1), it's H3; otherwise H2
-                // WHY: Distinguishes "bold + slightly larger" (H2) from "bold + body-sized" (H3)
-                if ratio <= 1.05 {
-                    block.level = Some(3);
-                } else {
-                    block.level = Some(2);
-                }
-            }
+            // OODA-12: DISABLED bold body-sized text as headers
+            // WHY: pymupdf4llm gold standards show subsections as bold text, NOT headers.
+            // Previously this created H3 headers for bold body-sized text like "1.1 Motivation"
+            // Now we don't create headers from just bold text - only from larger font sizes.
+            //
+            // BEFORE: Bold + body-sized + section-like → H3
+            // AFTER:  Bold + body-sized + section-like → plain bold text (not a header)
+            let _is_bold = is_bold;
+            let _looks_like_section = looks_like_section;
+            let _is_short = is_short;
+            // Removed: if is_bold && is_short && is_first_char_upper && looks_like_section...
         }
     }
 }
@@ -895,8 +909,11 @@ mod tests {
     #[test]
     fn test_section_pattern_special_sections() {
         let processor = SectionPatternProcessor::new();
-        assert!(processor.is_special_section("Abstract"));
+        // Note: Abstract is intentionally NOT a special section - it's inline bold text per pymupdf4llm gold format
+        assert!(!processor.is_special_section("Abstract"));
         assert!(processor.is_special_section("REFERENCES"));
+        assert!(processor.is_special_section("Introduction"));
+        assert!(processor.is_special_section("Conclusion"));
         assert!(!processor.is_special_section("Random Text"));
     }
 

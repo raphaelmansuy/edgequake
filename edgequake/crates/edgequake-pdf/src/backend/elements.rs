@@ -9,6 +9,8 @@
 /// - `bounds()` → `x0, y0, x1, y1` (PDF points)
 /// - `origin()` → character baseline origin
 /// - `font_size()` → size in points
+/// - `font_is_italic()` → is_italic flag (from font descriptor flags)
+/// - `font_weight()` → is_bold flag (Weight700Bold or higher)
 #[derive(Debug, Clone)]
 pub struct RawChar {
     /// The character itself
@@ -27,6 +29,14 @@ pub struct RawChar {
     pub font_name: Option<String>,
     /// Page number (0-indexed)
     pub page_num: usize,
+    /// Bold flag from font descriptor (Weight >= 700)
+    /// WHY: Font name matching is unreliable. PDFium provides accurate
+    /// font weight from the font descriptor via font_weight().
+    pub is_bold: bool,
+    /// Italic flag from font descriptor
+    /// WHY: Font name matching is unreliable. PDFium provides accurate
+    /// italic flag from the font descriptor via font_is_italic().
+    pub is_italic: bool,
 }
 
 impl RawChar {

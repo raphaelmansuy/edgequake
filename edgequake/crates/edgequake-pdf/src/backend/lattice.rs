@@ -433,12 +433,11 @@ impl LatticeEngine {
                 }
 
                 // OODA-09: Skip lines at extreme margins (decorations)
-                if min_x < margin_threshold || max_x > page_width - margin_threshold {
-                    if dy < 50.0 {
+                if (min_x < margin_threshold || max_x > page_width - margin_threshold)
+                    && dy < 50.0 {
                         // Only skip short margin lines, keep tall ones (could be table borders)
                         continue;
                     }
-                }
 
                 v_lines.push(line.clone());
             }

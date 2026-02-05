@@ -75,28 +75,25 @@ fn main() {
                             println!("  ToUnicode reference: {:?}", to_unicode);
 
                             // Resolve the stream
+                            // WHY: Collapsible match pattern for cleaner error handling
                             if let Object::Reference(ref_id) = to_unicode {
-                                if let Ok(stream) = doc.get_object(*ref_id) {
-                                    if let Object::Stream(s) = stream {
-                                        if let Ok(data) = s.decompressed_content() {
-                                            let text = String::from_utf8_lossy(&data);
-                                            println!("  ToUnicode CMap ({} bytes):", data.len());
-                                            println!("  --- CMap content (first 80 lines) ---");
-                                            for line in text.lines().take(80) {
-                                                println!("    {}", line);
-                                            }
-                                            println!("  --- End CMap ---");
-
-                                            // Count mappings
-                                            let bfchar_count =
-                                                text.matches("beginbfchar").count();
-                                            let bfrange_count =
-                                                text.matches("beginbfrange").count();
-                                            println!(
-                                                "  bfchar sections: {}, bfrange sections: {}",
-                                                bfchar_count, bfrange_count
-                                            );
+                                if let Ok(Object::Stream(s)) = doc.get_object(*ref_id) {
+                                    if let Ok(data) = s.decompressed_content() {
+                                        let text = String::from_utf8_lossy(&data);
+                                        println!("  ToUnicode CMap ({} bytes):", data.len());
+                                        println!("  --- CMap content (first 80 lines) ---");
+                                        for line in text.lines().take(80) {
+                                            println!("    {}", line);
                                         }
+                                        println!("  --- End CMap ---");
+
+                                        // Count mappings
+                                        let bfchar_count = text.matches("beginbfchar").count();
+                                        let bfrange_count = text.matches("beginbfrange").count();
+                                        println!(
+                                            "  bfchar sections: {}, bfrange sections: {}",
+                                            bfchar_count, bfrange_count
+                                        );
                                     }
                                 }
                             }

@@ -866,7 +866,7 @@ impl TextTableReconstructionProcessor {
             // This caused Figure 4 and Figure 7 to disappear from 01_2512 output.
             let is_figure_caption = t.starts_with("Figure ")
                 && t.len() > 7
-                && t.chars().nth(7).map_or(false, |c| c.is_ascii_digit());
+                && t.chars().nth(7).is_some_and(|c| c.is_ascii_digit());
 
             if t.is_empty()
                 || Self::is_hard_break(b)

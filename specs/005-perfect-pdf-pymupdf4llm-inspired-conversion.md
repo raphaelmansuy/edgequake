@@ -434,3 +434,451 @@ Ensure to clean old implementations and document all changes thoroughly when pdf
 | 09   | 2026-02-04 | Add "ital" pattern for Nimbus italic fonts          | Quality: 0.724→0.732 (+0.8%)       |
 | 09   | 2026-02-04 | Re-enable "medi" bold detection (was disabled)      | Format: 0.470→0.573 (+22%)         |
 | 09   | 2026-02-04 | v2_2512 Italic: 0% → 28.5%, Bold improved           | 2900_Goyal Format: +75%            |
+
+---
+
+## OODA Iterations 60-120: Comprehensive Quality Roadmap
+
+### Guiding Principles
+
+1. **Two Pipelines, One Goal**: PDFium (new, preferred) and lopdf (legacy, deprecated)
+2. **Font Style Accuracy**: PDFium flags > font name patterns
+3. **SRP**: Single Responsibility Principle - small, focused modules
+4. **DRY**: Don't Repeat Yourself - shared utilities between pipelines
+5. **Clean Code**: No clippy warnings, high-signal WHY comments, ASCII diagrams
+
+---
+
+### Phase A: Code Architecture Cleanup (OODA 60-70)
+
+#### OODA-60: Unify Font Style Detection
+
+\`\`\`text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     FONT STYLE DETECTION CONSOLIDATION                       │
+├
+---
+
+## OODA Iterations 60-120: Comprehensive Quality Roadmap
+
+### Guiding Principles
+
+1. **Two Pipelines, One Goal**: PDFium ???#─
+### Guiding Principles
+
+1. **Two Pipelines, One Goal**???1. **Two Pipelines, ???. **Font Style Accuracy**: PDFium flags > font name patterns
+3. **SRP**: Single Resp  3. **SRP**: Single Responsibility Principle - small, focused  4. **DRY**: Don't Repeat Yourself - shared utilities between pipeli?. **Clean Code**: No clippy warnings, high-signal WHY comments, ASCI??
+---
+
+### Phase A: Code Architecture Cleanup (OODA 60-70)
+
+#### OODA-60: Unify?  
+#│
+#### OODA-60: Unify Font Style Detection
+
+\`\`\`t   
+\`\`\`text
+┌──────── is┌──  │                     FONT STYLE DETECTION CONSOLIDATION                       │
+├
+---
+
+## OODA Iterations 60-120: Comprehensive Quality Roadmap
+
+### Guiding Principles
+
+1. **Two Pipelines, One Goal**: PDFium ???#─
+### Guiding ??├
+---
+
+## OODA Iterations 60-120: Comprehensive Quality Roadmap
+
+### Guiding Prin??--??#─
+### Guiding Principles
+
+1. **Two Pipelines, One Goal**?? 
+1. **Two Pipelines,    ### Guiding Principles
+
+1. **Two Pipelines, On  
+1. **Two Pipelines, nif3. **SRP**: Single Resp  3. **SRP**: Single Responsibility Principle - small, focused  4. **DRY**: Don't Repeat Yours??---
+
+### Phase A: Code Architecture Cleanup (OODA 60-70)
+
+#### OODA-60: Unify?  
+#│
+#### OODA-60: Unify Font Style Detection
+
+\`\`\`t   
+\`\`\`text
+┌──────── is┌──  │                     FONT STYLE ld
+#lag
+#### OODA-60: Unify?  
+#│
+#### OODA-60: Unify F   #│
+#### OODA-60: Un- ###it
+\`\`\`t   
+\`\`\`text
+┌────?  \`\`\`tex  ┌──  ├
+---
+
+## OODA Iterations 60-120: Comprehensive Quality Roadmap
+
+### Guiding Principles
+
+1. **Two Pipelines, One Goal**: Pum--nd
+#opd
+### Guiding Principles
+
+1. **Two Pipelines, One Goal**???1. **Two Pipelines, ???## Guiding ??├
+---
+
+## OODA Iterations 60-1??--
+
+## OODA Ite??#─
+### Guiding Prin??--??#─
+### Guiding Principles
+
+1.   ### Guiding Principles
+
+1.  
+1. **Two Pipelines,    1. **Two Pipelines,    ### Guidi  
+1. **Two Pipelines, On  
+1. **Two Pipelines─1. **Two Pipelines, nif??### Phase A: Code Architecture Cleanup (OODA 60-70)
+
+#### OODA-60: Unify?  
+#│
+#### OODA-60: Unify Font Style Detection
+
+\`\`\`t   
+\`\`\`tex???#### OODA-60: Unify?  
+#│
+#### OODA-60: Unify Fate#│
+#### OODA-60: Unth###if
+\`\`\`t   
+\`\`\`text
+┌────?DR\`\`\`texnc┌──te#lag
+#### OODA-60: Unify?  
+#│
+#### OODA-60: Unify F   #│
+#### OODA-60: U A###\`#│
+#### OODA-60: Unpd###od#### OODA-60: Un- ###it
+\`\**\`\`\`t   
+\`\`\`text
+ca\`\`\`texin┌──ra---
+
+## OODA Iterations 60-120: Comprehensio 
+#fiu
+### Guiding Principles
+
+1. **Two Pipelines, One Goal**
+\`
+1. **Two Pipelines, per#opd
+### Guiding Principles
+
+1. **Two ??##ch
+1. **Two Pipelines, 0 l---
+
+## OODA Iterations 60-1??--
+
+## OODA Ite??#─
+### Guiding Prin??-li
+#s) 
+## OODA Ite??#─
+### Gui├### Guiding Prin?oc### Guiding Principles
+
+1. g
+1.   ### Guiding Pri???1.  
+1. **Two Pipelines, ~151. in1. **Two Pipelines, On  
+1. **Two Pipelines─1. **Two P.r1. **Two Pipelines─1.- 
+#### OODA-60: Unify?  
+#│
+#### OODA-60: Unify Font Style Detection
+
+\`\`\`t   
+\`\`\`tex???##
+- #│
+#### OODA-60: Unin###na
+\`\`\`t   
+\`\`\`tex???#### OODA-60:  Sp\`\`\`texct#│
+#### OODA-60: Unify Fate#│
+tr###io#### OODA-60: Unth###if
+\`\? \`\`\`t   
+\`\`\`text
+co\`\`\`texno┌──on#### OODA-60: Unify?  
+#│
+#### OODA-60: Un
+?│
+#### OODA-60: Unn.###  #### OODA-60: U A###\`#│
+R #### OODA-60: Unpd###od## p\`\**\`\`\`t   
+\`\`\`text
+ca\`\`\`texin┌?g\`\`\`text
+ca\tica\`\`\`t?## OODA Iterations 60-120   #fiu
+### Guiding Principles
+
+1. **Two Pin###??
+1. **Two Pipelines,    \`
+1. **Two Pipelines, per#opbl1c ### Guiding Principles
+
+1.`
+
+1. **Two ??##ch
+1. ule1. **Two Pipeli c
+## OODA Iterations 60-1?er 
+## OODA Ite??#─
+### Guiend### Guiding Prin?dd#s) 
+## OODA Ite??# A## ri### Gui├### Gui: 
+1. g
+1.   ### Guiding Pri???1.  
+1. **Two Pipeli**F1. s*1. **Two Pipelines, ~151. is 1. **Two Pipelines─1. **Two P.r1. **Two Pipelinesfu#### OODA-60: Unify?  
+#│
+#### OODA-60: Unify Font Stylou#│
+#### OODA-60: Un: ###ou
+\`\`\`t   
+\`\`\`tex???##
+- #│
+####
+- \`\`\`tex**- #│
+#### OOit#### pl\`\`\`t   
+\`\`\`tex?? F\`\`\`texoa#### OODA-60: Unify Fate#│
+tr###io#### OODixtr###io#### OODA-60: Unth##co\`\? \`\`\`t   
+\`\`\`text
+co*F\`\`\`text
+co\usco\`\`\`tle#│
+#### OODA-60: Un
+?│
+#### OODA-60: Unnle###co?│
+#### OODAno####
+#R #### OODA-60: Unpd###od## p\`\**\`\`\`t   
+\`\
+-\`\`\`text
+ca\`\`\`texin┌?g\`\`\`text
+cs,ca\`\`\`t_fca\tica\`\`\`t?## OODA Iterse### Guiding Principles
+
+1. **Two Pin###??
+1. **T: 
+1. **Two Pin###??
+1.## 1. **Two Pipelint 1. **Two Pipelines, per#\`
+1.`
+
+1. **Two ??##ch
+1. ule1. **Two Pipeli c
+## OO???1─1. ule1. **Two ?# OODA Iterations 60-?# OODA Ite??#─
+### Gui??### Guiend### Gui??# OODA Ite??# A## ri### Gui├?. g
+1.   ### Guiding Pri???1.  
+1. **T?. ??. **Two Pipeli**F1. s*1. *  #│
+#### OODA-60: Unify Font Stylou#│
+#### OODA-60: Un: ###ou
+\`\`\`t   
+\`\`\`tex???##
+- #│
+####
+- \`\`\`tex**- #│
+##??###?### OODA-60: Un: ###ou
+\`\`\`t   ?`\`\`t   
+\`\`\`tex???`\`\`tex?? #│
+####
+- ?###
+??- \?### OOit#### pl\`??`\`\`tex?? F\`\`\`texoa#??r###io#### OODixtr###io#### OODA-60: Unth##co\`\?   \`\`\`text
+co*F\`\`\`text
+co\usco\`\`\`tle#│
+#### OODA-60:?o*F\`\`\fEco\usco\`\`\`h_#### OODA-60: Un
+?  ?│
+#### OODA  ####  #### OODAno####
+#R #### OODA??#R #### OODA-6  \`\
+-\`\`\`text
+ca\`\`\`texin┌?g\`\`\`te  -\  ca\`\`\`te  cs,ca\`\`\`t_fca\tica\`\`\`t? 
+1. **Two Pin###??
+1. **T: 
+1. **Two Pin###??
+1.## 1. **Two Pipeli─1. **T: 
+1. **Tw??1. **Tw??1.## 1. **Two Pi??1.`
+
+1. **Two ??##ch
+1. ule1. **Two Pipeli c
+##?1???. ule1. **Two   ## OO???1─1. ule1.  ?## Gui??### Guiend### Gui??# OODA Ite??# A## ri### Gui├?. g
+1.    1.   ### Guiding Pri???1.  
+1. **T?. ??. **Two Pipeli**F1. s*?. **T?. ??. **Two Pipel??### OODA-60: Unify Font Stylou#│
+#### OODA??#### OODA-60: Un: ###ou
+\`\`\`t    ?`\`\`t   
+\`\`\`tex??  \`\`\`tex  - #│
+####
+-   ####
+  - \  ##??###?### OODA  \`\`\`t   ?`\`\`t   
+\`\`\`te  \`\`\`tex???`\`\`te  ####
+- ?###
+??- \?### OOi  - ? ??- \? co*F\`\`\`text
+co\usco\`\`\`tle#│
+#### OODA-60:?o*F\`\`\fEco\usco\`\`\`h_#### OODA-60: Un
+?  ?│
+#### OODA  #??o\usco\`\`\`  #### OODA-60:?o*F  ?  ?│
+#### OODA  ####  #### OODAno####
+#R #### OODA? ?### OOD  #R #### OODA??#R #### OODA-6  \ ?\`\`\`text
+ca\`\`\`texin┌?g?a\`\`\`te?. **Two Pin###??
+1. **T: 
+1. **Two Pin###??
+1.## 1. **Two Pipeli─1. **T: ??1. **T: 
+1. **Tw??. **Tw??.## 1. **Two Pi??. **Tw??1. **Tw??1.## 1. **TwES
+1. **Two ??##ch
+1. ule1. **Two Pipel   1. ule1. **Two   ##?1???. ule1. **Tw  1.    1.   ### Guiding Pri???1.  
+1. **T?. ??. **Two Pipeli**F1. s*?. **T?. ??. **Two Pipel??### OODA-60:?. **T?. ??. **Two Pipeli**F1.??#### OODA??#### OODA-60: Un: ###ou
+\`\`\`t    ?`\`\`t   
+\`\`\`tex??  \`\`\`tex  - #│
+####
+-   ###f \`\`\`t    ?`\`\`t   
+\`\`\`tex?  \`\`\`tex??  \`\`\`te  ####
+-   ####
+  - \  ##??###??-  ac  - \  ??\`\`\`te  \`\`\`tex???`\`\`te  ####
+- ?###
+???- ?###
+??- \?### OOi  - ? ??- \LE??- \└?co\usco\`\`\`tle#│
+#### OODA-60:?o*F\`\`??#### OODA-60:?o*F???  ?│
+#### OODA  #??o\usco\`\`\`  #### OODA-60:?o?### OOD??#### OODA  ####  #### OODAno####
+#R #### OODA? ?### OOD    #R #### OODA? ?### OOD  #R ###  ca\`\`\`texin┌?g?a\`\`\`te?. **Two Pin###??
+1. **T: 
+1. **Tw  1. **T: 
+1. **Two Pin###??
+1.## 1. **Two Pipeli─??. **Tw??.## 1. **Two Pi??. **Tw??. **Tw??.## 1. **Two Pi??. *??. **Two ??##ch
+1. ule1. **Two Pipel   1. ule1. **Two   ##?1?????. ule1. **Two ??1. **T?. ??. **Two Pipeli**F1. s*?. **T?. ??. **Two Pipel??### OODA-60:?. **T?. ??.me\`\`\`t    ?`\`\`t   
+\`\`\`tex??  \`\`\`tex  - #│
+####
+-   ###f \`\`\`t    ?`\`\`t   
+\`\`\`tex?  \`\`\`tex??  \`\`\`te  ####
+-   ####
+  - \  ##?- \`\`\`tex??  \`\`\`tefo####
+-   ###f \`\`\`t    ?`\d -  se\`\`\`tex?  \`\`\`tex??  \`\`\ss-   ####
+  - \  ##??###??-  ac  - \  Co  - \  n
+- ?###
+???- ?###
+??- \?### OOi  - ? ??- \LE??- \└?co\usco\?????- └???- \?##??#### OODA-60:?o*F\`\`??#### OODA-60:?o*F???  ?│
+#?### OODA  #??o\usco\`\`\`  #### OODA-60:?o?### O??R #### OODA? ?### OOD    #R #### OODA? ?### OOD  #R ###  ca\`\`\`texin┌?g?a\`\`\ P1. **T: 
+1. **Tw  1. **T: 
+1. **Two Pin###??
+1.## 1. **Two Pipeli─??. **Tw??.## 1. **Two Pi??. **Tw??. *??. **Tw??. **Two Pin###???.## 1. **Two Pi??. ule1. **Two Pipel   1. ule1. **Two   ##?1?????. ule1. **Two ??1. **T?. ??. **Two Pipeli**F1. s*?.??`\`\`tex??  \`\`\`tex  - #│
+####
+-   ###f \`\`\`t    ?`\`\`t   
+\`\`\`tex?  \`\`\`tex??  \`\`\`te  ####
+-   ####
+  - \  ##?- \`\`\`tex??  \`\`\`tefo####
+-   ###f \`\`\`t    ?`\d -  se\  ####
+-   ###f \`\`\`t    ?`\??  ??\`\`\`tex?  \`\`\`tex??  \`\`\?   ####
+  - \  ##?- \`\`\`tex??  \`\`??  - \  ??-   ###f \`\`\`t    ?`\d -  se\`\`\`t?? - \  ##??###??-  ac  - \  Co  - \  n
+- ?###
+???- ?###
+??- \?# F- ?###
+???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #??o\usco\`\`\`  #### OODA-60:?o?### O??R #### OODA? ?### OOD    #R #### OODA? ?### OOD  #R ###  ca\`  1. **Tw  1. **T: 
+1. **Two Pin###??
+1.## 1. **Two Pipeli─??. **Tw??.## 1. **Two Pi??. **Tw??. *??. **Tw??. **Two Pin###???.## 1. **Two Pi??. ule1. ??1. **Two Pin###?  1.## 1. **Two Pihe####
+-   ###f \`\`\`t    ?`\`\`t   
+\`\`\`tex?  \`\`\`tex??  \`\`\`te  ####
+-   ####
+  - \  ##?- \`\`\`tex??  \`\`\`tefo####
+-   ###f \`\`\`t    ?`\d -  se\  ####
+-   ###f \`\`\`t    ?`\??  ??\`\`\`tex?  \`\`\`tex??  \`\`\?   ####
+  - \  ##?- \`\?  ??`\`\`tex?  \`\`\`tex??  \`\`\??-   ####
+  - \  ##?- \`\`\`tex??  \`\`?? - \  ??   ###f \`\`\`t    ?`\d -  se\  ####?   ###f \`\`\`t    ?`\??  ??\`\`\`? - \  ##?- \`\`\`tex??  \`\`??  - \  ??-   ###f \`\`\`t    ?`\d -  s b- ?###
+???- ?###
+??- \?# F- ?###
+???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #??o\usco\ts???- ?1??- \?#  O???- ?###
+??- \?d??- \?##et1. **Two Pin###??
+1.## 1. **Two Pipeli─??. **Tw??.## 1. **Two Pi??. **Tw??. *??. **Tw??. **Two Pin###???.## 1. **Two Pi??. ule1. ??1. **Two Pin###?  1.## 1. **Two Pihe#### 11.## 1. **Two Pi):-   ###f \`\`\`t    ?`\`\`t   
+\`\`\`tex?  \`\`\`tex??  \`\`\`te  ####
+-   ####
+  - \  ##?- \`\`\`tex??  \`\`\`tefo####
+-   ###f \`\`\`t    ?`\d -  se\  ####
+- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \  ##?- \`\`\`tex??  \`\`de  - \  rc-   ###f \`\`\`t    ?`\d -  se\  ####St-   ###f \`\`\`t    ?`\??  ??\`\`\`72  - \  ##?- \`\?  ??`\`\`tex?  \`\`\`tex??  \`\`\??-   ####
+  - \  In  - \  ##?- \`\`\`tex??  \`\`?? - \  ??   ###f \`\`\`t    ? ???- ?###
+??- \?# F- ?###
+???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #??o\usco\ts???- ?1??- \?#  O???- ?###
+??- \?d??- \?##et1. **Two Pin###??
+1.## 1. **Two Pior??- \?# en???- ?###
+??- \?b??- \?##re??- \?d??- \?##et1. **Two Pin###??
+1.## 1. **Two Pipeli─??. **Tw??.## 1. **Two Pi??. **Tw?m 1.## 1. **Two Pipeli─??. **Tw??.tu\`\`\`tex?  \`\`\`tex??  \`\`\`te  ####
+-   ####
+  - \  ##?- \`\`\`tex??  \`\`\`tefo####
+-   ###f \`\`\`t    ?`\d -  se\  ####
+- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \  ##?- \`\`\`tex??  \`\`de  - \  rcir-   ####
+  - \  ##?- \`\`\`tex??  \`\`ns  - \    -   ###f \`\`\`t    ?`\d -  se\  ####ub- at\`\`\`tex?  \`\`\`tex??  \`\`\o -o)  - \  ##?- \`\`\`tex??  \`\`de  - \  rc-  ct  - \  In  - \  ##?- \`\`\`tex??  \`\`?? - \  ??   ###f \`\`\`t    ? ???- ?###
+??- \?# F- ?###
+???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #??o\uscodj??- \?# F- ?###
+???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OO-7???- ?###
+??- \?e??- \?##sk??- \?d??- \?##et1. **Two Pin###??
+1.## 1. **Two Pior??- \?# en???- ?###
+??- \?b??- \?##CT1.## 1. **Two Pior??- \?# en???- ?s??- \?b??- \?##re??- \?d??- \?##etnt1.## 1. **Two Pipeli─??. **Tw??.## 1. **Two Pi??. *##-   ####
+  - \  ##?- \`\`\`tex??  \`\`\`tefo####
+-   ###f \`\`\`t    ?`\d -  se\  ####
+- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \  
+ -   ###f \`\`\`t    ?`\d -  se\  #### -- at\`\`\`tex?  \`\`\`tex??  \`\`\o -? - \  ##?- \`\`\`tex??  \`\`de  - \  rcir-20  - \  ##?- \`\`\`tex??  \`\`ns  - \    -   ###f  *??- \?# F- ?###
+???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #??o\uscodj??- \?# F- ?###
+???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OO-7???- ?###
+??- \?e??- \?##sk??- \?d??- \?##et1. **Two Pinyp???- ?###
+??- \?i??- \?##`\???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OO-7???- ?###
+??- \?e O??- \?##ot??- \?e??- \?##sk??- \?d??- \?##et1. **Two Pin###??
+1.##- 1.## 1. **Two Pior??- \?# en???- ?###
+??- \?b??- \?I??- \?b??- \?##CT1.## 1. **Two Pior??##  - \  ##?- \`\`\`tex??  \`\`\`tefo####
+-   ###f \`\`\`t    ?`\d -  se\  ####
+- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \  
+ -   ###f \`\`\`t    ?`\dru-   ###f \`\`\`t    ?`\d -  se\  #### A- at\`\`\`tex?  \`\`\`tex??  \`\`\o -m*  - \CB  - \  
+ -   ###f \`\`\`t    ?`\d - * -   ###f \`\De???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #??o\uscodj??- \?# F- ?###
+???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OO-7???- ?###
+??- \?e??- \?##sket??- \?##ac???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OO-7???- ?###
+??- \?eOD??- \?##i-??- \?e??- \?##sk??- \?d??- \?##et1. **Two Pinyp???- ??─- \?i??- \?##`\???- ?###
+??- \?### OOi  0 ???- ?o??-  1??- \?### OOi  0 ???- ?o??ad??- \?e O??- \?##ot??- \?e??- \?##sk??- \?d??- \?##et? 1.##- 1.## 1. **Two Pior??- \?# en???- ?###
+??- \?b??- \?I??- \?b??- \─??- \?b??- \?I??- \?b??- \?##CT1.## 1. **??-   ###f \`\`\`t    ?`\d -  se\  ####
+- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?  \`\`\`tex??  \`\`\o -e   - \CB  - \  
+ -   ###f \`\`\`t    ?`\dru:  -   ###f \`\in -   ###f \`\`\`t    ?`\d - * -   ###f \`\De???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #??o\usc# ??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #: ???- ?###
+??- \?### OOi  0 ???- ?o??- \?##or#?### OO-7???- ?###
+??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?###
+??- \?### OOi es??- \?### OOi  0 ???- ?o??- \?##or#? }??- \?eOD??- \?##i-??- \?e??- \?##sk??- \?d??- \?##etal??- \?### OOi  0 ???- ?o??-  1??- \?### OOi  0 ???- ?o??ad??- \?e O??- \?##ot??- \?e??- \?##sk??- \?des??- \?b??- \?I??- \?b??- \─??- \?b??- \?I??- \?b??- \?##CT1.## 1. **??-   ###f \`\`\`t    ?`\d -  se\  ####
+- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?  \`\`\`tex??  \`\`\o -e   - \CB  - \  
+ -  f   - \CB  - \OU- at\`\`\`tex?  \`\`\`tex??  ui -   ###f \`\`\`t    ?`\dru:  -   ###f \`\in -   ###f \`\`\`t    ha??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #??o\usc# ??- \?### OOi  0 ???- ?o??- \?a??- \?### OOi  0 ???- ?o??- \?##or#?### OO-7???- ?###
+??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?###
+-9??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?r??- \?### OOi es??- \?### OOi  0 ???- ?o??- \?##or#? }??%
+- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?  \`\`\`tex??  \`\`\o -e   - \CB  - \  
+ -  f   - \CB  - \OU- at\`\`\`tex?  \`\`\`tex??  ui -   ###f \`\`\`t    ?`\dru:  -   ###f \`\in -   ###f \`\`\`t    ha??- \?### OOi  0 ???- ?o??- \?##or#?### OODA  #??o\usc# ??- \?9  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  :   - \CB  - \OU- at\`\`\`tex?  \`\`\`tex??  \`\`\o -e   - dl -  f   - \CB  - \OU- at\`\`\`tex?  \`\`\`tex??  ui -   ###f \`\`\DA??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?###
+-9??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?r??- \?### OOi es??- \?### OOi  0 ???- ?o??- \?##or#? }??%
+- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tr-9??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?r**- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  ge  - \CB  - \OU- at\`\`\`tex?  \`\`\`tex??  \`\`\o -e   -  R -  f   - \CB  - \OU- at\`\`\`tex?  \`\`\`tex??  ui -   ###f \`\`\cu-9??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?r??- \?### OOi es??- \?### OOi  0 ???- ?o??- \?##or#? }??%
+- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tr-9??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?r**- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tr-9??- \?e_7??- \?## }??- \?e??- \?##sket??-pa  - \CB  - \ad- at\`\`\`tex?  \`\`\`tr-9??-:   - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  ge  - \CB  - \OU- O  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ad- at\`\`\`texpl- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tr-9??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?r**- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o S  - \CB  - \ad- at\`\`\`tex?  \`\`\`tr-9??-n*  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+ de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tex?  \`\`\`tr-9??- \?e_7??- \?## }??- \?e??- \?##sket??-a   - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  ge  - \CB  - \OU- O  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ad- at\`\`\`texpl- at\`\`\`tex?  \`\`\`tex??  \`\`\o -    D  - \CB  - \ad- at\`\`\`tex?  \`\`\`tr-9??- \?e_7??- \?## }??- \?e??- \?##sket??- \?##ac???- ?r**- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  *P  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o S  - \CB  bl  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texng  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+ de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tex?  \`er de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tCh  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  *P  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o S  - \CB  bl  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texng  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+ de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tex?  \`er de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`ge  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o S  - \CB  bl  - \CB  -in de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tex?  \`er de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tCh  - \CB  - \ad- at\`\`\`tex?  \`\`\`tex??  *P  - \CB ld  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o S  - \CB  bl  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texng  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o -   ####
+ de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \tien de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tex?  \`er de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`ge  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o S  - \Cut de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \tien de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tex?  \`er de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`ge  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o S  - \Cut de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \tien de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tex?  \`er de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`ge  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`tex?  \`\`\`tex??  \`\`\o S  - \Cut de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \tien de  - \CB  - \OU- at\`\`\`tex?rr  - \CB  - \ti- at\`\`\`texim  - \CB  - \ad- at\`\`\`tex?  \`er de  - \CBding/list/code detection          |
+| Format Score        | >= 0.85   | Bold/italic/bullet preservation      |
+| Clippy Warnings     | 0         | cargo clippy --all-features          |
+| Test Coverage       | >= 80%    | cargo tarpaulin                      |
+| Documentation       | Complete  | All public APIs documented           |
+| lopdf Deprecation   | Complete  | Clear migration path documented      |
