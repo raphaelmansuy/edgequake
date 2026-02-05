@@ -913,7 +913,7 @@ impl Renderer for MarkdownRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::BoundingBox;
+    use crate::schema::{BoundingBox, FontStyle};
 
     fn create_test_document() -> Document {
         let mut doc = Document::new();
@@ -1238,11 +1238,7 @@ mod tests {
             result
         );
         assert!(result.contains("| --- |"), "Missing separator: {}", result);
-        assert!(
-            result.contains("| Alice |"),
-            "Missing data row: {}",
-            result
-        );
+        assert!(result.contains("| Alice |"), "Missing data row: {}", result);
     }
 
     /// OODA-IT04: Test table rendering with empty cells.
@@ -1325,5 +1321,108 @@ mod tests {
             result
         );
         assert!(result.contains("| --- |"), "Missing separator: {}", result);
+    }
+
+    /// OODA-IT06: Test that styled spans render with correct markdown markers.
+    ///
+    /// WHY: IT05 added span style preservation in pdfium_backend. This test
+    /// verifies the full pipeline: styled spans → markdown output.
+    #[test]
+    fn test_render_styled_spans_bold_and_italic() {
+        let renderer = MarkdownRenderer::new();
+
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        // Create a paragraph block with styled spans
+        let mut block = Block::new(
+            BlockType::Paragraph,
+            BoundingBox::new(72.0, 100.0, 540.0, 120.0),
+        );
+
+        // Build styled spans: "This is **bold** and *italic* text"
+        let span1 = TextSpan::plain("This is ");
+        let mut span2 = TextSpan::styled(
+            "bold",
+            FontStyle {
+                weight: Some(700),
+                ..Default::default()
+            },
+        );
+        span2.bbox = Some(BoundingBox::new(100.0, 100.0, 130.0, 115.0));
+
+        let span3 = TextSpan::plain(" and ");
+        let mut span4 = TextSpan::styled(
+            "italic",
+            FontStyle {
+                italic: true,
+                ..Default::default()
+            },
+        );
+        span4.bbox = Some(BoundingBox::new(150.0, 100.0, 190.0, 115.0));
+
+        let span5 = TextSpan::plain(" text");
+
+        block.spans = vec![span1, span2, span3, span4, span5];
+        block.text = "This is bold and italic text".to_string();
+
+        page.add_block(block);
+        doc.add_page(page);
+
+        let result = renderer.render(&doc).unwrap();
+
+        // Verify bold markdown markers
+        assert!(
+            result.contains("**bold**"),
+            "Expected **bold** in output, got: {}",
+            result
+        );
+
+        // Verify italic markdown markers
+        assert!(
+            result.contains("*italic*"),
+            "Expected *italic* in output, got: {}",
+            result
+        );
+    }
+
+    /// OODA-IT06: Test bold+italic combined styling.
+    #[test]
+    fn test_render_bold_italic_combined() {
+        let renderer = MarkdownRenderer::new();
+
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        let mut block = Block::new(
+            BlockType::Paragraph,
+            BoundingBox::new(72.0, 100.0, 540.0, 120.0),
+        );
+
+        // Create bold+italic span
+        let mut bold_italic_span = TextSpan::styled(
+            "important",
+            FontStyle {
+                weight: Some(700),
+                italic: true,
+                ..Default::default()
+            },
+        );
+        bold_italic_span.bbox = Some(BoundingBox::new(72.0, 100.0, 150.0, 115.0));
+
+        block.spans = vec![bold_italic_span];
+        block.text = "important".to_string();
+
+        page.add_block(block);
+        doc.add_page(page);
+
+        let result = renderer.render(&doc).unwrap();
+
+        // Verify combined bold+italic markers: ***text***
+        assert!(
+            result.contains("***important***"),
+            "Expected ***important*** in output, got: {}",
+            result
+        );
     }
 }
