@@ -1,3 +1,58 @@
+//! PDF extraction backends.
+//!
+//! This module provides different PDF extraction backends implementing the [`PdfBackend`] trait.
+//!
+//! ## Backend Selection (OODA-43)
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                        Backend Comparison                                    │
+//! ├─────────────────────────────────────────────────────────────────────────────┤
+//! │                                                                             │
+//! │  ✅ RECOMMENDED: PdfiumBackend (feature = "pdfium")                         │
+//! │     - Uses Chromium's PDFium engine                                         │
+//! │     - Font descriptor flags for accurate bold/italic                        │
+//! │     - Better character positioning                                          │
+//! │     - Active maintenance (Google-backed)                                    │
+//! │                                                                             │
+//! │  ⚠️  DEPRECATED: ExtractionEngine (feature = "lopdf")                       │
+//! │     - Pure Rust implementation                                              │
+//! │     - Font name pattern matching (unreliable)                               │
+//! │     - Will be removed in v0.3.0                                             │
+//! │                                                                             │
+//! │  🧪 TESTING: MockBackend                                                    │
+//! │     - Returns empty documents                                               │
+//! │     - For unit tests only                                                   │
+//! │                                                                             │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## Usage
+//!
+//! ```rust,ignore
+//! use edgequake_pdf::backend::{PdfBackend, PdfiumBackend};
+//!
+//! // Create the recommended backend
+//! let backend = PdfiumBackend::new()?;
+//!
+//! // Extract document
+//! let document = backend.extract(&pdf_bytes).await?;
+//! ```
+//!
+//! ## Migration from ExtractionEngine
+//!
+//! If you're using `ExtractionEngine` directly, migrate to `PdfiumBackend`:
+//!
+//! ```rust,ignore
+//! // Before (deprecated)
+//! let backend = ExtractionEngine::new();
+//!
+//! // After (recommended)
+//! let backend = PdfiumBackend::new()?;
+//! ```
+//!
+//! Both implement `PdfBackend`, so the rest of your code remains unchanged.
+
 use crate::extractor::PdfInfo;
 use crate::progress::ProgressCallback;
 use crate::schema::Document;
@@ -95,12 +150,17 @@ pub mod truetype_cmap;
 
 #[cfg(feature = "pdfium")]
 pub mod pdfium;
+#[cfg(feature = "pdfium")]
+pub mod pdfium_backend;
 
 pub use elements::RawChar;
 #[cfg(feature = "lopdf")]
+#[allow(deprecated)] // WHY: Re-exporting deprecated type for backwards compatibility
 pub use extraction_engine::ExtractionEngine;
 pub use mock::MockBackend;
 pub use spatial::{LineRect, LineSpatialIndex};
 
 #[cfg(feature = "pdfium")]
 pub use pdfium::PdfiumExtractor;
+#[cfg(feature = "pdfium")]
+pub use pdfium_backend::PdfiumBackend;

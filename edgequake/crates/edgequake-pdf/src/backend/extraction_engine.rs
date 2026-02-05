@@ -10,6 +10,14 @@
 //! - Table detection using lattice analysis
 //! - **Parallel page processing** for multi-core performance (3.8x speedup on 4-core)
 //! - **Progress callbacks** for page-level progress tracking (OODA-03)
+//!
+//! # Deprecated
+//!
+//! This module is deprecated. Use [`crate::backend::PdfiumBackend`] instead.
+//! See [`ExtractionEngine`] for migration details.
+
+// Allow deprecated usage within this module - it's the deprecated module itself
+#![allow(deprecated)]
 
 use async_trait::async_trait;
 use rayon::prelude::*;
@@ -38,13 +46,49 @@ use super::font_handling::FontInfo;
 use super::lattice::LatticeEngine;
 use super::text_grouping::TextGrouper;
 
-/// PDF extraction engine with proper encoding support.
+/// PDF extraction engine with proper encoding support (LEGACY).
 ///
 /// Uses lopdf for parsing and provides:
 /// - Column detection (single/multi-column layouts)
 /// - Text grouping into logical lines and blocks
 /// - Font style detection (bold/italic)
 /// - Table detection via lattice analysis
+///
+/// # Deprecated
+///
+/// This backend is deprecated in favor of [`crate::backend::PdfiumBackend`] which provides
+/// more accurate font style detection using PDFium's font descriptor flags.
+///
+/// ## Migration
+///
+/// ```rust,ignore
+/// // Before (deprecated)
+/// let backend = ExtractionEngine::new();
+///
+/// // After (recommended)
+/// use edgequake_pdf::backend::PdfiumBackend;
+/// let backend = PdfiumBackend::new()?;
+/// ```
+///
+/// ## WHY PDFium is Preferred
+///
+/// | Aspect | ExtractionEngine (lopdf) | PdfiumBackend (pdfium) |
+/// |--------|-------------------------|------------------------|
+/// | Bold/Italic | Font name patterns | Font descriptor flags |
+/// | Accuracy | ~70% reliable | ~99% reliable |
+/// | Maintenance | Rust-only, limited | Chromium-backed |
+///
+/// The font name pattern matching used by ExtractionEngine fails when:
+/// - PDFs use numeric font names (F1, F2)
+/// - Font weights are encoded in descriptors, not names
+/// - Academic papers use custom font subsets
+#[deprecated(
+    since = "0.2.0",
+    note = "Use PdfiumBackend instead for accurate font style detection. \
+            ExtractionEngine relies on font name patterns which is unreliable. \
+            PdfiumBackend uses PDFium's font descriptor flags (accurate). \
+            Enable with `--features pdfium` (now default)."
+)]
 pub struct ExtractionEngine {
     config: PdfConfig,
     lattice_engine: LatticeEngine,

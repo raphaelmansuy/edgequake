@@ -589,8 +589,7 @@ impl TextGrouper {
         // Get the sorted indices
         let sorted_indices: Vec<usize> = keyed_blocks
             .iter()
-            .enumerate()
-            .map(|(_, (b, _))| blocks.iter().position(|x| std::ptr::eq(x, *b)).unwrap())
+            .map(|(b, _)| blocks.iter().position(|x| std::ptr::eq(x, *b)).unwrap())
             .collect();
 
         // Reorder blocks in-place using the sorted order

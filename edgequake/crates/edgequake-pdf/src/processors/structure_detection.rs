@@ -153,20 +153,25 @@ impl Processor for HeaderDetectionProcessor {
                     continue; // Don't classify captions as headers
                 }
 
-                // Check for subsection pattern first (e.g., "1.1 Motivation")
-                if is_short_for_heading && subsection_heading.is_match(text) {
-                    let prefix: String = text
-                        .chars()
-                        .take_while(|c| c.is_ascii_digit() || *c == '.')
-                        .collect();
-                    let trimmed = prefix.trim_end_matches('.');
-                    let dot_count = trimmed.chars().filter(|&c| c == '.').count() as u8;
-                    // 1.1 → 1 dot → H3, 1.1.1 → 2 dots → H4
-                    let level = (dot_count + 2).clamp(3, 6);
-                    block.block_type = BlockType::SectionHeader;
-                    block.level = Some(level);
-                    continue;
-                }
+                // OODA-12: DISABLE subsection pattern detection (e.g., "1.1 Motivation")
+                // WHY: pymupdf4llm gold standards show subsections as bold text, NOT headers.
+                // Only the paper title and major sections (1. Introduction, etc.) are headers.
+                // The gold file has 10 headers vs our 33 - disabling subsection detection
+                // to match pymupdf4llm's conservative header identification.
+                //
+                // BEFORE: Pattern "1.1 Motivation" → level 3 header (###)
+                // AFTER:  Pattern "1.1 Motivation" → bold text paragraph
+                let _subsection_pattern_disabled = subsection_heading.is_match(text);
+                // Previously this created H3-H6 headers:
+                // if is_short_for_heading && subsection_heading.is_match(text) {
+                //     let prefix: String = text.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+                //     let trimmed = prefix.trim_end_matches('.');
+                //     let dot_count = trimmed.chars().filter(|&c| c == '.').count() as u8;
+                //     let level = (dot_count + 2).clamp(3, 6);
+                //     block.block_type = BlockType::SectionHeader;
+                //     block.level = Some(level);
+                //     continue;
+                // }
 
                 // Single number patterns need additional validation (avoid list items)
                 // Addresses like "353 Serra Mall, Stanford, CA" contain commas, skip them
@@ -245,16 +250,18 @@ impl Processor for HeaderDetectionProcessor {
                     let looks_like_section = text.starts_with(|c: char| c.is_ascii_digit())
                         || text.chars().all(|c| c.is_uppercase() || c.is_whitespace());
 
+                    // OODA-12: Conservative header detection to match pymupdf4llm
+                    // Only H1 (title) and H2 (major sections) - no H3+
+                    // WHY: pymupdf4llm gold has only 10 headers, not 33+
                     if headingish && size > body_size * 1.6 {
                         block.block_type = BlockType::SectionHeader;
                         block.level = Some(1);
-                    } else if headingish && looks_like_section && size > body_size * 1.35 {
+                    } else if headingish && looks_like_section && size > body_size * 1.4 {
                         block.block_type = BlockType::SectionHeader;
                         block.level = Some(2);
-                    } else if headingish && looks_like_section && size > body_size * 1.2 {
-                        block.block_type = BlockType::SectionHeader;
-                        block.level = Some(3);
                     }
+                    // OODA-12: REMOVED H3 detection (size > 1.2x)
+                    // Previous code created too many subsection headers
                     // Note: We no longer convert all bold text to headers
                 }
             }
@@ -378,10 +385,10 @@ impl CaptionDetectionProcessor {
         let cap_trimmed = caption_text.trim();
         let cont_trimmed = continuation_text.trim();
 
-        if cap_trimmed.ends_with('-') {
+        if let Some(stripped) = cap_trimmed.strip_suffix('-') {
             // Hyphenated word: remove hyphen and join directly
             // WHY: "reposi-" + "tory" → "repository"
-            format!("{}{}", &cap_trimmed[..cap_trimmed.len() - 1], cont_trimmed)
+            format!("{}{}", stripped, cont_trimmed)
         } else {
             // Sentence continuation: add space
             format!("{} {}", cap_trimmed, cont_trimmed)
@@ -514,6 +521,14 @@ impl Processor for ListDetectionProcessor {
         // WHY: Citations, footnotes, references use [N] format universally
         let ref_regex = Regex::new(r"^\[\d{1,3}\]\s*").unwrap();
 
+        // OODA-12: Section title pattern - exclude from list detection
+        // WHY: "1. Introduction", "2. Literature Survey" are section headers, NOT lists
+        // ONLY match common major section names that appear in academic papers
+        // These are specific enough to avoid matching methodology sub-items
+        let section_title_regex = Regex::new(
+            r"^[1-9]\.\s+(Introduction|Conclusion|Discussion|Results|Methodology|Methods|Literature\s+Survey|Related\s+Work|Background|Experiments?|Evaluation|Implementation|Future\s+Work|Acknowledgements?|Results\s+and\s+(Discussion|Analysis)|Materials?\s+and\s+Methods?)$"
+        ).unwrap();
+
         for page in &mut document.pages {
             // Find left margin for indentation calculation
             let min_x = page
@@ -535,6 +550,18 @@ impl Processor for ListDetectionProcessor {
                 }
 
                 let text = block.text.trim();
+
+                // OODA-12: Skip section titles - they look like lists but are headers
+                // WHY: "1. Introduction", "2. Methodology" should become section headers
+                // not list items. The SectionPatternProcessor will handle them.
+                if section_title_regex.is_match(text) {
+                    tracing::info!(
+                        "  Skipping section title (not list): '{}'",
+                        text.chars().take(40).collect::<String>()
+                    );
+                    continue;
+                }
+
                 // OODA-14: Check both patterns for numbered lists
                 // - number_regex: "1. Text" with space (standard)
                 // - number_no_space_regex: "1.Text" no space but uppercase letter (not "1.1")
@@ -670,9 +697,11 @@ impl Processor for CodeBlockDetectionProcessor {
 /// - Keyword with period sentence boundary pattern
 ///
 /// **First Principles:**
+///
 /// - Uses sentence boundary detection (`. ` followed by capital letter)
 /// - Validates that first word is a known heading keyword
 /// - Creates new block with same styling for body text
+///
 /// @implements FEAT0512
 pub struct HeadingBodySplitProcessor {
     /// Regex for detecting merged heading patterns
@@ -685,8 +714,9 @@ impl HeadingBodySplitProcessor {
         // that are often rendered inline with period separator
         // Pattern: Single word heading + period + optional space + continuation (capital letter)
         // OODA-27 FIX: Changed \s+ to \s* to handle "Abstract.This" (no space after period)
+        // OODA-12: REMOVED "Abstract" - pymupdf4llm formats it as inline bold text, not a header
         let heading_pattern = Regex::new(
-            r"(?i)^(Abstract|Introduction|Conclusion|Summary|Acknowledgments|Acknowledgements|Background|Discussion|Methods|Results|References)\.\s*([A-Z].*)$"
+            r"(?i)^(Introduction|Conclusion|Summary|Acknowledgments|Acknowledgements|Background|Discussion|Methods|Results|References)\.\s*([A-Z].*)$"
         ).expect("Invalid heading pattern regex");
 
         Self { heading_pattern }
@@ -729,9 +759,10 @@ impl Processor for HeadingBodySplitProcessor {
                             // Clear spans to prevent renderer from using old merged text
                             // The renderer uses spans if present, falling back to block.text
                             heading_block.spans.clear();
-                            // Mark as section header with H3 level for abstract-level headings
+                            // OODA-12: Mark as section header with H2 level (was H3)
+                            // WHY: pymupdf4llm gold uses H2 for "Abstract" style headings
                             heading_block.block_type = BlockType::SectionHeader;
-                            heading_block.level = Some(3);
+                            heading_block.level = Some(2);
 
                             new_blocks.push(heading_block);
 

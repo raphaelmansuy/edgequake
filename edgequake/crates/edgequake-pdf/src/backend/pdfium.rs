@@ -152,6 +152,9 @@ impl PdfiumExtractor {
         let mut last_x1: f32 = 0.0;
         let mut last_y0: f32 = 0.0;
         let mut last_y1: f32 = 0.0;
+        // Track last style flags for whitespace inheritance
+        let mut last_is_bold: bool = false;
+        let mut last_is_italic: bool = false;
 
         for char_obj in text.chars().iter() {
             // Get the character - unicode_char() returns Option<char>
@@ -165,42 +168,63 @@ impl PdfiumExtractor {
                 continue;
             }
 
+            // Extract font style flags from pdfium-render
+            // WHY: Font name matching ("bold", "italic" in name) is unreliable.
+            // PyMuPDF uses numeric flags from font descriptors, and pdfium-render
+            // provides the same information via font_is_italic() and font_weight().
+            let is_italic = char_obj.font_is_italic();
+            let is_bold = char_obj.font_weight().is_some_and(|w| {
+                matches!(
+                    w,
+                    PdfFontWeight::Weight700Bold
+                        | PdfFontWeight::Weight800
+                        | PdfFontWeight::Weight900
+                ) || matches!(w, PdfFontWeight::Custom(n) if n >= 700)
+            });
+
             // Get bounds - tight_bounds() returns Result<PdfRect, PdfiumError>
             // WHY: Spaces often don't have tight bounds in PDFium, but they mark word boundaries.
             // For spaces, we synthesize a position based on the last character.
-            let (x0, y0, x1, y1, font_size, font_name) = if c.is_whitespace() {
-                // Space/newline character - synthesize bounds from last character
-                // WHY: Spaces must inherit Y coordinates from previous char to maintain line grouping
-                let fs = char_obj.scaled_font_size().value;
-                // Position the space right after the last character, with same Y
-                (
-                    last_x1,
-                    last_y0,
-                    last_x1 + fs * 0.25,
-                    last_y1,
-                    fs,
-                    Some(char_obj.font_name()),
-                )
-            } else {
-                // Normal character - get actual bounds
-                let bounds = match char_obj.tight_bounds() {
-                    Ok(rect) => rect,
-                    Err(_) => continue, // Skip chars without bounds
+            let (x0, y0, x1, y1, font_size, font_name, final_is_bold, final_is_italic) =
+                if c.is_whitespace() {
+                    // Space/newline character - synthesize bounds from last character
+                    // WHY: Spaces must inherit Y coordinates and style from previous char
+                    let fs = char_obj.scaled_font_size().value;
+                    // Position the space right after the last character, with same Y
+                    (
+                        last_x1,
+                        last_y0,
+                        last_x1 + fs * 0.25,
+                        last_y1,
+                        fs,
+                        Some(char_obj.font_name()),
+                        last_is_bold,
+                        last_is_italic,
+                    )
+                } else {
+                    // Normal character - get actual bounds
+                    let bounds = match char_obj.tight_bounds() {
+                        Ok(rect) => rect,
+                        Err(_) => continue, // Skip chars without bounds
+                    };
+                    let fs = char_obj.scaled_font_size().value;
+                    // Update tracking variables
+                    last_x1 = bounds.right().value;
+                    last_y0 = bounds.bottom().value;
+                    last_y1 = bounds.top().value;
+                    last_is_bold = is_bold;
+                    last_is_italic = is_italic;
+                    (
+                        bounds.left().value,
+                        bounds.bottom().value,
+                        bounds.right().value,
+                        bounds.top().value,
+                        fs,
+                        Some(char_obj.font_name()),
+                        is_bold,
+                        is_italic,
+                    )
                 };
-                let fs = char_obj.scaled_font_size().value;
-                // Update tracking variables
-                last_x1 = bounds.right().value;
-                last_y0 = bounds.bottom().value;
-                last_y1 = bounds.top().value;
-                (
-                    bounds.left().value,
-                    bounds.bottom().value,
-                    bounds.right().value,
-                    bounds.top().value,
-                    fs,
-                    Some(char_obj.font_name()),
-                )
-            };
 
             chars.push(RawChar {
                 char: c,
@@ -211,6 +235,8 @@ impl PdfiumExtractor {
                 font_size,
                 font_name,
                 page_num,
+                is_bold: final_is_bold,
+                is_italic: final_is_italic,
             });
         }
 
