@@ -3,6 +3,7 @@
 ## Focus Area
 
 Tables are a critical priority (50→80 score target). Need to understand:
+
 1. How tables are currently detected
 2. How they're rendered to Markdown
 3. What's failing (spanning, complex headers)
@@ -12,6 +13,7 @@ Tables are a critical priority (50→80 score target). Need to understand:
 ### Table Detection (`src/backend/lattice.rs`)
 
 Primary table detection uses lattice-based approach:
+
 - Looks for horizontal/vertical lines forming cell boundaries
 - Detects table structure from line intersections
 - R-tree spatial index for O(n log n) intersection queries
@@ -19,6 +21,7 @@ Primary table detection uses lattice-based approach:
 - Minimum 4 lines required (simplest table = box)
 
 **Key functions:**
+
 - `detect_tables()` - Main entry point (line 53)
 - `filter_lines_enhanced()` - Filters decorative lines (line 386)
 - `create_table_block()` - Builds table from detected grid (line 509)
@@ -27,12 +30,14 @@ Primary table detection uses lattice-based approach:
 ### Table Rendering (`src/renderers/markdown.rs`)
 
 Two rendering paths:
+
 1. `render_table_from_children()` - When block has child cells (line 595)
 2. Direct text output - For lattice tables with pre-formatted markdown (line 585)
 
 ### Test Status
 
 **19 table tests passing:**
+
 - `test_empty_lines_no_tables`
 - `test_simple_box_table_detection`
 - `test_grid_table_detection`
@@ -41,6 +46,7 @@ Two rendering paths:
 - `test_table_caption_*`
 
 **15 list tests passing:**
+
 - `test_list_detection*`
 - `test_nested_list_items`
 - `test_list_item_rendering`
@@ -48,10 +54,12 @@ Two rendering paths:
 ## Gold Test Data Analysis
 
 **Tables (test-data/gold/05-tables/):** 15 test files
+
 - Simple 2x3 to complex 5-column tables
 - Long content cells, URL cells, formatted tables
 
 **Lists (test-data/gold/04-lists/):** 15 test files
+
 - Simple bullets/numbered to 5-level deep nesting
 - Mixed lists, formatted items, task lists
 
@@ -65,8 +73,8 @@ Two rendering paths:
 ## Areas for Investigation
 
 Looking at the mission again:
+
 - Tables: 50→80 (critical) - Current lattice detection may miss borderless tables
 - Lists: 55→85 (high) - May need to improve nested list indentation detection
 
 Let me check if there's a borderless table detection mechanism.
-

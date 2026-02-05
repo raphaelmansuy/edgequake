@@ -81,15 +81,47 @@ impl FontStyle {
     }
 
     /// Check if this style indicates code (monospace font).
+    ///
+    /// ## OODA-IT09: Extended Monospace Detection
+    ///
+    /// WHY comprehensive list: PDFs use many different monospace fonts.
+    /// Missing font patterns causes inline code to render without backticks.
+    ///
+    /// Source: Wikipedia "List of monospaced typefaces" + common programming fonts
     pub fn looks_like_code(&self) -> bool {
         self.family
             .as_ref()
             .map(|f| {
                 let lower = f.to_lowercase();
-                lower.contains("mono")
-                    || lower.contains("courier")
+                // Primary patterns (most common)
+                lower.contains("mono")           // Covers: Mono, Monospace, JetBrains Mono, etc.
+                    || lower.contains("monaco")  // Mac system font (doesn't contain "mono")
+                    || lower.contains("courier") // Courier, Courier New
                     || lower.contains("consolas")
                     || lower.contains("source code")
+                    // Programming fonts
+                    || lower.contains("fira")    // Fira Code, Fira Mono
+                    || lower.contains("inconsolata")
+                    || lower.contains("jetbrains")
+                    || lower.contains("hack")
+                    || lower.contains("iosevka")
+                    // System monospace fonts
+                    || lower.contains("menlo")
+                    || lower.contains("sf mono")
+                    || lower.contains("lucida console")
+                    || lower.contains("dejavu sans mono")
+                    || lower.contains("liberation mono")
+                    || lower.contains("ubuntu mono")
+                    || lower.contains("roboto mono")
+                    // Classic typewriter/terminal fonts
+                    || lower.contains("typewriter")
+                    || lower.contains("terminal")
+                    || lower.contains("fixedsys")
+                    || lower.contains("fixed")
+                    || lower.contains("letter gothic")
+                    || lower.contains("prestige")
+                    // OCR fonts (often used for code in technical PDFs)
+                    || lower.contains("ocr")
             })
             .unwrap_or(false)
     }
@@ -666,6 +698,48 @@ mod tests {
 
         style.family = Some("Arial".to_string());
         assert!(!style.looks_like_code());
+    }
+
+    /// OODA-IT09: Test extended monospace font detection.
+    /// WHY: Ensure all common programming fonts are detected as code.
+    #[test]
+    fn test_font_style_code_detection_extended() {
+        // Helper to test a font family
+        fn is_code_font(name: &str) -> bool {
+            let mut style = FontStyle::default();
+            style.family = Some(name.to_string());
+            style.looks_like_code()
+        }
+
+        // Programming fonts (should be detected)
+        assert!(is_code_font("JetBrains Mono"), "JetBrains Mono should be code");
+        assert!(is_code_font("Fira Code"), "Fira Code should be code");
+        assert!(is_code_font("Fira Mono"), "Fira Mono should be code");
+        assert!(is_code_font("Inconsolata"), "Inconsolata should be code");
+        assert!(is_code_font("Hack"), "Hack should be code");
+        assert!(is_code_font("Iosevka"), "Iosevka should be code");
+        
+        // System monospace fonts
+        assert!(is_code_font("Menlo"), "Menlo should be code");
+        assert!(is_code_font("SF Mono"), "SF Mono should be code");
+        assert!(is_code_font("Monaco"), "Monaco should be code");
+        assert!(is_code_font("Lucida Console"), "Lucida Console should be code");
+        assert!(is_code_font("DejaVu Sans Mono"), "DejaVu Sans Mono should be code");
+        assert!(is_code_font("Liberation Mono"), "Liberation Mono should be code");
+        assert!(is_code_font("Ubuntu Mono"), "Ubuntu Mono should be code");
+        assert!(is_code_font("Roboto Mono"), "Roboto Mono should be code");
+        
+        // Classic fonts
+        assert!(is_code_font("Letter Gothic"), "Letter Gothic should be code");
+        assert!(is_code_font("Prestige Elite"), "Prestige Elite should be code");
+        assert!(is_code_font("Fixedsys"), "Fixedsys should be code");
+        assert!(is_code_font("OCR-A"), "OCR-A should be code");
+        
+        // Non-code fonts (should NOT be detected)
+        assert!(!is_code_font("Times New Roman"), "Times should not be code");
+        assert!(!is_code_font("Helvetica"), "Helvetica should not be code");
+        assert!(!is_code_font("Georgia"), "Georgia should not be code");
+        assert!(!is_code_font("Verdana"), "Verdana should not be code");
     }
 
     #[test]

@@ -1456,7 +1456,12 @@ mod tests {
         let columns = grouper.detect_columns(&lines);
 
         // Should detect 2 columns
-        assert_eq!(columns.len(), 2, "Expected 2 columns, got {}", columns.len());
+        assert_eq!(
+            columns.len(),
+            2,
+            "Expected 2 columns, got {}",
+            columns.len()
+        );
 
         // First column should cover [50, ~250] (left edge to mid-gutter)
         assert!(
@@ -1504,7 +1509,12 @@ mod tests {
         let columns = grouper.detect_columns(&lines);
 
         // Should detect 3 columns
-        assert_eq!(columns.len(), 3, "Expected 3 columns, got {}", columns.len());
+        assert_eq!(
+            columns.len(),
+            3,
+            "Expected 3 columns, got {}",
+            columns.len()
+        );
 
         // Verify column order (left to right)
         assert!(

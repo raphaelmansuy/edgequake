@@ -7,11 +7,9 @@
 1. **False Positive Detection**
    - Query text "Which methods can normalize..." detected as table
    - Caused by pipe characters in text triggering table regex
-   
 2. **Borderless Tables Missed**
    - Papers with data tables but no graphical lines are not detected
    - The `detect_columns_by_whitespace` function exists but is marked as dead code
-   
 3. **LightRAG Paper Test**
    - 59KB output from lighrag_2410.05779v3.pdf
    - Only 3 pipe rows found (likely false positives)
@@ -55,6 +53,7 @@
 ```
 
 **Key insight:** Borderless tables (common in academic PDFs) have:
+
 - No graphical lines → Lattice detection fails
 - Text positioned in columns → Could be detected by whitespace analysis
 
@@ -75,6 +74,6 @@
 
 ## Recommendation
 
-For this iteration, the clippy fixes are sufficient. Table detection 
+For this iteration, the clippy fixes are sufficient. Table detection
 improvements require deeper changes to the detection pipeline which
 should be a separate iteration.
