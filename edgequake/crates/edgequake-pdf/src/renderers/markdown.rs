@@ -245,6 +245,9 @@ impl MarkdownRenderer {
             lvl.max(0) as usize
         } else if let Some(indent) = block.metadata.get("indent").and_then(|v| v.as_f64()) {
             // Fallback to old logic if level not present
+            // WHY (OODA-11): 72pt = 1 inch = standard PDF left margin.
+            // 20pt ≈ 0.28" per level = standard typographic indent step.
+            // Formula: (indent - margin) / step_size = nesting level
             let lvl = ((indent - 72.0).max(0.0) / 20.0).floor() as usize;
             tracing::debug!(
                 "  Rendering list item with indent={:.1} -> level={}",
@@ -598,6 +601,9 @@ impl MarkdownRenderer {
         for child in &block.children {
             let y = child.bbox.y1;
             if let Some(prev_y) = current_y {
+                // WHY (OODA-11): 10pt Y-tolerance for same-row detection.
+                // Matches other tolerances (block_gap, line joining) in codebase.
+                // Cells on same row should have Y positions within 10pt.
                 if (y - prev_y).abs() > 10.0 {
                     if !current_row.is_empty() {
                         // Sort row by X position
