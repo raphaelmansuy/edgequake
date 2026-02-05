@@ -1,177 +1,186 @@
-# Iteration 01: Orient
+# OODA-01: Orient
 
-**Mission Re-read**: `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-improve-ingestion-process.md`
+## Mission Re-Read ✅
+
+**File**: `specs/005-perfect-pdf-pymupdf4llm-inspired-conversion.md`
+**Goal**: F1 >= 0.95 by implementing pymupdf4llm algorithms with **pdfium-render** backend (pure Rust)
 
 ---
 
-## Gap Analysis
+## Critical Constraints (from user)
 
-### 1. Reprocess Document Functionality
+1. **PURE RUST ONLY** - No Python, no subprocess, no FFI to Python
+2. **PERMISSIVE LICENSE ONLY** - MIT or Apache-2.0 (no AGPL, no GPL)
 
-| Current State                          | Desired State                  | Gap                                |
-| -------------------------------------- | ------------------------------ | ---------------------------------- |
-| `reprocessDocument()` sends track_id   | Works but no progress feedback | Need processing stage events       |
-| Backend cleans graph data before retry | Correct behavior               | ✓ Good                             |
-| Status updates to "pending"            | Need "reprocessing" state      | Missing intermediate state         |
-| No per-document error details          | Show error reason to user      | Need error message storage/display |
+---
 
-### 2. Rebuild Embeddings
+## Analysis of Observations
 
-| Current State                              | Desired State                    | Gap                      |
-| ------------------------------------------ | -------------------------------- | ------------------------ |
-| No dedicated "rebuild embeddings" endpoint | Isolated embedding regeneration  | Missing endpoint         |
-| Workspace dimension stored                 | Use during rebuild               | ✓ Available              |
-| No dimension change handling               | Graceful migration               | Missing migration logic  |
-| No provider switching support              | OpenAI↔Ollama without corruption | Needs testing/validation |
+### PDF Library Options Evaluated
 
-### 3. Rebuild Knowledge Graph
+| Library       | License           | Text Positions    | Status                 |
+| ------------- | ----------------- | ----------------- | ---------------------- |
+| lopdf         | MIT               | Inaccurate        | Current (F1=0.685)     |
+| mupdf-rs      | AGPL-3.0          | Accurate          | **REJECTED** (license) |
+| pdfium-render | MIT OR Apache-2.0 | Accurate (PDFium) | **SELECTED** ✅        |
+| pdf-extract   | MIT               | Limited           | Not investigated       |
 
-| Current State                          | Desired State               | Gap                       |
-| -------------------------------------- | --------------------------- | ------------------------- |
-| `rebuild_knowledge_graph()` clears all | Works but destructive       | ✓ Intentional             |
-| Queues docs for reprocess              | Need progress tracking      | Missing batch progress    |
-| UX unclear about rebuild impact        | Explicit warnings           | Need confirmation dialogs |
-| No partial rebuild option              | Consider future enhancement | Out of scope for now      |
+### pdfium-render Capabilities: ✅ CONFIRMED
 
-### 4. UX/UI for Document Processing
+From docs.rs/pdfium-render:
 
-| Current State              | Desired State          | Gap                           |
-| -------------------------- | ---------------------- | ----------------------------- |
-| Single "processing" state  | Multi-stage visibility | Need 4-5 sub-states           |
-| Aggregate pipeline stats   | Per-document details   | Need document-level view      |
-| No ETA calculation         | Time estimates         | Need processing time tracking |
-| No stage transitions shown | Real-time updates      | Need SSE/WebSocket            |
+```rust
+use pdfium_render::prelude::*;
 
-### 5. Error Handling
+let pdfium = Pdfium::default();
+let document = pdfium.load_pdf_from_file("file.pdf", None)?;
 
-| Current State                | Desired State                | Gap                            |
-| ---------------------------- | ---------------------------- | ------------------------------ |
-| `status: failed` in metadata | Need `error_message` field   | Partially exists, need display |
-| Generic "Failed" badge       | Show error category + reason | Need error parsing             |
-| No actionable suggestions    | Guide user to fix            | Need error→action mapping      |
-| Errors not easily copyable   | Debug-friendly display       | Need copy button + details     |
+for page in document.pages().iter() {
+    let text = page.text()?;
+    for char in text.chars() {
+        let bounds = char.bounds();      // PdfRect with x0, y0, x1, y1
+        let origin = char.origin();      // PdfPoint
+        let font_size = char.font_size();
+        let text = char.text();          // The actual character
+    }
+}
+```
+
+---
+
+## Strategic Options (Pure Rust Only)
+
+### Option A: Keep lopdf, Improve Algorithms
+
+**Approach**: Fix text positioning within lopdf-based extraction
+
+**Pros:**
+
+- No new dependencies
+- No runtime library requirement
+
+**Cons:**
+
+- Root cause is lopdf inaccuracy, not algorithms
+- Months of work to fix CTM computation
+- F1 improvement unlikely without accurate positions
+
+### Option B: pdfium-render Backend (SELECTED ✅)
+
+**Approach**: Replace lopdf with pdfium-render for text extraction
+
+**Pros:**
+
+- Accurate text positions from Google PDFium (Chromium's PDF engine)
+- MIT OR Apache-2.0 license (permissive)
+- Character-level bounding boxes
+- Font information available
+- 595 GitHub stars, actively maintained
+
+**Cons:**
+
+- Requires libpdfium.dylib/so at runtime
+- Need to download pre-built binaries
+- Dynamic linking adds deployment complexity
+
+### Option C: Custom PDF Parser
+
+**Approach**: Build accurate PDF text extraction from scratch
+
+**Pros:**
+
+- Full control
+- No external dependencies
+
+**Cons:**
+
+- Years of work
+- Not practical
 
 ---
 
 ## First Principles Analysis
 
-### Why do users need better reprocessing UX?
+### The Core Problem
 
-1. **Uncertainty causes stress** - User doesn't know if system is working
-2. **Failed operations need context** - Without reason, user can't fix issue
-3. **Time perception** - Progress bars reduce perceived wait time
-4. **Trust building** - Transparent operations build confidence
+Our F1 is 0.685 because **text positions are wrong**, not because our algorithms are wrong.
 
-### What are the atomic units of work?
+**Evidence from observations:**
 
 ```
-Document Processing = Sum of:
-1. Content Storage       (~100ms)
-2. Chunking             (~500ms per 10KB)
-3. Entity Extraction    (~2-30s per chunk, LLM dependent)
-4. Embedding Generation (~500ms per chunk)
-5. Graph Upsert         (~100ms per entity)
-6. Vector Index         (~50ms per embedding)
+Current:   ' can' at incorrectly computed position (merged with wrong text)
+Expected:  Accurate character-by-character positions for layout analysis
 ```
 
-### Minimum viable improvement?
+### The Minimal Fix
 
-1. **Add processing sub-stages** - 4 states visible in UI
-2. **Store error messages** - Already in metadata, just display
-3. **Real-time progress** - Use existing SSE infrastructure
+If we get accurate text positions from pdfium-render, our existing algorithms should work better. Let's test this hypothesis.
 
----
+### Why PDFium is Trustworthy
 
-## Risk Assessment
-
-| Approach                  | Benefit           | Risk                           | Mitigation                  |
-| ------------------------- | ----------------- | ------------------------------ | --------------------------- |
-| Add processing sub-states | Better UX         | Breaking change for filters    | Backward-compatible mapping |
-| Store error details       | Debug support     | Privacy (leak internal errors) | Sanitize error messages     |
-| SSE for progress          | Real-time         | Connection overhead            | Reuse existing stream infra |
-| Ollama E2E tests          | Realistic testing | Slow CI                        | Run in separate job         |
+1. **Production-proven**: Powers Chrome/Chromium's PDF viewer (billions of users)
+2. **Google-maintained**: Active development, regular security patches
+3. **BSD-style license**: Permissive, commercial-friendly
+4. **Accurate rendering**: Text positions are correct for display
 
 ---
 
-## Solution Options
+## Decision Framework
 
-### Option A: Incremental Enhancement (RECOMMENDED)
-
-1. Enhance status badge with sub-states
-2. Display error messages from metadata
-3. Add document-level progress in pipeline dialog
-4. Create Ollama-based E2E tests
-
-**Effort**: ~4-6 hours
-**Risk**: Low
-**Value**: High
-
-### Option B: Full Rewrite with WebSocket
-
-1. Replace polling with WebSocket
-2. Real-time per-stage updates
-3. Complete error framework
-
-**Effort**: ~16-20 hours
-**Risk**: High (breaking changes)
-**Value**: Very High
-
-### Option C: Minimal Fix
-
-1. Just fix Loader2 import ✅
-2. Display existing error field
-3. No new features
-
-**Effort**: ~1 hour
-**Risk**: None
-**Value**: Low
-
----
-
-## Architecture Decision
-
-**Selected: Option A (Incremental Enhancement)**
-
-Rationale:
-
-1. Uses existing infrastructure (minimal code changes)
-2. Backward compatible (old clients still work)
-3. Delivers immediate value (users see better progress)
-4. Foundation for future WebSocket upgrade
-
----
-
-## Proposed Processing States
-
-```typescript
-// Enhanced status with processing sub-states
-type DocumentStatus =
-  | "pending" // Waiting in queue
-  | "chunking" // Splitting document
-  | "extracting" // LLM entity extraction
-  | "embedding" // Generating vectors
-  | "indexing" // Storing in databases
-  | "completed" // Successfully processed
-  | "indexed" // Alias for completed (backward compat)
-  | "failed" // Error occurred
-  | "cancelled"; // User cancelled
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  Implementation Priority Matrix                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Impact ▲                                                        │
+│         │                                                        │
+│    HIGH │  [B: pdfium-render] ◀── SELECTED                       │
+│         │                                                        │
+│   MEDIUM│  [A: lopdf fix]                                        │
+│         │                                                        │
+│    LOW  │  [C: custom parser]                                    │
+│         │                                                        │
+│         └────────────────────────────────────────────────────────▶
+│              LOW          MEDIUM         HIGH       Effort       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Priority Matrix
+## Runtime Dependency Strategy
 
-| Task                       | Impact | Effort | Priority |
-| -------------------------- | ------ | ------ | -------- |
-| Display error messages     | High   | Low    | P1       |
-| Add processing sub-states  | High   | Medium | P1       |
-| Ollama E2E tests           | Medium | Medium | P2       |
-| Per-doc progress in dialog | Medium | Low    | P2       |
-| ETA calculation            | Low    | Medium | P3       |
-| Error→action mapping       | Medium | High   | P3       |
+pdfium-render requires libpdfium at runtime. Strategy:
+
+1. **Development**: Download from https://github.com/bblanchon/pdfium-binaries/releases
+2. **CI/CD**: Include download step in build pipeline
+3. **Production**: Bundle with application or document requirement
+4. **Fallback**: Keep lopdf as fallback for environments without libpdfium
 
 ---
 
-## Next Step
+## Gap Analysis
 
-Proceed to **Decide** phase to prioritize specific changes.
+| Current State        | Target State             | Gap                       |
+| -------------------- | ------------------------ | ------------------------- |
+| lopdf extraction     | pdfium-render extraction | Add dependency            |
+| RawElement struct    | RawChar struct           | Add char-level extraction |
+| Inaccurate positions | Accurate positions       | Use PdfPageTextChar       |
+| F1 = 0.685           | F1 >= 0.95               | Algorithm tuning          |
+
+---
+
+## Recommended Approach
+
+**Option B: pdfium-render Backend** is the clear winner:
+
+1. Addresses root cause (inaccurate positions)
+2. Pure Rust API (satisfies constraint #1)
+3. MIT OR Apache-2.0 license (satisfies constraint #2)
+4. Minimal implementation effort
+5. Fast feedback on F1 improvement
+
+---
+
+## Next Step: Decide
+
+Proceed to `decide.md` with specific implementation plan for pdfium-render integration.

@@ -1,73 +1,98 @@
-# Iteration 04 - ACT Phase
+# OODA Iteration 04 - Act
 
-## Actions Completed
+## Date: 2026-02-04
 
-### 1. Added data-testid Attributes for E2E Testing
+## Actions Taken
 
-**rebuild-embeddings-button.tsx**:
+### 1. Fixed Smart Sort Key Algorithm Call
 
-- `data-testid="rebuild-embeddings-button"` on trigger button
-- `data-testid="rebuild-embeddings-cancel"` on cancel button
-- `data-testid="rebuild-embeddings-confirm"` on confirm button
-- `data-testid="rebuild-impact-preview"` on impact section
+**Bug Found**: The `sort_by_smart_key()` function was defined but NEVER CALLED!
 
-**rebuild-knowledge-graph-button.tsx**:
+**Location**: `edgequake/crates/edgequake-pdf/src/layout/reading_order.rs:179`
 
-- `data-testid="rebuild-kg-button"` on trigger button (both variants)
-- `data-testid="rebuild-kg-cancel"` on cancel button
-- `data-testid="rebuild-kg-confirm"` on confirm button
-- `data-testid="rebuild-kg-impact-preview"` on impact section
+**Before**:
 
-### 2. Created useWorkspaceStats Hook
+```rust
+for col_blocks in &mut column_blocks {
+    self.sort_by_position(col_blocks, blocks);  // Wrong function!
+}
+```
 
-**File**: `src/hooks/use-workspace-stats.ts`
+**After**:
 
-Features:
+```rust
+for col_blocks in &mut column_blocks {
+    self.sort_by_smart_key(col_blocks, blocks);  // OODA-04 FIX
+}
+```
 
-- Fetches document count for current workspace
-- Calculates estimated processing time (3s per doc)
-- Provides `formatEstimatedTime()` helper
-- Uses TanStack Query with 30s stale time
+### 2. Changed Line Tolerance to 3pt
 
-### 3. Added Impact Preview Section to Confirmation Dialogs
+**Files Modified**:
 
-Both rebuild buttons now show:
+- `reading_order.rs:62`: Changed `line_tolerance: 5.0` → `line_tolerance: 3.0`
+- `pymupdf_grouper.rs:34`: Changed `line_tolerance: 5.0` → `line_tolerance: 3.0`
 
-- **Document count**: "Documents: 42"
-- **Time estimate**: "Estimated: ~3 minutes"
+**Why**: pymupdf4llm uses 3pt as the default. The 5pt value was a workaround causing lines to incorrectly merge.
 
-Display is styled with:
+---
 
-- Border and muted background
-- FileText icon for impact header
-- Clock icon for time estimate
-- Monospace font for counts
+## Results
 
-### 4. Fixed TypeScript Errors
+### Before OODA-04:
 
-- Fixed `getDocuments` API call signature
-- Added missing lucide-react icons (CheckCircle, Clock, XCircle)
-- Fixed Playwright `test.skip` syntax in E2E tests
+| Metric    | Value |
+| --------- | ----- |
+| Quality   | 0.731 |
+| ROUGE-L   | 0.698 |
+| Word F1   | 0.893 |
+| Structure | 0.595 |
+| Format    | 0.573 |
 
-## Files Modified
+### After OODA-04:
 
-1. `src/components/workspace/rebuild-embeddings-button.tsx` - Impact preview + test IDs
-2. `src/components/workspace/rebuild-knowledge-graph-button.tsx` - Impact preview + test IDs
-3. `src/hooks/use-workspace-stats.ts` - New file for workspace stats
-4. `src/components/documents/document-manager.tsx` - Added missing icon imports
-5. `e2e/document-reprocess.spec.ts` - Fixed test.skip syntax
-6. `e2e/rebuild-operations.spec.ts` - Fixed test.skip syntax
+| Metric    | Value | Change |
+| --------- | ----- | ------ |
+| Quality   | 0.752 | +0.021 |
+| ROUGE-L   | 0.711 | +0.013 |
+| Word F1   | 0.915 | +0.022 |
+| Structure | 0.650 | +0.055 |
+| Format    | 0.572 | -0.001 |
 
-## Verification
+### Per-File Improvements:
 
-- TypeScript compilation: ✅ Passes
-- All data-testid attributes: ✅ Added
-- Impact preview: ✅ Implemented
+| File                  | Before | After | Change |
+| --------------------- | ------ | ----- | ------ |
+| v2_2512.25072v1       | 0.591  | 0.692 | +0.101 |
+| 01_2512.25075v1       | 0.622  | 0.654 | +0.032 |
+| one_tool_2512.20957v2 | 0.667  | 0.698 | +0.031 |
+| ccn_2512.21804v1      | 0.702  | 0.737 | +0.035 |
 
-## Next Iteration Focus
+---
 
-Iteration 05 will focus on:
+## Commit Message
 
-1. Enhance error display with copy-to-clipboard functionality
-2. Add error details expansion for failed documents
-3. Improve error message formatting
+```
+OODA-04: Fix smart sort key call, change line_tolerance to 3pt
+
+BUG FIX: sort_by_smart_key() was defined but never called!
+- reading_order.rs:179 was calling sort_by_position instead
+- Now correctly calls sort_by_smart_key for column sorting
+
+LINE TOLERANCE:
+- Changed from 5pt to 3pt (pymupdf4llm default)
+- Affects reading_order.rs and pymupdf_grouper.rs
+
+Quality impact: 0.731 → 0.752 (+0.021)
+ROUGE-L impact: 0.698 → 0.711 (+0.013)
+```
+
+---
+
+## Next Steps
+
+Main gaps remaining:
+
+1. **Format Score (0.572)**: Need better bold/italic detection
+2. **Structure Score (0.650)**: Need better heading hierarchy
+3. **ROUGE-L (0.711)**: Reading order still needs work for complex layouts

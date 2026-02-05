@@ -1,126 +1,161 @@
-# Iteration 03: Observe
+# OODA Iteration 03 - Observe
 
-**Mission Re-read**: `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-improve-ingestion-process.md`
+## Date: 2026-02-04
+
+## Mission Recap
+Target: Quality >= 0.95 against pymupdf4llm gold standards
+Previous: Word F1 = 0.877 (misleading!)
+Actual: Quality = 0.573 (revealed by new metrics)
 
 ---
 
-## Territory Mapping: Rebuild Operations
+## Observations
 
-### 1. Current Rebuild Endpoints
+### 1. Current F1 Metric is Fundamentally Flawed
 
-From routes.rs and workspaces.rs analysis:
+The word-set F1 calculation in `scripts/eval_pymupdf_pipeline.py`:
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    REBUILD OPERATIONS INVENTORY                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  POST /api/v1/workspaces/{id}/rebuild-embeddings                         │
-│       └── Clears vectors, queues docs for re-embedding                   │
-│       └── Updates workspace embedding config                             │
-│       └── Workspace-isolated ✅                                          │
-│                                                                          │
-│  POST /api/v1/workspaces/{id}/rebuild-knowledge-graph                    │
-│       └── Clears graph nodes/edges                                       │
-│       └── Optionally clears vectors (rebuild_embeddings flag)            │
-│       └── Queues all docs for full reprocessing                          │
-│       └── Workspace-isolated ✅                                          │
-│                                                                          │
-│  POST /api/v1/workspaces/{id}/reprocess-documents                        │
-│       └── Reprocesses all docs without clearing (SPEC-032)               │
-│                                                                          │
-│  POST /api/v1/documents/reprocess                                        │
-│       └── Reprocesses failed documents only                              │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+```python
+def normalize(text: str) -> set[str]:
+    words = text.lower().split()
+    words = [w.strip("*_`#[]()") for w in words]
+    words = [w for w in words if w and len(w) > 1]
+    return set(words)  # <-- FATAL: SET loses order and duplicates!
 ```
 
-### 2. Rebuild Embeddings Handler (workspaces.rs:1343)
+**Problems identified**:
+1. `set(words)` discards word ORDER - scrambled text scores same as correct
+2. `set(words)` discards DUPLICATES - common words counted once
+3. Strips markdown before comparison - formatting not validated
+4. Single-char filter may remove important content
 
-**Key Features**:
+### 2. Pipeline Output Analysis
 
-- Workspace isolation via `clear_workspace(&workspace_id)`
-- Auto-detects dimension from model config
-- Cache eviction on dimension change (OODA-225)
-- Queues documents for re-embedding with track_id
-- Returns documents_to_process, chunks_to_process, track_id
+Ran pipeline on AlphaEvolve.pdf and compared to gold:
 
-**Edge Cases Handled**:
+**Gold (first 50 chars)**:
+```
+# **AlphaEvolve : A coding agent for scientific and**
+```
 
-- Dimension mismatch: Auto-updates from model config
-- Config unchanged: Requires `force: true`
-- Chunk size vs context length validation (REQ-25)
+**Extracted (first 200 chars)**:
+```
+## **:**
 
-### 3. Rebuild Knowledge Graph Handler (workspaces.rs:1729)
+## **agent**
 
-**Key Features**:
+## ***AlphaEvolve*****A**
 
-- Clears graph via `clear_workspace(&workspace_id)`
-- Optional embedding rebuild (`rebuild_embeddings` flag)
-- Updates workspace LLM config
-- Queues all docs for full reprocessing
-- Returns nodes_cleared, edges_cleared, documents_queued
+## **for scientific**
 
-### 4. Frontend UI Components
+## **and**
 
-| Component                   | Location                                     | Purpose                                  |
-| --------------------------- | -------------------------------------------- | ---------------------------------------- |
-| RebuildEmbeddingsButton     | workspace/rebuild-embeddings-button.tsx      | Card/button to trigger embedding rebuild |
-| RebuildKnowledgeGraphButton | workspace/rebuild-knowledge-graph-button.tsx | Card/button to trigger KG rebuild        |
-| PipelineStatusDialog        | documents/pipeline-status-dialog.tsx         | Progress tracking                        |
+## **coding** **algorithmic discovery**
+```
 
-**UI Flow**:
+**Key issues**:
+- Title fragmented into multiple blocks
+- Words appear in wrong order
+- Extra heading markers (`##` instead of `#`)
+- Blank lines and structure completely wrong
 
-1. User clicks Rebuild button
-2. Confirmation dialog with warning
-3. API call to clear + queue
-4. PipelineStatusDialog opens with track_id
-5. Progress polling until complete
+### 3. Metric Research (Wikipedia/Literature)
 
-### 5. Workspace Isolation Verification
+#### ROUGE (Recall-Oriented Understudy for Gisting Evaluation)
+- **ROUGE-1**: Unigram overlap (similar to current F1)
+- **ROUGE-2**: Bigram overlap (captures word pairs)
+- **ROUGE-L**: Longest Common Subsequence (captures ORDER)
+
+ROUGE-L is most relevant for our use case because it:
+- Penalizes scrambled text (LCS is shorter)
+- Works at word level (not character)
+- Gives F1-style score between 0 and 1
+
+#### BLEU (BiLingual Evaluation Understudy)
+- N-gram precision with brevity penalty
+- Geometric mean of 1-4 gram precisions
+- Captures phrase structure and fluency
+
+#### Levenshtein Distance
+- Edit distance (insertions, deletions, substitutions)
+- Normalized: `1 - (edit_dist / max_len)`
+- Lower is more similar, higher when normalized
+
+### 4. Extraction Quality Deep Dive
+
+Ran `convert_pdf_full` on all 7 gold standard files:
+
+| File | Word F1 | But order looks... |
+|------|---------|-------------------|
+| ccn | 0.930 | Broken - multi-column interleaved |
+| 2900_Goyal | 0.904 | Semi-broken - some sections OK |
+| agent | 0.889 | Broken - headers fragmented |
+| v2 | 0.874 | Broken - abstract scrambled |
+| one_tool | 0.857 | Broken - title split |
+| 01 | 0.851 | Broken - equations mixed |
+| AlphaEvolve | 0.837 | Severely broken - title in 6 pieces |
+
+**Conclusion**: High F1 scores were hiding severe reading order problems.
+
+### 5. Root Cause Identification
+
+The core issue is in block sorting (`sort_blocks_reading_order`):
 
 ```rust
-// Vector isolation (workspaces.rs:1450)
-let vectors_cleared = state
-    .vector_storage
-    .clear_workspace(&workspace_id)  // ← Scoped to workspace
-    .await
-
-// Graph isolation (workspaces.rs:1790)
-let (nodes_cleared, edges_cleared) = state
-    .graph_storage
-    .clear_workspace(&workspace_id)  // ← Scoped to workspace
-    .await
-
-// Cache eviction (OODA-225)
-state.vector_registry.evict(&workspace_id).await;
+// Current algorithm sorts by Y first, then X
+blocks.sort_by(|a, b| {
+    let y_cmp = a.y0.partial_cmp(&b.y0).unwrap_or(Ordering::Equal);
+    if y_cmp != Ordering::Equal {
+        return y_cmp;
+    }
+    a.x0.partial_cmp(&b.x0).unwrap_or(Ordering::Equal)
+});
 ```
 
-### 6. Status: What Works vs What Needs Improvement
-
-| Feature                   | Status | Notes                                                |
-| ------------------------- | ------ | ---------------------------------------------------- |
-| Rebuild Embeddings API    | ✅     | Working with workspace isolation                     |
-| Rebuild KG API            | ✅     | Working with workspace isolation                     |
-| Dimension change handling | ✅     | Auto-detects from model config                       |
-| Cache eviction            | ✅     | OODA-225 implemented                                 |
-| Frontend buttons          | ✅     | RebuildEmbeddingsButton, RebuildKnowledgeGraphButton |
-| Progress dialog           | ✅     | PipelineStatusDialog with polling                    |
-| Processing sub-states     | ✅     | Added in iteration 02                                |
-| E2E tests                 | ⚠️     | Need Ollama-specific tests                           |
-| Error UX                  | ⚠️     | Could show more detail                               |
+This fails for multi-column layouts where blocks at same Y should be read left-to-right within columns, not across columns.
 
 ---
 
-## Areas for Improvement
+## Quantitative Findings
 
-1. **E2E Tests with Ollama** - Create tests using gemma3/nomic-embed-text
-2. **Progress UX** - Show stage (extracting/embedding) during rebuild
-3. **Error Details** - Show clearer error context during rebuild failures
-4. **Confirmation Dialog** - Add impact preview (X documents, Y chunks)
+### New Comprehensive Metrics (7 files):
+
+| Metric | Average | Interpretation |
+|--------|---------|----------------|
+| Quality Score | 0.573 | Overall extraction quality |
+| ROUGE-L | 0.491 | Only 49% words in correct order! |
+| Word F1 | 0.914 | 91% of words ARE present |
+| Structure | 0.295 | Document structure severely broken |
+| Format | 0.312 | Markdown formatting inconsistent |
+
+### Gap Analysis
+
+| Metric | Current | Target | Gap |
+|--------|---------|--------|-----|
+| Quality | 0.573 | 0.95 | **-0.377** |
+| ROUGE-L | 0.491 | 0.90 | **-0.409** |
+| Word F1 | 0.914 | 0.95 | -0.036 |
+| Structure | 0.295 | 0.80 | **-0.505** |
+| Format | 0.312 | 0.70 | **-0.388** |
+
+**Key Insight**: Content extraction is mostly working (F1=0.914).
+The problem is ORDER (ROUGE-L=0.491) and STRUCTURE (0.295).
 
 ---
 
-## Next Step
+## Files Examined
 
-Proceed to **Orient** phase to prioritize improvements.
+1. `scripts/eval_pymupdf_pipeline.py` - Current F1 calculation
+2. `scripts/eval_comprehensive.py` - NEW comprehensive metrics (created this iteration)
+3. `src/layout/pymupdf_grouper.rs` - Block grouping and sorting
+4. `src/backend/pdfium.rs` - Character extraction
+5. Gold standards in `test-data/real_dataset/*.pymupdf.gold.md`
+
+---
+
+## Key Questions for Orient Phase
+
+1. Why is block sorting producing scrambled order?
+2. Is line grouping merging elements incorrectly?
+3. Should we implement pymupdf4llm's column detection algorithm?
+4. What tolerances are causing too-aggressive or too-loose grouping?

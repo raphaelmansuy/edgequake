@@ -1,182 +1,172 @@
-# Iteration 01: Observe
+# OODA-01: Observe
 
-**Mission Re-read**: `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-improve-ingestion-process.md`
+## Mission Re-Read ✅
 
----
-
-## Territory Mapping
-
-### 1. Frontend Architecture (edgequake_webui/src/components/documents/)
-
-| File                             | Purpose                     | Lines | Key Functions                                 |
-| -------------------------------- | --------------------------- | ----- | --------------------------------------------- |
-| document-manager.tsx             | Main document management UI | 1094  | Upload, list, delete, reprocess               |
-| reprocess-failed-button.tsx      | Batch retry failed docs     | 194   | `reprocessFailedDocuments()`                  |
-| reset-document-status-button.tsx | Individual doc actions      | ~150  | `reprocessDocument()`, `retryTask()`          |
-| pipeline-status-dialog.tsx       | Progress monitoring         | 326   | Shows stages, messages, progress              |
-| status-badge.tsx                 | Document status display     | 42    | pending/processing/completed/failed/cancelled |
-| batch-progress-card.tsx          | Batch upload progress       | -     | Multi-file upload tracking                    |
-| ingestion-progress-panel.tsx     | Detailed ingestion stages   | -     | Step-by-step progress                         |
-
-### 2. API Client (edgequake_webui/src/lib/api/edgequake.ts)
-
-```
-Lines 520-600: Document Operations
-├── reprocessDocument(trackId)      → POST /documents/reprocess {track_id, max_documents: 1}
-├── reprocessFailedDocuments()      → POST /documents/reprocess {}
-├── scanDocuments(path?)            → POST /documents/scan
-├── deleteDocument(id)              → DELETE /documents/{id}
-└── deleteAllDocuments()            → DELETE /documents
-```
-
-### 3. Backend Architecture (edgequake/crates/edgequake-api/src/)
-
-```
-handlers/
-├── documents.rs          3767 lines - Core document handlers
-│   ├── upload_document()
-│   ├── reprocess_failed()      Line 3145 - Batch retry handler
-│   ├── scan_directory()        Line 2880
-│   ├── cleanup_document_graph_data()   Line 276 - Graph cleanup before reprocess
-│   └── get_workspace_vector_storage_strict()  Line 58 - Vector isolation
-├── documents_types.rs    DTOs and request/response types
-├── workspaces.rs         Workspace operations + rebuild endpoints
-│   ├── reprocess_all_documents()   Line 2023 - Full workspace reprocess
-│   └── rebuild_knowledge_graph()   Clears KG + embeddings
-└── pipeline.rs           Pipeline status/control
-```
-
-### 4. Current Document Processing Flow
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     DOCUMENT INGESTION FLOW                              │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  [Upload File]  →  [Validate]  →  [Store Content]  →  [Queue Task]       │
-│       │               │               │                  │               │
-│       ▼               ▼               ▼                  ▼               │
-│   multipart       size/type      KV: {id}-content   edgequake_tasks     │
-│   form-data       extension      KV: {id}-metadata   TaskQueue          │
-│                                                                          │
-│  ─────────────────── ASYNC TASK PROCESSOR ──────────────────────────     │
-│       │                                                                  │
-│       ▼                                                                  │
-│  [Chunk Document]  →  [Extract Entities]  →  [Generate Embeddings]       │
-│       │                     │                       │                    │
-│       ▼                     ▼                       ▼                    │
-│   1200 tokens         LLM Provider           Embedding Provider          │
-│   100 overlap         (OpenAI/Ollama)        (OpenAI/Ollama)            │
-│                                                                          │
-│       ▼                     ▼                       ▼                    │
-│  [Store Chunks]  →  [Upsert Graph]  →  [Index Vectors]                  │
-│       │                 │                    │                           │
-│       ▼                 ▼                    ▼                           │
-│   KV Storage       Graph Storage        Vector Storage                   │
-│   {id}-chunks      nodes + edges        workspace-specific               │
-│                                                                          │
-│  ───────────────────── STATUS TRACKING ─────────────────────────────     │
-│                                                                          │
-│   pending → processing → completed/failed                                │
-│      │          │            │                                          │
-│      ▼          ▼            ▼                                          │
-│   KV: {id}-metadata.status                                              │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### 5. Identified Issues
-
-#### 5.1 Critical Bug (FIXED)
-
-- **Location**: document-manager.tsx:677, 795
-- **Issue**: `Loader2` icon used but not imported from lucide-react
-- **Status**: ✅ Fixed in this session
-
-#### 5.2 Reprocess Flow Gaps
-
-1. **No progress visibility during reprocess** - User doesn't know what's happening
-2. **No step-by-step feedback** - Chunking, extraction, embedding stages not shown
-3. **Error messages lack context** - Generic "failed" without reason
-
-#### 5.3 Rebuild Operations
-
-- `rebuild_knowledge_graph()` in workspaces.rs clears KG but doesn't show progress
-- `reprocess_all_documents()` queues all docs but no per-doc status
-- No "rebuild embeddings only" functionality
-
-#### 5.4 UX/UI Issues
-
-1. Status badge shows only 5 states - no sub-states for processing
-2. Pipeline dialog shows aggregate counts but not per-document details
-3. Error messages stored in metadata but not displayed to user
-4. No ETA calculation for processing time
-
-### 6. Document Status States
-
-Current states in status-badge.tsx:
-
-```typescript
-const statusConfig = {
-  pending: { icon: Clock, color: "bg-yellow-500", label: "Pending" },
-  processing: { icon: Loader2, color: "bg-blue-500", label: "Processing" },
-  completed: { icon: CheckCircle, color: "bg-green-500", label: "Completed" },
-  indexed: { icon: CheckCircle, color: "bg-green-500", label: "Indexed" },
-  failed: { icon: XCircle, color: "bg-red-500", label: "Failed" },
-  cancelled: { icon: StopCircle, color: "bg-orange-500", label: "Cancelled" },
-};
-```
-
-**Missing states for better UX:**
-
-- `chunking` - Splitting document into chunks
-- `extracting` - Running LLM entity extraction
-- `embedding` - Generating embeddings
-- `indexing` - Storing in graph/vector DB
-
-### 7. Workspace Isolation Check
-
-From documents.rs line 58-180, workspace isolation is handled by:
-
-```rust
-async fn get_workspace_vector_storage_strict(
-    state: &AppState,
-    workspace_id: &str,
-) -> Result<Arc<dyn VectorStorage>, ApiError>
-```
-
-Key behaviors:
-
-- Production mode (PostgreSQL): STRICT - fails if workspace not found
-- Memory mode (tests): FALLBACK allowed to default storage
-- Workspace embedding dimension is preserved per-workspace
-
-### 8. E2E Test Coverage Status
-
-```
-edgequake_webui/e2e/
-├── documents/          Document-related tests (to check)
-└── playwright.config.ts  Configuration
-```
-
-Need to verify existing test coverage and add Ollama-based tests.
+**File**: `specs/005-perfect-pdf-pymupdf4llm-inspired-conversion.md`
+**Goal**: F1 ≥ 0.95 by implementing pymupdf4llm algorithms with PyMuPDF backend
 
 ---
 
-## Key Files to Modify
+## Current State Analysis
 
-| Priority | File                        | Changes Needed               |
-| -------- | --------------------------- | ---------------------------- |
-| P0       | document-manager.tsx        | ~~Add Loader2 import~~ ✅    |
-| P1       | status-badge.tsx            | Add processing sub-states    |
-| P1       | pipeline-status-dialog.tsx  | Enhance with per-doc details |
-| P1       | reprocess-failed-button.tsx | Improve error feedback       |
-| P2       | edgequake.ts (API)          | Add progress streaming       |
-| P2       | documents.rs                | Emit processing stage events |
-| P3       | workspaces.rs               | Improve rebuild progress     |
+### Baseline Metrics
+
+```
+Average F1: 0.685
+Per-document:
+  01_2512.25075v1: F1=0.552  (WORST)
+  one_tool_2512.20957v2: F1=0.596
+  AlphaEvolve: F1=0.620
+  v2_2512.25072v1: F1=0.689
+  2900_Goyal_et_al: F1=0.722
+  ccn_2512.21804v1: F1=0.807
+  agent_2510.09244v1: F1=0.810  (BEST)
+```
+
+### Root Cause: Text Position Accuracy
+
+**Evidence from debugging session:**
+
+```
+pymupdf extraction:
+  Y=275.7 X=679.4 text=' can'  (LEFT column)
+
+our lopdf extraction:
+  Y=316.6 X=580.3 text=' can'  (incorrectly placed in RIGHT column)
+```
+
+The lopdf-based extraction produces WRONG X/Y coordinates due to:
+
+1. Complex CTM matrix handling
+2. Font glyph width estimation (uses 55% of font size, not actual widths)
+3. Text matrix accumulation errors
+
+### pymupdf4llm Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    pymupdf4llm Pipeline                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  page.get_text("dict")                                          │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────────┐                                            │
+│  │  get_raw_lines  │  ← Line grouping with tolerance=3pt        │
+│  │  (get_text_     │  ← sanitize_spans() joins broken text      │
+│  │   lines.py)     │  ← Y-delta check: |y1-y1'| <= 3 OR         │
+│  └────────┬────────┘    |y0-y0'| <= 3                           │
+│           │                                                     │
+│           ▼                                                     │
+│  ┌─────────────────┐                                            │
+│  │  column_boxes   │  ← 3-phase rectangle joining               │
+│  │  (multi_column  │  ← Phase 1: vertical join (10pt gap)       │
+│  │   .py)          │  ← Phase 2: boundary normalize (3pt)       │
+│  └────────┬────────┘  ← Phase 3: smart sort key                 │
+│           │                                                     │
+│           ▼                                                     │
+│  ┌─────────────────┐                                            │
+│  │  to_markdown    │  ← Header detection via font histogram     │
+│  │  (document_     │  ← Table/list/code detection               │
+│  │   layout.py)    │  ← Style preservation (bold/italic)        │
+│  └─────────────────┘                                            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Files in pymupdf4llm
+
+| File                 | Lines | Purpose                            |
+| -------------------- | ----- | ---------------------------------- |
+| `get_text_lines.py`  | 304   | `get_raw_lines()` - line grouping  |
+| `multi_column.py`    | 531   | `column_boxes()` - 3-phase joining |
+| `document_layout.py` | 1182  | `to_markdown()` - final rendering  |
+| `pymupdf_rag.py`     | 1377  | Fallback RAG extraction            |
+| `utils.py`           | 1158  | Helper functions                   |
+
+### Key Algorithm: Line Grouping (get_raw_lines)
+
+```python
+# Lines 156-159 in get_text_lines.py
+# Two spans are on same line if EITHER tops OR bottoms are close
+if abs(sbbox.y1 - sbbox0.y1) <= y_delta or abs(sbbox.y0 - sbbox0.y0) <= y_delta:
+    line.append(s)  # same line
+```
+
+**Our bug:** We only check single Y coordinate with loose tolerance (font_size \* 0.5).
+
+### Key Algorithm: Span Joining (sanitize_spans)
+
+```python
+# Lines 79-90 in get_text_lines.py
+# Join spans if gap < 10% of font size AND same style
+delta = s1["size"] * 0.1
+if s0["bbox"].x1 + delta < s1["bbox"].x0:
+    continue  # don't join - gap too large
+```
+
+**Our bug:** We use fixed threshold, not font-size-relative.
+
+### Key Algorithm: Smart Sort Key (Phase 3)
+
+```python
+# Lines 283-298 in multi_column.py
+# For each block, find left-most block with vertical overlap
+# Use (left_block.y0, current.x0) as sort key
+left_rects = sorted([
+    r for r in new_rects
+    if r.x1 < box.x0  # to the left
+    and (box.y0 <= r.y0 <= box.y1 or box.y0 <= r.y1 <= box.y1)  # vertical overlap
+], key=lambda r: r.x1)
+
+if left_rects:
+    key = (left_rects[-1].y0, box.x0)  # use left block's Y
+else:
+    key = (box.y0, box.x0)  # use own Y
+```
 
 ---
 
-## Next Step
+## Current Codebase Structure
 
-Proceed to **Orient** phase to analyze gaps and define solutions.
+```
+edgequake/crates/edgequake-pdf/src/
+├── backend/
+│   ├── content_parser.rs    # 659 lines - lopdf text extraction
+│   ├── extraction_engine.rs # 1303 lines - main extraction
+│   ├── text_grouping.rs     # 1376 lines - line merging
+│   └── block_builder.rs     # ~400 lines - block construction
+├── layout/
+│   ├── mod.rs               # 333 lines - LayoutAnalyzer
+│   ├── reading_order.rs     # 739 lines - reading order detection
+│   └── column_detector.rs   # ~300 lines - DBSCAN clustering
+├── processors/
+│   └── layout_processing.rs # 1388 lines - pipeline processors
+└── lib.rs                   # Main exports
+```
+
+### Dependencies
+
+```toml
+# Cargo.toml
+lopdf = "0.34"  # PDF parsing (low-level)
+# No pymupdf - would need Python FFI or subprocess
+```
+
+---
+
+## Python Environment Check
+
+```bash
+$ python3 -c "import pymupdf; print(pymupdf.version)"
+# Need to verify pymupdf is available
+```
+
+---
+
+## Next Steps (Orient phase)
+
+1. Verify pymupdf is installed and accessible
+2. Design PyMuPDF backend interface
+3. Plan migration path from lopdf to pymupdf
+4. Identify which algorithms to port to Rust

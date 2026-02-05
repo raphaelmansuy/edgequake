@@ -4,6 +4,14 @@
 
 Your mission is to systematically improve the quality of PDF-to-Markdown conversion in the `edgequake-pdf` crate to match or exceed the quality of PyMuPDF4LLM, the industry gold standard for LLM-optimized PDF extraction.
 
+FULLY READ this file !!!!
+
+## ⚠️ CRITICAL SAFETY MANDATE ⚠️
+
+**YOU MUST RE-READ THIS ENTIRE MISSION FILE AT THE START OF EVERY OODA ITERATION.**
+
+Failure to re-read causes alignment drift → catastrophic safety issues → user frustration → system unreliability.
+
 ## Context
 
 - **Location**: `edgequake/crates/edgequake-pdf/`
@@ -39,16 +47,16 @@ edgequake-pdf/src/
 
 Based on `TEST_PROTOCOL.md` and PyMuPDF4LLM capabilities:
 
-| Category | Current Score | Target Score | Priority |
-|----------|---------------|--------------|----------|
-| Basic text extraction | 85/100 | 95/100 | Medium |
-| Bold/Italic formatting | 80/100 | 95/100 | High |
-| Headers (H1-H6) | 75/100 | 90/100 | Medium |
-| Multi-column layouts | 60/100 | 85/100 | **Critical** |
-| Tables | 50/100 | 80/100 | **Critical** |
-| Code blocks | 70/100 | 90/100 | High |
-| Lists (nested) | 55/100 | 85/100 | High |
-| Unicode handling | 70/100 | 90/100 | Medium |
+| Category               | Current Score | Target Score | Priority     |
+| ---------------------- | ------------- | ------------ | ------------ |
+| Basic text extraction  | 85/100        | 95/100       | Medium       |
+| Bold/Italic formatting | 80/100        | 95/100       | High         |
+| Headers (H1-H6)        | 75/100        | 90/100       | Medium       |
+| Multi-column layouts   | 60/100        | 85/100       | **Critical** |
+| Tables                 | 50/100        | 80/100       | **Critical** |
+| Code blocks            | 70/100        | 90/100       | High         |
+| Lists (nested)         | 55/100        | 85/100       | High         |
+| Unicode handling       | 70/100        | 90/100       | Medium       |
 
 ### Key Improvement Areas
 
@@ -61,6 +69,7 @@ Based on `TEST_PROTOCOL.md` and PyMuPDF4LLM capabilities:
 ### Test Documents in `zz_test_docs/`
 
 Real-world PDFs for validation:
+
 - `AI_Services__Elitizon.pdf` - Business document with tables
 - `AgenticPlatformReference Architecture.pdf` - Technical architecture
 - `Scottish SMEs Delegation*.pdf` - Multi-column newsletter
@@ -73,6 +82,7 @@ Real-world PDFs for validation:
 ### PyMuPDF4LLM Reference (Gold Standard)
 
 Located at `zz-explore/pymupdf4llm/`, key modules:
+
 - `helpers/multi_column.py` - Multi-column detection algorithm
 - `helpers/document_layout.py` - Layout analysis
 - `helpers/pymupdf_rag.py` - RAG-optimized extraction
