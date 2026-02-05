@@ -30,9 +30,9 @@ test result: ok. 450 passed; 0 failed
 
 All magic numbers in `can_append()` are now documented:
 
-| Threshold | WHY | OODA |
-|-----------|-----|------|
-| 0.5pt font size | PDF rounding errors | OODA-05 |
-| 0.3 * font_size y | Subscript detection | OODA-05 |
-| 0.25 * font_size space | Word boundary | (existing) |
-| 0.3 * avg_width overlap | Kerning tolerance | OODA-06 |
+| Threshold                | WHY                 | OODA       |
+| ------------------------ | ------------------- | ---------- |
+| 0.5pt font size          | PDF rounding errors | OODA-05    |
+| 0.3 \* font_size y       | Subscript detection | OODA-05    |
+| 0.25 \* font_size space  | Word boundary       | (existing) |
+| 0.3 \* avg_width overlap | Kerning tolerance   | OODA-06    |
