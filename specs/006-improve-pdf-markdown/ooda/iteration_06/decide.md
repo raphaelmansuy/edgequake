@@ -5,7 +5,7 @@
 
 ## Decision: Document Kerning Overlap Tolerance
 
-Add WHY comment explaining the 0.3 * avg_char_width overlap tolerance.
+Add WHY comment explaining the 0.3 \* avg_char_width overlap tolerance.
 
 ### Rationale
 

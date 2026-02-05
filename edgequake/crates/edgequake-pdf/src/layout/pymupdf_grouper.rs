@@ -945,6 +945,84 @@ mod tests {
         assert_eq!(spans[0].text, "Hi");
     }
 
+    /// OODA-07: Test mixed font styles in a single line.
+    /// WHY: Verifies that chars_to_spans correctly splits on style changes,
+    /// not just font name/size changes. This is the integration test for
+    /// OODA-02 (bold/italic) and OODA-03 (monospace) style checks.
+    #[test]
+    fn test_mixed_style_chars_to_spans() {
+        let grouper = TextGrouper::new();
+
+        // Create helper for styled chars
+        fn make_styled_char(
+            c: char,
+            x0: f32,
+            y0: f32,
+            font_size: f32,
+            is_bold: bool,
+            is_italic: bool,
+            is_monospace: bool,
+        ) -> RawChar {
+            let width = font_size * 0.6;
+            RawChar {
+                char: c,
+                x0,
+                y0,
+                x1: x0 + width,
+                y1: y0 + font_size,
+                font_size,
+                font_name: Some("Arial".to_string()),
+                page_num: 0,
+                is_bold,
+                is_italic,
+                is_monospace,
+            }
+        }
+
+        // Create "AB" (bold) + "cd" (italic) - adjacent characters with style change
+        // WHY: x positions must be adjacent (no word break) but style differs
+        let chars = vec![
+            make_styled_char('A', 60.0, 100.0, 12.0, true, false, false),
+            make_styled_char('B', 67.2, 100.0, 12.0, true, false, false),
+            make_styled_char('c', 74.4, 100.0, 12.0, false, true, false), // Style change!
+            make_styled_char('d', 81.6, 100.0, 12.0, false, true, false),
+        ];
+
+        let spans = grouper.chars_to_spans(&chars);
+
+        // Should produce 2 spans due to style change
+        assert_eq!(
+            spans.len(),
+            2,
+            "Expected 2 spans for mixed bold/italic, got {}",
+            spans.len()
+        );
+        assert_eq!(spans[0].text, "AB");
+        assert_eq!(spans[1].text, "cd");
+
+        // Verify style flags are preserved
+        assert_eq!(
+            spans[0].font_is_bold,
+            Some(true),
+            "First span should be bold"
+        );
+        assert_eq!(
+            spans[0].font_is_italic,
+            Some(false),
+            "First span should not be italic"
+        );
+        assert_eq!(
+            spans[1].font_is_bold,
+            Some(false),
+            "Second span should not be bold"
+        );
+        assert_eq!(
+            spans[1].font_is_italic,
+            Some(true),
+            "Second span should be italic"
+        );
+    }
+
     #[test]
     fn test_spans_to_lines() {
         let grouper = TextGrouper::new();
