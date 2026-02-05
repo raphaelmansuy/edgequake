@@ -37,6 +37,7 @@ Analyzed reading order algorithm and compared with PyMuPDF4LLM's `multi_column.p
 ### 2.2 PyMuPDF4LLM's join_rects_phase3 (lines 283-311)
 
 The key insight:
+
 ```python
 # Sorting approach guided by:
 # 1. Extraction should start with block whose top-left is left-most and top-most
@@ -47,8 +48,8 @@ The key insight:
 
 for box in new_rects:
     # Find left-most rect that overlaps vertically
-    left_rects = sorted([r for r in new_rects 
-                         if r.x1 < box.x0 
+    left_rects = sorted([r for r in new_rects
+                         if r.x1 < box.x0
                          and (box.y0 <= r.y0 <= box.y1 or box.y0 <= r.y1 <= box.y1)],
                         key=lambda r: r.x1)
     if left_rects:
@@ -60,23 +61,25 @@ for box in new_rects:
 ### 2.3 Our Current Implementation
 
 `compute_smart_sort_key()` in reading_order.rs:
+
 1. Finds blocks to the LEFT (correct)
 2. **BUG**: Uses `max_by(x2)` to find the RIGHT-MOST left block (should be LEFT-MOST per PyMuPDF4LLM)
 3. Only applies within columns, not for final merge
 
 `merge_column_orders_with_footer_smart()`:
+
 - Processes columns SEQUENTIALLY (left-to-right, all of column 1 then all of column 2)
 - Does NOT apply Phase 3 smart sorting to the final result
 - Headers/spanning elements may not be properly interleaved
 
 ### 2.4 Gap Analysis
 
-| Aspect | PyMuPDF4LLM | Our Implementation |
-|--------|-------------|-------------------|
-| Phase 3 sort | Applied to ALL blocks | Only within columns |
-| Left-block finder | Uses left-most (min x1) | Uses right-most (max x2) |
-| Vertical overlap | Checks y0 OR y1 overlap | Checks full range overlap |
-| Final ordering | Global smart sort | Sequential column merge |
+| Aspect            | PyMuPDF4LLM             | Our Implementation        |
+| ----------------- | ----------------------- | ------------------------- |
+| Phase 3 sort      | Applied to ALL blocks   | Only within columns       |
+| Left-block finder | Uses left-most (min x1) | Uses right-most (max x2)  |
+| Vertical overlap  | Checks y0 OR y1 overlap | Checks full range overlap |
+| Final ordering    | Global smart sort       | Sequential column merge   |
 
 ### 2.5 Test Baseline
 
