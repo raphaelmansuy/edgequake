@@ -32,6 +32,7 @@ if let Some(span_italic) = self.font_is_italic {
 **File**: `layout/pymupdf_structs.rs:768-860`
 
 New test `test_span_rejects_different_style()` verifies:
+
 - Span rejects characters with different bold flag
 - Span rejects characters with different italic flag
 - Span accepts characters with same style
@@ -40,7 +41,7 @@ New test `test_span_rejects_different_style()` verifies:
 
 Added OODA-02 reference and detailed docstring explaining the bug this fixes:
 
-```rust
+````rust
 /// ## OODA-02: Style Check
 ///
 /// Characters with different bold/italic flags MUST create separate spans.
@@ -51,7 +52,7 @@ Added OODA-02 reference and detailed docstring explaining the bug this fixes:
 /// Good:  Span{text:"Th", is_bold:true}, Span{text:"is", is_bold:false}
 ///        → "**Th**is" (CORRECT)
 /// ```
-```
+````
 
 ---
 
@@ -82,9 +83,9 @@ cargo clippy -p edgequake-pdf
 
 ## Files Modified
 
-| File | Lines Changed | Type |
-|------|--------------|------|
-| `src/layout/pymupdf_structs.rs` | +80 | Fix + Test |
+| File                            | Lines Changed | Type       |
+| ------------------------------- | ------------- | ---------- |
+| `src/layout/pymupdf_structs.rs` | +80           | Fix + Test |
 
 ---
 
@@ -120,5 +121,5 @@ Added test: test_span_rejects_different_style() verifies:
 
 ---
 
-*Iteration 02 - Act complete*
-*Next: Iteration 03 - Continue improvements*
+_Iteration 02 - Act complete_
+_Next: Iteration 03 - Continue improvements_

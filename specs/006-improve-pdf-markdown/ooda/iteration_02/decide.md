@@ -48,5 +48,5 @@ Add a unit test to verify spans are correctly split when style changes.
 
 ---
 
-*Iteration 02 - Decide complete*
-*Next: Act - Implement the changes*
+_Iteration 02 - Decide complete_
+_Next: Act - Implement the changes_

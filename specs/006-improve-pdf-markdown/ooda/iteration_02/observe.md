@@ -114,4 +114,3 @@ The entire chain from PDFium → RawChar → Span → Markdown is correctly impl
 ### Next Steps
 
 Focus iteration 02 on fixing the `can_append()` style check issue.
-

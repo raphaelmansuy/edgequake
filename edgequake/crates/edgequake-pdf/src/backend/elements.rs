@@ -11,6 +11,7 @@
 /// - `font_size()` → size in points
 /// - `font_is_italic()` → is_italic flag (from font descriptor flags)
 /// - `font_weight()` → is_bold flag (Weight700Bold or higher)
+/// - `font_is_fixed_pitch()` → is_monospace flag (from font descriptor flags)
 #[derive(Debug, Clone)]
 pub struct RawChar {
     /// The character itself
@@ -37,6 +38,11 @@ pub struct RawChar {
     /// WHY: Font name matching is unreliable. PDFium provides accurate
     /// italic flag from the font descriptor via font_is_italic().
     pub is_italic: bool,
+    /// Monospace (fixed-pitch) flag from font descriptor
+    /// WHY: Font name matching ("Mono", "Courier") misses many monospace fonts.
+    /// OODA-03: PDFium provides accurate fixed-pitch flag from font descriptor
+    /// via font_is_fixed_pitch(). This is the same data PyMuPDF uses.
+    pub is_monospace: bool,
 }
 
 impl RawChar {
