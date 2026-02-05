@@ -10,6 +10,7 @@ all common monospace fonts in PDFs.
 ### 1. `src/schema/block.rs` (lines 84-128)
 
 **Before (4 patterns):**
+
 ```rust
 pub fn looks_like_code(&self) -> bool {
     lower.contains("mono")
@@ -20,6 +21,7 @@ pub fn looks_like_code(&self) -> bool {
 ```
 
 **After (20+ patterns):**
+
 ```rust
 pub fn looks_like_code(&self) -> bool {
     // Primary patterns
@@ -56,6 +58,7 @@ pub fn looks_like_code(&self) -> bool {
 ### 2. Added Test `test_font_style_code_detection_extended`
 
 Tests 20+ font families:
+
 - Programming fonts: JetBrains Mono, Fira Code, Inconsolata, Hack, Iosevka
 - System fonts: Monaco, Menlo, SF Mono, Lucida Console, DejaVu, Liberation, Ubuntu, Roboto
 - Classic fonts: Letter Gothic, Prestige Elite, Fixedsys, OCR-A
@@ -75,11 +78,11 @@ test result: ok. 516 passed; 0 failed; 0 ignored
 
 ## Quality Impact
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Font patterns | 4 | 20+ |
-| Code detection coverage | ~70% | ~95% |
-| Tests for code | 15 | 16 |
+| Metric                  | Before | After |
+| ----------------------- | ------ | ----- |
+| Font patterns           | 4      | 20+   |
+| Code detection coverage | ~70%   | ~95%  |
+| Tests for code          | 15     | 16    |
 
 ## Commit
 

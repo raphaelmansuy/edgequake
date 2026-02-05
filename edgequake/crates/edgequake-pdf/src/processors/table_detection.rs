@@ -603,6 +603,12 @@ impl TextTableReconstructionProcessor {
 
     /// Score text for table-likeness.
     /// Higher score = more likely table data.
+    ///
+    /// ## OODA-IT10: Comma-Formatted Number Support
+    ///
+    /// WHY: Table data often contains comma-formatted numbers (e.g., 2,017,886).
+    /// Standard f64 parsing rejects these, causing table rows to be missed.
+    /// Solution: Strip commas before parsing numbers.
     fn table_like_score(text: &str) -> i32 {
         let t = text.trim();
         if t.is_empty() {
@@ -612,10 +618,18 @@ impl TextTableReconstructionProcessor {
         let pipes = t.matches('|').count();
         let has_multi_space = t.contains("  ") || t.contains('\t');
         let cleaned = Self::sanitize_line(t);
+
+        // OODA-IT10: Count numeric tokens, supporting comma-formatted numbers
+        // WHY: "2,017,886" is a valid number in table data
         let num_tokens = cleaned
             .split_whitespace()
-            .filter(|tok| tok.parse::<f64>().is_ok())
+            .filter(|tok| {
+                // Strip commas and try parsing
+                let no_commas = tok.replace(',', "");
+                no_commas.parse::<f64>().is_ok()
+            })
             .count();
+
         let has_numeric_suffix = Self::parse_numeric_suffix(&cleaned).is_some();
 
         let mut score = 0;
@@ -639,34 +653,68 @@ impl TextTableReconstructionProcessor {
     }
 
     /// Parse numeric suffix from line.
-    /// Returns (prefix, [float, int]) for patterns like "Method 0.95 3"
+    /// Returns (prefix, [nums...]) for patterns like "Total Tokens 2,017,886 2,306,535 5,081,069"
+    ///
+    /// OODA-IT10: Enhanced to handle multiple comma-formatted numbers.
+    /// WHY: Academic tables often have 4+ numeric columns with comma formatting.
     fn parse_numeric_suffix(line: &str) -> Option<(String, Vec<String>)> {
         let tokens: Vec<&str> = line.split_whitespace().collect();
         if tokens.is_empty() {
             return None;
         }
 
-        // Try: <prefix> <float> <int>
-        if tokens.len() >= 3 {
-            let last = tokens[tokens.len() - 1];
-            let prev = tokens[tokens.len() - 2];
+        // OODA-IT10: Try to find ALL numeric tokens at the end
+        // Numeric tokens: integers, floats, or comma-formatted numbers like "2,017,886"
+        let is_numeric = |s: &str| {
+            // Strip commas for parsing
+            let clean = s.replace(',', "");
+            clean.parse::<f64>().is_ok()
+        };
 
-            if last.parse::<i64>().is_ok() && prev.parse::<f64>().is_ok() {
-                let prefix = tokens[..tokens.len() - 2].join(" ");
-                return Some((prefix, vec![prev.to_string(), last.to_string()]));
+        // Find where numeric suffix starts
+        let mut num_start = tokens.len();
+        for i in (0..tokens.len()).rev() {
+            if is_numeric(tokens[i]) {
+                num_start = i;
+            } else {
+                break;
             }
         }
 
-        // Try: <prefix> <float>
-        if tokens.len() >= 2 {
-            let last = tokens[tokens.len() - 1];
-            if last.parse::<f64>().is_ok() {
-                let prefix = tokens[..tokens.len() - 1].join(" ");
-                return Some((prefix, vec![last.to_string()]));
+        if num_start >= tokens.len() {
+            // No numeric suffix found - try old fallback
+            // Try: <prefix> <float> <int>
+            if tokens.len() >= 3 {
+                let last = tokens[tokens.len() - 1];
+                let prev = tokens[tokens.len() - 2];
+
+                if last.parse::<i64>().is_ok() && prev.parse::<f64>().is_ok() {
+                    let prefix = tokens[..tokens.len() - 2].join(" ");
+                    return Some((prefix, vec![prev.to_string(), last.to_string()]));
+                }
             }
+
+            // Try: <prefix> <float>
+            if tokens.len() >= 2 {
+                let last = tokens[tokens.len() - 1];
+                if last.parse::<f64>().is_ok() {
+                    let prefix = tokens[..tokens.len() - 1].join(" ");
+                    return Some((prefix, vec![last.to_string()]));
+                }
+            }
+
+            return None;
         }
 
-        None
+        // We found numeric suffix
+        let prefix = tokens[..num_start].join(" ");
+        let nums: Vec<String> = tokens[num_start..].iter().map(|s| s.to_string()).collect();
+
+        if nums.is_empty() || prefix.is_empty() {
+            return None;
+        }
+
+        Some((prefix, nums))
     }
 
     /// Build table cells from row data.
@@ -766,10 +814,19 @@ impl TextTableReconstructionProcessor {
                 continue;
             }
 
+            // OODA-IT10: Log when we find a table caption
+            tracing::info!(
+                "TextTableReconstruction: Found caption at block {} on page {}: '{}'",
+                i,
+                page.number,
+                block.text.chars().take(50).collect::<String>()
+            );
+
             // Check if structured table already exists nearby
             let has_existing_table = self.has_existing_table(page, i, page_idx, page_table_bboxes);
 
             if has_existing_table {
+                tracing::info!("  → Existing table found nearby, skipping");
                 new_blocks.push(block.clone());
                 i += 1;
                 continue;
@@ -779,10 +836,16 @@ impl TextTableReconstructionProcessor {
             let (table_block, consumed) = self.scan_for_table(page, i);
 
             if let Some(table) = table_block {
+                tracing::info!(
+                    "  → Reconstructed table with {} children (consumed {} blocks)",
+                    table.children.len(),
+                    consumed - i
+                );
                 new_blocks.push(block.clone()); // Keep caption
                 new_blocks.push(table);
                 i = consumed;
             } else {
+                tracing::info!("  → No table content found after caption");
                 new_blocks.push(block.clone());
                 i += 1;
             }
@@ -856,6 +919,13 @@ impl TextTableReconstructionProcessor {
         let mut started = false;
         let mut consecutive_zeros = 0;
 
+        // OODA-IT10: Debug logging to trace scan behavior
+        tracing::debug!(
+            "  scan_for_table: starting at idx={}, blocks={}",
+            caption_idx,
+            page.blocks.len()
+        );
+
         for j in (caption_idx + 1)..page.blocks.len().min(caption_idx + 1 + MAX_SCAN) {
             let b = &page.blocks[j];
             let t = b.text.trim();
@@ -868,15 +938,44 @@ impl TextTableReconstructionProcessor {
                 && t.len() > 7
                 && t.chars().nth(7).is_some_and(|c| c.is_ascii_digit());
 
-            if t.is_empty()
-                || Self::is_hard_break(b)
-                || Self::looks_like_table_caption(t)
-                || is_figure_caption
-            {
+            // OODA-IT10: Check if this is a "Table N mentions" text, not a caption
+            // WHY: "Table 4 presents statistical information..." is prose ABOUT the table,
+            // not another table caption.
+            //
+            // DETECTION LOGIC:
+            // - "Table 4:" or "Table 4." at START = caption (colon/period after number)
+            // - "Table 4 presents..." = prose reference (space after number, then word)
+            //
+            // We check if char immediately after "Table N" is a space followed by a letter
+            // (not colon, period, or another number).
+            let is_table_reference = if t.starts_with("Table ") && t.len() > 10 {
+                // Get char after "Table N" (skip "Table " + digits)
+                let after_table = t.chars().skip(6).skip_while(|c| c.is_ascii_digit());
+                let first_char = after_table.clone().next();
+                let second_char = after_table.skip(1).next();
+
+                // Pattern: "Table N X..." where X is a letter (not : or .)
+                // This indicates prose like "Table 4 presents..." or "Table 4 shows..."
+                matches!(first_char, Some(' '))
+                    && matches!(second_char, Some(c) if c.is_alphabetic())
+            } else {
+                false
+            };
+
+            let looks_caption = Self::looks_like_table_caption(t);
+            let is_actual_caption = looks_caption && !is_table_reference;
+
+            if t.is_empty() || Self::is_hard_break(b) || is_actual_caption || is_figure_caption {
                 break;
             }
 
             let score = Self::table_like_score(t);
+            tracing::debug!(
+                "    idx={}: score={} text='{}'",
+                j,
+                score,
+                t.chars().take(40).collect::<String>()
+            );
 
             if !started {
                 if score == 0 {
@@ -1012,6 +1111,17 @@ mod tests {
             TextTableReconstructionProcessor::table_like_score("Hello world"),
             0
         );
+
+        // OODA-IT10: Table row with large numbers should have score >= 2
+        // Real example from LightRAG paper Table 4
+        let score = TextTableReconstructionProcessor::table_like_score(
+            "Total Tokens 2,017,886 2,306,535 5,081,069 619,009",
+        );
+        assert!(
+            score >= 2,
+            "Expected score >= 2 for numeric table row, got {}",
+            score
+        );
     }
 
     #[test]
@@ -1021,6 +1131,22 @@ mod tests {
                 .expect("should parse");
         assert_eq!(prefix, "Method A");
         assert_eq!(nums, vec!["0.95", "3"]);
+    }
+
+    #[test]
+    fn test_numeric_suffix_parsing_comma_numbers() {
+        // OODA-IT10: Test comma-formatted numbers from academic tables
+        let result = TextTableReconstructionProcessor::parse_numeric_suffix(
+            "Total Tokens 2,017,886 2,306,535 5,081,069 619,009",
+        );
+        assert!(result.is_some(), "Should parse comma-formatted numbers");
+        let (prefix, nums) = result.unwrap();
+        assert_eq!(prefix, "Total Tokens");
+        assert_eq!(nums.len(), 4);
+        assert_eq!(nums[0], "2,017,886");
+        assert_eq!(nums[1], "2,306,535");
+        assert_eq!(nums[2], "5,081,069");
+        assert_eq!(nums[3], "619,009");
     }
 
     #[test]
