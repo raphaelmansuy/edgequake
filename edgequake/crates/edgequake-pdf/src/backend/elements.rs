@@ -100,3 +100,68 @@ pub struct PdfLine {
     pub p2: (f32, f32),
     pub width: f32,
 }
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper to create a RawChar with minimal required fields
+    fn make_char(x0: f32, y0: f32, x1: f32, y1: f32) -> RawChar {
+        RawChar {
+            char: 'A',
+            x0,
+            y0,
+            x1,
+            y1,
+            font_size: 12.0,
+            font_name: None,
+            page_num: 0,
+            is_bold: false,
+            is_italic: false,
+            is_monospace: false,
+        }
+    }
+
+    #[test]
+    fn test_raw_char_dimensions() {
+        let c = make_char(10.0, 20.0, 25.0, 32.0);
+        // Width = x1 - x0 = 25 - 10 = 15
+        assert!((c.width() - 15.0).abs() < 0.001, "width should be 15");
+        // Height = y1 - y0 = 32 - 20 = 12
+        assert!((c.height() - 12.0).abs() < 0.001, "height should be 12");
+    }
+
+    #[test]
+    fn test_raw_char_center_point() {
+        let c = make_char(10.0, 20.0, 30.0, 40.0);
+        // Center X = (10 + 30) / 2 = 20
+        assert!((c.center_x() - 20.0).abs() < 0.001, "center_x should be 20");
+        // Center Y = (20 + 40) / 2 = 30
+        assert!((c.center_y() - 30.0).abs() < 0.001, "center_y should be 30");
+    }
+
+    #[test]
+    fn test_raw_char_zero_size() {
+        // Edge case: point-sized character (zero dimensions)
+        let c = make_char(100.0, 200.0, 100.0, 200.0);
+        assert!((c.width() - 0.0).abs() < 0.001, "zero-width char");
+        assert!((c.height() - 0.0).abs() < 0.001, "zero-height char");
+        // Center should still be the point itself
+        assert!((c.center_x() - 100.0).abs() < 0.001, "center_x at point");
+        assert!((c.center_y() - 200.0).abs() < 0.001, "center_y at point");
+    }
+
+    #[test]
+    fn test_raw_char_large_coordinates() {
+        // Real-world PDF: Letter size is 612x792 points
+        let c = make_char(55.0, 700.0, 65.0, 712.0);
+        assert!((c.width() - 10.0).abs() < 0.001);
+        assert!((c.height() - 12.0).abs() < 0.001);
+        assert!((c.center_x() - 60.0).abs() < 0.001);
+        assert!((c.center_y() - 706.0).abs() < 0.001);
+    }
+}
