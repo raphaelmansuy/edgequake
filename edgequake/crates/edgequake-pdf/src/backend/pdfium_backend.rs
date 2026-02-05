@@ -52,10 +52,13 @@ use crate::config::PdfConfig;
 use crate::extractor::PdfInfo;
 use crate::layout::{GroupingParams, TextGrouper};
 // Import TextBlock from pymupdf_structs module directly to avoid shadowing
-use crate::layout::pymupdf_structs::{Block as TextBlock, BlockType as LayoutBlockType};
+use crate::layout::pymupdf_structs::{
+    Block as TextBlock, BlockType as LayoutBlockType, Span as LayoutSpan,
+};
 use crate::progress::ProgressCallback;
 use crate::schema::{
-    Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, Page,
+    Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, FontStyle, Page,
+    TextSpan,
 };
 use crate::Result;
 
@@ -391,6 +394,42 @@ fn classify_blocks(blocks: &[TextBlock], body_size: f32) -> Vec<TextBlock> {
         .collect()
 }
 
+/// Convert a layout::Span to a schema::TextSpan with style preservation.
+///
+/// ## OODA-IT05: Why This Function?
+///
+/// Style information (bold, italic, monospace) is extracted by PDFium and
+/// stored in `layout::Span`. Without this conversion, the markdown renderer
+/// would only see plain text and could not apply inline styling like `**bold**`.
+///
+/// ## Conversion Rules
+///
+/// ```text
+/// layout::Span.font_is_bold → FontStyle.weight = 700
+/// layout::Span.font_is_italic → FontStyle.italic = true
+/// layout::Span.font_is_monospace → FontStyle (for code detection)
+/// ```
+fn convert_span_to_text_span(span: &LayoutSpan) -> TextSpan {
+    let mut style = FontStyle::default();
+
+    // WHY 700: Font-weight 700 is the CSS standard for "bold"
+    // PDFium extracts this from font descriptor flags
+    if span.font_is_bold.unwrap_or(false) {
+        style.weight = Some(700);
+    }
+
+    style.italic = span.font_is_italic.unwrap_or(false);
+    style.size = Some(span.font_size);
+    style.family = span.font_name.clone();
+
+    // Create bounding box for the span
+    let bbox = BoundingBox::new(span.x0, span.y0, span.x1, span.y1);
+    let mut text_span = TextSpan::styled(span.text.clone(), style);
+    text_span.bbox = Some(bbox);
+
+    text_span
+}
+
 /// Convert a layout::Block (TextBlock) to a schema::Block.
 ///
 /// ## WHY This Conversion?
@@ -404,6 +443,7 @@ fn classify_blocks(blocks: &[TextBlock], body_size: f32) -> Vec<TextBlock> {
 /// - Block type (paragraph, header, code, list)
 /// - Bounding box coordinates
 /// - Page and position metadata
+/// - **OODA-IT05: Styled spans for bold/italic/code rendering**
 fn convert_text_block_to_schema_block(
     text_block: &TextBlock,
     page_num: usize,
@@ -428,6 +468,26 @@ fn convert_text_block_to_schema_block(
     block.position = position;
     block.text = text_block.text();
     block.confidence = 1.0;
+
+    // OODA-IT05: Populate spans with styled TextSpan objects
+    // WHY: Without this, the markdown renderer cannot apply inline styling
+    // Each span carries its own font style (bold/italic) from PDFium
+    //
+    // Algorithm:
+    // 1. Iterate lines top-to-bottom
+    // 2. For each line, iterate spans left-to-right
+    // 3. Convert each layout::Span to schema::TextSpan with style
+    // 4. Add newline TextSpan between lines for proper line breaks
+    for (line_idx, line) in text_block.lines.iter().enumerate() {
+        for span in &line.spans {
+            let text_span = convert_span_to_text_span(span);
+            block.spans.push(text_span);
+        }
+        // Add newline between lines (except after last line)
+        if line_idx < text_block.lines.len() - 1 && !line.spans.is_empty() {
+            block.spans.push(TextSpan::plain("\n"));
+        }
+    }
 
     // Set header level if applicable
     if let LayoutBlockType::Header(level) = text_block.block_type {
@@ -475,5 +535,86 @@ mod tests {
             matches!(classified[0].block_type, LayoutBlockType::Header(_)),
             "18pt text with 12pt body should be header"
         );
+    }
+
+    #[test]
+    fn test_convert_span_to_text_span_bold() {
+        // OODA-IT05: Test that bold style is preserved in conversion
+        let mut span = LayoutSpan::new(0);
+        span.text = "Bold text".to_string();
+        span.font_is_bold = Some(true);
+        span.font_is_italic = Some(false);
+        span.font_size = 12.0;
+        span.x0 = 0.0;
+        span.x1 = 50.0;
+        span.y0 = 0.0;
+        span.y1 = 14.0;
+
+        let text_span = convert_span_to_text_span(&span);
+
+        assert_eq!(text_span.text, "Bold text");
+        assert_eq!(text_span.style.weight, Some(700), "Bold should have weight 700");
+        assert!(!text_span.style.italic, "Should not be italic");
+        assert!(text_span.bbox.is_some(), "Should have bounding box");
+    }
+
+    #[test]
+    fn test_convert_span_to_text_span_italic() {
+        // OODA-IT05: Test that italic style is preserved in conversion
+        let mut span = LayoutSpan::new(0);
+        span.text = "Italic text".to_string();
+        span.font_is_bold = Some(false);
+        span.font_is_italic = Some(true);
+        span.font_size = 12.0;
+        span.x0 = 0.0;
+        span.x1 = 60.0;
+        span.y0 = 0.0;
+        span.y1 = 14.0;
+
+        let text_span = convert_span_to_text_span(&span);
+
+        assert_eq!(text_span.text, "Italic text");
+        assert!(text_span.style.italic, "Should be italic");
+        assert!(text_span.style.weight.is_none() || text_span.style.weight == Some(400), 
+                "Non-bold should not have weight 700");
+    }
+
+    #[test]
+    fn test_convert_block_preserves_spans() {
+        // OODA-IT05: Test that block conversion populates spans vector
+        use crate::layout::pymupdf_structs::{Line, Span};
+
+        // Create a line with bold and normal spans
+        let mut bold_span = Span::new(0);
+        bold_span.text = "Bold".to_string();
+        bold_span.font_is_bold = Some(true);
+        bold_span.font_size = 12.0;
+        bold_span.x0 = 0.0;
+        bold_span.x1 = 30.0;
+        bold_span.y0 = 0.0;
+        bold_span.y1 = 14.0;
+
+        let mut normal_span = Span::new(0);
+        normal_span.text = "normal".to_string();
+        normal_span.font_is_bold = Some(false);
+        normal_span.font_size = 12.0;
+        normal_span.x0 = 35.0;
+        normal_span.x1 = 80.0;
+        normal_span.y0 = 0.0;
+        normal_span.y1 = 14.0;
+
+        let mut line = Line::from_span(bold_span);
+        line.add_span(normal_span);
+
+        let text_block = TextBlock::from_line(line);
+
+        // Convert to schema block
+        let schema_block = convert_text_block_to_schema_block(&text_block, 0, 0);
+
+        // Verify spans are populated
+        assert_eq!(schema_block.spans.len(), 2, "Should have 2 spans");
+        assert_eq!(schema_block.spans[0].text, "Bold");
+        assert_eq!(schema_block.spans[0].style.weight, Some(700), "First span should be bold");
+        assert_eq!(schema_block.spans[1].text, "normal");
     }
 }
