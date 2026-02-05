@@ -119,4 +119,48 @@ mod tests {
         assert_eq!(analyzer.calculate_median(vec![10.0, 12.0, 14.0]), 12.0);
         assert_eq!(analyzer.calculate_median(vec![]), 12.0); // Default
     }
+
+    // OODA-19: Additional edge case tests for font analysis
+
+    #[test]
+    fn test_median_even_count() {
+        let analyzer = FontAnalyzer::new();
+        // Even count: median is element at index n/2
+        // [10, 11, 12, 13] → index 2 → 12
+        assert_eq!(analyzer.calculate_median(vec![10.0, 11.0, 12.0, 13.0]), 12.0);
+    }
+
+    #[test]
+    fn test_median_single_element() {
+        let analyzer = FontAnalyzer::new();
+        assert_eq!(analyzer.calculate_median(vec![14.0]), 14.0);
+    }
+
+    #[test]
+    fn test_median_two_elements() {
+        let analyzer = FontAnalyzer::new();
+        // Two elements: n/2 = 1, so second element after sort
+        assert_eq!(analyzer.calculate_median(vec![10.0, 14.0]), 14.0);
+    }
+
+    #[test]
+    fn test_median_with_outliers() {
+        let analyzer = FontAnalyzer::new();
+        // WHY median: Outliers don't affect result (unlike mean)
+        // [4, 4, 4, 10, 12, 12, 12, 48, 72] → sorted, index 4 → 12
+        assert_eq!(
+            analyzer.calculate_median(vec![4.0, 48.0, 12.0, 72.0, 4.0, 12.0, 12.0, 4.0, 10.0]),
+            12.0
+        );
+    }
+
+    #[test]
+    fn test_valid_size_boundary() {
+        let analyzer = FontAnalyzer::new();
+        // WHY: Boundary conditions are common sources of off-by-one errors
+        assert!(analyzer.is_valid_size(4.0)); // Min valid (inclusive)
+        assert!(analyzer.is_valid_size(72.0)); // Max valid (inclusive)
+        assert!(!analyzer.is_valid_size(3.9)); // Just below min
+        assert!(!analyzer.is_valid_size(72.1)); // Just above max
+    }
 }
