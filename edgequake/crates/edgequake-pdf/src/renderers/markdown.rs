@@ -907,6 +907,11 @@ impl MarkdownRenderer {
         // These leader dots are visual artifacts from PDFs and clutter the markdown output.
         result = Self::cleanup_toc_leader_dots(&result);
 
+        // OODA-IT15: Convert standalone bold lines to section headers
+        // WHY: Business PDFs often use bold text as visual section markers.
+        // These should be proper markdown headers for semantic structure.
+        result = Self::convert_standalone_bold_to_headers(&result);
+
         result
     }
 
@@ -960,6 +965,73 @@ impl MarkdownRenderer {
         result = multi_newline_re.replace_all(&result, "\n\n").to_string();
 
         result
+    }
+
+    /// OODA-IT15: Convert standalone bold lines to section headers.
+    /// WHY: Business PDFs often use bold text as visual section markers without
+    /// numbered headings. These should be converted to proper markdown headers
+    /// for semantic document structure.
+    ///
+    /// Criteria for conversion:
+    /// - Line contains ONLY bold text: **Title Text**
+    /// - Text is short (< 60 chars)
+    /// - Starts with uppercase letter
+    /// - Does NOT end with : or . or ? (these are likely labels/sentences)
+    /// - Does NOT start with Fig/Table/Note/Example (captions)
+    fn convert_standalone_bold_to_headers(text: &str) -> String {
+        use regex::Regex;
+
+        // Match standalone bold lines: exactly **text** on a line
+        let standalone_bold_re = Regex::new(r"^\*\*([^*]+)\*\*\s*$").unwrap();
+
+        // Caption patterns that should NOT be converted to headers
+        // These are typically followed by a number or colon
+        // "Figure 1:" or "Table 2." but NOT "Table of Contents"
+        let caption_re = Regex::new(r"(?i)^(fig\.?|figure|table)\s*\d").unwrap();
+
+        // Specific patterns that look like captions but should still be headers
+        let allowed_headers = [
+            "table of contents",
+            "appendix",
+            "acknowledgements",
+            "acknowledgments",
+        ];
+
+        let mut result_lines: Vec<String> = Vec::new();
+
+        for line in text.lines() {
+            if let Some(caps) = standalone_bold_re.captures(line) {
+                let inner_text = &caps[1];
+                let trimmed = inner_text.trim();
+                let lower = trimmed.to_lowercase();
+
+                // Check if this looks like a header candidate
+                let is_short = trimmed.len() < 60;
+                let starts_upper = trimmed.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                let ends_with_punctuation = trimmed.ends_with(':')
+                    || trimmed.ends_with('.')
+                    || trimmed.ends_with('?')
+                    || trimmed.ends_with(';');
+
+                // Check if it's a caption (e.g., "Figure 1:", "Table 2")
+                let is_caption = caption_re.is_match(trimmed);
+
+                // Check if it's an allowed header pattern
+                let is_allowed = allowed_headers.iter().any(|h| lower.starts_with(h));
+
+                // Convert to header if it meets the criteria
+                // Caption patterns like "Figure 1" are excluded unless explicitly allowed
+                if is_short && starts_upper && !ends_with_punctuation && (!is_caption || is_allowed) {
+                    result_lines.push(format!("## **{}**", trimmed));
+                } else {
+                    result_lines.push(line.to_string());
+                }
+            } else {
+                result_lines.push(line.to_string());
+            }
+        }
+
+        result_lines.join("\n")
     }
 }
 
@@ -1657,6 +1729,112 @@ mod tests {
             result.contains("5.1") && result.contains("5.2"),
             "Both section numbers should be present, got: '{}'",
             result
+        );
+    }
+
+    // OODA-IT15: Tests for standalone bold to header conversion
+    #[test]
+    fn test_convert_standalone_bold_basic() {
+        let input = "**Executive Summary**";
+        let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
+        assert!(
+            result.starts_with("## "),
+            "Standalone bold should become header, got: '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_convert_standalone_bold_preserves_caption() {
+        // Captions with numbers should NOT be converted to headers
+        let input = "**Figure 1: Test Image**";
+        let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
+        assert!(
+            !result.starts_with("## "),
+            "Figure captions should not become headers, got: '{}'",
+            result
+        );
+
+        // But "Table of Contents" SHOULD be converted (allowed exception)
+        let input2 = "**Table of Contents**";
+        let result2 = MarkdownRenderer::convert_standalone_bold_to_headers(input2);
+        assert!(
+            result2.starts_with("## "),
+            "Table of Contents should become header, got: '{}'",
+            result2
+        );
+    }
+
+    #[test]
+    fn test_convert_standalone_bold_preserves_label() {
+        // Labels ending with colon should NOT be converted
+        let input = "**Note:**";
+        let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
+        assert!(
+            !result.starts_with("## "),
+            "Labels with colon should not become headers, got: '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_convert_standalone_bold_preserves_sentence() {
+        // Sentences ending with period should NOT be converted
+        let input = "**This is a complete sentence.**";
+        let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
+        assert!(
+            !result.starts_with("## "),
+            "Sentences should not become headers, got: '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_convert_standalone_bold_preserves_lowercase() {
+        // Lowercase starting text should NOT be converted
+        let input = "**the quick brown fox**";
+        let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
+        assert!(
+            !result.starts_with("## "),
+            "Lowercase text should not become headers, got: '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_convert_standalone_bold_inline_preserved() {
+        // Bold within a line should NOT be affected
+        let input = "This has **bold** text inline";
+        let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
+        assert_eq!(
+            result, input,
+            "Inline bold should be preserved unchanged"
+        );
+    }
+
+    #[test]
+    fn test_convert_standalone_bold_multiple_lines() {
+        let input = r#"**Introduction**
+
+Some paragraph text here.
+
+**Methods**
+
+More text about methods."#;
+        let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
+        assert!(
+            result.contains("## **Introduction**"),
+            "Introduction should become header, got: '{}'",
+            result
+        );
+        assert!(
+            result.contains("## **Methods**"),
+            "Methods should become header, got: '{}'",
+            result
+        );
+        assert!(
+            result.contains("Some paragraph text here."),
+            "Paragraph text should be preserved"
         );
     }
 }
