@@ -43,8 +43,9 @@ pub struct FontInfo {
 impl FontInfo {
     /// Construct FontInfo from a PDF font dictionary.
     ///
-    /// Extracts the base font name, detects bold/italic style from common naming
-    /// conventions (including LaTeX fonts like SFBX/CMTI), and resolves encoding.
+    /// Extracts the base font name, detects bold/italic style from:
+    /// 1. FontDescriptor/Flags field (authoritative, like PyMuPDF)
+    /// 2. Font name pattern matching (fallback for fonts without FontDescriptor)
     pub fn from_dict(doc: &LopdfDocument, font_dict: &Dictionary) -> Self {
         // Get base font name
         let base_font = font_dict
@@ -54,38 +55,52 @@ impl FontInfo {
             .map(|n| String::from_utf8_lossy(n).to_string())
             .unwrap_or_else(|| "Unknown".to_string());
 
-        // Detect bold/italic from font name
-        let lower_name = base_font.to_lowercase();
-        // Check for common bold indicators:
-        // - "bold", "black", "heavy" in name
-        // - "sfbx" (SF Bold Extended) in arXiv/LaTeX fonts like TFFXIV+SFBX1200
-        // - "cmbx" (Computer Modern Bold Extended)
-        // - "-bold" suffix
-        // - "medi" (medium weight in Nimbus fonts) - OODA-09: Re-enabled for abstract bold text
-        //   The previous concern about over-bolding headings is addressed: headings are detected
-        //   by font size ratio, and bold is rendered separately from header level.
-        let is_bold = lower_name.contains("bold")
-            || lower_name.contains("black")
-            || lower_name.contains("heavy")
-            || lower_name.contains("sfbx")   // SF Bold Extended (arXiv/LaTeX) - TFFXIV+SFBX1200
-            || lower_name.contains("cmbx")   // Computer Modern Bold Extended
-            || lower_name.contains("medi")   // OODA-09: Medium weight in Nimbus (NimbusRomNo9L-Medi)
-            || lower_name.contains("-bold");
+        // Try to extract style flags from FontDescriptor first (authoritative)
+        // WHY: Font name matching is unreliable. PyMuPDF uses font descriptor flags:
+        // - Bit 7 (value 64) = Italic
+        // - Weight >= 700 or ForceBold flag = Bold
+        let (flags_italic, flags_bold) = Self::get_font_descriptor_flags(doc, font_dict);
 
-        // OODA-05: Detect italic from font naming conventions.
-        // PyMuPDF uses font flags (bitmask) which is more reliable, but we only have font names.
-        // Computer Modern fonts from LaTeX use these conventions:
-        // - CMTI = CM Text Italic, CMMI = CM Math Italic, CMSY = CM Symbol (italic style)
-        // - CMMIB = CM Math Italic Bold
-        let is_italic = lower_name.contains("italic") 
-            || lower_name.contains("oblique")
-            || lower_name.contains("ital")   // OODA-09: Abbreviated form used by Nimbus fonts (ReguItal, MediItal)
-            || lower_name.contains("sfti")   // SF Text Italic - e.g., TXAXLJ+SFTI0900
-            || lower_name.contains("cmti")   // Computer Modern Text Italic
-            || lower_name.contains("cmmi")   // Computer Modern Math Italic
-            || lower_name.contains("cmsy")   // OODA-05: Computer Modern Symbol - italic style in arXiv papers
-            || lower_name.contains("cmmib")  // Computer Modern Math Italic Bold
-            || lower_name.contains("-italic");
+        // Fallback to font name matching if FontDescriptor flags unavailable
+        let lower_name = base_font.to_lowercase();
+
+        // Bold detection: prefer FontDescriptor, fallback to name patterns
+        let is_bold = if let Some(bold_flag) = flags_bold {
+            bold_flag
+        } else {
+            // Check for common bold indicators:
+            // - "bold", "black", "heavy" in name
+            // - "sfbx" (SF Bold Extended) in arXiv/LaTeX fonts like TFFXIV+SFBX1200
+            // - "cmbx" (Computer Modern Bold Extended)
+            // - "-bold" suffix
+            // - "medi" (medium weight in Nimbus fonts) - OODA-09: Re-enabled for abstract bold text
+            lower_name.contains("bold")
+                || lower_name.contains("black")
+                || lower_name.contains("heavy")
+                || lower_name.contains("sfbx")   // SF Bold Extended (arXiv/LaTeX)
+                || lower_name.contains("cmbx")   // Computer Modern Bold Extended
+                || lower_name.contains("medi")   // Medium weight in Nimbus fonts
+                || lower_name.contains("-bold")
+        };
+
+        // Italic detection: prefer FontDescriptor, fallback to name patterns
+        let is_italic = if let Some(italic_flag) = flags_italic {
+            italic_flag
+        } else {
+            // OODA-05: Detect italic from font naming conventions.
+            // Computer Modern fonts from LaTeX use these conventions:
+            // - CMTI = CM Text Italic, CMMI = CM Math Italic, CMSY = CM Symbol (italic style)
+            // - CMMIB = CM Math Italic Bold
+            lower_name.contains("italic") 
+                || lower_name.contains("oblique")
+                || lower_name.contains("ital")   // Abbreviated form used by Nimbus fonts
+                || lower_name.contains("sfti")   // SF Text Italic
+                || lower_name.contains("cmti")   // Computer Modern Text Italic
+                || lower_name.contains("cmmi")   // Computer Modern Math Italic
+                || lower_name.contains("cmsy")   // Computer Modern Symbol
+                || lower_name.contains("cmmib")  // Computer Modern Math Italic Bold
+                || lower_name.contains("-italic")
+        };
 
         // Get encoding
         let encoding = Self::get_encoding(doc, font_dict);
@@ -97,6 +112,107 @@ impl FontInfo {
             is_bold,
             is_italic,
         }
+    }
+
+    /// Extract bold/italic flags from PDF FontDescriptor.
+    ///
+    /// Returns (Option<is_italic>, Option<is_bold>).
+    /// None means the flag couldn't be determined from FontDescriptor.
+    ///
+    /// For italic detection, we check (in order):
+    /// 1. Flags bit 7 (value 64) - PDF spec italic flag
+    /// 2. ItalicAngle != 0 - Non-zero angle indicates italic/oblique
+    ///
+    /// WHY ItalicAngle is critical: Many PDFs (especially from LaTeX/scientific papers)
+    /// don't set the Flags bit 7, but DO set ItalicAngle to a non-zero value like -12°.
+    /// PyMuPDF uses ItalicAngle as the primary indicator for italic detection.
+    ///
+    /// For bold detection, we check:
+    /// 1. Weight field >= 700 (CSS convention)
+    /// 2. StemV > 120 (stem width heuristic)
+    fn get_font_descriptor_flags(
+        doc: &LopdfDocument,
+        font_dict: &Dictionary,
+    ) -> (Option<bool>, Option<bool>) {
+        // Get FontDescriptor reference or dictionary
+        let font_descriptor = match font_dict.get(b"FontDescriptor") {
+            Ok(Object::Reference(id)) => doc.get_dictionary(*id).ok(),
+            Ok(Object::Dictionary(d)) => Some(d),
+            _ => None,
+        };
+
+        let fd = match font_descriptor {
+            Some(fd) => fd,
+            None => return (None, None), // No FontDescriptor, use name matching
+        };
+
+        // Extract Flags field (integer bitmask)
+        let flags: i64 = match fd.get(b"Flags") {
+            Ok(Object::Integer(i)) => *i,
+            Ok(Object::Reference(id)) => doc
+                .get_object(*id)
+                .ok()
+                .and_then(|obj| match obj {
+                    Object::Integer(i) => Some(*i),
+                    _ => None,
+                })
+                .unwrap_or(0),
+            _ => 0,
+        };
+
+        // Check Flags bit 7 (0x40 = 64) for italic
+        let flags_italic = (flags & 64) != 0;
+
+        // Check ItalicAngle - non-zero means italic/oblique
+        // WHY: This is the PRIMARY italic indicator in many PDFs where Flags bit 7 is not set.
+        // Example: NimbusSanL-ReguItal has Flags=4 (no italic bit) but ItalicAngle=-12
+        let italic_angle: f64 = match fd.get(b"ItalicAngle") {
+            Ok(Object::Integer(i)) => *i as f64,
+            Ok(Object::Real(r)) => *r as f64,
+            Ok(Object::Reference(id)) => doc
+                .get_object(*id)
+                .ok()
+                .and_then(|obj| match obj {
+                    Object::Integer(i) => Some(*i as f64),
+                    Object::Real(r) => Some(*r as f64),
+                    _ => None,
+                })
+                .unwrap_or(0.0),
+            _ => 0.0,
+        };
+
+        // Italic if Flags bit 7 is set OR ItalicAngle is non-zero
+        let is_italic = Some(flags_italic || italic_angle != 0.0);
+
+        // For bold, check Weight field first, then StemV as fallback
+        // Weight >= 700 is typically considered bold (CSS convention)
+        let weight: Option<i64> = match fd.get(b"Weight") {
+            Ok(Object::Integer(i)) => Some(*i),
+            Ok(Object::Reference(id)) => doc.get_object(*id).ok().and_then(|obj| match obj {
+                Object::Integer(i) => Some(*i),
+                _ => None,
+            }),
+            _ => None,
+        };
+
+        let is_bold = if let Some(w) = weight {
+            Some(w >= 700)
+        } else {
+            // No Weight field - check StemV as heuristic
+            // StemV > 120 typically indicates bold (normal is ~80-100)
+            match fd.get(b"StemV") {
+                Ok(Object::Integer(i)) => Some(*i > 120),
+                Ok(Object::Real(r)) => Some(*r > 120.0),
+                Ok(Object::Reference(id)) => doc.get_object(*id).ok().and_then(|obj| match obj {
+                    Object::Integer(i) => Some(*i > 120),
+                    Object::Real(r) => Some(*r > 120.0),
+                    _ => None,
+                }),
+                _ => None, // No StemV, fall back to name matching
+            }
+        };
+
+        (is_italic, is_bold)
     }
 
     /// Resolve the font encoding from the PDF dictionary.

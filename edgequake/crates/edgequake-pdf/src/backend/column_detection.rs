@@ -382,11 +382,13 @@ impl ColumnDetector {
     /// Compute vertical projection histogram from text elements.
     /// Returns a vector where each bin contains the count of elements starting in that bin.
     ///
-    /// **OODA-06 FIX**: Use only the START position of each element, not the span.
+    /// OODA-06 FIX: Use only the START position of each element, not the span.
     /// This creates a "where does text begin" histogram which is more useful for column detection.
     /// In two-column layouts, text starts cluster at the left edge of each column:
+    ///
     /// - Left column text starts at X=50-70
     /// - Right column text starts at X=300-320
+    ///
     /// Using start-only positions makes the gutter clearly visible as a gap.
     fn compute_vertical_projection(&self, elements: &[TextElement], page_width: f32) -> Vec<usize> {
         let num_bins = (page_width / self.bin_size).ceil() as usize;

@@ -12,7 +12,7 @@ mod column_detector;
 mod geometric;
 mod pymupdf_grouper;
 mod pymupdf_renderer;
-mod pymupdf_structs;
+pub mod pymupdf_structs; // OODA-43: Made public for pdfium_backend imports
 mod reading_order;
 mod xy_cut;
 

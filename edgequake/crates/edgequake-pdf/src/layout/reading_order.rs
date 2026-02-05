@@ -402,6 +402,7 @@ impl ReadingOrderDetector {
     ///
     /// Note: After Y-normalization, Y=0 is at TOP of page. Lower Y = top of page.
     /// Blocks are sorted ASCENDING by Y (top first = lower Y first).
+    #[allow(dead_code)] // Reserved for future multi-column reading order improvements
     fn merge_column_orders(
         &self,
         column_blocks: &[Vec<usize>],
@@ -468,6 +469,7 @@ impl ReadingOrderDetector {
     ///
     /// This ensures affiliations, footnotes, and other bottom-of-page content
     /// appears AFTER all body content from all columns, not interleaved.
+    #[allow(dead_code)] // Reserved for future multi-column reading order improvements
     fn merge_column_orders_with_footer(
         &self,
         column_blocks: &[Vec<usize>],

@@ -30,12 +30,10 @@
 #[cfg(feature = "pdfium")]
 use crate::backend::PdfiumExtractor;
 use crate::error::PdfError;
-use crate::layout::{
-    GroupingParams, MarkdownConfig, MarkdownRenderer, TextBlock, TextGrouper,
-};
+use crate::layout::{GroupingParams, MarkdownConfig, MarkdownRenderer, TextBlock, TextGrouper};
 
 /// Configuration for the pymupdf4llm-inspired pipeline.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PipelineConfig {
     /// Text grouping parameters
     pub grouping: GroupingParams,
@@ -44,16 +42,6 @@ pub struct PipelineConfig {
     /// Body text font size (for header detection)
     /// If None, will be auto-detected from most common font size
     pub body_font_size: Option<f32>,
-}
-
-impl Default for PipelineConfig {
-    fn default() -> Self {
-        Self {
-            grouping: GroupingParams::default(),
-            markdown: MarkdownConfig::default(),
-            body_font_size: None,
-        }
-    }
 }
 
 /// High-level pipeline for PDF to Markdown conversion.
@@ -114,18 +102,37 @@ impl PymupdfPipeline {
     }
 
     /// Process extracted characters into Markdown.
-    fn process_chars(&self, chars: &[crate::backend::elements::RawChar]) -> Result<String, PdfError> {
+    fn process_chars(
+        &self,
+        chars: &[crate::backend::elements::RawChar],
+    ) -> Result<String, PdfError> {
         // Group chars → spans → lines → blocks
         let grouper = TextGrouper::with_params(self.config.grouping.clone());
-        let mut blocks = grouper.group(chars);
+        let blocks = grouper.group(chars);
+
+        // OODA-12: Split blocks at bullet/list item lines BEFORE classification
+        // WHY: Block grouping merges bullet items with preceding text. Splitting first
+        // ensures each bullet becomes its own block that can be classified as ListItem.
+        let mut blocks = grouper.split_at_bullet_lines(blocks);
 
         // Detect body font size if not specified
-        let body_size = self.config.body_font_size.unwrap_or_else(|| {
-            detect_body_font_size(&blocks)
-        });
+        let body_size = self
+            .config
+            .body_font_size
+            .unwrap_or_else(|| detect_body_font_size(&blocks));
 
         // Classify blocks (headers, code, lists, etc.)
         grouper.classify_blocks(&mut blocks, body_size);
+
+        // OODA-12: Merge consecutive header blocks (title continuation)
+        // WHY: Paper titles can wrap across lines, creating separate blocks.
+        // This merges them into a single header block.
+        let blocks = grouper.merge_title_blocks(blocks);
+
+        // OODA-10: Split blocks where headers were merged with following paragraphs
+        // WHY: Block merging can group header lines with paragraph content when they're
+        // close together. This splits them so headers are rendered correctly.
+        let blocks = grouper.split_header_blocks(blocks);
 
         // Render to Markdown
         let renderer = MarkdownRenderer::with_config(self.config.markdown.clone());
@@ -140,13 +147,23 @@ impl PymupdfPipeline {
         let chars = self.extractor.extract_chars_from_file(path.as_ref())?;
 
         let grouper = TextGrouper::with_params(self.config.grouping.clone());
-        let mut blocks = grouper.group(&chars);
+        let blocks = grouper.group(&chars);
 
-        let body_size = self.config.body_font_size.unwrap_or_else(|| {
-            detect_body_font_size(&blocks)
-        });
+        // OODA-12: Split blocks at bullet/list item lines BEFORE classification
+        let mut blocks = grouper.split_at_bullet_lines(blocks);
+
+        let body_size = self
+            .config
+            .body_font_size
+            .unwrap_or_else(|| detect_body_font_size(&blocks));
 
         grouper.classify_blocks(&mut blocks, body_size);
+
+        // OODA-12: Merge consecutive header blocks (title continuation)
+        let blocks = grouper.merge_title_blocks(blocks);
+
+        // OODA-10: Split headers merged with paragraphs
+        let blocks = grouper.split_header_blocks(blocks);
 
         Ok(blocks)
     }
@@ -201,6 +218,8 @@ mod tests {
                         y1: 24.0,
                         font_name: None,
                         page_num: 0,
+                        font_is_bold: None,
+                        font_is_italic: None,
                     }],
                     x0: 0.0,
                     y0: 0.0,
@@ -226,6 +245,8 @@ mod tests {
                         y1: 12.0,
                         font_name: None,
                         page_num: 0,
+                        font_is_bold: None,
+                        font_is_italic: None,
                     }],
                     x0: 0.0,
                     y0: 0.0,

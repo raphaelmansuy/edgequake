@@ -1,6 +1,10 @@
 //! Debug tool to trace merge_line behavior
 //!
 //! Usage: cargo run --bin debug_merge -- <pdf_path>
+//!
+//! NOTE: Uses deprecated ExtractionEngine for debugging legacy pipeline.
+
+#![allow(deprecated)]
 
 use edgequake_pdf::backend::extraction_engine::ExtractionEngine;
 use edgequake_pdf::backend::PdfBackend;

@@ -176,6 +176,7 @@ impl MarkdownRenderer {
 
     /// OODA-10: Render multiple lines as plain text (no bold/italic).
     /// Used for headers where the ## markers already provide emphasis.
+    #[allow(dead_code)] // Reserved for future header rendering refactoring
     fn render_lines_plain(&self, lines: &[Line]) -> String {
         lines
             .iter()

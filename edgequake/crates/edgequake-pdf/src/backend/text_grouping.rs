@@ -152,11 +152,10 @@ impl TextGrouper {
                     && trimmed.len() > 8
                     && {
                         // Check for "Figure N." or "Table N." pattern
-                        let after_prefix = if trimmed.starts_with("Figure ") {
-                            &trimmed[7..]
-                        } else {
-                            &trimmed[6..]
-                        };
+                        let after_prefix = trimmed
+                            .strip_prefix("Figure ")
+                            .or_else(|| trimmed.strip_prefix("Table "))
+                            .unwrap_or("");
                         // Must have digit(s) followed by period
                         let digit_count = after_prefix
                             .chars()
@@ -252,16 +251,11 @@ impl TextGrouper {
                 // Check for reference patterns: [1], [12], [123], etc.
                 trimmed.starts_with('[') && trimmed.len() > 2 && {
                     let after_bracket = &trimmed[1..];
-                    after_bracket
+                    let digit_count = after_bracket
                         .chars()
                         .take_while(|c| c.is_ascii_digit())
-                        .count()
-                        >= 1
-                        && after_bracket
-                            .chars()
-                            .skip_while(|c| c.is_ascii_digit())
-                            .next()
-                            == Some(']')
+                        .count();
+                    digit_count >= 1 && after_bracket.chars().nth(digit_count) == Some(']')
                 }
             };
 
@@ -1123,7 +1117,7 @@ impl TextGrouper {
                 // If previous element CONTAINS a space anywhere, be more cautious.
                 // The space in ' Mansu' already accounts for visual separation from previous element.
                 // Don't add more spaces after elements that have internal spaces, unless gap is HUGE.
-                let prev_has_space = prev.text.contains(' ');
+                let _prev_has_space = prev.text.contains(' ');
 
                 if !is_whitespace
                     && !prev_is_whitespace
