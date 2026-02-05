@@ -7,6 +7,7 @@
 **File:** `src/processors/structure_detection.rs` (lines ~100-140)
 
 Added support for:
+
 - Bullet + uppercase letter (sentence start): `•General` → valid bullet
 - Bullet + asterisk (markdown bold): `•**text**` → valid bullet
 
@@ -68,22 +69,26 @@ let content_start = if has_bullet {
 **File:** `src/processors/structure_detection.rs`
 
 New tests:
+
 - `test_starts_with_bullet_uppercase` - Tests `•General Aspect`, `•Agriculture:`
 - `test_starts_with_bullet_markdown_bold` - Tests `•**Bold text**`
 
 ## Results
 
 ### Before
+
 ```markdown
-•**General Aspect**. We emphasize...  (embedded in paragraph)
+•**General Aspect**. We emphasize... (embedded in paragraph)
 ```
 
 ### After
+
 ```markdown
-- General Aspect. We emphasize...  (proper list item)
+- General Aspect. We emphasize... (proper list item)
 ```
 
 ### Test Results
+
 ```
 520 tests passed (no change from IT11 + 2 new tests)
 ```
@@ -91,6 +96,7 @@ New tests:
 ## LightRAG Paper: Bullet Lists Detected
 
 Now properly detecting all bullet list items:
+
 - `•General Aspect` → `- General Aspect`
 - `•Methodologies` → `- Methodologies`
 - `•Experimental Findings` → `- Experimental Findings`

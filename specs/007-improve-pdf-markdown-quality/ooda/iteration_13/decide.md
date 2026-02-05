@@ -12,7 +12,7 @@
 
 ```rust
 /// Check if text looks like email addresses only (not code).
-/// 
+///
 /// WHY: Emails often appear in monospace fonts in academic PDFs
 /// but should NOT be marked as code blocks.
 fn is_email_only_content(text: &str) -> bool {

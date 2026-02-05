@@ -3,17 +3,25 @@
 ## Root Cause Analysis
 
 ### Problem Statement
+
 Email addresses and URLs are being incorrectly detected as code blocks:
 
 **Observed Output:**
+
 ```markdown
+
 ```
+
 zrguo101@hku.hk aka_xia@foxmail.com chaohuang75@gmail.com
+
 ```
 
 ```
+
 https://arxiv.
+
 ```
+
 ```
 
 **Expected Output:**
@@ -21,7 +29,7 @@ These should be plain text, not code blocks.
 
 ### Why This Happens
 
-```
+````
 ┌─────────────────────────────────────────────────────────────┐
 │           CODE BLOCK DETECTION FLOW                         │
 ├─────────────────────────────────────────────────────────────┤
@@ -33,11 +41,11 @@ These should be plain text, not code blocks.
 
          CURRENT LOGIC (Font-Only)
          ━━━━━━━━━━━━━━━━━━━━━━━━━
-         
+
          Is font monospace?  ───────► Mark as Code
               │
               └─── PROBLEM: No content validation!
-```
+````
 
 ### Font Detection in LightRAG PDF
 
@@ -46,14 +54,14 @@ typewriter font (common for author affiliations), which triggers false positives
 
 ### Code vs Non-Code Content Patterns
 
-| Pattern | Is Code? | Why |
-|---------|----------|-----|
-| `email@domain.com` | NO | Simple email address |
-| `https://url.com` | NO | Simple URL |
-| `function foo()` | YES | Contains programming syntax |
-| `import os` | YES | Programming statement |
-| `x = 5` | YES | Variable assignment |
-| `{json: "data"}` | YES | Data structure syntax |
+| Pattern            | Is Code? | Why                         |
+| ------------------ | -------- | --------------------------- |
+| `email@domain.com` | NO       | Simple email address        |
+| `https://url.com`  | NO       | Simple URL                  |
+| `function foo()`   | YES      | Contains programming syntax |
+| `import os`        | YES      | Programming statement       |
+| `x = 5`            | YES      | Variable assignment         |
+| `{json: "data"}`   | YES      | Data structure syntax       |
 
 ### Solution Strategy
 
@@ -61,7 +69,7 @@ typewriter font (common for author affiliations), which triggers false positives
 
 1. **Email Pattern**: `\S+@\S+\.\S+`
 2. **URL Pattern**: `https?://` or `www.`
-3. **Require Code Indicators**: 
+3. **Require Code Indicators**:
    - Programming keywords (def, function, import, class, etc.)
    - Syntax characters ({, }, [, ], =>, etc.)
    - Assignment operators (=, :=)
@@ -70,12 +78,14 @@ typewriter font (common for author affiliations), which triggers false positives
 ### First Principles
 
 **What is code?**
+
 - Programming language syntax
 - Configuration files with structured syntax
 - Command-line instructions
 - Data structures (JSON, YAML, etc.)
 
 **What is NOT code?**
+
 - Email addresses (even in monospace font)
 - URLs (standalone, not in script context)
 - Plain text that happens to use monospace for styling

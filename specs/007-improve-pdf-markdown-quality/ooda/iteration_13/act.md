@@ -18,6 +18,7 @@ fn is_url_only_content(text: &str) -> bool { ... }
 ```
 
 Modified `CodeBlockDetectionProcessor::process()`:
+
 ```rust
 // OODA-IT13: Content-based exclusion
 let is_excluded = is_email_only_content(&block.text)
@@ -42,9 +43,10 @@ fn should_render_inline_code(text: &str) -> bool { ... }
 ```
 
 Modified `render_spans_styled()`:
+
 ```rust
 // OODA-IT13: Apply content filter to inline code detection
-let is_code = span.style.looks_like_code() 
+let is_code = span.style.looks_like_code()
     && should_render_inline_code(content);
 ```
 
@@ -54,6 +56,7 @@ let is_code = span.style.looks_like_code()
 **Lines**: 1130-1210
 
 Added 6 new tests:
+
 - `test_is_email_only_content` - Unit test for email detection
 - `test_is_url_only_content` - Unit test for URL detection
 - `test_code_block_excludes_emails` - Integration test
@@ -65,13 +68,19 @@ Added 6 new tests:
 ### Before Fix (LightRAG paper output)
 
 ```markdown
+
 ```
+
 zrguo101@hku.hk aka_xia@foxmail.com chaohuang75@gmail.com
+
 ```
 
 ```
+
 https://arxiv.
+
 ```
+
 ```
 
 ### After Fix
@@ -90,12 +99,12 @@ https://github.com/HKUDS/LightRAG.
 
 ### Quality Impact
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Fenced code blocks (false positive) | 4 | 0 |
-| Inline backticks on emails | Yes | No |
-| Table 4 reconstruction | ✅ | ✅ |
-| Bullet lists (20+ items) | ✅ | ✅ |
+| Metric                              | Before | After |
+| ----------------------------------- | ------ | ----- |
+| Fenced code blocks (false positive) | 4      | 0     |
+| Inline backticks on emails          | Yes    | No    |
+| Table 4 reconstruction              | ✅     | ✅    |
+| Bullet lists (20+ items)            | ✅     | ✅    |
 
 ## Commit
 
