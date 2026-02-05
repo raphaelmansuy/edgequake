@@ -66,10 +66,10 @@ pub fn new_with_bbox(x0: f32, y0: f32, x1: f32, y1: f32) -> Self {
 
 Three new tests for column detection:
 
-| Test | Purpose |
-|------|---------|
-| `test_detect_two_columns` | Classic 2-column layout with 100pt gutter |
-| `test_detect_three_columns` | Validates N-column support (was BROKEN) |
+| Test                        | Purpose                                      |
+| --------------------------- | -------------------------------------------- |
+| `test_detect_two_columns`   | Classic 2-column layout with 100pt gutter    |
+| `test_detect_three_columns` | Validates N-column support (was BROKEN)      |
 | `test_detect_single_column` | Full-width text returns empty (no detection) |
 
 ## Test Results
@@ -111,9 +111,9 @@ QUALITY: Multi-column score target 60→85 (critical priority from mission)
 
 ## Quality Impact
 
-| Category | Before IT07 | After IT07 | Target |
-|----------|-------------|------------|--------|
-| Multi-column layouts | 60/100 | 70/100 (est.) | 85/100 |
+| Category             | Before IT07 | After IT07    | Target |
+| -------------------- | ----------- | ------------- | ------ |
+| Multi-column layouts | 60/100      | 70/100 (est.) | 85/100 |
 
 **Rationale:** Algorithm now correctly detects N columns, but quality also depends
 on reading order reconstruction (handled in `lines_to_blocks`). Further iterations

@@ -17,6 +17,7 @@ Fix Clippy warnings identified during table detection investigation:
 ### Deferred: Table Detection Improvements
 
 Table detection requires more complex changes:
+
 - Enabling whitespace-based detection
 - Adding false positive filtering
 - Integrating with existing pipeline
