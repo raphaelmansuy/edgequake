@@ -7,6 +7,7 @@
 **Problem:** Text like "Table 4 presents statistical information for four datasets: Agriculture, CS, Legal..." was incorrectly detected as a table caption because it matched the regex `^table\s*(?:\d+|s\d+)\b` AND my initial fix checked `!t.contains(':')` which failed because the text contains a colon LATER in the sentence (after "datasets").
 
 **Solution:** Changed detection logic to check character pattern IMMEDIATELY after "Table N":
+
 - "Table 4:" or "Table 4." → caption (punctuation follows number)
 - "Table 4 presents..." → prose reference (space + letter follows number)
 
@@ -16,7 +17,7 @@ let is_table_reference = if t.starts_with("Table ") && t.len() > 10 {
     let after_table = t.chars().skip(6).skip_while(|c| c.is_ascii_digit());
     let first_char = after_table.clone().next();
     let second_char = after_table.skip(1).next();
-    
+
     // Pattern: "Table N X..." where X is a letter (not : or .)
     matches!(first_char, Some(' '))
         && matches!(second_char, Some(c) if c.is_alphabetic())
@@ -76,15 +77,17 @@ fn test_numeric_suffix_parsing_comma_numbers() {
 ## Results
 
 ### Before IT10
+
 Table 4 from LightRAG paper was not reconstructed - the scan stopped at "Table 4 presents..." because it was incorrectly detected as a caption.
 
 ### After IT10
+
 Table 4 is now properly reconstructed:
 
 ```markdown
-| Statistics | Agriculture | CS | Legal | Mix |
-| --- | --- | --- | --- | --- |
-| Total Tokens | 2,017,886 | 2,306,535 | 5,081,069 | 619,009 |
+| Statistics   | Agriculture | CS        | Legal     | Mix     |
+| ------------ | ----------- | --------- | --------- | ------- |
+| Total Tokens | 2,017,886   | 2,306,535 | 5,081,069 | 619,009 |
 ```
 
 ## Test Results
@@ -96,6 +99,7 @@ test result: ok. 517 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ## Debug Logging Cleanup
 
 Removed verbose debug logging that was added during investigation:
+
 - Removed `FULL TEXT` debug output for table blocks
 - Removed `looks_cap=... is_ref=... is_actual_cap=...` per-block logging
 - Removed `BREAK (empty=..., hard=..., caption=..., figure=...)` logging
