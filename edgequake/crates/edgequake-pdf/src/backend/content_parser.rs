@@ -661,4 +661,52 @@ mod tests {
         let result = parser.parse(content, &fonts);
         assert!(result.is_ok());
     }
+
+    // ==========================================================================
+    // OODA-26: Rotation Detection Tests
+    // ==========================================================================
+
+    #[test]
+    fn test_normal_text_not_rotated() {
+        // Identity matrix: text is not rotated
+        // [1, 0, 0, 1, tx, ty] = no rotation
+        let ctm = [1.0, 0.0, 0.0, 1.0, 100.0, 200.0];
+        assert!(
+            !ContentParser::is_rotated_ctm(&ctm),
+            "Identity matrix should NOT be detected as rotated"
+        );
+    }
+
+    #[test]
+    fn test_90_ccw_rotation() {
+        // 90° counter-clockwise rotation matrix
+        // [0, 1, -1, 0, tx, ty] = 90° CCW
+        let ctm = [0.0, 1.0, -1.0, 0.0, 50.0, 700.0];
+        assert!(
+            ContentParser::is_rotated_ctm(&ctm),
+            "90° CCW rotation should be detected"
+        );
+    }
+
+    #[test]
+    fn test_90_cw_rotation() {
+        // 90° clockwise rotation matrix
+        // [0, -1, 1, 0, tx, ty] = 90° CW
+        let ctm = [0.0, -1.0, 1.0, 0.0, 50.0, 100.0];
+        assert!(
+            ContentParser::is_rotated_ctm(&ctm),
+            "90° CW rotation should be detected"
+        );
+    }
+
+    #[test]
+    fn test_small_angle_not_rotated() {
+        // Slight skew (e.g., 5° rotation) should NOT be flagged
+        // cos(5°) ≈ 0.996, sin(5°) ≈ 0.087
+        let ctm = [0.996, 0.087, -0.087, 0.996, 0.0, 0.0];
+        assert!(
+            !ContentParser::is_rotated_ctm(&ctm),
+            "Small angle skew should NOT be detected as rotated"
+        );
+    }
 }
