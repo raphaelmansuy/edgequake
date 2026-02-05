@@ -1,52 +1,97 @@
-# Iteration 04 - ORIENT Phase
+# OODA Iteration 04 - Orient
 
-## Gap Analysis
+## Date: 2026-02-04
 
-### What Works Well
+## Analysis
 
-1. ✅ Confirmation dialogs with clear warnings
-2. ✅ Visual indication of destructive action (red button)
-3. ✅ Automatic reprocessing trigger after clear
-4. ✅ Pipeline status dialog for progress tracking
-5. ✅ Card variant shows current model configuration
+### Root Cause Hierarchy
 
-### What Needs Improvement
+```
+QUALITY = 0.573 (gap: -0.377)
+    │
+    ├── ROUGE-L = 0.491 (gap: -0.409)  ◀◀◀ PRIMARY PROBLEM
+    │       └── Cause: Blocks sorted by simple Y-then-X
+    │       └── Fix: Implement smart sort key (P-overlap)
+    │
+    ├── Structure = 0.295 (gap: -0.505)
+    │       └── Cause: Missing join phases → wrong block boundaries
+    │       └── Fix: Implement join_rects_phase1/2/3
+    │
+    ├── Format = 0.312 (gap: -0.388)
+    │       └── Cause: Markdown not generated (secondary)
+    │       └── Fix: Later iteration
+    │
+    └── Word F1 = 0.914 (gap: -0.036)  ✅ ALREADY HIGH
+            └── Content extraction is working
+```
 
-| Gap                | Current State             | Desired State                        | Priority |
-| ------------------ | ------------------------- | ------------------------------------ | -------- |
-| No test IDs        | No data-testid attributes | All buttons/actions have data-testid | P1       |
-| No impact preview  | Shows counts AFTER action | Shows estimated counts BEFORE action | P1       |
-| No time estimate   | No ETA                    | Show "~5 min for 100 docs"           | P2       |
-| Limited model info | Only in card variant      | Always show current model            | P3       |
+### Why Smart Sort Key Matters
 
-## Strategic Decision Points
+**Current algorithm (broken)**:
 
-### Option A: Add Preview Endpoint (Backend Change)
+```
+Block A: y0=100, x0=50  → sort key = (100, 50)
+Block B: y0=80, x0=300  → sort key = (80, 300)
+Result: B comes before A (wrong! B is in column 2)
+```
 
-**Pros**: Accurate counts, reusable
-**Cons**: Requires Rust changes, API versioning
+**Smart sort key (correct)**:
 
-### Option B: Fetch Document Stats (Frontend Only)
+```
+Block A: y0=100, x0=50  → no P overlap → key = (100, 50)
+Block B: y0=80, x0=300  → P=A overlaps → key = (A.y0=100, B.x0=300)
+Result: A comes before B (correct! same effective Y)
+```
 
-**Pros**: No backend changes, faster to implement
-**Cons**: Needs additional API call, may have stale data
+The smart sort key ensures blocks in different columns but same row get sorted left-to-right.
 
-### Option C: Show Counts from Previous Data (Minimal Change)
+### Why Line Tolerance Matters
 
-**Pros**: Fast implementation, uses existing data
-**Cons**: May be stale if documents changed
+**5pt tolerance** (current):
 
-## Recommended Approach
+```
+Line 1: y0=100, "Hello"
+Line 2: y0=104, "World"  ← Merged into Line 1 (4pt gap < 5pt)
+Result: "HelloWorld"
+```
 
-**Option B + C Hybrid**:
+**3pt tolerance** (pymupdf4llm):
 
-1. Use TanStack Query to prefetch document stats
-2. Show cached counts in confirmation dialog
-3. Add data-testid for E2E testing
-4. Add time estimate heuristic (1 doc ≈ 2-5 seconds)
+```
+Line 1: y0=100, "Hello"
+Line 2: y0=104, "World"  ← Separate line (4pt gap > 3pt)
+Result: "Hello" then "World"
+```
 
-## Dependencies
+The 5pt tolerance was a workaround for PDFium bbox variations, but it causes line merging.
 
-- Document list query already available via `useQuery`
-- Workspace stats may already be fetched
-- Need to check `/documents` endpoint for count data
+---
+
+## Prioritized Actions
+
+| Priority | Action                       | Impact on Quality            |
+| -------- | ---------------------------- | ---------------------------- |
+| 1        | Implement smart sort key     | High (fixes ROUGE-L)         |
+| 2        | Change line_tolerance to 3pt | Medium (fixes line grouping) |
+| 3        | Run evaluation               | Required (measure impact)    |
+| 4        | Document changes             | Required (maintainability)   |
+
+---
+
+## Risk Assessment
+
+| Risk                                  | Mitigation                        |
+| ------------------------------------- | --------------------------------- |
+| 3pt tolerance breaks on PDFium bboxes | Test on all 7 files, can revert   |
+| Smart sort key O(n²) for n blocks     | Acceptable for <1000 blocks/page  |
+| Breaking existing passing tests       | Run full test suite before commit |
+
+---
+
+## Expected Outcome
+
+If smart sort key is implemented correctly:
+
+- ROUGE-L should improve from 0.491 → 0.7+ (order preserved)
+- Quality score should improve from 0.573 → 0.7+
+- Word F1 should remain ~0.914 (content unchanged)

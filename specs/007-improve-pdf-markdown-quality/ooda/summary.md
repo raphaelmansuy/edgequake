@@ -10,12 +10,12 @@
 
 ## Progress Tracking
 
-| Iteration | Date | Focus Area | Quality Δ | Status |
-|-----------|------|------------|-----------|--------|
-| 01 | - | TBD | - | Not Started |
-| 02 | - | TBD | - | Not Started |
-| 03 | - | TBD | - | Not Started |
-| ... | ... | ... | ... | ... |
+| Iteration | Date | Focus Area | Quality Δ | Status      |
+| --------- | ---- | ---------- | --------- | ----------- |
+| 01        | -    | TBD        | -         | Not Started |
+| 02        | -    | TBD        | -         | Not Started |
+| 03        | -    | TBD        | -         | Not Started |
+| ...       | ...  | ...        | ...       | ...         |
 
 ---
 
@@ -55,32 +55,32 @@ _To be populated as iterations progress_
 ## Technical Debt Identified
 
 | Item | Location | Priority | Status |
-|------|----------|----------|--------|
-| - | - | - | - |
+| ---- | -------- | -------- | ------ |
+| -    | -        | -        | -      |
 
 ---
 
 ## Dead Code Removed
 
 | File | Lines | Description | Iteration |
-|------|-------|-------------|-----------|
-| - | - | - | - |
+| ---- | ----- | ----------- | --------- |
+| -    | -     | -           | -         |
 
 ---
 
 ## Test Improvements
 
 | Test File | Before (ms) | After (ms) | Speedup |
-|-----------|-------------|------------|---------|
-| - | - | - | - |
+| --------- | ----------- | ---------- | ------- |
+| -         | -           | -          | -       |
 
 ---
 
 ## Commit History
 
 | Iteration | Commit SHA | Message |
-|-----------|------------|---------|
-| - | - | - |
+| --------- | ---------- | ------- |
+| -         | -          | -       |
 
 ---
 

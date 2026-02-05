@@ -1,56 +1,76 @@
-# Iteration 04 - DECIDE Phase
+# OODA Iteration 04 - Decide
 
-## Decision: Implement Test IDs and Impact Preview
+## Date: 2026-02-04
 
-### Actions to Take
+## Decisions
 
-1. **Add data-testid attributes** to both rebuild buttons
-   - Target: `rebuild-embeddings-button.tsx` and `rebuild-knowledge-graph-button.tsx`
-   - Add test IDs to buttons, confirm actions, and cancel buttons
+### Decision 1: Implement Smart Sort Key Algorithm ✅
 
-2. **Add document count hook** to fetch stats
-   - Create `useDocumentStats` hook or use existing query
-   - Fetch document count for selected workspace
+**What**: Port pymupdf4llm's `join_rects_phase3` sort key algorithm to Rust.
 
-3. **Enhance confirmation dialog** with impact preview
-   - Show "This workspace has X documents (Y chunks)"
-   - Add time estimate: "Estimated time: ~Z minutes"
+**Where**: `edgequake/crates/edgequake-pdf/src/layout/reading_order.rs`
 
-4. **Update E2E tests** to use new test IDs
+**Algorithm**:
 
-### Implementation Order
+```rust
+fn compute_smart_sort_key(block: &Block, all_blocks: &[Block]) -> (f32, f32) {
+    // Find left-most block with vertical overlap
+    let left_overlapping: Vec<_> = all_blocks.iter()
+        .filter(|other| {
+            other.bbox.x1 < block.bbox.x0  // strictly to the left
+            && has_vertical_overlap(&other.bbox, &block.bbox)
+        })
+        .collect();
 
-1. First: Add data-testid attributes (immediate value for testing)
-2. Second: Add impact preview (UX improvement)
-
-### Code Changes Required
-
-#### rebuild-embeddings-button.tsx
-
-```tsx
-// Button
-<Button data-testid="rebuild-embeddings-button" ...>
-
-// Dialog actions
-<AlertDialogCancel data-testid="rebuild-embeddings-cancel">
-<AlertDialogAction data-testid="rebuild-embeddings-confirm">
-
-// Add document count display in dialog description
+    if let Some(leftmost) = left_overlapping.iter()
+        .max_by(|a, b| a.bbox.x1.partial_cmp(&b.bbox.x1).unwrap())
+    {
+        (leftmost.bbox.y0, block.bbox.x0)  // Use P's y0, Q's x0
+    } else {
+        (block.bbox.y0, block.bbox.x0)  // Default key
+    }
+}
 ```
 
-#### rebuild-knowledge-graph-button.tsx
+**Why**: This ensures blocks in different columns but same visual row are sorted left-to-right.
 
-```tsx
-// Button
-<Button data-testid="rebuild-kg-button" ...>
+### Decision 2: Change Line Tolerance to 3pt
 
-// Dialog actions
-<AlertDialogCancel data-testid="rebuild-kg-cancel">
-<AlertDialogAction data-testid="rebuild-kg-confirm">
+**What**: Change `line_tolerance` from 5.0 to 3.0 in `GroupingParams::default()`.
+
+**Where**: `edgequake/crates/edgequake-pdf/src/layout/pymupdf_grouper.rs:34`
+
+**Why**: pymupdf4llm uses 3pt. The 5pt value was a workaround that causes line merging.
+
+### Decision 3: Test Before and After
+
+**What**: Run `scripts/eval_comprehensive.py` before and after changes.
+
+**Why**: Need to measure actual impact on ROUGE-L and Quality score.
+
+---
+
+## Implementation Order
+
+1. Run baseline evaluation (capture current metrics)
+2. Implement smart sort key in `reading_order.rs`
+3. Change line_tolerance to 3pt
+4. Run evaluation (measure improvement)
+5. Commit with OODA-04 message
+
+---
+
+## Commit Message Template
+
 ```
+OODA-04: Implement smart sort key for reading order
 
-### Metrics
+- Port pymupdf4llm join_rects_phase3 sort algorithm to Rust
+- Smart key: (P.y0, Q.x0) where P is left-most overlapping block
+- Fixes multi-column interleaving issues
+- Change line_tolerance from 5pt to 3pt (pymupdf4llm default)
 
-- New test IDs: 6 (3 per component)
-- UX improvement: Show impact before confirmation
-- Time estimate heuristic: 3 seconds per document
+Quality impact:
+  - Before: Quality=0.573, ROUGE-L=0.491
+  - After: Quality=X.XXX, ROUGE-L=X.XXX
+```

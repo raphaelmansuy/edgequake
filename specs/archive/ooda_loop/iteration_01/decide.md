@@ -1,100 +1,203 @@
-# Iteration 01: Decide
+# OODA-01: Decide
 
-**Mission Re-read**: `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-improve-ingestion-process.md`
+## Decision Statement
 
----
+**DECISION**: Implement pdfium-render Backend (Pure Rust)
 
-## Prioritized Action Plan
+### Rationale
 
-### Iteration 01 Focus: Critical Bug Fix + Foundation
-
-Based on First Principles analysis, the highest signal-value changes are:
-
----
-
-### Decision 1: Fix Loader2 Import ✅ DONE
-
-**Status**: Already completed in this session
-**Location**: document-manager.tsx:62
-**Change**: Added `Loader2` to lucide-react imports
+1. **Root Cause Targeting**: Our F1 is 0.685 primarily due to text position inaccuracy, not algorithm bugs
+2. **Pure Rust**: pdfium-render provides a pure Rust API (satisfies user constraint)
+3. **Permissive License**: MIT OR Apache-2.0 (satisfies user constraint, no AGPL)
+4. **Production Proven**: PDFium powers Chrome's PDF viewer with billions of users
+5. **Fast Feedback**: We can measure F1 improvement immediately after integration
 
 ---
 
-### Decision 2: Enhance Status Badge with Sub-States
+## Implementation Plan for OODA-01
 
-**Why**: Users need to see WHAT is happening, not just "processing"
+### Step 1: Download libpdfium for macOS
 
-**Action**:
+**Command**:
 
-1. Add new processing sub-states to `status-badge.tsx`
-2. Keep backward compatibility with existing 'processing' state
-3. Add appropriate icons and colors for each stage
+```bash
+cd edgequake/crates/edgequake-pdf
+mkdir -p lib
+curl -L -o pdfium-mac-arm64.tgz \
+  "https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-mac-arm64.tgz"
+tar -xzf pdfium-mac-arm64.tgz -C lib
+rm pdfium-mac-arm64.tgz
+```
 
-**Implementation**:
+**Result**: `lib/lib/libpdfium.dylib`
 
-```typescript
-// New states to add
-'chunking'   → Scissors icon, blue
-'extracting' → Brain/Sparkles icon, purple
-'embedding'  → Cpu icon, cyan
-'indexing'   → Database icon, green
+### Step 2: Add pdfium-render to Cargo.toml
+
+**File**: `edgequake/crates/edgequake-pdf/Cargo.toml`
+
+**Add**:
+
+```toml
+[dependencies]
+pdfium-render = "0.8"
+```
+
+### Step 3: Create RawChar Structure
+
+**File**: `edgequake/crates/edgequake-pdf/src/backend/mod.rs` (new)
+
+```rust
+/// A single character with exact position information from PDFium
+#[derive(Debug, Clone)]
+pub struct RawChar {
+    pub char: char,
+    pub x0: f32,
+    pub y0: f32,
+    pub x1: f32,
+    pub y1: f32,
+    pub font_size: f32,
+    pub font_name: Option<String>,
+    pub page_num: usize,
+}
+
+/// PDF extraction backend trait
+pub trait PdfBackend {
+    fn page_count(&self) -> usize;
+    fn page_size(&self, page_num: usize) -> Option<(f32, f32)>;
+    fn extract_page_chars(&self, page_num: usize) -> Result<Vec<RawChar>, PdfError>;
+}
+```
+
+### Step 4: Implement PdfiumBackend
+
+**File**: `edgequake/crates/edgequake-pdf/src/backend/pdfium.rs` (new)
+
+```rust
+use pdfium_render::prelude::*;
+use super::{PdfBackend, RawChar};
+
+pub struct PdfiumBackend<'a> {
+    pdfium: &'a Pdfium,
+    document: PdfDocument<'a>,
+}
+
+impl<'a> PdfiumBackend<'a> {
+    pub fn new(pdfium: &'a Pdfium, path: &str) -> Result<Self, PdfError> {
+        let document = pdfium.load_pdf_from_file(path, None)?;
+        Ok(Self { pdfium, document })
+    }
+}
+
+impl PdfBackend for PdfiumBackend<'_> {
+    fn page_count(&self) -> usize {
+        self.document.pages().len()
+    }
+
+    fn page_size(&self, page_num: usize) -> Option<(f32, f32)> {
+        self.document.pages().get(page_num).ok().map(|page| {
+            (page.width().value, page.height().value)
+        })
+    }
+
+    fn extract_page_chars(&self, page_num: usize) -> Result<Vec<RawChar>, PdfError> {
+        let page = self.document.pages().get(page_num)?;
+        let text = page.text()?;
+
+        let mut chars = Vec::new();
+        for char_obj in text.chars() {
+            if let Some(bounds) = char_obj.bounds() {
+                chars.push(RawChar {
+                    char: char_obj.text().chars().next().unwrap_or(' '),
+                    x0: bounds.left.value,
+                    y0: bounds.bottom.value,
+                    x1: bounds.right.value,
+                    y1: bounds.top.value,
+                    font_size: char_obj.font_size().value,
+                    font_name: None, // TODO: Extract font name
+                    page_num,
+                });
+            }
+        }
+
+        Ok(chars)
+    }
+}
+```
+
+### Step 5: Test on Worst Document
+
+**File**: `edgequake/crates/edgequake-pdf/test-data/real_dataset/01_2512.25075v1.pdf`
+
+**Actions**:
+
+1. Create a simple test that loads this PDF with PdfiumBackend
+2. Extract characters from first page
+3. Print first 20 characters with positions
+4. Verify positions look reasonable
+
+### Step 6: Measure Quick F1
+
+**Method**:
+
+1. Create simple pipeline: pdfium chars -> group by line -> join to text -> compare to gold
+2. Run on all 7 gold standard documents
+3. Measure F1 improvement
+
+---
+
+## Resource Allocation
+
+| Task                              | Time Estimate | Priority |
+| --------------------------------- | ------------- | -------- |
+| Download libpdfium                | 2 min         | P0       |
+| Add pdfium-render dependency      | 1 min         | P0       |
+| Create RawChar + PdfBackend trait | 10 min        | P0       |
+| Implement PdfiumBackend           | 20 min        | P0       |
+| Test on worst document            | 10 min        | P0       |
+| Quick F1 measurement              | 15 min        | P1       |
+
+**Total**: ~1 hour
+
+---
+
+## Success Criteria for OODA-01
+
+OODA-01 is complete when:
+
+1. [ ] libpdfium.dylib downloaded and available
+2. [ ] pdfium-render added to Cargo.toml
+3. [ ] `RawChar` and `PdfBackend` trait defined
+4. [ ] `PdfiumBackend` implemented
+5. [ ] Basic test passes with character extraction
+6. [ ] Position accuracy verified visually
+
+---
+
+## Risk Mitigation
+
+| Risk                             | Mitigation                                |
+| -------------------------------- | ----------------------------------------- |
+| libpdfium not found at runtime   | Set PDFIUM_DYNAMIC_LIB_PATH env var       |
+| API differences in pdfium-render | Read docs.rs carefully, use prelude       |
+| Build failures                   | Check pdfium-render version compatibility |
+
+---
+
+## Commit Checkpoint
+
+After OODA-01, commit with message:
+
+```
+feat(pdf): OODA-01 - Add pdfium-render backend for accurate text extraction
+
+- Add pdfium-render v0.8 dependency
+- Create RawChar struct for character-level extraction
+- Implement PdfiumBackend with PdfBackend trait
+- Download libpdfium for macOS (arm64)
 ```
 
 ---
 
-### Decision 3: Display Error Messages in Document Row
+## Next Step: Act
 
-**Why**: Users can't fix what they can't see
-
-**Action**:
-
-1. Add error message display when status is 'failed'
-2. Show in document table row with expandable details
-3. Add copy-to-clipboard for debugging
-
----
-
-### Decision 4: Create Initial E2E Test Structure
-
-**Why**: Tests must use Ollama to be realistic
-
-**Action**:
-
-1. Create `edgequake_webui/e2e/documents/reprocess.spec.ts`
-2. Add Ollama model configuration
-3. Test basic reprocess flow
-
----
-
-## Changes for This Iteration
-
-| #   | File                            | Change                    | Commit Message                     |
-| --- | ------------------------------- | ------------------------- | ---------------------------------- |
-| 1   | document-manager.tsx            | ✅ Add Loader2 import     | OODA-01: Fix Loader2 import        |
-| 2   | status-badge.tsx                | Add processing sub-states | OODA-01: Add processing sub-states |
-| 3   | document-manager.tsx            | Show error in row         | OODA-01: Display error messages    |
-| 4   | e2e/documents/reprocess.spec.ts | Create test file          | OODA-01: Add reprocess E2E test    |
-
----
-
-## Out of Scope for This Iteration
-
-- Rebuild embeddings endpoint (needs backend work)
-- WebSocket real-time updates (future enhancement)
-- ETA calculation (needs baseline metrics)
-- Ollama integration verification (need running server)
-
----
-
-## Acceptance Criteria
-
-- [ ] No Loader2 runtime error ✅
-- [ ] Status badge shows 9 distinct states
-- [ ] Failed documents show error message
-- [ ] E2E test file exists with basic structure
-
----
-
-## Next Step
-
-Proceed to **Act** phase to implement changes.
+Proceed to `act.md` to execute the implementation plan.

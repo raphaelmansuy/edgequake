@@ -1,116 +1,179 @@
-# Iteration 03: Orient
+# OODA Iteration 03 - Orient
 
-**Mission Re-read**: `/Users/raphaelmansuy/Github/03-working/edgequake/specs/001-improve-ingestion-process.md`
+## Date: 2026-02-04
 
----
+## Analysis of Findings
 
-## Gap Analysis
+### The Metric Problem
 
-### What's Already Working ✅
+The original F1 score was fundamentally broken for PDF extraction evaluation:
 
-| Feature             | Implementation                | Evidence                                     |
-| ------------------- | ----------------------------- | -------------------------------------------- |
-| Rebuild Embeddings  | workspaces.rs:1343            | Full handler with workspace isolation        |
-| Rebuild KG          | workspaces.rs:1729            | Full handler with optional embedding rebuild |
-| Workspace Isolation | clear_workspace()             | Scoped by workspace_id                       |
-| Dimension Handling  | Auto-detect from model config | OODA-225 implemented                         |
-| Cache Eviction      | vector_registry.evict()       | Prevents stale dimension issues              |
-| Frontend Buttons    | RebuildEmbeddingsButton       | Card UI with confirmation                    |
-| Progress Dialog     | PipelineStatusDialog          | Polls for status                             |
+```
+Original Approach:
+- Extract words as SET
+- Compute |gold ∩ extracted| / |gold| (recall)
+- Compute |gold ∩ extracted| / |extracted| (precision)
+- F1 = harmonic mean
 
-### What Needs Improvement ⚠️
-
-| Gap                                | Impact              | Effort | Priority |
-| ---------------------------------- | ------------------- | ------ | -------- |
-| E2E tests with Ollama              | Testing reliability | Medium | P1       |
-| Status update during rebuild       | UX clarity          | Low    | P2       |
-| Confirmation dialog impact preview | User confidence     | Low    | P2       |
-| Error detail display               | Debug support       | Medium | P2       |
-
----
-
-## First Principles Analysis
-
-### Why is rebuild functionality critical?
-
-1. **Model migration** - Users switch providers (OpenAI → Ollama)
-2. **Quality improvement** - New models extract better entities
-3. **Dimension compatibility** - Different models have different dimensions
-4. **Recovery** - Fix corrupted data
-
-### What's the user's mental model?
-
-"I want to upgrade my extraction quality without losing data"
-
-The system needs to:
-
-1. Preserve source documents
-2. Clear derived data (entities, relationships, embeddings)
-3. Reprocess with new configuration
-4. Show progress throughout
-
----
-
-## Decision Points
-
-### Decision 1: E2E Tests Priority
-
-**Focus**: Create comprehensive E2E tests using Ollama models for:
-
-- Rebuild embeddings with dimension change
-- Rebuild KG with model change
-- Error scenarios (provider unavailable)
-- Workspace isolation verification
-
-### Decision 2: Enhance Confirmation Dialog
-
-Add impact preview to RebuildEmbeddingsButton:
-
-```tsx
-"This will reprocess {X} documents ({Y} chunks) using {newModel}.";
+Why it fails:
+- SET ignores word ORDER → "cat sat" = "sat cat" = 1.0
+- SET ignores DUPLICATES → "the the" = "the" = 1.0
+- Strips markdown → bold/italic not validated
 ```
 
-### Decision 3: Add Status Updates During Rebuild
+**Impact**: Gave us 0.877 when real quality was 0.573 (43% overestimation!)
 
-The rebuild process should show stages:
+### Why ROUGE-L is the Right Metric
 
-1. "Clearing vectors..."
-2. "Updating configuration..."
-3. "Queueing documents..."
-4. "Processing..." (then normal pipeline stages)
+ROUGE-L (Longest Common Subsequence) directly captures reading order:
+
+```
+Gold:     "The quick brown fox jumps over the lazy dog"
+Good:     "The quick brown fox jumps over the lazy dog"  → LCS=9, ROUGE-L=1.0
+Bad:      "dog lazy the over jumps fox brown quick The"  → LCS=1, ROUGE-L=0.11
+
+SET F1 for both: 1.0 (all words present!)
+ROUGE-L correctly penalizes the scrambled version.
+```
+
+### Root Cause Analysis
+
+**Why is order broken?**
+
+1. **Title Fragmentation** (AlphaEvolve example):
+   - Gold: `# **AlphaEvolve : A coding agent for scientific and algorithmic discovery**`
+   - Extracted: Title split into 6+ separate blocks due to:
+     - Font changes (bold, italic)
+     - Colon creating separate span
+     - Words on slightly different Y positions
+
+2. **Block Sorting Algorithm**:
+   - Current: Sort by (y0, x0)
+   - Problem: Doesn't handle multi-column layouts
+   - Solution: Need pymupdf4llm's "smart sort key" with vertical overlap detection
+
+3. **Line Tolerance**:
+   - Current: 5pt (increased from 3pt, caused regression)
+   - Problem: Too tight = fragmentation, too loose = merging
+   - Need: Dynamic tolerance based on font size
+
+4. **Missing Column Detection**:
+   - pymupdf4llm uses `column_boxes()` to detect columns
+   - Then reads within columns left-to-right
+   - Our implementation doesn't detect columns
+
+### Priority Analysis
+
+| Issue | Impact on ROUGE-L | Effort | Priority |
+|-------|-------------------|--------|----------|
+| Block sorting | High | Medium | 1 |
+| Line grouping tolerance | High | Low | 2 |
+| Column detection | High | High | 3 |
+| Markdown formatting | Medium | Medium | 4 |
+| Span merging | Medium | Low | 5 |
+
+### Comparison with pymupdf4llm
+
+| Feature | pymupdf4llm | Our Implementation |
+|---------|-------------|-------------------|
+| Column detection | `column_boxes()` with join phases | None |
+| Block sorting | Smart sort key with vertical overlap | Simple (y0, x0) |
+| Line tolerance | Dynamic based on font | Fixed 5pt |
+| Space handling | Built into pymupdf | Synthesized (fixed) |
+| Reading order | Column-aware | Column-unaware |
+
+### What We Need to Fix
+
+1. **Implement Column Detection**:
+   ```
+   Phase 1: Vertical join (10pt tolerance)
+   Phase 2: Boundary normalization (3pt)
+   Phase 3: Smart sort key (vertical overlap)
+   ```
+
+2. **Fix Block Sorting**:
+   ```rust
+   // Current (broken for multi-column):
+   sort by (y0, x0)
+   
+   // Needed (column-aware):
+   for each block Q:
+     find P = leftmost block with vertical overlap
+     sort_key = (P.y0, Q.x0)  // ensures Q after P
+   ```
+
+3. **Tune Line Tolerance**:
+   - Revert to 3pt (line_tolerance = 3.0)
+   - Consider font-relative: `tolerance = 0.3 * font_size`
+
+### Strategic Decision
+
+**Focus on ORDER first (ROUGE-L)** because:
+1. Content extraction is working (Word F1 = 0.914)
+2. Order is the biggest gap (-0.409)
+3. Structure follows from correct ordering
+4. Formatting can be addressed last
+
+### Proposed Solution Architecture
+
+```
+              ┌─────────────────────────────────┐
+              │  PDF Input                      │
+              └─────────────────────────────────┘
+                              │
+                              ▼
+              ┌─────────────────────────────────┐
+              │  PdfiumBackend.extract_chars()  │
+              │  (Current - working well)       │
+              └─────────────────────────────────┘
+                              │
+                              ▼
+              ┌─────────────────────────────────┐
+              │  chars_to_spans()               │
+              │  (Current - mostly OK)          │
+              └─────────────────────────────────┘
+                              │
+                              ▼
+              ┌─────────────────────────────────┐
+              │  spans_to_lines()               │
+              │  FIX: Revert to 3pt tolerance   │
+              └─────────────────────────────────┘
+                              │
+                              ▼
+              ┌─────────────────────────────────┐
+              │  lines_to_blocks()              │
+              │  (Current - mostly OK)          │
+              └─────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  NEW: column_boxes()                                        │
+│  - Phase 1: Vertical join (10pt)                           │
+│  - Phase 2: Boundary normalization (3pt)                   │
+│  - Phase 3: Smart sort key with vertical overlap           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+              ┌─────────────────────────────────┐
+              │  Markdown Rendering             │
+              │  (Current - working)            │
+              └─────────────────────────────────┘
+```
+
+### Metrics Framework Established
+
+Created `scripts/eval_comprehensive.py` with:
+- **Quality Score**: 0.4×ROUGE-L + 0.3×Word_F1 + 0.15×Structure + 0.1×Format + 0.05×BLEU
+- Multi-dimensional breakdown for debugging
+- Per-file and aggregate reporting
+
+This gives us visibility into what's actually broken.
 
 ---
 
-## Risk Assessment
+## Recommendations for Decide Phase
 
-| Risk                       | Probability | Mitigation                   |
-| -------------------------- | ----------- | ---------------------------- |
-| Ollama not available in CI | High        | Skip tests gracefully        |
-| Long test runtime          | Medium      | Use small test documents     |
-| Flaky tests from timing    | Low         | Add proper waits and retries |
-
----
-
-## Solution Approach
-
-### Phase 1: E2E Test Suite (This Iteration)
-
-Create `edgequake_webui/e2e/rebuild-operations.spec.ts`:
-
-1. Test rebuild embeddings flow
-2. Test rebuild KG flow
-3. Test dimension change scenario
-4. Test workspace isolation
-5. Ollama integration tests (conditional)
-
-### Phase 2: UX Improvements (Next Iteration)
-
-1. Enhance confirmation dialogs
-2. Add status messages during rebuild
-3. Improve error display
-
----
-
-## Next Step
-
-Proceed to **Decide** phase to finalize the E2E test plan.
+1. **Immediate**: Revert line_tolerance from 5pt to 3pt
+2. **Short-term**: Implement smart sort key with vertical overlap
+3. **Medium-term**: Implement full column detection (3 phases)
+4. **Ongoing**: Use comprehensive metrics for all evaluations

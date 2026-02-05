@@ -94,6 +94,19 @@ pub struct GroupingParams {
     /// OODA-07: Right margin width to exclude (in points).
     /// Text beyond (page_width - right_margin) is filtered out.
     pub right_margin: f32,
+    /// OODA-IT01: Header margin height to exclude (in points).
+    /// Text within header_margin from page top (y < header_margin) is filtered out.
+    /// WHY: pymupdf4llm uses header_margin=50 to filter page numbers, chapter titles.
+    /// See multi_column.py:column_boxes() - `clip.y0 += header_margin`.
+    pub header_margin: f32,
+    /// OODA-IT01: Footer margin height to exclude (in points).
+    /// Text within footer_margin from page bottom is filtered out.
+    /// WHY: pymupdf4llm uses footer_margin=50 to filter footnotes, page numbers.
+    /// See multi_column.py:column_boxes() - `clip.y1 -= footer_margin`.
+    pub footer_margin: f32,
+    /// Page height for footer margin calculation.
+    /// Must be set when using footer_margin filtering.
+    pub page_height: f32,
 }
 
 impl Default for GroupingParams {
@@ -116,6 +129,14 @@ impl Default for GroupingParams {
             left_margin: 50.0,
             // OODA-07: No right margin filtering by default
             right_margin: 0.0,
+            // OODA-IT01: Header margin = 50pt matches pymupdf4llm default
+            // See multi_column.py:column_boxes() default parameter
+            header_margin: 50.0,
+            // OODA-IT01: Footer margin = 50pt matches pymupdf4llm default
+            footer_margin: 50.0,
+            // OODA-IT01: Default page height (US Letter = 792pt)
+            // Updated per-page during extraction
+            page_height: 792.0,
         }
     }
 }
@@ -208,6 +229,25 @@ impl TextGrouper {
             // ArXiv watermarks are at x ≈ 10-40pt, well within the 50pt threshold.
             if ch.x1 < self.params.left_margin {
                 continue;
+            }
+
+            // OODA-IT01: Filter header margin text (page numbers, chapter titles at top)
+            // WHY: pymupdf4llm uses header_margin parameter to exclude top region.
+            // See multi_column.py:column_boxes() - `clip.y0 += header_margin`.
+            // In PDF coordinates, Y=0 is at BOTTOM, but after normalization in extraction_engine.rs,
+            // Y=0 is at TOP and increases downward. So header region is y < header_margin.
+            if ch.y0 < self.params.header_margin {
+                continue;
+            }
+
+            // OODA-IT01: Filter footer margin text (footnotes, page numbers at bottom)
+            // WHY: pymupdf4llm uses footer_margin parameter to exclude bottom region.
+            // See multi_column.py:column_boxes() - `clip.y1 -= footer_margin`.
+            // After normalization, footer region is y > (page_height - footer_margin).
+            if self.params.footer_margin > 0.0 && self.params.page_height > 0.0 {
+                if ch.y1 > self.params.page_height - self.params.footer_margin {
+                    continue;
+                }
             }
 
             // OODA-07: Filter right margin text (if right_margin > 0)
@@ -1239,5 +1279,91 @@ mod tests {
 
         grouper.classify_blocks(std::slice::from_mut(&mut list_block), body_size);
         assert_eq!(list_block.block_type, BlockType::ListItem);
+    }
+
+    /// OODA-IT01: Test header margin filtering.
+    /// WHY: Verifies that characters in the header margin (top of page) are filtered out.
+    /// This matches pymupdf4llm's header_margin parameter.
+    #[test]
+    fn test_header_margin_filtering() {
+        let mut params = GroupingParams::default();
+        params.header_margin = 50.0; // Filter top 50pt
+        params.footer_margin = 0.0; // Disable footer filtering for this test
+        params.page_height = 792.0; // US Letter height
+        let grouper = TextGrouper::with_params(params);
+
+        // Create chars: one in header margin (y=30), one in main content (y=100)
+        let chars = vec![
+            // This char is at y=30, which is < header_margin=50, should be filtered
+            make_char('H', 60.0, 30.0, 12.0, 0),
+            make_char('i', 67.2, 30.0, 12.0, 0),
+            // This char is at y=100, which is > header_margin=50, should be kept
+            make_char('O', 60.0, 100.0, 12.0, 0),
+            make_char('K', 67.2, 100.0, 12.0, 0),
+        ];
+
+        let spans = grouper.chars_to_spans(&chars);
+
+        // Only "OK" should remain (header text "Hi" filtered out)
+        assert_eq!(spans.len(), 1, "Expected 1 span after header filtering");
+        assert_eq!(spans[0].text, "OK", "Expected 'OK', got '{}'", spans[0].text);
+    }
+
+    /// OODA-IT01: Test footer margin filtering.
+    /// WHY: Verifies that characters in the footer margin (bottom of page) are filtered out.
+    /// This matches pymupdf4llm's footer_margin parameter.
+    #[test]
+    fn test_footer_margin_filtering() {
+        let mut params = GroupingParams::default();
+        params.header_margin = 0.0; // Disable header filtering for this test
+        params.footer_margin = 50.0; // Filter bottom 50pt
+        params.page_height = 792.0; // US Letter height
+        let grouper = TextGrouper::with_params(params);
+
+        // Create chars: one in main content (y=100), one in footer margin (y=760)
+        let chars = vec![
+            // This char is at y=100, well within content area, should be kept
+            make_char('O', 60.0, 100.0, 12.0, 0),
+            make_char('K', 67.2, 100.0, 12.0, 0),
+            // This char is at y=760, which is > (page_height - footer_margin) = 742, should be filtered
+            make_char('P', 60.0, 760.0, 12.0, 0),
+            make_char('g', 67.2, 760.0, 12.0, 0),
+        ];
+
+        let spans = grouper.chars_to_spans(&chars);
+
+        // Only "OK" should remain (footer text "Pg" filtered out)
+        assert_eq!(spans.len(), 1, "Expected 1 span after footer filtering");
+        assert_eq!(spans[0].text, "OK", "Expected 'OK', got '{}'", spans[0].text);
+    }
+
+    /// OODA-IT01: Test combined header and footer margin filtering.
+    /// WHY: Verifies that both margins work together to filter page chrome.
+    #[test]
+    fn test_header_and_footer_margin_filtering() {
+        let mut params = GroupingParams::default();
+        params.header_margin = 50.0;
+        params.footer_margin = 50.0;
+        params.page_height = 792.0;
+        let grouper = TextGrouper::with_params(params);
+
+        // Create chars: header, content, footer
+        let chars = vec![
+            // Header (y=30 < 50) - should be filtered
+            make_char('H', 60.0, 30.0, 12.0, 0),
+            make_char('D', 67.2, 30.0, 12.0, 0),
+            // Content (y=400, middle of page) - should be kept
+            make_char('O', 60.0, 400.0, 12.0, 0),
+            make_char('K', 67.2, 400.0, 12.0, 0),
+            // Footer (y=760 > 742) - should be filtered
+            make_char('F', 60.0, 760.0, 12.0, 0),
+            make_char('T', 67.2, 760.0, 12.0, 0),
+        ];
+
+        let spans = grouper.chars_to_spans(&chars);
+
+        // Only "OK" should remain
+        assert_eq!(spans.len(), 1, "Expected 1 span after header+footer filtering");
+        assert_eq!(spans[0].text, "OK");
     }
 }
