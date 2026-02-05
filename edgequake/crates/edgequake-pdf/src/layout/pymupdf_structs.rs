@@ -6,6 +6,41 @@
 //! RawChar → Span → Line → Block → Page
 //! ```
 //!
+//! ## Font Style Detection Pipeline (OODA-02, OODA-03)
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                      Font Style Data Flow                                    │
+//! ├─────────────────────────────────────────────────────────────────────────────┤
+//! │                                                                             │
+//! │  1. PDFium Backend (backend/pdfium.rs)                                      │
+//! │     ├─ font_weight() ────────────────→ is_bold: bool                        │
+//! │     ├─ font_is_italic() ─────────────→ is_italic: bool                      │
+//! │     └─ font_is_fixed_pitch() ────────→ is_monospace: bool                   │
+//! │                                                                             │
+//! │  2. RawChar (backend/elements.rs)                                           │
+//! │     ├─ is_bold: bool      ← From PDFium font descriptor                     │
+//! │     ├─ is_italic: bool    ← From PDFium font descriptor                     │
+//! │     └─ is_monospace: bool ← From PDFium FixedPitch flag (bit 1)             │
+//! │                                                                             │
+//! │  3. Span (this file)                                                        │
+//! │     ├─ font_is_bold: Option<bool>     ← Copied from first char              │
+//! │     ├─ font_is_italic: Option<bool>   ← Copied from first char              │
+//! │     └─ font_is_monospace: Option<bool> ← Copied from first char             │
+//! │                                                                             │
+//! │  4. Markdown Rendering (layout/pymupdf_renderer.rs)                         │
+//! │     ├─ is_bold() ────────→ **text**                                         │
+//! │     ├─ is_italic() ──────→ _text_                                           │
+//! │     └─ is_monospace() ───→ `text`                                           │
+//! │                                                                             │
+//! ├─────────────────────────────────────────────────────────────────────────────┤
+//! │  Fallback Chain (when PDFium flag unavailable):                             │
+//! │  ├─ Bold:     font name contains "bold" or "heavy"                          │
+//! │  ├─ Italic:   font name contains "italic" or "oblique"                      │
+//! │  └─ Monospace: font name contains "mono", "courier", "consolas"             │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
 //! ## Key Concepts
 //!
 //! - **Span**: Contiguous characters with same font style (name, size, flags)
@@ -105,6 +140,9 @@ impl Span {
         }
 
         // Same font size (within tolerance)
+        // WHY 0.5pt: Rounding errors in PDF coordinate systems can cause ~0.1-0.3pt
+        // variation for the same logical font size. 0.5pt is generous but catches
+        // real size changes (e.g., 12pt body vs 10pt footnote).
         if (self.font_size - ch.font_size).abs() > 0.5 {
             return false;
         }
@@ -137,6 +175,9 @@ impl Span {
         }
 
         // Vertically aligned (baseline within tolerance)
+        // WHY 0.3 * font_size: Subscript/superscript shift is typically 0.33-0.5em.
+        // Using 0.3 allows minor baseline drift from kerning but catches
+        // intentional vertical positioning changes.
         let y_tolerance = self.font_size * 0.3;
         if (self.y0 - ch.y0).abs() > y_tolerance {
             return false;

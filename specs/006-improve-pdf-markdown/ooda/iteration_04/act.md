@@ -64,11 +64,11 @@ test result: ok. 450 passed; 0 failed
 
 The `test_span_rejects_different_style` test now covers:
 
-| Style      | Rejection Test | Acceptance Test |
-|------------|----------------|-----------------|
-| Bold       | ✓              | ✓               |
-| Italic     | ✓              | ✓               |
-| Monospace  | ✓ (OODA-04)    | ✓ (OODA-04)     |
+| Style     | Rejection Test | Acceptance Test |
+| --------- | -------------- | --------------- |
+| Bold      | ✓              | ✓               |
+| Italic    | ✓              | ✓               |
+| Monospace | ✓ (OODA-04)    | ✓ (OODA-04)     |
 
 ## Next Iteration Focus
 
