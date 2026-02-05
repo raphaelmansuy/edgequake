@@ -186,8 +186,20 @@ impl ElementProcessor {
                 let max_overlap = char_width * 4.0; // 4x char_width for tight kerning
                 let max_gap = char_width * 2.0; // 2x char_width for word gaps
 
+                // OODA-41: Check if font styles match before merging
+                // WHY: If elements have different fonts (e.g., regular vs bold),
+                // they should NOT be merged. Merging them loses style information.
+                // Example: "1." (regular) + "Input" (bold) should stay as separate elements
+                // so that later span generation can preserve bold formatting.
+                let same_font = current.font_name == next.font_name
+                    && current.is_bold == next.is_bold
+                    && current.is_italic == next.is_italic;
+
                 // OODA-09: Add cross-column check to prevent merging elements from different columns
-                if !likely_cross_column && (overlapping || (gap > -max_overlap && gap < max_gap)) {
+                if !likely_cross_column
+                    && same_font
+                    && (overlapping || (gap > -max_overlap && gap < max_gap))
+                {
                     // Merge!
                     // For word-level spacing (actual gap > typical char spacing), insert space.
                     // But for character-by-character PDFs, don't insert spaces.

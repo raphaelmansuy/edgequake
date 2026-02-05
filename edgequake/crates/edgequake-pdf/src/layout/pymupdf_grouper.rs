@@ -117,6 +117,14 @@ impl TextGrouper {
                 continue;
             }
 
+            // OODA-12: Filter characters with tiny/zero font size
+            // WHY: PDFs contain metadata characters with font_size=0 or very small.
+            // These appear as noise artifacts (like "*y*") in the output.
+            // pymupdf4llm filters these via MuPDF's text extraction which ignores them.
+            if ch.font_size < 3.0 {
+                continue;
+            }
+
             // OODA-07: Filter left margin text (arXiv watermarks, etc.)
             // WHY: pymupdf4llm uses line["dir"] to filter rotated text (get_text_lines.py:121).
             // PDFium doesn't provide direction vectors, so we filter by position.
@@ -690,67 +698,59 @@ impl TextGrouper {
         let first_text = block.lines.first().map(|l| l.text()).unwrap_or_default();
         let trimmed = first_text.trim();
 
-        // OODA-10: Pattern-based header detection for academic papers
-        // WHY: Many IEEE-style papers use Roman numerals (I., II.) for sections
-        // and letters (A., B.) for subsections, but these often have the SAME
-        // font size as body text. Font-size detection fails for these.
-        // Text pattern matching is more reliable for structured documents.
-        if block.lines.len() <= 2 {
-            // Check for Roman numeral section headers (level 2)
-            // Patterns: "I. INTRODUCTION", "II. RELATED WORKS", "III. METHOD"
-            if is_roman_numeral_header(trimmed) {
-                return BlockType::Header(2);
-            }
+        // OODA-10: Pattern-based header detection DISABLED
+        // WHY: Comparison with pymupdf4llm gold standards shows that pymupdf4llm
+        // uses MuPDF's native page.get_layout() which is VERY conservative about
+        // marking headers. The gold files have 1-2 headers (paper title only) while
+        // our pattern-based detection produces 25-40 headers (section numbers, abstracts).
+        //
+        // OODA-11: Disable pattern-based detection entirely. Rely only on font size.
+        // Pattern matching creates false positives for:
+        // - Section numbers like "1. Introduction" (gold keeps as regular text)
+        // - Roman numerals like "I. INTRODUCTION" (gold keeps as regular text)
+        // - "Abstract" keyword (gold keeps as regular text or bold)
+        //
+        // Keep the patterns for reference but don't use them:
+        let _first_text = &trimmed;
+        let _ = is_roman_numeral_header;
+        let _ = is_letter_subsection_header;
+        let _ = is_numeric_section_header;
+        let _ = is_numeric_subsection_header;
+        let _ = is_abstract_header;
 
-            // Check for letter subsection headers (level 3)
-            // Patterns: "A. Background", "B. Policy Representations"
-            if is_letter_subsection_header(trimmed) {
-                return BlockType::Header(3);
-            }
-
-            // OODA-08: Check for numeric section headers (level 2)
-            // Patterns: "1. Introduction", "2. Related Works", "3. Method"
-            if is_numeric_section_header(trimmed) {
-                return BlockType::Header(2);
-            }
-
-            // OODA-08: Check for numeric subsection headers (level 3)
-            // Patterns: "2.1. Agentic Training", "3.2. Agent Architecture"
-            if is_numeric_subsection_header(trimmed) {
-                return BlockType::Header(3);
-            }
-
-            // OODA-08: Check for Abstract header
-            // Patterns: "Abstract", "ABSTRACT"
-            if is_abstract_header(trimmed) {
-                return BlockType::Header(2);
-            }
-        }
-
-        // Check for header (larger font size, single line usually)
+        // Check for header based ONLY on font size
+        // OODA-12: Match pymupdf4llm's conservative header detection
+        // pymupdf4llm only marks the LARGEST font sizes as headers (typically 1-2 levels).
+        // Subsection headers (1.1, 3.1.1, etc.) are rendered as bold text, NOT headers.
+        //
+        // CRITICAL: pymupdf4llm finds the most frequent font size (body text), then
+        // only considers font sizes STRICTLY LARGER than body text as potential headers.
+        // Only the top 6 largest font sizes can be headers (H1-H6).
+        //
+        // Raising threshold to 1.50x (50% larger than body) to be more conservative.
+        // This matches observed behavior where:
+        // - Paper title at ~14pt vs body 10pt = 1.4x → H1
+        // - Major sections at ~12pt vs body 10pt = 1.2x → NOT a header (bold text)
         let dominant_size = block
             .lines
             .iter()
             .map(|l| l.dominant_font_size())
             .fold(0.0_f32, |a, b| a.max(b));
 
-        if dominant_size > body_font_size * 1.2 && block.lines.len() <= 2 {
+        let total_chars: usize = block.lines.iter().map(|l| l.text().len()).sum();
+
+        // WHY 1.50x threshold: Conservative to match pymupdf4llm gold standards.
+        // Gold files show only paper title as H1, major sections as H2.
+        // Subsections (1.1, 3.1.1, etc.) are bold text, not headers.
+        if dominant_size > body_font_size * 1.50 && block.lines.len() <= 2 && total_chars < 150 {
             // Map size ratio to header level
-            // WHY adjusted thresholds: Academic papers often have title/section fonts
-            // at 1.4-1.5x body size. The old thresholds assigned H3+ to these,
-            // but pymupdf4llm treats the largest font as H1.
-            // These adjusted thresholds better match pymupdf4llm's output.
             let ratio = dominant_size / body_font_size;
-            let level = if ratio >= 1.8 {
-                1
-            } else if ratio >= 1.4 {
-                2
-            } else if ratio >= 1.3 {
-                3
-            } else if ratio >= 1.25 {
-                4
+            let level = if ratio >= 2.0 {
+                1 // Very large = #
+            } else if ratio >= 1.7 {
+                2 // Large = ##
             } else {
-                5
+                1 // Title = # (only the largest gets headers now)
             };
             return BlockType::Header(level);
         }
@@ -766,6 +766,141 @@ impl TextGrouper {
         }
 
         BlockType::Paragraph
+    }
+
+    /// OODA-11: Split blocks DISABLED - was causing header over-detection.
+    ///
+    /// PREVIOUS BEHAVIOR: This function scanned multi-line blocks and split off
+    /// lines matching header patterns (section numbers, roman numerals, etc.)
+    /// creating separate header blocks.
+    ///
+    /// WHY DISABLED: Comparison with pymupdf4llm gold standards shows that this
+    /// aggressive splitting creates ~40 headers when gold has only 1-2.
+    /// pymupdf4llm uses MuPDF's native layout detection which is VERY conservative.
+    ///
+    /// The function now returns blocks unchanged.
+    pub fn split_header_blocks(&self, blocks: Vec<Block>) -> Vec<Block> {
+        // OODA-11: Return blocks unchanged - no pattern-based header splitting
+        blocks
+    }
+
+    /// OODA-12: Merge consecutive header blocks that belong to the same title.
+    ///
+    /// WHY: Paper titles often wrap across multiple lines, creating separate blocks
+    /// due to the vertical gap between lines. pymupdf4llm renders these as a single
+    /// header line (e.g., "### **Title Part 1** **Title Part 2**").
+    ///
+    /// We detect title continuation by:
+    /// 1. Consecutive blocks both classified as Header
+    /// 2. Same header level
+    /// 3. Similar dominant font size (within 10%)
+    /// 4. Blocks are on the same page
+    /// 5. Second block starts within 2x line height of first block's bottom
+    pub fn merge_title_blocks(&self, blocks: Vec<Block>) -> Vec<Block> {
+        if blocks.len() < 2 {
+            return blocks;
+        }
+
+        let mut result: Vec<Block> = Vec::with_capacity(blocks.len());
+        let mut iter = blocks.into_iter().peekable();
+
+        while let Some(mut current) = iter.next() {
+            // Check if we can merge with the next block
+            while let Some(next) = iter.peek() {
+                // Both must be headers with same level
+                let (BlockType::Header(level1), BlockType::Header(level2)) =
+                    (&current.block_type, &next.block_type)
+                else {
+                    break;
+                };
+                if level1 != level2 {
+                    break;
+                }
+
+                // Same page
+                if current.page_num != next.page_num {
+                    break;
+                }
+
+                // Similar font size (within 10%)
+                let cur_size = current
+                    .lines
+                    .iter()
+                    .map(|l| l.dominant_font_size())
+                    .fold(0.0_f32, |a, b| a.max(b));
+                let next_size = next
+                    .lines
+                    .iter()
+                    .map(|l| l.dominant_font_size())
+                    .fold(0.0_f32, |a, b| a.max(b));
+                if cur_size > 0.0 && (cur_size - next_size).abs() / cur_size > 0.1 {
+                    break;
+                }
+
+                // Vertical proximity: next block should start within 2x line height
+                // In PDF coords, current.y0 < next.y1 (next is below current)
+                let vertical_gap = current.y0 - next.y1;
+                let max_gap = cur_size * 2.5; // Allow 2.5x font size gap for title continuation
+                if vertical_gap < 0.0 || vertical_gap > max_gap {
+                    break;
+                }
+
+                // Merge: take ownership of next block and absorb its lines
+                let next_block = iter.next().unwrap();
+                for line in next_block.lines {
+                    current.add_line(line);
+                }
+            }
+
+            result.push(current);
+        }
+
+        result
+    }
+
+    /// OODA-12: Split blocks at bullet/list item lines.
+    ///
+    /// WHY: Block grouping often merges bullet items with preceding text because
+    /// they're vertically close. This splits blocks so each bullet line becomes
+    /// the start of a new block, enabling proper list detection.
+    ///
+    /// Example transformation:
+    /// Before: Block["intro text", "• item 1", "• item 2"]
+    /// After:  Block["intro text"], Block["• item 1"], Block["• item 2"]
+    pub fn split_at_bullet_lines(&self, blocks: Vec<Block>) -> Vec<Block> {
+        let mut result = Vec::with_capacity(blocks.len() * 2);
+
+        for block in blocks {
+            if block.lines.len() <= 1 {
+                result.push(block);
+                continue;
+            }
+
+            // Look for bullet lines that aren't the first line
+            let mut current_lines = Vec::new();
+            let page_num = block.page_num;
+
+            for line in block.lines {
+                let text = line.text();
+                let trimmed = text.trim_start();
+                let is_bullet = is_bullet_item(trimmed) || is_numbered_list_item(trimmed);
+
+                if is_bullet && !current_lines.is_empty() {
+                    // Save the accumulated lines as a block
+                    result.push(Block::from_lines(current_lines.clone(), page_num));
+                    current_lines.clear();
+                }
+
+                current_lines.push(line);
+            }
+
+            // Push remaining lines
+            if !current_lines.is_empty() {
+                result.push(Block::from_lines(current_lines, page_num));
+            }
+        }
+
+        result
     }
 }
 
@@ -1021,10 +1156,14 @@ impl Default for TextGrouper {
 }
 
 /// Check if text starts with a numbered list item pattern.
+///
+/// OODA-10: Excludes numeric section header patterns (X.Y.) which look similar.
+/// A true list item is "1. Item" but NOT "2.1. Subsection Title".
 fn is_numbered_list_item(text: &str) -> bool {
-    let mut chars = text.chars().peekable();
+    let trimmed = text.trim_start();
+    let mut chars = trimmed.chars().peekable();
 
-    // Check for digit(s)
+    // Check for digit(s) for the first number
     let mut has_digit = false;
     while let Some(&c) = chars.peek() {
         if c.is_ascii_digit() {
@@ -1041,7 +1180,18 @@ fn is_numbered_list_item(text: &str) -> bool {
 
     // Check for separator (., ), :)
     match chars.next() {
-        Some('.') | Some(')') | Some(':') => true,
+        Some('.') => {
+            // Check if this is a section header pattern (X.Y.)
+            // If the next char is a digit, this is likely a section header like "2.1."
+            if let Some(&next_c) = chars.peek() {
+                if next_c.is_ascii_digit() {
+                    // This looks like "2.1" - likely a section header, not a list item
+                    return false;
+                }
+            }
+            true
+        }
+        Some(')') | Some(':') => true,
         _ => false,
     }
 }
@@ -1061,6 +1211,8 @@ mod tests {
             font_size,
             font_name: Some("Arial".to_string()),
             page_num: page,
+            is_bold: false,
+            is_italic: false,
         }
     }
 
@@ -1069,9 +1221,10 @@ mod tests {
         let grouper = TextGrouper::new();
 
         // Create "Hi" on one line
+        // WHY: x positions must be > left_margin (50pt) to avoid filtering
         let chars = vec![
-            make_char('H', 10.0, 100.0, 12.0, 0),
-            make_char('i', 17.2, 100.0, 12.0, 0),
+            make_char('H', 60.0, 100.0, 12.0, 0),
+            make_char('i', 67.2, 100.0, 12.0, 0),
         ];
 
         let spans = grouper.chars_to_spans(&chars);
@@ -1094,6 +1247,8 @@ mod tests {
                 font_size: 12.0,
                 font_name: Some("Arial".to_string()),
                 page_num: 0,
+                font_is_bold: None,
+                font_is_italic: None,
             },
             Span {
                 text: "World".to_string(),
@@ -1104,6 +1259,8 @@ mod tests {
                 font_size: 12.0,
                 font_name: Some("Arial".to_string()),
                 page_num: 0,
+                font_is_bold: None,
+                font_is_italic: None,
             },
         ];
 
@@ -1117,14 +1274,15 @@ mod tests {
         let grouper = TextGrouper::new();
 
         // Create two lines of text
+        // WHY: x positions must be > left_margin (50pt) to avoid filtering
         let chars = vec![
             // Line 1: "Hi"
-            make_char('H', 10.0, 100.0, 12.0, 0),
-            make_char('i', 17.2, 100.0, 12.0, 0),
+            make_char('H', 60.0, 100.0, 12.0, 0),
+            make_char('i', 67.2, 100.0, 12.0, 0),
             // Line 2: "Bye" (lower y = below line 1)
-            make_char('B', 10.0, 85.0, 12.0, 0),
-            make_char('y', 17.2, 85.0, 12.0, 0),
-            make_char('e', 24.4, 85.0, 12.0, 0),
+            make_char('B', 60.0, 85.0, 12.0, 0),
+            make_char('y', 67.2, 85.0, 12.0, 0),
+            make_char('e', 74.4, 85.0, 12.0, 0),
         ];
 
         let blocks = grouper.group(&chars);
@@ -1141,6 +1299,10 @@ mod tests {
         assert!(is_numbered_list_item("5: Something"));
         assert!(!is_numbered_list_item("No number here"));
         assert!(!is_numbered_list_item("a. Letter prefix"));
+        // OODA-10: Section headers should NOT match as list items
+        assert!(!is_numbered_list_item("2.1. Agentic Training"));
+        assert!(!is_numbered_list_item("3.2. Agent Architecture"));
+        assert!(!is_numbered_list_item("10.5 Something"));
     }
 
     #[test]
@@ -1159,6 +1321,8 @@ mod tests {
                 font_size: 24.0,
                 font_name: Some("Arial-Bold".to_string()),
                 page_num: 0,
+                font_is_bold: Some(true),
+                font_is_italic: None,
             }],
             x0: 10.0,
             y0: 100.0,
@@ -1181,6 +1345,8 @@ mod tests {
                 font_size: 12.0,
                 font_name: Some("Arial".to_string()),
                 page_num: 0,
+                font_is_bold: None,
+                font_is_italic: None,
             }],
             x0: 10.0,
             y0: 50.0,
