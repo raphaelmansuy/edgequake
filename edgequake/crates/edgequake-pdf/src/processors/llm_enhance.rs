@@ -633,8 +633,7 @@ mod tests {
     #[test]
     fn test_processor_with_image_ocr_enabled() {
         let provider = Arc::new(MockProvider::new());
-        let processor =
-            LlmEnhanceProcessor::with_defaults(provider).with_image_ocr_enabled();
+        let processor = LlmEnhanceProcessor::with_defaults(provider).with_image_ocr_enabled();
         assert!(processor.image_ocr_config.is_some());
         assert!(processor.image_ocr_config.as_ref().unwrap().enabled);
     }
@@ -647,8 +646,7 @@ mod tests {
             model: "gpt-4o".to_string(),
             ..Default::default()
         };
-        let processor = LlmEnhanceProcessor::with_defaults(provider)
-            .with_image_ocr(custom_config);
+        let processor = LlmEnhanceProcessor::with_defaults(provider).with_image_ocr(custom_config);
         assert!(processor.image_ocr_config.is_some());
         assert_eq!(processor.image_ocr_config.as_ref().unwrap().model, "gpt-4o");
     }

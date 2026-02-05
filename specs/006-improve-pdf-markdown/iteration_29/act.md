@@ -9,6 +9,7 @@
 Added 2 WHY comments explaining design decisions:
 
 #### LlmEnhanceProcessor Struct (line ~50)
+
 ```rust
 /// **WHY use LLM for post-processing?**
 /// - Tables as raw text → proper markdown or HTML
@@ -18,6 +19,7 @@ Added 2 WHY comments explaining design decisions:
 ```
 
 #### text_needs_improvement Function (line ~440)
+
 ```rust
 /// WHY these thresholds?
 /// - special_char_ratio > 0.3: Heavy symbols suggest OCR noise or encoding issues
@@ -49,12 +51,12 @@ cargo test --lib
 
 ## Metrics
 
-| Metric | Before | After | Delta |
-|--------|--------|-------|-------|
-| WHY Comments (llm_enhance) | 0 | 2 | +2 |
-| Tests (llm_enhance) | 5 | 7 | +2 |
-| Total Lib Tests | 484 | 486 | +2 |
-| Clippy Warnings | 0 | 0 | ±0 |
+| Metric                     | Before | After | Delta |
+| -------------------------- | ------ | ----- | ----- |
+| WHY Comments (llm_enhance) | 0      | 2     | +2    |
+| Tests (llm_enhance)        | 5      | 7     | +2    |
+| Total Lib Tests            | 484    | 486   | +2    |
+| Clippy Warnings            | 0      | 0     | ±0    |
 
 ## Commit Message
 

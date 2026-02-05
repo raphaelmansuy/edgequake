@@ -740,4 +740,37 @@ mod tests {
         assert_eq!(order.position_of(1), Some(3));
         assert_eq!(order.position_of(5), None);
     }
+
+    // ==========================================================================
+    // OODA-31: Additional ReadingOrder and Detector tests
+    // ==========================================================================
+
+    #[test]
+    fn test_reading_order_iter() {
+        let order = ReadingOrder::new(vec![2, 0, 3, 1]);
+        let collected: Vec<usize> = order.iter().collect();
+        assert_eq!(collected, vec![2, 0, 3, 1]);
+    }
+
+    #[test]
+    fn test_detector_default() {
+        let detector = ReadingOrderDetector::default();
+        // WHY: Default line tolerance is 3.0 (matches pymupdf4llm)
+        assert!((detector.line_tolerance - 3.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_detector_with_tolerances() {
+        let detector = ReadingOrderDetector::with_tolerances(5.0, 25.0);
+        assert!((detector.line_tolerance - 5.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_from_xy_cut_order() {
+        let detector = ReadingOrderDetector::new();
+        let xy_order = vec![3, 1, 2, 0];
+        let reading_order = detector.from_xy_cut_order(&xy_order);
+        assert_eq!(reading_order.order, vec![3, 1, 2, 0]);
+        assert!((reading_order.confidence - 1.0).abs() < 0.001);
+    }
 }

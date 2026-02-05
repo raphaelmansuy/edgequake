@@ -17,7 +17,7 @@ use std::collections::HashMap;
 /// Geometric clusterer using DBSCAN algorithm.
 ///
 /// **WHY DBSCAN for PDF column detection?**
-/// 
+///
 /// Compared to histogram binning with magic thresholds:
 /// - No need to specify number of columns a priori
 /// - Handles variable-width columns (narrow/wide mix)

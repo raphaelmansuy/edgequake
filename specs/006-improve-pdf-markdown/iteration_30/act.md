@@ -34,11 +34,11 @@ cargo test --lib
 
 ## Metrics
 
-| Metric | Before | After | Delta |
-|--------|--------|-------|-------|
-| Tests (processor) | 4 | 8 | +4 |
-| Total Lib Tests | 486 | 490 | +4 |
-| Clippy Warnings | 0 | 0 | ±0 |
+| Metric            | Before | After | Delta |
+| ----------------- | ------ | ----- | ----- |
+| Tests (processor) | 4      | 8     | +4    |
+| Total Lib Tests   | 486    | 490   | +4    |
+| Clippy Warnings   | 0      | 0     | ±0    |
 
 ## Commit Message
 

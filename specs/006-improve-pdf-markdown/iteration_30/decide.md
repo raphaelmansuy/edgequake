@@ -6,7 +6,7 @@ Add 4 simple unit tests to processor.rs:
 
 1. **test_processor_chain_empty** - Verify empty chain behavior
 2. **test_processor_chain_default** - Test Default implementation
-3. **test_section_pattern_default** - Test Default implementation  
+3. **test_section_pattern_default** - Test Default implementation
 4. **test_style_detection_default** - Test Default implementation
 
 ## Rationale
@@ -24,7 +24,7 @@ fn test_processor_chain_empty() {
     let chain = ProcessorChain::new();
     assert!(chain.is_empty());
     assert_eq!(chain.len(), 0);
-    
+
     // Empty chain should pass document through unchanged
     let doc = create_test_document();
     let original_block_count = doc.pages[0].blocks.len();
