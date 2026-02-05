@@ -202,7 +202,59 @@ mod tests {
         assert_eq!(DocumentStats::percentile(&data, 1.0), 5.0); // Max
     }
 
+    // OODA-20: Additional percentile edge case tests
+
+    #[test]
+    fn test_percentile_single_element() {
+        let data = vec![42.0];
+        // WHY: Any percentile of single element should return that element
+        assert_eq!(DocumentStats::percentile(&data, 0.0), 42.0);
+        assert_eq!(DocumentStats::percentile(&data, 0.5), 42.0);
+        assert_eq!(DocumentStats::percentile(&data, 1.0), 42.0);
+    }
+
+    #[test]
+    fn test_percentile_two_elements() {
+        let data = vec![10.0, 20.0];
+        // p=0.0 → index 0 (10.0)
+        // p=1.0 → index 1 (20.0)
+        assert_eq!(DocumentStats::percentile(&data, 0.0), 10.0);
+        assert_eq!(DocumentStats::percentile(&data, 1.0), 20.0);
+    }
+
+    #[test]
+    fn test_percentile_interpolation() {
+        // Array [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] (10 elements)
+        // WHY test these percentiles: They match the ones used in the module
+        // - 0.1 (10th) used for alignment tolerance
+        // - 0.3 (30th) used for line spacing
+        // - 0.5 (50th) used for body font size (median)
+        let data: Vec<f32> = (0..10).map(|i| i as f32).collect();
+        // p=0.1 → index 0.9 → 0 (floor) → 0.0
+        assert_eq!(DocumentStats::percentile(&data, 0.1), 0.0);
+        // p=0.3 → index 2.7 → 2 (floor) → 2.0
+        assert_eq!(DocumentStats::percentile(&data, 0.3), 2.0);
+        // p=0.5 → index 4.5 → 4 (floor) → 4.0
+        assert_eq!(DocumentStats::percentile(&data, 0.5), 4.0);
+        // p=0.9 → index 8.1 → 8 (floor) → 8.0
+        assert_eq!(DocumentStats::percentile(&data, 0.9), 8.0);
+    }
+
+    #[test]
+    fn test_percentile_large_array() {
+        // 100 elements: 1.0 to 100.0
+        // WHY: Test with larger dataset to verify scaling
+        let data: Vec<f32> = (1..=100).map(|i| i as f32).collect();
+        // p=0.10 → index 9.9 → 9 → 10.0 (value at index 9)
+        assert_eq!(DocumentStats::percentile(&data, 0.10), 10.0);
+        // p=0.50 → index 49.5 → 49 → 50.0
+        assert_eq!(DocumentStats::percentile(&data, 0.50), 50.0);
+        // p=0.90 → index 89.1 → 89 → 90.0
+        assert_eq!(DocumentStats::percentile(&data, 0.90), 90.0);
+    }
+
     // More comprehensive tests would require creating a full Block structure
     // which is complex. The integration tests in tests/ directory will verify
     // the full functionality of adaptive thresholds.
 }
+
