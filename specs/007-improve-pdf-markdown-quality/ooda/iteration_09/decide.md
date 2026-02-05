@@ -8,6 +8,7 @@ font pattern detection covering 20+ monospace fonts.
 ## Font Categories to Add
 
 ### 1. Programming Fonts
+
 - `fira` (Fira Code, Fira Mono)
 - `inconsolata`
 - `jetbrains`
@@ -15,6 +16,7 @@ font pattern detection covering 20+ monospace fonts.
 - `iosevka`
 
 ### 2. System Monospace Fonts
+
 - `monaco` (macOS - doesn't contain "mono"!)
 - `menlo` (macOS)
 - `sf mono` (macOS)
@@ -25,6 +27,7 @@ font pattern detection covering 20+ monospace fonts.
 - `roboto mono`
 
 ### 3. Classic/Terminal Fonts
+
 - `typewriter`
 - `terminal`
 - `fixedsys`

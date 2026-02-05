@@ -712,29 +712,47 @@ mod tests {
         }
 
         // Programming fonts (should be detected)
-        assert!(is_code_font("JetBrains Mono"), "JetBrains Mono should be code");
+        assert!(
+            is_code_font("JetBrains Mono"),
+            "JetBrains Mono should be code"
+        );
         assert!(is_code_font("Fira Code"), "Fira Code should be code");
         assert!(is_code_font("Fira Mono"), "Fira Mono should be code");
         assert!(is_code_font("Inconsolata"), "Inconsolata should be code");
         assert!(is_code_font("Hack"), "Hack should be code");
         assert!(is_code_font("Iosevka"), "Iosevka should be code");
-        
+
         // System monospace fonts
         assert!(is_code_font("Menlo"), "Menlo should be code");
         assert!(is_code_font("SF Mono"), "SF Mono should be code");
         assert!(is_code_font("Monaco"), "Monaco should be code");
-        assert!(is_code_font("Lucida Console"), "Lucida Console should be code");
-        assert!(is_code_font("DejaVu Sans Mono"), "DejaVu Sans Mono should be code");
-        assert!(is_code_font("Liberation Mono"), "Liberation Mono should be code");
+        assert!(
+            is_code_font("Lucida Console"),
+            "Lucida Console should be code"
+        );
+        assert!(
+            is_code_font("DejaVu Sans Mono"),
+            "DejaVu Sans Mono should be code"
+        );
+        assert!(
+            is_code_font("Liberation Mono"),
+            "Liberation Mono should be code"
+        );
         assert!(is_code_font("Ubuntu Mono"), "Ubuntu Mono should be code");
         assert!(is_code_font("Roboto Mono"), "Roboto Mono should be code");
-        
+
         // Classic fonts
-        assert!(is_code_font("Letter Gothic"), "Letter Gothic should be code");
-        assert!(is_code_font("Prestige Elite"), "Prestige Elite should be code");
+        assert!(
+            is_code_font("Letter Gothic"),
+            "Letter Gothic should be code"
+        );
+        assert!(
+            is_code_font("Prestige Elite"),
+            "Prestige Elite should be code"
+        );
         assert!(is_code_font("Fixedsys"), "Fixedsys should be code");
         assert!(is_code_font("OCR-A"), "OCR-A should be code");
-        
+
         // Non-code fonts (should NOT be detected)
         assert!(!is_code_font("Times New Roman"), "Times should not be code");
         assert!(!is_code_font("Helvetica"), "Helvetica should not be code");

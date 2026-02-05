@@ -3,6 +3,7 @@
 ## Focus Area
 
 Code blocks are high priority (70→90 target). Need to understand:
+
 1. How code blocks are currently detected
 2. What monospace font detection looks like
 3. Potential improvements
@@ -24,11 +25,11 @@ PDF Font Family  ──►  looks_like_code()  ──►  Block Type
 
 ### Key Files
 
-| File | Purpose |
-|------|---------|
-| `schema/block.rs` | FontStyle::looks_like_code() |
-| `processors/structure_detection.rs` | CodeBlockDetectionProcessor |
-| `renderers/markdown.rs` | render_code(), render_spans_styled() |
+| File                                | Purpose                              |
+| ----------------------------------- | ------------------------------------ |
+| `schema/block.rs`                   | FontStyle::looks_like_code()         |
+| `processors/structure_detection.rs` | CodeBlockDetectionProcessor          |
+| `renderers/markdown.rs`             | render_code(), render_spans_styled() |
 
 ### Current Font Detection
 
@@ -50,6 +51,7 @@ pub fn looks_like_code(&self) -> bool {
 ### Missing Fonts (from Wikipedia "List of monospaced typefaces")
 
 Programming fonts NOT detected:
+
 - JetBrains Mono (contains "jetbrains" not "mono" in some variants)
 - Fira Code, Fira Mono
 - Inconsolata
@@ -58,6 +60,7 @@ Programming fonts NOT detected:
 - Monaco (Mac default - "monaco" doesn't contain "mono")
 
 System fonts NOT detected:
+
 - Menlo
 - SF Mono
 - Lucida Console
@@ -65,6 +68,7 @@ System fonts NOT detected:
 - Liberation Mono
 
 Classic fonts NOT detected:
+
 - Letter Gothic
 - Prestige Elite
 - Fixedsys
@@ -73,6 +77,7 @@ Classic fonts NOT detected:
 ### Test Coverage
 
 15 code tests passing, including:
+
 - `test_font_style_code_detection` - Only tests Courier, Consolas
 - `test_code_block_detection`
 - `test_code_block_rendering`
@@ -81,4 +86,3 @@ Classic fonts NOT detected:
 
 Extend `looks_like_code()` with comprehensive font pattern list to catch
 all common monospace fonts used in PDFs.
-
