@@ -902,5 +902,64 @@ mod tests {
             italic_span.can_append(&same_style_char),
             "Span should accept character with same italic flag"
         );
+
+        // OODA-04: Test monospace span rejection
+        // Create a span starting with monospace text
+        let mut mono_span = Span::new(0);
+        let mono_char = RawChar {
+            char: 'x',
+            x0: 10.0,
+            y0: 100.0,
+            x1: 18.0,
+            y1: 112.0,
+            font_size: 12.0,
+            font_name: Some("Courier".to_string()),
+            page_num: 0,
+            is_bold: false,
+            is_italic: false,
+            is_monospace: true,  // Monospace font
+        };
+        mono_span.append(&mono_char);
+
+        // Try to append non-monospace character
+        let non_mono_char = RawChar {
+            char: 'y',
+            x0: 18.0,
+            y0: 100.0,
+            x1: 26.0,
+            y1: 112.0,
+            font_size: 12.0,
+            font_name: Some("Arial".to_string()),
+            page_num: 0,
+            is_bold: false,
+            is_italic: false,
+            is_monospace: false,  // Different style!
+        };
+
+        // Should reject because monospace differs
+        assert!(
+            !mono_span.can_append(&non_mono_char),
+            "Span should reject character with different monospace flag"
+        );
+
+        // Same monospace style should be accepted
+        let same_mono_char = RawChar {
+            char: 'z',
+            x0: 18.0,
+            y0: 100.0,
+            x1: 26.0,
+            y1: 112.0,
+            font_size: 12.0,
+            font_name: Some("Courier".to_string()),
+            page_num: 0,
+            is_bold: false,
+            is_italic: false,
+            is_monospace: true,  // Same style!
+        };
+
+        assert!(
+            mono_span.can_append(&same_mono_char),
+            "Span should accept character with same monospace flag"
+        );
     }
 }

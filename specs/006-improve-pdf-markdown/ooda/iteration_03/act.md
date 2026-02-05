@@ -45,7 +45,7 @@ let final_is_monospace = if is_space { last_is_monospace } else { is_monospace }
 
 ```rust
 /// Font monospace flag from PDF font descriptor (OODA-03).
-/// 
+///
 /// - `Some(true)`: Font descriptor says fixed-pitch
 /// - `Some(false)`: Font descriptor says proportional
 /// - `None`: No font descriptor info (use font name fallback)
@@ -78,7 +78,7 @@ pub fn is_monospace(&self) -> bool {
     if let Some(is_mono) = self.font_is_monospace {
         return is_mono;
     }
-    
+
     // Fallback: font name pattern matching (70% accurate)
     self.font_name
         .as_ref()
@@ -96,6 +96,7 @@ pub fn is_monospace(&self) -> bool {
 ### 6. Fixed All Test Code
 
 Added `is_monospace: false` to RawChar instances and `font_is_monospace: None` to Span instances in:
+
 - `layout/pymupdf_structs.rs` - 8 locations
 - `layout/pymupdf_grouper.rs` - 5 locations
 - `layout/block_classifier.rs` - 2 locations
