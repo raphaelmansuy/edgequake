@@ -819,8 +819,8 @@ impl Processor for CodeBlockDetectionProcessor {
 
                 // OODA-IT13: Content-based exclusion
                 // Emails and URLs in monospace fonts should NOT be code blocks
-                let is_excluded = is_email_only_content(&block.text)
-                    || is_url_only_content(&block.text);
+                let is_excluded =
+                    is_email_only_content(&block.text) || is_url_only_content(&block.text);
 
                 if all_code && !is_excluded {
                     block.block_type = BlockType::Code;

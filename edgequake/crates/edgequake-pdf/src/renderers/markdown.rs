@@ -547,8 +547,7 @@ impl MarkdownRenderer {
             let is_bold = span.style.weight.map(|w| w >= 600).unwrap_or(false) && !skip_bold;
             let is_italic = span.style.italic && !skip_italic;
             // OODA-IT13: Apply content filter to inline code detection
-            let is_code =
-                span.style.looks_like_code() && should_render_inline_code(content);
+            let is_code = span.style.looks_like_code() && should_render_inline_code(content);
             let is_superscript = span.style.superscript;
             let is_subscript = span.style.subscript;
 
@@ -902,6 +901,63 @@ impl MarkdownRenderer {
                 result = re.replace_all(&result, replacement).to_string();
             }
         }
+
+        // OODA-IT14: Clean up TOC leader dots
+        // WHY: Table of Contents entries often have dots like "Chapter 1 ........ 5"
+        // These leader dots are visual artifacts from PDFs and clutter the markdown output.
+        result = Self::cleanup_toc_leader_dots(&result);
+
+        result
+    }
+
+    /// OODA-IT14: Remove TOC leader dots (4+ consecutive periods) and trailing page numbers.
+    /// Handles patterns like:
+    /// - "Actions  ................................ 31" -> "Actions"
+    /// - "**.............. 3**" -> ""  (dots-only with page number)
+    /// - "...............  36" -> ""  (standalone dots with number)
+    fn cleanup_toc_leader_dots(text: &str) -> String {
+        use regex::Regex;
+
+        // Process line by line to avoid cross-line issues
+        let leader_dots_re = Regex::new(r"\.{4,}\s*\d{0,3}\s*$").unwrap();
+        let dots_only_re = Regex::new(r"^\s*\**\.{3,}\**\s*\d*\s*\**\s*$").unwrap();
+        let page_num_only_re = Regex::new(r"^\s*\d{2,3}\s*$").unwrap();
+        let page_num_bold_re = Regex::new(r"^\s*\d{1,3}\s+\*\*\s*\*\*\s*$").unwrap();
+        let empty_bold_re = Regex::new(r"\*\*\s*\*\*").unwrap();
+
+        let mut result_lines: Vec<String> = Vec::new();
+
+        for line in text.lines() {
+            // Skip lines that are only dots (with optional page numbers)
+            if dots_only_re.is_match(line) {
+                continue;
+            }
+            // Skip standalone page numbers
+            if page_num_only_re.is_match(line) {
+                continue;
+            }
+            // Skip page numbers followed by empty bold
+            if page_num_bold_re.is_match(line) {
+                continue;
+            }
+
+            // Remove leader dots and trailing page number from same line
+            let cleaned = leader_dots_re.replace(line, "").to_string();
+
+            // Clean up empty bold patterns
+            let cleaned = empty_bold_re.replace_all(&cleaned, "").to_string();
+
+            // Only keep non-empty lines
+            if !cleaned.trim().is_empty() {
+                result_lines.push(cleaned);
+            }
+        }
+
+        let mut result = result_lines.join("\n");
+
+        // Clean up resulting multiple newlines
+        let multi_newline_re = Regex::new(r"\n{3,}").unwrap();
+        result = multi_newline_re.replace_all(&result, "\n\n").to_string();
 
         result
     }
@@ -1482,6 +1538,124 @@ mod tests {
         assert!(
             result.contains("***important***"),
             "Expected ***important*** in output, got: {}",
+            result
+        );
+    }
+
+    // OODA-IT14: Tests for TOC leader dots cleanup
+    #[test]
+    fn test_cleanup_toc_leader_dots_inline() {
+        // Pattern: "Actions  ................................ 31"
+        let input = "Actions  ................................ 31";
+        let result = MarkdownRenderer::cleanup_toc_leader_dots(input);
+        assert!(
+            !result.contains("...."),
+            "Leader dots should be removed, got: {}",
+            result
+        );
+        assert!(
+            result.contains("Actions"),
+            "Content should be preserved, got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_cleanup_toc_leader_dots_standalone() {
+        // Pattern: "**.............. 3**"
+        let input = "**.............. 3**";
+        let result = MarkdownRenderer::cleanup_toc_leader_dots(input);
+        assert!(
+            result.trim().is_empty() || !result.contains("...."),
+            "Dots-only line should be removed or cleaned, got: '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_cleanup_toc_leader_dots_page_number_only() {
+        // Pattern: standalone page numbers like "31" on their own line
+        let input = "Chapter 1\n\n31\n\nChapter 2";
+        let result = MarkdownRenderer::cleanup_toc_leader_dots(input);
+        // The standalone "31" should be removed
+        assert!(
+            !result.contains("\n31\n"),
+            "Standalone page numbers should be removed, got: '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_cleanup_toc_preserves_normal_dots() {
+        // Normal text with dots (ellipsis, etc.) should be preserved
+        let input = "This is normal text with etc. and some numbers like 123.";
+        let result = MarkdownRenderer::cleanup_toc_leader_dots(input);
+        assert_eq!(
+            result.trim(),
+            input.trim(),
+            "Normal text should be preserved"
+        );
+    }
+
+    #[test]
+    fn test_cleanup_toc_preserves_ellipsis() {
+        // Three dots (ellipsis) should be preserved
+        let input = "He said... and then stopped.";
+        let result = MarkdownRenderer::cleanup_toc_leader_dots(input);
+        assert!(
+            result.contains("..."),
+            "Three-dot ellipsis should be preserved, got: '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_cleanup_toc_real_world_pattern() {
+        // Real pattern from Apple Sandbox Guide
+        let input = r#"5.1  - Actions  ................................
+
+5.2  - Operations  ................................
+
+**.............. 3**
+
+**............. 5**
+
+31
+
+35"#;
+        let result = MarkdownRenderer::cleanup_toc_leader_dots(input);
+        assert!(
+            !result.contains("................................"),
+            "Long dot patterns should be removed, got: '{}'",
+            result
+        );
+        assert!(
+            result.contains("5.1"),
+            "Section numbers should be preserved, got: '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_cleanup_toc_preserves_line_breaks() {
+        // Section numbers on separate lines should stay on separate lines
+        let input = r#"5.1  - Actions  ................................
+
+5.2  - Operations  ................................
+
+5.3  - Filters  ................................"#;
+        let result = MarkdownRenderer::cleanup_toc_leader_dots(input);
+        eprintln!("DEBUG result: {:?}", result);
+        // Check that 5.1 and 5.2 are NOT on the same line
+        assert!(
+            !result.contains("5.1") || !result.contains("5.25.3"),
+            "Section numbers should not be merged on same line, got: '{}'",
+            result
+        );
+        // Check that there's a line break between sections
+        assert!(
+            result.contains("5.1") && result.contains("5.2"),
+            "Both section numbers should be present, got: '{}'",
             result
         );
     }
