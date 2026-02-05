@@ -1184,7 +1184,7 @@ mod tests {
 
     #[test]
     fn test_block_classification() {
-        let mut grouper = TextGrouper::new();
+        let grouper = TextGrouper::new();
         let body_size = 12.0;
 
         // Header block (larger font)

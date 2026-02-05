@@ -1342,8 +1342,9 @@ mod tests {
     #[test]
     fn test_text_grouper_default() {
         let grouper = TextGrouper::default();
-        // Just verify it can be created
-        assert!(std::mem::size_of_val(&grouper) >= 0);
+        // WHY: Just verify TextGrouper can be created with default params.
+        // Note: TextGrouper is currently a zero-sized type (ZST).
+        let _ = grouper; // Use the value to ensure creation succeeds
     }
 
     #[test]
