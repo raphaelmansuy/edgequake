@@ -44,6 +44,14 @@ pub struct Span {
     pub font_name: Option<String>,
     /// Page number (0-indexed)
     pub page_num: usize,
+    /// Bold flag from font descriptor (populated from RawChar)
+    /// WHY: Font name matching is unreliable. PDFium provides accurate
+    /// font weight from the font descriptor.
+    pub font_is_bold: Option<bool>,
+    /// Italic flag from font descriptor (populated from RawChar)
+    /// WHY: Font name matching is unreliable. PDFium provides accurate
+    /// italic flag from the font descriptor.
+    pub font_is_italic: Option<bool>,
 }
 
 impl Span {
@@ -58,6 +66,8 @@ impl Span {
             font_size: 0.0,
             font_name: None,
             page_num,
+            font_is_bold: None,
+            font_is_italic: None,
         }
     }
 
@@ -121,6 +131,9 @@ impl Span {
         if self.text.is_empty() {
             self.font_size = ch.font_size;
             self.font_name = ch.font_name.clone();
+            // Copy font flags from first character
+            self.font_is_bold = Some(ch.is_bold);
+            self.font_is_italic = Some(ch.is_italic);
         }
 
         self.text.push(ch.char);
@@ -140,20 +153,31 @@ impl Span {
         self.y1 - self.y0
     }
 
-    /// Check if this span is bold based on font name.
+    /// Check if this span is bold.
     ///
-    /// Detects bold by looking for common patterns in font names:
+    /// **Priority:** Uses font descriptor flag from PDFium if available (most accurate),
+    /// otherwise falls back to font name pattern matching.
+    ///
+    /// WHY font flags are preferred:
+    /// - PyMuPDF4llm uses font descriptor flags (like `flags & 16` for bold)
+    /// - Font name matching ("bold" in name) is unreliable for many PDFs
+    /// - The PDF 2900_Goyal_et_al has only NimbusSanL-Regu and NimbusSanL-Bold fonts
+    ///   but PDFium correctly identifies bold via the font weight
+    ///
+    /// Falls back to font name patterns if flags not available:
     /// - "bold" - Standard bold indicator
     /// - "black" - Heavy weight (bolder than bold)
     /// - "heavy" - Heavy weight
     /// - "medi" - Medium weight (often used for emphasis in academic papers)
     /// - "semi" - SemiBold weight
     /// - "demi" - DemiBold weight
-    ///
-    /// WHY medi/semi/demi: Many PDFs use font naming conventions where
-    /// "Medium" or "Medi" indicates emphasis, not literal medium weight.
-    /// For example, NimbusRomNo9L-Medi is used for titles in IEEE papers.
     pub fn is_bold(&self) -> bool {
+        // Prefer font descriptor flag from PDFium (most accurate)
+        if let Some(is_bold) = self.font_is_bold {
+            return is_bold;
+        }
+        
+        // Fallback to font name pattern matching
         self.font_name
             .as_ref()
             .map(|n| {
@@ -168,11 +192,28 @@ impl Span {
             .unwrap_or(false)
     }
 
-    /// Check if this span is italic based on font name.
+    /// Check if this span is italic.
+    ///
+    /// **Priority:** Uses font descriptor flag from PDFium if available (most accurate),
+    /// otherwise falls back to font name pattern matching.
     /// 
-    /// OODA-09: Added "ital" pattern to catch Nimbus fonts like
-    /// NimbusRomNo9L-ReguItal, NimbusRomNo9L-MediItal.
+    /// WHY font flags are preferred:
+    /// - PyMuPDF4llm uses font descriptor flags (like `flags & 2` for italic)
+    /// - Font name matching is unreliable - many PDFs don't use "italic" in font name
+    /// - The PDF 2900_Goyal_et_al has NO italic font, so font flags will correctly
+    ///   return false, avoiding false positives from journal names in references
+    ///
+    /// Falls back to font name patterns if flags not available:
+    /// - "italic" - Standard italic indicator
+    /// - "oblique" - Oblique (similar to italic)
+    /// - "ital" - Abbreviated form (Nimbus fonts like NimbusRomNo9L-ReguItal)
     pub fn is_italic(&self) -> bool {
+        // Prefer font descriptor flag from PDFium (most accurate)
+        if let Some(is_italic) = self.font_is_italic {
+            return is_italic;
+        }
+        
+        // Fallback to font name pattern matching
         self.font_name
             .as_ref()
             .map(|n| {
@@ -421,6 +462,41 @@ impl Block {
         }
     }
 
+    /// OODA-12: Create a new block from multiple lines.
+    ///
+    /// WHY: When splitting blocks at bullet points, we need to construct
+    /// new blocks from a subset of lines. The bbox is computed as the
+    /// union of all line bboxes.
+    pub fn from_lines(lines: Vec<Line>, page_num: usize) -> Self {
+        if lines.is_empty() {
+            return Self {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 0.0,
+                y1: 0.0,
+                page_num,
+                lines: vec![],
+                block_type: BlockType::Paragraph,
+            };
+        }
+
+        // Compute bounding box as union of all line bboxes
+        let x0 = lines.iter().map(|l| l.x0).fold(f32::INFINITY, f32::min);
+        let y0 = lines.iter().map(|l| l.y0).fold(f32::INFINITY, f32::min);
+        let x1 = lines.iter().map(|l| l.x1).fold(f32::NEG_INFINITY, f32::max);
+        let y1 = lines.iter().map(|l| l.y1).fold(f32::NEG_INFINITY, f32::max);
+
+        Self {
+            x0,
+            y0,
+            x1,
+            y1,
+            page_num,
+            lines,
+            block_type: BlockType::Paragraph,
+        }
+    }
+
     /// Check if a line belongs to this block.
     ///
     /// Uses horizontal overlap and vertical proximity.
@@ -497,6 +573,8 @@ mod tests {
             font_size: 12.0,
             font_name: Some("Arial".to_string()),
             page_num: 0,
+            is_bold: false,
+            is_italic: false,
         };
         let ch2 = RawChar {
             char: 'i',
@@ -507,6 +585,8 @@ mod tests {
             font_size: 12.0,
             font_name: Some("Arial".to_string()),
             page_num: 0,
+            is_bold: false,
+            is_italic: false,
         };
 
         assert!(span.can_append(&ch1));
@@ -530,6 +610,8 @@ mod tests {
             font_size: 12.0,
             font_name: Some("Arial-Bold".to_string()),
             page_num: 0,
+            font_is_bold: Some(true),
+            font_is_italic: Some(false),
         };
 
         let italic_span = Span {
@@ -541,6 +623,8 @@ mod tests {
             font_size: 12.0,
             font_name: Some("Arial-Italic".to_string()),
             page_num: 0,
+            font_is_bold: Some(false),
+            font_is_italic: Some(true),
         };
 
         let mono_span = Span {
@@ -552,6 +636,8 @@ mod tests {
             font_size: 12.0,
             font_name: Some("Courier".to_string()),
             page_num: 0,
+            font_is_bold: Some(false),
+            font_is_italic: Some(false),
         };
 
         assert!(bold_span.is_bold());
@@ -574,6 +660,8 @@ mod tests {
             font_size: 12.0,
             font_name: Some("Arial".to_string()),
             page_num: 0,
+            font_is_bold: None,
+            font_is_italic: None,
         };
 
         let span2 = Span {
@@ -585,6 +673,8 @@ mod tests {
             font_size: 12.0,
             font_name: Some("Arial".to_string()),
             page_num: 0,
+            font_is_bold: None,
+            font_is_italic: None,
         };
 
         let mut line = Line::from_span(span1);
@@ -608,6 +698,8 @@ mod tests {
                 font_size: 12.0,
                 font_name: None,
                 page_num: 0,
+                font_is_bold: None,
+                font_is_italic: None,
             }],
             x0: 10.0,
             y0: 100.0,
@@ -626,6 +718,8 @@ mod tests {
                 font_size: 12.0,
                 font_name: None,
                 page_num: 0,
+                font_is_bold: None,
+                font_is_italic: None,
             }],
             x0: 10.0,
             y0: 85.0,

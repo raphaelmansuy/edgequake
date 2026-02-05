@@ -90,8 +90,19 @@ impl MarkdownRenderer {
     fn render_header(&self, block: &Block, level: u8) -> String {
         let level = level.min(self.config.max_heading_level);
         let prefix = "#".repeat(level as usize);
-        let text = self.render_lines_inline(&block.lines);
-        format!("{} {}", prefix, text.trim())
+        // OODA-12: Join header lines with space, not newline
+        // WHY: Headers like paper titles may wrap across lines in PDF but should
+        // render as a single line in Markdown: "### **Title Part 1** **Part 2**"
+        // OODA-12: pymupdf4llm wraps header content in bold: ## **1. Introduction**
+        let text = block
+            .lines
+            .iter()
+            .map(|l| self.render_line_plain(l))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let trimmed = text.trim();
+        // Wrap header text in bold to match pymupdf4llm gold format
+        format!("{} **{}**", prefix, trimmed)
     }
 
     fn render_code(&self, block: &Block) -> String {
@@ -161,6 +172,16 @@ impl MarkdownRenderer {
             .map(|l| self.render_line_styled(l))
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    /// OODA-10: Render multiple lines as plain text (no bold/italic).
+    /// Used for headers where the ## markers already provide emphasis.
+    fn render_lines_plain(&self, lines: &[Line]) -> String {
+        lines
+            .iter()
+            .map(|l| self.render_line_plain(l))
+            .collect::<Vec<_>>()
+            .join(" ") // Join header lines with space, not newline
     }
 
     /// Render a line with style markers (bold, italic).
@@ -286,18 +307,31 @@ fn get_style_type(span: &super::pymupdf_structs::Span) -> StyleType {
 }
 
 /// Apply style markers to text.
+/// OODA-12: Preserve leading/trailing spaces outside style markers
+/// WHY: pymupdf4llm produces `_italic_ **bold**` not `*italic***bold**`
+/// OODA-12: Use underscores for italic to match gold standard format
 fn apply_style(text: &str, style: StyleType) -> String {
     if text.trim().is_empty() {
         return text.to_string();
     }
 
-    match style {
-        StyleType::BoldItalic => format!("***{}***", text.trim()),
-        StyleType::Bold => format!("**{}**", text.trim()),
-        StyleType::Italic => format!("*{}*", text.trim()),
-        StyleType::Code if !text.trim().starts_with('`') => format!("`{}`", text.trim()),
-        _ => text.to_string(),
-    }
+    // Preserve leading and trailing whitespace
+    let leading_space = text.len() - text.trim_start().len();
+    let trailing_space = text.len() - text.trim_end().len();
+    let trimmed = text.trim();
+
+    let styled = match style {
+        StyleType::BoldItalic => format!("**_{}_**", trimmed),
+        StyleType::Bold => format!("**{}**", trimmed),
+        StyleType::Italic => format!("_{}_", trimmed), // Use underscores for italic
+        StyleType::Code if !trimmed.starts_with('`') => format!("`{}`", trimmed),
+        _ => trimmed.to_string(),
+    };
+
+    // Re-add whitespace
+    let leading: String = " ".repeat(leading_space.min(1)); // Cap at 1 space
+    let trailing: String = " ".repeat(trailing_space.min(1));
+    format!("{}{}{}", leading, styled, trailing)
 }
 
 impl Default for MarkdownRenderer {
@@ -343,6 +377,8 @@ mod tests {
             font_size,
             font_name: Some(font_name.to_string()),
             page_num: 0,
+            font_is_bold: None,
+            font_is_italic: None,
         }
     }
 
@@ -404,7 +440,12 @@ mod tests {
 
         let md = renderer.render(&[block]);
         assert!(md.contains("**bold**"), "Missing bold: {}", md);
-        assert!(md.contains("*italic*"), "Missing italic: {}", md);
+        // Accept either *italic* or _italic_ - both are valid markdown
+        assert!(
+            md.contains("*italic*") || md.contains("_italic_"),
+            "Missing italic: {}",
+            md
+        );
     }
 
     #[test]
