@@ -107,6 +107,9 @@ impl Default for GroupingParams {
             // WHY: pymupdf4llm uses 10pt as max vertical gap for joining blocks
             // (multi_column.py line 242: `abs(r0.y1 - r.y0) <= 10`)
             block_gap: 10.0,
+            // WHY (OODA-10): 50% horizontal overlap threshold for same-column detection.
+            // Two blocks are "same column" if X ranges overlap by 50%+.
+            // This handles indented paragraphs while preventing adjacent column merging.
             column_overlap: 0.5,
             // OODA-07: Filter left margin (arXiv watermarks at x ≈ 10-40pt)
             // Using 50pt to catch all rotated margin text
@@ -299,7 +302,9 @@ impl TextGrouper {
     /// column boundaries. Typical column gutters are 14-20pt, while word gaps
     /// are < 5pt.
     fn split_multi_column_lines(&self, lines: Vec<Line>) -> Vec<Line> {
-        const COLUMN_GAP_THRESHOLD: f32 = 10.0; // Column gutter is typically 14-20pt
+        // WHY (OODA-10): 10pt is less than typical column gutter (14-20pt) but larger
+        // than word gaps (<5pt). Provides margin for detection uncertainty.
+        const COLUMN_GAP_THRESHOLD: f32 = 10.0;
 
         let mut result = Vec::new();
 
@@ -494,6 +499,9 @@ impl TextGrouper {
         let page_right = lines.iter().map(|l| l.x1).fold(f32::MIN, f32::max);
         let page_width = page_right - page_left;
 
+        // WHY (OODA-10): 100pt ≈ 1.4 inches is too small for readable content.
+        // Typical pages: US Letter (612pt), A4 (595pt). Skip column detection for
+        // unusually narrow content (might be figure captions or marginal notes).
         if page_width < 100.0 {
             return vec![];
         }
