@@ -20,6 +20,7 @@ use crate::schema::{Block, BlockType, BoundingBox, Document};
 use crate::Result;
 
 use super::stats::DocumentStats;
+use super::structure_detection::starts_with_bullet;
 use super::Processor;
 
 /// WHY: UTF-8 safe string truncation.
@@ -271,9 +272,18 @@ impl BlockMergeProcessor {
             || trimmed_b.starts_with('¶')
             || trimmed_b.starts_with('*');
 
-        if trimmed_b.starts_with("- ")
-            || trimmed_b.starts_with("* ")
-            || trimmed_b.starts_with("• ")
+        // OODA-IT12: Use comprehensive bullet detection (530+ Unicode bullets)
+        // WHY: Previous check only handled "• " (bullet + space), but PDFs like
+        // LightRAG paper have "•General" (bullet + uppercase, no space).
+        // The starts_with_bullet helper handles all cases:
+        // - Bullet + space ("• text")
+        // - Bullet + uppercase ("•General") - list item sentence start
+        // - Bullet + asterisk ("•**bold**") - markdown bold markers
+        let is_bullet_list = starts_with_bullet(trimmed_b)
+            || trimmed_b.starts_with("- ")
+            || trimmed_b.starts_with("* ");
+
+        if is_bullet_list
             || is_bracketed_reference
             || is_identifier_watermark
             || is_footnote_marker
@@ -282,7 +292,8 @@ impl BlockMergeProcessor {
                 && trimmed_b.contains(". "))
         {
             tracing::debug!(
-                "BlockMerge: skip - b is special (ref={}, id={}, footnote={}, text='{}')",
+                "BlockMerge: skip - b is special (bullet={}, ref={}, id={}, footnote={}, text='{}')",
+                is_bullet_list,
                 is_bracketed_reference,
                 is_identifier_watermark,
                 is_footnote_marker,

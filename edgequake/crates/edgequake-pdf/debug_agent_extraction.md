@@ -19,7 +19,7 @@ into meaningful representations; a reasoning system that formulates plans, adapt
 
 1.1 Motivation Artificial intelligence (AI) is a powerful technology that is transforming cognitive automation and fundamentally reshaping the way tasks are performed [13,14,37]. Today, one can develop remarkable systems without the need to write complex algorithms or master low-level code. We are closer than ever to realizing the idea that "if you can think it, you can build it." Instead of relying solely on programming skills, what increasingly matters is understanding how a human would reason through a problem, since LLM agents can learn and mimic human
 
-                  - · Multi-agent Systems
+                  - Multi-agent Systems
 
 victor.de.lamo@estudiantat.upc.edu {habtom.gidey, alex.lenz, knoll}@tum.de
 
@@ -174,11 +174,21 @@ The perception system of an LLM agent essentially acts as its "eyes and ears," c
 
 This approach offers low computational overhead for perception and integrates directly with the LLM's core capabilities. However, it is limited to environments that give the response to LLM interactions in text. This is practical for chats or text-driven simulations. 3.2 Multimodal Perception Agents can process and integrate information from a variety of sources, mainly textual and visual (images, videos), thanks to multimodal perception. For agents functioning in real-world or graphical user interfaces (GUIs), this capability is crucial. In the context of LLM agents, this is largely achieved through Vision- Language Models (VLMs) and their more advanced successors, Multimodal Large Language Models (MM-LLMs). These models aim to bridge the gap between images and words, allowing agents to understand and generate content across both modalities. Although significant progress has been made in the extension of LLMs to vision, it still has some challenges. For instance, most models still struggle with precise spatial relationships or accurate object counting without external aid [9]. Regardless of the specific training paradigm, a fundamental principle is the learning of a unified embedding space for vision and language. This means that both visual and textual data are converted into numerical representations (embeddings) that can be processed and compared together by the model [34]. 
 
-or outputs. Unlike VLMs, which primarily aim to align visual and linguistic representations, MM-LLMs leverage the inherent reasoning capabilities of a large language model as their central processing unit. This enables them not only to process and connect modalities but also to perform complex reasoning, planning, and generation across a diverse range of multimodal tasks. The general architecture of MM-LLMs typically comprises a structured pipeline with distinct components [67]: -Modality Encoder (ME): This component is responsible for encoding inputs from various modalities, such as images, videos, or even audio and
+or outputs. Unlike VLMs, which primarily aim to align visual and linguistic representations, MM-LLMs leverage the inherent reasoning capabilities of a large language model as their central processing unit. This enables them not only to process and connect modalities but also to perform complex reasoning, planning, and generation across a diverse range of multimodal tasks. The general architecture of MM-LLMs typically comprises a structured pipeline with distinct components [67]:
 
-3D data, to obtain corresponding features or embeddings. For visual inputs, specialized encoders like Convolutional Neural Networks (CNNs) or Vision Transformers (ViT) are used to extract rich visual representations [34,45]. 
+- Modality Encoder (ME): This component is responsible for encoding
 
-LLM. It acts as a bridge, transforming the visual embeddings into a format that the LLM can comprehend and integrate alongside textual inputs. This processing ensures that the visual embeddings are effectively supplied to the LLM, enabling the LLM to leverage its pre-trained linguistic knowledge for multimodal reasoning [34,50]. -LLM Backbone: This is the core reasoning engine. The processed and aligned multimodal representations (visual embeddings and textual features)
+inputs from various modalities, such as images, videos, or even audio and
+
+3D data, to obtain corresponding features or embeddings. For visual inputs, specialized encoders like Convolutional Neural Networks (CNNs) or Vision Transformers (ViT) are used to extract rich visual representations [34,45].
+
+- Input Projector: This component aligns the encoded features from non-
+
+textual modalities (e.g., visual embeddings) with the text feature space of the LLM. It acts as a bridge, transforming the visual embeddings into a format that the LLM can comprehend and integrate alongside textual inputs. This processing ensures that the visual embeddings are effectively supplied to the LLM, enabling the LLM to leverage its pre-trained linguistic knowledge for multimodal reasoning [34,50].
+
+- LLM Backbone: This is the core reasoning engine. The processed and
+
+aligned multimodal representations (visual embeddings and textual features)
 
 Building Autonomous LLM Agents 7
 
@@ -187,7 +197,15 @@ Building Autonomous LLM Agents 7
 
 ## Page 8
 
-are fed to the LLM. The LLM processes these representations, answering using the semantic understanding of the inputs. -Output Projector (for multimodal generation): puts in other modalities (e.g., generating images), this component maps signal token representations from the LLM Backbone into features understandable by a Modality Generator. -Modality Generator (for multimodal generation): tasked with producing outputs in distinct modalities, such as synthesizing images using models like Latent Diffusion Models.
+are fed to the LLM. The LLM processes these representations, answering using the semantic understanding of the inputs.
+
+- Output Projector (for multimodal generation):
+
+puts in other modalities (e.g., generating images), this component maps signal token representations from the LLM Backbone into features understandable by a Modality Generator.
+
+- Modality Generator (for multimodal generation):
+
+tasked with producing outputs in distinct modalities, such as synthesizing images using models like Latent Diffusion Models.
 
 > Fig. 2. Architecture of Multimodal Large Language Models (MM-LLMs) for Understanding and Generation [67]
 >
@@ -198,7 +216,11 @@ While the architectural components of MM-LLMs enable multimodal processing, thei
 
  This component is
 
-enhance visual perception with visual encoders: -Segmentation and Depth Maps: VCoder enhances MM-LLM capabilities through a specialized adaptive architecture and the integration of additional
+enhance visual perception with visual encoders:
+
+- Segmentation and Depth Maps: VCoder enhances MM-LLM capabilities
+
+through a specialized adaptive architecture and the integration of additional
 
 
 ---
@@ -210,7 +232,9 @@ perception modalities. It functions as an adapter to a base MM-LLM, enabling the
 > Fig. 3. Usage of segmentation and depth maps for MM-LLM perception [28]
 >
 
--Set-of-Mark Operation: To enhance the model's ability to handle complex visual tasks, Set-of-Mark (SoM) operation provides a structured approach to guide MM-LLMs in processing visual inputs. As seen in Fig. 4 set-of-mark process consists in annotating images with explicit markers (e.g., bounding boxes or labels) that highlight key regions or objects, enabling the model to focus on specific areas during reasoning. This technique improves the model's understanding of the image and task-specific performance [64]. Experimental evidence presented in the papers [28,64] indicates that MM- LLMs adapted with VCoder and SoM significantly outperform baseline models on object-level perception tasks, demonstrating improved counting accuracy and reduced hallucination. This highlights the ongoing efforts to enhance the granular perception capabilities of LLM-based agents. While techniques like Set-of-Mark and VCoder enhance visual perception through targeted annotations and prompting, structured data approaches, such as Accessibility Tree and HTML utilization, offer alternative methods for robust environmental interpretation, as explored in the following subsection.
+- Set-of-Mark Operation: To enhance the model's ability to handle complex
+
+visual tasks, Set-of-Mark (SoM) operation provides a structured approach to guide MM-LLMs in processing visual inputs. As seen in Fig. 4 set-of-mark process consists in annotating images with explicit markers (e.g., bounding boxes or labels) that highlight key regions or objects, enabling the model to focus on specific areas during reasoning. This technique improves the model's understanding of the image and task-specific performance [64]. Experimental evidence presented in the papers [28,64] indicates that MM- LLMs adapted with VCoder and SoM significantly outperform baseline models on object-level perception tasks, demonstrating improved counting accuracy and reduced hallucination. This highlights the ongoing efforts to enhance the granular perception capabilities of LLM-based agents. While techniques like Set-of-Mark and VCoder enhance visual perception through targeted annotations and prompting, structured data approaches, such as Accessibility Tree and HTML utilization, offer alternative methods for robust environmental interpretation, as explored in the following subsection.
 
 Building Autonomous LLM Agents 9
 
@@ -222,9 +246,19 @@ Building Autonomous LLM Agents 9
 > Fig. 4. Image with Set-of-Mark [64]
 >
 
-3.3 Information Tree/Structured Data Perception 
+3.3 Information Tree/Structured Data Perception
 
-descriptive labels to facilitate semantic grounding. -HTML Utilization: Meanwhile, DUALVCR [30] captures both the visual features of the screenshot and the descriptions of associated HTML elements to obtain a robust representation of the visual screenshot. 3.4 Tool-based Perception Beyond direct multimodal inputs and structured data retrieval, LLM-based agents can significantly enhance their perception capabilities through tool augmentation. This means utilizing external tools and APIs to enable the agent to gather, process, and interpret data from a wider variety of sources, including real-world sensors and specialized databases. The mechanism of integration typically involves the LLM generating specific tool calls based on its current understanding and goals, with the results from these tools being "fed back" into the LLM [44,47]. Categorizing Tools for Perception The diverse landscape of external tools available to LLM agents can be broadly categorized based on the type of infor- mation they help perceive: -Web Search and Information Retrieval APIs: to access vast amounts of up-to-date information, facts, and specific data points from the internet. By issuing queries to search engines (e.g., Google Search API) or structured knowledge bases (e.g., Wikipedia API), agents can
+- Accessibility Tree Utilization: OSCAR [56] utilizes an A11y tree gener-
+
+ated by the Windows API for representing GUI components, incorporating descriptive labels to facilitate semantic grounding.
+
+- HTML Utilization: Meanwhile, DUALVCR [30] captures both the visual
+
+features of the screenshot and the descriptions of associated HTML elements to obtain a robust representation of the visual screenshot. 3.4 Tool-based Perception Beyond direct multimodal inputs and structured data retrieval, LLM-based agents can significantly enhance their perception capabilities through tool augmentation. This means utilizing external tools and APIs to enable the agent to gather, process, and interpret data from a wider variety of sources, including real-world sensors and specialized databases. The mechanism of integration typically involves the LLM generating specific tool calls based on its current understanding and goals, with the results from these tools being "fed back" into the LLM [44,47]. Categorizing Tools for Perception The diverse landscape of external tools available to LLM agents can be broadly categorized based on the type of infor- mation they help perceive:
+
+- Web Search and Information Retrieval APIs:
+
+to access vast amounts of up-to-date information, facts, and specific data points from the internet. By issuing queries to search engines (e.g., Google Search API) or structured knowledge bases (e.g., Wikipedia API), agents can
 
  These tools allow agents
 
@@ -233,7 +267,19 @@ descriptive labels to facilitate semantic grounding. -HTML Utilization: Meanwhil
 
 ## Page 11
 
-perceive real-time events, verify facts, or retrieve details beyond their training data cutoff. This helps the agent fill in missing environmental information and is crucial for tasks requiring current affairs knowledge or factual accuracy [40, 44,47]. -Specialized APIs: Agents can use domain-specific APIs designed for specific data types. Examples include weather APIs (for perceiving current and forecasted climatic conditions), stock market APIs (for real-time financial data), or scientific databases and literature APIs (for accessing specialized research papers and experimental data). These tools enable agents to perceive specific information relevant to niche tasks [32,44], and can be implemented as document-centric microservices for knowledge discovery [17]. -Sensor Integration (Conceptual via Intermediary Tools): LLM agent does not directly interface with physical hardware sensors, its perception system can be augmented to interpret data originating from them. This is achieved through intermediary tools or services that convert raw sensory data (e.g., temperature readings, GPS coordinates, accelerometer data) from real-world or simulated environments into a digestible format (textual descriptions, structured data like JSON). This allows the agent to perceive physical properties and spatial relationships of its environment, crucial for tasks in robotics or interactive simulations [2,7]. -Code Execution Tools: These tools enable agents to execute code for data processing and calculations. By generating and executing code (e.g., Python scripts via an interpreter), agents can perceive insights from raw data, such as parsing complex log files, running statistical analyses on datasets, or querying local databases. This allows for dynamic and flexible data interpretation beyond simple text matching [10,42]. Let's now explore how integrating the diverse perception system approaches empowers an LLM agent to effectively handle tasks, as illustrated in a practical example. 3.5 Example of a Perception System in an LLM Agent Let's consider an LLM agent designed to automate tasks within a Graphical User Interface (GUI), such as managing emails in a web-based application. Although this could be easier to achieve using the email API, imagine a scenario where the agent's objective is to identify, classify, and, if necessary, respond to incoming company emails. To achieve this, the agent starts by capturing a screenshot of the email app. It then applies a Set-of-Mark operation using a visual encoder. This encoder draws a box on every interactive element on the screen, such as buttons or checkboxes and stores the coordinates of each box. The output consists of the image with the
+perceive real-time events, verify facts, or retrieve details beyond their training data cutoff. This helps the agent fill in missing environmental information and is crucial for tasks requiring current affairs knowledge or factual accuracy [40, 44,47].
+
+- Specialized APIs: Agents can use domain-specific APIs designed for specific
+
+data types. Examples include weather APIs (for perceiving current and forecasted climatic conditions), stock market APIs (for real-time financial data), or scientific databases and literature APIs (for accessing specialized research papers and experimental data). These tools enable agents to perceive specific information relevant to niche tasks [32,44], and can be implemented as document-centric microservices for knowledge discovery [17].
+
+- Sensor Integration (Conceptual via Intermediary Tools):
+
+LLM agent does not directly interface with physical hardware sensors, its perception system can be augmented to interpret data originating from them. This is achieved through intermediary tools or services that convert raw sensory data (e.g., temperature readings, GPS coordinates, accelerometer data) from real-world or simulated environments into a digestible format (textual descriptions, structured data like JSON). This allows the agent to perceive physical properties and spatial relationships of its environment, crucial for tasks in robotics or interactive simulations [2,7].
+
+- Code Execution Tools: These tools enable agents to execute code for data
+
+processing and calculations. By generating and executing code (e.g., Python scripts via an interpreter), agents can perceive insights from raw data, such as parsing complex log files, running statistical analyses on datasets, or querying local databases. This allows for dynamic and flexible data interpretation beyond simple text matching [10,42]. Let's now explore how integrating the diverse perception system approaches empowers an LLM agent to effectively handle tasks, as illustrated in a practical example. 3.5 Example of a Perception System in an LLM Agent Let's consider an LLM agent designed to automate tasks within a Graphical User Interface (GUI), such as managing emails in a web-based application. Although this could be easier to achieve using the email API, imagine a scenario where the agent's objective is to identify, classify, and, if necessary, respond to incoming company emails. To achieve this, the agent starts by capturing a screenshot of the email app. It then applies a Set-of-Mark operation using a visual encoder. This encoder draws a box on every interactive element on the screen, such as buttons or checkboxes and stores the coordinates of each box. The output consists of the image with the
 
  While an
 
@@ -248,11 +294,27 @@ Building Autonomous LLM Agents 11
 
 GUI components, such as buttons, text fields, links, and list items-along with their roles, labels, states (e.g., "unread"). Such data is typically extracted through browser automation tools. The accessibility tree and the visual encoder output combine to create a perception system. This system allows the agent to understand the interface: its visual layout, the semantics and roles of individual elements, and their spatial structure. When combined with the image understanding capabilities of a MM- LLM, this perception system enables the agent to build a rich, actionable model of the GUI environment. Despite the robustness of this perception system, it has a number of drawbacks and restrictions that can impact its performance and reliability. 3.6 Perception Challenges and Limitations While significant progress has been made in empowering LLM agents with advanced perceptual capabilities, several critical challenges and limitations persist
 
-across all approaches: -Hallucination: The tendency for models to "hallucinate" non-existent objects or misinterpret visual cues remains a significant hurdle. This can lead to agents making decisions based on incorrect interpretations, resulting in errors or undesirable behavior [25]. -Latency in Inference Pipelines: Integrating complex perception modules, especially those involving multimodal processing or external tool calls, can introduce substantial latency. Real-world applications, particularly those requiring real-time interaction (e.g., robotics, dynamic GUI automation), demand rapid perceptual updates. The sequential nature of many perception pipelines, from raw data acquisition to final LLM interpretation, can create bottlenecks, hindering the agent's responsiveness. -Context Window Limits: Large inputs, such as high-resolution images or extensive structured data, can generate a vast amount of tokens or embeddings. Encoding and feeding this entire information into the LLM's context window can quickly exceed its limitations [57]. 
+across all approaches:
 
-annotated data. The collection of this data can be costly and time-consuming. 
+- Hallucination: The tendency for models to "hallucinate" non-existent objects
 
-and inference. This can be a barrier for execution in resource-constrained environments or for widespread adoption. Ultimately, the quality and fidelity of an LLM agent's perception system 
+or misinterpret visual cues remains a significant hurdle. This can lead to agents making decisions based on incorrect interpretations, resulting in errors or undesirable behavior [25].
+
+- Latency in Inference Pipelines: Integrating complex perception modules,
+
+especially those involving multimodal processing or external tool calls, can introduce substantial latency. Real-world applications, particularly those requiring real-time interaction (e.g., robotics, dynamic GUI automation), demand rapid perceptual updates. The sequential nature of many perception pipelines, from raw data acquisition to final LLM interpretation, can create bottlenecks, hindering the agent's responsiveness.
+
+- Context Window Limits: Large inputs, such as high-resolution images or
+
+extensive structured data, can generate a vast amount of tokens or embeddings. Encoding and feeding this entire information into the LLM's context window can quickly exceed its limitations [57].
+
+- Data Collection: Training robust perception systems, particularly for mul-
+
+timodal or specialized domains, often requires large volumes of high-quality, annotated data. The collection of this data can be costly and time-consuming.
+
+- Computational Resources: High-fidelity perception, especially with mul-
+
+timodal inputs, requires high computational resources for both training and inference. This can be a barrier for execution in resource-constrained environments or for widespread adoption. Ultimately, the quality and fidelity of an LLM agent's perception system 
 
 component, but fundamental enablers for building more intelligent, reliable, and capable LLM agents.
 
@@ -304,12 +366,20 @@ Building Autonomous LLM Agents 15
 
 ## Page 16
 
--Self-consistent CoT (CoT-SC): This approach generates various reasoning paths and their corresponding answers using Chain of Thought (CoT), then selects the answer with the highest frequency as the final output [58]. -Tree-of-Thought (ToT) and Graph of Thoughts (GoT): ates plans using a tree-like reasoning structure where each node represents an intermediate "thought." The selection of these steps is based on LLM evaluations. Unlike CoT-SC, ToT queries LLMs for each reasoning step [65]. Graph-of-Thought (GoT) extends the tree-like reasoning structure of ToT to graph structures. It supports arbitrary thought aggregation and allows for transformations of thoughts, leading to more powerful prompting strate- gies [4].
+- Self-consistent CoT (CoT-SC): This approach generates various reasoning
+
+paths and their corresponding answers using Chain of Thought (CoT), then selects the answer with the highest frequency as the final output [58].
+
+- Tree-of-Thought (ToT) and Graph of Thoughts (GoT):
+
+ates plans using a tree-like reasoning structure where each node represents an intermediate "thought." The selection of these steps is based on LLM evaluations. Unlike CoT-SC, ToT queries LLMs for each reasoning step [65]. Graph-of-Thought (GoT) extends the tree-like reasoning structure of ToT to graph structures. It supports arbitrary thought aggregation and allows for transformations of thoughts, leading to more powerful prompting strate- gies [4].
 
 > Fig. 6. Schematic illustrating various approaches to problem solving with LLMs [65].
 >
 
--LLM-MCTS and RAP: These methods leverage LLMs as a heuristic policy function for the Monte Carlo Tree Search (MCTS). Multiple potential actions (or plans) are obtained through multiple calls to the LLM during the MCTS process [68]. RAP [24] specifically builds a world model to simulate potential benefits of different plans using MCTS to generate the final plan. Once a set of candidate plans is generated, the next step is plan selection, where different search algorithms are employed [26]. Self-consistency, for instance, utilizes a simple majority vote strategy to identify the most suitable plan [58]. More advanced methods like Tree-of-Thought leverage tree search algorithms such as conventional Breadth-First Search (BFS) and Depth-First Search (DFS) for expansion and selection, evaluating multiple actions to choose the optimal 
+- LLM-MCTS and RAP: These methods leverage LLMs as a heuristic policy
+
+function for the Monte Carlo Tree Search (MCTS). Multiple potential actions (or plans) are obtained through multiple calls to the LLM during the MCTS process [68]. RAP [24] specifically builds a world model to simulate potential benefits of different plans using MCTS to generate the final plan. Once a set of candidate plans is generated, the next step is plan selection, where different search algorithms are employed [26]. Self-consistency, for instance, utilizes a simple majority vote strategy to identify the most suitable plan [58]. More advanced methods like Tree-of-Thought leverage tree search algorithms such as conventional Breadth-First Search (BFS) and Depth-First Search (DFS) for expansion and selection, evaluating multiple actions to choose the optimal 
 
 solutions within expansive search spaces. However, this comes with trade-offs like
 
@@ -320,11 +390,23 @@ solutions within expansive search spaces. However, this comes with trade-offs li
 
 increased computational demands. Furthermore, the reliance on LLMs for plan evaluation introduces challenges regarding their performance in ranking tasks and the potential for randomness due to the stochastic nature of LLMs, which can affect the consistency and reliability of chosen plans [26]. 
 
-and adaptability in dynamic environments. 4.3 Reflection Reflection, in the context of LLM agents, refers to the agent's ability to critically evaluate its own past actions, reasoning, and outcomes, and then use these insights to improve its future performance. This allows agents to learn from their mistakes or inefficiencies without human intervention. Key characteristics of reflection include: -Self-Evaluation: The agent examines its completed (or ongoing) task, its generated plans, and the results of its actions. This often involves comparing actual and expected outcomes. -Error Detection and Analysis: Identifying where things went wrong, 
+and adaptability in dynamic environments. 4.3 Reflection Reflection, in the context of LLM agents, refers to the agent's ability to critically evaluate its own past actions, reasoning, and outcomes, and then use these insights to improve its future performance. This allows agents to learn from their mistakes or inefficiencies without human intervention. Key characteristics of reflection include:
 
-environmental changes. Papers like [49] and [38] exemplify this capability, where agents analyze their own outputs or execution traces to pinpoint issues. 
+- Self-Evaluation: The agent examines its completed (or ongoing) task, its
 
-correcting its reasoning process, learning better ways to use tools, updating its "memory" or state [49], or generating a revised plan or a new set of actions [6,38]. -Goal-Driven Reflection: Agents can reflect not just on errors, but also on efficiency or completeness, aiming to optimize their path to the goal even if no explicit error occurred. Building on the conceptual framework of reflection and its key characteristics, we now explore the practical steps and components required to implement an effective reflection system in LLM agents.
+generated plans, and the results of its actions. This often involves comparing actual and expected outcomes.
+
+- Error Detection and Analysis: Identifying where things went wrong,
+
+why a plan failed, or where the reasoning failed. This can be due to misunderstandings of the prompt, incorrect tool usage, logical inconsistencies, or environmental changes. Papers like [49] and [38] exemplify this capability, where agents analyze their own outputs or execution traces to pinpoint issues.
+
+- Correction and Improvement: Based on the analysis, the agent gener-
+
+ates actionable insights. This might involve modifying its planning strategy, correcting its reasoning process, learning better ways to use tools, updating its "memory" or state [49], or generating a revised plan or a new set of actions [6,38].
+
+- Goal-Driven Reflection: Agents can reflect not just on errors, but also on
+
+efficiency or completeness, aiming to optimize their path to the goal even if no explicit error occurred. Building on the conceptual framework of reflection and its key characteristics, we now explore the practical steps and components required to implement an effective reflection system in LLM agents.
 
 the paper "Reflection: Language Agents with Verbal Reinforcement Learning," [49] is a framework designed to improve the performance of language agents through linguistic feedback rather than traditional weight updates. It operates iteratively, allowing an agent to learn from its past mistakes by writing the feedback and
 
@@ -337,7 +419,19 @@ How to Implement a Reflection System: A Reflection system, as described in
 
 ## Page 18
 
-storing and using these reflections in the next iterations. Here's a brief explanation of how to implement such a system: Core Components: -Actor: This is typically a LLM that generates text and actions based on the current state observations and its memory. -Evaluator: This component assesses the quality of the Actor's generated outputs. It takes a complete trajectory (sequence of actions and observations) and computes a reward score. Evaluation can be based on exact match grading, predefined heuristics, or even another LLM instance. -Self-Reflection Model: Another LLM serves as the self-reflection model and is responsible for generating verbal self-reflections. Given a sparse reward signal (e.g., success/fail) and the current trajectory, it produces nuanced and specific feedback. The paper "DEVIL'S ADVOCATE: Anticipatory Reflection for LLM Agents" [53] introduces a distinct perspective: Anticipatory Reflection. This consists of the agent proactively reflecting on potential failures and considering alternative remedies before executing an action, essentially acting as a "devil's advocate" to challenge its own proposed steps. This front-loaded introspection enhances consistency and adaptability by allowing the agent to anticipate and mitigate challenges, improving its ability to navigate complex tasks effectively. 4.4 Example of a Reasoning System 
+storing and using these reflections in the next iterations. Here's a brief explanation of how to implement such a system: Core Components:
+
+- Actor: This is typically a LLM that generates text and actions based on the
+
+current state observations and its memory.
+
+- Evaluator: This component assesses the quality of the Actor's generated
+
+outputs. It takes a complete trajectory (sequence of actions and observations) and computes a reward score. Evaluation can be based on exact match grading, predefined heuristics, or even another LLM instance.
+
+- Self-Reflection Model: Another LLM serves as the self-reflection model
+
+and is responsible for generating verbal self-reflections. Given a sparse reward signal (e.g., success/fail) and the current trajectory, it produces nuanced and specific feedback. The paper "DEVIL'S ADVOCATE: Anticipatory Reflection for LLM Agents" [53] introduces a distinct perspective: Anticipatory Reflection. This consists of the agent proactively reflecting on potential failures and considering alternative remedies before executing an action, essentially acting as a "devil's advocate" to challenge its own proposed steps. This front-loaded introspection enhances consistency and adaptability by allowing the agent to anticipate and mitigate challenges, improving its ability to navigate complex tasks effectively. 4.4 Example of a Reasoning System 
 
 and Merge). First, the agent would decompose the main task into smaller subtasks. Then, in separate calls to an LLM, different planning options would be generated for each subtask. While generating these options, the LLM would consider potential issues that might arise during the execution of each subtask. Based on these anticipated problems, it would propose alternative approaches to either solve or avoid them. This process combines ideas from Tree-of-thought and the Anticipatory Reflection of the "DEVIL'S ADVOCATE" paper mentioned before. Following the Merge step in DPPM, the agent would integrate the different subtask plans into a final, coherent plan to accomplish the overall goal. To do this, it would explore various combinations of the subtask options, ensuring that the resulting plan is logically consistent and that all subplans contribute meaningfully toward completing the main task. After the final plan is constructed, it would be divided into groups of executable steps. As the agent carries out each group of steps, it would receive feedback from the environment. This feedback would be processed by a reflection mechanism, which would determine the current scenario:
 
@@ -370,7 +464,27 @@ Building Autonomous LLM Agents 19
 
 Having illustrated how a single LLM agent can leverage a reasoning system 
 
-scalability and efficiency. 4.5 Multi-Agent Systems Expanding on the idea of multi-agent systems, a single agent can be made up of different specialized "experts," each of whom focuses on a distinct aspect of the interaction or reasoning. This modularity enables specialization at each step, increasing its capabilities and robustness [5]. Here are some examples of such useful experts that an LLM agent could integrate: -Planning Expert: This expert focuses on strategic thinking and task decomposition. Its role is to break down complex objectives into a series of manageable subtasks. This aligns with the actor component discussed in the reflection system, where agents perform reasoning and planning to undertake complex tasks [33]. -Reflection Expert: It is dedicated to evaluating plans, responses, and overall performance. This aligns with the evaluator component discussed in the reflection system [33]. -Error Handling Expert: Specifically focused on identifying, diagnosing, and suggesting recovery strategies for errors. This expert could analyze logs, identify common failure patterns, and propose fixes. For example, it could propose to scroll down if an item is not found in a webpage [51]. It can also support self-healing behaviors in adaptive architectures [19]. -Memory Management Expert: Responsible for handling the agent's memory. This expert ensures that relevant information is retrieved efficiently and that the agent's context is maintained effectively, which is a critical challenge in LLM-based multi-agent systems [23,33]. -Action Expert: This expert knows how to translate plans into concrete interactions with the environment. It's skilled in generating the necessary commands or API calls to interact with external tools, web interfaces, or other systems. For example, it is responsible for creating the move and click mouse movements in benchmarks like OSWorld. [21,33,71]. In addition to the experts mentioned above, there could be other helpful 
+scalability and efficiency. 4.5 Multi-Agent Systems Expanding on the idea of multi-agent systems, a single agent can be made up of different specialized "experts," each of whom focuses on a distinct aspect of the interaction or reasoning. This modularity enables specialization at each step, increasing its capabilities and robustness [5]. Here are some examples of such useful experts that an LLM agent could integrate:
+
+- Planning Expert: This expert focuses on strategic thinking and task
+
+decomposition. Its role is to break down complex objectives into a series of manageable subtasks. This aligns with the actor component discussed in the reflection system, where agents perform reasoning and planning to undertake complex tasks [33].
+
+- Reflection Expert: It is dedicated to evaluating plans, responses, and
+
+overall performance. This aligns with the evaluator component discussed in the reflection system [33].
+
+- Error Handling Expert: Specifically focused on identifying, diagnosing,
+
+and suggesting recovery strategies for errors. This expert could analyze logs, identify common failure patterns, and propose fixes. For example, it could propose to scroll down if an item is not found in a webpage [51]. It can also support self-healing behaviors in adaptive architectures [19].
+
+- Memory Management Expert: Responsible for handling the agent's
+
+memory. This expert ensures that relevant information is retrieved efficiently and that the agent's context is maintained effectively, which is a critical challenge in LLM-based multi-agent systems [23,33].
+
+- Action Expert: This expert knows how to translate plans into concrete
+
+interactions with the environment. It's skilled in generating the necessary commands or API calls to interact with external tools, web interfaces, or other systems. For example, it is responsible for creating the move and click mouse movements in benchmarks like OSWorld. [21,33,71]. In addition to the experts mentioned above, there could be other helpful 
 
 a Human-Computer Interaction (HCI) Expert for optimizing user experience through adaptive and intuitive communication; a Constraint Satisfaction Expert 
 
@@ -381,9 +495,35 @@ tools [12, 18]; and a Security Expert for mitigating vulnerabilities, promoting 
 
 ## Page 21
 
-Having outlined some possible experts within multi-agent systems, we now turn to the practical process of designing and building these experts. 4.6 How to Build an Expert Building an "expert" within an LLM agent involves a combination of design principles and leveraging the capabilities of Large Language Models Define the Expert's Role and Scope (Profile and Specialization). The first step is to precisely define the "distinctive attributes and roles" [51] of your expert. This involves: -Clear Specialization: What specific task, domain, or reasoning capability will this expert excel at? (e.g., planning, code generation, error handling). -Input and Output: What kind of information does this expert take as input, and what kind of output does it produce? -Boundaries: What are the limitations of its expertise? When should other experts be consulted or take over? [33]. Equip with Knowledge An expert's effectiveness hinges on its specialized knowledge. This can be achieved by: -Targeted Prompting: Crafting precise and detailed prompts to steer the LLM toward performing as the expert, incorporating specific prompting techniques such as Chain-of-Thought to enhance its reasoning process. -Fine-tuning (if applicable): For highly specialized tasks, fine-tuning a base LLM on a dataset relevant to the expert's domain can enhance its performance. -External Knowledge Bases: Integrating the expert with external tools or databases that provide specific, up-to-date, or proprietary knowledge relevant to its role [21]. 
+Having outlined some possible experts within multi-agent systems, we now turn to the practical process of designing and building these experts. 4.6 How to Build an Expert Building an "expert" within an LLM agent involves a combination of design principles and leveraging the capabilities of Large Language Models Define the Expert's Role and Scope (Profile and Specialization). The first step is to precisely define the "distinctive attributes and roles" [51] of your expert. This involves:
 
-knowledge relevant to its task [23,33]. 
+- Clear Specialization: What specific task, domain, or reasoning capability
+
+will this expert excel at? (e.g., planning, code generation, error handling).
+
+- Input and Output: What kind of information does this expert take as
+
+input, and what kind of output does it produce?
+
+- Boundaries: What are the limitations of its expertise? When should other
+
+experts be consulted or take over? [33]. Equip with Knowledge An expert's effectiveness hinges on its specialized knowledge. This can be achieved by:
+
+- Targeted Prompting: Crafting precise and detailed prompts to steer the
+
+LLM toward performing as the expert, incorporating specific prompting techniques such as Chain-of-Thought to enhance its reasoning process.
+
+- Fine-tuning (if applicable): For highly specialized tasks, fine-tuning a
+
+base LLM on a dataset relevant to the expert's domain can enhance its performance.
+
+- External Knowledge Bases: Integrating the expert with external tools or
+
+databases that provide specific, up-to-date, or proprietary knowledge relevant to its role [21].
+
+- Memory Integration: The expert may have access to its memory (short-
+
+term context and long-term knowledge) which can store past experiences or knowledge relevant to its task [23,33]. 
 
 framework. Example of a Multi-agent System First, the planning expert decomposes the main task into subplans. This expert is also responsible for avoiding infinite loops or repeated attempts if problems occur. Additionally, it collaborates with the constraint satisfaction expert to ensure that no constraints are violated during planning. Next, the execution expert generates the specific actions to be performed in the environment. If any tools are required, it consults the tool expert to determine
 
@@ -418,9 +558,21 @@ Having explored how reasoning systems enable LLM agents to plan, reflect, and co
 
 ## **5 Memory System**
 
-The memory system empowers LLM agents to manage information across varying time scales, with long-term memory anchoring sustained knowledge retention while short-term memory facilitates immediate contextual awareness. 5.1 Long-term memory Long-term memory in LLM agents is crucial for sustained interaction and for the models to evolve and adapt over time. It allows agents to store relevant past memories and learn information from previous interactions. It also enables the agent to retain knowledge apart from its pre-trained knowledge. There are different ways of implementing it: -Embodied Memory: In the context of LLMs, "embodied memory" often refers to the idea that an agent's experiences and learned behaviors become ingrained directly within its model parameters (weights) through continuous learning processes like fine-tuning. Unlike external memory systems, this type of memory is build into the model itself. When an LLM is fine-tuned on new data, it adjusts its weights, effectively encoding new "facts" or "experiences" directly into its neural network. This causes the model to act in ways similar to what it has learned from these experiences [62]. -RAG: Retrieval-Augmented Generation (RAG) is a technique that enhances LLMs by using external knowledge to improve the accuracy of its responses. It operates in two main phases: retrieval and augmentation. Using a query, a retriever component first looks through an external knowledge base (often indexed by vector embeddings) to locate relevant documents. This gives the LLM access to updated and precise information that might not be encoded in its training data or within its immediate context window. Once the relevant information is retrieved, it is added to the LLM context 
+The memory system empowers LLM agents to manage information across varying time scales, with long-term memory anchoring sustained knowledge retention while short-term memory facilitates immediate contextual awareness. 5.1 Long-term memory Long-term memory in LLM agents is crucial for sustained interaction and for the models to evolve and adapt over time. It allows agents to store relevant past memories and learn information from previous interactions. It also enables the agent to retain knowledge apart from its pre-trained knowledge. There are different ways of implementing it:
 
-the response precise for the specific use case and reducing the likelihood of "hallucinations" [31]. -SQL Database: SQL databases are used to store structured knowledge, such as information about employees, orders, or other data that can be stored in a table. By converting natural language queries into SQL queries, text-to-SQL techniques facilitate reliable database interaction. Transformer-based models are especially well-suited for producing intricate SQL queries because of their attention mechanism [72].
+- Embodied Memory: In the context of LLMs, "embodied memory" often
+
+refers to the idea that an agent's experiences and learned behaviors become ingrained directly within its model parameters (weights) through continuous learning processes like fine-tuning. Unlike external memory systems, this type of memory is build into the model itself. When an LLM is fine-tuned on new data, it adjusts its weights, effectively encoding new "facts" or "experiences" directly into its neural network. This causes the model to act in ways similar to what it has learned from these experiences [62].
+
+- RAG: Retrieval-Augmented Generation (RAG) is a technique that enhances
+
+LLMs by using external knowledge to improve the accuracy of its responses. It operates in two main phases: retrieval and augmentation. Using a query, a retriever component first looks through an external knowledge base (often indexed by vector embeddings) to locate relevant documents. This gives the LLM access to updated and precise information that might not be encoded in its training data or within its immediate context window. Once the relevant information is retrieved, it is added to the LLM context 
+
+the response precise for the specific use case and reducing the likelihood of "hallucinations" [31].
+
+- SQL Database: SQL databases are used to store structured knowledge, such
+
+as information about employees, orders, or other data that can be stored in a table. By converting natural language queries into SQL queries, text-to-SQL techniques facilitate reliable database interaction. Transformer-based models are especially well-suited for producing intricate SQL queries because of their attention mechanism [72].
 
 Building Autonomous LLM Agents 25
 
@@ -431,18 +583,38 @@ Building Autonomous LLM Agents 25
 
 5.2 Short-term memory 
 
-Regardless of whether it's for long-term retention or immediate contextual awareness, the memory module's effectiveness hinges on what kind of data to store. 5.3 What Kind of Data to Store The memory module within an LLM agent's architecture is designed to store diverse types of information perceived from its environment and interactions. This stored data is then used to make better decisions, enabling the agent to accumulate experiences, evolve, and behave in a more consistent and effective manner. -Experiences: It is beneficial to store records of both successful and failed tasks. Research has indicated that even failed experiences, when appropriately logged and distinguished as such, can be valuable. By explicitly noting a "failed experience," LLMs can learn to avoid repeating similar mistakes in the future. This continuous learning from past interactions, including the identification of "invalid action filtering," contributes to the agent's robust development and ability to adapt [1,22]. To store an experience, you capture a task's natural language instruction (e.g., "Who ordered order 0130?") and the sequence of steps taken to solve it, where each step includes the agent's observation of the environment (e.g., "The current page shows order 0130") and the action performed (e.g., click("126") or stop()). This data, structured as an experience with the instruction and a trajectory of observation-action pairs, is saved in a storage system like a database or a JSON file within a collection of experiences. This format ensures that the experience is retrievable for later use, such as inducing a workflow with a summarized description and generalized steps, which can then be integrated into the agent's memory to guide future tasks [59]. 
+Regardless of whether it's for long-term retention or immediate contextual awareness, the memory module's effectiveness hinges on what kind of data to store. 5.3 What Kind of Data to Store The memory module within an LLM agent's architecture is designed to store diverse types of information perceived from its environment and interactions. This stored data is then used to make better decisions, enabling the agent to accumulate experiences, evolve, and behave in a more consistent and effective manner.
 
-(AWM) is a method that induces commonly reused routines (workflows) from training examples and then selectively provides these workflows to the agent to guide subsequent generations [59]. -Knowledge: This category encompasses external information received as facts, such as data from articles, company-specific information, details about machinery, and internal company rules [11], including document-based discovery pipelines in microservices architectures [17]. -User information: Beyond just user preferences, this includes personal information that the user has supplied, such as details about their past activities (e.g., where they spent the last Christmas) or background (e.g., where
+- Experiences: It is beneficial to store records of both successful and failed
+
+tasks. Research has indicated that even failed experiences, when appropriately logged and distinguished as such, can be valuable. By explicitly noting a "failed experience," LLMs can learn to avoid repeating similar mistakes in the future. This continuous learning from past interactions, including the identification of "invalid action filtering," contributes to the agent's robust development and ability to adapt [1,22]. To store an experience, you capture a task's natural language instruction (e.g., "Who ordered order 0130?") and the sequence of steps taken to solve it, where each step includes the agent's observation of the environment (e.g., "The current page shows order 0130") and the action performed (e.g., click("126") or stop()). This data, structured as an experience with the instruction and a trajectory of observation-action pairs, is saved in a storage system like a database or a JSON file within a collection of experiences. This format ensures that the experience is retrievable for later use, such as inducing a workflow with a summarized description and generalized steps, which can then be integrated into the agent's memory to guide future tasks [59].
+
+- Procedures: LLM agents can learn reusable task workflows from past expe-
+
+riences to guide future actions, similar to humans. Agent Workflow Memory (AWM) is a method that induces commonly reused routines (workflows) from training examples and then selectively provides these workflows to the agent to guide subsequent generations [59].
+
+- Knowledge: This category encompasses external information received as
+
+facts, such as data from articles, company-specific information, details about machinery, and internal company rules [11], including document-based discovery pipelines in microservices architectures [17].
+
+- User information: Beyond just user preferences, this includes personal
+
+information that the user has supplied, such as details about their past activities (e.g., where they spent the last Christmas) or background (e.g., where
 
 
 ---
 
 ## Page 27
 
-their parents are from). Mechanisms like MemoryBank aim to comprehend and adapt to a user's personality over time by synthesizing information from previous interactions, which inherently involves storing and utilizing these personal details [69]. While defining what kind of data to store is crucial for an LLM agent's effectiveness, the utility and management of this stored information are inherently subject to several limitations. 5.4 Limitations 
+their parents are from). Mechanisms like MemoryBank aim to comprehend and adapt to a user's personality over time by synthesizing information from previous interactions, which inherently involves storing and utilizing these personal details [69]. While defining what kind of data to store is crucial for an LLM agent's effectiveness, the utility and management of this stored information are inherently subject to several limitations. 5.4 Limitations
 
-refers to the maximum amount of text (measured in "tokens," which can be words, parts of words, or punctuation) that an LLM can process and consider at any one time when generating a response or performing a task. The primary impact of a limited context window is that LLMs cannot directly integrate or utilize all information in very long sequences. The easiest way to overcome this is to truncate large texts or summarize them [57]. -Memory Duplication: When storing information in memory, a potential issue is handling data that is similar to existing records. Various methods have 
+- Context Window: Large Language Models (LLMs) operate with a funda-
+
+mental constraint known as the "context window" or "context length." This refers to the maximum amount of text (measured in "tokens," which can be words, parts of words, or punctuation) that an LLM can process and consider at any one time when generating a response or performing a task. The primary impact of a limited context window is that LLMs cannot directly integrate or utilize all information in very long sequences. The easiest way to overcome this is to truncate large texts or summarize them [57].
+
+- Memory Duplication: When storing information in memory, a potential
+
+issue is handling data that is similar to existing records. Various methods have 
 
 sequences related to the same sub-goal are stored in a list. Once this list reaches a size of five, all sequences within it are condensed into a unified plan solution using LLMs, and the original sequences are then replaced with this newly generated one. Another method aggregates duplicate information by accumulating counts, thereby avoiding redundant storage [54].
 

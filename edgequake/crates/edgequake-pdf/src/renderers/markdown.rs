@@ -1,5 +1,6 @@
 //! Markdown renderer for document output.
 
+use crate::processors::starts_with_bullet;
 use crate::schema::{Block, BlockType, Document, Page, TextSpan};
 use crate::Result;
 
@@ -296,8 +297,9 @@ impl MarkdownRenderer {
         let has_dash =
             raw_text.starts_with("- ") || raw_text.starts_with("– ") || raw_text.starts_with("— ");
         let has_asterisk = raw_text.starts_with("* ");
-        let has_bullet =
-            raw_text.starts_with("• ") || raw_text.starts_with("◦ ") || raw_text.starts_with("▪ ");
+        // OODA-IT12: Use comprehensive bullet detection (handles 530+ Unicode bullets)
+        // WHY: PDFs like LightRAG paper have "•General" (bullet + uppercase, no space)
+        let has_bullet = starts_with_bullet(raw_text);
         let has_number = raw_text
             .chars()
             .next()
@@ -305,7 +307,18 @@ impl MarkdownRenderer {
             .unwrap_or(false);
 
         // Get content after the bullet/prefix for rendering with spans
-        let content_start = if has_bullet || has_dash || has_asterisk {
+        // OODA-IT12: Handle bullet with or without space after it
+        let content_start = if has_bullet {
+            // Get first char (bullet) length in bytes, then skip any space
+            let first_char = raw_text.chars().next().unwrap();
+            let bullet_len = first_char.len_utf8();
+            let rest = &raw_text[bullet_len..];
+            if rest.starts_with(' ') || rest.starts_with('\t') {
+                bullet_len + 1 // Skip bullet + space
+            } else {
+                bullet_len // Skip bullet only (no space after bullet)
+            }
+        } else if has_dash || has_asterisk {
             // Find first space after bullet and skip to content
             raw_text.find(' ').map(|i| i + 1).unwrap_or(0)
         } else if has_number {

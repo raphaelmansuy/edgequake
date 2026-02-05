@@ -100,10 +100,15 @@ fn get_bullets() -> &'static HashSet<char> {
 /// 1. First character is in BULLETS set
 /// 2. AND either:
 ///    - Single character only
-///    - OR followed by a space
+///    - OR followed by a space/tab
+///    - OR followed by uppercase letter (sentence start in list item)
+///    - OR followed by asterisk (markdown bold marker `**`)
 ///
 /// This prevents false positives like "∙ome" matching the bullet operator.
-fn starts_with_bullet(text: &str) -> bool {
+///
+/// WHY uppercase: List items start sentences, which begin with capital letters.
+/// WHY asterisk: PDF extraction may have bold text marked with `**` in markdown format.
+pub fn starts_with_bullet(text: &str) -> bool {
     let bullets = get_bullets();
     let mut chars = text.chars();
     let first = match chars.next() {
@@ -120,7 +125,12 @@ fn starts_with_bullet(text: &str) -> bool {
         None => true,
         // Bullet followed by space is valid
         Some(' ') | Some('\t') => true,
-        // Anything else is not a bullet
+        // OODA-IT12: Bullet followed by asterisk (markdown bold **text**)
+        Some('*') => true,
+        // OODA-IT12: Bullet followed by uppercase letter (sentence start)
+        // WHY: List items like "•General Aspect" start with capital letters
+        Some(c) if c.is_uppercase() => true,
+        // Anything else is not a bullet (prevents math operators like "∙x")
         _ => false,
     }
 }
@@ -1046,9 +1056,29 @@ mod tests {
         // Should NOT match these
         assert!(!starts_with_bullet("")); // empty
         assert!(!starts_with_bullet("Hello")); // normal text
-        assert!(!starts_with_bullet("•text")); // bullet without space
+        assert!(!starts_with_bullet("•text")); // bullet + LOWERCASE (math operator risk)
         assert!(!starts_with_bullet("1. Item")); // numbered list
         assert!(!starts_with_bullet("a) Item")); // lettered list
+        assert!(!starts_with_bullet("•123")); // bullet + digit
+    }
+
+    #[test]
+    fn test_starts_with_bullet_uppercase() {
+        // OODA-IT12: Bullet followed by uppercase letter is a list item
+        // WHY: List items like "•General Aspect" start with capital letters
+        assert!(starts_with_bullet("•General Aspect"));
+        assert!(starts_with_bullet("•Agriculture: This domain"));
+        assert!(starts_with_bullet("•Methodologies. To enable"));
+        assert!(starts_with_bullet("●Introduction"));
+        assert!(starts_with_bullet("■Summary"));
+    }
+
+    #[test]
+    fn test_starts_with_bullet_markdown_bold() {
+        // OODA-IT12: Bullet followed by asterisk (markdown bold)
+        assert!(starts_with_bullet("•**Bold text**"));
+        assert!(starts_with_bullet("•*Italic text*"));
+        assert!(starts_with_bullet("■**Title**"));
     }
 
     #[test]

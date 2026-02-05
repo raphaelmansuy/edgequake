@@ -52,8 +52,8 @@ pub use layout_processing::{
 
 // Structure detection processors
 pub use structure_detection::{
-    CaptionDetectionProcessor, CodeBlockDetectionProcessor, HeaderDetectionProcessor,
-    HeadingBodySplitProcessor, ListDetectionProcessor,
+    starts_with_bullet, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
+    HeaderDetectionProcessor, HeadingBodySplitProcessor, ListDetectionProcessor,
 };
 
 // Table detection processors
