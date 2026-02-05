@@ -25,10 +25,10 @@ Test: `test_monospace_style_chars_to_spans`
 
 ## Test Coverage Matrix
 
-| Level | Bold/Italic | Monospace |
-|-------|------------|-----------|
-| Unit (can_append) | ✅ OODA-02 | ✅ OODA-04 |
-| Integration (chars_to_spans) | ✅ OODA-07 | ✅ OODA-08 |
+| Level                        | Bold/Italic | Monospace  |
+| ---------------------------- | ----------- | ---------- |
+| Unit (can_append)            | ✅ OODA-02  | ✅ OODA-04 |
+| Integration (chars_to_spans) | ✅ OODA-07  | ✅ OODA-08 |
 
 ## Next Steps
 

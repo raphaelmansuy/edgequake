@@ -16,6 +16,7 @@ Several constants in `markdown.rs` lack WHY comments:
 ## Evidence
 
 Many constants already have WHY comments:
+
 - ✅ line 187: skip_bold explanation
 - ✅ line 198: bold headers explanation
 - ✅ line 260: subtract 1 for level explanation
@@ -25,6 +26,7 @@ Many constants already have WHY comments:
 ## Analysis
 
 These constants relate to:
+
 - PDF page margins (72.0pt = 1 inch = standard margin)
 - List indentation steps (20.0pt = ~0.28 inch indent per level)
 - Table row Y-tolerance (10.0pt = same as other tolerances)

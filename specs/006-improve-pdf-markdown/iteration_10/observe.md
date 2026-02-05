@@ -12,8 +12,9 @@ Several constants in `pymupdf_grouper.rs` lack WHY comments:
 ## Evidence
 
 From grep results, some constants have good WHY comments:
+
 - ✅ line 102-106: line_tolerance explained
-- ✅ line 107-109: block_gap explained  
+- ✅ line 107-109: block_gap explained
 - ✅ line 112-115: left_margin and right_margin explained
 - ❌ line 110: column_overlap undocumented
 - ❌ line 302: COLUMN_GAP_THRESHOLD inline only
@@ -21,6 +22,7 @@ From grep results, some constants have good WHY comments:
 ## Analysis
 
 These constants affect:
+
 - Column detection (`column_overlap` controls horizontal overlap threshold)
 - Multi-column line splitting (`COLUMN_GAP_THRESHOLD`)
 - Page detection (`page_width < 100.0` for unusable pages)

@@ -17,10 +17,10 @@ Add `test_monospace_style_chars_to_spans` test to `layout/pymupdf_grouper.rs`.
 #[test]
 fn test_monospace_style_chars_to_spans() {
     let grouper = TextGrouper::new();
-    
+
     // Helper function (same as OODA-07)
     fn make_styled_char(...) -> RawChar { ... }
-    
+
     // "Hi" normal + "code" monospace + "!" normal
     let chars = vec![
         make_styled_char('H', x, y, 12.0, false, false, false),
@@ -31,9 +31,9 @@ fn test_monospace_style_chars_to_spans() {
         make_styled_char('e', x, y, 12.0, false, false, true),
         make_styled_char('!', x, y, 12.0, false, false, false), // back to normal
     ];
-    
+
     let spans = grouper.chars_to_spans(&chars);
-    
+
     assert_eq!(spans.len(), 3);
     assert_eq!(spans[0].text, "Hi");
     assert_eq!(spans[0].font_is_monospace, Some(false));

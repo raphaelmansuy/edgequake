@@ -24,11 +24,11 @@
 
 ## Constants Now Documented in pymupdf_grouper.rs
 
-| Value | Purpose |
-|-------|---------|
-| 0.5 (column_overlap) | Same-column overlap threshold |
-| 10.0 (COLUMN_GAP_THRESHOLD) | Column gap detection |
-| 100.0 (page_width) | Minimum page width for column detection |
+| Value                       | Purpose                                 |
+| --------------------------- | --------------------------------------- |
+| 0.5 (column_overlap)        | Same-column overlap threshold           |
+| 10.0 (COLUMN_GAP_THRESHOLD) | Column gap detection                    |
+| 100.0 (page_width)          | Minimum page width for column detection |
 
 ## Next Steps
 

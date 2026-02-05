@@ -20,11 +20,11 @@
 
 ## Constants Now Documented in markdown.rs
 
-| Value | Purpose |
-|-------|---------|
-| 72.0pt | Standard PDF left margin (1 inch) |
+| Value  | Purpose                                 |
+| ------ | --------------------------------------- |
+| 72.0pt | Standard PDF left margin (1 inch)       |
 | 20.0pt | List indent step (~0.28 inch per level) |
-| 10.0pt | Table row Y-tolerance |
+| 10.0pt | Table row Y-tolerance                   |
 
 ## Next Steps
 

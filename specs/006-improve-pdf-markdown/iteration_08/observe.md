@@ -3,12 +3,14 @@
 ## Current State
 
 OODA-07 added a test for bold→italic style transitions. We now have:
+
 - `test_span_rejects_different_style` - Unit test for Span.can_append() rejecting monospace mismatch
 - `test_mixed_style_chars_to_spans` - Integration test for bold→italic transitions
 
 ## Gap Identified
 
 Missing: Integration test for **monospace** style transitions in `chars_to_spans()`.
+
 - We test bold/italic at integration level
 - We test monospace at unit level only
 - Need integration test for normal→monospace→normal flow
@@ -16,6 +18,7 @@ Missing: Integration test for **monospace** style transitions in `chars_to_spans
 ## Evidence
 
 Current test in pymupdf_grouper.rs tests bold/italic:
+
 ```rust
 // "AB" (bold) + "cd" (italic)
 let chars = vec![
@@ -27,6 +30,7 @@ let chars = vec![
 ```
 
 Missing test for:
+
 ```rust
 // "Hi" (normal) + "code" (monospace) + "!" (normal)
 ```
