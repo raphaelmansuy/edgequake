@@ -742,9 +742,50 @@ impl Processor for ListDetectionProcessor {
 // CodeBlockDetectionProcessor
 // =============================================================================
 
+/// Check if text contains only email addresses (should NOT be marked as code).
+///
+/// WHY: Academic PDFs often render author emails in monospace fonts,
+/// but these are not code blocks. Marking them as code confuses LLMs.
+///
+/// Detection: All whitespace-separated tokens contain @ and . (email pattern).
+fn is_email_only_content(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    // Check each token - all must look like emails
+    trimmed.split_whitespace().all(|word| {
+        // Simple email pattern: contains @ followed by .domain
+        // Exclude code-like patterns with = (assignments)
+        word.contains('@')
+            && word.contains('.')
+            && !word.contains('=')
+            && !word.contains('{')
+            && !word.contains('[')
+    })
+}
+
+/// Check if text is a standalone URL (should NOT be marked as code).
+///
+/// WHY: URLs in references/citations often use monospace fonts
+/// but are not code blocks.
+fn is_url_only_content(text: &str) -> bool {
+    let trimmed = text.trim();
+    // Single-line URL patterns - no programming context
+    trimmed.starts_with("http://")
+        || trimmed.starts_with("https://")
+        || trimmed.starts_with("www.")
+        || trimmed.starts_with("ftp://")
+        // Also catch partial URLs from line breaks
+        || (trimmed.len() < 50 && trimmed.contains("://") && !trimmed.contains(' '))
+}
+
 /// Detects and merges code blocks.
 ///
 /// **Detection:** All spans use monospace/code-like fonts.
+///
+/// **Content Filtering (OODA-IT13):** Excludes email addresses and URLs
+/// that happen to be in monospace fonts but are not actual code.
 ///
 /// **Merging:** Consecutive code blocks are joined with newlines.
 ///
@@ -767,7 +808,7 @@ impl Default for CodeBlockDetectionProcessor {
 impl Processor for CodeBlockDetectionProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
         for page in &mut document.pages {
-            // 1. Identify code blocks by font
+            // 1. Identify code blocks by font AND content
             for block in &mut page.blocks {
                 if block.block_type != BlockType::Text {
                     continue;
@@ -776,7 +817,12 @@ impl Processor for CodeBlockDetectionProcessor {
                 let all_code = !block.spans.is_empty()
                     && block.spans.iter().all(|s| s.style.looks_like_code());
 
-                if all_code {
+                // OODA-IT13: Content-based exclusion
+                // Emails and URLs in monospace fonts should NOT be code blocks
+                let is_excluded = is_email_only_content(&block.text)
+                    || is_url_only_content(&block.text);
+
+                if all_code && !is_excluded {
                     block.block_type = BlockType::Code;
                 }
             }
@@ -1119,6 +1165,120 @@ mod tests {
             result.pages[0].blocks[2].block_type,
             BlockType::ListItem,
             "Circle bullet should be list item"
+        );
+    }
+
+    // ==========================================================================
+    // OODA-IT13: Tests for code block content filtering
+    // ==========================================================================
+
+    #[test]
+    fn test_is_email_only_content() {
+        // WHY: Emails in monospace fonts should NOT be marked as code
+        // Academic PDFs often use monospace for author affiliations
+
+        // Single email - should be excluded
+        assert!(is_email_only_content("user@example.com"));
+
+        // Multiple emails - should be excluded
+        assert!(is_email_only_content("zrguo101@hku.hk aka_xia@foxmail.com"));
+
+        // Email with spaces - should be excluded
+        assert!(is_email_only_content("  john@doe.org  "));
+
+        // NOT emails - should NOT be excluded (is actual code)
+        assert!(!is_email_only_content("x = 5"));
+        assert!(!is_email_only_content("import os"));
+        assert!(!is_email_only_content("Hello world"));
+        assert!(!is_email_only_content(""));
+
+        // Code with email-like patterns but has other syntax
+        assert!(!is_email_only_content("email = user@example.com"));
+        assert!(!is_email_only_content("{user@domain.com}"));
+    }
+
+    #[test]
+    fn test_is_url_only_content() {
+        // WHY: URLs in monospace fonts should NOT be marked as code
+        // References/citations often use monospace for URLs
+
+        // Full URLs - should be excluded
+        assert!(is_url_only_content("https://arxiv.org"));
+        assert!(is_url_only_content("http://example.com"));
+        assert!(is_url_only_content("https://github.com/user/repo"));
+        assert!(is_url_only_content("www.example.com"));
+        assert!(is_url_only_content("ftp://files.server.com"));
+
+        // Partial URL from line break
+        assert!(is_url_only_content("https://arxiv."));
+
+        // NOT URLs - should NOT be excluded
+        assert!(!is_url_only_content("import requests"));
+        assert!(!is_url_only_content("url = https://example.com"));
+        assert!(!is_url_only_content("def get_url():"));
+        assert!(!is_url_only_content(""));
+    }
+
+    #[test]
+    fn test_code_block_excludes_emails() {
+        use crate::processors::test_helpers::monospace_block;
+
+        // Monospace block with emails should NOT be marked as code
+        let doc = doc_with_blocks(vec![monospace_block(
+            "user@example.com admin@test.org",
+            (72.0, 100.0, 540.0, 115.0),
+        )]);
+
+        let processor = CodeBlockDetectionProcessor::new();
+        let result = processor.process(doc).unwrap();
+
+        // Should remain as Text, not Code
+        assert_eq!(
+            result.pages[0].blocks[0].block_type,
+            BlockType::Text,
+            "Email addresses in monospace should NOT be code"
+        );
+    }
+
+    #[test]
+    fn test_code_block_excludes_urls() {
+        use crate::processors::test_helpers::monospace_block;
+
+        // Monospace block with URL should NOT be marked as code
+        let doc = doc_with_blocks(vec![monospace_block(
+            "https://github.com/user/repo",
+            (72.0, 100.0, 540.0, 115.0),
+        )]);
+
+        let processor = CodeBlockDetectionProcessor::new();
+        let result = processor.process(doc).unwrap();
+
+        // Should remain as Text, not Code
+        assert_eq!(
+            result.pages[0].blocks[0].block_type,
+            BlockType::Text,
+            "URL in monospace should NOT be code"
+        );
+    }
+
+    #[test]
+    fn test_code_block_keeps_real_code() {
+        use crate::processors::test_helpers::monospace_block;
+
+        // Actual code should still be detected
+        let doc = doc_with_blocks(vec![
+            monospace_block("def hello():", (72.0, 100.0, 540.0, 115.0)),
+            monospace_block("    print('Hello')", (72.0, 120.0, 540.0, 135.0)),
+        ]);
+
+        let processor = CodeBlockDetectionProcessor::new();
+        let result = processor.process(doc).unwrap();
+
+        // Should be Code
+        assert_eq!(
+            result.pages[0].blocks[0].block_type,
+            BlockType::Code,
+            "Real Python code should still be detected as code"
         );
     }
 }

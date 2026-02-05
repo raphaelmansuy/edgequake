@@ -6,6 +6,51 @@ use crate::Result;
 
 use super::Renderer;
 
+// =============================================================================
+// OODA-IT13: Content-based filtering for inline code
+// =============================================================================
+
+/// Check if text is an email address (should NOT be inline code).
+///
+/// WHY: Emails in monospace fonts should remain plain text for LLM readability.
+fn is_inline_email(text: &str) -> bool {
+    let trimmed = text.trim();
+    // Simple email pattern: contains @ followed by .domain, no programming syntax
+    trimmed.contains('@')
+        && trimmed.contains('.')
+        && !trimmed.contains('=')
+        && !trimmed.contains('{')
+        && !trimmed.contains('[')
+        && !trimmed.contains('(')
+        && !trimmed.contains(';')
+}
+
+/// Check if text is a URL (should NOT be inline code).
+fn is_inline_url(text: &str) -> bool {
+    let trimmed = text.trim();
+    trimmed.starts_with("http://")
+        || trimmed.starts_with("https://")
+        || trimmed.starts_with("www.")
+        || trimmed.starts_with("ftp://")
+}
+
+/// Check if text should be rendered as inline code.
+///
+/// OODA-IT13: Applies content-based filtering to exclude non-code patterns
+/// even when the font is monospace.
+fn should_render_inline_code(text: &str) -> bool {
+    // Exclude common false positives from monospace fonts
+    if is_inline_email(text) || is_inline_url(text) {
+        return false;
+    }
+    // Additional check: multiple space-separated words that all look like emails
+    let words: Vec<&str> = text.split_whitespace().collect();
+    if !words.is_empty() && words.iter().all(|w| w.contains('@') && w.contains('.')) {
+        return false;
+    }
+    true
+}
+
 /// Markdown rendering style options.
 #[derive(Debug, Clone)]
 pub struct MarkdownStyle {
@@ -501,7 +546,9 @@ impl MarkdownRenderer {
 
             let is_bold = span.style.weight.map(|w| w >= 600).unwrap_or(false) && !skip_bold;
             let is_italic = span.style.italic && !skip_italic;
-            let is_code = span.style.looks_like_code();
+            // OODA-IT13: Apply content filter to inline code detection
+            let is_code =
+                span.style.looks_like_code() && should_render_inline_code(content);
             let is_superscript = span.style.superscript;
             let is_subscript = span.style.subscript;
 
