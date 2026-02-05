@@ -7,20 +7,21 @@
 
 ### 1. Fixed Clippy Warnings in Binary Tools
 
-| File | Warning | Fix |
-|------|---------|-----|
-| `bin/diagnose_fonts.rs:79-80` | collapsible_match | Combined `Ok(stream)` and `Object::Stream(s)` patterns |
-| `bin/test_decode.rs:52-53` | collapsible_match | Combined `Ok(to_unicode)` and `Object::Reference(ref_id)` patterns |
-| `bin/debug_page1.rs:5` | unused import | Removed `use lopdf::Document;` |
-| `bin/debug_page1.rs:85` | dead_code | Added `#[allow(dead_code)]` with WHY comment |
-| `bin/trace_content.rs:70` | unused_variables | Prefixed `current_font_name` with `_` |
-| `bin/trace_content.rs:125-126` | unused_mut | Fixed by prefixing with `_` |
+| File                           | Warning           | Fix                                                                |
+| ------------------------------ | ----------------- | ------------------------------------------------------------------ |
+| `bin/diagnose_fonts.rs:79-80`  | collapsible_match | Combined `Ok(stream)` and `Object::Stream(s)` patterns             |
+| `bin/test_decode.rs:52-53`     | collapsible_match | Combined `Ok(to_unicode)` and `Object::Reference(ref_id)` patterns |
+| `bin/debug_page1.rs:5`         | unused import     | Removed `use lopdf::Document;`                                     |
+| `bin/debug_page1.rs:85`        | dead_code         | Added `#[allow(dead_code)]` with WHY comment                       |
+| `bin/trace_content.rs:70`      | unused_variables  | Prefixed `current_font_name` with `_`                              |
+| `bin/trace_content.rs:125-126` | unused_mut        | Fixed by prefixing with `_`                                        |
 
 ### 2. Added WHY Comments and ASCII Diagrams
 
 #### `backend/pdfium.rs` - Font Style Detection Diagram
 
 Added comprehensive ASCII diagram explaining:
+
 - Why PDFium is more accurate than lopdf for font style detection
 - Font style detection comparison between PDFium (~99%) and lopdf (~70%)
 - Why weight >= 700 is the bold threshold (CSS convention)
@@ -30,6 +31,7 @@ Added comprehensive ASCII diagram explaining:
 #### `layout/pymupdf_grouper.rs` - Font Style Propagation Diagram
 
 Added ASCII diagram explaining the 4-step font style flow:
+
 1. RawChar carries style flags from PDFium
 2. Span inherits style from first char (flags bitmap)
 3. Spans preserved through Line/Block grouping
@@ -65,14 +67,14 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.82s
 
 ## Files Modified
 
-| File | Lines Changed | Type |
-|------|--------------|------|
-| `src/bin/diagnose_fonts.rs` | ~5 | Fix |
-| `src/bin/test_decode.rs` | ~15 | Fix |
-| `src/bin/debug_page1.rs` | ~5 | Fix |
-| `src/bin/trace_content.rs` | ~5 | Fix |
-| `src/backend/pdfium.rs` | +50 | Documentation |
-| `src/layout/pymupdf_grouper.rs` | +45 | Documentation |
+| File                            | Lines Changed | Type          |
+| ------------------------------- | ------------- | ------------- |
+| `src/bin/diagnose_fonts.rs`     | ~5            | Fix           |
+| `src/bin/test_decode.rs`        | ~15           | Fix           |
+| `src/bin/debug_page1.rs`        | ~5            | Fix           |
+| `src/bin/trace_content.rs`      | ~5            | Fix           |
+| `src/backend/pdfium.rs`         | +50           | Documentation |
+| `src/layout/pymupdf_grouper.rs` | +45           | Documentation |
 
 ---
 
@@ -104,5 +106,5 @@ Zero clippy warnings, all tests passing.
 
 ---
 
-*Iteration 01 - Act complete*
-*Next: Iteration 02 - Continue with deprecation enhancement*
+_Iteration 01 - Act complete_
+_Next: Iteration 02 - Continue with deprecation enhancement_

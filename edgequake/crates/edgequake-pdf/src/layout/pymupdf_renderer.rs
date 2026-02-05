@@ -380,6 +380,7 @@ mod tests {
             page_num: 0,
             font_is_bold: None,
             font_is_italic: None,
+            font_is_monospace: None,
         }
     }
 

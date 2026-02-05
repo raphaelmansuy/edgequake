@@ -925,6 +925,7 @@ mod tests {
             page_num: page,
             is_bold: false,
             is_italic: false,
+            is_monospace: false,
         }
     }
 
@@ -961,6 +962,7 @@ mod tests {
                 page_num: 0,
                 font_is_bold: None,
                 font_is_italic: None,
+                font_is_monospace: None,
             },
             Span {
                 text: "World".to_string(),
@@ -973,6 +975,7 @@ mod tests {
                 page_num: 0,
                 font_is_bold: None,
                 font_is_italic: None,
+                font_is_monospace: None,
             },
         ];
 
@@ -1035,6 +1038,7 @@ mod tests {
                 page_num: 0,
                 font_is_bold: Some(true),
                 font_is_italic: None,
+                font_is_monospace: None,
             }],
             x0: 10.0,
             y0: 100.0,
@@ -1059,6 +1063,7 @@ mod tests {
                 page_num: 0,
                 font_is_bold: None,
                 font_is_italic: None,
+                font_is_monospace: None,
             }],
             x0: 10.0,
             y0: 50.0,
