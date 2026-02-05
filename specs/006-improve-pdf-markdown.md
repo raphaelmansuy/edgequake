@@ -11,6 +11,16 @@ Your mission is to **consolidate and improve the PDF to Markdown extraction pipe
 5. **High-signal documentation**: Add WHY comments and ASCII diagrams explaining algorithms
 6. **Comprehensive testing**: Achieve high test coverage with edge case handling
 
+
+FULLY Read this mission file and:
+
+ ⚠️ CRITICAL SAFETY MANDATE ⚠️
+
+**YOU MUST RE-READ THIS ENTIRE MISSION FILE AT THE START OF EVERY OODA ITERATION.**
+
+Failure to re-read causes alignment drift → catastrophic safety issues → user frustration → system unreliability.
+
+
 ## Context
 
 - **Location**: `edgequake/crates/edgequake-pdf/`
@@ -431,6 +441,9 @@ cargo tarpaulin -p edgequake-pdf --out Html
 | `src/lib.rs`                       | Public API            | ~100           |
 
 ---
+
+
+VERY IMPORTANT Optimize the tests, splits the tests, compilation time, be more focus on order accelerate the OODA Loop Process. To have a high velocity feedback loop is important. Ensure to have timeout for every command to avoid to be stuck.
 
 _Mission created: 2026-02-05_
 _Target completion: 50+ OODA iterations_

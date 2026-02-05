@@ -41,8 +41,8 @@ pub fn is_monospace(&self) -> bool {
 
 ### Risk Assessment
 
-| Risk | Mitigation |
-|------|------------|
-| API missing in pdfium-render | Verified exists: `font_is_fixed_pitch()` |
-| Whitespace inheritance | Use `last_is_monospace` tracking (same as bold/italic) |
-| Test failures | Fix all struct initializers with new field |
+| Risk                         | Mitigation                                             |
+| ---------------------------- | ------------------------------------------------------ |
+| API missing in pdfium-render | Verified exists: `font_is_fixed_pitch()`               |
+| Whitespace inheritance       | Use `last_is_monospace` tracking (same as bold/italic) |
+| Test failures                | Fix all struct initializers with new field             |
