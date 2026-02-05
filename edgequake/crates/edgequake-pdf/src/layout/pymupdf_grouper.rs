@@ -1023,6 +1023,82 @@ mod tests {
         );
     }
 
+    /// OODA-08: Test monospace style transitions.
+    /// WHY: Validates chars_to_spans correctly splits on monospace boundaries,
+    /// essential for rendering inline code with backticks in Markdown.
+    #[test]
+    fn test_monospace_style_chars_to_spans() {
+        let grouper = TextGrouper::new();
+
+        // Helper for styled chars (monospace-focused)
+        fn make_styled_char(
+            c: char,
+            x0: f32,
+            y0: f32,
+            font_size: f32,
+            is_monospace: bool,
+        ) -> RawChar {
+            let width = font_size * 0.6;
+            RawChar {
+                char: c,
+                x0,
+                y0,
+                x1: x0 + width,
+                y1: y0 + font_size,
+                font_size,
+                font_name: Some("Arial".to_string()),
+                page_num: 0,
+                is_bold: false,
+                is_italic: false,
+                is_monospace,
+            }
+        }
+
+        let char_width = 12.0 * 0.6; // 7.2
+
+        // Create "Hi" (normal) + "code" (monospace) + "!" (normal)
+        // WHY: Tests both normal→mono and mono→normal transitions
+        let chars = vec![
+            make_styled_char('H', 60.0, 100.0, 12.0, false),
+            make_styled_char('i', 60.0 + char_width, 100.0, 12.0, false),
+            make_styled_char('c', 60.0 + char_width * 2.0, 100.0, 12.0, true), // mono start
+            make_styled_char('o', 60.0 + char_width * 3.0, 100.0, 12.0, true),
+            make_styled_char('d', 60.0 + char_width * 4.0, 100.0, 12.0, true),
+            make_styled_char('e', 60.0 + char_width * 5.0, 100.0, 12.0, true),
+            make_styled_char('!', 60.0 + char_width * 6.0, 100.0, 12.0, false), // back to normal
+        ];
+
+        let spans = grouper.chars_to_spans(&chars);
+
+        // Should produce 3 spans: "Hi" (normal) + "code" (mono) + "!" (normal)
+        assert_eq!(
+            spans.len(),
+            3,
+            "Expected 3 spans for normal/mono/normal, got {}",
+            spans.len()
+        );
+        assert_eq!(spans[0].text, "Hi");
+        assert_eq!(spans[1].text, "code");
+        assert_eq!(spans[2].text, "!");
+
+        // Verify monospace flags
+        assert_eq!(
+            spans[0].font_is_monospace,
+            Some(false),
+            "First span should not be monospace"
+        );
+        assert_eq!(
+            spans[1].font_is_monospace,
+            Some(true),
+            "Second span should be monospace"
+        );
+        assert_eq!(
+            spans[2].font_is_monospace,
+            Some(false),
+            "Third span should not be monospace"
+        );
+    }
+
     #[test]
     fn test_spans_to_lines() {
         let grouper = TextGrouper::new();
