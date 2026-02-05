@@ -531,4 +531,83 @@ mod tests {
             BlockType::ListItem
         );
     }
+
+    /// OODA-14: Test heading level classification based on font size ratio.
+    /// WHY: Validates the 2.0x/1.7x/1.5x thresholds for H1/H2 classification.
+    #[test]
+    fn test_heading_level_classification() {
+        let classifier = BlockClassifier::new();
+        let body_size = 10.0;
+
+        // Helper to create a block with given font size
+        fn make_heading_block(font_size: f32, text: &str) -> Block {
+            Block::from_line(Line {
+                spans: vec![Span {
+                    text: text.to_string(),
+                    x0: 10.0,
+                    y0: 100.0,
+                    x1: 200.0,
+                    y1: 100.0 + font_size,
+                    font_size,
+                    font_name: Some("Arial".to_string()),
+                    page_num: 0,
+                    font_is_bold: Some(true),
+                    font_is_italic: None,
+                    font_is_monospace: None,
+                }],
+                x0: 10.0,
+                y0: 100.0,
+                x1: 200.0,
+                y1: 100.0 + font_size,
+                page_num: 0,
+            })
+        }
+
+        // H1: ratio >= 2.0 (20pt / 10pt = 2.0)
+        assert!(
+            matches!(
+                classifier.classify_block(&make_heading_block(20.0, "Major Title"), body_size),
+                BlockType::Header(1)
+            ),
+            "20pt on 10pt body (2.0x) should be H1"
+        );
+
+        // H2: ratio >= 1.7, < 2.0 (18pt / 10pt = 1.8)
+        assert!(
+            matches!(
+                classifier.classify_block(&make_heading_block(18.0, "Section Heading"), body_size),
+                BlockType::Header(2)
+            ),
+            "18pt on 10pt body (1.8x) should be H2"
+        );
+
+        // H1 conservative: ratio >= 1.5, < 1.7 (16pt / 10pt = 1.6)
+        // WHY: Conservative approach - mid-range headers default to H1
+        assert!(
+            matches!(
+                classifier.classify_block(&make_heading_block(16.0, "Subsection"), body_size),
+                BlockType::Header(1)
+            ),
+            "16pt on 10pt body (1.6x) should be H1 (conservative)"
+        );
+
+        // Paragraph: ratio < 1.5 (10pt / 10pt = 1.0)
+        assert!(
+            matches!(
+                classifier.classify_block(&make_heading_block(10.0, "Regular paragraph text"), body_size),
+                BlockType::Paragraph
+            ),
+            "10pt on 10pt body (1.0x) should be Paragraph"
+        );
+
+        // Edge case: exactly 1.5x threshold (15pt / 10pt = 1.5)
+        // Should NOT be header because we need > 1.5 (header_ratio default)
+        assert!(
+            matches!(
+                classifier.classify_block(&make_heading_block(15.0, "Edge case text"), body_size),
+                BlockType::Paragraph
+            ),
+            "15pt on 10pt body (1.5x) should be Paragraph (at threshold)"
+        );
+    }
 }
