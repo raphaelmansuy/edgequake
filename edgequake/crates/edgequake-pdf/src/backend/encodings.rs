@@ -857,6 +857,23 @@ pub enum Encoding {
 }
 
 /// Common ligature byte mappings for fonts without ToUnicode CMaps.
+///
+/// **WHY these specific byte values:**
+/// PDF fonts from different eras use different conventions for ligatures:
+///
+/// ```text
+/// PostScript Type 1 (Adobe, 1984):    Windows/Adobe Exchange (1990s):
+/// ┌──────────────────────────────┐    ┌────────────────────────────┐
+/// │ 0x02 = fi (ﬁ ligature)       │    │ 0x1F = fi                  │
+/// │ 0x03 = fl (ﬂ ligature)       │    │ 0x1E = fl                  │
+/// │ 0x04 = ff                    │    │ 0x1D = ff                  │
+/// │ 0x05 = ffi                   │    │ 0x1C = ffi                 │
+/// │ 0x06 = ffl                   │    │ 0x1B = ffl                 │
+/// └──────────────────────────────┘    └────────────────────────────┘
+/// ```
+///
+/// Without this expansion, text like "office" appears as "o\u{0002}ce" or
+/// contains replacement characters, making the extracted text unreadable.
 fn get_ligature_expansion(byte: u8) -> Option<&'static str> {
     match byte {
         // PostScript Type 1 fonts typically use these positions
@@ -932,6 +949,13 @@ impl Encoding {
                 result
             }
             Encoding::Identity => {
+                // WHY: Identity encoding (Identity-H / Identity-V) uses raw
+                // UTF-16 Big Endian bytes directly. Common with CID fonts for
+                // CJK (Chinese, Japanese, Korean) text where character codes
+                // map directly to Unicode code points.
+                //
+                // Byte layout: [high byte][low byte] for each character
+                // Example: 日 (U+65E5) = [0x65][0xE5]
                 if bytes.len() >= 2 {
                     let utf16: Vec<u16> = bytes
                         .chunks(2)
@@ -957,6 +981,30 @@ impl Encoding {
 // =============================================================================
 
 /// Simple ToUnicode CMap parser
+///
+/// **WHY this exists:**
+/// ToUnicode CMaps are PDF's "escape hatch" for custom font encodings.
+/// When a font uses non-standard glyph→character mappings, the PDF creator
+/// can embed a CMap that tells readers how to convert to Unicode.
+///
+/// **CMap Format (simplified):**
+/// ```text
+/// /CIDInit /ProcSet findresource begin    ← PostScript preamble
+/// ...
+/// begincodespacerange                      ← Valid code space
+/// <0000> <FFFF>
+/// endcodespacerange
+///
+/// beginbfchar                              ← Single character mappings
+/// <0021> <0054>                            ← code 0x21 → 'T' (U+0054)
+/// <0022> <0068>                            ← code 0x22 → 'h' (U+0068)
+/// endbfchar
+///
+/// beginbfrange                             ← Range mappings (compact)
+/// <0041> <005A> <0041>                     ← 0x41-0x5A → A-Z (sequential)
+/// <0061> <0063> [<0061> <0062> <0063>]     ← 0x61-0x63 → a,b,c (explicit)
+/// endbfrange
+/// ```
 #[derive(Debug, Default)]
 pub struct ToUnicodeMap {
     /// Maps character codes to Unicode strings
@@ -968,6 +1016,12 @@ pub struct ToUnicodeMap {
 
 impl ToUnicodeMap {
     /// Parse a ToUnicode CMap stream
+    ///
+    /// **WHY we parse bfchar and bfrange separately:**
+    /// - `bfchar`: One-to-one mappings (simple but verbose)
+    /// - `bfrange`: Many-to-many mappings (compact for sequential chars)
+    ///
+    /// Both can appear in the same CMap, so we scan twice.
     pub fn parse(data: &[u8]) -> Self {
         let mut map = ToUnicodeMap::default();
         let text = String::from_utf8_lossy(data);
