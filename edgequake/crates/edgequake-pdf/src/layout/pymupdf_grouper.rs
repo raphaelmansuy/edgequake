@@ -244,10 +244,11 @@ impl TextGrouper {
             // WHY: pymupdf4llm uses footer_margin parameter to exclude bottom region.
             // See multi_column.py:column_boxes() - `clip.y1 -= footer_margin`.
             // After normalization, footer region is y > (page_height - footer_margin).
-            if self.params.footer_margin > 0.0 && self.params.page_height > 0.0 {
-                if ch.y1 > self.params.page_height - self.params.footer_margin {
-                    continue;
-                }
+            if self.params.footer_margin > 0.0
+                && self.params.page_height > 0.0
+                && ch.y1 > self.params.page_height - self.params.footer_margin
+            {
+                continue;
             }
 
             // OODA-07: Filter right margin text (if right_margin > 0)
@@ -580,8 +581,10 @@ impl TextGrouper {
 
             let start = ((line.x0 - page_left) / bucket_width) as usize;
             let end = ((line.x1 - page_left) / bucket_width) as usize;
-            for i in start..=end.min(num_buckets - 1) {
-                coverage[i] += 1;
+            // WHY slice iteration: Clippy says loop variable is only used for indexing.
+            // Using slice iterator avoids the indexing warning.
+            for count in coverage[start..=end.min(num_buckets - 1)].iter_mut() {
+                *count += 1;
             }
         }
 
