@@ -75,9 +75,20 @@ impl Span {
     ///
     /// Returns false if:
     /// - Different page
-    /// - Different font style (name, size)
+    /// - Different font style (name, size, **bold, italic**)
     /// - Large horizontal gap (word boundary)
     /// - Vertical misalignment
+    ///
+    /// ## OODA-02: Style Check
+    ///
+    /// Characters with different bold/italic flags MUST create separate spans.
+    /// Without this check, mixed-style text would inherit the first char's style:
+    /// ```text
+    /// Input: 'T'(bold) 'h'(bold) 'i'(normal) 's'(normal)
+    /// Bad:   Span{text:"This", is_bold:true} → "**This**" (WRONG)
+    /// Good:  Span{text:"Th", is_bold:true}, Span{text:"is", is_bold:false}
+    ///        → "**Th**is" (CORRECT)
+    /// ```
     pub fn can_append(&self, ch: &RawChar) -> bool {
         if self.text.is_empty() {
             return true;
@@ -96,6 +107,20 @@ impl Span {
         // Same font name
         if self.font_name != ch.font_name {
             return false;
+        }
+
+        // OODA-02: Same font style (bold/italic)
+        // WHY: A span must have homogeneous style for correct markdown rendering.
+        // Without this check, mixed bold/normal text would all become bold.
+        if let Some(span_bold) = self.font_is_bold {
+            if span_bold != ch.is_bold {
+                return false;
+            }
+        }
+        if let Some(span_italic) = self.font_is_italic {
+            if span_italic != ch.is_italic {
+                return false;
+            }
         }
 
         // Vertically aligned (baseline within tolerance)
@@ -737,5 +762,103 @@ mod tests {
         assert_eq!(block.lines.len(), 2);
         assert!(block.text().contains("First line"));
         assert!(block.text().contains("Second line"));
+    }
+
+    /// OODA-02: Test that spans split correctly when font style changes.
+    /// This ensures mixed bold/normal text creates separate spans.
+    #[test]
+    fn test_span_rejects_different_style() {
+        use crate::backend::elements::RawChar;
+
+        // Create a span starting with bold text
+        let mut span = Span::new(0);
+        let bold_char = RawChar {
+            char: 'T',
+            x0: 10.0,
+            y0: 100.0,
+            x1: 18.0,
+            y1: 112.0,
+            font_size: 12.0,
+            font_name: Some("Arial".to_string()),
+            page_num: 0,
+            is_bold: true,
+            is_italic: false,
+        };
+        span.append(&bold_char);
+
+        // Now try to append a non-bold character
+        let normal_char = RawChar {
+            char: 'h',
+            x0: 18.0,  // Adjacent position
+            y0: 100.0,
+            x1: 26.0,
+            y1: 112.0,
+            font_size: 12.0,
+            font_name: Some("Arial".to_string()),
+            page_num: 0,
+            is_bold: false,  // Different style!
+            is_italic: false,
+        };
+
+        // Should reject because bold differs
+        assert!(
+            !span.can_append(&normal_char),
+            "Span should reject character with different bold flag"
+        );
+
+        // Create a span starting with italic text
+        let mut italic_span = Span::new(0);
+        let italic_char = RawChar {
+            char: 'A',
+            x0: 10.0,
+            y0: 100.0,
+            x1: 18.0,
+            y1: 112.0,
+            font_size: 12.0,
+            font_name: Some("Times".to_string()),
+            page_num: 0,
+            is_bold: false,
+            is_italic: true,
+        };
+        italic_span.append(&italic_char);
+
+        // Try to append non-italic character
+        let non_italic_char = RawChar {
+            char: 'B',
+            x0: 18.0,
+            y0: 100.0,
+            x1: 26.0,
+            y1: 112.0,
+            font_size: 12.0,
+            font_name: Some("Times".to_string()),
+            page_num: 0,
+            is_bold: false,
+            is_italic: false,  // Different style!
+        };
+
+        // Should reject because italic differs
+        assert!(
+            !italic_span.can_append(&non_italic_char),
+            "Span should reject character with different italic flag"
+        );
+
+        // But same style should still be accepted
+        let same_style_char = RawChar {
+            char: 'B',
+            x0: 18.0,
+            y0: 100.0,
+            x1: 26.0,
+            y1: 112.0,
+            font_size: 12.0,
+            font_name: Some("Times".to_string()),
+            page_num: 0,
+            is_bold: false,
+            is_italic: true,  // Same style!
+        };
+
+        assert!(
+            italic_span.can_append(&same_style_char),
+            "Span should accept character with same italic flag"
+        );
     }
 }
