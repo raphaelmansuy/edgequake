@@ -9,6 +9,7 @@
 ## Gap Analysis
 
 Missing tests for:
+
 1. Percentile edge cases (single element, two elements)
 2. Percentile boundary conditions (exact percentile values)
 3. Minimum tolerance clamping in `calculate_alignment_tolerance`

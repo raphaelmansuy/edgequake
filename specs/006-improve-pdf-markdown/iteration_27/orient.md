@@ -6,11 +6,11 @@ The `safe_truncate` function prevents panics when truncating UTF-8 strings. Dire
 
 ## Risk Assessment
 
-| Factor | Risk | Mitigation |
-|--------|------|------------|
-| UTF-8 boundary errors | High | Tests will validate edge cases |
-| Regression | Medium | CI tests prevent accidental breakage |
-| Edge cases | High | Multi-byte chars need explicit testing |
+| Factor                | Risk   | Mitigation                             |
+| --------------------- | ------ | -------------------------------------- |
+| UTF-8 boundary errors | High   | Tests will validate edge cases         |
+| Regression            | Medium | CI tests prevent accidental breakage   |
+| Edge cases            | High   | Multi-byte chars need explicit testing |
 
 ## Character Encoding Examples
 
@@ -26,6 +26,7 @@ If `max_bytes=2` and the string starts with '€', we can't truncate at byte 2 (
 ## Alignment with Mission
 
 Mission 006 goals:
+
 - ✅ Improve test coverage → Adding tests for UTF-8 safety
 - ✅ Clean code → Tests document the boundary behavior
 - ✅ Quality extraction → Prevents runtime panics

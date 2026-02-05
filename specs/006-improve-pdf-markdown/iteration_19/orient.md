@@ -3,6 +3,7 @@
 ## Gap Identified
 
 `processors/font_analysis.rs` has only 2 tests but handles critical functionality:
+
 - Body font size detection (affects heading classification)
 - Size range validation
 

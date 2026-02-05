@@ -3,6 +3,7 @@
 ## Current State
 
 The `block_classifier.rs` has functions for detecting various subsection patterns:
+
 - `is_roman_numeral_header` - "I. INTRODUCTION"
 - `is_letter_subsection_item` - "A. Background"
 - `is_number_section_header` - "1. Introduction"
@@ -11,6 +12,7 @@ The `block_classifier.rs` has functions for detecting various subsection pattern
 ## Current Test Coverage
 
 From grep of `#[test]`:
+
 - ✅ `test_bullet_detection`
 - ✅ `test_numbered_list_detection`
 - ✅ `test_roman_numeral_header`
@@ -20,6 +22,7 @@ From grep of `#[test]`:
 ## Gap Identified
 
 Missing tests for:
+
 1. `is_letter_subsection_item` - "A. Background" pattern
 2. `is_number_section_header` - "1. Introduction" pattern
 3. `is_number_subsection_item` - "2.1. Subsection" pattern
@@ -27,6 +30,7 @@ Missing tests for:
 ## Evidence
 
 These functions exist but lack dedicated test coverage:
+
 - Line 301: `is_letter_subsection_item`
 - Line 327: `is_number_section_header`
 - Line 369: `is_number_subsection_item`

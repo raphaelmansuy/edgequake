@@ -21,11 +21,11 @@
 
 ### Test Cases
 
-| Function | Valid Cases | Invalid Cases |
-|----------|-------------|---------------|
+| Function          | Valid Cases     | Invalid Cases                |
+| ----------------- | --------------- | ---------------------------- |
 | letter_subsection | "A. Background" | "A.NoSpace", "ABC. Too long" |
-| number_section | "1. INTRO" | "1.1. Subsection" |
-| number_subsection | "2.1. Topic" | "2. Main section" |
+| number_section    | "1. INTRO"      | "1.1. Subsection"            |
+| number_subsection | "2.1. Topic"    | "2. Main section"            |
 
 ## Prioritization
 

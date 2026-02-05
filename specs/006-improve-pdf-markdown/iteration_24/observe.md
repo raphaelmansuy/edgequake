@@ -29,6 +29,7 @@ The `encodings.rs` module is 1317 lines but has only 2 WHY comments. This is one
 ## Recommended Actions
 
 Add WHY comments to underdocumented functions to explain:
+
 - Magic byte values for ligatures
 - Identity encoding's UTF-16BE interpretation
 - bfchar vs bfrange CMap formats

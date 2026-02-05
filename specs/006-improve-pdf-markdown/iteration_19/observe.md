@@ -8,6 +8,7 @@
 ## Test Distribution Analysis
 
 Top tested files (>10 tests):
+
 - `schema/geometry.rs` - 29 tests
 - `processors/text_cleanup.rs` - 24 tests
 - `config.rs` - 24 tests
@@ -15,6 +16,7 @@ Top tested files (>10 tests):
 - `backend/lattice.rs` - 19 tests
 
 Files with thin coverage (<3 tests):
+
 - `backend/pdfium.rs` - 1 test (requires external lib)
 - `pipeline/pymupdf_pipeline.rs` - 1 test
 - `backend/pdfium_backend.rs` - 2 tests
@@ -25,6 +27,7 @@ Files with thin coverage (<3 tests):
 ## Target for Improvement
 
 `processors/font_analysis.rs` with only 2 tests:
+
 - `test_valid_size_range` - basic range check
 - `test_median_calculation` - median calculation
 

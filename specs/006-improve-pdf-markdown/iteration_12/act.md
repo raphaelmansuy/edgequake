@@ -20,11 +20,11 @@
 
 ## Constants Now Documented in block_classifier.rs
 
-| Value | Purpose |
-|-------|---------|
-| 2.0x ratio | Major heading (H1) threshold |
-| 1.7x ratio | Secondary heading (H2) threshold |
-| 0.5 uppercase | All-caps section detection |
+| Value         | Purpose                          |
+| ------------- | -------------------------------- |
+| 2.0x ratio    | Major heading (H1) threshold     |
+| 1.7x ratio    | Secondary heading (H2) threshold |
+| 0.5 uppercase | All-caps section detection       |
 
 ## Next Steps
 

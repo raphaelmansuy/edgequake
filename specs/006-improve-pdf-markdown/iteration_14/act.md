@@ -21,13 +21,13 @@
 
 ## Test Coverage Matrix
 
-| Ratio | Expected | Test Case |
-|-------|----------|-----------|
-| >= 2.0 | H1 | ✅ 20pt/10pt |
-| 1.7-2.0 | H2 | ✅ 18pt/10pt |
+| Ratio   | Expected          | Test Case    |
+| ------- | ----------------- | ------------ |
+| >= 2.0  | H1                | ✅ 20pt/10pt |
+| 1.7-2.0 | H2                | ✅ 18pt/10pt |
 | 1.5-1.7 | H1 (conservative) | ✅ 16pt/10pt |
-| < 1.5 | Paragraph | ✅ 10pt/10pt |
-| = 1.5 | Paragraph (edge) | ✅ 15pt/10pt |
+| < 1.5   | Paragraph         | ✅ 10pt/10pt |
+| = 1.5   | Paragraph (edge)  | ✅ 15pt/10pt |
 
 ## Next Steps
 

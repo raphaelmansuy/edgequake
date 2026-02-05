@@ -3,6 +3,7 @@
 ## Current State
 
 4 remaining TODOs in edgequake-pdf:
+
 1. `extractor.rs:539` - `images: Vec::new()` // TODO: Extract images
 2. `layout/pymupdf_grouper.rs:163` - TODO: Implement proper vertical text detection
 3. `layout/pymupdf_renderer.rs:156` - TODO: Implement proper table detection
@@ -11,6 +12,7 @@
 ## Analysis
 
 These TODOs represent legitimate known limitations:
+
 - **Image extraction**: Complex, requires vision/multimodal support
 - **Vertical text detection**: Complex, needs character sequence analysis
 - **Table detection**: Complex, needs cell boundary detection

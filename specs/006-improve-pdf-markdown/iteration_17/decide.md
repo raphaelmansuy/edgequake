@@ -7,6 +7,7 @@ Enhance the module doc comment in text_grouping.rs with ASCII diagram.
 ## Implementation Plan
 
 Add detailed module documentation explaining:
+
 1. Two-column layout detection algorithm
 2. Page zones with Y thresholds
 3. Column boundary with margin zones
@@ -14,7 +15,7 @@ Add detailed module documentation explaining:
 
 ## New Module Docs
 
-```rust
+````rust
 //! Text grouping and line merging utilities.
 //!
 //! ## Two-Column Layout Detection
@@ -50,7 +51,7 @@ Add detailed module documentation explaining:
 //! - All of left column top-to-bottom
 //! - All of right column top-to-bottom
 //! - NOT interleaved by Y position
-```
+````
 
 ## Risk Assessment
 

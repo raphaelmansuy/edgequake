@@ -19,10 +19,10 @@
 
 ## Warnings Fixed
 
-| File | Warning | Fix |
-|------|---------|-----|
-| pymupdf_grouper.rs | unused_mut | Removed `mut` |
-| text_grouping.rs | useless comparison | Use value instead of size check |
+| File               | Warning            | Fix                             |
+| ------------------ | ------------------ | ------------------------------- |
+| pymupdf_grouper.rs | unused_mut         | Removed `mut`                   |
+| text_grouping.rs   | useless comparison | Use value instead of size check |
 
 ## Notes
 

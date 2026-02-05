@@ -3,8 +3,9 @@
 ## Decision
 
 Replace hardcoded `confidence: 0.9` with a calculated value based on:
+
 1. Reading order coverage (50% weight)
-2. Column detection confidence (30% weight)  
+2. Column detection confidence (30% weight)
 3. Region detection quality (20% weight)
 
 ## Implementation

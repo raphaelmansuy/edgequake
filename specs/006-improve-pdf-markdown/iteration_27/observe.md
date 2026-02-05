@@ -36,6 +36,7 @@ fn safe_truncate(s: &str, max_bytes: usize) -> &str {
 ## Recommendation
 
 Add unit tests for:
+
 - ASCII string truncation
 - Multi-byte character at boundary (box drawing, emojis)
 - String shorter than max (no truncation)
