@@ -23,6 +23,7 @@ pub fn is_table_reference(text: &str) -> bool {
 ```
 
 **Rationale:** Extracting the inline logic into a public method enables:
+
 - Unit testing of the detection algorithm
 - Reuse in other contexts if needed
 - Clear documentation of the algorithm
@@ -42,6 +43,7 @@ let is_table_ref = Self::is_table_reference(t);
 **Test:** `test_is_table_reference_vs_caption`
 
 Covers:
+
 - ✅ Prose references: "Table 4 presents...", "Table 1 shows...", "Table 2 summarizes..."
 - ✅ Captions: "Table 1.", "Table 1:", "Table 1: Results"
 - ✅ Edge cases: Short strings, bare "Table N", non-table text
@@ -53,6 +55,7 @@ Covers:
 ```
 
 New test added:
+
 - `test_is_table_reference_vs_caption` ✅
 
 ## Commit Ready

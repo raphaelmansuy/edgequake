@@ -47,7 +47,19 @@ They may fail to explain how the adoption of electric vehicles can improve air q
 
 could affect public transportation planning. As a result, the user may receive a fragmented answer that does not adequately capture the complex inter-dependencies among these topics. To address these limitations, we propose incorporating graph structures into text indexing and relevant information retrieval. Graphs are particularly effective at representing the interdependencies among different entities Rampášek et al. (2022), which enables a more nuanced understanding of relationships. The integration of graph-based knowledge structures facilitates the synthesis of information from multiple sources into coherent and contextually rich responses. Despite these advantages, developing a fast and scalable graph-empowered RAG system that efficiently handles varying query volumes is crucial. In this work, we achieve an effective and efficient RAG system by addressing three key challenges: i) **Comprehensive Information Retrieval**
 
-information retrieval that captures the full context of inter-dependent entities from all documents; ii)**Enhanced Retrieval Efficiency**. Improving retrieval efficiency over the graph-based knowledge structures to significantly reduce response times; iii) quick adaptation to new data updates, ensuring the system remains relevant in dynamic environments. In response to the outlined challenges, we propose LightRAG, a model that seamlessly integrates a graph-based text indexing paradigm with a dual-level retrieval framework. This innovative approach enhances the system's capacity to capture complex inter-dependencies among entities, resulting in more coherent and contextually rich responses. LightRAG employs efficient dual-level retrieval strategies: low-level retrieval, which focuses on precise information about specific entities and their relationships, and high-level retrieval, which encompasses broader topics and themes. By combining both detailed and conceptual retrieval, LightRAG effectively accommodates a diverse range of quries, ensuring that users receive relevant and comprehensive responses tailored to their specific needs. Additionally, by integrating graph structures with vector representations, our framework facilitates efficient retrieval of related entities and relations while enhancing the comprehensiveness of results through relevant structural information from the constructed knowledge graph. In summary, the key contributions of this work are highlighted as follows: •**General Aspect**. We emphasize the importance of developing a graph-empowered RAG system to overcome the limitations of existing methods. By integrating graph structures into text indexing, we can effectively represent complex interdependencies among entities, fostering a nuanced understanding of relationships and enabling coherent, contextually rich responses. •**Methodologies**. To enable an efficient and adaptive RAG system, we propose LightRAG, which integrates a dual-level retrieval paradigm with graph-enhanced text indexing. This approach captures both low-level and high-level information for comprehensive, cost-effective retrieval. By eliminating the need to rebuild the entire index, LightRAG reduces computational costs and accelerates adaptation, while its incremental update algorithm ensures timely integration of new data, maintaining effectiveness in dynamic environments. •**Experimental Findings**. Extensive experiments were conducted to evaluate the effectiveness of LightRAG in comparison to existing RAG models. These assessments focused on several key dimensions, including retrieval accuracy, model ablation, response efficiency, and adaptability to new information. The results demonstrated significant improvements over baseline methods.
+information retrieval that captures the full context of inter-dependent entities from all documents; ii)**Enhanced Retrieval Efficiency**. Improving retrieval efficiency over the graph-based knowledge structures to significantly reduce response times; iii) quick adaptation to new data updates, ensuring the system remains relevant in dynamic environments. In response to the outlined challenges, we propose LightRAG, a model that seamlessly integrates a graph-based text indexing paradigm with a dual-level retrieval framework. This innovative approach enhances the system's capacity to capture complex inter-dependencies among entities, resulting in more coherent and contextually rich responses. LightRAG employs efficient dual-level retrieval strategies: low-level retrieval, which focuses on precise information about specific entities and their relationships, and high-level retrieval, which encompasses broader topics and themes. By combining both detailed and conceptual retrieval, LightRAG effectively accommodates a diverse range of quries, ensuring that users receive relevant and comprehensive responses tailored to their specific needs. Additionally, by integrating graph structures with vector representations, our framework facilitates efficient retrieval of related entities and relations while enhancing the comprehensiveness of results through relevant structural information from the constructed knowledge graph. In summary, the key contributions of this work are highlighted as follows:
+
+- General Aspect. We emphasize the importance of developing a graph-empowered RAG system to
+
+overcome the limitations of existing methods. By integrating graph structures into text indexing, we can effectively represent complex interdependencies among entities, fostering a nuanced understanding of relationships and enabling coherent, contextually rich responses.
+
+- Methodologies. To enable an efficient and adaptive RAG system, we propose LightRAG, which
+
+integrates a dual-level retrieval paradigm with graph-enhanced text indexing. This approach captures both low-level and high-level information for comprehensive, cost-effective retrieval. By eliminating the need to rebuild the entire index, LightRAG reduces computational costs and accelerates adaptation, while its incremental update algorithm ensures timely integration of new data, maintaining effectiveness in dynamic environments.
+
+- Experimental Findings. Extensive experiments were conducted to evaluate the effectiveness of
+
+LightRAG in comparison to existing RAG models. These assessments focused on several key dimensions, including retrieval accuracy, model ablation, response efficiency, and adaptability to new information. The results demonstrated significant improvements over baseline methods.
 
 ## **2 R ETRIEVAL-AUGMENTED GENERATION**
 
@@ -75,7 +87,19 @@ In this framework,*G*and*R*represent the generation module and the retrieval mod
 
 structure*D*ˆbased on the external database *D*. ii)**Data Retriever**
 
-obtained by comparing the query against the indexed data, also denoted as "relevant documents". By leveraging the information retrieved through *ψ*(*·*)along with the initial query *G*(*·*)efficiently produces high-quality, contextually relevant responses. In this work, we target several key points essential for an efficient and effective Retrieval-Augmented Generation (RAG) system which are elaborated below: •**Comprehensive Information Retrieval**: The indexing function global information, as this is crucial for enhancing the model's ability to answer queries effectively. •**Efficient and Low-Cost Retrieval**: The indexed data structure efficient retrieval to effectively handle a high volume of queries. •**Fast Adaptation to Data Changes**: The ability to swiftly and efficiently adjust the data structure to incorporate new information from the external knowledge base, is crucial for ensuring that the system remains current and relevant in an ever-changing information landscape.
+obtained by comparing the query against the indexed data, also denoted as "relevant documents". By leveraging the information retrieved through *ψ*(*·*)along with the initial query *G*(*·*)efficiently produces high-quality, contextually relevant responses. In this work, we target several key points essential for an efficient and effective Retrieval-Augmented Generation (RAG) system which are elaborated below:
+
+- Comprehensive Information Retrieval: The indexing function
+
+global information, as this is crucial for enhancing the model's ability to answer queries effectively.
+
+- Efficient and Low-Cost Retrieval: The indexed data structure
+
+efficient retrieval to effectively handle a high volume of queries.
+
+- Fast Adaptation to Data Changes: The ability to swiftly and efficiently adjust the data structure
+
+to incorporate new information from the external knowledge base, is crucial for ensuring that the system remains current and relevant in an ever-changing information landscape.
 
 ## **3 T HELIGHTRAG A RCHITECTURE**
 
@@ -87,7 +111,15 @@ system by segmenting documents into smaller, more manageable pieces. This strate
 
 *D*ˆ= (*V*ˆˆ*,E*) =Dedupe*◦*Prof(*V,E*)*,V,*
 
-where*D*ˆrepresents the resulting knowledge graphs. To generate this data, we apply three main processing steps to the raw text documents *Di*. These steps utilize a LLM for text analysis and processing. Details about the prompt templates and specific settings for this part can be found in Appendix 7.3.2. The functions used in our graph-based text indexing paradigm are described as: •**Extracting Entities and Relationships** .R(*·*): This function prompts a LLM to identify entities (nodes) and their relationships (edges) within the text data. For instance, it can extract entities like "Cardiologists" and "Heart Disease," and relationships such as "Cardiologists diagnose Heart Disease" from the text: "Cardiologists assess symptoms to identify potential heart issues." To improve efficiency, the raw text *D*is segmented into multiple chunks •**LLM Profiling for Key-Value Pair Generation**.P(*·*): We employ a LLM-empowered profiling function,P(*·*), to generate a text key-value pair (*K, V* edge in*E*. Each index key is a word or short phrase that enables efficient retrieval, while the corresponding value is a text paragraph summarizing relevant snippets from external data to aid in text generation. Entities use their names as the sole index key, whereas relations may have multiple index keys derived from LLM enhancements that include global themes from connected entities.
+where*D*ˆrepresents the resulting knowledge graphs. To generate this data, we apply three main processing steps to the raw text documents *Di*. These steps utilize a LLM for text analysis and processing. Details about the prompt templates and specific settings for this part can be found in Appendix 7.3.2. The functions used in our graph-based text indexing paradigm are described as:
+
+- Extracting Entities and Relationships .R(·): This function prompts a LLM to identify entities
+
+(nodes) and their relationships (edges) within the text data. For instance, it can extract entities like "Cardiologists" and "Heart Disease," and relationships such as "Cardiologists diagnose Heart Disease" from the text: "Cardiologists assess symptoms to identify potential heart issues." To improve efficiency, the raw text *D*is segmented into multiple chunks
+
+- LLM Profiling for Key-Value Pair Generation.P(·): We employ a LLM-empowered profiling
+
+function,P(*·*), to generate a text key-value pair (*K, V* edge in*E*. Each index key is a word or short phrase that enables efficient retrieval, while the corresponding value is a text paragraph summarizing relevant snippets from external data to aid in text generation. Entities use their names as the sole index key, whereas relations may have multiple index keys derived from LLM enhancements that include global themes from connected entities.
 
 *ψ*(*·*): The relevant documents are *q*, the generative model
 
@@ -99,7 +131,9 @@ where*D*ˆrepresents the resulting knowledge graphs. To generate this data, we a
 
 )for each entity node in *V*and relation
 
-•**Deduplication to Optimize Graph Operations**.D(*·*): Finally, we implement a deduplication function,D(*·*), that identifies and merges identical entities and relations from different segments of
+- Deduplication to Optimize Graph Operations.D(·): Finally, we implement a deduplication
+
+function,D(*·*), that identifies and merges identical entities and relations from different segments of
 
 3
 
@@ -122,7 +156,21 @@ ensuring that historical data remains accessible while enriching the graph witho
 
 graph, this method reduces computational overhead and facilitates the rapid assimilation of new data. Consequently, LightRAG maintains system accuracy, provides current information, and conserves resources, ensuring users receive timely updates and enhancing the overall RAG effectiveness. 3.2 D UAL-LEVELRETRIEVALPARADIGM 
 
-•**Specific Queries**. These queries are detail-oriented and typically reference specific entities within the graph, requiring precise retrieval of information associated with particular nodes or edges. For example, a specific query might be, "Who wrote 'Pride and Prejudice'?" •**Abstract Queries**. In contrast, abstract queries are more conceptual, encompassing broader topics, summaries, or overarching themes that are not directly tied to specific entities. An example of an abstract query is, "How does artificial intelligence influence modern education?" To accommodate diverse query types, the LightRAG employs two distinct retrieval strategies within the dual-level retrieval paradigm. This ensures that both specific and abstract inquiries are addressed effectively, allowing the system to deliver relevant responses tailored to user needs. •**Low-Level Retrieval**. This level is primarily focused on retrieving specific entities along with their associated attributes or relationships. Queries at this level are detail-oriented and aim to extract precise information about particular nodes or edges within the graph. •**High-Level Retrieval**. This level addresses broader topics and overarching themes. Queries at this level aggregate information across multiple related entities and relationships, providing insights into higher-level concepts and summaries rather than specific details.
+- Specific Queries. These queries are detail-oriented and typically reference specific entities within
+
+the graph, requiring precise retrieval of information associated with particular nodes or edges. For example, a specific query might be, "Who wrote 'Pride and Prejudice'?"
+
+- Abstract Queries. In contrast, abstract queries are more conceptual, encompassing broader topics,
+
+summaries, or overarching themes that are not directly tied to specific entities. An example of an abstract query is, "How does artificial intelligence influence modern education?" To accommodate diverse query types, the LightRAG employs two distinct retrieval strategies within the dual-level retrieval paradigm. This ensures that both specific and abstract inquiries are addressed effectively, allowing the system to deliver relevant responses tailored to user needs.
+
+- Low-Level Retrieval. This level is primarily focused on retrieving specific entities along with their
+
+associated attributes or relationships. Queries at this level are detail-oriented and aim to extract precise information about particular nodes or edges within the graph.
+
+- High-Level Retrieval. This level addresses broader topics and overarching themes. Queries at this
+
+level aggregate information across multiple related entities and relationships, providing insights into higher-level concepts and summaries rather than specific details.
 
 **Integrating Graph and Vectors for Efficient Retrieval**
 
@@ -165,7 +213,11 @@ We conduct empirical evaluations on benchmark data to assess the effectiveness o
 
 **(RQ4)**: What are the costs associated with LightRAG, as well as its adaptability to data changes? 4.1 EXPERIMENTAL SETTINGS
 
-**Evaluation Datasets**. To conduct a comprehensive analysis of LightRAG, we selected four datasets from the UltraDomain benchmark (Qian et al., 2024). The UltraDomain data is sourced from 428 college textbooks and encompasses 18 distinct domains, including agriculture, social sciences, and humanities. From these, we chose the Agriculture, CS, Legal, and Mix datasets. Each dataset contains between 600,000 and 5,000,000 tokens, with detailed information provided in Table 4. Below is a specific introduction to the four domains utilized in our experiments: •**Agriculture**: This domain focuses on agricultural practices, covering a range of topics including beekeeping, hive management, crop production, and disease prevention.
+**Evaluation Datasets**. To conduct a comprehensive analysis of LightRAG, we selected four datasets from the UltraDomain benchmark (Qian et al., 2024). The UltraDomain data is sourced from 428 college textbooks and encompasses 18 distinct domains, including agriculture, social sciences, and humanities. From these, we chose the Agriculture, CS, Legal, and Mix datasets. Each dataset contains between 600,000 and 5,000,000 tokens, with detailed information provided in Table 4. Below is a specific introduction to the four domains utilized in our experiments:
+
+- Agriculture: This domain focuses on agricultural practices, covering a range of topics including
+
+beekeeping, hive management, crop production, and disease prevention.
 
 (vi∈ Nv∨vi∈ Ne)}, where NvandNe
 
@@ -179,18 +231,42 @@ P(*·*). It
 
 *•***(RQ3)**:
 
-•**CS**: This domain focuses on computer science and encompasses key areas of data science and software engineering. It particularly highlights machine learning and big data processing, featuring content on recommendation systems, classification algorithms, and real-time analytics using Spark.
+- CS: This domain focuses on computer science and encompasses key areas of data science and
+
+software engineering. It particularly highlights machine learning and big data processing, featuring content on recommendation systems, classification algorithms, and real-time analytics using Spark.
 
 5
 
 
 ---
 
-•**Legal**: This domain centers on corporate legal practices, addressing corporate restructuring, legal agreements, regulatory compliance, and governance, with a focus on the legal and financial sectors. •**Mixed**: This domain presents a rich variety of literary, biographical, and philosophical texts, spanning a broad spectrum of disciplines, including cultural, historical, and philosophical studies.
+- Legal: This domain centers on corporate legal practices, addressing corporate restructuring, legal
+
+agreements, regulatory compliance, and governance, with a focus on the legal and financial sectors.
+
+- Mixed: This domain presents a rich variety of literary, biographical, and philosophical texts,
+
+spanning a broad spectrum of disciplines, including cultural, historical, and philosophical studies.
 
 **Question Generation**. To evaluate the effectiveness of RAG systems for high-level sensemaking tasks, we consolidate all text content from each dataset as context and adopt the generation method outlined in Edge et al. (2024). Specifically, we instruct an LLM to generate five RAG users, along with five tasks for each user. Each generated user is accompanied by a textual description detailing their expertise and traits that motivate their question-raising activities. Each user task is also described, emphasizing one of the user's potential intentions when interacting with RAG systems. For each user-task combination, the LLM generates five questions that require an understanding of the entire corpus. In total, this process results in 125 questions for each dataset.
 
-**Baselines**. LightRAG is compared against the following state-of-the-art methods across all datasets: •**Naive RAG**(Gao et al., 2023): This model serves as a standard baseline in existing RAG systems. It segments raw texts into chunks and stores them in a vector database using text embeddings. For queries, Naive RAG generates vectorized representations to directly retrieve text chunks based on the highest similarity in their representations, ensuring efficient and straightforward matching. •**RQ-RAG** (Chan et al., 2024): This approach leverages the LLM to decompose the input query into multiple sub-queries. These sub-queries are designed to enhance search accuracy by utilizing explicit techniques such as rewriting, decomposition, and disambiguation. •**HyDE**(Gao et al., 2022): This method utilizes the LLM to generate a hypothetical document based on the input query. This generated document is then employed to retrieve relevant text chunks, which are subsequently used to formulate the final answer. •**GraphRAG** (Edge et al., 2024): This is a graph-enhanced RAG system that utilizes an LLM to extract entities and relationships from the text, representing them as nodes and edges. It generates corresponding descriptions for these elements, aggregates nodes into communities, and produces a community report to capture global information. When handling high-level queries, GraphRAG retrieves more comprehensive information by traversing these communities.
+**Baselines**. LightRAG is compared against the following state-of-the-art methods across all datasets:
+
+- Naive RAG(Gao et al., 2023): This model serves as a standard baseline in existing RAG systems.
+
+It segments raw texts into chunks and stores them in a vector database using text embeddings. For queries, Naive RAG generates vectorized representations to directly retrieve text chunks based on the highest similarity in their representations, ensuring efficient and straightforward matching.
+
+- RQ-RAG (Chan et al., 2024): This approach leverages the LLM to decompose the input query
+
+into multiple sub-queries. These sub-queries are designed to enhance search accuracy by utilizing explicit techniques such as rewriting, decomposition, and disambiguation.
+
+- HyDE(Gao et al., 2022): This method utilizes the LLM to generate a hypothetical document based
+
+on the input query. This generated document is then employed to retrieve relevant text chunks, which are subsequently used to formulate the final answer.
+
+- GraphRAG (Edge et al., 2024): This is a graph-enhanced RAG system that utilizes an LLM to
+
+extract entities and relationships from the text, representing them as nodes and edges. It generates corresponding descriptions for these elements, aggregates nodes into communities, and produces a community report to capture global information. When handling high-level queries, GraphRAG retrieves more comprehensive information by traversing these communities.
 
 **Implementation and Evaluation Details**. In our experiments, we utilize the for vector data management and access. For all LLM-based operations in LightRAG, we default to using GPT-4o-mini. To ensure consistency, the chunk size is set to 1200 across all datasets. Additionally, the gleaning parameter is fixed at 1 for both GraphRAG and LightRAG. Defining ground truth for many RAG queries, particularly those involving complex high-level semantics, poses significant challenges. To address this, we build on existing work (Edge et al.,
 
@@ -270,7 +346,17 @@ When handling large
 > Table 2: Performance of ablated versions of LightRAG, using NaiveRAG as reference.
 >
 
-•**Low-level-only Retrieval** : The -High variant removes high-order retrieval, leading to a significant performance decline across nearly all datasets and metrics. This drop is mainly due to its emphasis on the specific information, which focuses excessively on entities and their immediate neighbors. While this approach enables deeper exploration of directly related entities, it struggles to gather information for complex queries that demand comprehensive insights. •**High-level-only Retrieval** : The -Low variant prioritizes capturing a broader range of content by leveraging entity-wise relationships rather than focusing on specific entities. This approach offers a significant advantage in comprehensiveness, allowing it to gather more extensive and varied information. However, the trade-off is a reduced depth in examining specific entities, which can limit its ability to provide highly detailed insights. Consequently, this high-level-only retrieval method may struggle with tasks that require precise, detailed answers. •**Hybrid Mode Agriculture CS Legal Mix** : The hybrid mode, or the full version of LightRAG, combines the strengths of NaiveRAG both low-level and high-level retrieval methods. It retrieves a broader set of relationships while **LightRAG** NaiveRAG **LightRAG**
+    - Low-level-only Retrieval : The -High variant removes high-order retrieval, leading to a significant
+
+performance decline across nearly all datasets and metrics. This drop is mainly due to its emphasis on the specific information, which focuses excessively on entities and their immediate neighbors. While this approach enables deeper exploration of directly related entities, it struggles to gather information for complex queries that demand comprehensive insights.
+
+    - High-level-only Retrieval : The -Low variant prioritizes capturing a broader range of content by
+
+leveraging entity-wise relationships rather than focusing on specific entities. This approach offers a significant advantage in comprehensiveness, allowing it to gather more extensive and varied information. However, the trade-off is a reduced depth in examining specific entities, which can limit its ability to provide highly detailed insights. Consequently, this high-level-only retrieval method may struggle with tasks that require precise, detailed answers.
+
+    - Hybrid Mode Agriculture CS Legal Mix : The hybrid mode, or the full version of LightRAG, combines the strengths of
+
+NaiveRAG both low-level and high-level retrieval methods. It retrieves a broader set of relationships while **LightRAG** NaiveRAG **LightRAG**
 
 Comprehensiveness 32.4% 67.6% simultaneously conducting an in-depth exploration of specific entities. This dual-level approach 38.4% 61.6% Diversity 23.6% 76.4%
 
