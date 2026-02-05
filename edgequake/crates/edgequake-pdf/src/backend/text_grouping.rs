@@ -304,6 +304,8 @@ impl TextGrouper {
                 // WHY: Footer/header/affiliation must ALSO respect column boundaries
                 // FIXED: Separate left and right footer to prevent cross-column line merging
                 // OODA-05 DEBUG: Log elements at top of page that are NOT spanning
+                // WHY (OODA-09): 100pt (~13% of US Letter 792pt height) captures title/author zone.
+                // Elements in this region are logged for debugging header classification.
                 if elem.y < 100.0 {
                     info!(
                         "TOP-NON-SPAN: Y={:.1} font={:.1} header={} affil={} '{}'",
@@ -395,15 +397,19 @@ impl TextGrouper {
         // 4. There's a left_column element at the SAME Y (±5pt) that's also in this Y range
         // 5. The element looks like an author continuation (starts with comma, or contains name-like text)
         //
-        // WHY these constraints:
-        // - Y > 15: Titles are at Y≈0, authors at Y≈25-75. Body text can also start at Y=0.
-        // - Y < 80: Authors don't go past Y=80 typically
+        // WHY these constraints (OODA-09: page layout constants):
+        // - Y > 15: 15pt (~2% of 792pt page) is below header margin
+        // - Y < 80: 80pt (~10% of page) is above abstract start
+        // - Author zone 15-80pt contains names, affiliations, superscripts
         // - Same-Y check: Author fragments must be on the same visual line
         // - Continuation check: `, Jitendra Malik` starts with comma
 
         for elem in right_column.drain(..) {
             let should_rescue = if !spanning_elements.is_empty() {
-                // Only consider elements between Y=15 and Y=80 (author zone)
+                // WHY (OODA-09): Author zone is 15-80pt from page top (after Y-normalization).
+                // - 15pt: Below header margin where running headers appear
+                // - 80pt: Above abstract which typically starts at ~100pt
+                // US Letter is 792pt tall, so this is ~2-10% of page height.
                 let in_author_zone = elem.y > 15.0 && elem.y < 80.0;
 
                 if in_author_zone {
@@ -415,6 +421,8 @@ impl TextGrouper {
 
                     // Also check if element looks like author continuation
                     // Common patterns: starts with comma, contains superscript symbols, short text
+                    // WHY (OODA-09): 30 chars threshold - author name fragments are short
+                    // WHY (OODA-09): 20pt threshold - slightly below author zone to catch edge cases
                     let looks_like_continuation = elem.text.trim().starts_with(',')
                         || elem.text.contains('†')
                         || elem.text.contains('∗')
@@ -563,6 +571,9 @@ impl TextGrouper {
 
         // Before adding left/right columns, detect and move isolated bottom content to footer
         // This handles affiliations, figure captions that are below the main column content
+        // WHY (OODA-09): 30pt gap (~4% of 792pt page height) indicates section boundary.
+        // Single-spaced text has ~12-14pt line height, so 30pt = 2+ blank lines.
+        // This separates main content from bottom sections (references, acknowledgments).
         let (left_main, left_bottom) = self.split_by_vertical_gap(left_lines, 30.0);
         let (right_main, right_bottom) = self.split_by_vertical_gap(right_lines, 30.0);
 
