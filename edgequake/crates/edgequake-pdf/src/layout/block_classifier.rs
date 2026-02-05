@@ -610,4 +610,81 @@ mod tests {
             "15pt on 10pt body (1.5x) should be Paragraph (at threshold)"
         );
     }
+
+    /// OODA-15: Test subsection pattern detection functions.
+    /// WHY: Validates IEEE-style (A. B. C.) and ICML-style (1. 2.) and X.Y patterns.
+    #[test]
+    fn test_subsection_patterns() {
+        // Letter subsection (IEEE-style): "A. Background"
+        assert!(
+            is_letter_subsection_header("A. Background"),
+            "A. Background should match letter subsection"
+        );
+        assert!(
+            is_letter_subsection_header("B. Policy Representations"),
+            "B. Policy should match"
+        );
+        assert!(
+            is_letter_subsection_header("Z. Final Section"),
+            "Z. Final should match"
+        );
+
+        // Invalid letter subsections
+        assert!(
+            !is_letter_subsection_header("A.NoSpace"),
+            "No space after period"
+        );
+        assert!(
+            !is_letter_subsection_header("AB. Too Long"),
+            "Multiple letters"
+        );
+        assert!(
+            !is_letter_subsection_header("1. Not a letter"),
+            "Digit not letter"
+        );
+
+        // Numeric section (ICML-style): "1. INTRODUCTION"
+        assert!(
+            is_numeric_section_header("1. INTRODUCTION"),
+            "1. INTRO should match"
+        );
+        assert!(
+            is_numeric_section_header("2. METHODS"),
+            "2. METHODS should match"
+        );
+
+        // Invalid numeric sections
+        assert!(
+            !is_numeric_section_header("1.1. Subsection"),
+            "X.Y is not a section"
+        );
+        assert!(
+            !is_numeric_section_header("1. lowercase text"),
+            "Must have uppercase"
+        );
+        assert!(
+            !is_numeric_section_header("2 METHODS"),
+            "Missing period after digit"
+        );
+
+        // Numeric subsection: "2.1. Agentic Training"
+        assert!(
+            is_numeric_subsection_header("2.1. Agentic Training"),
+            "2.1. should match"
+        );
+        assert!(
+            is_numeric_subsection_header("3.2 Architecture"),
+            "3.2 should match"
+        );
+
+        // Invalid numeric subsections
+        assert!(
+            !is_numeric_subsection_header("2. Main section"),
+            "Single number is section"
+        );
+        assert!(
+            !is_numeric_subsection_header("Not a subsection"),
+            "No pattern"
+        );
+    }
 }
