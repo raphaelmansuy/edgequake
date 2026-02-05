@@ -395,4 +395,43 @@ mod tests {
         let body_size = builder.calculate_body_font_size(&lines);
         assert_eq!(body_size, 12.0); // All elements have font_size 12.0
     }
+
+    // ==========================================================================
+    // OODA-27: Safe Truncate Tests
+    // ==========================================================================
+
+    #[test]
+    fn test_safe_truncate_ascii() {
+        // ASCII strings: 1 byte per character
+        assert_eq!(safe_truncate("Hello World", 5), "Hello");
+        assert_eq!(safe_truncate("Hello World", 11), "Hello World");
+    }
+
+    #[test]
+    fn test_safe_truncate_multibyte_boundary() {
+        // Euro sign '€' is 3 bytes (0xE2 0x82 0xAC)
+        // "€100" = [0xE2, 0x82, 0xAC, 0x31, 0x30, 0x30] = 6 bytes
+        // Truncating at byte 2 would split the Euro sign, so we must go back to 0
+        assert_eq!(safe_truncate("€100", 2), "");
+        // Truncating at byte 4 should give us "€1" (3 + 1 = 4 bytes)
+        assert_eq!(safe_truncate("€100", 4), "€1");
+    }
+
+    #[test]
+    fn test_safe_truncate_short_string() {
+        // String shorter than max_bytes: return unchanged
+        assert_eq!(safe_truncate("Hi", 10), "Hi");
+        assert_eq!(safe_truncate("", 5), "");
+    }
+
+    #[test]
+    fn test_safe_truncate_box_drawing() {
+        // Box drawing '─' is 3 bytes (0xE2 0x94 0x80)
+        // "─────" = 5 × 3 = 15 bytes
+        let boxes = "─────";
+        // Truncating at byte 8 would split a box char, go back to byte 6 (2 full chars)
+        assert_eq!(safe_truncate(boxes, 8), "──");
+        // Exact boundary: 6 bytes = 2 box chars
+        assert_eq!(safe_truncate(boxes, 6), "──");
+    }
 }
