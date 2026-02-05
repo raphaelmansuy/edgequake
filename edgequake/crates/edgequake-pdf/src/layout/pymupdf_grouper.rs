@@ -1306,7 +1306,11 @@ mod tests {
 
         // Only "OK" should remain (header text "Hi" filtered out)
         assert_eq!(spans.len(), 1, "Expected 1 span after header filtering");
-        assert_eq!(spans[0].text, "OK", "Expected 'OK', got '{}'", spans[0].text);
+        assert_eq!(
+            spans[0].text, "OK",
+            "Expected 'OK', got '{}'",
+            spans[0].text
+        );
     }
 
     /// OODA-IT01: Test footer margin filtering.
@@ -1334,7 +1338,11 @@ mod tests {
 
         // Only "OK" should remain (footer text "Pg" filtered out)
         assert_eq!(spans.len(), 1, "Expected 1 span after footer filtering");
-        assert_eq!(spans[0].text, "OK", "Expected 'OK', got '{}'", spans[0].text);
+        assert_eq!(
+            spans[0].text, "OK",
+            "Expected 'OK', got '{}'",
+            spans[0].text
+        );
     }
 
     /// OODA-IT01: Test combined header and footer margin filtering.
@@ -1363,7 +1371,11 @@ mod tests {
         let spans = grouper.chars_to_spans(&chars);
 
         // Only "OK" should remain
-        assert_eq!(spans.len(), 1, "Expected 1 span after header+footer filtering");
+        assert_eq!(
+            spans.len(),
+            1,
+            "Expected 1 span after header+footer filtering"
+        );
         assert_eq!(spans[0].text, "OK");
     }
 }

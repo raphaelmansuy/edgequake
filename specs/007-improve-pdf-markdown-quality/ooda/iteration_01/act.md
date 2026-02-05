@@ -60,11 +60,11 @@ if self.params.footer_margin > 0.0 && self.params.page_height > 0.0 {
 
 **Added 3 new tests (lines 1282-1355)**:
 
-| Test | Purpose |
-|------|---------|
-| `test_header_margin_filtering` | Verifies chars at y < header_margin are filtered |
-| `test_footer_margin_filtering` | Verifies chars at y > (page_height - footer_margin) are filtered |
-| `test_header_and_footer_margin_filtering` | Verifies both margins work together |
+| Test                                      | Purpose                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `test_header_margin_filtering`            | Verifies chars at y < header_margin are filtered                 |
+| `test_footer_margin_filtering`            | Verifies chars at y > (page_height - footer_margin) are filtered |
+| `test_header_and_footer_margin_filtering` | Verifies both margins work together                              |
 
 ---
 
@@ -107,9 +107,9 @@ into the markdown output. Filtering improves extraction quality."
 
 ## 5. Files Changed
 
-| File | Lines Changed | Type |
-|------|---------------|------|
-| `src/layout/pymupdf_grouper.rs` | +80 | Feature + Tests |
+| File                            | Lines Changed | Type            |
+| ------------------------------- | ------------- | --------------- |
+| `src/layout/pymupdf_grouper.rs` | +80           | Feature + Tests |
 
 ---
 
@@ -118,15 +118,15 @@ into the markdown output. Filtering improves extraction quality."
 The margin filtering is now in place but requires the page height to be passed correctly through the pipeline. Iteration 02 will:
 
 1. Verify margin filtering is applied in the extraction pipeline
-2. Test with real documents (AI_Services__Elitizon.pdf)
+2. Test with real documents (AI_Services\_\_Elitizon.pdf)
 3. Consider adjusting defaults if needed
 
 ---
 
 ## 7. Metrics
 
-| Metric | Before | After | Δ |
-|--------|--------|-------|---|
-| Test count | 494 | 497 | +3 |
-| Test time | 0.08s | 0.08s | 0 |
-| Clippy warnings | TBD | TBD | - |
+| Metric          | Before | After | Δ   |
+| --------------- | ------ | ----- | --- |
+| Test count      | 494    | 497   | +3  |
+| Test time       | 0.08s  | 0.08s | 0   |
+| Clippy warnings | TBD    | TBD   | -   |

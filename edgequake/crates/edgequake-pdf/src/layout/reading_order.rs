@@ -348,14 +348,21 @@ impl ReadingOrderDetector {
             })
             .collect();
 
+        // OODA-02 FIX: Use LEFT-MOST block (min x1), not RIGHT-MOST (max x2)
+        // WHY (First Principles - per pymupdf4llm multi_column.py lines 290-304):
+        // When sorting blocks for reading order, the left-most block with vertical
+        // overlap determines the sort key. This ensures that right-column content
+        // comes AFTER left-column content at the same vertical level. The original
+        // code used max_by(x2) which found the right-most left block, but pymupdf4llm
+        // uses min_by(x1) to find the truly left-most overlapping block.
         if let Some((_, left_block)) = left_blocks
             .iter()
-            .max_by(|(_, a), (_, b)| a.bbox.x2.partial_cmp(&b.bbox.x2).unwrap())
+            .min_by(|(_, a), (_, b)| a.bbox.x1.partial_cmp(&b.bbox.x1).unwrap())
         {
             // Use the left block's Y coordinate for sorting, but our X coordinate
             // This ensures blocks at the same vertical level come after their left neighbors
             tracing::debug!(
-                "OODA-41: Block '{}' uses left-block Y={:.1} for sort (orig Y={:.1})",
+                "OODA-02: Block '{}' uses left-block Y={:.1} for sort (orig Y={:.1})",
                 &block.text[..block.text.len().min(30)],
                 left_block.bbox.y1,
                 block_bbox.y1
@@ -772,5 +779,49 @@ mod tests {
         let reading_order = detector.from_xy_cut_order(&xy_order);
         assert_eq!(reading_order.order, vec![3, 1, 2, 0]);
         assert!((reading_order.confidence - 1.0).abs() < 0.001);
+    }
+
+    // ==========================================================================
+    // OODA-02: Regression test for left-block finder fix
+    // ==========================================================================
+
+    #[test]
+    fn test_smart_sort_key_uses_leftmost_block() {
+        // WHY: This test verifies the OODA-02 fix where we changed from max_by(x2)
+        // to min_by(x1) to find the LEFT-MOST overlapping block, matching pymupdf4llm.
+        //
+        // Scenario: Two left blocks (A at x=50, B at x=150) overlap vertically with
+        // a right block (C at x=400). The sort key for C should use A's Y (the left-most).
+        let detector = ReadingOrderDetector::new();
+
+        // Create test blocks with text
+        let mut block_a = make_block(50.0, 100.0, 140.0, 150.0); // Left-most left block
+        block_a.text = "Block A (left-most)".to_string();
+
+        let mut block_b = make_block(150.0, 100.0, 240.0, 150.0); // Right-ish left block
+        block_b.text = "Block B (right-ish)".to_string();
+
+        let mut block_c = make_block(400.0, 100.0, 550.0, 150.0); // Right block
+        block_c.text = "Block C (right column)".to_string();
+
+        let blocks = vec![block_a.clone(), block_b.clone(), block_c.clone()];
+
+        // Compute smart key for the right block (block_c at index 2)
+        let key_c = detector.compute_smart_sort_key(2, &blocks);
+
+        // The key should use block_a's Y (100.0), not block_b's Y
+        // Because block_a is the LEFT-MOST block with vertical overlap
+        assert!(
+            (key_c.0 - 100.0).abs() < 0.1,
+            "Sort key Y should be 100.0 (from left-most block A), got {}",
+            key_c.0
+        );
+
+        // X coordinate should be block_c's X (400.0)
+        assert!(
+            (key_c.1 - 400.0).abs() < 0.1,
+            "Sort key X should be 400.0 (block C's position), got {}",
+            key_c.1
+        );
     }
 }

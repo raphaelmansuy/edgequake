@@ -76,11 +76,13 @@
 **Description**: Reorder pipeline to detect columns before final block grouping.
 
 **Pros**:
+
 - Addresses root cause
 - Matches PyMuPDF4LLM architecture
 - Long-term maintainability
 
 **Cons**:
+
 - Significant refactoring
 - Risk of regression
 - 2-3 day effort
@@ -92,11 +94,13 @@
 **Description**: Add margin parameters to filter noise before processing.
 
 **Pros**:
+
 - Quick win (1-2 hours)
 - Immediately improves quality
 - Low regression risk
 
 **Cons**:
+
 - Doesn't fix root cause
 - Partial improvement only
 
@@ -107,11 +111,13 @@
 **Description**: Enhance `reading_order.rs` to use PyMuPDF4LLM's column-aware sorting.
 
 **Pros**:
+
 - Targeted fix
 - Moderate effort
 - Can be done incrementally
 
 **Cons**:
+
 - May not fully resolve fragmentation
 - Still working with improperly grouped blocks
 
@@ -122,10 +128,12 @@
 **Description**: Implement 3-phase rectangle joining from PyMuPDF4LLM.
 
 **Pros**:
+
 - Directly addresses block fragmentation
 - Well-documented algorithm (from Python)
 
 **Cons**:
+
 - Adds complexity
 - May conflict with existing grouping
 
@@ -156,44 +164,38 @@
 ## 4. Recommended Approach (First Principles)
 
 **Phase 1 (Iteration 01-05): Quick Wins**
+
 1. ✅ Add header/footer margin filtering (Option B)
 2. ✅ Improve reading order with column-aware sorting (Option C)
 
-**Phase 2 (Iteration 06-15): Core Improvements**
-3. Implement rectangle joining algorithm (Option D)
-4. Add list bullet detection from visual cues
+**Phase 2 (Iteration 06-15): Core Improvements** 3. Implement rectangle joining algorithm (Option D) 4. Add list bullet detection from visual cues
 
-**Phase 3 (Iteration 16-30): Architecture**
-5. Refactor pipeline order (Option A)
-6. Implement PyMuPDF4LLM-style block extraction
+**Phase 3 (Iteration 16-30): Architecture** 5. Refactor pipeline order (Option A) 6. Implement PyMuPDF4LLM-style block extraction
 
-**Phase 4 (Iteration 31-50): Polish**
-7. Table detection improvements
-8. Code block detection refinement
-9. Performance optimization
+**Phase 4 (Iteration 31-50): Polish** 7. Table detection improvements 8. Code block detection refinement 9. Performance optimization
 
 ---
 
 ## 5. Quality Principles Check
 
-| Principle | Current State | Target |
-|-----------|---------------|--------|
-| SRP | Partial - some modules do too much | Each module one responsibility |
-| DRY | Good - minimal duplication | Maintain |
-| Dead Code | Some unused paths | Audit and remove |
-| Fast Tests | 0.08s for 494 tests | Maintain or improve |
-| First Principles | Incremental evolution | Root cause focus |
+| Principle        | Current State                      | Target                         |
+| ---------------- | ---------------------------------- | ------------------------------ |
+| SRP              | Partial - some modules do too much | Each module one responsibility |
+| DRY              | Good - minimal duplication         | Maintain                       |
+| Dead Code        | Some unused paths                  | Audit and remove               |
+| Fast Tests       | 0.08s for 494 tests                | Maintain or improve            |
+| First Principles | Incremental evolution              | Root cause focus               |
 
 ---
 
 ## 6. Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Regression in existing tests | Medium | High | Run full test suite after each change |
-| Performance degradation | Low | Medium | Benchmark before/after |
-| Scope creep | Medium | Medium | Strict OODA iteration boundaries |
-| Breaking API | Low | High | No public API changes in Phase 1-2 |
+| Risk                         | Likelihood | Impact | Mitigation                            |
+| ---------------------------- | ---------- | ------ | ------------------------------------- |
+| Regression in existing tests | Medium     | High   | Run full test suite after each change |
+| Performance degradation      | Low        | Medium | Benchmark before/after                |
+| Scope creep                  | Medium     | Medium | Strict OODA iteration boundaries      |
+| Breaking API                 | Low        | High   | No public API changes in Phase 1-2    |
 
 ---
 
@@ -202,6 +204,7 @@
 **Immediate Priority**: Option B (Margin Filtering)
 
 **Rationale**:
+
 1. Low risk, high confidence
 2. Measurable improvement
 3. Sets foundation for further work

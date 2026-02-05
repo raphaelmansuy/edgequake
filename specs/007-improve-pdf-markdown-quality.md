@@ -4,7 +4,11 @@
 
 Your mission is to systematically improve the quality of PDF-to-Markdown conversion in the `edgequake-pdf` crate to match or exceed the quality of PyMuPDF4LLM, the industry gold standard for LLM-optimized PDF extraction.
 
+
+Read files to compare gold vs converted at the end of each iteration to evaluate the quality.
+
 FULLY READ this file !!!!
+
 
 ## ⚠️ CRITICAL SAFETY MANDATE ⚠️
 
@@ -154,6 +158,10 @@ specs/007-improve-pdf-markdown-quality/ooda/
 │  5. FIRST PRINCIPLES: Understand WHY before implementing    │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+Use high signal command + ASCII explantion of algorithms in comments / focus on WHY 
+
+Always use First Principle Thinking
 
 ### Test Execution Requirements
 
