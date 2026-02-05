@@ -13,6 +13,7 @@ Explain the enhancement strategy and when to use each feature.
 ### 2. Add WHY to text_needs_improvement()
 
 Document the heuristics:
+
 - 0.3 word character threshold
 - OCR error patterns (nurnber, 0O, etc.)
 

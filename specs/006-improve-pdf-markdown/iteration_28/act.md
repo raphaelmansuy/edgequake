@@ -5,6 +5,7 @@
 ### 1. Added WHY Comment to GeometricClusterer
 
 Documented why DBSCAN was chosen over histogram binning for PDF column detection:
+
 - No need to specify number of columns a priori
 - Handles variable-width columns
 - Robust to noise
@@ -13,17 +14,18 @@ Documented why DBSCAN was chosen over histogram binning for PDF column detection
 ### 2. Added dbscan_1d Tests
 
 Three new tests for the 1D DBSCAN variant:
+
 - `test_dbscan_1d_two_clusters` - Validates cluster separation
 - `test_dbscan_1d_single_cluster` - All points in one cluster
 - `test_dbscan_1d_empty` - Empty input edge case
 
 ## Results
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Tests | 481 | 484 (+3) |
-| WHY comments | 0 | 1 |
-| dbscan_1d tests | 0 | 3 |
+| Metric          | Before | After    |
+| --------------- | ------ | -------- |
+| Tests           | 481    | 484 (+3) |
+| WHY comments    | 0      | 1        |
+| dbscan_1d tests | 0      | 3        |
 
 ## Test Lessons
 

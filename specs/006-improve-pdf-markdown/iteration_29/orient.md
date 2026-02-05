@@ -3,6 +3,7 @@
 ## Context
 
 The LLM enhancement processor is the final stage of PDF extraction that uses AI to improve output quality. It handles:
+
 - Table formatting (raw text → proper markdown tables)
 - Math conversion (Unicode symbols → LaTeX)
 - Image description (vision LLM)
@@ -10,11 +11,11 @@ The LLM enhancement processor is the final stage of PDF extraction that uses AI 
 
 ## Risk Assessment
 
-| Factor | Risk | Mitigation |
-|--------|------|------------|
-| Cost per document | High | Document when to enable each feature |
-| Over-enhancement | Medium | Explain conservative defaults |
-| Magic thresholds | Medium | Document heuristic origins |
+| Factor            | Risk   | Mitigation                           |
+| ----------------- | ------ | ------------------------------------ |
+| Cost per document | High   | Document when to enable each feature |
+| Over-enhancement  | Medium | Explain conservative defaults        |
+| Magic thresholds  | Medium | Document heuristic origins           |
 
 ## Key Decisions to Document
 
@@ -25,6 +26,7 @@ The LLM enhancement processor is the final stage of PDF extraction that uses AI 
 ## Alignment with Mission
 
 Mission 006 goals:
+
 - ✅ High signal WHY comments → Document enhancement strategy
 - ✅ Clean code → Explain heuristic thresholds
 - ✅ Test coverage → Add builder chain test
