@@ -536,7 +536,11 @@ impl PdfExtractor {
                 page_number: page.number,
                 text: page_text.clone(),
                 markdown: page_text,
-                images: Vec::new(), // TODO: Extract images
+                // KNOWN LIMITATION: Image extraction not implemented in text mode
+                // WHY: Requires vision/multimodal LLM for OCR and image understanding
+                // WORKAROUND: Use Vision mode (ExtractionMode::Vision) for image documents
+                // FUTURE: Extract image bytes and use ImageOcrConfig for LLM-based OCR
+                images: Vec::new(),
             });
         }
 

@@ -293,7 +293,12 @@ impl PdfBackend for PdfiumBackend {
         Ok(PdfInfo {
             page_count,
             pdf_version: "Unknown".to_string(),
-            has_images: false, // TODO: Could scan for images
+            // KNOWN LIMITATION: Image presence detection not implemented
+            // WHY: Would require scanning PDF page objects for XObject/Image types
+            // PDFium API can enumerate page objects but adds complexity
+            // WORKAROUND: Assume images present if Vision mode is requested
+            // FUTURE: Could use pdfium_render's page_objects() iterator
+            has_images: false,
             image_count: 0,
             file_size: pdf_bytes.len(),
         })
