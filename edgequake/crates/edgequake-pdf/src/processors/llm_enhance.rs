@@ -87,6 +87,23 @@ impl LlmEnhanceConfig {
 }
 
 /// LLM-based enhancement processor.
+///
+/// **WHY use LLM for post-processing?**
+///
+/// Text-based PDF extraction can produce:
+/// - Tables as raw text (no column alignment)
+/// - Math as Unicode symbols (not LaTeX)
+/// - Images without descriptions (accessibility/indexing gap)
+/// - OCR artifacts (nurnber, 0O, etc.)
+///
+/// LLM enhancement is the final stage that improves output quality.
+/// It's optional and disabled by default for cost control.
+///
+/// **Feature defaults:**
+/// - `enhance_tables=true`: Low cost, high value (tables → markdown)
+/// - `convert_math=true`: Improves formula rendering
+/// - `describe_images=true`: Adds accessibility (requires vision model)
+/// - `improve_text=false`: Aggressive, can modify correct text
 pub struct LlmEnhanceProcessor {
     provider: Arc<dyn LLMProvider>,
     config: LlmEnhanceConfig,
@@ -416,6 +433,14 @@ Output:"#,
     ///
     /// # Returns
     /// true if text likely has quality issues (OCR errors, etc.)
+    ///
+    /// **WHY these thresholds?**
+    /// - 0.3 ratio for short text (<20 chars): Short text naturally has more
+    ///   punctuation/symbols (e.g., "Fig. 1" has 50% non-word chars)
+    /// - 0.5 ratio for long text (>50 chars): Normal prose is ~85% alphanumeric,
+    ///   so below 50% indicates likely OCR garbage or symbol-heavy content
+    /// - Character frequency analysis: Unusual distributions (e.g., too many
+    ///   zeros in place of 'O') suggest OCR substitution errors
     fn text_needs_improvement(text: &str) -> bool {
         if text.is_empty() {
             return false;
@@ -599,5 +624,32 @@ mod tests {
         // Mock provider returns something, so block should be enhanced
         // (either html is set or text is non-empty)
         assert!(block.html.is_some() || !block.text.is_empty());
+    }
+
+    // ==========================================================================
+    // OODA-29: Additional builder and config tests
+    // ==========================================================================
+
+    #[test]
+    fn test_processor_with_image_ocr_enabled() {
+        let provider = Arc::new(MockProvider::new());
+        let processor =
+            LlmEnhanceProcessor::with_defaults(provider).with_image_ocr_enabled();
+        assert!(processor.image_ocr_config.is_some());
+        assert!(processor.image_ocr_config.as_ref().unwrap().enabled);
+    }
+
+    #[test]
+    fn test_processor_with_custom_image_ocr() {
+        let provider = Arc::new(MockProvider::new());
+        let custom_config = ImageOcrConfig {
+            enabled: true,
+            model: "gpt-4o".to_string(),
+            ..Default::default()
+        };
+        let processor = LlmEnhanceProcessor::with_defaults(provider)
+            .with_image_ocr(custom_config);
+        assert!(processor.image_ocr_config.is_some());
+        assert_eq!(processor.image_ocr_config.as_ref().unwrap().model, "gpt-4o");
     }
 }
