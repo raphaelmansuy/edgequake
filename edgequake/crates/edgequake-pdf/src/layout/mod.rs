@@ -231,13 +231,65 @@ impl LayoutAnalyzer {
         // Run XY-cut for region detection
         let regions = self.detect_regions(&bboxes, page_width, page_height);
 
+        // OODA-22: Calculate actual confidence instead of hardcoded 0.9
+        let confidence =
+            self.calculate_confidence(blocks.len(), &columns, &reading_order, &regions);
+
         LayoutAnalysis {
             columns,
             regions,
             reading_order,
             margins,
-            confidence: 0.9, // TODO: calculate actual confidence
+            confidence,
         }
+    }
+
+    /// Calculate layout analysis confidence score.
+    ///
+    /// WHY: Confidence indicates how reliable the layout analysis is.
+    /// A low confidence suggests the extraction may have issues.
+    ///
+    /// Factors (weighted average):
+    /// - **Reading order coverage (50%)**: All blocks should be in reading order
+    /// - **Column detection (30%)**: Single column = confident, multi = slightly less
+    /// - **Region quality (20%)**: XY-cut should produce reasonable region count
+    fn calculate_confidence(
+        &self,
+        block_count: usize,
+        columns: &[BoundingBox],
+        reading_order: &[usize],
+        regions: &[LayoutRegion],
+    ) -> f32 {
+        // 1. Reading order coverage: all blocks should appear in reading order
+        let order_coverage = if block_count == 0 {
+            1.0
+        } else {
+            (reading_order.len() as f32 / block_count as f32).min(1.0)
+        };
+
+        // 2. Column detection confidence
+        // Single column is always confident (1.0)
+        // Multi-column has slight uncertainty (0.95) due to boundary detection
+        let column_confidence = if columns.is_empty() || columns.len() == 1 {
+            1.0
+        } else {
+            0.95
+        };
+
+        // 3. Region quality from XY-cut
+        // - No regions: 0.8 (likely issue with XY-cut)
+        // - Over-fragmented (>2x blocks): 0.7 (too many splits)
+        // - Reasonable: 1.0
+        let region_confidence = if regions.is_empty() {
+            0.8
+        } else if block_count > 0 && regions.len() > block_count * 2 {
+            0.7
+        } else {
+            1.0
+        };
+
+        // Weighted average (reading order is most critical)
+        (order_coverage * 0.5 + column_confidence * 0.3 + region_confidence * 0.2).clamp(0.0, 1.0)
     }
 
     /// Detect layout regions using XY-cut algorithm.
@@ -354,5 +406,58 @@ mod tests {
         assert_eq!(margins.top, 40.0);
         assert_eq!(margins.right, 52.0);
         assert_eq!(margins.bottom, 42.0);
+    }
+
+    // OODA-22: Test confidence calculation
+
+    #[test]
+    fn test_confidence_calculation_perfect() {
+        let analyzer = LayoutAnalyzer::new();
+        // Perfect case: all blocks in reading order, single column, reasonable regions
+        let block_count = 5;
+        let columns = vec![]; // Single column
+        let reading_order = vec![0, 1, 2, 3, 4]; // All 5 blocks
+        let regions = vec![
+            LayoutRegion::new(BoundingBox::new(0.0, 0.0, 100.0, 100.0), RegionType::TextBody),
+            LayoutRegion::new(BoundingBox::new(0.0, 100.0, 100.0, 200.0), RegionType::TextBody),
+        ];
+
+        let confidence =
+            analyzer.calculate_confidence(block_count, &columns, &reading_order, &regions);
+        assert!(confidence >= 0.95, "Perfect case should have high confidence");
+    }
+
+    #[test]
+    fn test_confidence_calculation_missing_blocks() {
+        let analyzer = LayoutAnalyzer::new();
+        // Missing blocks: only 3 of 5 in reading order
+        let block_count = 5;
+        let columns = vec![];
+        let reading_order = vec![0, 1, 2]; // Only 3 of 5
+        let regions = vec![];
+
+        let confidence =
+            analyzer.calculate_confidence(block_count, &columns, &reading_order, &regions);
+        // order_coverage = 0.6, column = 1.0, region = 0.8
+        // weighted = 0.6*0.5 + 1.0*0.3 + 0.8*0.2 = 0.3 + 0.3 + 0.16 = 0.76
+        assert!(
+            confidence < 0.8,
+            "Missing blocks should reduce confidence: {}",
+            confidence
+        );
+    }
+
+    #[test]
+    fn test_confidence_calculation_empty() {
+        let analyzer = LayoutAnalyzer::new();
+        // Empty case: no blocks
+        let confidence = analyzer.calculate_confidence(0, &[], &[], &[]);
+        // order = 1.0, column = 1.0, region = 0.8 (empty is penalized slightly)
+        // weighted = 0.5 + 0.3 + 0.16 = 0.96
+        assert!(
+            confidence >= 0.95,
+            "Empty blocks should have high confidence: {}",
+            confidence
+        );
     }
 }
