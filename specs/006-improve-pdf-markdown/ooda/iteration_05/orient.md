@@ -21,7 +21,7 @@
 
 Add comprehensive WHY documentation to `pymupdf_structs.rs`:
 
-```rust
+````rust
 /// ## Font Style Detection Data Flow
 ///
 /// ```text
@@ -49,4 +49,4 @@ Add comprehensive WHY documentation to `pymupdf_structs.rs`:
 /// │  └─ is_monospace() → `text`                                             │
 /// └─────────────────────────────────────────────────────────────────────────┘
 /// ```
-```
+````

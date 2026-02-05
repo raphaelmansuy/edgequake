@@ -197,6 +197,10 @@ impl Span {
 
         // If gap is negative (overlapping or backwards), reject
         // unless it's minor overlap from kerning
+        // WHY 0.3 * avg_char_width: Kerning in proportional fonts can cause
+        // characters to overlap slightly (e.g., "AV", "To"). Allowing 30%
+        // overlap tolerance preserves kerned pairs while rejecting truly
+        // overlapping text (which indicates layout issues or vertical text).
         let avg_char_width = (self.x1 - self.x0) / self.text.len().max(1) as f32;
         if gap < -avg_char_width * 0.3 {
             return false;

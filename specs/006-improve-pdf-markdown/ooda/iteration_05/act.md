@@ -40,7 +40,7 @@ Added comprehensive ASCII diagram showing the complete data flow from PDFium to 
 Documented the reasoning behind span merging thresholds:
 
 - **0.5pt font size tolerance**: Accounts for PDF coordinate rounding errors
-- **0.3 * font_size y-tolerance**: Catches subscript/superscript positioning
+- **0.3 \* font_size y-tolerance**: Catches subscript/superscript positioning
 
 ## Verification
 
