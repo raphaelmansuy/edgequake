@@ -555,6 +555,36 @@ impl TextTableReconstructionProcessor {
         re.is_match(&t)
     }
 
+    /// Check if text is a prose reference to a table, NOT a caption.
+    ///
+    /// ## OODA-IT10: Distinguish "Table N mentions" from captions
+    ///
+    /// WHY: "Table 4 presents statistical information..." is prose ABOUT a table,
+    /// not a caption for a new table. If we treat it as a caption, we'll try
+    /// to scan for table rows below it and fail (since the rows are earlier).
+    ///
+    /// DETECTION LOGIC:
+    /// - "Table 4:" or "Table 4." → caption (ends with colon/period after number)
+    /// - "Table 4 presents..." → prose reference (space after number, then word)
+    ///
+    /// We check if the char immediately after "Table N" is a space followed
+    /// by an alphabetic character (indicating prose continuation).
+    pub fn is_table_reference(text: &str) -> bool {
+        let t = text.trim();
+        if !t.starts_with("Table ") || t.len() <= 10 {
+            return false;
+        }
+
+        // Get char after "Table N" (skip "Table " + digits)
+        let after_table = t.chars().skip(6).skip_while(|c| c.is_ascii_digit());
+        let first_char = after_table.clone().next();
+        let second_char = after_table.skip(1).next();
+
+        // Pattern: "Table N X..." where X is a letter (not : or .)
+        // This indicates prose like "Table 4 presents..." or "Table 4 shows..."
+        matches!(first_char, Some(' ')) && matches!(second_char, Some(c) if c.is_alphabetic())
+    }
+
     /// Check if block is a hard break (section boundary).
     fn is_hard_break(block: &Block) -> bool {
         let t = block.text.trim();
@@ -938,32 +968,11 @@ impl TextTableReconstructionProcessor {
                 && t.len() > 7
                 && t.chars().nth(7).is_some_and(|c| c.is_ascii_digit());
 
-            // OODA-IT10: Check if this is a "Table N mentions" text, not a caption
-            // WHY: "Table 4 presents statistical information..." is prose ABOUT the table,
-            // not another table caption.
-            //
-            // DETECTION LOGIC:
-            // - "Table 4:" or "Table 4." at START = caption (colon/period after number)
-            // - "Table 4 presents..." = prose reference (space after number, then word)
-            //
-            // We check if char immediately after "Table N" is a space followed by a letter
-            // (not colon, period, or another number).
-            let is_table_reference = if t.starts_with("Table ") && t.len() > 10 {
-                // Get char after "Table N" (skip "Table " + digits)
-                let after_table = t.chars().skip(6).skip_while(|c| c.is_ascii_digit());
-                let first_char = after_table.clone().next();
-                let second_char = after_table.skip(1).next();
-
-                // Pattern: "Table N X..." where X is a letter (not : or .)
-                // This indicates prose like "Table 4 presents..." or "Table 4 shows..."
-                matches!(first_char, Some(' '))
-                    && matches!(second_char, Some(c) if c.is_alphabetic())
-            } else {
-                false
-            };
+            // OODA-IT10: Use helper to detect prose references to tables
+            let is_table_ref = Self::is_table_reference(t);
 
             let looks_caption = Self::looks_like_table_caption(t);
-            let is_actual_caption = looks_caption && !is_table_reference;
+            let is_actual_caption = looks_caption && !is_table_ref;
 
             if t.is_empty() || Self::is_hard_break(b) || is_actual_caption || is_figure_caption {
                 break;
@@ -1193,5 +1202,62 @@ mod tests {
         let (prefix, nums) = result.unwrap();
         assert_eq!(prefix, "Method");
         assert_eq!(nums, vec!["1.0"]);
+    }
+
+    #[test]
+    fn test_is_table_reference_vs_caption() {
+        // OODA-IT10: Test distinguishing prose references from table captions
+
+        // Prose references (should return TRUE)
+        assert!(
+            TextTableReconstructionProcessor::is_table_reference(
+                "Table 4 presents statistical information about the datasets"
+            ),
+            "Prose 'Table N presents...' should be detected as reference"
+        );
+        assert!(
+            TextTableReconstructionProcessor::is_table_reference(
+                "Table 1 shows the results of our experiments"
+            ),
+            "Prose 'Table N shows...' should be detected as reference"
+        );
+        assert!(
+            TextTableReconstructionProcessor::is_table_reference(
+                "Table 2 summarizes the key findings"
+            ),
+            "Prose 'Table N summarizes...' should be detected as reference"
+        );
+
+        // Captions (should return FALSE)
+        assert!(
+            !TextTableReconstructionProcessor::is_table_reference("Table 1."),
+            "Caption 'Table N.' should NOT be a reference"
+        );
+        assert!(
+            !TextTableReconstructionProcessor::is_table_reference("Table 1:"),
+            "Caption 'Table N:' should NOT be a reference"
+        );
+        assert!(
+            !TextTableReconstructionProcessor::is_table_reference("Table 1: Results"),
+            "Caption 'Table N: Title' should NOT be a reference"
+        );
+        assert!(
+            !TextTableReconstructionProcessor::is_table_reference("Table 4."),
+            "Caption 'Table 4.' should NOT be a reference"
+        );
+
+        // Edge cases
+        assert!(
+            !TextTableReconstructionProcessor::is_table_reference("Table"),
+            "Short 'Table' should NOT be a reference"
+        );
+        assert!(
+            !TextTableReconstructionProcessor::is_table_reference("Table 1"),
+            "'Table N' alone (<=10 chars) should NOT be a reference"
+        );
+        assert!(
+            !TextTableReconstructionProcessor::is_table_reference("Not a table reference"),
+            "Non-table text should NOT be a reference"
+        );
     }
 }
