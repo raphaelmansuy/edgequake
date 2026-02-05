@@ -152,8 +152,13 @@ impl MarkdownRenderer {
     }
 
     fn render_table(&self, block: &Block) -> String {
-        // For now, just render as paragraph
-        // TODO: Implement proper table detection and rendering
+        // KNOWN LIMITATION: Proper table rendering not implemented
+        // WHY: Requires cell boundary detection which is complex:
+        // - May need PDF line/rect detection for borders
+        // - Cell content alignment detection
+        // - Table structure inference from spatial relationships
+        // WORKAROUND: Tables are rendered as paragraphs (text content preserved)
+        // FUTURE: Use backend/lattice.rs for table structure detection
         self.render_paragraph(block)
     }
 

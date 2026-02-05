@@ -160,8 +160,11 @@ impl TextGrouper {
     /// often have height > width even for horizontal text. Need better heuristic.
     #[allow(dead_code)]
     fn is_horizontal_char(_ch: &RawChar) -> bool {
-        // TODO: Implement proper vertical text detection using character sequence analysis
-        // The aspect ratio approach doesn't work because normal text often has height > width
+        // KNOWN LIMITATION: Vertical text detection not implemented
+        // WHY: PDFium character bboxes don't indicate text direction reliably
+        // Aspect ratio heuristics fail because normal chars often have height > width
+        // WORKAROUND: ArXiv watermarks are filtered by margin position instead (OODA-07)
+        // FUTURE: Analyze character sequence patterns to detect vertical text runs
         true
     }
 
