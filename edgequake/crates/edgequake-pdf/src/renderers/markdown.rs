@@ -1176,4 +1176,154 @@ mod tests {
         assert!(result.contains("###"));
         assert!(!result.contains("######"));
     }
+
+    /// OODA-IT04: Test proper Markdown table rendering with children.
+    ///
+    /// WHY: Tables detected by TableDetectionProcessor have cells stored as
+    /// block.children with BlockType::TableCell. The renderer must group
+    /// these by Y-coordinate into rows and output pipe-separated Markdown.
+    #[test]
+    fn test_table_rendering_with_children() {
+        let renderer = MarkdownRenderer::new();
+
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        // Create table block with cells as children
+        let mut table_block = Block::new(
+            BlockType::Table,
+            BoundingBox::new(72.0, 100.0, 540.0, 200.0),
+        );
+
+        // Row 1 (header): y1 = 100
+        let mut cell1 = Block::new(
+            BlockType::TableCell,
+            BoundingBox::new(72.0, 100.0, 150.0, 120.0),
+        );
+        cell1.text = "Name".to_string();
+
+        let mut cell2 = Block::new(
+            BlockType::TableCell,
+            BoundingBox::new(160.0, 100.0, 250.0, 120.0),
+        );
+        cell2.text = "Age".to_string();
+
+        // Row 2 (data): y1 = 130
+        let mut cell3 = Block::new(
+            BlockType::TableCell,
+            BoundingBox::new(72.0, 130.0, 150.0, 150.0),
+        );
+        cell3.text = "Alice".to_string();
+
+        let mut cell4 = Block::new(
+            BlockType::TableCell,
+            BoundingBox::new(160.0, 130.0, 250.0, 150.0),
+        );
+        cell4.text = "30".to_string();
+
+        table_block.children = vec![cell1, cell2, cell3, cell4];
+
+        page.add_block(table_block);
+        doc.add_page(page);
+
+        let result = renderer.render(&doc).unwrap();
+
+        // Debug output
+        eprintln!("TABLE OUTPUT:\n{}", result);
+
+        // Verify Markdown table format
+        assert!(
+            result.contains("| Name |"),
+            "Missing header row: {}",
+            result
+        );
+        assert!(result.contains("| --- |"), "Missing separator: {}", result);
+        assert!(
+            result.contains("| Alice |"),
+            "Missing data row: {}",
+            result
+        );
+    }
+
+    /// OODA-IT04: Test table rendering with empty cells.
+    #[test]
+    fn test_table_rendering_empty_cells() {
+        let renderer = MarkdownRenderer::new();
+
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        let mut table_block = Block::new(
+            BlockType::Table,
+            BoundingBox::new(72.0, 100.0, 540.0, 200.0),
+        );
+
+        // Row with empty cell
+        let mut cell1 = Block::new(
+            BlockType::TableCell,
+            BoundingBox::new(72.0, 100.0, 150.0, 120.0),
+        );
+        cell1.text = "Header".to_string();
+
+        let mut cell2 = Block::new(
+            BlockType::TableCell,
+            BoundingBox::new(160.0, 100.0, 250.0, 120.0),
+        );
+        cell2.text = String::new(); // Empty cell
+
+        table_block.children = vec![cell1, cell2];
+        page.add_block(table_block);
+        doc.add_page(page);
+
+        let result = renderer.render(&doc).unwrap();
+
+        // Should still produce valid table structure
+        assert!(result.contains("|"), "Missing table pipes: {}", result);
+        assert!(
+            result.contains("| Header |"),
+            "Missing header cell: {}",
+            result
+        );
+    }
+
+    /// OODA-IT04: Test single-row table (header only).
+    #[test]
+    fn test_table_rendering_single_row() {
+        let renderer = MarkdownRenderer::new();
+
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        let mut table_block = Block::new(
+            BlockType::Table,
+            BoundingBox::new(72.0, 100.0, 540.0, 200.0),
+        );
+
+        // Single row
+        let mut cell1 = Block::new(
+            BlockType::TableCell,
+            BoundingBox::new(72.0, 100.0, 150.0, 120.0),
+        );
+        cell1.text = "Only".to_string();
+
+        let mut cell2 = Block::new(
+            BlockType::TableCell,
+            BoundingBox::new(160.0, 100.0, 250.0, 120.0),
+        );
+        cell2.text = "Header".to_string();
+
+        table_block.children = vec![cell1, cell2];
+        page.add_block(table_block);
+        doc.add_page(page);
+
+        let result = renderer.render(&doc).unwrap();
+
+        // Should produce header + separator (no data rows)
+        assert!(
+            result.contains("| Only |"),
+            "Missing header cell: {}",
+            result
+        );
+        assert!(result.contains("| --- |"), "Missing separator: {}", result);
+    }
 }
