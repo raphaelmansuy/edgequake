@@ -204,17 +204,6 @@ impl MarkdownRenderer {
         resolved.join(" ")
     }
 
-    /// OODA-10: Render multiple lines as plain text (no bold/italic).
-    /// Used for headers where the ## markers already provide emphasis.
-    #[allow(dead_code)] // Reserved for future header rendering refactoring
-    fn render_lines_plain(&self, lines: &[Line]) -> String {
-        lines
-            .iter()
-            .map(|l| self.render_line_plain(l))
-            .collect::<Vec<_>>()
-            .join(" ") // Join header lines with space, not newline
-    }
-
     /// Render a line with style markers (bold, italic).
     ///
     /// This method applies style markers while respecting actual spacing
