@@ -61,6 +61,79 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 
 ---
 
+## Iteration Status
+
+### ✅ Iteration 01 (commit b1611b45) - COMPLETE
+
+**Fixes Applied**:
+1. Added `PDFIUM_DYNAMIC_LIB_PATH` to Makefile backend-dev target
+2. Added auto-discovery code in PdfiumExtractor
+3. Improved error logging for library loading
+4. Updated .env.example with PDFIUM_DYNAMIC_LIB_PATH
+5. Created scripts/download-pdfium.sh for automated setup
+
+**Result**: PDF extraction now works - 60,967 bytes markdown from lighrag paper
+
+**Reference**: `specs/001-e2e-upload-pdf/ooda/iteration_01/`
+
+### ✅ Iteration 02 (commit e7cc8c4c, tag: ooda-iteration-02) - COMPLETE
+
+**Mission Status**: PRIMARY OBJECTIVE COMPLETE ✅
+
+**E2E Verification**:
+- Used MCP Playwright to navigate to documents page
+- Clicked on processing document (f6fa9cad-bbff-4892-a855-3bd7d70da044)
+- Verified side-by-side viewer displays both PDF (left) and markdown (right)
+- 16,887 bytes markdown extracted from 16-page lighrag paper
+- Content properly structured (headings, lists, links, emphasis)
+
+**Documentation Created**:
+- `observe.md`: E2E test findings, system state, evidence chain (259 lines)
+- `orient.md`: Root cause analysis, strategic options, decision matrix (241 lines)
+- `decide.md`: Action plan, task breakdown, risk assessment (274 lines)
+- `act.md`: Implementation log, commit verification, metrics (228 lines)
+- Updated `AGENTS.md`: Service management & E2E testing section (+320 lines)
+
+**Key Findings**:
+1. PDF extraction working perfectly (iteration 01 fix successful)
+2. Failed documents (rows 2-3) were due to Ollama being offline (separate issue)
+3. Frontend PID management needs improvement (not blocking)
+4. MCP Playwright excellent for AI-driven E2E testing
+
+**Total Changes**: 5 files, 1,492 insertions
+
+**Reference**: `specs/001-e2e-upload-pdf/ooda/iteration_02/`
+
+### ⏳ Iteration 03 - PLANNED
+
+**Focus**: Fix Makefile frontend PID management
+
+**Problem**: Frontend process may die but PID file remains, causing `make stop` to fail silently.
+
+**Solution**:
+1. Add health check loop after `bun run dev &`
+2. Poll http://localhost:3000 with retry
+3. Only write PID if port responds
+4. Add timeout and error reporting
+
+**Priority**: Medium (improves automation reliability)
+
+**Effort**: 2-3 hours
+
+### 📋 Iterations 04-10 - BACKLOG
+
+| Iteration | Focus | Priority | Effort |
+|-----------|-------|----------|--------|
+| 04 | Test fresh PDF upload | Medium | 1-2h + LLM time |
+| 05 | Improve error handling | Low | 3-4h |
+| 06 | Performance testing | Low | 4-6h |
+| 07 | E2E test suite for CI/CD | Low | 3-4h |
+| 08 | Document architecture decisions | Low | 2-3h |
+| 09 | Retry logic for LLM errors | Low | 3-4h |
+| 10 | Final regression testing | Low | 2-3h |
+
+---
+
 ## Process: OODA Loop (50 iterations minimum)
 
 Execute iterative OODA cycles. Each iteration produces 4 files:
