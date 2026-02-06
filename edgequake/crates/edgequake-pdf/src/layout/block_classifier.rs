@@ -86,8 +86,9 @@ impl BlockClassifier {
     /// Classification priority:
     /// 1. Code (all monospace fonts)
     /// 2. Header (large font, short text)
-    /// 3. ListItem (bullet/numbered prefix)
-    /// 4. Paragraph (default)
+    /// 3. Header (bold-only text with header patterns) [OODA-06]
+    /// 4. ListItem (bullet/numbered prefix)
+    /// 5. Paragraph (default)
     pub fn classify_block(&self, block: &Block, body_font_size: f32) -> BlockType {
         if block.lines.is_empty() {
             return BlockType::Paragraph;
@@ -102,20 +103,11 @@ impl BlockClassifier {
             return BlockType::Code;
         }
 
-        // Get first line text for pattern matching (used for list detection)
+        // Get first line text for pattern matching
         let first_text = block.lines.first().map(|l| l.text()).unwrap_or_default();
         let trimmed = first_text.trim();
 
-        // OODA-10/11: Pattern-based header detection DISABLED
-        // Keep references to suppress dead_code warnings
-        let _ = is_roman_numeral_header;
-        let _ = is_letter_subsection_header;
-        let _ = is_numeric_section_header;
-        let _ = is_numeric_subsection_header;
-        let _ = is_abstract_header;
-        let _ = &trimmed;
-
-        // Check for header based ONLY on font size (OODA-12)
+        // Check for header based on font size (OODA-12)
         let dominant_size = block
             .lines
             .iter()
@@ -142,6 +134,51 @@ impl BlockClassifier {
                 1 // Title = # (most conservative)
             };
             return BlockType::Header(level);
+        }
+
+        // OODA-06: Bold-only header detection.
+        // WHY: Many academic PDFs (IEEE, NeurIPS, ICML) have section headers
+        // at the same font size as body text, distinguished only by bold weight.
+        // Combined with pattern matching for safety (reduce false positives).
+        //
+        // Criteria:
+        // 1. ALL spans are bold
+        // 2. Short text (< 80 chars, <= 2 lines)
+        // 3. Matches header pattern OR is short enough to be a title
+        // 4. NOT a list item
+        if block.lines.len() <= self.max_header_lines
+            && total_chars < 80
+            && !is_bullet_item(trimmed)
+            && !is_numbered_list_item(trimmed)
+        {
+            let all_bold = block
+                .lines
+                .iter()
+                .all(|line| line.spans.iter().all(|span| span.is_bold()));
+
+            if all_bold
+                && (is_abstract_header(trimmed)
+                    || is_roman_numeral_header(trimmed)
+                    || is_numeric_section_header(trimmed)
+                    || is_numeric_subsection_header(trimmed)
+                    || is_letter_subsection_header(trimmed)
+                    || is_all_caps_header(trimmed))
+            {
+                // Determine level based on pattern
+                let level = if is_roman_numeral_header(trimmed)
+                    || is_numeric_section_header(trimmed)
+                    || is_abstract_header(trimmed)
+                {
+                    2 // Major section = ##
+                } else if is_numeric_subsection_header(trimmed)
+                    || is_letter_subsection_header(trimmed)
+                {
+                    3 // Subsection = ###
+                } else {
+                    2 // Default for all-caps headers
+                };
+                return BlockType::Header(level);
+            }
         }
 
         // Check for list item
@@ -429,6 +466,24 @@ pub fn is_abstract_header(text: &str) -> bool {
     lower == "abstract" || lower == "abstract:" || lower.starts_with("abstract ")
 }
 
+/// OODA-06: Check if text is an all-caps header.
+///
+/// Patterns: "REFERENCES", "ACKNOWLEDGMENTS", "CONCLUSION", "INTRODUCTION"
+///
+/// Criteria:
+/// - At least 3 alpha characters (excludes "I.", "II.")
+/// - At least 60% uppercase among alphabetic characters
+/// - No more than 50 chars (excludes full article titles)
+pub fn is_all_caps_header(text: &str) -> bool {
+    let trimmed = text.trim();
+    let alpha_count = trimmed.chars().filter(|c| c.is_alphabetic()).count();
+    if alpha_count < 3 || trimmed.len() > 50 {
+        return false;
+    }
+    let upper_count = trimmed.chars().filter(|c| c.is_uppercase()).count();
+    (upper_count as f32 / alpha_count as f32) >= 0.6
+}
+
 // =============================================================================
 // TESTS
 // =============================================================================
@@ -688,6 +743,117 @@ mod tests {
         assert!(
             !is_numeric_subsection_header("Not a subsection"),
             "No pattern"
+        );
+    }
+
+    /// OODA-06: Test all-caps header detection.
+    #[test]
+    fn test_all_caps_header() {
+        assert!(is_all_caps_header("REFERENCES"));
+        assert!(is_all_caps_header("ACKNOWLEDGMENTS"));
+        assert!(is_all_caps_header("CONCLUSION"));
+        assert!(is_all_caps_header("I. INTRODUCTION")); // Roman + caps
+
+        // Not all-caps headers
+        assert!(!is_all_caps_header("Normal text here"));
+        assert!(!is_all_caps_header("AB")); // Too short (< 3 alpha)
+        assert!(!is_all_caps_header("")); // Empty
+    }
+
+    /// OODA-06: Test bold-only header classification for academic papers.
+    #[test]
+    fn test_bold_header_classification() {
+        let classifier = BlockClassifier::new();
+        let body_size = 10.0;
+
+        // Bold academic section header "I. INTRODUCTION" at body font size
+        let bold_section = Block::from_line(Line {
+            spans: vec![Span {
+                text: "I. INTRODUCTION".to_string(),
+                x0: 10.0,
+                y0: 100.0,
+                x1: 150.0,
+                y1: 110.0,
+                font_size: 10.0, // Same as body
+                font_name: Some("Times-Bold".to_string()),
+                page_num: 0,
+                font_is_bold: Some(true),
+                font_is_italic: Some(false),
+                font_is_monospace: Some(false),
+            }],
+            x0: 10.0,
+            y0: 100.0,
+            x1: 150.0,
+            y1: 110.0,
+            page_num: 0,
+        });
+
+        assert!(
+            matches!(
+                classifier.classify_block(&bold_section, body_size),
+                BlockType::Header(2)
+            ),
+            "Bold 'I. INTRODUCTION' should be H2"
+        );
+
+        // Bold "Abstract" header
+        let bold_abstract = Block::from_line(Line {
+            spans: vec![Span {
+                text: "Abstract".to_string(),
+                x0: 10.0,
+                y0: 100.0,
+                x1: 80.0,
+                y1: 110.0,
+                font_size: 10.0,
+                font_name: Some("Arial-Bold".to_string()),
+                page_num: 0,
+                font_is_bold: Some(true),
+                font_is_italic: Some(false),
+                font_is_monospace: Some(false),
+            }],
+            x0: 10.0,
+            y0: 100.0,
+            x1: 80.0,
+            y1: 110.0,
+            page_num: 0,
+        });
+
+        assert!(
+            matches!(
+                classifier.classify_block(&bold_abstract, body_size),
+                BlockType::Header(2)
+            ),
+            "Bold 'Abstract' should be H2"
+        );
+
+        // Non-bold text should NOT be classified as header
+        let non_bold = Block::from_line(Line {
+            spans: vec![Span {
+                text: "I. INTRODUCTION".to_string(),
+                x0: 10.0,
+                y0: 100.0,
+                x1: 150.0,
+                y1: 110.0,
+                font_size: 10.0,
+                font_name: Some("Times".to_string()),
+                page_num: 0,
+                font_is_bold: Some(false),
+                font_is_italic: Some(false),
+                font_is_monospace: Some(false),
+            }],
+            x0: 10.0,
+            y0: 100.0,
+            x1: 150.0,
+            y1: 110.0,
+            page_num: 0,
+        });
+
+        assert!(
+            matches!(
+                classifier.classify_block(&non_bold, body_size),
+                BlockType::Paragraph
+            ),
+            "Non-bold 'I. INTRODUCTION' should remain Paragraph"
         );
     }
 }
