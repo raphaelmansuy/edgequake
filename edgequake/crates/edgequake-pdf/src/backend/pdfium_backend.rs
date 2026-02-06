@@ -144,7 +144,11 @@ impl PdfBackend for PdfiumBackend {
         // (Y=0 at top). Without this, the LayoutProcessor's reading order detection
         // reverses block order because it expects Y=0 at top.
         let (chars, page_sizes) = extractor.extract_chars_and_page_sizes_from_bytes(pdf_bytes)?;
-        debug!("PdfiumBackend: extracted {} raw characters, {} pages", chars.len(), page_sizes.len());
+        debug!(
+            "PdfiumBackend: extracted {} raw characters, {} pages",
+            chars.len(),
+            page_sizes.len()
+        );
 
         if chars.is_empty() {
             debug!("PdfiumBackend: no characters found, returning empty document");
@@ -170,10 +174,8 @@ impl PdfBackend for PdfiumBackend {
                 .unwrap_or(&[]);
 
             // Get actual page dimensions from PDFium (default to US Letter if missing)
-            let (page_width, page_height) = page_sizes
-                .get(page_num)
-                .copied()
-                .unwrap_or((612.0, 792.0));
+            let (page_width, page_height) =
+                page_sizes.get(page_num).copied().unwrap_or((612.0, 792.0));
 
             // Group into text blocks
             let text_blocks = grouper.group(page_chars);
@@ -269,10 +271,8 @@ impl PdfBackend for PdfiumBackend {
                 .unwrap_or(&[]);
 
             // Get actual page dimensions from PDFium
-            let (page_width, page_height) = page_sizes
-                .get(page_num)
-                .copied()
-                .unwrap_or((612.0, 792.0));
+            let (page_width, page_height) =
+                page_sizes.get(page_num).copied().unwrap_or((612.0, 792.0));
 
             // Group into text blocks
             let text_blocks = grouper.group(page_chars);
@@ -528,23 +528,57 @@ fn convert_text_block_to_schema_block(
     block.text = text_block.text();
     block.confidence = 1.0;
 
-    // OODA-IT05: Populate spans with styled TextSpan objects
+    // OODA-IT05 + OODA-IT22: Populate spans with styled TextSpan objects
     // WHY: Without this, the markdown renderer cannot apply inline styling
     // Each span carries its own font style (bold/italic) from PDFium
+    //
+    // OODA-IT22 FIX: Insert space TextSpan between consecutive word spans.
+    // WHY: The TextGrouper's chars_to_spans() strips space characters and creates
+    // separate spans for each word. Line::text() reconstructs spaces by checking
+    // inter-span gaps. But when we convert to schema::TextSpan, we must also
+    // insert space TextSpans, otherwise render_spans_styled() concatenates
+    // "AI" + "Services" → "AIServices" instead of "AI Services".
     //
     // Algorithm:
     // 1. Iterate lines top-to-bottom
     // 2. For each line, iterate spans left-to-right
-    // 3. Convert each layout::Span to schema::TextSpan with style
-    // 4. Add newline TextSpan between lines for proper line breaks
+    // 3. Between consecutive spans, check horizontal gap vs space threshold
+    // 4. If gap > threshold → insert TextSpan::plain(" ")
+    // 5. Convert each layout::Span to schema::TextSpan with style
+    // 6. Add space TextSpan between lines for proper word separation
     for (line_idx, line) in text_block.lines.iter().enumerate() {
-        for span in &line.spans {
+        for (span_idx, span) in line.spans.iter().enumerate() {
+            // OODA-IT22: Insert space between consecutive spans if there's a word gap
+            if span_idx > 0 {
+                let prev = &line.spans[span_idx - 1];
+                let gap = span.x0 - prev.x1;
+                let avg_size = (prev.font_size + span.font_size) / 2.0;
+                // WHY 0.15: Same threshold as Line::text() in pymupdf_structs.rs
+                // 15% of font size = typical minimum word gap in proportional fonts
+                let space_threshold = avg_size * 0.15;
+                // WHY hyphen check: Same logic as Line::text() — don't break hyphenated words
+                let starts_with_hyphen = span.text.starts_with('-')
+                    || span.text.starts_with('\u{2013}')  // en-dash
+                    || span.text.starts_with('\u{2014}'); // em-dash
+                let ends_with_hyphen = prev.text.ends_with('-')
+                    || prev.text.ends_with('\u{2013}')
+                    || prev.text.ends_with('\u{2014}');
+                if gap > space_threshold && !starts_with_hyphen && !ends_with_hyphen {
+                    block.spans.push(TextSpan::plain(" "));
+                }
+            }
             let text_span = convert_span_to_text_span(span, page_height);
             block.spans.push(text_span);
         }
-        // Add newline between lines (except after last line)
+        // OODA-IT22 FIX: Insert SPACE (not newline) between lines.
+        // WHY: render_spans_styled() trims each span content, so "\n" appended
+        // to the previous styled span (via consolidate_spans) gets trimmed away,
+        // causing "build\n" + "vs-buy" → "buildvs-buy". Using " " instead
+        // preserves the word boundary because trailing_space = content.ends_with(' ')
+        // is true for ' ' but false for '\n'. This matches PDF semantics: line
+        // breaks within a paragraph block are soft wraps, not semantic newlines.
         if line_idx < text_block.lines.len() - 1 && !line.spans.is_empty() {
-            block.spans.push(TextSpan::plain("\n"));
+            block.spans.push(TextSpan::plain(" "));
         }
     }
 
@@ -677,13 +711,15 @@ mod tests {
         let schema_block = convert_text_block_to_schema_block(&text_block, 0, 0, 792.0);
 
         // Verify spans are populated
-        assert_eq!(schema_block.spans.len(), 2, "Should have 2 spans");
+        // OODA-IT22: Now includes space span between "Bold" and "normal" (gap=5.0 > threshold=1.8)
+        assert_eq!(schema_block.spans.len(), 3, "Should have 3 spans (Bold + space + normal)");
         assert_eq!(schema_block.spans[0].text, "Bold");
         assert_eq!(
             schema_block.spans[0].style.weight,
             Some(700),
             "First span should be bold"
         );
-        assert_eq!(schema_block.spans[1].text, "normal");
+        assert_eq!(schema_block.spans[1].text, " ", "Second span should be word space");
+        assert_eq!(schema_block.spans[2].text, "normal");
     }
 }
