@@ -29,10 +29,41 @@ pub fn is_pua_char(c: char) -> bool {
 
 /// Filter PUA characters from a text string.
 ///
-/// Returns the input string with all PUA characters removed.
-/// Non-PUA characters (including emoji, CJK, etc.) are preserved.
+/// Returns the input string with all PUA characters removed and
+/// Unicode whitespace normalized to standard ASCII space.
+/// OODA-15: Normalize non-breaking spaces, thin spaces, etc.
 pub fn filter_pua(text: &str) -> String {
-    text.chars().filter(|&c| !is_pua_char(c)).collect()
+    text.chars()
+        .filter(|&c| !is_pua_char(c))
+        .map(|c| normalize_whitespace(c))
+        .collect()
+}
+
+/// OODA-15: Normalize Unicode whitespace characters to ASCII space.
+/// WHY: PDFs frequently use non-breaking spaces (U+00A0), thin spaces (U+2009),
+/// and other Unicode space variants that cause comparison mismatches.
+fn normalize_whitespace(c: char) -> char {
+    match c {
+        '\u{00A0}' // Non-breaking space
+        | '\u{2000}' // En quad
+        | '\u{2001}' // Em quad
+        | '\u{2002}' // En space
+        | '\u{2003}' // Em space
+        | '\u{2004}' // Three-per-em space
+        | '\u{2005}' // Four-per-em space
+        | '\u{2006}' // Six-per-em space
+        | '\u{2007}' // Figure space
+        | '\u{2008}' // Punctuation space
+        | '\u{2009}' // Thin space
+        | '\u{200A}' // Hair space
+        | '\u{200B}' // Zero-width space
+        | '\u{202F}' // Narrow no-break space
+        | '\u{205F}' // Medium mathematical space
+        | '\u{3000}' // Ideographic space
+        | '\u{FEFF}' // BOM / zero-width no-break space
+        => ' ',
+        _ => c,
+    }
 }
 
 /// Filter PUA characters, returning None if the result is empty.
@@ -137,5 +168,20 @@ mod tests {
     #[test]
     fn test_filter_pua_opt_some() {
         assert_eq!(filter_pua_opt("Hello\u{E001}"), Some("Hello".to_string()));
+    }
+
+    /// OODA-15: Test Unicode whitespace normalization
+    #[test]
+    fn test_normalize_whitespace() {
+        // Non-breaking space → regular space
+        assert_eq!(filter_pua("Hello\u{00A0}World"), "Hello World");
+        // Thin space → regular space
+        assert_eq!(filter_pua("Hello\u{2009}World"), "Hello World");
+        // Em space → regular space
+        assert_eq!(filter_pua("Hello\u{2003}World"), "Hello World");
+        // BOM → space
+        assert_eq!(filter_pua("Hello\u{FEFF}World"), "Hello World");
+        // Regular space unchanged
+        assert_eq!(filter_pua("Hello World"), "Hello World");
     }
 }
