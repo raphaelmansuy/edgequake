@@ -133,7 +133,9 @@ impl MarkdownRenderer {
                 .map(|l| self.render_line_plain(l))
                 .collect::<Vec<_>>()
                 .join("\n");
-            format!("```\n{}\n```", code)
+            // OODA-22: Detect language from code content for fenced blocks
+            let lang = detect_code_language(&code);
+            format!("```{}\n{}\n```", lang, code)
         } else {
             // Indent with 4 spaces
             block
@@ -449,6 +451,91 @@ fn clean_markdown_output(output: &mut String) {
     let trimmed_end = cleaned.trim_end_matches('\n');
     *output = trimmed_end.to_string();
     output.push('\n');
+}
+
+/// OODA-22: Detect programming language from code block content.
+/// Returns language identifier for fenced code blocks or "" if unknown.
+fn detect_code_language(code: &str) -> &'static str {
+    let trimmed = code.trim();
+
+    // Shell/bash patterns
+    if trimmed.starts_with("$ ")
+        || trimmed.starts_with("# !/bin")
+        || trimmed.starts_with("#!/bin")
+        || trimmed.contains("apt-get ")
+        || trimmed.contains("sudo ")
+        || trimmed.contains("pip install")
+    {
+        return "bash";
+    }
+
+    // Python patterns
+    if trimmed.contains("def ") && trimmed.contains(":")
+        || trimmed.contains("import ") && (trimmed.contains("from ") || !trimmed.contains('{'))
+        || trimmed.starts_with("class ") && trimmed.contains(":")
+        || trimmed.contains("print(")
+        || trimmed.contains("if __name__")
+    {
+        return "python";
+    }
+
+    // Rust patterns
+    if trimmed.contains("fn ") && trimmed.contains("->")
+        || trimmed.contains("let mut ")
+        || trimmed.contains("impl ") && trimmed.contains('{')
+        || trimmed.contains("pub fn ")
+        || trimmed.contains("use std::")
+    {
+        return "rust";
+    }
+
+    // JavaScript/TypeScript patterns
+    if trimmed.contains("const ") && trimmed.contains(" = ")
+        || trimmed.contains("function ") && trimmed.contains("(")
+        || trimmed.contains("console.log")
+        || trimmed.contains("=> {")
+    {
+        return "javascript";
+    }
+
+    // Java/C# patterns
+    if (trimmed.contains("public static") || trimmed.contains("private "))
+        && trimmed.contains('{')
+    {
+        return "java";
+    }
+
+    // C/C++ patterns
+    if trimmed.contains("#include")
+        || (trimmed.contains("int main") && trimmed.contains('{'))
+        || trimmed.contains("printf(")
+    {
+        return "c";
+    }
+
+    // SQL patterns
+    if trimmed.to_uppercase().starts_with("SELECT ")
+        || trimmed.to_uppercase().starts_with("INSERT ")
+        || trimmed.to_uppercase().starts_with("CREATE TABLE")
+    {
+        return "sql";
+    }
+
+    // JSON patterns
+    if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+        || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+    {
+        if trimmed.contains("\":") || trimmed.contains("\": ") {
+            return "json";
+        }
+    }
+
+    // XML/HTML patterns
+    if trimmed.starts_with("<?xml") || trimmed.starts_with("<!DOCTYPE") || trimmed.starts_with("<html") {
+        return "xml";
+    }
+
+    ""
 }
 
 /// Normalize bullet characters to standard Markdown bullets.
@@ -860,5 +947,17 @@ mod tests {
             md
         );
         assert!(md.contains("---"), "Should have plain separator: {}", md);
+    }
+
+    /// OODA-22: Test code language detection
+    #[test]
+    fn test_detect_code_language() {
+        assert_eq!(detect_code_language("def hello():\n    print('hi')"), "python");
+        assert_eq!(detect_code_language("$ pip install torch"), "bash");
+        assert_eq!(detect_code_language("fn main() -> Result<()> {\n}"), "rust");
+        assert_eq!(detect_code_language("console.log('hello')"), "javascript");
+        assert_eq!(detect_code_language("#include <stdio.h>"), "c");
+        assert_eq!(detect_code_language("SELECT * FROM users"), "sql");
+        assert_eq!(detect_code_language("some random text"), "");
     }
 }
