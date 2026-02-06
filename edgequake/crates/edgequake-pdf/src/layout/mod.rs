@@ -36,7 +36,9 @@ mod reading_order;
 mod xy_cut;
 
 // OODA-45: Export block classification functions for DRY compliance
-pub use block_classifier::{is_bullet_item, is_numbered_list_item, BlockClassifier};
+pub use block_classifier::{
+    is_all_caps_header, is_bullet_item, is_numbered_list_item, BlockClassifier,
+};
 pub use column_detector::{ColumnDetector, ColumnLayout};
 pub use geometric::{dbscan_1d, Cluster, Column, GeometricClusterer};
 pub use pymupdf_grouper::{GroupingParams, TextGrouper};
