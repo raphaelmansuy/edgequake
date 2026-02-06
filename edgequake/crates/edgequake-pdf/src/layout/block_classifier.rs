@@ -183,6 +183,7 @@ impl BlockClassifier {
                     || is_roman_numeral_header(trimmed)
                     || is_numeric_section_header(trimmed)
                     || is_numeric_subsection_header(trimmed)
+                    || is_numeric_sub_subsection_header(trimmed)
                     || is_letter_subsection_header(trimmed)
                     || is_all_caps_header(trimmed))
             {
@@ -196,6 +197,8 @@ impl BlockClassifier {
                     || is_letter_subsection_header(trimmed)
                 {
                     3 // Subsection = ###
+                } else if is_numeric_sub_subsection_header(trimmed) {
+                    4 // OODA-23: Sub-subsection = ####
                 } else {
                     2 // Default for all-caps headers
                 };
@@ -480,6 +483,52 @@ pub fn is_numeric_subsection_header(text: &str) -> bool {
         return false;
     }
 
+    match chars.next() {
+        Some('.') => match chars.next() {
+            Some(' ') => chars.next().map(|c| c.is_uppercase()).unwrap_or(false),
+            // OODA-23: Check for sub-subsection (X.Y.Z)
+            Some(c) if c.is_ascii_digit() => false, // Handled by is_numeric_sub_subsection_header
+            _ => false,
+        },
+        Some(' ') => chars.next().map(|c| c.is_uppercase()).unwrap_or(false),
+        _ => false,
+    }
+}
+
+/// OODA-23: Check if text starts with a numeric sub-subsection pattern.
+///
+/// Patterns: "2.1.1 Training Details", "3.2.3. Evaluation"
+///
+/// WHY: Papers with deep structure use X.Y.Z numbering for sub-subsections.
+pub fn is_numeric_sub_subsection_header(text: &str) -> bool {
+    if text.len() < 8 {
+        return false;
+    }
+
+    let mut chars = text.chars().peekable();
+
+    // First number (section)
+    let mut has_first = false;
+    while let Some(&c) = chars.peek() {
+        if c.is_ascii_digit() { has_first = true; chars.next(); } else { break; }
+    }
+    if !has_first || chars.next() != Some('.') { return false; }
+
+    // Second number (subsection)
+    let mut has_second = false;
+    while let Some(&c) = chars.peek() {
+        if c.is_ascii_digit() { has_second = true; chars.next(); } else { break; }
+    }
+    if !has_second || chars.next() != Some('.') { return false; }
+
+    // Third number (sub-subsection)
+    let mut has_third = false;
+    while let Some(&c) = chars.peek() {
+        if c.is_ascii_digit() { has_third = true; chars.next(); } else { break; }
+    }
+    if !has_third { return false; }
+
+    // Must be followed by ". " or " "
     match chars.next() {
         Some('.') => match chars.next() {
             Some(' ') => chars.next().map(|c| c.is_uppercase()).unwrap_or(false),
@@ -944,5 +993,17 @@ mod tests {
             ),
             "Without page_height, should fall back to Paragraph"
         );
+    }
+
+    /// OODA-23: Test sub-subsection header detection
+    #[test]
+    fn test_sub_subsection_header() {
+        assert!(is_numeric_sub_subsection_header("2.1.1 Training Details"));
+        assert!(is_numeric_sub_subsection_header("3.2.3. Evaluation Metrics"));
+        assert!(is_numeric_sub_subsection_header("1.1.1. Background"));
+
+        assert!(!is_numeric_sub_subsection_header("2.1 Subsection")); // Only two levels
+        assert!(!is_numeric_sub_subsection_header("1. Section"));     // Only one level
+        assert!(!is_numeric_sub_subsection_header("short"));          // Too short
     }
 }
