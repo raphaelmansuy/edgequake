@@ -631,6 +631,18 @@ impl TextTableReconstructionProcessor {
         has_separator && pipe_lines >= 2
     }
 
+    /// Strip commas and percent signs for numeric parsing.
+    /// WHY: Table values may be formatted as "2,017,886" or "32.4%".
+    fn strip_numeric_decorators(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        for c in s.chars() {
+            if c != ',' && c != '%' {
+                out.push(c);
+            }
+        }
+        out
+    }
+
     /// Score text for table-likeness.
     /// Higher score = more likely table data.
     ///
@@ -653,11 +665,7 @@ impl TextTableReconstructionProcessor {
         // WHY: "2,017,886" is a valid number in table data
         let num_tokens = cleaned
             .split_whitespace()
-            .filter(|tok| {
-                // Strip commas and try parsing
-                let no_commas = tok.replace(',', "");
-                no_commas.parse::<f64>().is_ok()
-            })
+            .filter(|tok| Self::strip_numeric_decorators(tok).parse::<f64>().is_ok())
             .count();
 
         let has_numeric_suffix = Self::parse_numeric_suffix(&cleaned).is_some();
@@ -675,7 +683,57 @@ impl TextTableReconstructionProcessor {
             score += 2;
         }
 
+        // OODA-IT33: Detect column-oriented table blocks
+        // WHY: Pdfium extracts table columns as vertical blocks with one value per line.
+        // Academic tables produce blocks like "Agriculture\nCS\nLegal\nMix" (column headers)
+        // or "32.4%\n67.6%\n38.4%\n61.6%" (column data). These get score 0 from the
+        // row-oriented checks above because each line has only one value.
+        let lines: Vec<&str> = t
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .collect();
+
+        if lines.len() >= 3 {
+            // Count lines that look like percentage values (e.g., "32.4%", "100%")
+            let pct_lines = lines
+                .iter()
+                .filter(|l| Self::is_percentage_value(l))
+                .count();
+            if pct_lines >= 2 {
+                score += 3;
+            }
+
+            // Count lines that look like numeric values (including comma-formatted)
+            let numeric_lines = lines
+                .iter()
+                .filter(|l| Self::strip_numeric_decorators(l).parse::<f64>().is_ok())
+                .count();
+            if numeric_lines >= 2 {
+                score += 2;
+            }
+
+            // Multi-line short-value blocks: table columns have many short lines
+            // WHY: A column of "Agriculture\nCS\nLegal\nMix" has avg length ~7
+            let avg_len: f64 =
+                lines.iter().map(|l| l.len() as f64).sum::<f64>() / lines.len() as f64;
+            if avg_len <= 20.0 && lines.len() >= 3 {
+                score += 1;
+            }
+        }
+
         score
+    }
+
+    /// Check if a string is a percentage value like "32.4%", "100%", "0.5%"
+    fn is_percentage_value(s: &str) -> bool {
+        let t = s.trim();
+        if !t.ends_with('%') || t.len() < 2 {
+            return false;
+        }
+        Self::strip_numeric_decorators(&t[..t.len() - 1])
+            .parse::<f64>()
+            .is_ok()
     }
 
     fn sanitize_line(line: &str) -> String {
@@ -686,20 +744,17 @@ impl TextTableReconstructionProcessor {
     /// Returns (prefix, [nums...]) for patterns like "Total Tokens 2,017,886 2,306,535 5,081,069"
     ///
     /// OODA-IT10: Enhanced to handle multiple comma-formatted numbers.
-    /// WHY: Academic tables often have 4+ numeric columns with comma formatting.
+    /// OODA-IT33: Enhanced to handle percentage values (e.g., "32.4%").
+    /// WHY: Academic tables often have 4+ numeric columns with comma formatting or percentages.
     fn parse_numeric_suffix(line: &str) -> Option<(String, Vec<String>)> {
         let tokens: Vec<&str> = line.split_whitespace().collect();
         if tokens.is_empty() {
             return None;
         }
 
-        // OODA-IT10: Try to find ALL numeric tokens at the end
-        // Numeric tokens: integers, floats, or comma-formatted numbers like "2,017,886"
-        let is_numeric = |s: &str| {
-            // Strip commas for parsing
-            let clean = s.replace(',', "");
-            clean.parse::<f64>().is_ok()
-        };
+        // OODA-IT33: Support percentage values alongside plain numbers
+        // WHY: Academic tables use "32.4%" format extensively
+        let is_numeric = |s: &str| Self::strip_numeric_decorators(s).parse::<f64>().is_ok();
 
         // Find where numeric suffix starts
         let mut num_start = tokens.len();
@@ -934,6 +989,12 @@ impl TextTableReconstructionProcessor {
 
     /// Scan for table content after caption.
     /// Returns (optional table block, next index to process).
+    ///
+    /// OODA-IT33: Now tries column-oriented reconstruction first.
+    /// WHY: Pdfium extracts table data as vertical column blocks (one value per line),
+    /// not horizontal rows. Academic tables like "Table 1: Win rates..." produce blocks
+    /// such as ["Agriculture\nCS\nLegal\nMix", "32.4%\n67.6%\n38.4%\n61.6%", ...].
+    /// These blocks are columns, not rows, so we need to transpose them.
     fn scan_for_table(
         &self,
         page: &crate::schema::Page,
@@ -949,7 +1010,6 @@ impl TextTableReconstructionProcessor {
         let mut started = false;
         let mut consecutive_zeros = 0;
 
-        // OODA-IT10: Debug logging to trace scan behavior
         tracing::debug!(
             "  scan_for_table: starting at idx={}, blocks={}",
             caption_idx,
@@ -961,16 +1021,11 @@ impl TextTableReconstructionProcessor {
             let t = b.text.trim();
 
             // OODA-37 FIX: Stop scanning when hitting Figure captions
-            // WHY: Figure captions like "Figure 4. Cam×Time dataset..." were being consumed
-            // as table content because only "Table N" patterns triggered the break.
-            // This caused Figure 4 and Figure 7 to disappear from 01_2512 output.
             let is_figure_caption = t.starts_with("Figure ")
                 && t.len() > 7
                 && t.chars().nth(7).is_some_and(|c| c.is_ascii_digit());
 
-            // OODA-IT10: Use helper to detect prose references to tables
             let is_table_ref = Self::is_table_reference(t);
-
             let looks_caption = Self::looks_like_table_caption(t);
             let is_actual_caption = looks_caption && !is_table_ref;
 
@@ -994,7 +1049,6 @@ impl TextTableReconstructionProcessor {
                     continue;
                 }
 
-                // Found first positive-score line
                 started = true;
                 for skipped in skipped_zeros.drain(..) {
                     lines.push(skipped);
@@ -1018,14 +1072,23 @@ impl TextTableReconstructionProcessor {
             return (None, caption_idx + 1);
         }
 
-        // Build table from lines
+        // OODA-IT33: Try column-oriented reconstruction first
+        // WHY: When pdfium extracts table data, each column becomes a separate block
+        // with multiple lines. Detect this pattern and transpose columns → rows.
+        let block_indices: Vec<usize> = lines.iter().map(|(idx, _, _)| *idx).collect();
+        if let Some((table_block, consumed)) =
+            self.try_column_reconstruction(page, caption_idx, &block_indices)
+        {
+            return (Some(table_block), consumed);
+        }
+
+        // Fall back to row-oriented reconstruction
         let rows = self.parse_rows(&lines);
 
         if rows.len() < 2 {
             return (None, caption_idx + 1);
         }
 
-        // Create table block
         let mut table_bbox = caption_block.bbox;
         for (idx, _, _) in &lines {
             table_bbox = table_bbox.union(&page.blocks[*idx].bbox);
@@ -1043,6 +1106,229 @@ impl TextTableReconstructionProcessor {
             .map(|(idx, _, _)| *idx + 1)
             .unwrap_or(caption_idx + 1);
         (Some(table_block), consumed)
+    }
+
+    /// OODA-IT33: Try column-oriented table reconstruction.
+    ///
+    /// WHY: Pdfium extracts table columns as vertical blocks. For example, page 7 of the
+    /// LightRAG paper has blocks like:
+    ///   Block 1: "Agriculture\nCS\nLegal\nMix" (4 lines, column headers)
+    ///   Block 2: "NaiveRAG\nLightRAG\nNaiveRAG\nLightRAG..." (8 lines, sub-headers)
+    ///   Block 3: "Comprehensiveness\n32.4%\n67.6%\n..." (36 lines, data grid)
+    ///
+    /// Detection: When blocks have many short lines, reconstruct by parsing the linearized
+    /// data pattern: [label, value, value, ..., label, value, value, ...].
+    fn try_column_reconstruction(
+        &self,
+        page: &crate::schema::Page,
+        caption_idx: usize,
+        block_indices: &[usize],
+    ) -> Option<(Block, usize)> {
+        if block_indices.len() < 2 {
+            return None;
+        }
+
+        // Collect all lines from all blocks, tracking which block they came from
+        let mut all_block_lines: Vec<(usize, Vec<String>)> = Vec::new();
+        let mut has_multi_line_block = false;
+
+        for &idx in block_indices {
+            let block = &page.blocks[idx];
+            let lines: Vec<String> = block
+                .text
+                .lines()
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty())
+                .collect();
+
+            if lines.len() >= 6 {
+                has_multi_line_block = true;
+            }
+            if !lines.is_empty() {
+                all_block_lines.push((idx, lines));
+            }
+        }
+
+        // Need at least one multi-line block to justify column reconstruction
+        if !has_multi_line_block {
+            return None;
+        }
+
+        // Try linearized grid detection on multi-line blocks
+        // WHY: A block like "Comprehensiveness\n32.4%\n67.6%\n...\nDiversity\n23.6%\n..."
+        // is a linearized table where rows = [label, val1, val2, ...val_n, label, ...]
+        let mut all_rows: Vec<Vec<String>> = Vec::new();
+        let mut header_lines: Vec<Vec<String>> = Vec::new();
+
+        for (_, lines) in &all_block_lines {
+            if lines.len() >= 6 {
+                // Try to parse as linearized grid
+                if let Some(grid_rows) = Self::parse_linearized_grid(lines) {
+                    // Check if this is a sub-table (same column count)
+                    if all_rows.is_empty()
+                        || grid_rows.first().map(|r| r.len()).unwrap_or(0)
+                            == all_rows.first().map(|r| r.len()).unwrap_or(0)
+                        || all_rows.is_empty()
+                    {
+                        all_rows.extend(grid_rows);
+                    }
+                }
+            } else {
+                // Short blocks are headers
+                header_lines.push(lines.clone());
+            }
+        }
+
+        if all_rows.len() < 2 {
+            return None;
+        }
+
+        // Prepend header lines as rows
+        let data_col_count = all_rows.first().map(|r| r.len()).unwrap_or(0);
+        let mut final_rows: Vec<Vec<String>> = Vec::new();
+
+        for header in &header_lines {
+            // Pad or trim header to match data column count
+            let mut row = header.clone();
+            row.resize(data_col_count, String::new());
+            final_rows.push(row);
+        }
+        final_rows.extend(all_rows);
+
+        if final_rows.len() < 2 {
+            return None;
+        }
+
+        tracing::info!(
+            "  → Column-oriented reconstruction: {} rows × {} cols from {} blocks",
+            final_rows.len(),
+            data_col_count,
+            all_block_lines.len()
+        );
+
+        // Build bounding box from all blocks
+        let caption_block = &page.blocks[caption_idx];
+        let mut table_bbox = caption_block.bbox;
+        for (idx, _) in &all_block_lines {
+            table_bbox = table_bbox.union(&page.blocks[*idx].bbox);
+        }
+
+        let mut table_block = Block::new(BlockType::Table, table_bbox);
+        table_block.page = page.number - 1;
+        table_block.children = Self::build_table_cells(table_bbox, table_block.page, &final_rows);
+        table_block
+            .metadata
+            .insert("reconstructed".to_string(), serde_json::json!(true));
+        table_block
+            .metadata
+            .insert("column_oriented".to_string(), serde_json::json!(true));
+
+        let consumed = block_indices
+            .iter()
+            .max()
+            .map(|&idx| idx + 1)
+            .unwrap_or(caption_idx + 1);
+
+        Some((table_block, consumed))
+    }
+
+    /// OODA-IT33: Parse a linearized grid from a multi-line block.
+    ///
+    /// WHY: Pdfium extracts table data as a single block with many lines like:
+    ///   "Comprehensiveness\n32.4%\n67.6%\n38.4%\n61.6%\n16.4%\n83.6%\n38.8%\n61.2%\n
+    ///    Diversity\n23.6%\n76.4%\n..."
+    ///
+    /// Pattern: [label, value, value, ..., label, value, value, ...] where labels
+    /// are non-numeric and values are numeric/percentage.
+    ///
+    /// Returns rows like [["Comprehensiveness", "32.4%", "67.6%", ...], ["Diversity", ...]]
+    fn parse_linearized_grid(lines: &[String]) -> Option<Vec<Vec<String>>> {
+        if lines.len() < 4 {
+            return None;
+        }
+
+        // Find label positions (non-numeric, non-percentage lines)
+        let label_indices: Vec<usize> = lines
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| {
+                let t = l.trim();
+                !t.is_empty() && !Self::is_numeric_or_pct(t)
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        if label_indices.len() < 2 {
+            return None;
+        }
+
+        // Check that labels are evenly spaced (consistent column count)
+        let first_gap = label_indices[1] - label_indices[0];
+        if first_gap < 2 {
+            return None; // Each row needs at least 1 label + 1 value
+        }
+
+        let consistent = label_indices.windows(2).all(|w| {
+            let gap = w[1] - w[0];
+            gap == first_gap
+        });
+
+        if !consistent {
+            // Check if last row might be truncated
+            let mostly_consistent = if label_indices.len() >= 3 {
+                label_indices
+                    .windows(2)
+                    .take(label_indices.len() - 1)
+                    .all(|w| {
+                        let gap = w[1] - w[0];
+                        gap == first_gap
+                    })
+            } else {
+                false
+            };
+            if !mostly_consistent {
+                return None;
+            }
+        }
+
+        // Parse rows: each row starts at a label index and spans first_gap lines
+        let values_per_row = first_gap - 1; // Number of numeric values per row
+        let mut rows: Vec<Vec<String>> = Vec::new();
+
+        for &label_idx in &label_indices {
+            let label = lines[label_idx].trim().to_string();
+            let mut row = vec![label];
+
+            for offset in 1..=values_per_row {
+                let val_idx = label_idx + offset;
+                if val_idx < lines.len() {
+                    row.push(lines[val_idx].trim().to_string());
+                } else {
+                    row.push(String::new());
+                }
+            }
+            rows.push(row);
+        }
+
+        if rows.len() >= 2 {
+            Some(rows)
+        } else {
+            None
+        }
+    }
+
+    /// Check if a string is a numeric or percentage value.
+    fn is_numeric_or_pct(s: &str) -> bool {
+        let t = s.trim();
+        if t.is_empty() {
+            return false;
+        }
+        // Check percentage
+        if Self::is_percentage_value(t) {
+            return true;
+        }
+        // Check numeric (with commas)
+        Self::strip_numeric_decorators(t).parse::<f64>().is_ok()
     }
 
     /// Parse table rows from scanned lines.
@@ -1258,6 +1544,146 @@ mod tests {
         assert!(
             !TextTableReconstructionProcessor::is_table_reference("Not a table reference"),
             "Non-table text should NOT be a reference"
+        );
+    }
+
+    #[test]
+    fn test_table_like_score_percentage_blocks() {
+        // OODA-IT33: Multi-line blocks with percentage values should score > 0
+        let score =
+            TextTableReconstructionProcessor::table_like_score("32.4%\n23.6%\n32.4%\n32.4%");
+        assert!(
+            score >= 3,
+            "Percentage block should score >= 3, got {}",
+            score
+        );
+
+        // Single-line percentage should not trigger multi-line bonus
+        let score = TextTableReconstructionProcessor::table_like_score("32.4%");
+        assert_eq!(score, 0, "Single percentage should score 0");
+    }
+
+    #[test]
+    fn test_table_like_score_short_multiline() {
+        // OODA-IT33: Multi-line short-value blocks (table columns)
+        let score =
+            TextTableReconstructionProcessor::table_like_score("Agriculture\nCS\nLegal\nMix");
+        assert!(
+            score >= 1,
+            "Short multi-line block should score >= 1, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn test_is_percentage_value() {
+        assert!(TextTableReconstructionProcessor::is_percentage_value(
+            "32.4%"
+        ));
+        assert!(TextTableReconstructionProcessor::is_percentage_value(
+            "100%"
+        ));
+        assert!(TextTableReconstructionProcessor::is_percentage_value(
+            "0.5%"
+        ));
+        assert!(!TextTableReconstructionProcessor::is_percentage_value(
+            "hello"
+        ));
+        assert!(!TextTableReconstructionProcessor::is_percentage_value("%"));
+        assert!(!TextTableReconstructionProcessor::is_percentage_value(""));
+    }
+
+    #[test]
+    fn test_is_numeric_or_pct() {
+        assert!(TextTableReconstructionProcessor::is_numeric_or_pct("32.4%"));
+        assert!(TextTableReconstructionProcessor::is_numeric_or_pct("100"));
+        assert!(TextTableReconstructionProcessor::is_numeric_or_pct(
+            "2,017,886"
+        ));
+        assert!(!TextTableReconstructionProcessor::is_numeric_or_pct(
+            "Agriculture"
+        ));
+        assert!(!TextTableReconstructionProcessor::is_numeric_or_pct(""));
+    }
+
+    #[test]
+    fn test_parse_linearized_grid() {
+        // OODA-IT33: Parse a linearized grid pattern
+        let lines: Vec<String> = vec![
+            "Comprehensiveness".to_string(),
+            "32.4%".to_string(),
+            "67.6%".to_string(),
+            "Diversity".to_string(),
+            "23.6%".to_string(),
+            "76.4%".to_string(),
+            "Empowerment".to_string(),
+            "32.4%".to_string(),
+            "67.6%".to_string(),
+        ];
+        let rows = TextTableReconstructionProcessor::parse_linearized_grid(&lines);
+        assert!(rows.is_some(), "Should parse linearized grid");
+        let rows = rows.unwrap();
+        assert_eq!(rows.len(), 3, "Should have 3 rows");
+        assert_eq!(rows[0], vec!["Comprehensiveness", "32.4%", "67.6%"]);
+        assert_eq!(rows[1], vec!["Diversity", "23.6%", "76.4%"]);
+        assert_eq!(rows[2], vec!["Empowerment", "32.4%", "67.6%"]);
+    }
+
+    #[test]
+    fn test_parse_linearized_grid_uneven() {
+        // Not a valid grid (uneven spacing)
+        let lines: Vec<String> = vec![
+            "Label1".to_string(),
+            "1.0".to_string(),
+            "2.0".to_string(),
+            "Label2".to_string(),
+            "3.0".to_string(),
+        ];
+        // Labels at 0 and 3 with gap of 3, but last section only has 1 value
+        // This should work as the last row may be truncated
+        let rows = TextTableReconstructionProcessor::parse_linearized_grid(&lines);
+        assert!(rows.is_some());
+    }
+
+    #[test]
+    fn test_parse_linearized_grid_no_pattern() {
+        // All numeric - no labels
+        let lines: Vec<String> = vec![
+            "1.0".to_string(),
+            "2.0".to_string(),
+            "3.0".to_string(),
+            "4.0".to_string(),
+        ];
+        let rows = TextTableReconstructionProcessor::parse_linearized_grid(&lines);
+        assert!(rows.is_none(), "All-numeric should not parse as grid");
+    }
+
+    #[test]
+    fn test_parse_numeric_suffix_with_percentages() {
+        // OODA-IT33: Test percentage values in numeric suffix
+        let result = TextTableReconstructionProcessor::parse_numeric_suffix(
+            "Comprehensiveness 32.4% 67.6% 38.4%",
+        );
+        assert!(result.is_some(), "Should parse percentage suffixes");
+        let (prefix, nums) = result.unwrap();
+        assert_eq!(prefix, "Comprehensiveness");
+        assert_eq!(nums.len(), 3);
+        assert_eq!(nums[0], "32.4%");
+    }
+
+    #[test]
+    fn test_strip_numeric_decorators() {
+        assert_eq!(
+            TextTableReconstructionProcessor::strip_numeric_decorators("2,017,886"),
+            "2017886"
+        );
+        assert_eq!(
+            TextTableReconstructionProcessor::strip_numeric_decorators("32.4%"),
+            "32.4"
+        );
+        assert_eq!(
+            TextTableReconstructionProcessor::strip_numeric_decorators("hello"),
+            "hello"
         );
     }
 }
