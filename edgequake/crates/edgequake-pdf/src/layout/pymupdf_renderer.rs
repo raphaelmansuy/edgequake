@@ -24,6 +24,9 @@ pub struct MarkdownConfig {
     pub fenced_code: bool,
     /// Maximum heading level (1-6)
     pub max_heading_level: u8,
+    /// OODA-10: Include page number in page separators.
+    /// When true, renders `-----` followed by `Page N` instead of plain `---`.
+    pub page_separators: bool,
 }
 
 impl Default for MarkdownConfig {
@@ -33,6 +36,7 @@ impl Default for MarkdownConfig {
             preserve_styles: true,
             fenced_code: true,
             max_heading_level: 6,
+            page_separators: true,
         }
     }
 }
@@ -67,7 +71,12 @@ impl MarkdownRenderer {
         for (i, block) in blocks.iter().enumerate() {
             // Add page separator if page changed
             if block.page_num != last_page && i > 0 {
-                output.push_str("\n---\n\n");
+                if self.config.page_separators {
+                    // OODA-10: Include page number in separator
+                    output.push_str(&format!("\n-----\n\nPage {}\n\n", block.page_num + 1));
+                } else {
+                    output.push_str("\n---\n\n");
+                }
                 last_page = block.page_num;
             }
 
@@ -625,5 +634,83 @@ mod tests {
             "Footnote content should be preserved: {}",
             md
         );
+    }
+
+    /// OODA-10: Test page separators with page numbers
+    #[test]
+    fn test_page_separators() {
+        let renderer = MarkdownRenderer::new(); // page_separators = true by default
+
+        let blocks = vec![
+            Block {
+                lines: vec![make_line(vec![make_span("First section", "Arial", 12.0)])],
+                x0: 0.0,
+                y0: 0.0,
+                x1: 200.0,
+                y1: 12.0,
+                page_num: 0,
+                block_type: BlockType::Paragraph,
+            },
+            Block {
+                lines: vec![make_line(vec![make_span("Second section", "Arial", 12.0)])],
+                x0: 0.0,
+                y0: 0.0,
+                x1: 200.0,
+                y1: 12.0,
+                page_num: 1,
+                block_type: BlockType::Paragraph,
+            },
+        ];
+
+        let md = renderer.render(&blocks);
+        assert!(
+            md.contains("Page 2"),
+            "Should contain page number separator: {}",
+            md
+        );
+        assert!(
+            md.contains("-----"),
+            "Should contain horizontal rule: {}",
+            md
+        );
+    }
+
+    /// OODA-10: Test page separators disabled
+    #[test]
+    fn test_page_separators_disabled() {
+        let config = MarkdownConfig {
+            page_separators: false,
+            ..Default::default()
+        };
+        let renderer = MarkdownRenderer::with_config(config);
+
+        let blocks = vec![
+            Block {
+                lines: vec![make_line(vec![make_span("First section", "Arial", 12.0)])],
+                x0: 0.0,
+                y0: 0.0,
+                x1: 200.0,
+                y1: 12.0,
+                page_num: 0,
+                block_type: BlockType::Paragraph,
+            },
+            Block {
+                lines: vec![make_line(vec![make_span("Second section", "Arial", 12.0)])],
+                x0: 0.0,
+                y0: 0.0,
+                x1: 200.0,
+                y1: 12.0,
+                page_num: 1,
+                block_type: BlockType::Paragraph,
+            },
+        ];
+
+        let md = renderer.render(&blocks);
+        assert!(
+            !md.contains("-----"),
+            "Should NOT contain enhanced separator when disabled: {}",
+            md
+        );
+        assert!(md.contains("---"), "Should have plain separator: {}", md);
     }
 }
