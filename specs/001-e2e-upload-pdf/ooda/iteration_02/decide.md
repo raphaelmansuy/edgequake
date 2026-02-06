@@ -9,12 +9,14 @@
 **Primary Conclusion**: The original PDF extraction issue is **RESOLVED**.
 
 **Evidence**:
+
 - E2E test confirms side-by-side viewer displays both PDF and markdown
 - 16,887 bytes markdown extracted from 16-page academic paper
 - All content properly structured (headings, lists, links, emphasis)
 - Fix from iteration 01 (commit b1611b45) is working as expected
 
 **Next Actions**:
+
 1. Document mission completion in act.md
 2. Create comprehensive AGENTS.md (user-requested documentation)
 3. Commit iteration 02 with git tag
@@ -27,12 +29,14 @@
 **File**: `specs/001-e2e-upload-pdf/ooda/iteration_02/act.md`
 
 **Content**:
+
 - Summary of E2E test results
 - Verification that PDF extraction works
 - Comparison: original report vs current state
 - Commit message preparation
 
 **Acceptance Criteria**:
+
 - ✅ act.md created with detailed findings
 - ✅ Mission status clearly marked as RESOLVED
 - ✅ Evidence chain documented (Playwright snapshots → working UI)
@@ -44,22 +48,24 @@
 **Sections to Add**:
 
 1. **Service Management**:
+
    ```bash
    # Start all services in background
    make dev-bg
-   
+
    # Check service health
    make status
-   
+
    # Stop all services
    make stop
    ```
 
 2. **Health Checks**:
+
    ```bash
    # Backend (should return {"status":"healthy"})
    curl http://localhost:8080/health
-   
+
    # Frontend (should return HTML)
    curl http://localhost:3000
    ```
@@ -78,10 +84,11 @@
    - Ollama must be running for entity extraction
 
 6. **Playwright E2E Testing**:
+
    ```bash
    # Install browser
    # (via MCP tool - see edgequake_webui/e2e/*.spec.ts)
-   
+
    # Run E2E tests
    cd edgequake_webui && pnpm exec playwright test
    ```
@@ -93,6 +100,7 @@
    - **Entity extraction fails**: Verify Ollama running with `curl http://localhost:11434`
 
 **Acceptance Criteria**:
+
 - ✅ AGENTS.md updated with service management section
 - ✅ All commands tested and verified working
 - ✅ Known issues documented
@@ -101,6 +109,7 @@
 ### Task 3: Commit Iteration 02 ✅
 
 **Commit Message**:
+
 ```
 docs(specs): Complete OODA iteration 02 - Verify PDF extraction working
 
@@ -136,6 +145,7 @@ Result: ✅ PDF extraction verified working via E2E test
 ```
 
 **Git Commands**:
+
 ```bash
 cd /Users/raphaelmansuy/Github/03-working/edgequake
 git add specs/001-e2e-upload-pdf/ooda/iteration_02/*.md AGENTS.md
@@ -144,6 +154,7 @@ git tag ooda-iteration-02
 ```
 
 **Acceptance Criteria**:
+
 - ✅ All 4 OODA files committed (observe, orient, decide, act)
 - ✅ AGENTS.md changes committed
 - ✅ Git tag created for iteration 02
@@ -158,6 +169,7 @@ git tag ooda-iteration-02
 **Impact**: Improves automation reliability
 
 **Actions**:
+
 1. Add health check loop after `bun run dev &` in Makefile
 2. Poll `http://localhost:3000` with `curl --retry 10 --retry-connrefused`
 3. Only write PID if port responds
@@ -174,6 +186,7 @@ git tag ooda-iteration-02
 **Impact**: Validates fix works for new uploads
 
 **Actions**:
+
 1. Use Playwright to click "Upload PDF" button
 2. Upload `zz_test_docs/lighrag_2410.05779v3.pdf`
 3. Wait for processing to complete (entity extraction)
@@ -189,6 +202,7 @@ git tag ooda-iteration-02
 **Impact**: Better debugging for future issues
 
 **Actions**:
+
 1. Add retry logic for LLM network errors
 2. Distinguish "Ollama offline" vs "extraction failed"
 3. Display helpful error messages in UI
@@ -203,6 +217,7 @@ git tag ooda-iteration-02
 **Impact**: Ensures system scales
 
 **Actions**:
+
 1. Test large PDF (100+ pages)
 2. Test concurrent uploads (5+ simultaneous)
 3. Measure memory usage during entity extraction
@@ -217,6 +232,7 @@ git tag ooda-iteration-02
 **Impact**: Long-term maintainability
 
 **Actions**:
+
 1. Create E2E test suite for CI/CD
 2. Add integration tests for PDF extraction
 3. Document architecture decisions
@@ -228,21 +244,21 @@ git tag ooda-iteration-02
 
 ### ✅ Immediate Actions (Iteration 02)
 
-| Task | Priority | Effort | Status |
-|------|----------|--------|--------|
-| Document mission completion | Critical | 1h | 🔄 In Progress |
-| Create AGENTS.md | High | 2h | 🔄 Next |
-| Commit iteration 02 | Critical | 0.5h | 📅 Pending |
+| Task                        | Priority | Effort | Status         |
+| --------------------------- | -------- | ------ | -------------- |
+| Document mission completion | Critical | 1h     | 🔄 In Progress |
+| Create AGENTS.md            | High     | 2h     | 🔄 Next        |
+| Commit iteration 02         | Critical | 0.5h   | 📅 Pending     |
 
 ### ⏳ Future Actions (Iterations 03-10)
 
-| Iteration | Focus | Priority | Effort |
-|-----------|-------|----------|--------|
-| 03 | Fix Makefile frontend PID | Medium | 2-3h |
-| 04 | Test fresh PDF upload | Medium | 1-2h |
-| 05 | Improve error handling | Low | 3-4h |
-| 06 | Performance testing | Low | 4-6h |
-| 07-10 | Regression prevention | Low | 10-15h |
+| Iteration | Focus                     | Priority | Effort |
+| --------- | ------------------------- | -------- | ------ |
+| 03        | Fix Makefile frontend PID | Medium   | 2-3h   |
+| 04        | Test fresh PDF upload     | Medium   | 1-2h   |
+| 05        | Improve error handling    | Low      | 3-4h   |
+| 06        | Performance testing       | Low      | 4-6h   |
+| 07-10     | Regression prevention     | Low      | 10-15h |
 
 ## Risk Assessment
 
@@ -266,6 +282,7 @@ git tag ooda-iteration-02
 ## Next Step: Implement Actions
 
 Proceed to act.md and execute:
+
 1. Create act.md documenting mission completion
 2. Update AGENTS.md with service management docs
 3. Commit iteration 02 with git tag

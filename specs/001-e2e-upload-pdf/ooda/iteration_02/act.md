@@ -7,25 +7,30 @@
 ## Mission Status: ✅ RESOLVED
 
 **Original Issue** (from specs/001-e2e-upload-pdf.md):
+
 > "when you upload `zz_test_docs/lighrag_2410.05779v3.pdf` using documents page, you can upload the document but when you go to documents for this uploaded page you only see the PDF but not the markdown side by side → it seems the content is not extracted"
 
 **Current State** (verified 2026-02-06 via Playwright E2E):
+
 - ✅ PDF uploads successfully
 - ✅ Markdown content extracted (16,887 bytes from 16-page paper)
 - ✅ Side-by-side viewer displays **both** PDF (left) and markdown (right)
 - ✅ Content properly structured with headings, lists, links, emphasis
 
 **Root Cause** (from iteration 01):
+
 - `PDFIUM_DYNAMIC_LIB_PATH` environment variable not set in Makefile
 - PdfiumExtractor had no auto-discovery fallback
 
 **Fix Applied** (commit b1611b45):
+
 ```makefile
 # Added to Makefile backend-dev target:
 export PDFIUM_DYNAMIC_LIB_PATH=$(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpdfium.dylib
 ```
 
 **Verification Method**:
+
 - E2E test with MCP Playwright
 - Navigated to http://localhost:3000/documents
 - Clicked on processing document (f6fa9cad-bbff-4892-a855-3bd7d70da044)
@@ -38,6 +43,7 @@ export PDFIUM_DYNAMIC_LIB_PATH=$(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpd
 **File Created**: `specs/001-e2e-upload-pdf/ooda/iteration_02/observe.md`
 
 **Content**:
+
 - Territory map with service status (PostgreSQL, backend, frontend)
 - Playwright E2E test execution log
 - Side-by-side viewer analysis (left panel: PDF, right panel: markdown)
@@ -48,6 +54,7 @@ export PDFIUM_DYNAMIC_LIB_PATH=$(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpd
 - Critical finding: **PDF extraction works perfectly**
 
 **Evidence Chain**:
+
 1. PDF binary downloaded successfully (ref=e755, 16 pages visible)
 2. Markdown extracted with 16,887 bytes
 3. Side-by-side viewer renders both panels (Playwright snapshot captured)
@@ -56,6 +63,7 @@ export PDFIUM_DYNAMIC_LIB_PATH=$(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpd
 **File Created**: `specs/001-e2e-upload-pdf/ooda/iteration_02/orient.md`
 
 **Content**:
+
 - Situation analysis (facts, changes since original report)
 - Root cause analysis (primary: PDFIUM_DYNAMIC_LIB_PATH solved)
 - Strategic options (5 options evaluated)
@@ -64,6 +72,7 @@ export PDFIUM_DYNAMIC_LIB_PATH=$(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpd
 - Mission status verdict: **PRIMARY MISSION COMPLETE**
 
 **Key Insights**:
+
 - Iteration 01 fixes successfully resolved issue
 - Failed documents were due to Ollama being offline (separate problem)
 - Frontend PID management needs improvement (not blocking)
@@ -71,6 +80,7 @@ export PDFIUM_DYNAMIC_LIB_PATH=$(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpd
 **File Created**: `specs/001-e2e-upload-pdf/ooda/iteration_02/decide.md`
 
 **Content**:
+
 - Strategic decision: Mission complete + create AGENTS.md
 - Action plan with 3 tasks (document, AGENTS.md, commit)
 - Optional enhancements for iterations 03-10
@@ -78,6 +88,7 @@ export PDFIUM_DYNAMIC_LIB_PATH=$(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpd
 - Decision confidence: HIGH
 
 **Deliverables**:
+
 - Task 1: Document mission completion (observe, orient, decide, act)
 - Task 2: Create AGENTS.md with service management docs
 - Task 3: Commit iteration 02 with git tag
@@ -85,6 +96,7 @@ export PDFIUM_DYNAMIC_LIB_PATH=$(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpd
 **File Created**: `specs/001-e2e-upload-pdf/ooda/iteration_02/act.md` (this file)
 
 **Content**:
+
 - Mission status summary (RESOLVED)
 - Implementation log for all tasks
 - AGENTS.md update details
@@ -144,6 +156,7 @@ Added comprehensive "Service Management & E2E Testing" section (250+ lines) with
    - Mission status: ✅ PDF extraction verified working
 
 **Verification**:
+
 - ✅ All commands tested during iteration 02
 - ✅ Health check responses documented from actual output
 - ✅ Known issues match observed behavior (frontend PID, Ollama errors)
@@ -153,6 +166,7 @@ Added comprehensive "Service Management & E2E Testing" section (250+ lines) with
 ### Task 3: Commit Iteration 02 ✅
 
 **Files to Commit**:
+
 1. `specs/001-e2e-upload-pdf/ooda/iteration_02/observe.md` (new, 200+ lines)
 2. `specs/001-e2e-upload-pdf/ooda/iteration_02/orient.md` (new, 150+ lines)
 3. `specs/001-e2e-upload-pdf/ooda/iteration_02/decide.md` (new, 180+ lines)
@@ -160,12 +174,14 @@ Added comprehensive "Service Management & E2E Testing" section (250+ lines) with
 5. `AGENTS.md` (updated, +250 lines in "Service Management & E2E Testing" section)
 
 **Total Changes**:
+
 - 5 files modified
 - ~930 lines added
 - 0 lines removed
 - 100% documentation (no code changes)
 
 **Commit Message**:
+
 ```
 docs(specs): Complete OODA iteration 02 - Verify PDF extraction working
 
@@ -228,6 +244,7 @@ Now I will commit these changes.
 **Command**: `git add` + `git commit` + `git tag`
 
 **Execution**:
+
 ```bash
 # Stage files
 git add specs/001-e2e-upload-pdf/ooda/iteration_02/ AGENTS.md
@@ -240,6 +257,7 @@ git tag ooda-iteration-02
 ```
 
 **Result**:
+
 ```
 [edgequake-main 760cd553] docs(specs): Complete OODA iteration 02 - Verify PDF extraction working
  5 files changed, 1322 insertions(+)
@@ -250,6 +268,7 @@ git tag ooda-iteration-02
 ```
 
 **Verification**:
+
 - ✅ Commit SHA: `760cd553`
 - ✅ Tag: `ooda-iteration-02`
 - ✅ Files: 5 modified (AGENTS.md + 4 OODA docs)
@@ -263,6 +282,7 @@ git tag ooda-iteration-02
 **Original Objective**: "test and make the upload and the processing of PDF fully works in edgequake"
 
 **Findings**:
+
 1. **PDF Upload**: ✅ Working - binary stored in PostgreSQL
 2. **Markdown Extraction**: ✅ Working - 16,887 bytes from 16-page paper
 3. **Side-by-side Display**: ✅ Working - both PDF and markdown panels render
@@ -279,12 +299,12 @@ git tag ooda-iteration-02
 
 #### 1. OODA Iteration 02 Documentation ✅
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| observe.md | 259 | E2E test findings, system state, evidence chain |
-| orient.md | 241 | Root cause analysis, strategic options, decision matrix |
-| decide.md | 274 | Action plan, task breakdown, risk assessment |
-| act.md | 228 | Implementation log, commit verification, metrics |
+| File       | Lines | Purpose                                                 |
+| ---------- | ----- | ------------------------------------------------------- |
+| observe.md | 259   | E2E test findings, system state, evidence chain         |
+| orient.md  | 241   | Root cause analysis, strategic options, decision matrix |
+| decide.md  | 274   | Action plan, task breakdown, risk assessment            |
+| act.md     | 228   | Implementation log, commit verification, metrics        |
 
 **Total**: 1,002 lines of documentation
 
@@ -293,6 +313,7 @@ git tag ooda-iteration-02
 **Section Added**: "Service Management & E2E Testing" (320 lines)
 
 **Content**:
+
 - Service health checks (backend, frontend, PostgreSQL)
 - Log file locations and viewing commands
 - Port mappings table
@@ -304,18 +325,21 @@ git tag ooda-iteration-02
 ### Metrics & Performance
 
 **Documentation**:
+
 - Total files: 5 (AGENTS.md + 4 OODA docs)
 - Total lines added: 1,322
 - Commit size: Medium (suitable for review)
 - OODA structure: Complete (4 files per iteration requirement met)
 
 **Test Coverage**:
+
 - E2E test: ✅ Side-by-side viewer verified
 - Health checks: ✅ All services responding
 - PDF extraction: ✅ 16,887 bytes from 16-page paper
 - Markdown rendering: ✅ Proper structure (headings, lists, links)
 
 **Time Investment**:
+
 - Observation (E2E testing): ~30 minutes
 - Documentation (4 OODA files): ~90 minutes
 - AGENTS.md update: ~45 minutes
@@ -361,28 +385,26 @@ git tag ooda-iteration-02
 ### Next Steps: Iterations 03-10
 
 **Immediate Priorities**:
+
 1. **Iteration 03**: Fix Makefile frontend PID management (2-3h)
 2. **Iteration 04**: Test fresh PDF upload (1-2h + LLM time)
 3. **Iteration 05**: Improve error handling (3-4h)
 
-**Optional Enhancements**:
-4. **Iteration 06**: Performance testing (large PDFs, concurrent uploads)
-5. **Iteration 07**: E2E test suite for CI/CD
-6. **Iteration 08**: Document architecture decisions
-7. **Iteration 09**: Retry logic for LLM network errors
-8. **Iteration 10**: Final regression testing and documentation
+**Optional Enhancements**: 4. **Iteration 06**: Performance testing (large PDFs, concurrent uploads) 5. **Iteration 07**: E2E test suite for CI/CD 6. **Iteration 08**: Document architecture decisions 7. **Iteration 09**: Retry logic for LLM network errors 8. **Iteration 10**: Final regression testing and documentation
 
 ### Mission Verdict
 
 **Status**: ✅ **PRIMARY MISSION COMPLETE**
 
 **Evidence**:
+
 - Side-by-side viewer displays both PDF (left) and markdown (right)
 - 16,887 bytes markdown extracted from 16-page academic paper
 - Content properly structured (headings, lists, links, emphasis)
 - E2E test confirms fix from iteration 01 is working
 
 **User Request Fulfilled**:
+
 - ✅ PDF upload and processing works
 - ✅ Service management documented in AGENTS.md
 - ✅ OODA loop iteration 02 complete (4 files)
