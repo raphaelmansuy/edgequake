@@ -30,6 +30,7 @@
 #[cfg(feature = "pdfium")]
 use crate::backend::PdfiumExtractor;
 use crate::error::PdfError;
+use crate::layout::page_filter::{filter_headers_footers, HeaderFooterConfig};
 use crate::layout::{GroupingParams, MarkdownConfig, MarkdownRenderer, TextBlock, TextGrouper};
 
 /// Configuration for the pymupdf4llm-inspired pipeline.
@@ -135,6 +136,11 @@ impl PymupdfPipeline {
         // close together. This splits them so headers are rendered correctly.
         let blocks = grouper.split_header_blocks(blocks);
 
+        // OODA-11: Filter repeated page headers and footers
+        // WHY: Running headers ("Journal Name") and page numbers add noise.
+        // Estimate page_height from block coordinates per page, then filter.
+        let blocks = filter_page_headers_footers(&blocks);
+
         // Render to Markdown
         let renderer = MarkdownRenderer::with_config(self.config.markdown.clone());
         Ok(renderer.render(&blocks))
@@ -166,6 +172,9 @@ impl PymupdfPipeline {
         // OODA-10: Split headers merged with paragraphs
         let blocks = grouper.split_header_blocks(blocks);
 
+        // OODA-11: Filter repeated page headers and footers
+        let blocks = filter_page_headers_footers(&blocks);
+
         Ok(blocks)
     }
 }
@@ -196,6 +205,28 @@ fn detect_body_font_size(blocks: &[TextBlock]) -> f32 {
         .max_by_key(|&(_, count)| count)
         .map(|(size, _)| size as f32)
         .unwrap_or(12.0) // Default fallback
+}
+
+/// OODA-11: Filter repeated page headers and footers from blocks.
+/// Estimates page_height per page from block coordinates.
+fn filter_page_headers_footers(blocks: &[TextBlock]) -> Vec<TextBlock> {
+    if blocks.is_empty() {
+        return blocks.to_vec();
+    }
+
+    // Estimate page_height from max y coordinate per page + margin
+    let mut max_y_per_page: std::collections::HashMap<usize, f32> =
+        std::collections::HashMap::new();
+    for block in blocks {
+        let entry = max_y_per_page.entry(block.page_num).or_insert(0.0_f32);
+        *entry = entry.max(block.y1);
+    }
+
+    // Use the global max as estimated page_height (most pages share the same size)
+    let estimated_page_height = max_y_per_page.values().copied().fold(0.0_f32, f32::max) + 72.0; // Add 1 inch margin
+
+    let config = HeaderFooterConfig::default();
+    filter_headers_footers(blocks, estimated_page_height, &config)
 }
 
 #[cfg(test)]
