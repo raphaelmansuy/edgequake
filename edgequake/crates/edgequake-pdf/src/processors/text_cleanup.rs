@@ -656,7 +656,7 @@ impl GarbledTextFilterProcessor {
             }
         }
 
-        // OODA-37: Long-word detection for diagram/figure text
+        // OODA-38: Long-word and camelCase detection for diagram/figure text
         // WHY (First Principle): Natural language has a predictable word length distribution.
         // English max word length is ~30 chars ("antidisestablishmentarianism" = 28).
         // When PDF diagram text is extracted, overlapping character positions produce
@@ -664,16 +664,18 @@ impl GarbledTextFilterProcessor {
         // creating "words" of 100+ chars. This violates the fundamental property of
         // natural language and reliably identifies garbled diagram text.
         //
+        // Two sub-checks:
+        //   (a) Any word > 35 chars (not URL/path) → garbled
+        //   (b) Any word > 25 chars with 3+ internal uppercase → concatenated labels
+        //       e.g., "OriginalRelationsTextincludes" (30 chars, uppercase at 8,17,21)
+        //
         // Exception: URLs and file paths can be long single tokens but contain
         // structural markers (://, /, .com, .org) that distinguish them.
-        if trimmed.len() > 50 {
+        {
             let words: Vec<&str> = trimmed.split_whitespace().collect();
-            let has_long_word = words.iter().any(|w| {
+            let has_garbled_word = words.iter().any(|w| {
                 let len = w.len();
-                if len <= 40 {
-                    return false;
-                }
-                // Exclude URLs and file paths (they have structural markers)
+                // Exclude URLs and file paths
                 let is_url_or_path = w.contains("://")
                     || w.contains('/')
                     || w.contains(".com")
@@ -681,26 +683,80 @@ impl GarbledTextFilterProcessor {
                     || w.contains(".edu")
                     || w.contains(".net")
                     || w.contains(".io");
-                !is_url_or_path
+                if is_url_or_path {
+                    return false;
+                }
+
+                // Check (a): Very long word (> 35 chars)
+                if len > 35 {
+                    return true;
+                }
+
+                // Check (b): CamelCase concatenation (> 25 chars with 2+ internal uppercase)
+                // WHY: Concatenated diagram labels like "OriginalRelationsTextincludes"
+                // have multiple internal uppercase transitions that natural words don't.
+                // Threshold of 25 chars avoids false positives on shorter compound names
+                // like "DeepHalluBench" (14 chars) or "RetrievalAugmented" (18 chars).
+                // Threshold of 2 internal uppercase catches inconsistent concatenations
+                // where not all word boundaries have uppercase (e.g., "Textincludes").
+                if len > 25 {
+                    let internal_uppercase = w.chars().skip(1).filter(|c| c.is_uppercase()).count();
+                    if internal_uppercase >= 2 {
+                        return true;
+                    }
+                }
+
+                false
             });
-            if has_long_word {
-                tracing::debug!(
-                    "Filtering garbled text (long word > 40 chars): '{}'",
-                    safe_truncate(trimmed, 60)
-                );
-                return true;
+            if has_garbled_word {
+                // OODA-38: Don't filter a long paragraph just because it starts with
+                // one garbled word. Only filter if the garbled words dominate the text.
+                // WHY: Figure diagram text is typically short (< 200 chars) and mostly
+                // garbled. A long paragraph (> 200 chars) with one garbled word at the
+                // start is likely a legitimate block with a PDF extraction artifact.
+                let garbled_word_len: usize = words
+                    .iter()
+                    .filter(|w| {
+                        let len = w.len();
+                        let is_url = w.contains("://") || w.contains('/');
+                        if is_url {
+                            return false;
+                        }
+                        if len > 35 {
+                            return true;
+                        }
+                        if len > 25 {
+                            let internal_upper =
+                                w.chars().skip(1).filter(|c| c.is_uppercase()).count();
+                            return internal_upper >= 2;
+                        }
+                        false
+                    })
+                    .map(|w| w.len())
+                    .sum();
+
+                // Only filter if garbled words make up > 50% of the text length
+                // or the total text is short (< 200 chars, likely a diagram label block)
+                if garbled_word_len * 2 > trimmed.len() || trimmed.len() < 200 {
+                    tracing::debug!(
+                        "Filtering garbled text (long/camelCase word): '{}'",
+                        safe_truncate(trimmed, 60)
+                    );
+                    return true;
+                }
             }
         }
 
-        // OODA-37: Low space ratio detection for concatenated diagram labels
+        // OODA-38: Low space ratio detection for concatenated diagram labels
         // WHY (First Principle): Natural language text has ~15-20% spaces (word boundaries).
         // PDF diagram labels that get concatenated have near-zero space ratio because
-        // characters are positioned adjacent without word-break gaps. A block with > 80 chars
+        // characters are positioned adjacent without word-break gaps. A block with > 60 chars
         // and < 5% spaces is almost certainly garbled or concatenated diagram text.
         //
-        // Exception: Very short text (< 80 chars) may legitimately have few spaces
-        // (e.g., single long technical terms like "AgricultureEnvironmentalProduction").
-        if trimmed.len() > 80 {
+        // Exception: Text containing URLs can have low space ratios because URLs are
+        // long non-space tokens. Skip this check if text contains URL markers.
+        let has_url = trimmed.contains("://") || trimmed.contains("www.");
+        if trimmed.len() > 60 && !has_url {
             let space_count = trimmed.chars().filter(|c| c.is_whitespace()).count();
             let space_ratio = space_count as f32 / trimmed.len() as f32;
             if space_ratio < 0.05 {
@@ -1530,14 +1586,14 @@ mod tests {
     }
 
     // ==========================================================================
-    // OODA-37: Tests for enhanced garbled text detection
+    // OODA-37/38: Tests for enhanced garbled text detection
     // ==========================================================================
 
     #[test]
     fn test_garbled_long_word_detection() {
         let processor = GarbledTextFilterProcessor::new();
 
-        // Long garbled word (>40 chars, no spaces) from PDF diagram text extraction
+        // Long garbled word (>35 chars, no spaces) from PDF diagram text extraction
         // WHY: Diagram text like "pbtBeekeepersinccrucialrolein..." produces
         // continuous strings >100 chars that violate natural language word length limits.
         assert!(processor.is_garbled(
@@ -1547,11 +1603,32 @@ mod tests {
             "AgricultureEnvironmentalProductionImpactAnother something additional words here"
         ));
 
+        // OODA-38: 40-char word should now be caught (threshold lowered from 40 to 35)
+        assert!(processor.is_garbled("AgricultureEnvironmentalProductionImpact"));
+
         // Normal text should NOT be flagged
         assert!(!processor.is_garbled("This is a normal sentence with normal words."));
         assert!(!processor.is_garbled(
             "Even somewhat longer text with many words should be fine."
         ));
+    }
+
+    #[test]
+    fn test_garbled_camelcase_detection() {
+        let processor = GarbledTextFilterProcessor::new();
+
+        // OODA-38: CamelCase concatenated diagram labels (>25 chars, 2+ internal uppercase)
+        // WHY: PDF figure text like "OriginalRelationsTextincludes" is concatenated
+        // words from overlapping character positions in diagram elements.
+        assert!(processor.is_garbled("OriginalRelationsTextincludes"));
+        assert!(processor.is_garbled(
+            "AgricultureEnvironmentalProduction"
+        ));
+
+        // Short camelCase words should NOT be flagged (< 25 chars)
+        assert!(!processor.is_garbled("AgricultureEnvironmental")); // 24 chars
+        assert!(!processor.is_garbled("DeepHalluBench")); // 14 chars
+        assert!(!processor.is_garbled("RetrievalAugmented")); // 18 chars
     }
 
     #[test]
@@ -1568,13 +1645,32 @@ mod tests {
     }
 
     #[test]
+    fn test_garbled_word_in_long_paragraph_not_filtered() {
+        let processor = GarbledTextFilterProcessor::new();
+
+        // OODA-38: A long paragraph (>200 chars) that starts with one garbled word
+        // should NOT be filtered. The garbled word is a minor artifact.
+        // WHY: PDF extraction sometimes prepends figure text to the start of a paragraph.
+        // Filtering the entire paragraph would lose legitimate content.
+        let long_para = "OriginalRelationsTextincludes two key functionalities: \
+            i) Data Indexer which involves building a specific data structure based on \
+            the external database. ii) Data Retriever: The relevant documents are obtained \
+            by comparing the query against the indexed data, also denoted as relevant documents.";
+        assert!(long_para.len() > 200);
+        assert!(!processor.is_garbled(long_para));
+
+        // But a short garbled block should still be filtered
+        assert!(processor.is_garbled("OriginalRelationsTextincludes some short text"));
+    }
+
+    #[test]
     fn test_garbled_low_space_ratio() {
         let processor = GarbledTextFilterProcessor::new();
 
-        // Text >80 chars with <5% spaces is likely garbled diagram text
-        // This simulates concatenated PDF figure labels
+        // OODA-38: Text >60 chars with <5% spaces is likely garbled diagram text
+        // (lowered from 80 to 60 to catch more concatenated labels)
         let garbled = "AbcDefGhiJklMnoPqrStuvWxyzAbcDefGhiJklMnoPqrStuvWxyzAbcDefGhiJklMnoPqrStuvWxyzAbcDefGhiJkl";
-        assert!(garbled.len() > 80);
+        assert!(garbled.len() > 60);
         assert!(processor.is_garbled(garbled));
 
         // Normal text >80 chars with adequate spaces should NOT be flagged
@@ -1587,10 +1683,13 @@ mod tests {
     fn test_garbled_short_text_not_flagged() {
         let processor = GarbledTextFilterProcessor::new();
 
-        // Short concatenated words (<80 chars) should NOT trigger low-space check
+        // Short concatenated words (<25 chars) should NOT trigger camelCase check
         // They might be legitimate technical terms or CamelCase identifiers
-        assert!(!processor.is_garbled("AgricultureEnvironmental"));
-        assert!(!processor.is_garbled("DeepHalluBench"));
-        assert!(!processor.is_garbled("RetrievalAugmented"));
+        assert!(!processor.is_garbled("AgricultureEnvironmental")); // 24 chars
+        assert!(!processor.is_garbled("DeepHalluBench")); // 14 chars
+        assert!(!processor.is_garbled("RetrievalAugmented")); // 18 chars
+
+        // Single compound words without multiple internal uppercase
+        assert!(!processor.is_garbled("antidisestablishmentarianism")); // 28 chars, all lowercase
     }
 }
