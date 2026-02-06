@@ -29,14 +29,29 @@ pub fn is_pua_char(c: char) -> bool {
 
 /// Filter PUA characters from a text string.
 ///
-/// Returns the input string with all PUA characters removed and
-/// Unicode whitespace normalized to standard ASCII space.
+/// Returns the input string with all PUA characters removed,
+/// Unicode whitespace normalized to standard ASCII space,
+/// smart quotes straightened, and ligatures decomposed.
 /// OODA-15: Normalize non-breaking spaces, thin spaces, etc.
+/// OODA-17: Decompose common ligatures (fi, fl, ff, ffi, ffl).
 pub fn filter_pua(text: &str) -> String {
-    text.chars()
-        .filter(|&c| !is_pua_char(c))
-        .map(|c| normalize_whitespace(c))
-        .collect()
+    let mut result = String::with_capacity(text.len());
+    for c in text.chars() {
+        if is_pua_char(c) {
+            continue;
+        }
+        // OODA-17: Decompose ligatures before character normalization
+        match c {
+            '\u{FB00}' => result.push_str("ff"),
+            '\u{FB01}' => result.push_str("fi"),
+            '\u{FB02}' => result.push_str("fl"),
+            '\u{FB03}' => result.push_str("ffi"),
+            '\u{FB04}' => result.push_str("ffl"),
+            '\u{FB05}' | '\u{FB06}' => result.push_str("st"),
+            _ => result.push(normalize_whitespace(c)),
+        }
+    }
+    result
 }
 
 /// OODA-15: Normalize Unicode whitespace characters to ASCII space.
@@ -200,5 +215,15 @@ mod tests {
         // Unicode hyphens → ASCII hyphen
         assert_eq!(filter_pua("well\u{2010}known"), "well-known");
         assert_eq!(filter_pua("a \u{2212} b"), "a - b");
+    }
+
+    /// OODA-17: Test ligature decomposition
+    #[test]
+    fn test_decompose_ligatures() {
+        assert_eq!(filter_pua("e\u{FB03}cient"), "efficient");
+        assert_eq!(filter_pua("\u{FB01}rst"), "first");
+        assert_eq!(filter_pua("\u{FB02}ow"), "flow");
+        assert_eq!(filter_pua("o\u{FB00}er"), "offer");
+        assert_eq!(filter_pua("mu\u{FB04}e"), "muffle");
     }
 }
