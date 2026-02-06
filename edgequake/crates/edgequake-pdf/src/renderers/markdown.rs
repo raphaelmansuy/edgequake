@@ -1274,6 +1274,14 @@ impl MarkdownRenderer {
                     .next()
                     .map(|c| c.is_uppercase())
                     .unwrap_or(false);
+                // WHY allow digits: Section numbers like "2) Software Development"
+                // or "3. Context Graph" start with a digit, not a letter.
+                // These are clearly section headers when combined with bold + short + standalone.
+                let starts_with_section_number = trimmed
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false);
                 let ends_with_punctuation = trimmed.ends_with(':')
                     || trimmed.ends_with('.')
                     || trimmed.ends_with('?')
@@ -1289,7 +1297,10 @@ impl MarkdownRenderer {
                 // Caption patterns like "Figure 1" are excluded unless explicitly allowed
                 // WHY no bold in header: `## Title` is clean; `## **Title**` is redundant
                 // because Markdown headers are inherently bold in every renderer.
-                if is_short && starts_upper && !ends_with_punctuation && (!is_caption || is_allowed)
+                if is_short
+                    && (starts_upper || starts_with_section_number)
+                    && !ends_with_punctuation
+                    && (!is_caption || is_allowed)
                 {
                     result_lines.push(format!("## {}", trimmed));
                 } else {
