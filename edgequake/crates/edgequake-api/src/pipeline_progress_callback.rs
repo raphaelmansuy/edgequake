@@ -310,24 +310,34 @@ impl ProgressCallback for PipelineProgressCallback {
         });
 
         // OODA-PERF-02: Update document metadata with debouncing
-        // WHY: Prevents excessive KV writes (39 updates for 39 pages)
-        // STRATEGY: Update every 5 pages OR on last page for completion
+        // WHY: Prevents excessive KV writes (40 updates for 40 pages).
+        // STRATEGY: Update on first page, every 5 pages, OR on last page.
+        //
+        // BUG FIX: page_num is 0-indexed (0..page_count-1) while total is
+        // page_count. Previous code used `page_num >= total` which NEVER
+        // matched the last page (e.g., page 39 < 40). Also, progress
+        // calculation used page_num/total giving 0% for the first completed
+        // page. Now uses (page_num + 1)/total for accurate 1-indexed display.
         let last_updated = self.last_metadata_page.load(Ordering::SeqCst);
-        let is_last_page = page_num >= total;
-        let should_update = is_last_page || (page_num - last_updated) >= 5;
+        let is_first_page = page_num == 0;
+        let is_last_page = page_num + 1 >= total; // Fix: 0-indexed → 39+1 >= 40 = true
+        let gap_met = page_num.saturating_sub(last_updated) >= 5;
+        let should_update = is_first_page || is_last_page || gap_met;
 
         if should_update {
             self.last_metadata_page.store(page_num, Ordering::SeqCst);
 
+            // Use (page_num + 1) for 1-indexed display and accurate percentage
+            let completed_pages = page_num + 1;
             let progress_percent = if total > 0 {
-                (page_num as f64 / total as f64) * 100.0
+                (completed_pages as f64 / total as f64) * 100.0
             } else {
                 0.0
             };
             self.update_document_metadata(
                 format!(
                     "Converting PDF to Markdown: page {}/{} ({:.0}%)",
-                    page_num, total, progress_percent
+                    completed_pages, total, progress_percent
                 ),
                 progress_percent / 100.0, // Normalize to 0.0-1.0
             );
@@ -436,6 +446,19 @@ impl ProgressCallback for PipelineProgressCallback {
             success: success_count > 0,
             error: error_msg,
         });
+
+        // BUG FIX: Update KV metadata to 100% on completion.
+        // WHY: Previously, on_page_complete's debounce might skip the last page
+        // (e.g., stuck at 35/40). This ensures the metadata always reaches 100%
+        // when extraction finishes, so users see complete progress in the UI
+        // even before the next pipeline stage begins.
+        self.update_document_metadata(
+            format!(
+                "PDF conversion complete: {}/{} pages extracted",
+                success_count, total_pages
+            ),
+            1.0,
+        );
 
         // OODA-13: Complete the PdfConversion phase in persistent storage
         // OODA-04: Use captured runtime handle to spawn from sync context

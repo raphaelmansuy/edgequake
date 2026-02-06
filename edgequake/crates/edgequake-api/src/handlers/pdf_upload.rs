@@ -430,8 +430,7 @@ pub async fn upload_pdf_document(
 
             // Clear existing document data if document_id exists
             if let Some(document_id) = existing.document_id {
-                if let Err(e) =
-                    clear_document_derived_data(&state, &document_id.to_string()).await
+                if let Err(e) = clear_document_derived_data(&state, &document_id.to_string()).await
                 {
                     warn!(
                         "Failed to clear document data during re-index: {} (continuing anyway)",
@@ -444,9 +443,7 @@ pub async fn upload_pdf_document(
             pdf_storage
                 .update_pdf_status(&existing.pdf_id, PdfProcessingStatus::Processing)
                 .await
-                .map_err(|e| {
-                    ApiError::Internal(format!("Failed to reset PDF status: {}", e))
-                })?;
+                .map_err(|e| ApiError::Internal(format!("Failed to reset PDF status: {}", e)))?;
 
             // Create new processing task
             let task_id =
@@ -1213,7 +1210,7 @@ async fn clear_document_derived_data(state: &AppState, document_id: &str) -> Res
 
     // 1. Clear graph data (entities and relationships)
     let graph_storage = &state.graph_storage;
-    
+
     // Get all nodes and filter by source_id
     let all_nodes = graph_storage
         .get_all_nodes()

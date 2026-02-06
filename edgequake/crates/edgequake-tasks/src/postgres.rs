@@ -579,6 +579,7 @@ impl std::str::FromStr for crate::types::TaskType {
             "insert" => Ok(crate::types::TaskType::Insert),
             "scan" => Ok(crate::types::TaskType::Scan),
             "reindex" => Ok(crate::types::TaskType::Reindex),
+            "pdf_processing" => Ok(crate::types::TaskType::PdfProcessing),
             _ => Err(format!("Invalid task type: {}", s)),
         }
     }

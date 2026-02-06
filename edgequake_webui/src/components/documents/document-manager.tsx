@@ -1596,7 +1596,13 @@ export function DocumentManager() {
                                 </DropdownMenuItem>
                               )}
                               {/* Cancel option for pending/processing documents */}
-                              {(doc.status === 'pending' || doc.status === 'processing') && doc.track_id && (
+                              {/* WHY: Check both status and current_stage for active processing states */}
+                              {/* OODA-FIX: Users couldn't cancel PDF extraction stuck in 'converting' stage */}
+                              {/* Bug: doc.status may be 'processing' but doc.current_stage shows the actual stage like 'converting' */}
+                              {((['pending', 'processing'].includes(doc.status || '')) || 
+                                (['converting', 'uploading', 'preprocessing', 'chunking', 
+                                 'extracting', 'gleaning', 'merging', 'summarizing', 'embedding', 'storing'].includes(doc.current_stage || ''))) 
+                                 && doc.track_id && (
                                 <DropdownMenuItem 
                                   onClick={() => cancelMutation.mutate(doc.track_id!)}
                                   className="text-orange-600"
