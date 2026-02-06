@@ -1117,6 +1117,17 @@ impl SectionNumberMergeProcessor {
         // Heuristic: If text is 2-4 short capitalized words without section keywords, it's a name.
         let words: Vec<&str> = trimmed.split_whitespace().collect();
 
+        // OODA-38: ALL-CAPS text is always a section title, never a person name.
+        // WHY (First Principle): Person names use Title Case ("Alois Knoll"),
+        // while section titles in academic papers use ALL CAPS ("DUAL-LEVEL RETRIEVAL").
+        // Checking alpha chars for all-uppercase is more robust than keyword matching.
+        let alpha_chars: Vec<char> = trimmed.chars().filter(|c| c.is_alphabetic()).collect();
+        let is_all_caps = !alpha_chars.is_empty()
+            && alpha_chars.iter().all(|c| c.is_uppercase());
+        if is_all_caps {
+            return true; // ALL CAPS = section title
+        }
+
         // Check if it looks like a person name (2-4 short capitalized words)
         let looks_like_person_name = !words.is_empty()
             && words.len() <= 4
@@ -1209,28 +1220,79 @@ impl Processor for SectionNumberMergeProcessor {
             }
 
             // Match with titles
+            // OODA-38: Two matching modes for section number + title merging:
+            //
+            // Mode A: SAME LINE — title is to the RIGHT of section number
+            //   ┌─────────────────────────────────┐
+            //   │  "1."  │  "Introduction"         │  ← same Y-band, title.x1 > sec.x1
+            //   └─────────────────────────────────┘
+            //
+            // Mode B: NEXT LINE — title is BELOW the section number
+            //   ┌──────────────┐
+            //   │  "3.2"       │  ← section number alone
+            //   ├──────────────┤
+            //   │  "DUAL-LEVEL │  ← title on next line, similar X position
+            //   │   RETRIEVAL" │
+            //   └──────────────┘
+            //
+            // WHY: Academic PDFs often place section numbers and titles on separate lines.
+            // The original code only handled Mode A (same-line, title to the right).
             let mut merge_map: std::collections::HashMap<usize, (usize, String)> =
                 std::collections::HashMap::new();
 
             for (sec_idx, sec_text, sec_y, sec_x) in &section_numbers {
+                // Track best matches separately: Mode A (same-line) takes priority
+                let mut best_same_line: Option<(usize, String, f32)> = None;
+                let mut best_next_line: Option<(usize, String, f32)> = None;
+
                 for (title_idx, title_block) in page.blocks.iter().enumerate() {
                     if title_idx == *sec_idx {
                         continue;
                     }
 
                     let title_text = title_block.text.trim();
+                    if !Self::looks_like_section_title(title_text) {
+                        continue;
+                    }
+
                     let title_y_center = (title_block.bbox.y1 + title_block.bbox.y2) / 2.0;
                     let y_gap = (sec_y - title_y_center).abs();
+                    let merged_text =
+                        format!("{}. {}", sec_text.trim_end_matches('.'), title_text);
 
-                    if y_gap < 25.0
-                        && title_block.bbox.x1 > *sec_x
-                        && Self::looks_like_section_title(title_text)
-                    {
-                        let merged_text =
-                            format!("{}. {}", sec_text.trim_end_matches('.'), title_text);
-                        merge_map.insert(*sec_idx, (title_idx, merged_text));
-                        break;
+                    // Mode A: Same line — title to the right, tight Y tolerance
+                    let is_same_line = y_gap < 25.0 && title_block.bbox.x1 > *sec_x;
+
+                    // Mode B: Next line — title below, similar or same X position
+                    // WHY: title_y_center > sec_y means title is below; X within ±20pt
+                    let is_next_line = !is_same_line
+                        && y_gap < 40.0
+                        && title_y_center > *sec_y
+                        && (title_block.bbox.x1 - sec_x).abs() < 20.0;
+
+                    if is_same_line {
+                        let better = best_same_line
+                            .as_ref()
+                            .map(|(_, _, best_y)| y_gap < *best_y)
+                            .unwrap_or(true);
+                        if better {
+                            best_same_line = Some((title_idx, merged_text, y_gap));
+                        }
+                    } else if is_next_line {
+                        let better = best_next_line
+                            .as_ref()
+                            .map(|(_, _, best_y)| y_gap < *best_y)
+                            .unwrap_or(true);
+                        if better {
+                            best_next_line = Some((title_idx, merged_text, y_gap));
+                        }
                     }
+                }
+
+                // Mode A always wins over Mode B
+                let best_match = best_same_line.or(best_next_line);
+                if let Some((title_idx, merged_text, _)) = best_match {
+                    merge_map.insert(*sec_idx, (title_idx, merged_text));
                 }
             }
 
@@ -1370,6 +1432,89 @@ mod tests {
         let result = processor.process(doc).unwrap();
         // Should maintain block count (no merges in this simple test doc)
         assert_eq!(result.pages[0].blocks.len(), initial_block_count);
+    }
+
+    #[test]
+    fn test_section_number_merge_same_line() {
+        // OODA-38: Mode A — section number and title on same Y-band, title to the right
+        use crate::schema::{Block, BoundingBox, Document, Page};
+
+        let processor = SectionNumberMergeProcessor::new();
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        // "1." at left, "Introduction" to the right, same Y
+        page.add_block(Block::text(
+            "1.",
+            BoundingBox::new(72.0, 100.0, 85.0, 115.0),
+        ));
+        page.add_block(Block::text(
+            "Introduction",
+            BoundingBox::new(90.0, 100.0, 250.0, 115.0),
+        ));
+
+        doc.add_page(page);
+        let result = processor.process(doc).unwrap();
+
+        assert_eq!(result.pages[0].blocks.len(), 1);
+        assert_eq!(result.pages[0].blocks[0].text, "1. Introduction");
+    }
+
+    #[test]
+    fn test_section_number_merge_next_line() {
+        // OODA-38: Mode B — section number alone, title on the NEXT LINE below
+        // WHY: Academic PDFs like the LightRAG paper have "3.2" alone on one line
+        // and "DUAL-LEVEL RETRIEVAL PARADIGM" on the next line at similar X position.
+        use crate::schema::{Block, BoundingBox, Document, Page};
+
+        let processor = SectionNumberMergeProcessor::new();
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        // "3.2" at Y=200-215, title at Y=220-235 (below, gap ~15pt, similar X)
+        page.add_block(Block::text(
+            "3.2",
+            BoundingBox::new(72.0, 200.0, 95.0, 215.0),
+        ));
+        page.add_block(Block::text(
+            "DUAL-LEVEL RETRIEVAL PARADIGM",
+            BoundingBox::new(72.0, 220.0, 350.0, 235.0),
+        ));
+
+        doc.add_page(page);
+        let result = processor.process(doc).unwrap();
+
+        assert_eq!(result.pages[0].blocks.len(), 1);
+        assert_eq!(
+            result.pages[0].blocks[0].text,
+            "3.2. DUAL-LEVEL RETRIEVAL PARADIGM"
+        );
+    }
+
+    #[test]
+    fn test_section_number_no_merge_far_below() {
+        // OODA-38: Title too far below (>40pt gap) should NOT merge
+        use crate::schema::{Block, BoundingBox, Document, Page};
+
+        let processor = SectionNumberMergeProcessor::new();
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        // "3.2" at Y=200-215, text at Y=260-275 (gap=50pt, too far)
+        page.add_block(Block::text(
+            "3.2",
+            BoundingBox::new(72.0, 200.0, 95.0, 215.0),
+        ));
+        page.add_block(Block::text(
+            "Some Paragraph Text",
+            BoundingBox::new(72.0, 260.0, 350.0, 275.0),
+        ));
+
+        doc.add_page(page);
+        let result = processor.process(doc).unwrap();
+
+        // Should NOT merge — Y gap too large
+        assert_eq!(result.pages[0].blocks.len(), 2);
     }
 
     #[test]
