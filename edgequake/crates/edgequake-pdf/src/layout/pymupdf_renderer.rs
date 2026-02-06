@@ -382,7 +382,13 @@ fn normalize_bullet(text: &str) -> String {
     let trimmed = text.trim_start();
 
     // Common bullet characters to normalize
-    const BULLETS: &[char] = &['•', '●', '○', '◦', '▪', '▫', '–', '—'];
+    // OODA-14: Comprehensive bullet normalization from pymupdf4llm
+    // Includes Unicode geometric shapes (U+25A0-25FF), common symbols
+    const BULLETS: &[char] = &[
+        '•', '●', '○', '◦', '▪', '▫', '–', '—', '∙', '·', '‣', '⁃', '◆', '◇', '►', '▸', '★', '☆',
+        '■', '□', '▶', '‐', '‑', '‒', '―', '†', '‡', '※', '¶', '\u{F0A7}', // PUA bullet
+        '\u{F0B7}', // PUA bullet
+    ];
 
     for &bullet in BULLETS {
         if let Some(rest) = trimmed.strip_prefix(bullet) {
@@ -515,6 +521,12 @@ mod tests {
         assert_eq!(normalize_bullet("● Item two"), "- Item two");
         assert_eq!(normalize_bullet("- Already normal"), "- Already normal");
         assert_eq!(normalize_bullet("1. Numbered"), "1. Numbered");
+        // OODA-14: Extended Unicode bullets
+        assert_eq!(normalize_bullet("◆ Diamond"), "- Diamond");
+        assert_eq!(normalize_bullet("► Arrow"), "- Arrow");
+        assert_eq!(normalize_bullet("■ Square"), "- Square");
+        assert_eq!(normalize_bullet("‣ Triangular"), "- Triangular");
+        assert_eq!(normalize_bullet("† Dagger"), "- Dagger");
     }
 
     #[test]
