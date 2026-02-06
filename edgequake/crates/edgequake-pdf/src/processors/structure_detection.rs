@@ -654,10 +654,11 @@ impl Processor for ListDetectionProcessor {
 
         for page in &mut document.pages {
             // Find left margin for indentation calculation
+            // OODA-IT36: Include Paragraph blocks (from PdfiumBackend)
             let min_x = page
                 .blocks
                 .iter()
-                .filter(|b| matches!(b.block_type, BlockType::Text | BlockType::ListItem))
+                .filter(|b| matches!(b.block_type, BlockType::Text | BlockType::Paragraph | BlockType::ListItem))
                 .map(|b| b.bbox.x1)
                 .fold(f32::MAX, |a, b| a.min(b));
 
@@ -668,7 +669,10 @@ impl Processor for ListDetectionProcessor {
             );
 
             for block in &mut page.blocks {
-                if block.block_type != BlockType::Text {
+                // OODA-IT36: Accept both Text and Paragraph blocks for list detection.
+                // WHY: PdfiumBackend creates Paragraph blocks (from LayoutBlockType::Paragraph),
+                // while lopdf backend creates Text blocks. Both can contain list items.
+                if !matches!(block.block_type, BlockType::Text | BlockType::Paragraph) {
                     continue;
                 }
 

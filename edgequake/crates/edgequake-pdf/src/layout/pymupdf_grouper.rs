@@ -589,20 +589,36 @@ impl TextGrouper {
         });
 
         // Phase 2b: Merge blocks with similar boundaries and close Y
+        // OODA-IT36: EXCEPT when next block starts with a list marker
         let mut i = 0;
         while i < blocks.len().saturating_sub(1) {
             let can_merge = {
                 let current = &blocks[i];
                 let next = &blocks[i + 1];
 
-                // Same page
-                current.page_num == next.page_num
-                    // Similar left boundary
-                    && (current.x0 - next.x0).abs() <= BOUNDARY_TOLERANCE
-                    // Similar right boundary
-                    && (current.x1 - next.x1).abs() <= BOUNDARY_TOLERANCE
-                    // Close vertically (current is above next, gap <= 10pt)
-                    && (current.y0 - next.y1).abs() <= VERTICAL_GAP_MAX
+                // OODA-IT36: Never merge a block that starts with a list marker.
+                // WHY: join_blocks_phase2 re-merges blocks that can_add_line()
+                // already separated. Without this check, bullet items like
+                // "• Item A" and "• Item B" get re-merged into one block,
+                // making them invisible to ListDetectionProcessor.
+                let next_starts_with_bullet = next
+                    .lines
+                    .first()
+                    .map(|l| l.starts_with_list_marker())
+                    .unwrap_or(false);
+
+                if next_starts_with_bullet {
+                    false
+                } else {
+                    // Same page
+                    current.page_num == next.page_num
+                        // Similar left boundary
+                        && (current.x0 - next.x0).abs() <= BOUNDARY_TOLERANCE
+                        // Similar right boundary
+                        && (current.x1 - next.x1).abs() <= BOUNDARY_TOLERANCE
+                        // Close vertically (current is above next, gap <= 10pt)
+                        && (current.y0 - next.y1).abs() <= VERTICAL_GAP_MAX
+                }
             };
 
             if can_merge {

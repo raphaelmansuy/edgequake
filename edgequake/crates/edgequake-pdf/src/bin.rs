@@ -500,6 +500,8 @@ fn extract_and_save_images(
     opts: &ConvertOptions,
 ) -> Result<Vec<ImageRef>, Box<dyn std::error::Error>> {
     use edgequake_pdf::backend::pdfium::PdfiumExtractor;
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
 
     // Create a fresh PdfiumExtractor for image extraction
     let pdfium_extractor = PdfiumExtractor::new()?;
@@ -526,8 +528,31 @@ fn extract_and_save_images(
     let mut refs = Vec::new();
 
     for img_data in &extracted {
-        let filename = format!("page{}_img{}.png", img_data.page_num, img_data.index);
+        // OODA-IT36: Use content hash for idempotent image naming.
+        // WHY (spec requirement): "Ensure image name is idempotent (e.g., hash
+        // of content) to avoid duplicates and enable caching."
+        // Hash the raw pixel data so identical images get the same filename
+        // regardless of page position or extraction order.
+        let mut hasher = DefaultHasher::new();
+        img_data.image.as_bytes().hash(&mut hasher);
+        let hash = hasher.finish();
+        let filename = format!("img_{:016x}.png", hash);
         let file_path = assets_dir.join(&filename);
+
+        // Skip if file already exists (idempotent: same content = same file)
+        if file_path.exists() {
+            refs.push(ImageRef {
+                page_num: img_data.page_num,
+                path: format!("./assets/{}", filename),
+                alt: format!(
+                    "Image from page {} ({}x{})",
+                    img_data.page_num + 1,
+                    img_data.width,
+                    img_data.height
+                ),
+            });
+            continue;
+        }
 
         // Save image as PNG
         // WHY PNG: Lossless format preserves quality of diagrams, charts, and text.
