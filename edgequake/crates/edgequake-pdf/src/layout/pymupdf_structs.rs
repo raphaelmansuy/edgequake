@@ -193,13 +193,32 @@ impl Span {
         // - Proportional fonts (Arial, Times): inter-char gaps ~5-15%, space ~20-25%
         //   → Use 22% threshold to catch word boundaries without splitting kerned pairs
         //
+        // OODA-IT41: URL/path punctuation-aware threshold adjustment.
+        // URLs and technical text (https://github.com, file.txt, user@email.com) have
+        // specific punctuation chars with kerning gaps that exceed the 22% proportional
+        // threshold but are NOT word boundaries.
+        //
+        // Only apply higher threshold for URL/path punctuation: : / . @
+        // Keep lower threshold for general punctuation: & , ; ! ? etc. which typically
+        // ARE word boundaries (e.g., "A & B" should have spaces around &).
+        //
         // Explicit space chars in the PDF stream are the PRIMARY word boundary signal
         // (handled in chars_to_spans). This gap check is the SECONDARY signal.
-        let space_threshold = if self.font_is_monospace.unwrap_or(false) {
-            // Monospace: wide inter-char spacing requires higher threshold
+        let last_char = self.text.chars().last();
+
+        // URL/path punctuation that should bind tightly to adjacent characters
+        fn is_url_punctuation(c: char) -> bool {
+            matches!(c, ':' | '/' | '.' | '@' | '-' | '_')
+        }
+
+        let is_url_boundary =
+            last_char.map(is_url_punctuation).unwrap_or(false) || is_url_punctuation(ch.char);
+
+        let space_threshold = if self.font_is_monospace.unwrap_or(false) || is_url_boundary {
+            // Monospace OR URL punctuation: use higher threshold to avoid false splits
             self.font_size * 0.33
         } else {
-            // Proportional: tight kerning allows lower threshold for better word detection
+            // Proportional non-URL: lower threshold for better word detection
             self.font_size * 0.22
         };
         let gap = ch.x0 - self.x1;
