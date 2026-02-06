@@ -1129,6 +1129,181 @@ impl HyphenContinuationProcessor {
 
         result
     }
+
+    /// OODA-IT43: Join soft word breaks (without hyphens) from PDF column wrapping.
+    ///
+    /// **WHY:** PDFs often split words at column edges without inserting hyphens.
+    /// E.g., "representa tions" should become "representations".
+    ///
+    /// **First Principles:**
+    /// - Word fragments at line ends followed by suffix patterns need joining
+    /// - Common suffixes: -tions, -tion, -ment, -ing, -ness, -able, etc.
+    /// - Consonant cluster starts (pr, tr, br) also indicate word continuation
+    ///
+    /// **Algorithm:**
+    /// 1. Find pattern: "prefix suffix" where suffix starts lowercase
+    /// 2. Check if suffix matches known suffix patterns
+    /// 3. Join by removing the space
+    fn process_soft_word_breaks(text: &str) -> String {
+        let mut result = text.to_string();
+        let mut changed = true;
+
+        while changed {
+            changed = false;
+
+            // Find all potential "word continuation" patterns
+            // Look for: word boundary, word (3+ chars ending in letter), space, lowercase word
+            let chars: Vec<char> = result.chars().collect();
+            let len = chars.len();
+
+            for i in 0..len {
+                // Find a space that might be a soft word break
+                if chars[i] != ' ' {
+                    continue;
+                }
+
+                // Get the word before the space
+                let prefix_end = i;
+                let mut prefix_start = i;
+                while prefix_start > 0 && chars[prefix_start - 1].is_alphanumeric() {
+                    prefix_start -= 1;
+                }
+
+                // Skip if prefix is too short or doesn't end with a letter
+                if prefix_end - prefix_start < 3 {
+                    continue;
+                }
+                if !chars[prefix_end - 1].is_alphabetic() {
+                    continue;
+                }
+
+                // Get the word after the space
+                let suffix_start = i + 1;
+                if suffix_start >= len {
+                    continue;
+                }
+
+                // Suffix must start with lowercase letter
+                if !chars[suffix_start].is_ascii_lowercase() {
+                    continue;
+                }
+
+                // Find suffix end
+                let mut suffix_end = suffix_start;
+                while suffix_end < len && chars[suffix_end].is_alphanumeric() {
+                    suffix_end += 1;
+                }
+
+                // Get the actual strings
+                let prefix: String = chars[prefix_start..prefix_end].iter().collect();
+                let suffix: String = chars[suffix_start..suffix_end].iter().collect();
+
+                // Check if this looks like a soft word break
+                if Self::is_soft_word_break(&prefix, &suffix) {
+                    // Join by removing the space
+                    let before: String = chars[..i].iter().collect();
+                    let after: String = chars[suffix_start..].iter().collect();
+                    result = format!("{}{}", before, after);
+                    changed = true;
+                    break;
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Check if "prefix suffix" is likely a soft word break (split word without hyphen).
+    ///
+    /// Returns true if the suffix matches known suffix patterns or looks like a word fragment.
+    fn is_soft_word_break(_prefix: &str, suffix: &str) -> bool {
+        let suffix_lower = suffix.to_lowercase();
+
+        // OODA-IT43: Known suffix patterns that indicate word continuation
+        // WHY: These suffixes never stand alone as words
+        // NOTE: Only use patterns that are UNAMBIGUOUSLY suffixes
+        // Avoid short patterns like "ing", "cal" that are prefixes of real words
+        let suffix_patterns = [
+            // Long, unambiguous suffixes (safe)
+            "tions",
+            "tion",
+            "sions",
+            "sion", // representa-tions, genera-tion
+            "ments",
+            "ment", // experi-mental
+            "nesses",
+            "ness", // aware-ness
+            "able",
+            "ible", // adapt-able
+            "ence",
+            "ance",
+            "ency",
+            "ancy", // depend-ence
+            "ially",
+            "ually",
+            "ally", // essenti-ally
+            "ization",
+            "izing",
+            "ized", // optim-ized
+            "ities",
+            "ity", // complex-ity
+            "ives",
+            "ive", // comprehens-ive (but not "ive" alone)
+            "ation",
+            "ating",
+            "ated", // gener-ating
+            "ering",
+            "ered", // discov-ered
+            "fully",
+            "lessly",
+            "less", // seam-less
+            "ously",
+            "ous", // continu-ous
+            "nally",
+            "cally", // practi-cally, but NOT "cal" alone (matches "calling")
+            "larly",
+            "tically",
+            "tical", // problema-tical
+            "ships",
+            "ship", // relation-ship
+            "doms",
+            "hoods",
+            "hood", // neighbor-hood
+            "wards",
+            "ward",       // for-ward
+            "wise",       // other-wise
+            "like",       // life-like
+            "hensive",    // compre-hensive
+            "prehensive", // Com-prehensive (special case from LightRAG)
+            "rupting",    // dis-rupting
+            "pending",    // de-pending
+        ];
+
+        // Check if suffix starts with any known pattern
+        for pattern in &suffix_patterns {
+            if suffix_lower.starts_with(pattern) {
+                return true;
+            }
+        }
+
+        // OODA-IT43: Special case for very short suffixes that are unambiguously fragments
+        // WHY: "ing" (3 chars) is a suffix fragment, "ingredient" (10 chars) is a word
+        // Short suffixes like "ing", "ed", "ly", "er" are safe when they're the WHOLE suffix
+        let short_suffix_fragments = ["ing", "ings", "ed", "ly", "er", "ers", "ful"];
+        if short_suffix_fragments.contains(&suffix_lower.as_str()) {
+            return true;
+        }
+
+        // OODA-IT43: Consonant cluster heuristic DISABLED
+        // WHY: Too aggressive - matches real words like "production", "calling", "platforms"
+        // The suffix pattern approach is safer and handles most cases.
+        // Specific cases like "Com prehensive" are handled by adding "hensive" to suffix_patterns.
+        //
+        // Previously tried consonant cluster detection for words starting with:
+        // "pr", "tr", "br", "cr", etc. but this matched too many real words.
+
+        false
+    }
 }
 
 impl Default for HyphenContinuationProcessor {
@@ -1144,6 +1319,17 @@ impl Processor for HyphenContinuationProcessor {
             for block in &mut page.blocks {
                 if matches!(block.block_type, BlockType::Text | BlockType::Paragraph) {
                     block.text = Self::process_intra_block_hyphens(&block.text);
+                }
+            }
+        }
+
+        // PHASE 1.5: OODA-IT43 - Process soft word breaks (without hyphens)
+        // WHY: PDFs split words at column edges without inserting hyphens
+        // E.g., "representa tions" → "representations"
+        for page in &mut document.pages {
+            for block in &mut page.blocks {
+                if matches!(block.block_type, BlockType::Text | BlockType::Paragraph) {
+                    block.text = Self::process_soft_word_breaks(&block.text);
                 }
             }
         }

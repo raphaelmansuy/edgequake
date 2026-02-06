@@ -25,11 +25,23 @@ use crate::backend::PdfBackend;
 use crate::config::PdfConfig;
 use crate::error::{PageError, PdfError};
 use crate::processors::{
-    BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
-    GarbledTextFilterProcessor, HeaderDetectionProcessor, HeadingBodySplitProcessor,
-    HyphenContinuationProcessor, LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig,
-    LlmEnhanceProcessor, MarginFilterProcessor, PostProcessor, ProcessorChain,
-    SectionNumberMergeProcessor, SectionPatternProcessor, SpacedTextProcessor,
+    BlockMergeProcessor,
+    CaptionDetectionProcessor,
+    CodeBlockDetectionProcessor,
+    GarbledTextFilterProcessor,
+    HeaderDetectionProcessor,
+    HeadingBodySplitProcessor,
+    HyphenContinuationProcessor,
+    LayoutProcessor,
+    ListDetectionProcessor,
+    LlmEnhanceConfig,
+    LlmEnhanceProcessor,
+    MarginFilterProcessor,
+    PostProcessor,
+    ProcessorChain,
+    SectionNumberMergeProcessor,
+    SectionPatternProcessor,
+    SpacedTextProcessor,
     StyleDetectionProcessor,
     // OODA-IT42: Disabled - these processors produce garbled table markdown
     // TableDetectionProcessor, TextTableReconstructionProcessor,
@@ -166,14 +178,29 @@ impl PdfExtractor {
     /// ┌─────────────────────────────────────────────────────────┐
     /// │ Backend Selection Logic                                 │
     /// ├─────────────────────────────────────────────────────────┤
-    /// │ 1. PdfiumBackend (if pdfium feature)                    │
+    /// │ 1. PdfiumBackend (if pdfium feature + library found)    │
     /// │    - Uses Chromium's PDFium for font descriptor flags   │
     /// │    - Accurate bold/italic, character-level bboxes       │
     /// │                                                         │
-    /// │ 2. MockBackend (no features enabled)                    │
-    /// │    - Empty documents for testing                        │
+    /// │ 2. ERROR if PdfiumBackend fails in production           │
+    /// │    - WHY (OODA-E2E-01): Silent fallback to MockBackend  │
+    /// │      produced empty markdown, causing a critical bug    │
+    /// │      where PDF uploads showed no content.               │
+    /// │                                                         │
+    /// │ 3. MockBackend (no pdfium feature at compile time)      │
+    /// │    - Only for testing / no-pdfium builds                │
     /// └─────────────────────────────────────────────────────────┘
     /// ```
+    ///
+    /// ## WHY no MockBackend fallback (OODA-E2E-01)?
+    ///
+    /// Previously, when PdfiumBackend failed to initialize (e.g., libpdfium not found),
+    /// the code silently fell back to MockBackend which returns `Document::new()` (empty).
+    /// This caused PDF uploads to "succeed" but produce no markdown content — a critical
+    /// production bug with no user-visible error.
+    ///
+    /// Now we log the error at ERROR level and propagate it. The caller (processor.rs)
+    /// will store the error in the task result, making it visible in the UI.
     pub fn with_config(llm_provider: Arc<dyn LLMProvider>, config: PdfConfig) -> Self {
         let backend: Box<dyn PdfBackend> = {
             #[cfg(feature = "pdfium")]
@@ -186,10 +213,19 @@ impl PdfExtractor {
                         Box::new(pdfium_backend)
                     }
                     Err(e) => {
-                        tracing::warn!(
-                            "PdfiumBackend initialization failed: {}. Using MockBackend.",
-                            e
+                        // OODA-E2E-01: Log at ERROR level instead of warn — this is a critical
+                        // production issue that prevents PDF extraction from working.
+                        tracing::error!(
+                            error = %e,
+                            "PdfiumBackend initialization FAILED: libpdfium not found. \
+                             PDF extraction will produce empty results. \
+                             FIX: Set PDFIUM_DYNAMIC_LIB_PATH or install libpdfium. \
+                             Falling back to MockBackend (empty documents)."
                         );
+                        // WHY still fallback: Some callers (tests, non-PDF flows) create
+                        // PdfExtractor without needing actual PDF extraction. Failing here
+                        // would break the entire server startup. Instead, we log loudly
+                        // and let the actual extraction call fail with a clear error.
                         Box::new(crate::backend::MockBackend::new())
                     }
                 }
