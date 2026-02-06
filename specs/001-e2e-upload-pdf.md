@@ -14,7 +14,18 @@ Your mission is to test and make the upload and the processing of PDF fully work
 
 Test using mcp playwright e2e tests and manual testing. Don't takes screenshots as it bloat your session. Repeat until your proven fix works.
 
+Ensure the Upload PDF → Markdown extraction → Side-by-side viewer pipeline works perfectly for the `lighrag_2410.05779v3.pdf` test document. Ensure re-indexing the same document also works. Document your testing process, findings, and any code changes made to achieve this.
+Ensure the data structure to manage documents and uploaded files is well designed and maintainable. Refactor if necessary to improve code quality and readability. SRP AND DRY principles must be followed. Refactor with confidence and ensure all tests pass after your changes.
+
 Find the best way to package pdfium dynamic library for macOS, Linux and Windows so that the PDF extraction works out of the box for developers using the monorepo and docker setup.
+
+### New Requirements (OODA-08+)
+
+1. **Document Re-indexing**: Uploading the same document must trigger re-indexing
+2. **OpenAI Provider**: Tests must use OpenAI for model and embedding (not Ollama)
+3. **Clean Tenant**: Each E2E test run creates a fresh tenant for isolation
+4. **Focused Tests**: All tests must have timeouts (30s for unit, 120s for E2E)
+5. **Data Model Solidity**: Review and ensure document/task data structures are well-designed
 
 ## Context
 
