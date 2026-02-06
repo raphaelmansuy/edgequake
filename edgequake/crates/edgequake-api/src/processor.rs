@@ -647,12 +647,14 @@ impl DocumentTaskProcessor {
         // This is needed for PDFs that bypass the upload handler
         // OODA-05: Pass tenant_id/workspace_id for multi-tenant context
         // OODA-49: Pass pdf_id for PDF document viewing
+        // OODA-ITERATION-03: Pass track_id for cancel button support
         self.ensure_document_source_type(
             &document_id,
             &source_type,
             tenant_id.as_deref(),
             Some(&data.workspace_id),
             pdf_id.as_deref(),
+            Some(&task.track_id),
         )
         .await?;
 
@@ -1381,6 +1383,9 @@ impl DocumentTaskProcessor {
     ///
     /// OODA-49: Added pdf_id parameter for PDF documents to enable frontend PDF viewing.
     /// The pdf_id is a UUID that references the PDF binary stored in pdf_storage.
+    ///
+    /// OODA-ITERATION-03: Added track_id parameter for cancel button support.
+    /// WHY: Frontend cancel button requires doc.track_id to call POST /tasks/{track_id}/cancel
     async fn ensure_document_source_type(
         &self,
         document_id: &str,
@@ -1388,6 +1393,7 @@ impl DocumentTaskProcessor {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
         pdf_id: Option<&str>,
+        track_id: Option<&str>,
     ) -> TaskResult<()> {
         let metadata_key = format!("{}-metadata", document_id);
 
@@ -1427,22 +1433,40 @@ impl DocumentTaskProcessor {
                             updated.insert("pdf_id".to_string(), json!(pid));
                         }
                     }
+                    // OODA-ITERATION-03: Also update track_id if missing
+                    // WHY: Cancel button requires track_id to call cancel API
+                    if obj.get("track_id").is_none() {
+                        if let Some(tid) = track_id {
+                            updated.insert("track_id".to_string(), json!(tid));
+                        }
+                    }
                     Some(json!(updated))
                 } else {
                     // OODA-49: Even if source_type is set, check if pdf_id needs to be added
                     // WHY: Fix existing documents that have source_type but missing pdf_id
-                    if pdf_id.is_some() && obj.get("pdf_id").is_none() {
+                    let needs_pdf_id = pdf_id.is_some() && obj.get("pdf_id").is_none();
+                    // OODA-ITERATION-03: Also check if track_id needs to be added
+                    let needs_track_id = track_id.is_some() && obj.get("track_id").is_none();
+
+                    if needs_pdf_id || needs_track_id {
                         let mut updated = obj.clone();
                         if let Some(pid) = pdf_id {
-                            updated.insert("pdf_id".to_string(), json!(pid));
-                            updated.insert(
-                                "updated_at".to_string(),
-                                json!(chrono::Utc::now().to_rfc3339()),
-                            );
+                            if obj.get("pdf_id").is_none() {
+                                updated.insert("pdf_id".to_string(), json!(pid));
+                            }
                         }
+                        if let Some(tid) = track_id {
+                            if obj.get("track_id").is_none() {
+                                updated.insert("track_id".to_string(), json!(tid));
+                            }
+                        }
+                        updated.insert(
+                            "updated_at".to_string(),
+                            json!(chrono::Utc::now().to_rfc3339()),
+                        );
                         Some(json!(updated))
                     } else {
-                        None // Already has source_type and pdf_id (or no pdf_id needed), skip update
+                        None // Already has source_type, pdf_id, and track_id (or not needed), skip update
                     }
                 }
             } else {
@@ -1476,6 +1500,11 @@ impl DocumentTaskProcessor {
             // WHY: Frontend needs pdf_id to build download URLs for PDF viewing
             if let Some(pid) = pdf_id {
                 new_metadata.insert("pdf_id".to_string(), json!(pid));
+            }
+            // OODA-ITERATION-03: Include track_id for cancel button support
+            // WHY: Frontend cancel button requires doc.track_id to call POST /tasks/{track_id}/cancel
+            if let Some(tid) = track_id {
+                new_metadata.insert("track_id".to_string(), json!(tid));
             }
             Some(json!(new_metadata))
         };
@@ -1668,6 +1697,8 @@ impl DocumentTaskProcessor {
         // 3.1 Create document metadata early with "converting" stage
         // WHY: Users need to see the document appear in the UI immediately with visual feedback
         // showing that PDF → Markdown conversion is happening.
+        // OODA-ITERATION-03: Include track_id for cancel button support
+        // WHY: Frontend cancel button requires doc.track_id to call POST /tasks/{track_id}/cancel
         let early_doc_id = uuid::Uuid::new_v4().to_string();
         let metadata_key = format!("{}-metadata", early_doc_id);
         let metadata_json = json!({
@@ -1682,6 +1713,7 @@ impl DocumentTaskProcessor {
             "pdf_id": data.pdf_id.to_string(),
             "tenant_id": data.tenant_id.to_string(),
             "workspace_id": data.workspace_id.to_string(),
+            "track_id": task.track_id.clone(),
             "created_at": chrono::Utc::now().to_rfc3339(),
             "updated_at": chrono::Utc::now().to_rfc3339(),
         });

@@ -66,6 +66,7 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 ### ✅ Iteration 01 (commit b1611b45) - COMPLETE
 
 **Fixes Applied**:
+
 1. Added `PDFIUM_DYNAMIC_LIB_PATH` to Makefile backend-dev target
 2. Added auto-discovery code in PdfiumExtractor
 3. Improved error logging for library loading
@@ -81,6 +82,7 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 **Mission Status**: PRIMARY OBJECTIVE COMPLETE ✅
 
 **E2E Verification**:
+
 - Used MCP Playwright to navigate to documents page
 - Clicked on processing document (f6fa9cad-bbff-4892-a855-3bd7d70da044)
 - Verified side-by-side viewer displays both PDF (left) and markdown (right)
@@ -88,6 +90,7 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 - Content properly structured (headings, lists, links, emphasis)
 
 **Documentation Created**:
+
 - `observe.md`: E2E test findings, system state, evidence chain (259 lines)
 - `orient.md`: Root cause analysis, strategic options, decision matrix (241 lines)
 - `decide.md`: Action plan, task breakdown, risk assessment (274 lines)
@@ -95,6 +98,7 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 - Updated `AGENTS.md`: Service management & E2E testing section (+320 lines)
 
 **Key Findings**:
+
 1. PDF extraction working perfectly (iteration 01 fix successful)
 2. Failed documents (rows 2-3) were due to Ollama being offline (separate issue)
 3. Frontend PID management needs improvement (not blocking)
@@ -111,6 +115,7 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 **Problem**: Frontend process may die but PID file remains, causing `make stop` to fail silently.
 
 **Solution**:
+
 1. Add health check loop after `bun run dev &`
 2. Poll http://localhost:3000 with retry
 3. Only write PID if port responds
@@ -122,15 +127,15 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 
 ### 📋 Iterations 04-10 - BACKLOG
 
-| Iteration | Focus | Priority | Effort |
-|-----------|-------|----------|--------|
-| 04 | Test fresh PDF upload | Medium | 1-2h + LLM time |
-| 05 | Improve error handling | Low | 3-4h |
-| 06 | Performance testing | Low | 4-6h |
-| 07 | E2E test suite for CI/CD | Low | 3-4h |
-| 08 | Document architecture decisions | Low | 2-3h |
-| 09 | Retry logic for LLM errors | Low | 3-4h |
-| 10 | Final regression testing | Low | 2-3h |
+| Iteration | Focus                           | Priority | Effort          |
+| --------- | ------------------------------- | -------- | --------------- |
+| 04        | Test fresh PDF upload           | Medium   | 1-2h + LLM time |
+| 05        | Improve error handling          | Low      | 3-4h            |
+| 06        | Performance testing             | Low      | 4-6h            |
+| 07        | E2E test suite for CI/CD        | Low      | 3-4h            |
+| 08        | Document architecture decisions | Low      | 2-3h            |
+| 09        | Retry logic for LLM errors      | Low      | 3-4h            |
+| 10        | Final regression testing        | Low      | 2-3h            |
 
 ---
 

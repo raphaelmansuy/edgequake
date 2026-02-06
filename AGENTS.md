@@ -91,6 +91,7 @@ docker ps | grep edgequake-postgres
 ```
 
 **Expected Backend Response**:
+
 ```json
 {
   "status": "healthy",
@@ -115,6 +116,7 @@ When services run in background mode, logs are written to:
 - **Frontend**: `/tmp/edgequake-frontend.log`
 
 **Viewing Logs**:
+
 ```bash
 # Tail backend logs
 tail -f /tmp/edgequake-backend.log
@@ -129,12 +131,12 @@ grep -i "failed\|error" /tmp/edgequake-frontend.log
 
 ### Port Mappings
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| Frontend (Next.js) | 3000 | Web UI |
-| Backend (Axum) | 8080 | REST API |
-| PostgreSQL | 5432 | Database |
-| Ollama (optional) | 11434 | Local LLM provider |
+| Service            | Port  | Purpose            |
+| ------------------ | ----- | ------------------ |
+| Frontend (Next.js) | 3000  | Web UI             |
+| Backend (Axum)     | 8080  | REST API           |
+| PostgreSQL         | 5432  | Database           |
+| Ollama (optional)  | 11434 | Local LLM provider |
 
 ### Known Issues & Workarounds
 
@@ -143,6 +145,7 @@ grep -i "failed\|error" /tmp/edgequake-frontend.log
 **Issue**: Frontend process may die but PID file (`edgequake_webui/build_pid.txt`) remains, causing `make stop` to fail silently.
 
 **Workaround**:
+
 ```bash
 # Check if frontend is actually running
 lsof -i :3000
@@ -161,6 +164,7 @@ echo $! > build_pid.txt
 **Issue**: Entity extraction fails with "Network error" if Ollama is not running.
 
 **Workaround**:
+
 ```bash
 # Check Ollama status
 curl http://localhost:11434/api/tags
@@ -191,18 +195,20 @@ npx playwright install chrome
 #### Test Execution
 
 **Via MCP Tool** (for AI agents):
+
 ```javascript
 // Navigate to documents page
-mcp_microsoft_pla_browser_navigate({ url: "http://localhost:3000/documents" })
+mcp_microsoft_pla_browser_navigate({ url: "http://localhost:3000/documents" });
 
 // Take snapshot
-mcp_microsoft_pla_browser_snapshot({})
+mcp_microsoft_pla_browser_snapshot({});
 
 // Click element
-mcp_microsoft_pla_browser_click({ ref: "e175", element: "First document row" })
+mcp_microsoft_pla_browser_click({ ref: "e175", element: "First document row" });
 ```
 
 **Via Command Line** (for humans):
+
 ```bash
 cd edgequake_webui
 pnpm exec playwright test
@@ -222,31 +228,40 @@ edgequake_webui/e2e/
 #### Common E2E Test Scenarios
 
 **1. Verify PDF Upload & Display**:
+
 ```typescript
-test('upload PDF and view side-by-side', async ({ page }) => {
-  await page.goto('http://localhost:3000/documents');
+test("upload PDF and view side-by-side", async ({ page }) => {
+  await page.goto("http://localhost:3000/documents");
   await page.click('button:has-text("Upload PDF")');
-  await page.setInputFiles('input[type="file"]', 'zz_test_docs/lighrag_2410.05779v3.pdf');
+  await page.setInputFiles(
+    'input[type="file"]',
+    "zz_test_docs/lighrag_2410.05779v3.pdf",
+  );
   await page.waitForSelector('[data-testid="side-by-side-viewer"]');
-  
+
   // Verify PDF panel
   await expect(page.locator('[data-testid="pdf-viewer"]')).toBeVisible();
-  
+
   // Verify markdown panel
   await expect(page.locator('[data-testid="markdown-renderer"]')).toBeVisible();
 });
 ```
 
 **2. Check Entity Extraction Progress**:
+
 ```typescript
-test('monitor entity extraction', async ({ page }) => {
-  await page.goto('http://localhost:3000/documents/f6fa9cad-bbff-4892-a855-3bd7d70da044');
-  
+test("monitor entity extraction", async ({ page }) => {
+  await page.goto(
+    "http://localhost:3000/documents/f6fa9cad-bbff-4892-a855-3bd7d70da044",
+  );
+
   // Wait for processing to complete (may take 5-10 minutes)
   await page.waitForSelector('text="Completed"', { timeout: 600000 });
-  
+
   // Verify entities extracted
-  const entityCount = await page.locator('[data-testid="entity-count"]').textContent();
+  const entityCount = await page
+    .locator('[data-testid="entity-count"]')
+    .textContent();
   expect(parseInt(entityCount)).toBeGreaterThan(0);
 });
 ```
@@ -256,10 +271,12 @@ test('monitor entity extraction', async ({ page }) => {
 #### Problem: Frontend Won't Start
 
 **Symptoms**:
+
 - `make dev-bg` completes but http://localhost:3000 returns "Connection refused"
 - `/tmp/edgequake-frontend.log` shows compilation errors or empty
 
 **Solution**:
+
 ```bash
 # Check if process is running
 ps aux | grep "bun run dev"
@@ -283,11 +300,13 @@ curl -I http://localhost:3000
 #### Problem: Backend Won't Start
 
 **Symptoms**:
+
 - `make dev-bg` hangs or fails
 - http://localhost:8080/health returns "Connection refused"
 - `/tmp/edgequake-backend.log` shows database errors
 
 **Solution**:
+
 ```bash
 # Check PostgreSQL container
 docker ps | grep edgequake-postgres
@@ -308,10 +327,12 @@ curl http://localhost:8080/health
 #### Problem: PDF Extraction Fails
 
 **Symptoms**:
+
 - Document status shows "Failed" with "Failed to load pdfium library"
 - Side-by-side viewer shows PDF but no markdown
 
 **Solution**:
+
 ```bash
 # Verify libpdfium.dylib exists
 ls -lh edgequake/crates/edgequake-pdf/lib/lib/libpdfium.dylib
@@ -333,10 +354,12 @@ make dev-bg
 #### Problem: Entity Extraction Fails
 
 **Symptoms**:
+
 - Document status shows "Failed" with "Network error: error sending request for url (http://localhost:11434/api/chat)"
 - PDF and markdown display correctly, but no entities extracted
 
 **Solution**:
+
 ```bash
 # Check if Ollama is running
 curl http://localhost:11434/api/tags
@@ -355,6 +378,7 @@ ollama pull qwen2.5:latest
 ```
 
 **Alternative**: Use OpenAI instead of Ollama:
+
 ```bash
 export OPENAI_API_KEY="sk-your-key"
 make stop
@@ -364,10 +388,12 @@ make dev-bg
 #### Problem: Stale Frontend Cache
 
 **Symptoms**:
+
 - Document shows "Processing..." indefinitely even though backend shows "Completed"
 - Side-by-side viewer displays old content
 
 **Solution**:
+
 ```bash
 # Hard refresh in browser
 # Chrome/Firefox: Cmd+Shift+R (macOS) or Ctrl+Shift+R (Windows/Linux)
@@ -386,6 +412,7 @@ This service management guide was created during **OODA Iteration 02** of the PD
 **Reference**: `specs/001-e2e-upload-pdf/ooda/iteration_02/`
 
 **Key Learnings**:
+
 1. `make dev-bg` reliably starts all services with correct environment variables
 2. MCP Playwright enables AI-driven E2E testing for verification
 3. Frontend PID management needs improvement (see iteration 03 plan)
@@ -442,13 +469,11 @@ The system now supports real LLM providers for production deployment:
    ```
 
 2. **Provider Factory Pattern:**
-
    - Automatically detects `OPENAI_API_KEY` environment variable
    - Falls back to smart mock if no API key present
    - No code changes needed between dev and prod
 
 3. **Quality Validation:**
-
    - Real LLM: 20 entities → 12 unique nodes (40% deduplication)
    - Mock LLM: 9 entities → 6 unique nodes (33% deduplication)
    - Real LLM extracts 2-3x more entities with better quality
