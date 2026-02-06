@@ -372,11 +372,21 @@ fn detect_body_font_size(blocks: &[TextBlock]) -> f32 {
 /// ## Header Detection
 ///
 /// A block is classified as a header if:
-/// - Font size > 1.2x body size (heading text is larger)
+/// - Font size > 1.4x body size (heading text is larger)
 /// - Block has <= 3 lines (headers are typically short)
 /// - Block doesn't start with bullet/number (not a list item)
+///
+/// OODA-39: Raised threshold from 1.2x to 1.4x and removed levels 3-4.
+/// WHY: The old 1.2x threshold caused false header classification for
+/// emphasized body text, figure captions, and column-split artifacts.
+/// Levels 3-4 conflicted with the downstream processor chain (StyleDetection,
+/// HeaderDetection, SectionPattern) which only assigns levels 1-2 and has
+/// multi-signal classification (font + weight + content + patterns).
+/// The downstream processors skip blocks with levels already set, so the
+/// primitive font-only backend classification was overriding the
+/// sophisticated multi-signal classification.
 fn classify_blocks(blocks: &[TextBlock], body_size: f32) -> Vec<TextBlock> {
-    let header_threshold = body_size * 1.2;
+    let header_threshold = body_size * 1.4;
 
     blocks
         .iter()
@@ -411,16 +421,14 @@ fn classify_blocks(blocks: &[TextBlock], body_size: f32) -> Vec<TextBlock> {
                 !text.starts_with('•') && !text.starts_with('-') && !text.starts_with('*');
 
             if is_larger && is_short && not_list {
-                // Calculate header level based on size ratio
+                // OODA-39: Only assign levels 1-2. Level 3+ caused false `###`
+                // headers in output. The downstream processor chain handles
+                // nuanced header detection with multi-signal classification.
                 let size_ratio = block_font_size / body_size;
                 let level = if size_ratio >= 1.8 {
-                    1 // h1: very large
-                } else if size_ratio >= 1.5 {
-                    2 // h2: large
-                } else if size_ratio >= 1.3 {
-                    3 // h3: medium
+                    1 // h1: very large (document titles)
                 } else {
-                    4 // h4: slightly larger
+                    2 // h2: all other large text (major sections)
                 };
                 classified.block_type = LayoutBlockType::Header(level);
             } else {
