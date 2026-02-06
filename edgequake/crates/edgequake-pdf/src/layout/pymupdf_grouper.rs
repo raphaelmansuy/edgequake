@@ -968,6 +968,32 @@ impl TextGrouper {
         self.classifier.classify_blocks(blocks, body_font_size);
     }
 
+    /// OODA-09: Classify blocks with page awareness for footnote detection.
+    /// WHY: Footnotes require page_height to determine if a block is at the
+    /// bottom of the page. This groups blocks by page_num and estimates
+    /// page_height from block coordinates.
+    pub fn classify_blocks_page_aware(&self, blocks: &mut [Block], body_font_size: f32) {
+        // Estimate page_height per page from max y coordinate + margin
+        let mut page_heights: std::collections::HashMap<usize, f32> =
+            std::collections::HashMap::new();
+        for block in blocks.iter() {
+            let entry = page_heights.entry(block.page_num).or_insert(0.0_f32);
+            *entry = entry.max(block.y1);
+        }
+        // Add margin estimate (1 inch = 72pt) to approximate full page height
+        for val in page_heights.values_mut() {
+            *val += 72.0;
+        }
+
+        // Classify each block with its page's estimated height
+        for block in blocks.iter_mut() {
+            let page_height = page_heights.get(&block.page_num).copied().unwrap_or(0.0);
+            block.block_type = self
+                .classifier
+                .classify_block(block, body_font_size, page_height);
+        }
+    }
+
     /// OODA-11: Split blocks DISABLED - was causing header over-detection.
     ///
     /// PREVIOUS BEHAVIOR: This function scanned multi-line blocks and split off

@@ -121,8 +121,9 @@ impl PymupdfPipeline {
             .body_font_size
             .unwrap_or_else(|| detect_body_font_size(&blocks));
 
-        // Classify blocks (headers, code, lists, etc.)
-        grouper.classify_blocks(&mut blocks, body_size);
+        // Classify blocks (headers, code, lists, footnotes, etc.)
+        // OODA-09: Use page-aware classification for footnote detection
+        grouper.classify_blocks_page_aware(&mut blocks, body_size);
 
         // OODA-12: Merge consecutive header blocks (title continuation)
         // WHY: Paper titles can wrap across lines, creating separate blocks.

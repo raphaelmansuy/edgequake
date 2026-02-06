@@ -295,11 +295,6 @@ impl MarkdownRenderer {
             .collect::<String>()
     }
 
-    /// Apply style markers (bold/italic) to text based on span properties.
-    fn style_text(&self, text: &str, span: &super::pymupdf_structs::Span) -> String {
-        apply_style(text, get_style_type(span))
-    }
-
     /// Render a line without style markers (plain text).
     /// OODA-02: Applies PUA filtering to prevent garbage symbols.
     fn render_line_plain(&self, line: &Line) -> String {
@@ -345,11 +340,6 @@ fn get_style_type_with_ref(
     } else {
         StyleType::Plain
     }
-}
-
-/// Get the style type of a span (without superscript detection).
-fn get_style_type(span: &super::pymupdf_structs::Span) -> StyleType {
-    get_style_type_with_ref(span, 0.0)
 }
 
 /// Apply style markers to text.
