@@ -81,6 +81,11 @@ use crate::error::PdfError;
 use pdfium_render::prelude::*;
 use std::path::Path;
 
+/// Page dimensions: (width, height) in PDF points, indexed by page number.
+/// WHY type alias (OODA-IT21): Simplifies the complex return type of
+/// `extract_chars_and_page_sizes_from_bytes` to satisfy clippy::type_complexity.
+pub type PageDimensions = Vec<(f32, f32)>;
+
 /// PDFium-based character extractor.
 ///
 /// This struct wraps a PDFium instance and provides methods to extract
@@ -189,6 +194,38 @@ impl PdfiumExtractor {
         }
 
         Ok(all_chars)
+    }
+
+    /// Extract characters AND page dimensions from PDF bytes.
+    ///
+    /// WHY (OODA-IT21): The pdfium backend needs actual page heights to normalize
+    /// Y coordinates from PDF coordinate system (Y=0 at bottom) to document
+    /// coordinate system (Y=0 at top). Without this normalization, the
+    /// LayoutProcessor's reading order detection reverses block order.
+    ///
+    /// Returns (chars, page_sizes) where page_sizes is indexed by page_num.
+    pub fn extract_chars_and_page_sizes_from_bytes(
+        &self,
+        bytes: &[u8],
+    ) -> Result<(Vec<RawChar>, PageDimensions), PdfError> {
+        let document = self
+            .pdfium
+            .load_pdf_from_byte_slice(bytes, None)
+            .map_err(|e| PdfError::Backend(format!("Failed to load PDF: {e}")))?;
+
+        let mut all_chars = Vec::new();
+        let mut page_sizes = Vec::new();
+
+        for (page_idx, page) in document.pages().iter().enumerate() {
+            let width = page.width().value;
+            let height = page.height().value;
+            page_sizes.push((width, height));
+
+            let page_chars = self.extract_chars_from_page(&page, page_idx)?;
+            all_chars.extend(page_chars);
+        }
+
+        Ok((all_chars, page_sizes))
     }
 
     /// Extract characters from a single page.
