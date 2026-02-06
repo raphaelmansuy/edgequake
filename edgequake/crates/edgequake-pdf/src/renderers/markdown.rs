@@ -269,11 +269,16 @@ impl MarkdownRenderer {
     }
 
     /// Render a header.
+    ///
+    /// WHY no bold wrapping: Markdown headers (`# Title`) are inherently bold
+    /// in every renderer. Wrapping content in `**...**` is redundant and adds
+    /// visual noise: `# **Title**` → `# Title`. The gold standard (markitdown)
+    /// uses clean headers without bold markers.
     fn render_header(&self, block: &Block, output: &mut String) {
         let level = block.level.unwrap_or(2).min(self.style.max_heading_level);
-        // WHY skip_bold=true, skip_italic=false: We will wrap the entire header in bold below.
-        // If we preserve span-level bold, we'd get `## **foo** bar` instead of `## **foo bar**`.
-        // Skipping bold here and adding it to the whole text matches pymupdf4llm output.
+        // WHY skip_bold=true, skip_italic=false: Headers are bold by nature.
+        // Strip span-level bold to avoid `## **foo** bar` artifacts.
+        // Italic is preserved because headers CAN be italic (rare but valid).
         let text = if !block.spans.is_empty() {
             self.render_spans_styled(&block.spans, true, false)
         } else {
@@ -282,12 +287,9 @@ impl MarkdownRenderer {
 
         if self.style.atx_headers {
             let prefix = "#".repeat(level as usize);
-            // WHY bold headers: pymupdf4llm wraps all header text in bold markers.
-            // This matches the gold format: `## **1. Introduction**`
-            output.push_str(&format!("{} **{}**\n\n", prefix, text.trim()));
+            output.push_str(&format!("{} {}\n\n", prefix, text.trim()));
         } else {
-            // Setext-style headers also get bold text
-            output.push_str(&format!("**{}**", text.trim()));
+            output.push_str(text.trim());
             output.push('\n');
             let underline = if level == 1 { '=' } else { '-' };
             output.push_str(&underline.to_string().repeat(text.len().min(40)));
@@ -1285,9 +1287,11 @@ impl MarkdownRenderer {
 
                 // Convert to header if it meets the criteria
                 // Caption patterns like "Figure 1" are excluded unless explicitly allowed
+                // WHY no bold in header: `## Title` is clean; `## **Title**` is redundant
+                // because Markdown headers are inherently bold in every renderer.
                 if is_short && starts_upper && !ends_with_punctuation && (!is_caption || is_allowed)
                 {
-                    result_lines.push(format!("## **{}**", trimmed));
+                    result_lines.push(format!("## {}", trimmed));
                 } else {
                     result_lines.push(line.to_string());
                 }
@@ -1706,9 +1710,10 @@ mod tests {
         // Debug: print the actual output
         eprintln!("ACTUAL OUTPUT:\n{}", result);
 
-        // Headers are now wrapped in bold to match pymupdf4llm format
+        // Headers are rendered without bold wrapping (headers are inherently bold)
         assert!(result.contains("Test Document"));
-        assert!(result.contains("**Introduction**"));
+        assert!(result.contains("Introduction"));
+        assert!(!result.contains("**Introduction**")); // No redundant bold in headers
         assert!(result.contains("This is a paragraph"));
         assert!(result.contains("```"));
         assert!(result.contains("fn main()"));
@@ -1882,10 +1887,10 @@ mod tests {
         doc.add_page(page);
 
         let result = renderer.render(&doc).unwrap();
-        // Headers are now wrapped in bold to match pymupdf4llm format
-        assert!(result.contains("# **H1**"));
-        assert!(result.contains("## **H2**") || result.contains("### **H2**")); // Depends on page number header
-        assert!(result.contains("### **H3**") || result.contains("#### **H3**"));
+        // Headers are rendered without bold wrapping (inherently bold)
+        assert!(result.contains("# H1"));
+        assert!(result.contains("## H2") || result.contains("### H2")); // Depends on page number header
+        assert!(result.contains("### H3") || result.contains("#### H3"));
     }
 
     #[test]
@@ -2387,14 +2392,15 @@ Some paragraph text here.
 
 More text about methods."#;
         let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
+        // WHY no bold: headers are inherently bold; `## Introduction` is correct
         assert!(
-            result.contains("## **Introduction**"),
-            "Introduction should become header, got: '{}'",
+            result.contains("## Introduction"),
+            "Introduction should become header without bold, got: '{}'",
             result
         );
         assert!(
-            result.contains("## **Methods**"),
-            "Methods should become header, got: '{}'",
+            result.contains("## Methods"),
+            "Methods should become header without bold, got: '{}'",
             result
         );
         assert!(
