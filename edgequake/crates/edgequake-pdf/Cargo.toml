@@ -11,26 +11,14 @@ description = "PDF to Markdown extraction with AI enhancement for EdgeQuake"
 name = "edgequake-pdf"
 path = "src/bin.rs"
 
-[[bin]]
-name = "trace_content"
-path = "src/bin/trace_content.rs"
-
 [features]
-# Default features include BOTH backends - pdfium is preferred at runtime
-# WHY: PdfiumBackend provides accurate font flag extraction (quality ~0.78+)
-# while lopdf serves as fallback when pdfium isn't available.
-#
-# Runtime selection in extractor.rs:
-#   1. Try PdfiumBackend (accurate font descriptor flags)
-#   2. Fall back to ExtractionEngine/lopdf (font name pattern matching)
-#   3. Use MockBackend (testing only, no features)
-default = ["pdfium", "lopdf"]
-lopdf = ["dep:lopdf"]
+# WHY: PdfiumBackend is the sole extraction backend (IT31: lopdf removed).
+# PDFium (Chromium's PDF engine) provides:
+# - Accurate character positions and bounding boxes
+# - Font descriptor flags for reliable bold/italic detection
+# - F1 >= 0.95 on gold standard tests
+default = ["pdfium"]
 # pdfium backend for accurate text extraction (requires libpdfium at runtime)
-# WHY: PDFium (Chromium's PDF engine) provides accurate character positions
-# AND font descriptor flags that lopdf cannot match. This enables:
-# - Bold/italic detection from font descriptor (not font name patterns)
-# - F1 >= 0.95 on gold standard tests with proper markdown formatting
 pdfium = ["dep:pdfium-render"]
 # Vision mode with PDF page rendering (uses pdftoppm from poppler-utils)
 # Requires: brew install poppler (macOS) or apt-get install poppler-utils (Linux)
@@ -60,9 +48,6 @@ tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow.workspace = true
 futures.workspace = true
-
-# lopdf - local path dependency for PDF parsing
-lopdf = { path = "../../../lopdf", optional = true, default-features = false }
 
 # pdfium-render - Rust bindings to Google's PDFium for accurate text extraction
 # WHY: PDFium provides character-level bounding boxes and accurate positions

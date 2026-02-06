@@ -20,8 +20,6 @@ use tracing::info;
 
 use edgequake_llm::traits::LLMProvider;
 
-#[cfg(not(feature = "lopdf"))]
-use crate::backend::mock::MockBackend;
 use crate::backend::PdfBackend;
 
 use crate::config::PdfConfig;
@@ -160,34 +158,22 @@ impl PdfExtractor {
 
     /// Create a PDF extractor with custom configuration.
     ///
-    /// ## Backend Selection Priority (OODA-43)
+    /// ## Backend Selection (IT31: single backend)
     ///
     /// ```text
     /// ┌─────────────────────────────────────────────────────────┐
     /// │ Backend Selection Logic                                 │
     /// ├─────────────────────────────────────────────────────────┤
     /// │ 1. PdfiumBackend (if pdfium feature)                    │
-    /// │    - Uses PDFium for accurate font flag extraction      │
-    /// │    - Higher quality: font descriptor flags → bold/italic│
+    /// │    - Uses Chromium's PDFium for font descriptor flags   │
+    /// │    - Accurate bold/italic, character-level bboxes       │
     /// │                                                         │
-    /// │ 2. ExtractionEngine (if lopdf feature, pdfium fails)    │
-    /// │    - Legacy backend using lopdf library                 │
-    /// │    - Font name pattern matching (less reliable)         │
-    /// │                                                         │
-    /// │ 3. MockBackend (no features enabled)                    │
+    /// │ 2. MockBackend (no features enabled)                    │
     /// │    - Empty documents for testing                        │
     /// └─────────────────────────────────────────────────────────┘
     /// ```
-    ///
-    /// WHY pdfium is preferred:
-    /// - PDFium extracts bold/italic from font descriptor flags
-    /// - This matches PyMuPDF4LLM's approach (quality ~0.78+)
-    /// - lopdf relies on font name patterns ("Bold", "Italic") which is unreliable
-    #[allow(deprecated)] // WHY: ExtractionEngine is intentional fallback when pdfium fails
     pub fn with_config(llm_provider: Arc<dyn LLMProvider>, config: PdfConfig) -> Self {
-        // Select backend based on features - prefer pdfium for better quality
         let backend: Box<dyn PdfBackend> = {
-            // Try PdfiumBackend first (most accurate font style detection)
             #[cfg(feature = "pdfium")]
             {
                 match crate::backend::PdfiumBackend::with_config(config.clone()) {
@@ -199,35 +185,14 @@ impl PdfExtractor {
                     }
                     Err(e) => {
                         tracing::warn!(
-                            "PdfiumBackend initialization failed: {}. Trying fallback.",
+                            "PdfiumBackend initialization failed: {}. Using MockBackend.",
                             e
                         );
-                        // Fall through to lopdf or mock
-                        #[cfg(feature = "lopdf")]
-                        {
-                            info!("Falling back to ExtractionEngine (lopdf)");
-                            Box::new(crate::backend::ExtractionEngine::with_config(
-                                config.clone(),
-                            ))
-                        }
-                        #[cfg(not(feature = "lopdf"))]
-                        {
-                            tracing::warn!("No PDF backend available, using MockBackend");
-                            Box::new(crate::backend::MockBackend::new())
-                        }
+                        Box::new(crate::backend::MockBackend::new())
                     }
                 }
             }
-            // No pdfium feature - use lopdf if available
-            #[cfg(all(not(feature = "pdfium"), feature = "lopdf"))]
-            {
-                info!("Using ExtractionEngine (lopdf) for PDF extraction");
-                Box::new(crate::backend::ExtractionEngine::with_config(
-                    config.clone(),
-                ))
-            }
-            // No PDF backend features
-            #[cfg(all(not(feature = "pdfium"), not(feature = "lopdf")))]
+            #[cfg(not(feature = "pdfium"))]
             {
                 tracing::warn!("Using MockBackend for PDF extraction (no PDF features enabled)");
                 Box::new(crate::backend::MockBackend::new())
