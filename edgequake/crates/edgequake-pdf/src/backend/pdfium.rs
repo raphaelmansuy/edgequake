@@ -80,11 +80,40 @@ use super::elements::RawChar;
 use crate::error::PdfError;
 use pdfium_render::prelude::*;
 use std::path::Path;
+use tracing::debug;
 
 /// Page dimensions: (width, height) in PDF points, indexed by page number.
 /// WHY type alias (OODA-IT21): Simplifies the complex return type of
 /// `extract_chars_and_page_sizes_from_bytes` to satisfy clippy::type_complexity.
 pub type PageDimensions = Vec<(f32, f32)>;
+
+/// Extracted image data from a PDF page (OODA-35).
+///
+/// Contains the raw image pixels (as `image::DynamicImage`) along with
+/// position metadata (page number, index, bounding box).
+///
+/// ## WHY This Struct?
+///
+/// PDF documents embed images as XObject resources. pdfium-render can decode
+/// these into `DynamicImage` via `PdfPageImageObject::get_raw_image()`.
+/// We capture the position on the page so the CLI can insert markdown image
+/// references at the correct reading-order location.
+#[derive(Debug)]
+pub struct ExtractedImageData {
+    /// Page number (0-indexed)
+    pub page_num: usize,
+    /// Image index on the page (0-indexed)
+    pub index: usize,
+    /// Bounding box on the page in PDF coordinates (x1, y1, x2, y2)
+    /// WHY f32: Matches PDF point coordinate system used everywhere in edgequake-pdf
+    pub bbox: (f32, f32, f32, f32),
+    /// Raw image data (decoded from PDF)
+    pub image: image::DynamicImage,
+    /// Pixel width of the source image
+    pub width: u32,
+    /// Pixel height of the source image
+    pub height: u32,
+}
 
 /// PDFium-based character extractor.
 ///
@@ -385,6 +414,143 @@ impl PdfiumExtractor {
             .map_err(|e| PdfError::Backend(format!("Failed to get page {page_num}: {e}")))?;
 
         Ok((page.width().value, page.height().value))
+    }
+
+    /// Extract all images from a PDF document (OODA-35).
+    ///
+    /// Iterates every page object in the PDF, finds image objects, and extracts
+    /// them as `DynamicImage` with their position on the page.
+    ///
+    /// ## Algorithm
+    ///
+    /// 1. Load PDF from bytes using pdfium-render
+    /// 2. For each page, iterate all page objects
+    /// 3. For each image object (`PdfPageObjectType::Image`):
+    ///    a. Extract raw image via `get_raw_image()`
+    ///    b. Get bounding box from the object's transform matrix
+    ///    c. Record page number, index, dimensions
+    /// 4. Return all extracted images
+    ///
+    /// ## Error Handling
+    ///
+    /// Individual image extraction failures are logged and skipped (graceful
+    /// degradation). Only a complete PDF load failure returns an error.
+    ///
+    /// ## WHY This Method?
+    ///
+    /// The spec requires: "If image is discovered in the PDF they should be
+    /// extracted in ./assets/ subfolder and linked as image in the transformed
+    /// markdown as a Markdown image". This method provides the raw image data
+    /// that the CLI saves to disk.
+    pub fn extract_images_from_bytes(
+        &self,
+        bytes: &[u8],
+    ) -> Result<Vec<ExtractedImageData>, PdfError> {
+        let document = self
+            .pdfium
+            .load_pdf_from_byte_slice(bytes, None)
+            .map_err(|e| PdfError::Backend(format!("Failed to load PDF for image extraction: {e}")))?;
+
+        let mut images = Vec::new();
+
+        for (page_idx, page) in document.pages().iter().enumerate() {
+            let mut img_idx = 0;
+
+            for object in page.objects().iter() {
+                if let Some(image_obj) = object.as_image_object() {
+                    match image_obj.get_raw_image() {
+                        Ok(raw_image) => {
+                            let width = raw_image.width();
+                            let height = raw_image.height();
+
+                            // Skip tiny images (likely decorative elements, bullets, icons)
+                            // WHY 10px: Images below 10x10 are typically bullet points,
+                            // separator lines, or 1px spacers — not meaningful content.
+                            if width < 10 || height < 10 {
+                                debug!(
+                                    "PdfiumExtractor: Skipping tiny image {}x{} on page {}",
+                                    width, height, page_idx
+                                );
+                                img_idx += 1;
+                                continue;
+                            }
+
+                            // Get position on page using the object's bounds
+                            // bounds() returns PdfQuadPoints (4-corner polygon).
+                            // We compute a bounding rectangle from it.
+                            let bbox = Self::get_object_bbox(&object, page_idx);
+
+                            debug!(
+                                "PdfiumExtractor: Extracted image page={} idx={} {}x{} bbox=({:.1},{:.1},{:.1},{:.1})",
+                                page_idx, img_idx, width, height, bbox.0, bbox.1, bbox.2, bbox.3
+                            );
+
+                            images.push(ExtractedImageData {
+                                page_num: page_idx,
+                                index: img_idx,
+                                bbox,
+                                image: raw_image,
+                                width,
+                                height,
+                            });
+                            img_idx += 1;
+                        }
+                        Err(e) => {
+                            debug!(
+                                "PdfiumExtractor: Failed to extract image {} on page {}: {}",
+                                img_idx, page_idx, e
+                            );
+                            img_idx += 1;
+                        }
+                    }
+                }
+            }
+
+            if img_idx > 0 {
+                debug!(
+                    "PdfiumExtractor: Found {} images on page {}, extracted {}",
+                    img_idx,
+                    page_idx,
+                    images.iter().filter(|i| i.page_num == page_idx).count()
+                );
+            }
+        }
+
+        debug!(
+            "PdfiumExtractor: Total images extracted: {} from {} pages",
+            images.len(),
+            document.pages().len()
+        );
+
+        Ok(images)
+    }
+
+    /// Get the bounding box of a page object in PDF coordinates.
+    ///
+    /// WHY: `PdfPageObject::bounds()` returns `PdfQuadPoints` (since pdfium-render 0.8.28).
+    /// We need to convert this to a simple (x1, y1, x2, y2) bounding rectangle.
+    /// Falls back to (0,0,0,0) if bounds cannot be computed.
+    fn get_object_bbox(object: &PdfPageObject, page_idx: usize) -> (f32, f32, f32, f32) {
+        // Try to get bounds from the page object
+        match object.bounds() {
+            Ok(bounds) => {
+                // PdfQuadPoints has 4 corners. Convert to a PdfRect bounding rectangle.
+                let rect = bounds.to_rect();
+                (
+                    rect.left().value,
+                    rect.bottom().value,
+                    rect.right().value,
+                    rect.top().value,
+                )
+            }
+            Err(e) => {
+                debug!(
+                    "PdfiumExtractor: Could not get bounds for image on page {}: {}",
+                    page_idx, e
+                );
+                (0.0, 0.0, 0.0, 0.0)
+            }
+        }
     }
 }
 

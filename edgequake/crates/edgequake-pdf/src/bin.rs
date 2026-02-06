@@ -106,6 +106,14 @@ enum Commands {
         /// Write output to stdout instead of file
         #[arg(long)]
         stdout: bool,
+
+        /// Extract images from the PDF and save to ./assets/ subfolder (OODA-35)
+        ///
+        /// When enabled, images embedded in the PDF are extracted as PNG files
+        /// and saved to an `assets/` directory next to the output file.
+        /// Markdown image references are inserted at page boundaries.
+        #[arg(long)]
+        extract_images: bool,
     },
 
     /// Display information about a PDF file
@@ -183,6 +191,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             format: OutputFormat::Markdown,
             stdout: false,
             quiet: cli.quiet,
+            extract_images: false,
         })
         .await;
     }
@@ -198,6 +207,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             max_pages,
             format,
             stdout,
+            extract_images,
         }) => {
             convert_pdf(ConvertOptions {
                 input,
@@ -209,6 +219,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format,
                 stdout,
                 quiet: cli.quiet,
+                extract_images,
             })
             .await?;
         }
@@ -243,6 +254,7 @@ struct ConvertOptions {
     format: OutputFormat,
     stdout: bool,
     quiet: bool,
+    extract_images: bool,
 }
 
 async fn convert_pdf(opts: ConvertOptions) -> Result<(), Box<dyn std::error::Error>> {
@@ -304,13 +316,28 @@ async fn convert_pdf(opts: ConvertOptions) -> Result<(), Box<dyn std::error::Err
     let pdf_bytes = std::fs::read(&opts.input)?;
 
     // Extract content
-    let output_content = match opts.format {
+    let mut output_content = match opts.format {
         OutputFormat::Markdown => extractor.extract_to_markdown(&pdf_bytes).await?,
         OutputFormat::Json => {
             let doc = extractor.extract_document(&pdf_bytes).await?;
             serde_json::to_string_pretty(&doc)?
         }
     };
+
+    // OODA-35: Extract images and save to ./assets/ subfolder
+    // WHY: Spec requires "If image is discovered in the PDF they should be
+    // extracted in ./assets/ subfolder and linked as image in the transformed
+    // markdown as a Markdown image"
+    #[cfg(feature = "pdfium")]
+    if opts.extract_images && matches!(opts.format, OutputFormat::Markdown) {
+        let image_refs = extract_and_save_images(&pdf_bytes, &opts)?;
+        if !image_refs.is_empty() {
+            output_content = insert_image_references(&output_content, &image_refs);
+            if !opts.quiet {
+                eprintln!("🖼️  Extracted {} images to assets/", image_refs.len());
+            }
+        }
+    }
 
     // Write output
     if opts.stdout {
@@ -337,6 +364,9 @@ async fn convert_pdf(opts: ConvertOptions) -> Result<(), Box<dyn std::error::Err
             println!("📄 {} ({} bytes)", format_name, output_content.len());
             if opts.vision {
                 println!("🔍 Vision OCR: enabled (model: {})", opts.vision_model);
+            }
+            if opts.extract_images {
+                println!("🖼️  Image extraction: enabled (saved to assets/)");
             }
         }
     }
@@ -433,4 +463,189 @@ async fn pipe_convert(vision: bool, page_numbers: bool) -> Result<(), Box<dyn st
     io::stdout().write_all(markdown.as_bytes())?;
 
     Ok(())
+}
+
+/// Image reference for insertion into markdown (OODA-35).
+#[cfg(feature = "pdfium")]
+struct ImageRef {
+    /// Page number (0-indexed)
+    page_num: usize,
+    /// Relative path to the saved image file (e.g., "./assets/page0_img0.png")
+    path: String,
+    /// Alt text for the markdown image
+    alt: String,
+}
+
+/// Extract images from PDF and save them to ./assets/ subfolder (OODA-35).
+///
+/// ## Algorithm
+///
+/// 1. Create PdfiumExtractor to access raw PDF page objects
+/// 2. Extract all images with their page positions
+/// 3. Create ./assets/ directory relative to the output file
+/// 4. Save each image as PNG with unique name: `page{N}_img{M}.png`
+/// 5. Return image references for markdown insertion
+///
+/// ## WHY Separate from Main Pipeline?
+///
+/// The main pipeline (PdfiumBackend → ProcessorChain → MarkdownRenderer)
+/// handles text extraction. Image extraction is a parallel concern that
+/// operates on PDF page objects (not text). Keeping them separate:
+/// - Avoids bloating the Document struct with binary image data
+/// - Allows image extraction to be optional (--extract-images flag)
+/// - Keeps the text pipeline clean and focused
+#[cfg(feature = "pdfium")]
+fn extract_and_save_images(
+    pdf_bytes: &[u8],
+    opts: &ConvertOptions,
+) -> Result<Vec<ImageRef>, Box<dyn std::error::Error>> {
+    use edgequake_pdf::backend::pdfium::PdfiumExtractor;
+
+    // Create a fresh PdfiumExtractor for image extraction
+    let pdfium_extractor = PdfiumExtractor::new()?;
+    let extracted = pdfium_extractor.extract_images_from_bytes(pdf_bytes)?;
+
+    if extracted.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Determine assets directory: ./assets/ relative to the output file
+    let output_path = opts.output.clone().unwrap_or_else(|| {
+        let mut path = opts.input.clone();
+        path.set_extension("md");
+        path
+    });
+    let assets_dir = output_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join("assets");
+
+    // Create assets directory
+    std::fs::create_dir_all(&assets_dir)?;
+
+    let mut refs = Vec::new();
+
+    for img_data in &extracted {
+        let filename = format!("page{}_img{}.png", img_data.page_num, img_data.index);
+        let file_path = assets_dir.join(&filename);
+
+        // Save image as PNG
+        // WHY PNG: Lossless format preserves quality of diagrams, charts, and text.
+        // JPEG would lose quality on sharp edges common in PDF figures.
+        match img_data.image.save_with_format(&file_path, image::ImageFormat::Png) {
+            Ok(()) => {
+                refs.push(ImageRef {
+                    page_num: img_data.page_num,
+                    path: format!("./assets/{}", filename),
+                    alt: format!(
+                        "Image from page {} ({}x{})",
+                        img_data.page_num + 1,
+                        img_data.width,
+                        img_data.height
+                    ),
+                });
+            }
+            Err(e) => {
+                eprintln!(
+                    "⚠️  Failed to save image page{}_{}: {}",
+                    img_data.page_num, img_data.index, e
+                );
+            }
+        }
+    }
+
+    Ok(refs)
+}
+
+/// Insert image references into markdown at page boundaries (OODA-35).
+///
+/// ## Algorithm
+///
+/// Scans the markdown for page boundary markers (`<!-- Page N -->`)
+/// and inserts image references at the end of each page's content.
+///
+/// If no page markers are found, appends all images at the end of the document.
+///
+/// ## WHY Page Boundary Insertion?
+///
+/// Images belong to specific pages. Inserting them at page boundaries
+/// maintains reading order: all text from a page appears first, then
+/// the images from that page, before moving to the next page.
+#[cfg(feature = "pdfium")]
+fn insert_image_references(markdown: &str, refs: &[ImageRef]) -> String {
+    if refs.is_empty() {
+        return markdown.to_string();
+    }
+
+    // Group images by page
+    let mut images_by_page: std::collections::HashMap<usize, Vec<&ImageRef>> =
+        std::collections::HashMap::new();
+    for r in refs {
+        images_by_page.entry(r.page_num).or_default().push(r);
+    }
+
+    // Try to find page markers (<!-- Page N -->) and insert images after them
+    let mut result = String::with_capacity(markdown.len() + refs.len() * 80);
+    let mut inserted_pages = std::collections::HashSet::new();
+
+    for line in markdown.lines() {
+        result.push_str(line);
+        result.push('\n');
+
+        // Check if this line is a page marker: <!-- Page N -->
+        if let Some(page_num) = parse_page_marker(line) {
+            // Insert images for the PREVIOUS page (page_num - 1, 0-indexed = page_num - 2)
+            // Actually, page markers appear at the START of a page section.
+            // So we should insert images for the page that's about to end.
+            // But since we're scanning forward, we insert images for the
+            // current page at the NEXT page marker (or end of document).
+            let prev_page = if page_num >= 2 { page_num - 2 } else { continue };
+            if let Some(page_images) = images_by_page.get(&prev_page) {
+                if !inserted_pages.contains(&prev_page) {
+                    result.push('\n');
+                    for img_ref in page_images {
+                        result.push_str(&format!("![{}]({})\n\n", img_ref.alt, img_ref.path));
+                    }
+                    inserted_pages.insert(prev_page);
+                }
+            }
+        }
+    }
+
+    // Insert any remaining images that weren't placed (last page or no page markers)
+    for (page_num, page_images) in &images_by_page {
+        if !inserted_pages.contains(page_num) {
+            result.push('\n');
+            for img_ref in page_images {
+                result.push_str(&format!("![{}]({})\n\n", img_ref.alt, img_ref.path));
+            }
+        }
+    }
+
+    result
+}
+
+/// Parse a page marker to extract the page number.
+///
+/// Supports two formats:
+/// - `<!-- Page N -->` (HTML comment style)
+/// - `## Page N` (heading style, used by MarkdownRenderer)
+///
+/// Returns the 1-based page number, or None if not a page marker.
+#[cfg(feature = "pdfium")]
+fn parse_page_marker(line: &str) -> Option<usize> {
+    let trimmed = line.trim();
+
+    // Format 1: <!-- Page N -->
+    if trimmed.starts_with("<!-- Page ") && trimmed.ends_with(" -->") {
+        let inner = &trimmed[10..trimmed.len() - 4];
+        return inner.trim().parse::<usize>().ok();
+    }
+
+    // Format 2: ## Page N (heading style from MarkdownRenderer)
+    if let Some(rest) = trimmed.strip_prefix("## Page ") {
+        return rest.trim().parse::<usize>().ok();
+    }
+
+    None
 }
