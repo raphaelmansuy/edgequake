@@ -201,6 +201,13 @@ impl PdfBackend for PdfiumBackend {
                 .map(|(idx, tb)| convert_text_block_to_schema_block(tb, page_num, idx, page_height))
                 .collect();
 
+            // WHY (OODA-IT28): Merge horizontally adjacent blocks on the same line.
+            // PDF extraction creates separate blocks for text fragments on the same
+            // visual line (e.g., "AI Services" + "—" + "Elitizon" = 3 blocks).
+            // For correct reading, these must be merged into a single block:
+            // "AI Services — Elitizon".
+            let schema_blocks = merge_same_line_blocks(schema_blocks);
+
             // Create page with actual dimensions from PDFium
             let mut page = Page::new(page_num + 1, page_width, page_height);
             page.blocks = schema_blocks;
@@ -485,6 +492,133 @@ fn convert_span_to_text_span(span: &LayoutSpan, page_height: f32) -> TextSpan {
 /// - Page and position metadata
 /// - **OODA-IT05: Styled spans for bold/italic/code rendering**
 ///
+/// OODA-IT28: Merge horizontally adjacent blocks that share the same visual line.
+///
+/// WHY: PDF extraction creates separate blocks for text fragments on the same
+/// line (e.g., "AI Services" + "—" + "Elitizon" → 3 blocks). These must be
+/// merged into a single block for correct reading and header detection.
+///
+/// ```text
+/// ┌──────────────┐  ┌───┐  ┌──────────┐
+/// │ AI Services  │  │ — │  │ Elitizon │   ← 3 separate blocks, same y-range
+/// └──────────────┘  └───┘  └──────────┘
+///         ↓ merge_same_line_blocks()
+/// ┌────────────────────────────────────┐
+/// │ AI Services — Elitizon             │   ← 1 merged block
+/// └────────────────────────────────────┘
+/// ```
+///
+/// Merge criteria:
+/// 1. Blocks overlap in y-range (≥50% of smaller block's height)
+/// 2. Horizontal gap between blocks is small (< 3x typical char width)
+/// 3. Both blocks are text-like (not tables, code, etc.)
+fn merge_same_line_blocks(mut blocks: Vec<Block>) -> Vec<Block> {
+    if blocks.len() <= 1 {
+        return blocks;
+    }
+
+    // Sort by y-position (top to bottom), then x-position (left to right)
+    blocks.sort_by(|a, b| {
+        let y_cmp = a
+            .bbox
+            .y1
+            .partial_cmp(&b.bbox.y1)
+            .unwrap_or(std::cmp::Ordering::Equal);
+        if y_cmp == std::cmp::Ordering::Equal {
+            a.bbox
+                .x1
+                .partial_cmp(&b.bbox.x1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        } else {
+            y_cmp
+        }
+    });
+
+    let mut merged: Vec<Block> = Vec::new();
+
+    for block in blocks {
+        let should_merge = if let Some(last) = merged.last() {
+            // Check if blocks are on the same visual line
+            let a_height = (last.bbox.y2 - last.bbox.y1).abs().max(1.0);
+            let b_height = (block.bbox.y2 - block.bbox.y1).abs().max(1.0);
+            let min_height = a_height.min(b_height);
+
+            // Y-overlap check: blocks share >50% of the smaller block's height
+            let y_overlap_start = last.bbox.y1.max(block.bbox.y1);
+            let y_overlap_end = last.bbox.y2.min(block.bbox.y2);
+            let y_overlap = (y_overlap_end - y_overlap_start).max(0.0);
+            let y_overlap_ratio = y_overlap / min_height;
+
+            // Horizontal gap: distance between right edge of last and left edge of current
+            let h_gap = (block.bbox.x1 - last.bbox.x2).max(0.0);
+
+            // WHY: Block has no font_size field, so we use block height as a
+            // proxy for font size (block height ≈ line height ≈ 1.2 × font size).
+            let avg_block_height = (a_height + b_height) / 2.0;
+            let max_gap = avg_block_height * 2.0; // Allow up to 2x block height gap
+
+            // Both must be text-like (Text or SectionHeader, not Table/Code/etc.)
+            let same_type = matches!(
+                (&last.block_type, &block.block_type),
+                (BlockType::Text, BlockType::Text)
+                    | (BlockType::SectionHeader, BlockType::SectionHeader)
+                    | (BlockType::Text, BlockType::SectionHeader)
+                    | (BlockType::SectionHeader, BlockType::Text)
+            );
+
+            y_overlap_ratio > 0.5 && h_gap < max_gap && same_type
+        } else {
+            false
+        };
+
+        if should_merge {
+            let last = merged.last_mut().unwrap();
+            // Merge text with space separator
+            if !last.text.is_empty() && !block.text.is_empty() {
+                last.text.push(' ');
+            }
+            last.text.push_str(&block.text);
+
+            // Expand bounding box to cover both blocks
+            last.bbox.x1 = last.bbox.x1.min(block.bbox.x1);
+            last.bbox.y1 = last.bbox.y1.min(block.bbox.y1);
+            last.bbox.x2 = last.bbox.x2.max(block.bbox.x2);
+            last.bbox.y2 = last.bbox.y2.max(block.bbox.y2);
+
+            // Merge spans: append block's spans to last's spans
+            if !block.spans.is_empty() {
+                // Add space span between the two block's spans
+                if !last.spans.is_empty() {
+                    last.spans.push(TextSpan::plain(" "));
+                }
+                last.spans.extend(block.spans);
+            }
+
+            // Keep the higher header level (lower number = higher level)
+            if let (Some(a_level), Some(b_level)) = (last.level, block.level) {
+                last.level = Some(a_level.min(b_level));
+            } else if block.level.is_some() {
+                last.level = block.level;
+            }
+
+            // Promote to SectionHeader if either was a header
+            if block.block_type == BlockType::SectionHeader {
+                last.block_type = BlockType::SectionHeader;
+            }
+
+            tracing::debug!(
+                "SAME-LINE-MERGE: merged '{}' into block, result='{}'",
+                block.text.chars().take(30).collect::<String>(),
+                last.text.chars().take(60).collect::<String>()
+            );
+        } else {
+            merged.push(block);
+        }
+    }
+
+    merged
+}
+
 /// ## OODA-IT21: Y-Coordinate Normalization
 ///
 /// PDF coordinates have Y=0 at BOTTOM, Y increases UPWARD.
@@ -557,12 +691,11 @@ fn convert_text_block_to_schema_block(
                 // 15% of font size = typical minimum word gap in proportional fonts
                 let space_threshold = avg_size * 0.15;
                 // WHY hyphen check: Same logic as Line::text() — don't break hyphenated words
-                let starts_with_hyphen = span.text.starts_with('-')
-                    || span.text.starts_with('\u{2013}')  // en-dash
-                    || span.text.starts_with('\u{2014}'); // em-dash
-                let ends_with_hyphen = prev.text.ends_with('-')
-                    || prev.text.ends_with('\u{2013}')
-                    || prev.text.ends_with('\u{2014}');
+                // OODA-IT28: Em dashes (—) are EXCLUDED from hyphen check — they are
+                // sentence-level separators that need spaces (e.g., "AI Services — Elitizon")
+                let starts_with_hyphen =
+                    span.text.starts_with('-') || span.text.starts_with('\u{2013}'); // en-dash only
+                let ends_with_hyphen = prev.text.ends_with('-') || prev.text.ends_with('\u{2013}');
                 if gap > space_threshold && !starts_with_hyphen && !ends_with_hyphen {
                     block.spans.push(TextSpan::plain(" "));
                 }
@@ -712,14 +845,21 @@ mod tests {
 
         // Verify spans are populated
         // OODA-IT22: Now includes space span between "Bold" and "normal" (gap=5.0 > threshold=1.8)
-        assert_eq!(schema_block.spans.len(), 3, "Should have 3 spans (Bold + space + normal)");
+        assert_eq!(
+            schema_block.spans.len(),
+            3,
+            "Should have 3 spans (Bold + space + normal)"
+        );
         assert_eq!(schema_block.spans[0].text, "Bold");
         assert_eq!(
             schema_block.spans[0].style.weight,
             Some(700),
             "First span should be bold"
         );
-        assert_eq!(schema_block.spans[1].text, " ", "Second span should be word space");
+        assert_eq!(
+            schema_block.spans[1].text, " ",
+            "Second span should be word space"
+        );
         assert_eq!(schema_block.spans[2].text, "normal");
     }
 }

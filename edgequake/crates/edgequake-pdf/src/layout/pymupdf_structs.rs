@@ -429,8 +429,30 @@ impl Line {
 
         // Compare baseline (y0) or top (y1) - matches pymupdf4llm get_raw_lines.py:178
         // "if any of top or bottom coordinates are close enough, join..."
+        if (self.y0 - span.y0).abs() <= tolerance || (self.y1 - span.y1).abs() <= tolerance {
+            return true;
+        }
 
-        (self.y0 - span.y0).abs() <= tolerance || (self.y1 - span.y1).abs() <= tolerance
+        // OODA-IT28: Also check vertical overlap for narrow-height glyphs.
+        // WHY (First Principles): Characters like em dash (—), en dash (–), bullet (•),
+        // and other punctuation have glyph heights much smaller than regular letters.
+        // For example, an em dash at font_size=30 has only ~3.7pt height vs ~22pt for 'A'.
+        // Their baseline/top won't match regular letters within tolerance, but they are
+        // visually on the same line. If the span is fully contained within the line's
+        // y-range, it belongs to this line.
+        let y_overlap_start = self.y0.max(span.y0);
+        let y_overlap_end = self.y1.min(span.y1);
+        let has_overlap = y_overlap_end > y_overlap_start;
+        if has_overlap {
+            let span_height = (span.y1 - span.y0).max(0.1);
+            let overlap_amount = y_overlap_end - y_overlap_start;
+            // If >80% of the span's height is within the line, it belongs here
+            if overlap_amount / span_height > 0.8 {
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Add a span to this line.
@@ -474,14 +496,13 @@ impl Line {
 
                 // Don't add space if current span starts with hyphen/dash
                 // This preserves hyphenated words like "Qwen2.5-7B-Instruct"
-                let starts_with_hyphen = span.text.starts_with('-') 
-                    || span.text.starts_with('–')  // en-dash
-                    || span.text.starts_with('—'); // em-dash
+                // WHY: Hyphens and en-dashes join compound terms without spaces.
+                // Em dashes (—) are EXCLUDED: they are sentence-level punctuation
+                // that typically has spaces around them (e.g., "AI Services — Elitizon").
+                let starts_with_hyphen = span.text.starts_with('-') || span.text.starts_with('–'); // en-dash only, NOT em-dash
 
                 // Don't add space if previous span ends with hyphen
-                let ends_with_hyphen = prev.text.ends_with('-')
-                    || prev.text.ends_with('–')
-                    || prev.text.ends_with('—');
+                let ends_with_hyphen = prev.text.ends_with('-') || prev.text.ends_with('–');
 
                 if gap > space_threshold && !starts_with_hyphen && !ends_with_hyphen {
                     result.push(' ');

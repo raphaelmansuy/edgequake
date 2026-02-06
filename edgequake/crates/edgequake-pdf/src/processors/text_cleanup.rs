@@ -360,8 +360,8 @@ impl PostProcessor {
             ("\u{2019}", "'"),   // Right single quote
             ("\u{201C}", "\""),  // Left double quote
             ("\u{201D}", "\""),  // Right double quote
-            ("\u{2013}", "-"),   // En dash
-            ("\u{2014}", "-"),   // Em dash
+            ("\u{2013}", "–"),   // En dash: preserve as-is for Markdown quality
+            ("\u{2014}", "—"),   // Em dash: preserve as-is for Markdown quality
             ("\u{2026}", "..."), // Ellipsis
             ("Þle", "file"),     // Common misread 'fi' ligature
             ("Þ", "fi"),
