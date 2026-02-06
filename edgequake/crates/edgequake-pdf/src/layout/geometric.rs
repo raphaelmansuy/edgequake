@@ -175,8 +175,88 @@ impl GeometricClusterer {
             return vec![Column::new(0.0, page_width)];
         }
 
+        // ──────────────────────────────────────────────────────────────
+        // WHY: Inter-cluster gap validation (OODA-29)
+        //
+        // DBSCAN can split a single-column document into multiple clusters
+        // when text has different indentation levels (e.g., headings at x=72
+        // and bullet items at x=94). The 22pt gap is enough for DBSCAN to
+        // separate them, but it's NOT a real multi-column boundary.
+        //
+        // Real multi-column layouts have columns separated by a substantial
+        // gutter — typically 30-80pt on a 612pt page. The x-coordinate
+        // clusters in a real 2-column document would be ~250pt apart.
+        //
+        // Guard: If adjacent cluster centers are closer than 15% of page
+        // width (~92pt for US Letter), collapse to single column.
+        //
+        //   Single-column with indent:    Real 2-column layout:
+        //   ┌──────────────────────┐      ┌──────────────────────┐
+        //   │████ heading (x=72)   │      │████ col1  │ ████ col2│
+        //   │  ████ bullet (x=94)  │      │████       │ ████     │
+        //   │████ heading (x=72)   │      │████       │ ████     │
+        //   │  ████ bullet (x=94)  │      │████       │ ████     │
+        //   └──────────────────────┘      └──────────────────────┘
+        //   cluster gap: 22pt (FAIL)      cluster gap: ~250pt (PASS)
+        // ──────────────────────────────────────────────────────────────
+        let min_cluster_separation = page_width * 0.15;
+        let mut sorted_clusters: Vec<&Cluster> = clusters.iter().collect();
+        sorted_clusters.sort_by(|a, b| {
+            a.center_x()
+                .partial_cmp(&b.center_x())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let all_well_separated = sorted_clusters
+            .windows(2)
+            .all(|pair| (pair[1].center_x() - pair[0].center_x()) > min_cluster_separation);
+
+        if !all_well_separated {
+            tracing::info!(
+                "COLUMN-DETECT: clusters too close (min_sep={:.1}pt), collapsing to single column",
+                min_cluster_separation
+            );
+            return vec![Column::new(0.0, page_width)];
+        }
+
         // Convert clusters to columns
-        self.clusters_to_columns(&clusters, page_width)
+        let columns = self.clusters_to_columns(&clusters, page_width);
+
+        // ──────────────────────────────────────────────────────────────
+        // WHY: Column balance validation (OODA-29)
+        //
+        // Even after cluster separation check, the column construction
+        // algorithm can produce unbalanced columns. In a real multi-column
+        // layout, columns have roughly similar widths (±50% variation).
+        //
+        // If the widest column is >3x the narrowest, this is NOT a real
+        // multi-column layout — it's a single column with margin variation.
+        //
+        //   Balanced (real 2-col):     Unbalanced (false positive):
+        //   ┌──────┬──────┐           ┌──┬────────────────┐
+        //   │ 280pt│ 280pt│           │94│     518pt      │
+        //   │      │      │           │  │                │
+        //   └──────┴──────┘           └──┴────────────────┘
+        //   ratio: 1.0 (PASS)         ratio: 5.5 (FAIL)
+        // ──────────────────────────────────────────────────────────────
+        if columns.len() > 1 {
+            let min_width = columns
+                .iter()
+                .map(|c| c.width())
+                .fold(f32::INFINITY, f32::min);
+            let max_width = columns.iter().map(|c| c.width()).fold(0.0f32, f32::max);
+            if min_width > 0.0 && max_width > min_width * 3.0 {
+                tracing::info!(
+                    "COLUMN-DETECT: unbalanced columns (max={:.1} / min={:.1} = {:.1}x), collapsing to single column",
+                    max_width,
+                    min_width,
+                    max_width / min_width
+                );
+                return vec![Column::new(0.0, page_width)];
+            }
+        }
+
+        columns
     }
 
     /// Calculate epsilon from coordinate distribution using statistical approach.
@@ -476,6 +556,45 @@ mod tests {
 
         let columns = clusterer.detect_columns(&bboxes, 600.0);
         assert_eq!(columns.len(), 1, "Empty input should return single column");
+    }
+
+    // ==========================================================================
+    // OODA-29: Test that indentation does NOT create false multi-column
+    // ==========================================================================
+
+    #[test]
+    fn test_indented_single_column_not_split() {
+        let clusterer = GeometricClusterer::new();
+
+        // Simulates a single-column document with headings at x=72
+        // and indented bullet items at x=94. The 22pt gap is just
+        // indentation, NOT a column boundary.
+        let bboxes = vec![
+            // Headings at left margin
+            BoundingBox::new(72.0, 50.0, 500.0, 70.0),
+            BoundingBox::new(72.0, 120.0, 500.0, 140.0),
+            BoundingBox::new(72.0, 250.0, 500.0, 270.0),
+            BoundingBox::new(72.0, 380.0, 500.0, 400.0),
+            BoundingBox::new(72.0, 510.0, 500.0, 530.0),
+            BoundingBox::new(72.0, 640.0, 500.0, 660.0),
+            BoundingBox::new(72.0, 710.0, 500.0, 730.0),
+            // Indented bullet items
+            BoundingBox::new(94.0, 80.0, 500.0, 100.0),
+            BoundingBox::new(94.0, 150.0, 500.0, 170.0),
+            BoundingBox::new(94.0, 280.0, 500.0, 300.0),
+            BoundingBox::new(94.0, 410.0, 500.0, 430.0),
+            BoundingBox::new(94.0, 540.0, 500.0, 560.0),
+            BoundingBox::new(94.0, 670.0, 500.0, 690.0),
+            BoundingBox::new(94.0, 740.0, 500.0, 760.0),
+        ];
+
+        let columns = clusterer.detect_columns(&bboxes, 612.0);
+        assert_eq!(
+            columns.len(),
+            1,
+            "Single-column with indentation should NOT be split into {} columns",
+            columns.len()
+        );
     }
 
     #[test]
