@@ -369,6 +369,21 @@ impl Span {
             })
             .unwrap_or(false)
     }
+
+    /// OODA-04: Check if this span is superscript relative to a reference font size.
+    ///
+    /// A span is considered superscript when its font size is less than 70% of the
+    /// reference (dominant line) font size AND its text is short (< 5 chars).
+    /// Common for footnote markers like "1", "*", "†".
+    ///
+    /// REF: pymupdf4llm document_layout.py:172-184 (is_superscripted)
+    pub fn is_superscript(&self, reference_font_size: f32) -> bool {
+        if reference_font_size <= 0.0 {
+            return false;
+        }
+        let ratio = self.font_size / reference_font_size;
+        ratio < 0.7 && self.text.chars().count() < 5
+    }
 }
 
 /// A line is a sequence of spans on the same baseline.
