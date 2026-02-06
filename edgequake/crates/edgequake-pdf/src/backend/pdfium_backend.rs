@@ -68,15 +68,11 @@ use crate::Result;
 /// - [`FEAT0720`]: Pdfium-based backend with accurate font style detection
 /// - [`OODA-43`]: Bridge pdfium extraction to PdfBackend trait
 ///
-/// ## WHY PdfiumBackend instead of ExtractionEngine?
+/// ## WHY PDFium?
 ///
-/// The ExtractionEngine uses lopdf which relies on font name pattern matching
-/// for bold/italic detection. This is unreliable because:
-/// - Many PDFs don't use "Bold" or "Italic" in font names
-/// - Academic papers often use font weights (700) instead of name patterns
-///
-/// PDFium provides accurate font flags from the font descriptor, matching
-/// how PyMuPDF4LLM achieves high-quality markdown conversion.
+/// PDFium (Chromium's PDF engine) provides accurate font flags from
+/// the font descriptor (bold/italic/monospace), matching how PyMuPDF4LLM
+/// achieves high-quality markdown conversion.
 ///
 /// ## Thread Safety Design
 ///
@@ -194,7 +190,6 @@ impl PdfBackend for PdfiumBackend {
             // WHY (OODA-IT21): PDF coordinates have Y=0 at BOTTOM, increasing upward.
             // All downstream processors (LayoutProcessor, ReadingOrderDetector) expect
             // document coordinates with Y=0 at TOP, increasing downward.
-            // The lopdf backend (extraction_engine.rs) does this same normalization.
             let schema_blocks: Vec<Block> = classified_blocks
                 .iter()
                 .enumerate()

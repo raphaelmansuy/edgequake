@@ -71,7 +71,6 @@ pub mod config;
 pub mod error;
 pub mod extractor;
 pub mod formula;
-pub mod image_extraction;
 pub mod image_ocr;
 pub mod layout;
 pub mod pipeline;
@@ -105,10 +104,6 @@ pub use processors::{
     LlmEnhanceProcessor, LlmEnhanced, PdfProvider, PostProcessor, Processor, ProcessorChain,
 };
 
-// Re-export ImageExtractionProcessor when lopdf is available
-#[cfg(feature = "lopdf")]
-pub use processors::{ImageExtractionProcessor, ImagePageStats as ProcessorImagePageStats};
-
 // Re-export formula detection types
 pub use formula::{Formula, FormulaConfig, FormulaDetector, SymbolMap, MATH_SYMBOL_MAP};
 
@@ -123,9 +118,6 @@ pub use rendering::PageRenderer;
 
 // Re-export image OCR types
 pub use image_ocr::{ImageData, ImageOcrCapable, ImageOcrProcessor, ImageOcrResult, ImageType};
-
-// Re-export image extraction types
-pub use image_extraction::{ImageExtractor, PageImageStats};
 
 // Re-export progress callback types
 pub use progress::{CountingProgress, LoggingProgress, NoopProgress, ProgressCallback};
