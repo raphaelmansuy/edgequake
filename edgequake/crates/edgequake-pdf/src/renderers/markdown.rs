@@ -1245,24 +1245,42 @@ impl MarkdownRenderer {
     /// - Starts with uppercase letter
     /// - Does NOT end with : or . or ? (these are likely labels/sentences)
     /// - Does NOT start with Fig/Table/Note/Example (captions)
+    /// OODA-30: Convert standalone bold lines to headers ONLY when they have
+    /// a clear section-number pattern.
+    ///
+    /// ## First Principles
+    ///
+    /// The font-size-based header classification in classify_blocks() already
+    /// handles headers that are visually larger than body text. This function
+    /// catches the remaining case: section headers that are at body font size
+    /// but have a structural section-number pattern.
+    ///
+    /// ## What qualifies as a section header here:
+    ///
+    /// ONLY bold standalone lines matching a numbered section pattern:
+    /// - `**0) AI Strategy & Co‑Creation**` → `## 0) AI Strategy & Co‑Creation`
+    /// - `**3. Context Graph**` → `## 3. Context Graph`
+    /// - `**Section 1: Introduction**` → `## Section 1: Introduction`
+    ///
+    /// ## What does NOT qualify:
+    ///
+    /// Bold emphasis labels without section numbers:
+    /// - `**What we deliver**` → stays as `**What we deliver**`
+    /// - `**Capabilities**` → stays as `**Capabilities**`
+    /// - `**Key outputs**` → stays as `**Key outputs**`
+    ///
+    /// WHY: These are emphasis labels, not structural headers. Promoting them
+    /// creates false hierarchy (multiple `## What we deliver` in different sections).
     fn convert_standalone_bold_to_headers(text: &str) -> String {
         use regex::Regex;
 
         // Match standalone bold lines: exactly **text** on a line
         let standalone_bold_re = Regex::new(r"^\*\*([^*]+)\*\*\s*$").unwrap();
 
-        // Caption patterns that should NOT be converted to headers
-        // These are typically followed by a number or colon
-        // "Figure 1:" or "Table 2." but NOT "Table of Contents"
-        let caption_re = Regex::new(r"(?i)^(fig\.?|figure|table)\s*\d").unwrap();
-
-        // Specific patterns that look like captions but should still be headers
-        let allowed_headers = [
-            "table of contents",
-            "appendix",
-            "acknowledgements",
-            "acknowledgments",
-        ];
+        // Section number patterns — structural, not content-based:
+        // "0)", "1.", "2:", "Section 3", "Chapter 1", "Part II"
+        let section_number_re =
+            Regex::new(r"(?i)^(\d+[\).\-:\s]|section\s+\d|chapter\s+\d|part\s+[IVX\d])").unwrap();
 
         let mut result_lines: Vec<String> = Vec::new();
 
@@ -1270,43 +1288,14 @@ impl MarkdownRenderer {
             if let Some(caps) = standalone_bold_re.captures(line) {
                 let inner_text = &caps[1];
                 let trimmed = inner_text.trim();
-                let lower = trimmed.to_lowercase();
 
-                // Check if this looks like a header candidate
-                let is_short = trimmed.len() < 60;
-                let starts_upper = trimmed
-                    .chars()
-                    .next()
-                    .map(|c| c.is_uppercase())
-                    .unwrap_or(false);
-                // WHY allow digits: Section numbers like "2) Software Development"
-                // or "3. Context Graph" start with a digit, not a letter.
-                // These are clearly section headers when combined with bold + short + standalone.
-                let starts_with_section_number = trimmed
-                    .chars()
-                    .next()
-                    .map(|c| c.is_ascii_digit())
-                    .unwrap_or(false);
-                let ends_with_punctuation = trimmed.ends_with(':')
-                    || trimmed.ends_with('.')
-                    || trimmed.ends_with('?')
-                    || trimmed.ends_with(';');
+                // ONLY promote to header if the bold text has a section number pattern
+                let has_section_number = section_number_re.is_match(trimmed);
+                let is_short = trimmed.len() < 80;
 
-                // Check if it's a caption (e.g., "Figure 1:", "Table 2")
-                let is_caption = caption_re.is_match(trimmed);
-
-                // Check if it's an allowed header pattern
-                let is_allowed = allowed_headers.iter().any(|h| lower.starts_with(h));
-
-                // Convert to header if it meets the criteria
-                // Caption patterns like "Figure 1" are excluded unless explicitly allowed
-                // WHY no bold in header: `## Title` is clean; `## **Title**` is redundant
-                // because Markdown headers are inherently bold in every renderer.
-                if is_short
-                    && (starts_upper || starts_with_section_number)
-                    && !ends_with_punctuation
-                    && (!is_caption || is_allowed)
-                {
+                if has_section_number && is_short {
+                    // WHY no bold in header: `## Title` is clean; `## **Title**`
+                    // is redundant because Markdown headers are inherently bold.
                     result_lines.push(format!("## {}", trimmed));
                 } else {
                     result_lines.push(line.to_string());
@@ -2322,14 +2311,28 @@ mod tests {
         );
     }
 
-    // OODA-IT15: Tests for standalone bold to header conversion
+    // OODA-IT15/IT30: Tests for standalone bold to header conversion
+    // Only section-numbered bold lines are promoted to headers.
     #[test]
-    fn test_convert_standalone_bold_basic() {
-        let input = "**Executive Summary**";
+    fn test_convert_standalone_bold_with_section_number() {
+        // Section-numbered bold lines should become headers
+        let input = "**0) AI Strategy & Co‑Creation**";
         let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
         assert!(
             result.starts_with("## "),
-            "Standalone bold should become header, got: '{}'",
+            "Section-numbered bold should become header, got: '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_convert_standalone_bold_without_section_number() {
+        // Bold lines WITHOUT section numbers should NOT become headers
+        let input = "**Executive Summary**";
+        let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
+        assert!(
+            !result.starts_with("## "),
+            "Bold without section number should NOT become header, got: '{}'",
             result
         );
     }
@@ -2345,12 +2348,12 @@ mod tests {
             result
         );
 
-        // But "Table of Contents" SHOULD be converted (allowed exception)
+        // "Table of Contents" should NOT be promoted (no section number)
         let input2 = "**Table of Contents**";
         let result2 = MarkdownRenderer::convert_standalone_bold_to_headers(input2);
         assert!(
-            result2.starts_with("## "),
-            "Table of Contents should become header, got: '{}'",
+            !result2.starts_with("## "),
+            "Table of Contents should not become header (no section number), got: '{}'",
             result2
         );
     }
@@ -2401,23 +2404,35 @@ mod tests {
 
     #[test]
     fn test_convert_standalone_bold_multiple_lines() {
-        let input = r#"**Introduction**
+        // OODA-30: Only section-numbered bold lines become headers.
+        // Non-numbered bold lines stay as bold paragraphs.
+        let input = r#"**1. Introduction**
 
 Some paragraph text here.
 
-**Methods**
+**2. Methods**
 
-More text about methods."#;
+More text about methods.
+
+**Key Findings**
+
+Findings stay bold."#;
         let result = MarkdownRenderer::convert_standalone_bold_to_headers(input);
-        // WHY no bold: headers are inherently bold; `## Introduction` is correct
+        // Section-numbered lines become headers
         assert!(
-            result.contains("## Introduction"),
-            "Introduction should become header without bold, got: '{}'",
+            result.contains("## 1. Introduction"),
+            "Numbered section should become header, got: '{}'",
             result
         );
         assert!(
-            result.contains("## Methods"),
-            "Methods should become header without bold, got: '{}'",
+            result.contains("## 2. Methods"),
+            "Numbered section should become header, got: '{}'",
+            result
+        );
+        // Non-numbered bold lines stay as bold
+        assert!(
+            result.contains("**Key Findings**"),
+            "Non-numbered bold should stay as bold, got: '{}'",
             result
         );
         assert!(
