@@ -384,6 +384,24 @@ impl Span {
         let ratio = self.font_size / reference_font_size;
         ratio < 0.7 && self.text.chars().count() < 5
     }
+
+    /// OODA-19: Check if this span is subscript relative to a reference font size.
+    ///
+    /// A span is considered subscript when its font size is less than 70% of the
+    /// reference (dominant line) font size AND its text is short (< 5 chars),
+    /// AND it is NOT already detected as superscript (superscripts sit above baseline).
+    ///
+    /// Common for chemical formulas (H₂O, CO₂) and mathematical subscripts (x_i, a_n).
+    /// Subscripts typically have a lower baseline (higher y0) than the reference text.
+    pub fn is_subscript(&self, reference_font_size: f32, ref_y1: f32) -> bool {
+        if reference_font_size <= 0.0 {
+            return false;
+        }
+        let ratio = self.font_size / reference_font_size;
+        // Small font, short text, AND positioned near/below the baseline of reference
+        // Subscripts have y1 close to or below the ref_y1 (bottom of reference text)
+        ratio < 0.7 && self.text.chars().count() < 5 && self.y1 >= ref_y1 - reference_font_size * 0.1
+    }
 }
 
 /// A line is a sequence of spans on the same baseline.
