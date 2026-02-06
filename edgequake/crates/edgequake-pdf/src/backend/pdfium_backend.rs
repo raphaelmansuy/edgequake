@@ -393,14 +393,21 @@ fn classify_blocks(blocks: &[TextBlock], body_size: f32) -> Vec<TextBlock> {
             let is_larger = block_font_size >= header_threshold;
             let is_short = block.lines.len() <= 3;
             let text = block.text();
-            let not_list = !text.starts_with('•')
-                && !text.starts_with('-')
-                && !text.starts_with('*')
-                && !text
-                    .chars()
-                    .next()
-                    .map(|c| c.is_ascii_digit())
-                    .unwrap_or(false);
+            // ──────────────────────────────────────────────────────────────
+            // WHY: Exclude bullet and list items from header classification (OODA-30)
+            //
+            // Bullets (•, -, *) are never headers. Digit-starting text is
+            // tricky: "0) AI Strategy" IS a section header, but "1. First
+            // item" is a list item. The key distinction is FONT SIZE: if the
+            // text is larger than body, it's a header regardless of starting
+            // character. The not_list guard only needs to exclude bullets.
+            //
+            // Previously excluded ALL digit-starting text, which prevented
+            // numbered section headers (15pt, ratio 1.25) from being
+            // classified correctly.
+            // ──────────────────────────────────────────────────────────────
+            let not_list =
+                !text.starts_with('•') && !text.starts_with('-') && !text.starts_with('*');
 
             if is_larger && is_short && not_list {
                 // Calculate header level based on size ratio
