@@ -75,7 +75,12 @@ pub struct MarkdownStyle {
 impl Default for MarkdownStyle {
     fn default() -> Self {
         Self {
-            page_breaks: true,
+            // WHY page_breaks=false: For LLM-optimized output, the document
+            // should flow as continuous text. Page breaks (`---`) are PDF
+            // artifacts that fragment the semantic content. The gold standard
+            // (markitdown) does not include page break markers.
+            // Users who want page-level separators can use `MarkdownStyle::verbose()`.
+            page_breaks: false,
             page_numbers: true,
             max_heading_level: 6,
             atx_headers: true,
@@ -1791,7 +1796,8 @@ mod tests {
     #[test]
     fn test_default_style() {
         let style = MarkdownStyle::default();
-        assert!(style.page_breaks);
+        // WHY page_breaks=false: LLM-optimized output flows continuously
+        assert!(!style.page_breaks);
         assert!(style.page_numbers);
         assert_eq!(style.max_heading_level, 6);
         assert!(style.atx_headers);
