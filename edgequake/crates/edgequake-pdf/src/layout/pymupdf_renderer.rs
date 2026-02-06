@@ -9,6 +9,7 @@
 //! - Paragraph separation
 
 use super::pymupdf_structs::{Block, BlockType, Line};
+use crate::renderers::pua_filter::filter_pua;
 
 /// Markdown renderer configuration.
 #[derive(Debug, Clone)]
@@ -207,11 +208,11 @@ impl MarkdownRenderer {
 
         if line.spans.len() == 1 {
             let span = &line.spans[0];
-            let text = &span.text;
+            let text = filter_pua(&span.text);
             if text.trim().is_empty() {
-                return text.clone();
+                return text;
             }
-            return self.style_text(text, span);
+            return self.style_text(&text, span);
         }
 
         // Group consecutive spans with same style, including spaces within groups
@@ -220,6 +221,12 @@ impl MarkdownRenderer {
         let mut current_style = get_style_type(&line.spans[0]);
 
         for (i, span) in line.spans.iter().enumerate() {
+            // OODA-02: Filter PUA characters from each span
+            let span_text = filter_pua(&span.text);
+            if span_text.is_empty() {
+                continue; // Skip spans that are entirely PUA
+            }
+
             // Determine if we need a space before this span
             let needs_space = if i > 0 {
                 let prev = &line.spans[i - 1];
@@ -257,7 +264,7 @@ impl MarkdownRenderer {
                 current_text.push(' ');
             }
 
-            current_text.push_str(&span.text);
+            current_text.push_str(&span_text);
         }
 
         // Don't forget the last group
@@ -278,10 +285,12 @@ impl MarkdownRenderer {
     }
 
     /// Render a line without style markers (plain text).
+    /// OODA-02: Applies PUA filtering to prevent garbage symbols.
     fn render_line_plain(&self, line: &Line) -> String {
         line.spans
             .iter()
-            .map(|s| s.text.as_str())
+            .map(|s| filter_pua(&s.text))
+            .filter(|t| !t.is_empty())
             .collect::<Vec<_>>()
             .join(" ")
     }
