@@ -661,7 +661,7 @@ impl Processor for ListDetectionProcessor {
                 .map(|b| b.bbox.x1)
                 .fold(f32::MAX, |a, b| a.min(b));
 
-            tracing::info!(
+            tracing::debug!(
                 "ListDetectionProcessor: page {} min_x={:.1}",
                 page.number,
                 min_x
@@ -678,7 +678,7 @@ impl Processor for ListDetectionProcessor {
                 // WHY: "1. Introduction", "2. Methodology" should become section headers
                 // not list items. The SectionPatternProcessor will handle them.
                 if section_title_regex.is_match(text) {
-                    tracing::info!(
+                    tracing::debug!(
                         "  Skipping section title (not list): '{}'",
                         text.chars().take(40).collect::<String>()
                     );
@@ -721,7 +721,7 @@ impl Processor for ListDetectionProcessor {
                     let indent = block.bbox.x1 - min_x;
                     let level = (indent / 20.0).round() as i32;
 
-                    tracing::info!(
+                    tracing::debug!(
                         "  ListItem '{}' x1={:.1} indent={:.1} level={}",
                         text.chars().take(30).collect::<String>(),
                         block.bbox.x1,

@@ -85,7 +85,7 @@ impl Processor for LayoutProcessor {
             // Re-sorting here was destroying the column-aware order and causing
             // interleaving of left/right column content.
             if !page.columns.is_empty() {
-                tracing::info!(
+                tracing::debug!(
                     "LAYOUT: Page {} has {} columns from backend, SKIPPING re-sort (OODA-29)",
                     page.number,
                     page.columns.len()
@@ -582,7 +582,7 @@ impl BlockMergeProcessor {
                     }
 
                     // Found a match! Merge the blocks
-                    tracing::info!(
+                    tracing::debug!(
                         "OODA-23: Cross-column hyphenation merge: '{}' + '{}' = '{}' (Y diff: {:.0})",
                         word_fragment,
                         continuation,
@@ -647,7 +647,7 @@ impl BlockMergeProcessor {
         }
 
         // Log column count for debugging
-        tracing::info!(
+        tracing::debug!(
             "BlockMerge: Processing {} blocks with {} columns",
             blocks.len(),
             columns.len()
@@ -655,7 +655,7 @@ impl BlockMergeProcessor {
 
         // Log column bounding boxes
         for (i, col) in columns.iter().enumerate() {
-            tracing::info!(
+            tracing::debug!(
                 "BlockMerge: Column {} bbox: x1={:.1} y1={:.1} x2={:.1} y2={:.1}",
                 i,
                 col.x1,
@@ -671,7 +671,7 @@ impl BlockMergeProcessor {
         // DEBUG: Log blocks at BlockMerge start for blocks containing key text
         let is_debug_page = blocks.iter().any(|b| b.text.contains("disentangles space"));
         if is_debug_page {
-            tracing::info!(
+            tracing::debug!(
                 "BLOCKMERGE-START: {} blocks total, {} columns",
                 blocks.len(),
                 columns.len()
@@ -681,7 +681,7 @@ impl BlockMergeProcessor {
                     || block.text.contains("dering")
                     || block.text.contains("independently")
                 {
-                    tracing::info!(
+                    tracing::debug!(
                         "BLOCKMERGE-KEY idx={}: x1={:.0} y1={:.0} len={} FULL: '{}'",
                         idx,
                         block.bbox.x1,
@@ -699,7 +699,7 @@ impl BlockMergeProcessor {
                 || block.text.contains("dering")
                 || block.text.starts_with("independently")
             {
-                tracing::info!(
+                tracing::debug!(
                     "MERGE-TRACE block {}: '{}...' x1={:.0}",
                     idx,
                     safe_truncate(&block.text, 50),
@@ -714,7 +714,7 @@ impl BlockMergeProcessor {
                         || block.text.contains("dering")
                         || block.text.starts_with("independently")
                     {
-                        tracing::info!(
+                        tracing::debug!(
                             "MERGE-HAPPENING: '{}...' + '{}...'",
                             &cur.text[cur.text.len().saturating_sub(20)..],
                             safe_truncate(&block.text, 20)

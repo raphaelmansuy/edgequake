@@ -212,7 +212,7 @@ impl GeometricClusterer {
             .all(|pair| (pair[1].center_x() - pair[0].center_x()) > min_cluster_separation);
 
         if !all_well_separated {
-            tracing::info!(
+            tracing::debug!(
                 "COLUMN-DETECT: clusters too close (min_sep={:.1}pt), collapsing to single column",
                 min_cluster_separation
             );
@@ -246,7 +246,7 @@ impl GeometricClusterer {
                 .fold(f32::INFINITY, f32::min);
             let max_width = columns.iter().map(|c| c.width()).fold(0.0f32, f32::max);
             if min_width > 0.0 && max_width > min_width * 3.0 {
-                tracing::info!(
+                tracing::debug!(
                     "COLUMN-DETECT: unbalanced columns (max={:.1} / min={:.1} = {:.1}x), collapsing to single column",
                     max_width,
                     min_width,
