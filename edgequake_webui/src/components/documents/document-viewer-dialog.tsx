@@ -26,6 +26,7 @@ import {
 import { getPdfContent, getPdfDownloadUrl } from '@/lib/api/edgequake';
 import { useQuery } from '@tanstack/react-query';
 import {
+    AlertCircle,
     Download,
     ExternalLink,
     FileText,
@@ -207,13 +208,59 @@ export function DocumentViewerDialog({
                 />
               )}
 
-              {/* If PDF without markdown, show PDF only */}
+              {/* If PDF without markdown, show PDF with extraction status message */}
+              {/* OODA-E2E-01: Show explicit message when markdown extraction failed/pending */}
               {isPdf && !hasMarkdown && pdfUrl && (
-                <PDFViewer
-                  file={pdfUrl}
-                  showToolbar={true}
+                <SideBySideViewer
+                  leftPanel={
+                    <PDFViewer
+                      file={pdfUrl}
+                      showToolbar={true}
+                      className="h-full"
+                    />
+                  }
+                  rightPanel={
+                    <div className="flex items-center justify-center h-full bg-muted/30">
+                      <div className="flex flex-col items-center gap-4 text-center p-8 max-w-md">
+                        {pdfContent.is_processed ? (
+                          <>
+                            <div className="rounded-full bg-amber-500/10 p-4">
+                              <AlertCircle className="h-8 w-8 text-amber-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-foreground mb-1">
+                                {t('documents.viewer.extractionFailed', 'Markdown Extraction Failed')}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {t(
+                                  'documents.viewer.extractionFailedDesc',
+                                  'The PDF was processed but no markdown content was extracted. This usually means the PDF extraction library (libpdfium) is not available on the server. Please check the server logs for details.'
+                                )}
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                            <div>
+                              <p className="font-medium text-foreground mb-1">
+                                {t('documents.viewer.processing', 'Processing PDF...')}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {t(
+                                  'documents.viewer.processingDesc',
+                                  'The PDF is being processed. Markdown content will appear here once extraction is complete.'
+                                )}
+                              </p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  }
                   height={window.innerHeight - 150}
-                  className="w-full"
+                  leftTitle={t('documents.viewer.originalPdf', 'Original PDF')}
+                  rightTitle={t('documents.viewer.extractedMarkdown', 'Extracted Markdown')}
                 />
               )}
 

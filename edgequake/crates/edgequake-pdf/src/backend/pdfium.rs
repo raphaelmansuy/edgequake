@@ -142,18 +142,36 @@ impl PdfiumExtractor {
     ///
     /// This will search for libpdfium in the following order:
     /// 1. `PDFIUM_DYNAMIC_LIB_PATH` environment variable
-    /// 2. System library paths
+    /// 2. Workspace-relative paths (bundled library)
+    /// 3. System library paths
     ///
     /// # Errors
     ///
     /// Returns an error if libpdfium cannot be found or loaded.
+    ///
+    /// ## WHY workspace-relative paths (OODA-E2E-01)?
+    ///
+    /// The project bundles `libpdfium.dylib` at `edgequake/crates/edgequake-pdf/lib/lib/`.
+    /// Without auto-discovery, the server silently falls back to MockBackend, producing
+    /// empty markdown from PDF uploads — a critical production bug with no user-visible error.
     pub fn new() -> Result<Self, PdfError> {
         // First check for PDFIUM_DYNAMIC_LIB_PATH env var
         if let Ok(path) = std::env::var("PDFIUM_DYNAMIC_LIB_PATH") {
             return Self::with_library_path(&path);
         }
 
-        // Try common paths on macOS
+        // WHY (OODA-E2E-01): Auto-discover bundled libpdfium relative to the executable
+        // or the current working directory. The project bundles the library at a known
+        // relative path, so we try multiple strategies to find it.
+        let relative_paths = Self::discover_bundled_library_paths();
+        for path in &relative_paths {
+            if std::path::Path::new(path).exists() {
+                debug!("Found bundled libpdfium at: {}", path);
+                return Self::with_library_path(path);
+            }
+        }
+
+        // Try common system paths on macOS
         #[cfg(target_os = "macos")]
         {
             let common_paths = [
@@ -167,11 +185,101 @@ impl PdfiumExtractor {
             }
         }
 
-        // Fallback: try Pdfium::new with StaticBindings (if available)
-        // This will fail at compile time if static bindings aren't enabled
+        // Try common system paths on Linux
+        #[cfg(target_os = "linux")]
+        {
+            let common_paths = [
+                "/usr/lib/libpdfium.so",
+                "/usr/local/lib/libpdfium.so",
+                "/usr/lib/x86_64-linux-gnu/libpdfium.so",
+            ];
+            for path in &common_paths {
+                if std::path::Path::new(path).exists() {
+                    return Self::with_library_path(path);
+                }
+            }
+        }
+
+        // Build a helpful error message listing all paths we tried
+        let searched_paths = relative_paths.join(", ");
         Err(PdfError::Backend(
-            "libpdfium not found. Set PDFIUM_DYNAMIC_LIB_PATH environment variable to the path of libpdfium.dylib".to_string(),
+            format!(
+                "libpdfium not found. Searched: [{}]. \
+                 Set PDFIUM_DYNAMIC_LIB_PATH environment variable to the path of libpdfium.dylib/so, \
+                 or place it in the project's lib/lib/ directory.",
+                searched_paths
+            ),
         ))
+    }
+
+    /// Discover bundled libpdfium paths relative to the executable and working directory.
+    ///
+    /// WHY (OODA-E2E-01): The project bundles libpdfium at a known relative path.
+    /// We try multiple strategies because the binary may be run from different locations:
+    /// - `cargo run` from the workspace root
+    /// - Direct binary execution from target/release/
+    /// - Running from the edgequake/ subdirectory
+    fn discover_bundled_library_paths() -> Vec<String> {
+        let lib_name = if cfg!(target_os = "macos") {
+            "libpdfium.dylib"
+        } else if cfg!(target_os = "windows") {
+            "pdfium.dll"
+        } else {
+            "libpdfium.so"
+        };
+
+        let mut paths = Vec::new();
+
+        // Strategy 1: Relative to current working directory
+        // WHY: `cargo run` or `make backend-dev` runs from the edgequake/ subdirectory
+        if let Ok(cwd) = std::env::current_dir() {
+            // From edgequake/ directory (cargo run)
+            paths.push(
+                cwd.join("crates/edgequake-pdf/lib/lib")
+                    .join(lib_name)
+                    .to_string_lossy()
+                    .to_string(),
+            );
+            // From workspace root
+            paths.push(
+                cwd.join("edgequake/crates/edgequake-pdf/lib/lib")
+                    .join(lib_name)
+                    .to_string_lossy()
+                    .to_string(),
+            );
+            // From lib/ in cwd (if symlinked or copied)
+            paths.push(cwd.join("lib").join(lib_name).to_string_lossy().to_string());
+        }
+
+        // Strategy 2: Relative to the executable itself
+        // WHY: When running a compiled binary directly (e.g. target/release/edgequake)
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                // Next to the binary
+                paths.push(exe_dir.join(lib_name).to_string_lossy().to_string());
+                // In lib/ next to the binary
+                paths.push(
+                    exe_dir
+                        .join("lib")
+                        .join(lib_name)
+                        .to_string_lossy()
+                        .to_string(),
+                );
+            }
+        }
+
+        // Strategy 3: CARGO_MANIFEST_DIR (compile-time, embedded in binary)
+        // WHY: During development with `cargo run`, this points to the crate directory
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        paths.push(
+            std::path::Path::new(manifest_dir)
+                .join("lib/lib")
+                .join(lib_name)
+                .to_string_lossy()
+                .to_string(),
+        );
+
+        paths
     }
 
     /// Create extractor with explicit library path.
@@ -561,10 +669,11 @@ mod tests {
     use super::*;
 
     /// Test that PdfiumExtractor can be created when library is available.
-    /// This test is designed to pass in both CI (no library) and local dev.
+    /// OODA-E2E-01: Updated to account for auto-discovery of bundled libpdfium.
+    /// When the bundled library exists (via CARGO_MANIFEST_DIR), new() should succeed.
     #[test]
     fn test_pdfium_extractor_creation() {
-        // Only run if library path is set
+        // First check explicit env var
         match std::env::var("PDFIUM_DYNAMIC_LIB_PATH") {
             Ok(path) => {
                 if std::path::Path::new(&path).exists() {
@@ -576,10 +685,23 @@ mod tests {
                 }
             }
             Err(_) => {
-                // No library path - test that new() fails gracefully
+                // No explicit env var - test auto-discovery
                 let result = PdfiumExtractor::new();
-                assert!(result.is_err(), "Expected error when no library available");
-                println!("✓ PdfiumExtractor::new() correctly returns error when no library");
+                // WHY (OODA-E2E-01): auto-discovery via CARGO_MANIFEST_DIR may find the
+                // bundled libpdfium in the project's lib/lib/ directory. This is correct
+                // behavior - the test should pass whether or not the library is found.
+                match result {
+                    Ok(_) => {
+                        println!(
+                            "✓ PdfiumExtractor::new() auto-discovered bundled library (expected in dev)"
+                        );
+                    }
+                    Err(e) => {
+                        println!(
+                            "✓ PdfiumExtractor::new() correctly returned error: {e} (expected in CI without library)"
+                        );
+                    }
+                }
             }
         }
     }

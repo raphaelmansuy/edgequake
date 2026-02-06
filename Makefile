@@ -184,6 +184,7 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 	@trap 'echo ""; echo "$(YELLOW)Stopping services...$(RESET)"; $(MAKE) stop --no-print-directory; exit 0' INT; \
 	(cd $(BACKEND_DIR) && \
 		DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
+		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
 		EDGEQUAKE_LLM_PROVIDER="ollama" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
@@ -238,6 +239,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 	@echo "$(YELLOW)→ Starting backend in background...$(RESET)"
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
+		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
@@ -296,6 +298,11 @@ stop: ## Stop all development services
 # Database URL for PostgreSQL mode
 DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
 
+# OODA-E2E-01: Path to bundled libpdfium for PDF extraction
+# WHY: Without this, PdfiumBackend fails to initialize and falls back to MockBackend,
+# which produces empty markdown from PDF uploads (critical production bug).
+PDFIUM_LIB_PATH := $(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpdfium.dylib
+
 backend-dev: db-wait ## Run backend in development mode with PostgreSQL + Ollama (DEFAULT)
 	@echo "$(BLUE)Starting backend with PostgreSQL storage + Ollama...$(RESET)"
 	@# REQ-28: Forward OPENAI_API_KEY if set, allowing runtime provider switching
@@ -304,6 +311,7 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL + Ollama
 	fi
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
+		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
 		EDGEQUAKE_LLM_PROVIDER="ollama" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
@@ -319,6 +327,7 @@ backend-db: db-wait ## Run backend with PostgreSQL storage + Ollama (explicit)
 	fi
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
+		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
 		EDGEQUAKE_LLM_PROVIDER="ollama" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
@@ -334,6 +343,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENA
 	@echo "$(BLUE)Starting backend in background...$(RESET)"
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
+		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
