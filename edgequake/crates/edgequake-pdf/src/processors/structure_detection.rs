@@ -196,6 +196,22 @@ impl Processor for HeaderDetectionProcessor {
         let single_number_heading = Regex::new(r"^\d+\.?\s+[A-Z]").unwrap();
 
         for page in &mut document.pages {
+            // OODA-37: First pass — normalize section number spacing on ALL blocks.
+            // WHY: Must run before level check because StyleDetectionProcessor may have
+            // already set block_type=SectionHeader + level, causing the skip below.
+            // The normalization is safe for all blocks: it only inserts a space between
+            // a leading digit sequence and an uppercase letter (e.g., "1INTRO" → "1 INTRO").
+            for block in &mut page.blocks {
+                let raw_text = block.text.trim().to_string();
+                if raw_text.starts_with(|c: char| c.is_ascii_digit()) {
+                    let normalized = Self::normalize_section_number_spacing(&raw_text);
+                    if normalized != raw_text {
+                        block.text = normalized;
+                    }
+                }
+            }
+
+            // Second pass — detect headers based on font size and patterns
             for block in &mut page.blocks {
                 // Skip blocks already classified as list items (by ListDetectionProcessor)
                 // WHY: List items like "1. First item" should not become headers
@@ -434,6 +450,52 @@ impl HeaderDetectionProcessor {
             }
         }
         false
+    }
+
+    /// OODA-37: Normalize section header text to fix number-title spacing.
+    ///
+    /// WHY (First Principle): In natural language, a section number like "1", "2",
+    /// or "3.2" is ALWAYS separated from the section title by whitespace or punctuation.
+    /// Patterns like "1INTRODUCTION" or "3THE LIGHTRAG" are PDF extraction artifacts
+    /// where the section number span and title span were adjacent without a gap
+    /// exceeding the space-detection threshold.
+    ///
+    /// ```text
+    /// PDF spans: ["1"]["INTRODUCTION"]  ← gap < 15% font size → no space inserted
+    /// Raw text:  "1INTRODUCTION"        ← violates natural language rules
+    /// Fixed:     "1 INTRODUCTION"       ← restored space between number and title
+    /// ```
+    ///
+    /// Pattern: `^\d+[A-Z]` → insert space between trailing digit and leading uppercase.
+    /// This is safe because no valid English/scientific text starts with digit+uppercase
+    /// without separation (e.g., "1A" as a grade would be "1-A" or "1.A").
+    fn normalize_section_number_spacing(text: &str) -> String {
+        let chars: Vec<char> = text.chars().collect();
+        if chars.len() < 2 {
+            return text.to_string();
+        }
+
+        // Find where the leading digits/dots end
+        let mut num_end = 0;
+        for (i, ch) in chars.iter().enumerate() {
+            if ch.is_ascii_digit() || *ch == '.' {
+                num_end = i + 1;
+            } else {
+                break;
+            }
+        }
+
+        // If we found leading digits and the next char is uppercase, insert space
+        if num_end > 0 && num_end < chars.len() {
+            let next_char = chars[num_end];
+            if next_char.is_uppercase() {
+                let prefix: String = chars[..num_end].iter().collect();
+                let suffix: String = chars[num_end..].iter().collect();
+                return format!("{} {}", prefix, suffix);
+            }
+        }
+
+        text.to_string()
     }
 }
 
@@ -1291,6 +1353,88 @@ mod tests {
             result.pages[0].blocks[0].block_type,
             BlockType::Code,
             "Real Python code should still be detected as code"
+        );
+    }
+
+    // ==========================================================================
+    // OODA-37: Tests for section number spacing normalization
+    // ==========================================================================
+
+    #[test]
+    fn test_normalize_section_number_spacing_basic() {
+        // WHY: "1INTRODUCTION" is a common PDF extraction artifact where the section
+        // number and title are adjacent without a space gap.
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("1INTRODUCTION"),
+            "1 INTRODUCTION"
+        );
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("2RETRIEVAL"),
+            "2 RETRIEVAL"
+        );
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("3THE LIGHTRAG"),
+            "3 THE LIGHTRAG"
+        );
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("4EVALUATION"),
+            "4 EVALUATION"
+        );
+    }
+
+    #[test]
+    fn test_normalize_section_number_spacing_with_dot() {
+        // Section numbers with dots should also be normalized
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("3.2DUAL-LEVEL"),
+            "3.2 DUAL-LEVEL"
+        );
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("1.1MOTIVATION"),
+            "1.1 MOTIVATION"
+        );
+    }
+
+    #[test]
+    fn test_normalize_section_number_spacing_already_spaced() {
+        // Already correctly spaced text should NOT be modified
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("1 INTRODUCTION"),
+            "1 INTRODUCTION"
+        );
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("3.2 DUAL-LEVEL"),
+            "3.2 DUAL-LEVEL"
+        );
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("1. Introduction"),
+            "1. Introduction"
+        );
+    }
+
+    #[test]
+    fn test_normalize_section_number_spacing_no_match() {
+        // Should NOT modify text that doesn't match the pattern
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("Introduction"),
+            "Introduction"
+        );
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("hello world"),
+            "hello world"
+        );
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing(""),
+            ""
+        );
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("1"),
+            "1"
+        );
+        // Digit followed by lowercase — not a section pattern
+        assert_eq!(
+            HeaderDetectionProcessor::normalize_section_number_spacing("1st place"),
+            "1st place"
         );
     }
 }
