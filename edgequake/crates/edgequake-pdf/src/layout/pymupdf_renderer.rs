@@ -300,13 +300,34 @@ impl MarkdownRenderer {
 
     /// Render a line without style markers (plain text).
     /// OODA-02: Applies PUA filtering to prevent garbage symbols.
+    /// OODA-20: Use spatial gap detection for spacing (same as styled rendering),
+    /// instead of always joining with " " which creates extra spaces in code blocks.
     fn render_line_plain(&self, line: &Line) -> String {
-        line.spans
-            .iter()
-            .map(|s| filter_pua(&s.text))
-            .filter(|t| !t.is_empty())
-            .collect::<Vec<_>>()
-            .join(" ")
+        if line.spans.is_empty() {
+            return String::new();
+        }
+
+        let mut result = String::new();
+        for (i, span) in line.spans.iter().enumerate() {
+            let text = filter_pua(&span.text);
+            if text.is_empty() {
+                continue;
+            }
+
+            // Determine if we need a space before this span
+            if i > 0 {
+                let prev = &line.spans[i - 1];
+                let gap = span.x0 - prev.x1;
+                let avg_size = (prev.font_size + span.font_size) / 2.0;
+                let space_threshold = avg_size * 0.15;
+                if gap > space_threshold {
+                    result.push(' ');
+                }
+            }
+
+            result.push_str(&text);
+        }
+        result
     }
 }
 
