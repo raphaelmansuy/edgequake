@@ -401,6 +401,27 @@ impl MarkdownRenderer {
             return false;
         }
 
+        // OODA-IT18: Check horizontal alignment (same column).
+        // WHY: After multi-column layout reordering, blocks from different columns
+        // become adjacent in the render list. If prev is in the right column
+        // (x1≈318) and curr is in the left column (x1≈78), they must NOT be
+        // merged as paragraph continuations—they belong to different text flows.
+        //
+        // ┌─────────────────────────────────────────────┐
+        // │  COLUMN ALIGNMENT CHECK                      │
+        // │                                              │
+        // │  prev.x1=318  curr.x1=78  → diff=240 > 50  │
+        // │  → Different columns → NOT continuation      │
+        // │                                              │
+        // │  prev.x1=78   curr.x1=82  → diff=4 < 50    │
+        // │  → Same column → Maybe continuation          │
+        // └─────────────────────────────────────────────┘
+        const MAX_COLUMN_X_DRIFT: f32 = 50.0;
+        let left_margin_diff = (prev.bbox.x1 - curr.bbox.x1).abs();
+        if left_margin_diff > MAX_COLUMN_X_DRIFT {
+            return false;
+        }
+
         // Check 2: Previous block must NOT end with sentence-ending punctuation
         // WHY: If prev ends with ".", "!", "?", it's a complete sentence/paragraph
         let last_char = prev_text.chars().last().unwrap_or(' ');
@@ -1322,9 +1343,24 @@ impl MarkdownRenderer {
 
                 let next_trimmed = next.trim();
 
-                // OODA-IT16 FIX: If next line is empty, check line after that
+                // OODA-IT16 FIX: If next line is empty, check line after that.
                 // This handles cases where render_text adds \n\n after each block,
-                // splitting words like "netw\n\norking" across an empty line
+                // splitting words like "netw\n\norking" across an empty line.
+                //
+                // OODA-IT18: Length guard to prevent false-positive paragraph merging.
+                // WHY: render_text() adds \n\n between blocks, creating paragraph
+                // breaks. Long lines (>30 chars) represent COMPLETE sentences/text
+                // blocks whose paragraph boundaries must be preserved. Only SHORT
+                // lines (<= 30 chars) are likely word fragments from narrow PDF text
+                // boxes that genuinely split a word across blocks.
+                //
+                // ┌──────────────────────────────────────────┐
+                // │    CROSS-EMPTY-LINE JOIN GUARD            │
+                // │                                           │
+                // │  "netw"  (4 chars)  → JOIN ✓ (fragment)   │
+                // │  "...lines with" (50 chars) → NO ✗ (full) │
+                // └──────────────────────────────────────────┘
+                const MAX_FRAGMENT_LINE_LEN: usize = 30;
                 if next_trimmed.is_empty() && i + 2 < lines.len() {
                     let next_next = lines[i + 2];
                     let next_next_trimmed = next_next.trim();
@@ -1333,6 +1369,7 @@ impl MarkdownRenderer {
                     if !next_next_trimmed.is_empty()
                         && !Self::is_code_fence(next_next_trimmed)
                         && !Self::is_markdown_structural_line(next_next_trimmed)
+                        && current_trimmed.len() <= MAX_FRAGMENT_LINE_LEN
                     {
                         // Check if we should join across the empty line
                         if Self::should_join_lines(current_trimmed, next_next_trimmed) {
@@ -2491,6 +2528,61 @@ orking is prohibited.
     }
 
     // =====================================================================
+    // OODA-IT18: Cross-empty-line join guard tests
+    // =====================================================================
+
+    #[test]
+    fn test_join_broken_lines_no_cross_paragraph_join_long_line() {
+        // Long lines should NOT be joined across empty lines (paragraph breaks).
+        // WHY: render_text() adds \n\n between blocks. A long line ending with
+        // a lowercase word (like "with") is a COMPLETE sentence, not a fragment.
+        let input = "The extractor should detect that this is a separate column and not interleave the lines with\n\nsome space and tests the vertical flow.";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert!(
+            result.contains("with\n\nsome"),
+            "Long lines should NOT be joined across paragraph breaks: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_short_fragment_cross_empty() {
+        // Short fragments SHOULD still be joined across empty lines.
+        // WHY: "netw" (4 chars) is a word fragment from a narrow PDF text box.
+        let input = "netw\n\norking is prohibited.";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert_eq!(
+            result, "networking is prohibited.",
+            "Short fragments should still join across empty lines: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_medium_fragment_cross_empty() {
+        // Medium-length fragments (< 30 chars) should still join.
+        let input = "TCP/IP netw\n\norking is prohibited.";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert_eq!(
+            result, "TCP/IP networking is prohibited.",
+            "Medium fragments should still join across empty lines: got '{}'",
+            result
+        );
+    }
+
+    #[test]
+    fn test_join_broken_lines_preserves_paragraph_structure() {
+        // Realistic multi-block output where paragraphs should stay separate.
+        let input = "This is the first paragraph about a topic that is quite important for understanding.\n\nthe second paragraph continues with more details about the same topic.";
+        let result = MarkdownRenderer::join_broken_lines(input);
+        assert!(
+            result.contains("\n\n"),
+            "Paragraph boundaries in long text should be preserved: got '{}'",
+            result
+        );
+    }
+
+    // =====================================================================
     // OODA-IT17: Paragraph continuation detection tests
     // =====================================================================
 
@@ -2511,6 +2603,83 @@ orking is prohibited.
             source: None,
             metadata: std::collections::HashMap::new(),
         }
+    }
+
+    /// OODA-IT18: Helper to create a test Block with explicit X positions (for column tests)
+    fn make_test_block_xy(
+        block_type: BlockType,
+        text: &str,
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+    ) -> Block {
+        Block {
+            id: crate::schema::BlockId::generate(),
+            block_type,
+            bbox: crate::schema::BoundingBox::new(x1, y1, x2, y2),
+            page: 0,
+            position: 0,
+            text: text.to_string(),
+            html: None,
+            spans: Vec::new(),
+            children: Vec::new(),
+            confidence: 1.0,
+            level: None,
+            source: None,
+            metadata: std::collections::HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_paragraph_continuation_different_columns() {
+        // OODA-IT18: Blocks in different columns should NOT be joined.
+        // prev in right column (x1=318), curr in left column (x1=78)
+        let prev = make_test_block_xy(
+            BlockType::Text,
+            "SOTA extraction requires understanding the",
+            318.0,
+            78.0,
+            549.0,
+            88.0,
+        );
+        let curr = make_test_block_xy(
+            BlockType::Text,
+            "some space and tests the vertical flow.",
+            78.0,
+            90.0,
+            292.0,
+            100.0,
+        );
+        assert!(
+            !MarkdownRenderer::is_paragraph_continuation(&prev, &curr),
+            "Blocks in different columns should NOT be paragraph continuations"
+        );
+    }
+
+    #[test]
+    fn test_paragraph_continuation_same_column() {
+        // Blocks in the same column SHOULD still be considered for continuation.
+        let prev = make_test_block_xy(
+            BlockType::Text,
+            "with a focus on",
+            78.0,
+            100.0,
+            300.0,
+            116.0,
+        );
+        let curr = make_test_block_xy(
+            BlockType::Text,
+            "workflows and automation",
+            82.0,
+            118.0,
+            300.0,
+            134.0,
+        );
+        assert!(
+            MarkdownRenderer::is_paragraph_continuation(&prev, &curr),
+            "Blocks in the same column should be considered for continuation"
+        );
     }
 
     #[test]
