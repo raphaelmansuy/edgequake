@@ -356,6 +356,7 @@ fn parse_task_type(s: &str) -> Result<TaskType, String> {
         "insert" => Ok(TaskType::Insert),
         "scan" => Ok(TaskType::Scan),
         "reindex" => Ok(TaskType::Reindex),
+        "pdf_processing" => Ok(TaskType::PdfProcessing),
         _ => Err(format!("Invalid task type: {}", s)),
     }
 }

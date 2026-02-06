@@ -298,13 +298,19 @@ impl PdfBackend for PdfiumBackend {
 
             // Create page with actual dimensions
             let mut page = Page::new(page_num + 1, page_width, page_height);
+            // Capture block count before moving blocks into page
+            // WHY: on_page_complete expects markdown_len but we don't have
+            // rendered markdown yet. Pass block count as a reasonable proxy.
+            let block_count = schema_blocks.len();
             page.blocks = schema_blocks;
             page.method = ExtractionMethod::Native;
             page.update_stats();
 
             document.add_page(page);
 
-            callback.on_page_complete(page_num, page_count);
+            // BUG FIX: Previously passed page_count as markdown_len, which
+            // is semantically wrong. Now passes block_count as a proxy.
+            callback.on_page_complete(page_num, block_count);
             success_count += 1;
         }
 
