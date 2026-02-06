@@ -89,7 +89,7 @@ impl Processor for TableDetectionProcessor {
                 continue;
             }
 
-            tracing::info!(
+            tracing::debug!(
                 "TableDetectionProcessor: processing page {} with {} blocks",
                 page.number,
                 page.blocks.len()
@@ -125,16 +125,16 @@ impl Processor for TableDetectionProcessor {
             // false positives from column text that happens to align horizontally
             let strict_mode = page.columns.len() > 1;
             if strict_mode {
-                tracing::info!(
+                tracing::debug!(
                     "  Multi-column page ({} columns) - using strict table detection",
                     page.columns.len()
                 );
             }
 
             let rows = self.group_blocks_by_row(page, strict_mode);
-            tracing::info!("  Grouped into {} rows", rows.len());
+            tracing::trace!("  Grouped into {} rows", rows.len());
             let new_blocks = self.detect_tables(page, rows, strict_mode);
-            tracing::info!("  Produced {} blocks", new_blocks.len());
+            tracing::trace!("  Produced {} blocks", new_blocks.len());
             page.blocks = new_blocks;
         }
         Ok(document)
@@ -249,7 +249,7 @@ impl TableDetectionProcessor {
                 );
 
                 if self.is_likely_table(&table_rows, &rows, page, strict_mode) {
-                    tracing::info!("  ✓ Creating table from {} rows", table_rows.len());
+                    tracing::debug!("  ✓ Creating table from {} rows", table_rows.len());
                     let table_block = self.create_table_block(&table_rows, &rows, page);
                     new_blocks.push(table_block);
                     i = table_rows.last().copied().unwrap_or(i) + 1;
@@ -578,7 +578,7 @@ impl TextTableReconstructionProcessor {
         // Get char after "Table N" (skip "Table " + digits)
         let after_table = t.chars().skip(6).skip_while(|c| c.is_ascii_digit());
         let first_char = after_table.clone().next();
-        let second_char = after_table.skip(1).next();
+        let second_char = after_table.clone().nth(1);
 
         // Pattern: "Table N X..." where X is a letter (not : or .)
         // This indicates prose like "Table 4 presents..." or "Table 4 shows..."
@@ -900,7 +900,7 @@ impl TextTableReconstructionProcessor {
             }
 
             // OODA-IT10: Log when we find a table caption
-            tracing::info!(
+            tracing::debug!(
                 "TextTableReconstruction: Found caption at block {} on page {}: '{}'",
                 i,
                 page.number,
@@ -911,7 +911,7 @@ impl TextTableReconstructionProcessor {
             let has_existing_table = self.has_existing_table(page, i, page_idx, page_table_bboxes);
 
             if has_existing_table {
-                tracing::info!("  → Existing table found nearby, skipping");
+                tracing::debug!("  → Existing table found nearby, skipping");
                 new_blocks.push(block.clone());
                 i += 1;
                 continue;
@@ -921,7 +921,7 @@ impl TextTableReconstructionProcessor {
             let (table_block, consumed) = self.scan_for_table(page, i);
 
             if let Some(table) = table_block {
-                tracing::info!(
+                tracing::debug!(
                     "  → Reconstructed table with {} children (consumed {} blocks)",
                     table.children.len(),
                     consumed - i
@@ -930,7 +930,7 @@ impl TextTableReconstructionProcessor {
                 new_blocks.push(table);
                 i = consumed;
             } else {
-                tracing::info!("  → No table content found after caption");
+                tracing::debug!("  → No table content found after caption");
                 new_blocks.push(block.clone());
                 i += 1;
             }
@@ -1199,7 +1199,7 @@ impl TextTableReconstructionProcessor {
             return None;
         }
 
-        tracing::info!(
+        tracing::debug!(
             "  → Column-oriented reconstruction: {} rows × {} cols from {} blocks",
             final_rows.len(),
             data_col_count,

@@ -81,7 +81,7 @@ impl ReadingOrderDetector {
             return Vec::new();
         }
 
-        tracing::info!(
+        tracing::debug!(
             "READING-ORDER: blocks={} columns={}",
             blocks.len(),
             columns.len()
@@ -89,12 +89,12 @@ impl ReadingOrderDetector {
 
         if columns.is_empty() || columns.len() == 1 {
             // Single column: simple top-to-bottom, left-to-right
-            tracing::info!("READING-ORDER: using single_column_order");
+            tracing::debug!("READING-ORDER: using single_column_order");
             return self.single_column_order(blocks);
         }
 
         // Multi-column layout: process column by column
-        tracing::info!("READING-ORDER: using multi_column_order");
+        tracing::debug!("READING-ORDER: using multi_column_order");
         self.multi_column_order(blocks, columns)
     }
 
@@ -145,7 +145,7 @@ impl ReadingOrderDetector {
                         || block.text.contains("ren-")
                         || block.text.contains("independently")
                     {
-                        tracing::info!(
+                        tracing::trace!(
                             "ASSIGN: block {} '{}...' x1={:.0} -> column {}",
                             idx,
                             &block.text[..block.text.len().min(30)],
@@ -168,7 +168,7 @@ impl ReadingOrderDetector {
             }
         }
 
-        tracing::info!(
+        tracing::debug!(
             "MULTI-COL: col0={} blocks, col1={} blocks, spanning={}, footer={}, unassigned={}",
             column_blocks.first().map(|v| v.len()).unwrap_or(0),
             column_blocks.get(1).map(|v| v.len()).unwrap_or(0),

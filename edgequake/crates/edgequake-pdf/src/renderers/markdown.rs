@@ -221,8 +221,8 @@ impl MarkdownRenderer {
     /// Render a block to Markdown.
     fn render_block(&self, block: &Block, output: &mut String) {
         if block.block_type == BlockType::Table {
-            tracing::info!(
-                "render_block: Found Table block with text_len={}, text='{}'",
+            tracing::trace!(
+                "render_block: Table block text_len={}, text='{}'",
                 block.text.len(),
                 block.text
             );
@@ -1245,6 +1245,7 @@ impl MarkdownRenderer {
     /// - Starts with uppercase letter
     /// - Does NOT end with : or . or ? (these are likely labels/sentences)
     /// - Does NOT start with Fig/Table/Note/Example (captions)
+    ///
     /// OODA-30: Convert standalone bold lines to headers ONLY when they have
     /// a clear section-number pattern.
     ///
@@ -1563,8 +1564,7 @@ impl MarkdownRenderer {
         // The hyphen was moved to the start of the next line during PDF extraction
         if next_trimmed.starts_with('-') {
             // "- based" pattern: hyphen, space, word
-            if next_trimmed.starts_with("- ") {
-                let word_after = &next_trimmed[2..]; // Skip "- "
+            if let Some(word_after) = next_trimmed.strip_prefix("- ") {
                 return format!("{}-{}", prev_trimmed, word_after);
             }
             // "-based" pattern: hyphen directly followed by word
@@ -1585,7 +1585,7 @@ impl MarkdownRenderer {
             // Check if this is a soft hyphen (word break) or a real hyphen
             // If next starts with lowercase after removing hyphen, it's likely a word break
             // Keep the hyphen for compound words like "well-" + "known"
-            let without_hyphen = &prev_trimmed[..prev_trimmed.len() - 1];
+            let without_hyphen = prev_trimmed.strip_suffix('-').unwrap_or(prev_trimmed);
             let last_word = without_hyphen.split_whitespace().last().unwrap_or("");
 
             // Simple heuristic: keep hyphen if the word before it is a common prefix
