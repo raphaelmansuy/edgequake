@@ -62,6 +62,12 @@ fn normalize_whitespace(c: char) -> char {
         | '\u{3000}' // Ideographic space
         | '\u{FEFF}' // BOM / zero-width no-break space
         => ' ',
+        // OODA-16: Normalize smart quotes to straight quotes
+        '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}' => '\'', // Single quotes
+        '\u{201C}' | '\u{201D}' | '\u{201E}' | '\u{201F}' => '"',  // Double quotes
+        // Normalize Unicode dashes to ASCII hyphen-minus
+        '\u{2010}' | '\u{2011}' => '-', // Hyphen and non-breaking hyphen
+        '\u{2212}' => '-', // Minus sign
         _ => c,
     }
 }
@@ -183,5 +189,16 @@ mod tests {
         assert_eq!(filter_pua("Hello\u{FEFF}World"), "Hello World");
         // Regular space unchanged
         assert_eq!(filter_pua("Hello World"), "Hello World");
+    }
+
+    /// OODA-16: Test smart quote and dash normalization
+    #[test]
+    fn test_normalize_quotes_dashes() {
+        // Smart quotes → straight quotes
+        assert_eq!(filter_pua("\u{201C}Hello\u{201D}"), "\"Hello\"");
+        assert_eq!(filter_pua("\u{2018}world\u{2019}"), "'world'");
+        // Unicode hyphens → ASCII hyphen
+        assert_eq!(filter_pua("well\u{2010}known"), "well-known");
+        assert_eq!(filter_pua("a \u{2212} b"), "a - b");
     }
 }
