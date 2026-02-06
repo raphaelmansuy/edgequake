@@ -284,7 +284,13 @@ impl MarkdownRenderer {
         // WHY skip_bold=true, skip_italic=false: Headers are bold by nature.
         // Strip span-level bold to avoid `## **foo** bar` artifacts.
         // Italic is preserved because headers CAN be italic (rare but valid).
-        let text = if !block.spans.is_empty() {
+        //
+        // OODA-37: Check if block.text was normalized (e.g., "1INTRO" → "1 INTRO").
+        // If block.text differs from spans-derived text, use block.text because
+        // it contains the corrected spacing. Spans don't get updated when the
+        // HeaderDetectionProcessor normalizes section number spacing.
+        let span_raw: String = block.spans.iter().map(|s| s.text.as_str()).collect();
+        let text = if !block.spans.is_empty() && span_raw.trim() == block.text.trim() {
             self.render_spans_styled(&block.spans, true, false)
         } else {
             self.clean_text(&block.text)

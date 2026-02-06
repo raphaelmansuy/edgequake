@@ -623,6 +623,22 @@ impl GarbledTextFilterProcessor {
     }
 
     /// Check if text appears garbled/corrupted.
+    ///
+    /// OODA-37: Enhanced with first-principle structural checks:
+    ///
+    /// ```text
+    /// ┌────────────────────────────────────────────────────┐
+    /// │           GARBLED TEXT DETECTION PIPELINE           │
+    /// ├────────────────────────────────────────────────────┤
+    /// │  1. Academic reference → KEEP ([1], [23])          │
+    /// │  2. Long-word check → GARBLED (word > 40 chars)    │
+    /// │  3. Low space ratio → GARBLED (< 5% spaces)        │
+    /// │  4. Very short fragment → GARBLED (≤3 chars)        │
+    /// │  5. Short-word ratio → GARBLED (> 35% unusual)     │
+    /// │  6. Isolated letters → GARBLED (≥4 isolated)       │
+    /// │  7. OCR fragments → GARBLED (known patterns)       │
+    /// └────────────────────────────────────────────────────┘
+    /// ```
     fn is_garbled(&self, text: &str) -> bool {
         let trimmed = text.trim();
         if trimmed.is_empty() {
@@ -637,6 +653,63 @@ impl GarbledTextFilterProcessor {
                 if inside.chars().all(|c| c.is_ascii_digit()) {
                     return false; // This is a reference like [1], [23], etc.
                 }
+            }
+        }
+
+        // OODA-37: Long-word detection for diagram/figure text
+        // WHY (First Principle): Natural language has a predictable word length distribution.
+        // English max word length is ~30 chars ("antidisestablishmentarianism" = 28).
+        // When PDF diagram text is extracted, overlapping character positions produce
+        // continuous strings without spaces (e.g., "pbtBeekeepersinccrucialrolein...")
+        // creating "words" of 100+ chars. This violates the fundamental property of
+        // natural language and reliably identifies garbled diagram text.
+        //
+        // Exception: URLs and file paths can be long single tokens but contain
+        // structural markers (://, /, .com, .org) that distinguish them.
+        if trimmed.len() > 50 {
+            let words: Vec<&str> = trimmed.split_whitespace().collect();
+            let has_long_word = words.iter().any(|w| {
+                let len = w.len();
+                if len <= 40 {
+                    return false;
+                }
+                // Exclude URLs and file paths (they have structural markers)
+                let is_url_or_path = w.contains("://")
+                    || w.contains('/')
+                    || w.contains(".com")
+                    || w.contains(".org")
+                    || w.contains(".edu")
+                    || w.contains(".net")
+                    || w.contains(".io");
+                !is_url_or_path
+            });
+            if has_long_word {
+                tracing::debug!(
+                    "Filtering garbled text (long word > 40 chars): '{}'",
+                    safe_truncate(trimmed, 60)
+                );
+                return true;
+            }
+        }
+
+        // OODA-37: Low space ratio detection for concatenated diagram labels
+        // WHY (First Principle): Natural language text has ~15-20% spaces (word boundaries).
+        // PDF diagram labels that get concatenated have near-zero space ratio because
+        // characters are positioned adjacent without word-break gaps. A block with > 80 chars
+        // and < 5% spaces is almost certainly garbled or concatenated diagram text.
+        //
+        // Exception: Very short text (< 80 chars) may legitimately have few spaces
+        // (e.g., single long technical terms like "AgricultureEnvironmentalProduction").
+        if trimmed.len() > 80 {
+            let space_count = trimmed.chars().filter(|c| c.is_whitespace()).count();
+            let space_ratio = space_count as f32 / trimmed.len() as f32;
+            if space_ratio < 0.05 {
+                tracing::debug!(
+                    "Filtering garbled text (space ratio {:.1}% < 5%): '{}'",
+                    space_ratio * 100.0,
+                    safe_truncate(trimmed, 60)
+                );
+                return true;
             }
         }
 
@@ -1454,5 +1527,70 @@ mod tests {
         let input = "T h e hot mess";
         let result = processor.fix_spaced_text(input);
         assert_eq!(result, "T h e hot mess"); // Lowercase = no change
+    }
+
+    // ==========================================================================
+    // OODA-37: Tests for enhanced garbled text detection
+    // ==========================================================================
+
+    #[test]
+    fn test_garbled_long_word_detection() {
+        let processor = GarbledTextFilterProcessor::new();
+
+        // Long garbled word (>40 chars, no spaces) from PDF diagram text extraction
+        // WHY: Diagram text like "pbtBeekeepersinccrucialrolein..." produces
+        // continuous strings >100 chars that violate natural language word length limits.
+        assert!(processor.is_garbled(
+            "pbtBeekeepersinccrucialroleinotheractivitiesrelatedtothemanagement"
+        ));
+        assert!(processor.is_garbled(
+            "AgricultureEnvironmentalProductionImpactAnother something additional words here"
+        ));
+
+        // Normal text should NOT be flagged
+        assert!(!processor.is_garbled("This is a normal sentence with normal words."));
+        assert!(!processor.is_garbled(
+            "Even somewhat longer text with many words should be fine."
+        ));
+    }
+
+    #[test]
+    fn test_garbled_long_word_url_exception() {
+        let processor = GarbledTextFilterProcessor::new();
+
+        // URLs can be long single tokens but should NOT be flagged
+        assert!(!processor.is_garbled(
+            "Visit https://www.example.com/very/long/path/to/resource/page for more info"
+        ));
+        assert!(!processor.is_garbled(
+            "See https://github.com/HKUDS/LightRAG/blob/main/readme for details"
+        ));
+    }
+
+    #[test]
+    fn test_garbled_low_space_ratio() {
+        let processor = GarbledTextFilterProcessor::new();
+
+        // Text >80 chars with <5% spaces is likely garbled diagram text
+        // This simulates concatenated PDF figure labels
+        let garbled = "AbcDefGhiJklMnoPqrStuvWxyzAbcDefGhiJklMnoPqrStuvWxyzAbcDefGhiJklMnoPqrStuvWxyzAbcDefGhiJkl";
+        assert!(garbled.len() > 80);
+        assert!(processor.is_garbled(garbled));
+
+        // Normal text >80 chars with adequate spaces should NOT be flagged
+        let normal = "This is a normal paragraph of text with adequate spacing between words that exceeds eighty characters in total length.";
+        assert!(normal.len() > 80);
+        assert!(!processor.is_garbled(normal));
+    }
+
+    #[test]
+    fn test_garbled_short_text_not_flagged() {
+        let processor = GarbledTextFilterProcessor::new();
+
+        // Short concatenated words (<80 chars) should NOT trigger low-space check
+        // They might be legitimate technical terms or CamelCase identifiers
+        assert!(!processor.is_garbled("AgricultureEnvironmental"));
+        assert!(!processor.is_garbled("DeepHalluBench"));
+        assert!(!processor.is_garbled("RetrievalAugmented"));
     }
 }
