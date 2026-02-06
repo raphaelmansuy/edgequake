@@ -1,9 +1,11 @@
 # IT31 — Decide: Remove lopdf Legacy Code
 
 ## Decision
+
 Remove ALL lopdf-dependent code to establish a single, clean extraction pipeline.
 
 ## Plan
+
 1. Delete 13 backend source files (lopdf modules)
 2. Delete 10 debug binary files in `src/bin/`
 3. Delete 7 example files that depend on lopdf
@@ -15,6 +17,7 @@ Remove ALL lopdf-dependent code to establish a single, clean extraction pipeline
 9. Verify: `cargo test --lib` passes, `cargo clippy` clean
 
 ## Impact
+
 - Remove ~13,602 lines of dead code
 - Simplify Cargo.toml features from 3 backends to 1
 - No regression: lopdf was never used when pdfium was available

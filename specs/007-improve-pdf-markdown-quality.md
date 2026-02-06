@@ -32,6 +32,8 @@ Failure to re-read causes alignment drift → catastrophic safety issues → use
 - **Existing Gold Tests**: `edgequake/crates/edgequake-pdf/test-data/gold/` (105 categorized test cases)
 - **Test Protocol**: `edgequake/crates/edgequake-pdf/TEST_PROTOCOL.md`
 
+Always check zz-explore/pymupdf4llm  for reference algorithms inspiration
+
 ### Current Architecture
 
 ```

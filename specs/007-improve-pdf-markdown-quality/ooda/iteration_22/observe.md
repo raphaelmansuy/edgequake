@@ -15,6 +15,7 @@ Headers like "AI Services" rendered as "AIServices", "Executive summary" as "Exe
 Paragraph text like "build\nvs-buy" rendered as "buildvs-buy", "agentic\nworkflows" as "agenticworkflows".
 
 **Root cause**: Between lines, we inserted `TextSpan::plain("\n")`. In `consolidate_spans()`, this `\n` is a "plain joiner" (`.trim().is_empty()` is true for `\n`) and gets absorbed into the previous styled span. So "build" (bold) + "\n" (plain) → "build\n" (bold). Then in `render_spans_styled()`:
+
 1. `content` = "build\n"
 2. `trimmed` = content.trim() = "build" (trim removes trailing \n)
 3. `trailing_space` = content.ends_with(' ') = **false** (ends with '\n', not ' ')

@@ -189,6 +189,78 @@ impl TextGrouper {
         true
     }
 
+    /// OODA-IT32: Sort characters into reading order (top-to-bottom, left-to-right).
+    ///
+    /// WHY: PDFium emits characters in PDF content stream order, not reading order.
+    /// We need them sorted for proper span grouping.
+    ///
+    /// ```text
+    /// ┌──────────────────────────────────────────────────┐
+    /// │  Algorithm: Two-pass clustering sort              │
+    /// │                                                  │
+    /// │  Pass 1: Sort all chars by (page, y0)            │
+    /// │  Pass 2: Scan sorted list, group consecutive     │
+    /// │          chars with |Δy| ≤ tolerance into        │
+    /// │          line clusters. Sort each cluster by x0. │
+    /// │                                                  │
+    /// │  Tolerance = max(font_size) * 0.3 within cluster │
+    /// │  (same as Span::can_append y_tolerance)          │
+    /// │                                                  │
+    /// │  WHY clustering > fixed buckets:                 │
+    /// │  Fixed buckets have boundary artifacts:          │
+    /// │    y=614.9 → bucket A, y=615.1 → bucket B       │
+    /// │    Same line, different buckets! ✗               │
+    /// │  Clustering groups by actual proximity. ✓        │
+    /// └──────────────────────────────────────────────────┘
+    /// ```
+    fn sort_chars_reading_order(chars: &[RawChar]) -> Vec<&RawChar> {
+        if chars.is_empty() {
+            return vec![];
+        }
+
+        // Pass 1: Sort by (page, y0) for vertical ordering
+        let mut refs: Vec<&RawChar> = chars.iter().collect();
+        refs.sort_by(|a, b| {
+            a.page_num
+                .cmp(&b.page_num)
+                .then_with(|| a.y0.partial_cmp(&b.y0).unwrap_or(std::cmp::Ordering::Equal))
+        });
+
+        // Pass 2: Group consecutive chars into line clusters, sort each by x
+        let mut result: Vec<&RawChar> = Vec::with_capacity(refs.len());
+        let mut cluster_start = 0;
+
+        for i in 1..=refs.len() {
+            let should_break = if i == refs.len() {
+                true // Flush last cluster
+            } else {
+                let prev = refs[i - 1];
+                let curr = refs[i];
+                // Break cluster on page change or significant y-gap
+                if prev.page_num != curr.page_num {
+                    true
+                } else {
+                    // WHY 0.3 * font_size: Same tolerance as Span::can_append.
+                    // Subscripts/superscripts shift by ~0.33-0.5em; 0.3 allows
+                    // minor baseline drift while separating distinct lines.
+                    let tolerance = prev.font_size.max(curr.font_size) * 0.3;
+                    (curr.y0 - prev.y0).abs() > tolerance
+                }
+            };
+
+            if should_break {
+                // Sort this cluster by x0 (left-to-right reading order)
+                let cluster = &mut refs[cluster_start..i];
+                cluster
+                    .sort_by(|a, b| a.x0.partial_cmp(&b.x0).unwrap_or(std::cmp::Ordering::Equal));
+                result.extend_from_slice(cluster);
+                cluster_start = i;
+            }
+        }
+
+        result
+    }
+
     /// Group raw characters into spans.
     ///
     /// Characters are grouped when they have:
@@ -206,10 +278,36 @@ impl TextGrouper {
             return vec![];
         }
 
-        let mut spans = Vec::new();
-        let mut current_span = Span::new(chars[0].page_num);
+        // OODA-IT32: Sort characters by reading order before grouping.
+        //
+        // WHY: PDFium emits characters in PDF content stream order, which is
+        // NOT necessarily left-to-right reading order. For example, all 'g'
+        // characters on a line may be emitted together, then all 'a' chars, etc.
+        // Without sorting, chars_to_spans creates fragmented single-char spans
+        // because can_append() sees huge gaps between non-adjacent characters.
+        //
+        // ┌───────────────────────────────────────────────────────┐
+        // │  PDF stream order:  g(x=123) g(x=316) g(x=334) ...  │
+        // │  Reading order:     z(x=114) r(x=119) g(x=123) ...  │
+        // │                                                       │
+        // │  Without sort: each char → 1 span → spurious spaces  │
+        // │  With sort:    consecutive chars → proper word spans  │
+        // └───────────────────────────────────────────────────────┘
+        //
+        // Algorithm: two-pass clustering sort.
+        //   Pass 1: Sort by (page, y0) to get chars in vertical order.
+        //   Pass 2: Group consecutive chars with similar y into "line clusters",
+        //           then sort each cluster by x0 for left-to-right reading order.
+        //
+        // WHY two-pass instead of fixed buckets: Fixed y-buckets suffer from
+        // boundary artifacts (chars at y=614.9 and y=615.1 split into different
+        // buckets despite being on the same line). Dynamic clustering avoids this.
+        let sorted_chars = Self::sort_chars_reading_order(chars);
 
-        for ch in chars {
+        let mut spans = Vec::new();
+        let mut current_span = Span::new(sorted_chars[0].page_num);
+
+        for ch in &sorted_chars {
             // Skip control characters (except space) and zero-width chars
             if (ch.char.is_control() && !ch.char.is_whitespace()) || ch.x0 >= ch.x1 {
                 continue;

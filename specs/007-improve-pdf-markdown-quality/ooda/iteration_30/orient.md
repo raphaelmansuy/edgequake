@@ -5,6 +5,7 @@
 **How should headers be distinguished from bold emphasis?**
 
 First principles:
+
 1. Headers are visually LARGER than body text (larger font size)
 2. Bold emphasis is at BODY font size but with heavier weight
 3. Section numbers are structural markers, not content-based
@@ -14,6 +15,7 @@ First principles:
 ### Fix 1: Digit exclusion in classify_blocks()
 
 The `not_list` guard was over-broad:
+
 ```
 NOT_LIST = !starts_with(bullet) && !starts_with(digit)
 ```
@@ -40,6 +42,7 @@ This is structural (number patterns), not content-based (keywords).
 ## Impact analysis
 
 ### Before (IT29 output):
+
 ```
 ## 0) AI Strategy & Co‑Creation     ← bold promotion (should be font-size h4)
 ## What we deliver                   ← FALSE POSITIVE
@@ -48,6 +51,7 @@ This is structural (number patterns), not content-based (keywords).
 ```
 
 ### After (IT30 output):
+
 ```
 #### 0) AI Strategy & Co‑Creation    ← font-size h4 (correct)
 **What we deliver**                   ← bold paragraph (correct)

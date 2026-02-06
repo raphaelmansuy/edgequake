@@ -6,6 +6,7 @@
 
 1. Added `"&"` to `valid_short_words` array with WHY comment
 2. Added section number pattern skip after the author initials skip:
+
 ```rust
 if chars.len() == 2 && chars[0].is_ascii_digit() && (chars[1] == ')' || chars[1] == '.') {
     return false;

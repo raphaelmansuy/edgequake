@@ -3,6 +3,7 @@
 ## Problem
 
 After IT29 fixed content ordering, the output shows excessive `##` headers:
+
 - `## What we deliver` (3 times)
 - `## Capabilities` (2 times)
 - `## Typical use cases`, `## Key outputs`, `## Outcomes`
@@ -14,14 +15,14 @@ These should be bold paragraphs, not headers.
 
 ### Font size analysis
 
-| Text                          | Font Size | Ratio | Classification |
-|-------------------------------|-----------|-------|----------------|
-| AI Services — Elitizon        | 30.0pt    | 2.50  | SectionHeader(1) ✓ |
-| Executive summary             | 15.0pt    | 1.25  | SectionHeader(4) ✓ |
-| 0) AI Strategy & Co‑Creation  | 15.0pt    | 1.25  | Paragraph ❌ (digit exclusion bug) |
-| What we deliver               | 12.0pt    | 1.00  | Paragraph ✓ (body size) |
-| Capabilities                  | 12.0pt    | 1.00  | Paragraph ✓ (body size) |
-| Key outputs                   | 12.0pt    | 1.00  | Paragraph ✓ (body size) |
+| Text                         | Font Size | Ratio | Classification                     |
+| ---------------------------- | --------- | ----- | ---------------------------------- |
+| AI Services — Elitizon       | 30.0pt    | 2.50  | SectionHeader(1) ✓                 |
+| Executive summary            | 15.0pt    | 1.25  | SectionHeader(4) ✓                 |
+| 0) AI Strategy & Co‑Creation | 15.0pt    | 1.25  | Paragraph ❌ (digit exclusion bug) |
+| What we deliver              | 12.0pt    | 1.00  | Paragraph ✓ (body size)            |
+| Capabilities                 | 12.0pt    | 1.00  | Paragraph ✓ (body size)            |
+| Key outputs                  | 12.0pt    | 1.00  | Paragraph ✓ (body size)            |
 
 ### Two root causes
 
