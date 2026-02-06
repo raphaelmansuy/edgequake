@@ -34,7 +34,8 @@ bin.rs::insert_image_references()
 ## Page Marker Formats
 
 MarkdownRenderer uses two possible formats depending on configuration:
-- `## Page N` (default heading-based)  
+
+- `## Page N` (default heading-based)
 - `<!-- Page N -->` (comment-based)
 
 Both must be supported for image reference insertion.

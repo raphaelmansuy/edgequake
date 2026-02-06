@@ -19,26 +19,27 @@ The `extract` method calls `merge_same_line_blocks` (added in IT28), but `extrac
 ## Dead Debug Logging
 
 Both `extract_document` and `extract_document_with_progress` in `extractor.rs` contained extensive debug logging (printing first 50 blocks BEFORE and 20 blocks AFTER processing). This noise:
+
 - Pollutes production logs
 - Slows extraction by ~5% (formatting 50+ strings per page)
 - Violates SRP (extraction method shouldn't be a debug logger)
 
 ## Quality Comparison: EdgeQuake vs PyMuPDF4LLM
 
-### AI_Services__Elitizon.pdf (single-column business doc)
+### AI_Services\_\_Elitizon.pdf (single-column business doc)
 
-| Metric | EdgeQuake | PyMuPDF4LLM | Winner |
-|--------|-----------|-------------|--------|
-| Reading order | ✅ Correct | ❌ Broken (multi-col merge artifacts) | EdgeQuake |
-| Bold detection | ✅ Accurate | ✅ Accurate | Tie |
-| Headers | ✅ H4 sections | ❌ H2 for bold lines (over-promoted) | EdgeQuake |
-| List items | ✅ Separated | ❌ Merged in paragraphs | EdgeQuake |
+| Metric         | EdgeQuake      | PyMuPDF4LLM                           | Winner    |
+| -------------- | -------------- | ------------------------------------- | --------- |
+| Reading order  | ✅ Correct     | ❌ Broken (multi-col merge artifacts) | EdgeQuake |
+| Bold detection | ✅ Accurate    | ✅ Accurate                           | Tie       |
+| Headers        | ✅ H4 sections | ❌ H2 for bold lines (over-promoted)  | EdgeQuake |
+| List items     | ✅ Separated   | ❌ Merged in paragraphs               | EdgeQuake |
 
 ### lighrag_2410.05779v3.pdf (2-column academic paper)
 
-| Metric | EdgeQuake | PyMuPDF4LLM | Issue |
-|--------|-----------|-------------|-------|
-| Tables | ❌ Jumbled text | ✅ Structured | Critical gap |
-| Figures | ❌ Garbled diagram text | ✅ Extracted as images | Critical gap |
-| Column reading | ✅ Mostly correct | ✅ Correct | Acceptable |
-| Math formulas | ❌ Broken symbols | ❌ Also limited | Both weak |
+| Metric         | EdgeQuake               | PyMuPDF4LLM            | Issue        |
+| -------------- | ----------------------- | ---------------------- | ------------ |
+| Tables         | ❌ Jumbled text         | ✅ Structured          | Critical gap |
+| Figures        | ❌ Garbled diagram text | ✅ Extracted as images | Critical gap |
+| Column reading | ✅ Mostly correct       | ✅ Correct             | Acceptable   |
+| Math formulas  | ❌ Broken symbols       | ❌ Also limited        | Both weak    |

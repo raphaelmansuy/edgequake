@@ -449,7 +449,9 @@ impl PdfiumExtractor {
         let document = self
             .pdfium
             .load_pdf_from_byte_slice(bytes, None)
-            .map_err(|e| PdfError::Backend(format!("Failed to load PDF for image extraction: {e}")))?;
+            .map_err(|e| {
+                PdfError::Backend(format!("Failed to load PDF for image extraction: {e}"))
+            })?;
 
         let mut images = Vec::new();
 

@@ -30,7 +30,9 @@ use crate::processors::{
     HyphenContinuationProcessor, LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig,
     LlmEnhanceProcessor, MarginFilterProcessor, PostProcessor, ProcessorChain,
     SectionNumberMergeProcessor, SectionPatternProcessor, SpacedTextProcessor,
-    StyleDetectionProcessor, TableDetectionProcessor, TextTableReconstructionProcessor,
+    StyleDetectionProcessor,
+    // OODA-IT42: Disabled - these processors produce garbled table markdown
+    // TableDetectionProcessor, TextTableReconstructionProcessor,
 };
 use crate::progress::ProgressCallback;
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
@@ -444,11 +446,15 @@ impl PdfExtractor {
             .add(ListDetectionProcessor::new()) // MOVED EARLY: Detect lists BEFORE heading processors
             .add(SectionNumberMergeProcessor::new()) // Merge standalone section numbers with titles
             .add(StyleDetectionProcessor::new()) // Detect bold/italic styles and H1/H2+ levels
-            .add(TableDetectionProcessor::new()) // RE-ENABLED for OODA loop testing (2026-01-04)
+            // OODA-IT42: DISABLED TableDetectionProcessor - produces worse output than plain text
+            // for complex multi-column layouts. The spatial grouping destroys reading order.
+            // .add(TableDetectionProcessor::new())
             .add(HeaderDetectionProcessor::new())
             .add(SectionPatternProcessor::new()) // Pattern-based section detection
             .add(CaptionDetectionProcessor::new())
-            .add(TextTableReconstructionProcessor::new())
+            // OODA-IT42: DISABLED TextTableReconstructionProcessor - produces garbled markdown
+            // for complex academic tables. Plain text is more readable.
+            // .add(TextTableReconstructionProcessor::new())
             .add(CodeBlockDetectionProcessor::new())
             .add(HyphenContinuationProcessor::new()) // Fix hyphenated words at line breaks
             .add(BlockMergeProcessor::new())

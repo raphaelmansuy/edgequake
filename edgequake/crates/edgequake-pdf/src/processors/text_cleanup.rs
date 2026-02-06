@@ -1596,9 +1596,8 @@ mod tests {
         // Long garbled word (>35 chars, no spaces) from PDF diagram text extraction
         // WHY: Diagram text like "pbtBeekeepersinccrucialrolein..." produces
         // continuous strings >100 chars that violate natural language word length limits.
-        assert!(processor.is_garbled(
-            "pbtBeekeepersinccrucialroleinotheractivitiesrelatedtothemanagement"
-        ));
+        assert!(processor
+            .is_garbled("pbtBeekeepersinccrucialroleinotheractivitiesrelatedtothemanagement"));
         assert!(processor.is_garbled(
             "AgricultureEnvironmentalProductionImpactAnother something additional words here"
         ));
@@ -1608,9 +1607,7 @@ mod tests {
 
         // Normal text should NOT be flagged
         assert!(!processor.is_garbled("This is a normal sentence with normal words."));
-        assert!(!processor.is_garbled(
-            "Even somewhat longer text with many words should be fine."
-        ));
+        assert!(!processor.is_garbled("Even somewhat longer text with many words should be fine."));
     }
 
     #[test]
@@ -1621,9 +1618,7 @@ mod tests {
         // WHY: PDF figure text like "OriginalRelationsTextincludes" is concatenated
         // words from overlapping character positions in diagram elements.
         assert!(processor.is_garbled("OriginalRelationsTextincludes"));
-        assert!(processor.is_garbled(
-            "AgricultureEnvironmentalProduction"
-        ));
+        assert!(processor.is_garbled("AgricultureEnvironmentalProduction"));
 
         // Short camelCase words should NOT be flagged (< 25 chars)
         assert!(!processor.is_garbled("AgricultureEnvironmental")); // 24 chars
@@ -1639,9 +1634,8 @@ mod tests {
         assert!(!processor.is_garbled(
             "Visit https://www.example.com/very/long/path/to/resource/page for more info"
         ));
-        assert!(!processor.is_garbled(
-            "See https://github.com/HKUDS/LightRAG/blob/main/readme for details"
-        ));
+        assert!(!processor
+            .is_garbled("See https://github.com/HKUDS/LightRAG/blob/main/readme for details"));
     }
 
     #[test]

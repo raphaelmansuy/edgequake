@@ -82,8 +82,8 @@ pub use mock::MockBackend;
 pub use spatial::{LineRect, LineSpatialIndex};
 
 #[cfg(feature = "pdfium")]
-pub use pdfium::PdfiumExtractor;
-#[cfg(feature = "pdfium")]
 pub use pdfium::ExtractedImageData;
+#[cfg(feature = "pdfium")]
+pub use pdfium::PdfiumExtractor;
 #[cfg(feature = "pdfium")]
 pub use pdfium_backend::PdfiumBackend;

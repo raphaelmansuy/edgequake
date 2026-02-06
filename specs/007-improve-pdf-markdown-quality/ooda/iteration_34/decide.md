@@ -23,4 +23,5 @@
    - Progress reporting (progress.rs module)
 
 ## Risk: LOW
+
 All changes are logging/style — no algorithmic changes.

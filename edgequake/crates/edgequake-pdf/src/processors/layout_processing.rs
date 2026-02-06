@@ -1122,8 +1122,7 @@ impl SectionNumberMergeProcessor {
         // while section titles in academic papers use ALL CAPS ("DUAL-LEVEL RETRIEVAL").
         // Checking alpha chars for all-uppercase is more robust than keyword matching.
         let alpha_chars: Vec<char> = trimmed.chars().filter(|c| c.is_alphabetic()).collect();
-        let is_all_caps = !alpha_chars.is_empty()
-            && alpha_chars.iter().all(|c| c.is_uppercase());
+        let is_all_caps = !alpha_chars.is_empty() && alpha_chars.iter().all(|c| c.is_uppercase());
         if is_all_caps {
             return true; // ALL CAPS = section title
         }
@@ -1257,8 +1256,7 @@ impl Processor for SectionNumberMergeProcessor {
 
                     let title_y_center = (title_block.bbox.y1 + title_block.bbox.y2) / 2.0;
                     let y_gap = (sec_y - title_y_center).abs();
-                    let merged_text =
-                        format!("{}. {}", sec_text.trim_end_matches('.'), title_text);
+                    let merged_text = format!("{}. {}", sec_text.trim_end_matches('.'), title_text);
 
                     // Mode A: Same line — title to the right, tight Y tolerance
                     let is_same_line = y_gap < 25.0 && title_block.bbox.x1 > *sec_x;

@@ -7,6 +7,7 @@
 **File**: `src/processors/table_detection.rs`
 
 Added three new scoring dimensions:
+
 - **Percentage-rich blocks** (+3): >50% of lines match `N.N%` pattern
 - **Numeric-line blocks** (+2): >50% of lines are pure numeric
 - **Short multiline blocks** (+1): ≥3 lines, avg length ≤20 chars
@@ -25,6 +26,7 @@ Added three new scoring dimensions:
 **File**: `src/processors/table_detection.rs`
 
 New `try_column_reconstruction()` function:
+
 1. Collects all blocks after caption with `table_like_score ≥ 2`
 2. Flattens all lines from matching blocks
 3. Calls `parse_linearized_grid()` to detect row boundaries (label followed by N numeric values)
@@ -45,17 +47,17 @@ Now uses `strip_numeric_decorators()` to handle `%` and `,` before float parsing
 
 ### 6. Unit tests added (9 new)
 
-| Test | Validates |
-|------|-----------|
-| `test_table_like_score_percentage_blocks` | Percentage blocks score ≥3 |
-| `test_table_like_score_short_multiline` | Short multiline blocks get bonus |
-| `test_is_percentage_value` | Pattern matching for N.N% |
-| `test_is_numeric_or_pct` | Combined numeric/percentage check |
-| `test_parse_linearized_grid` | Regular grid parsing |
-| `test_parse_linearized_grid_uneven` | Graceful handling of uneven data |
-| `test_parse_linearized_grid_no_pattern` | Returns empty for non-grid data |
-| `test_parse_numeric_suffix_with_percentages` | % suffix handling |
-| `test_strip_numeric_decorators` | Character stripping |
+| Test                                         | Validates                         |
+| -------------------------------------------- | --------------------------------- |
+| `test_table_like_score_percentage_blocks`    | Percentage blocks score ≥3        |
+| `test_table_like_score_short_multiline`      | Short multiline blocks get bonus  |
+| `test_is_percentage_value`                   | Pattern matching for N.N%         |
+| `test_is_numeric_or_pct`                     | Combined numeric/percentage check |
+| `test_parse_linearized_grid`                 | Regular grid parsing              |
+| `test_parse_linearized_grid_uneven`          | Graceful handling of uneven data  |
+| `test_parse_linearized_grid_no_pattern`      | Returns empty for non-grid data   |
+| `test_parse_numeric_suffix_with_percentages` | % suffix handling                 |
+| `test_strip_numeric_decorators`              | Character stripping               |
 
 ## Test Results
 
@@ -65,11 +67,11 @@ Now uses `strip_numeric_decorators()` to handle `%` and `,` before float parsing
 
 ## Quality Impact
 
-| Table | Before | After | Notes |
-|-------|--------|-------|-------|
-| Table 1 (lighrag p7) | Plain text dump | Markdown table (16×5) | Column reconstruction |
-| Table 2 (lighrag p8) | Plain text dump | Markdown table (12 children) | Improved scoring |
-| Table 4 (lighrag p12) | Working | Working (via column path) | No regression |
-| Table 3 (lighrag p10) | Fails | Fails | Complex case study — future iteration |
-| Table 5 (lighrag p14) | Fails | Fails | Complex case study — future iteration |
-| Elitizon tables | Working | Working | No regression |
+| Table                 | Before          | After                        | Notes                                 |
+| --------------------- | --------------- | ---------------------------- | ------------------------------------- |
+| Table 1 (lighrag p7)  | Plain text dump | Markdown table (16×5)        | Column reconstruction                 |
+| Table 2 (lighrag p8)  | Plain text dump | Markdown table (12 children) | Improved scoring                      |
+| Table 4 (lighrag p12) | Working         | Working (via column path)    | No regression                         |
+| Table 3 (lighrag p10) | Fails           | Fails                        | Complex case study — future iteration |
+| Table 5 (lighrag p14) | Fails           | Fails                        | Complex case study — future iteration |
+| Elitizon tables       | Working         | Working                      | No regression                         |

@@ -13,8 +13,9 @@ Added `merge_same_line_blocks(schema_blocks)` call to `extract_with_progress`, m
 **File**: `src/extractor.rs`
 
 Removed 40+ lines of debug logging from `extract_document` and `extract_document_with_progress`:
+
 - BEFORE-block printing (50 blocks per page)
-- AFTER-block printing (20 blocks per page) 
+- AFTER-block printing (20 blocks per page)
 - Table count tracing
 
 This reduces noise in production logs and improves extraction speed.

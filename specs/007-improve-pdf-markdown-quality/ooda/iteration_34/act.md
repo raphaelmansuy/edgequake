@@ -11,19 +11,20 @@
 
 ### 2. Downgraded 35+ INFO logs to debug/trace
 
-| File | Changes |
-|------|---------|
-| column_detector.rs | 6 → debug |
-| geometric.rs | 2 → debug |
-| reading_order.rs | 3 → debug, 1 → trace |
-| table_detection.rs | 10 → debug |
-| layout_processing.rs | 8 → debug |
-| structure_detection.rs | 3 → debug |
-| markdown.rs | 1 → trace |
+| File                   | Changes              |
+| ---------------------- | -------------------- |
+| column_detector.rs     | 6 → debug            |
+| geometric.rs           | 2 → debug            |
+| reading_order.rs       | 3 → debug, 1 → trace |
+| table_detection.rs     | 10 → debug           |
+| layout_processing.rs   | 8 → debug            |
+| structure_detection.rs | 3 → debug            |
+| markdown.rs            | 1 → trace            |
 
 ### Before/After output
 
 **Before** (60+ INFO lines):
+
 ```
 INFO COLUMN-DETECT: 14 items, page_width=612
 INFO COLUMN-DETECT: filtered 14 items to 14
@@ -32,6 +33,7 @@ INFO COLUMN-DETECT: clusters too close
 ```
 
 **After** (5 INFO lines):
+
 ```
 INFO Using PdfiumBackend for PDF extraction
 INFO Starting PDF extraction to Markdown
