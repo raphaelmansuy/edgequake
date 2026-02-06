@@ -26,6 +26,7 @@ let metadata_json = json!({
 **Change 2: Updated ensure_document_source_type function (lines 1384-1510)**
 
 Added `track_id: Option<&str>` parameter and included it in metadata JSON:
+
 ```rust
 async fn ensure_document_source_type(
     ...
@@ -49,12 +50,14 @@ ensure_document_source_type(
 ## Verification Steps
 
 ### 1. Compilation Check
+
 ```bash
 cargo check --package edgequake-api
 # Result: ✅ Finished dev profile target(s) in 1m 38s
 ```
 
 ### 2. Service Restart
+
 ```bash
 make stop && make dev
 # Result: ✅ Backend restarted with fix
@@ -77,10 +80,12 @@ make stop && make dev
 ## Test Evidence
 
 ### Before Fix (Old Documents)
+
 Menu items: Copy ID, View PDF, Reprocess, Delete
 **Missing**: Cancel Extraction ❌
 
 ### After Fix (New Documents)
+
 Menu items: Copy ID, View PDF, **Cancel Extraction**, Reprocess, Delete
 **Present**: Cancel Extraction ✅
 
