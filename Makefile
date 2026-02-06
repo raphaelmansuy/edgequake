@@ -159,10 +159,11 @@ install: check-deps ## Install all project dependencies
 dev: check-deps check-ports ## Start full development stack (DB + Backend + Frontend) with Ollama
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
-	@echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"
-	@# REQ-28: Show if OPENAI_API_KEY is available for runtime switching
+	@# OODA-09: Dynamically select provider based on OPENAI_API_KEY
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
-		echo "$(GREEN)✓ OPENAI_API_KEY detected - OpenAI provider also available$(RESET)"; \
+		echo "$(BOLD)$(YELLOW)📝 Using OpenAI provider (OPENAI_API_KEY detected)$(RESET)"; \
+	else \
+		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)→ Stopping any existing services...$(RESET)"
@@ -176,22 +177,35 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
 	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
 	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
-	@echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "  $(BLUE)Provider$(RESET): OpenAI"; \
+	else \
+		echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"; \
+	fi
 	@echo ""
 	@echo "$(GREEN)✓ Services starting...$(RESET)"
 	@echo "$(YELLOW)Press Ctrl+C to stop all services$(RESET)"
 	@echo ""
 	@trap 'echo ""; echo "$(YELLOW)Stopping services...$(RESET)"; $(MAKE) stop --no-print-directory; exit 0' INT; \
-	(cd $(BACKEND_DIR) && \
-		DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
-		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
-		EDGEQUAKE_LLM_PROVIDER="ollama" \
-		OLLAMA_HOST="http://localhost:11434" \
-		OLLAMA_MODEL="gemma3:latest" \
-		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-		cargo run 2>&1 | sed 's/^/[backend] /') & \
-	BACKEND_PID=$$!; \
+	if [ -n "$(OPENAI_API_KEY)" ]; then \
+		(cd $(BACKEND_DIR) && \
+			DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
+			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			EDGEQUAKE_LLM_PROVIDER="openai" \
+			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+			cargo run 2>&1 | sed 's/^/[backend] /') & \
+		BACKEND_PID=$$!; \
+	else \
+		(cd $(BACKEND_DIR) && \
+			DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
+			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			EDGEQUAKE_LLM_PROVIDER="ollama" \
+			OLLAMA_HOST="http://localhost:11434" \
+			OLLAMA_MODEL="gemma3:latest" \
+			OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+			cargo run 2>&1 | sed 's/^/[backend] /') & \
+		BACKEND_PID=$$!; \
+	fi; \
 	(sleep 5 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
 	FRONTEND_PID=$$!; \
 	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
@@ -237,14 +251,23 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 	done
 	@echo ""
 	@echo "$(YELLOW)→ Starting backend in background...$(RESET)"
+	@# OODA-09: Dynamically select provider based on OPENAI_API_KEY
+	@# If OPENAI_API_KEY is set, use OpenAI provider; otherwise Ollama
 	@cd $(BACKEND_DIR) && \
-		DATABASE_URL="$(DATABASE_URL)" \
-		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
-		OLLAMA_HOST="http://localhost:11434" \
-		OLLAMA_MODEL="gemma3:latest" \
-		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
+		if [ -n "$(OPENAI_API_KEY)" ]; then \
+			DATABASE_URL="$(DATABASE_URL)" \
+			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			EDGEQUAKE_LLM_PROVIDER="openai" \
+			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
+		else \
+			DATABASE_URL="$(DATABASE_URL)" \
+			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			OLLAMA_HOST="http://localhost:11434" \
+			OLLAMA_MODEL="gemma3:latest" \
+			OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
+		fi
 	@echo "$(GREEN)✓ Backend starting (log: /tmp/edgequake-backend.log)$(RESET)"
 	@echo ""
 	@echo "$(YELLOW)→ Waiting for backend to start...$(RESET)"
