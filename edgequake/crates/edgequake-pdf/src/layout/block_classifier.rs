@@ -38,6 +38,7 @@
 //! Note: Pattern-based header detection is DISABLED (OODA-10/11) because
 //! pymupdf4llm gold standards are very conservative about headers.
 
+use super::footnote::{is_footnote, FootnoteConfig};
 use super::pymupdf_structs::{Block, BlockType};
 
 /// Block classifier using font analysis and patterns.
@@ -55,6 +56,8 @@ pub struct BlockClassifier {
     /// Maximum characters for a header block.
     /// Default: 150
     pub max_header_chars: usize,
+    /// OODA-08: Footnote detection configuration.
+    pub footnote_config: FootnoteConfig,
 }
 
 impl Default for BlockClassifier {
@@ -64,6 +67,7 @@ impl Default for BlockClassifier {
             header_ratio: 1.50,
             max_header_lines: 2,
             max_header_chars: 150,
+            footnote_config: FootnoteConfig::default(),
         }
     }
 }
@@ -76,8 +80,20 @@ impl BlockClassifier {
 
     /// Classify all blocks using body font size as reference.
     pub fn classify_blocks(&self, blocks: &mut [Block], body_font_size: f32) {
+        self.classify_blocks_with_page(blocks, body_font_size, 0.0);
+    }
+
+    /// OODA-08: Classify all blocks with page height for footnote detection.
+    /// WHY: Footnotes require page_height to check if block is in the bottom
+    /// portion of the page. When page_height > 0, footnote detection is enabled.
+    pub fn classify_blocks_with_page(
+        &self,
+        blocks: &mut [Block],
+        body_font_size: f32,
+        page_height: f32,
+    ) {
         for block in blocks {
-            block.block_type = self.classify_block(block, body_font_size);
+            block.block_type = self.classify_block(block, body_font_size, page_height);
         }
     }
 
@@ -88,8 +104,14 @@ impl BlockClassifier {
     /// 2. Header (large font, short text)
     /// 3. Header (bold-only text with header patterns) [OODA-06]
     /// 4. ListItem (bullet/numbered prefix)
-    /// 5. Paragraph (default)
-    pub fn classify_block(&self, block: &Block, body_font_size: f32) -> BlockType {
+    /// 5. Footnote (bottom of page, small font, starts with marker) [OODA-08]
+    /// 6. Paragraph (default)
+    pub fn classify_block(
+        &self,
+        block: &Block,
+        body_font_size: f32,
+        page_height: f32,
+    ) -> BlockType {
         if block.lines.is_empty() {
             return BlockType::Paragraph;
         }
@@ -188,6 +210,16 @@ impl BlockClassifier {
             if is_bullet_item(trimmed) || is_numbered_list_item(trimmed) {
                 return BlockType::ListItem;
             }
+        }
+
+        // OODA-08: Check for footnote (bottom of page, small font, starts with marker)
+        // WHY: Footnotes are common in academic PDFs and should be rendered as blockquotes
+        // to visually separate them from body text.
+        if page_height > 0.0
+            && body_font_size > 0.0
+            && is_footnote(block, page_height, body_font_size, &self.footnote_config)
+        {
+            return BlockType::Footnote;
         }
 
         BlockType::Paragraph
@@ -555,7 +587,7 @@ mod tests {
         });
 
         assert!(matches!(
-            classifier.classify_block(&header_block, body_size),
+            classifier.classify_block(&header_block, body_size, 0.0),
             BlockType::Header(1)
         ));
 
@@ -582,7 +614,7 @@ mod tests {
         });
 
         assert_eq!(
-            classifier.classify_block(&list_block, body_size),
+            classifier.classify_block(&list_block, body_size, 0.0),
             BlockType::ListItem
         );
     }
@@ -621,7 +653,7 @@ mod tests {
         // H1: ratio >= 2.0 (20pt / 10pt = 2.0)
         assert!(
             matches!(
-                classifier.classify_block(&make_heading_block(20.0, "Major Title"), body_size),
+                classifier.classify_block(&make_heading_block(20.0, "Major Title"), body_size, 0.0),
                 BlockType::Header(1)
             ),
             "20pt on 10pt body (2.0x) should be H1"
@@ -630,7 +662,11 @@ mod tests {
         // H2: ratio >= 1.7, < 2.0 (18pt / 10pt = 1.8)
         assert!(
             matches!(
-                classifier.classify_block(&make_heading_block(18.0, "Section Heading"), body_size),
+                classifier.classify_block(
+                    &make_heading_block(18.0, "Section Heading"),
+                    body_size,
+                    0.0
+                ),
                 BlockType::Header(2)
             ),
             "18pt on 10pt body (1.8x) should be H2"
@@ -640,7 +676,7 @@ mod tests {
         // WHY: Conservative approach - mid-range headers default to H1
         assert!(
             matches!(
-                classifier.classify_block(&make_heading_block(16.0, "Subsection"), body_size),
+                classifier.classify_block(&make_heading_block(16.0, "Subsection"), body_size, 0.0),
                 BlockType::Header(1)
             ),
             "16pt on 10pt body (1.6x) should be H1 (conservative)"
@@ -651,7 +687,8 @@ mod tests {
             matches!(
                 classifier.classify_block(
                     &make_heading_block(10.0, "Regular paragraph text"),
-                    body_size
+                    body_size,
+                    0.0
                 ),
                 BlockType::Paragraph
             ),
@@ -662,7 +699,11 @@ mod tests {
         // Should NOT be header because we need > 1.5 (header_ratio default)
         assert!(
             matches!(
-                classifier.classify_block(&make_heading_block(15.0, "Edge case text"), body_size),
+                classifier.classify_block(
+                    &make_heading_block(15.0, "Edge case text"),
+                    body_size,
+                    0.0
+                ),
                 BlockType::Paragraph
             ),
             "15pt on 10pt body (1.5x) should be Paragraph (at threshold)"
@@ -790,7 +831,7 @@ mod tests {
 
         assert!(
             matches!(
-                classifier.classify_block(&bold_section, body_size),
+                classifier.classify_block(&bold_section, body_size, 0.0),
                 BlockType::Header(2)
             ),
             "Bold 'I. INTRODUCTION' should be H2"
@@ -820,7 +861,7 @@ mod tests {
 
         assert!(
             matches!(
-                classifier.classify_block(&bold_abstract, body_size),
+                classifier.classify_block(&bold_abstract, body_size, 0.0),
                 BlockType::Header(2)
             ),
             "Bold 'Abstract' should be H2"
@@ -850,10 +891,58 @@ mod tests {
 
         assert!(
             matches!(
-                classifier.classify_block(&non_bold, body_size),
+                classifier.classify_block(&non_bold, body_size, 0.0),
                 BlockType::Paragraph
             ),
             "Non-bold 'I. INTRODUCTION' should remain Paragraph"
+        );
+    }
+
+    /// OODA-08: Test footnote classification
+    #[test]
+    fn test_classify_footnote() {
+        let classifier = BlockClassifier::new();
+        let body_size = 10.0;
+        let page_height = 792.0; // US Letter
+
+        // Footnote: small font, bottom of page, starts with marker
+        let footnote_block = Block {
+            lines: vec![Line::from_span(crate::layout::pymupdf_structs::Span {
+                text: "1 Author affiliation and correspondence.".to_string(),
+                x0: 50.0,
+                y0: 40.0,
+                x1: 400.0,
+                y1: 48.0,
+                font_size: 8.0, // 80% of body = footnote size
+                font_name: Some("Arial".to_string()),
+                page_num: 0,
+                font_is_bold: Some(false),
+                font_is_italic: Some(false),
+                font_is_monospace: Some(false),
+            })],
+            x0: 50.0,
+            y0: 40.0,
+            x1: 400.0,
+            y1: 48.0,
+            page_num: 0,
+            block_type: BlockType::Paragraph,
+        };
+
+        assert!(
+            matches!(
+                classifier.classify_block(&footnote_block, body_size, page_height),
+                BlockType::Footnote
+            ),
+            "Block at bottom of page with small font and marker should be Footnote"
+        );
+
+        // Same block but without page_height = no footnote detection
+        assert!(
+            matches!(
+                classifier.classify_block(&footnote_block, body_size, 0.0),
+                BlockType::Paragraph
+            ),
+            "Without page_height, should fall back to Paragraph"
         );
     }
 }

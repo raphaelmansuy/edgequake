@@ -730,6 +730,9 @@ pub enum BlockType {
     ListItem,
     /// Table content
     Table,
+    /// Footnote (rendered as blockquote)
+    /// OODA-08: Footnotes detected by position + font size + marker
+    Footnote,
 }
 
 impl Block {

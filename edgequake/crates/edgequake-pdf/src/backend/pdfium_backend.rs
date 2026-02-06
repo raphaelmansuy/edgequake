@@ -664,6 +664,7 @@ fn convert_text_block_to_schema_block(
         LayoutBlockType::Code => BlockType::Code,
         LayoutBlockType::ListItem => BlockType::ListItem,
         LayoutBlockType::Table => BlockType::Table,
+        LayoutBlockType::Footnote => BlockType::Paragraph, // OODA-08: Footnotes map to paragraph in schema
     };
 
     // Create bounding box WITH Y normalization (OODA-IT21)

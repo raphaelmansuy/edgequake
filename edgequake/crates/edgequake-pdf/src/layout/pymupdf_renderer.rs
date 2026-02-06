@@ -90,6 +90,7 @@ impl MarkdownRenderer {
             BlockType::Code => self.render_code(block),
             BlockType::ListItem => self.render_list_item(block, list_level.unwrap_or(0)),
             BlockType::Table => self.render_table(block),
+            BlockType::Footnote => self.render_footnote(block),
             BlockType::Paragraph => self.render_paragraph(block),
         }
     }
@@ -168,6 +169,17 @@ impl MarkdownRenderer {
         self.render_paragraph(block)
     }
 
+    /// OODA-08: Render footnote as blockquote.
+    /// WHY: pymupdf4llm renders footnotes as blockquotes with `> ` prefix,
+    /// which visually separates them from body text while preserving content.
+    fn render_footnote(&self, block: &Block) -> String {
+        let text = self.render_lines_inline(&block.lines);
+        text.lines()
+            .map(|line| format!("> {}", line))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     fn render_paragraph(&self, block: &Block) -> String {
         self.render_lines_inline(&block.lines)
     }
@@ -175,10 +187,7 @@ impl MarkdownRenderer {
     /// Render multiple lines joined by newlines (preserving PDF line breaks).
     /// OODA-05: Applies hyphenation resolution before joining.
     fn render_lines_inline(&self, lines: &[Line]) -> String {
-        let rendered: Vec<String> = lines
-            .iter()
-            .map(|l| self.render_line_styled(l))
-            .collect();
+        let rendered: Vec<String> = lines.iter().map(|l| self.render_line_styled(l)).collect();
         let resolved = resolve_hyphenation(&rendered);
         resolved.join("\n")
     }
@@ -592,6 +601,38 @@ mod tests {
         assert!(
             md.contains("reference"),
             "Normal text should be preserved: {}",
+            md
+        );
+    }
+
+    /// OODA-08: Test footnote rendering as blockquote
+    #[test]
+    fn test_render_footnote() {
+        let renderer = MarkdownRenderer::new();
+
+        let block = Block {
+            lines: vec![make_line(vec![make_span(
+                "1 Author affiliation.",
+                "Arial",
+                8.0,
+            )])],
+            x0: 50.0,
+            y0: 40.0,
+            x1: 400.0,
+            y1: 48.0,
+            page_num: 0,
+            block_type: BlockType::Footnote,
+        };
+
+        let md = renderer.render(&[block]);
+        assert!(
+            md.contains("> "),
+            "Footnote should be rendered as blockquote: {}",
+            md
+        );
+        assert!(
+            md.contains("Author affiliation"),
+            "Footnote content should be preserved: {}",
             md
         );
     }
