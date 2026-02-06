@@ -1185,6 +1185,14 @@ impl MarkdownRenderer {
         let mut result_lines: Vec<String> = Vec::new();
 
         for line in text.lines() {
+            // WHY preserve empty lines: Empty lines are markdown paragraph separators.
+            // Discarding them collapses all blocks into a single paragraph.
+            // Only CONTENT lines that become empty after cleaning should be skipped.
+            if line.trim().is_empty() {
+                result_lines.push(String::new());
+                continue;
+            }
+
             // Skip lines that are only dots (with optional page numbers)
             if dots_only_re.is_match(line) {
                 continue;
@@ -1204,7 +1212,7 @@ impl MarkdownRenderer {
             // Clean up empty bold patterns
             let cleaned = empty_bold_re.replace_all(&cleaned, "").to_string();
 
-            // Only keep non-empty lines
+            // Only keep lines that still have content after cleaning
             if !cleaned.trim().is_empty() {
                 result_lines.push(cleaned);
             }
