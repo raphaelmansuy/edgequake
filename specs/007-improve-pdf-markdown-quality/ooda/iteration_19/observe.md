@@ -28,6 +28,7 @@ the heading classifier never gets a chance to reject it.
 ### Evidence
 
 Two-column test PDF (003_two_columns.pdf):
+
 ```
 AFTER-PAGE1 block 4 (SectionHeader) lvl=Some(1): 'This is the second'
 AFTER-PAGE1 block 5 (Text) lvl=None: 'column.'
@@ -38,6 +39,7 @@ Expected: "This is the second column." as a single Text block, NOT a header.
 ### Affected Documents
 
 Any PDF where body text happens to:
+
 - Be in a larger font (e.g., title-zone of columns)
 - Not contain commas or periods
 - Be short enough to pass length check

@@ -132,11 +132,16 @@ impl ColumnDetector {
 
                 // Lower balance threshold for peak-based detection (more confident)
                 if left_count >= 3 && right_count >= 3 && balance > 0.15 {
-                    info!(
-                        "Detected TWO-COLUMN layout (peak method) with boundary at {:.1}",
-                        boundary
-                    );
-                    return Some(boundary);
+                    // OODA-IT20: Check if this is actually a table grid
+                    if looks_like_table_not_columns(elements, boundary, page_width) {
+                        debug!("Peak method overridden: table grid detected");
+                    } else {
+                        info!(
+                            "Detected TWO-COLUMN layout (peak method) with boundary at {:.1}",
+                            boundary
+                        );
+                        return Some(boundary);
+                    }
                 }
             }
         }
@@ -182,11 +187,16 @@ impl ColumnDetector {
             );
 
             if left_count >= 5 && right_count >= 5 && balance > 0.25 {
-                info!(
-                    "Detected TWO-COLUMN layout with boundary at {:.1}",
-                    boundary
-                );
-                return Some(boundary);
+                // OODA-IT20: Check if this is actually a table grid
+                if looks_like_table_not_columns(elements, boundary, page_width) {
+                    debug!("Gap method overridden: table grid detected");
+                } else {
+                    info!(
+                        "Detected TWO-COLUMN layout with boundary at {:.1}",
+                        boundary
+                    );
+                    return Some(boundary);
+                }
             } else {
                 debug!(
                     "Projection gap rejected: left={}, right={}, balance={:.2} (need >=5 each, balance>0.25)",
@@ -262,11 +272,16 @@ impl ColumnDetector {
                     );
 
                     if left_count >= 5 && right_count >= 5 && balance > 0.25 {
-                        debug!(
-                            "Detected TWO-COLUMN layout (bottom-only) with boundary at {:.1}",
-                            boundary
-                        );
-                        return Some(boundary);
+                        // OODA-IT20: Check if this is actually a table grid
+                        if looks_like_table_not_columns(elements, boundary, page_width) {
+                            debug!("Bottom-only gap overridden: table grid detected");
+                        } else {
+                            debug!(
+                                "Detected TWO-COLUMN layout (bottom-only) with boundary at {:.1}",
+                                boundary
+                            );
+                            return Some(boundary);
+                        }
                     } else {
                         debug!(
                             "Bottom-only gap rejected: left={}, right={}, balance={:.2}",
@@ -345,6 +360,14 @@ impl ColumnDetector {
         // WHY: Pages with large tables/figures may have fewer text elements
         // in one column. The zone detection with fixed boundaries is more robust.
         if left_starts >= 3 && right_starts >= 3 && balance_ratio > 0.15 {
+            // OODA-IT20: Check if this is actually a table grid, not two-column text
+            if looks_like_table_not_columns(elements, column_boundary, page_width) {
+                info!(
+                    "Detected SINGLE-COLUMN layout (table grid override at {:.1})",
+                    column_boundary
+                );
+                return None;
+            }
             info!(
                 "Detected TWO-COLUMN layout with boundary at {:.1}",
                 column_boundary
@@ -363,11 +386,16 @@ impl ColumnDetector {
                 let has_left_content = elements.iter().any(|e| e.x < arxiv_boundary - 30.0);
 
                 if has_left_content && has_right_content {
-                    info!(
-                        "Detected TWO-COLUMN layout (arXiv fallback) with boundary at {:.1}",
-                        arxiv_boundary
-                    );
-                    return Some(arxiv_boundary);
+                    // OODA-IT20: Check if this is actually a table grid
+                    if looks_like_table_not_columns(elements, arxiv_boundary, page_width) {
+                        debug!("arXiv fallback overridden: table grid detected");
+                    } else {
+                        info!(
+                            "Detected TWO-COLUMN layout (arXiv fallback) with boundary at {:.1}",
+                            arxiv_boundary
+                        );
+                        return Some(arxiv_boundary);
+                    }
                 }
             }
 
@@ -560,6 +588,80 @@ impl ColumnDetector {
     }
 }
 
+/// OODA-IT20: Check if elements look like a table grid rather than two-column text.
+///
+/// First Principles:
+/// ```text
+/// ┌─────────────────────────────────────────────────────────────┐
+/// │  TWO-COLUMN TEXT              TABLE GRID                    │
+/// ├─────────────────────────────────────────────────────────────┤
+/// │  Long text per element        Short text per element        │
+/// │  (sentences, paragraphs)      (names, numbers, labels)      │
+/// │  Avg > 30 chars/element       Avg < 15 chars/element        │
+/// │                                                             │
+/// │  Independent vertical flow    Precise Y-alignment           │
+/// │  (columns read top→bottom)    (rows align across "columns") │
+/// │  Few Y-aligned pairs          Many Y-aligned pairs (>60%)   │
+/// └─────────────────────────────────────────────────────────────┘
+/// ```
+///
+/// Returns true if the pattern looks more like a table than columns.
+/// WHY: Tables have short cells in a grid; columns have long paragraphs in separate flows.
+fn looks_like_table_not_columns(elements: &[TextElement], boundary: f32, page_width: f32) -> bool {
+    // Filter out wide-spanning elements (titles, descriptions spanning >50% page width)
+    // WHY: These are not table cells or column text - they're headers/footers
+    let narrow: Vec<&TextElement> = elements
+        .iter()
+        .filter(|e| e.width < page_width * 0.5)
+        .collect();
+
+    if narrow.len() < 4 {
+        return false; // Not enough data to discriminate
+    }
+
+    let left: Vec<&&TextElement> = narrow.iter().filter(|e| e.x < boundary).collect();
+    let right: Vec<&&TextElement> = narrow.iter().filter(|e| e.x >= boundary).collect();
+
+    if left.is_empty() || right.is_empty() {
+        return false;
+    }
+
+    // Check 1: Average text length in BOTH zones
+    // WHY 15 chars: Table cells are short (names, numbers, labels rarely exceed 15)
+    //   Column paragraphs are long (full sentences > 30 chars typically)
+    let avg_left_len = left.iter().map(|e| e.text.len()).sum::<usize>() as f32 / left.len() as f32;
+    let avg_right_len =
+        right.iter().map(|e| e.text.len()).sum::<usize>() as f32 / right.len() as f32;
+
+    // Check 2: Y-aligned pairs (table row signature)
+    // WHY 5pt: Table cells in the same row have nearly identical Y coordinates
+    //   (within PDF coordinate rounding precision of 1-3pt)
+    let y_tolerance = 5.0;
+    let aligned_count = right
+        .iter()
+        .filter(|r| left.iter().any(|l| (l.y - r.y).abs() < y_tolerance))
+        .count();
+    let alignment_ratio = aligned_count as f32 / right.len() as f32;
+
+    let is_table = avg_right_len < 15.0 && avg_left_len < 15.0 && alignment_ratio > 0.6;
+
+    if is_table {
+        info!(
+            "OODA-IT20: Table pattern detected (avg_left={:.1}, avg_right={:.1}, Y-align={:.0}%) → overriding column detection",
+            avg_left_len, avg_right_len, alignment_ratio * 100.0
+        );
+    } else {
+        debug!(
+            "OODA-IT20: Not table pattern (avg_left={:.1}, avg_right={:.1}, Y-align={:.0}%)",
+            avg_left_len,
+            avg_right_len,
+            alignment_ratio * 100.0
+        );
+    }
+
+    is_table
+}
+
 impl Default for ColumnDetector {
     fn default() -> Self {
         Self::new()
@@ -607,12 +709,25 @@ mod tests {
     #[test]
     fn test_detect_two_columns() {
         let detector = ColumnDetector::new();
-        // Left column elements (x = 50-200)
+        // Left column elements (x = 50-200) with realistic paragraph text (>15 chars)
+        // WHY realistic text: OODA-IT20 discriminator rejects short-text grids as tables
         let mut elements: Vec<TextElement> = (0..15)
-            .map(|i| make_element(100.0, i as f32 * 20.0, "left"))
+            .map(|i| {
+                make_element(
+                    100.0,
+                    i as f32 * 20.0,
+                    "This is a paragraph in the left column of the document",
+                )
+            })
             .collect();
-        // Right column elements (x = 350-500)
-        elements.extend((0..15).map(|i| make_element(400.0, i as f32 * 20.0, "right")));
+        // Right column elements (x = 350-500) with realistic paragraph text
+        elements.extend((0..15).map(|i| {
+            make_element(
+                400.0,
+                i as f32 * 20.0,
+                "This is a paragraph in the right column of the document",
+            )
+        }));
 
         let result = detector.detect_columns(&elements, 600.0);
         assert!(result.is_some());
@@ -704,13 +819,124 @@ mod tests {
     #[test]
     fn test_detect_columns_wide_page() {
         let detector = ColumnDetector::new();
-        // Wide page with two clear columns
+        // Wide page with two clear columns using realistic text
         let mut elements: Vec<TextElement> = (0..10)
-            .map(|i| make_element(100.0, i as f32 * 20.0, "left"))
+            .map(|i| {
+                make_element(
+                    100.0,
+                    i as f32 * 20.0,
+                    "A paragraph with enough text for real column content",
+                )
+            })
             .collect();
-        elements.extend((0..10).map(|i| make_element(700.0, i as f32 * 20.0, "right")));
+        elements.extend((0..10).map(|i| {
+            make_element(
+                700.0,
+                i as f32 * 20.0,
+                "Another paragraph with enough text for real column content",
+            )
+        }));
 
         let result = detector.detect_columns(&elements, 1000.0);
         assert!(result.is_some());
+    }
+
+    // =========================================================================
+    // OODA-IT20: Table-vs-column discriminator tests
+    // =========================================================================
+
+    #[test]
+    fn test_table_grid_not_detected_as_columns() {
+        // Simulates a 2-column, 4-row table (Name | Age pattern)
+        // Short text cells in Y-aligned rows → should be detected as table
+        let detector = ColumnDetector::new();
+        let page_width = 612.0;
+        let boundary = page_width * 0.49;
+
+        // Left column: table cells (short text)
+        let mut elements = vec![
+            make_element(
+                78.0,
+                34.0,
+                "This document contains a simple table for testing",
+            ),
+            make_element(218.0, 66.0, "Name"),
+            make_element(223.0, 91.0, "Alice"),
+            make_element(225.0, 109.0, "Bob"),
+            make_element(218.0, 127.0, "Charlie"),
+        ];
+        // Right column: table cells (very short)
+        elements.extend(vec![
+            make_element(367.0, 66.0, "Age"),
+            make_element(372.0, 91.0, "25"),
+            make_element(372.0, 109.0, "30"),
+            make_element(372.0, 127.0, "35"),
+        ]);
+        // Title (spanning - will be filtered by width check)
+        elements.push(make_element(250.0, 0.0, "Simple Table"));
+
+        let result = detector.detect_columns(&elements, page_width);
+        assert!(
+            result.is_none(),
+            "Table grid should NOT be detected as two-column layout"
+        );
+    }
+
+    #[test]
+    fn test_real_columns_not_detected_as_table() {
+        // Simulates a real two-column paper with paragraph text
+        // Long text elements → should still be detected as columns
+        let detector = ColumnDetector::new();
+        let page_width = 612.0;
+
+        let mut elements: Vec<TextElement> = (0..12)
+            .map(|i| {
+                make_element(
+                    55.0 + (i % 3) as f32 * 2.0,
+                    60.0 + i as f32 * 12.0,
+                    "This is a paragraph of text in the left column of an academic paper with many words",
+                )
+            })
+            .collect();
+        elements.extend((0..12).map(|i| {
+            make_element(
+                310.0 + (i % 3) as f32 * 2.0,
+                60.0 + i as f32 * 12.0,
+                "Another paragraph of text in the right column with substantial content for reading",
+            )
+        }));
+
+        let result = detector.detect_columns(&elements, page_width);
+        assert!(
+            result.is_some(),
+            "Real column text should be detected as two-column layout"
+        );
+    }
+
+    #[test]
+    fn test_table_discriminator_requires_both_conditions() {
+        // Short text but NO Y-alignment → should NOT be flagged as table
+        // This tests that both conditions (short text AND Y-alignment) are required
+        let page_width = 612.0;
+        let boundary = 300.0;
+
+        let mut elements = vec![
+            make_element(100.0, 10.0, "Name"),
+            make_element(100.0, 50.0, "Alice"),
+            make_element(100.0, 90.0, "Bob"),
+        ];
+        // Right elements at DIFFERENT Y positions (no alignment)
+        elements.extend(vec![
+            make_element(400.0, 30.0, "Age"),
+            make_element(400.0, 70.0, "25"),
+            make_element(400.0, 110.0, "30"),
+        ]);
+
+        // Short text but Y-misaligned → not a table
+        let result = looks_like_table_not_columns(&elements, boundary, page_width);
+        assert!(
+            !result,
+            "Short text without Y-alignment should not be flagged as table"
+        );
     }
 }
