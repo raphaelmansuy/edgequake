@@ -125,16 +125,39 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 
 **Effort**: 2-3 hours
 
-### 📋 Iterations 04-10 - BACKLOG
+### ✅ Iteration 06 - COMPLETE
+
+**Focus**: PostgreSQL Task Storage Implementation
+
+**Problem**: Tasks were stored in memory and lost on backend restart.
+
+**Fixes Applied**:
+
+1. Replaced `MemoryTaskStorage` with `PostgresTaskStorage` in `state.rs` line 793
+2. Fixed schema mapping in `postgres.rs`: `task_data/metadata/progress` → `payload` JSONB
+3. Updated `tasks_valid_status` constraint to support all status values
+
+**E2E Verification**:
+
+- Uploaded `AI_Services__Elitizon.pdf` (5 pages)
+- Task stored in PostgreSQL: `pdf-21f40259-0051-4616-adf9-d23235e57d52`
+- Extracted 5,338 bytes markdown
+- Created 20 entities, 9 relationships in AGE graph
+- Task completed with status `indexed`
+
+**Database State**:
+- AGE Graph: 2,801 nodes, 2,219 edges total
+- Vector Storage: 149 vectors
+
+**Reference**: `specs/001-e2e-upload-pdf/ooda/iteration_06/`
+
+### 📋 Iterations 07-10 - BACKLOG
 
 | Iteration | Focus                           | Priority | Effort          |
 | --------- | ------------------------------- | -------- | --------------- |
-| 04        | Test fresh PDF upload           | Medium   | 1-2h + LLM time |
-| 05        | Improve error handling          | Low      | 3-4h            |
-| 06        | Performance testing             | Low      | 4-6h            |
-| 07        | E2E test suite for CI/CD        | Low      | 3-4h            |
-| 08        | Document architecture decisions | Low      | 2-3h            |
-| 09        | Retry logic for LLM errors      | Low      | 3-4h            |
+| 07        | Test task persistence on restart | Medium   | 1-2h            |
+| 08        | Fix Ollama timeout (increase from 60s) | Medium | 2-3h      |
+| 09        | Fix PDF-document FK race condition | Low   | 2-3h            |
 | 10        | Final regression testing        | Low      | 2-3h            |
 
 ---

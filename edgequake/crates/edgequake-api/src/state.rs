@@ -791,9 +791,14 @@ impl AppState {
                 .with_embedding_provider(Arc::clone(&embedding_provider)),
         );
 
-        // Create task infrastructure
-        let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
+        // Create task infrastructure (OODA-06: Use PostgreSQL for task persistence)
+        // WHY: Tasks must persist across backend restarts so cancel/retry work correctly.
+        // Previous bug: MemoryTaskStorage was used, causing tasks to be lost on restart.
+        let task_storage: SharedTaskStorage = Arc::new(
+            edgequake_tasks::postgres::PostgresTaskStorage::new(pool.clone()),
+        );
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
+        tracing::info!("✓ Task storage: PostgreSQL (persistent across restarts)");
 
         // Create legacy query engine (for backward compatibility)
         let query_engine = Arc::new(QueryEngine::new(

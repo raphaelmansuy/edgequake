@@ -37,14 +37,30 @@ impl PostgresTaskStorage {
 #[async_trait::async_trait]
 impl TaskStorage for PostgresTaskStorage {
     async fn create_task(&self, task: &Task) -> TaskResult<()> {
+        // WHY: The database schema uses `payload` column (JSONB) to store task_data,
+        // metadata, and progress together. This is different from the Task struct
+        // which separates these fields. We combine them into payload for storage.
+        //
+        // Database columns (from migration):
+        // - payload: JSONB NOT NULL - stores task_data + metadata + progress
+        // - result: JSONB - stores result on completion
+        //
+        // This mapping allows the Task struct to maintain clean separation while
+        // the database uses a single JSONB column for flexibility.
+        let payload = serde_json::json!({
+            "task_data": task.task_data,
+            "metadata": task.metadata,
+            "progress": task.progress,
+        });
+
         sqlx::query(
             r#"
             INSERT INTO tasks (
                 track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
                 started_at, completed_at, error_message, error, retry_count,
                 max_retries, consecutive_timeout_failures, circuit_breaker_tripped,
-                task_data, metadata, progress, result
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+                payload, result
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             "#,
         )
         .bind(&task.track_id)
@@ -62,9 +78,7 @@ impl TaskStorage for PostgresTaskStorage {
         .bind(task.max_retries)
         .bind(task.consecutive_timeout_failures)
         .bind(task.circuit_breaker_tripped)
-        .bind(&task.task_data)
-        .bind(&task.metadata)
-        .bind(serde_json::to_value(&task.progress)?)
+        .bind(&payload)
         .bind(&task.result)
         .execute(&*self.pool)
         .await
@@ -74,13 +88,15 @@ impl TaskStorage for PostgresTaskStorage {
     }
 
     async fn get_task(&self, track_id: &str) -> TaskResult<Option<Task>> {
+        // WHY: Fetch from `payload` JSONB column and extract task_data, metadata, progress
+        // The database stores these combined in payload for schema simplicity
         let row = sqlx::query(
             r#"
             SELECT 
                 track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
                 started_at, completed_at, error_message, error, retry_count,
                 max_retries, consecutive_timeout_failures, circuit_breaker_tripped,
-                task_data, metadata, progress, result
+                payload, result
             FROM tasks
             WHERE track_id = $1
             "#,
@@ -91,6 +107,30 @@ impl TaskStorage for PostgresTaskStorage {
         .map_err(|e| TaskError::StorageError(format!("Failed to fetch task: {}", e)))?;
 
         if let Some(row) = row {
+            // Extract payload JSONB and decompose into task_data, metadata, progress
+            let payload: serde_json::Value = row.get("payload");
+            let task_data = payload
+                .get("task_data")
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
+            let metadata =
+                payload.get("metadata").cloned().and_then(
+                    |v| {
+                        if v.is_null() {
+                            None
+                        } else {
+                            Some(v)
+                        }
+                    },
+                );
+            let progress = payload.get("progress").cloned().and_then(|v| {
+                if v.is_null() {
+                    None
+                } else {
+                    serde_json::from_value(v).ok()
+                }
+            });
+
             let task = Task {
                 track_id: row.get("track_id"),
                 tenant_id: row.get("tenant_id"),
@@ -115,11 +155,9 @@ impl TaskStorage for PostgresTaskStorage {
                 max_retries: row.get("max_retries"),
                 consecutive_timeout_failures: row.get("consecutive_timeout_failures"),
                 circuit_breaker_tripped: row.get("circuit_breaker_tripped"),
-                task_data: row.get("task_data"),
-                metadata: row.get("metadata"),
-                progress: row
-                    .get::<Option<serde_json::Value>, _>("progress")
-                    .and_then(|v| serde_json::from_value(v).ok()),
+                task_data,
+                metadata,
+                progress,
                 result: row.get("result"),
             };
             Ok(Some(task))
@@ -129,6 +167,14 @@ impl TaskStorage for PostgresTaskStorage {
     }
 
     async fn update_task(&self, task: &Task) -> TaskResult<()> {
+        // WHY: Update payload JSONB with combined task_data, metadata, progress
+        // We only update the progress inside payload on updates (task_data is immutable)
+        let payload = serde_json::json!({
+            "task_data": task.task_data,
+            "metadata": task.metadata,
+            "progress": task.progress,
+        });
+
         let result = sqlx::query(
             r#"
             UPDATE tasks SET
@@ -141,7 +187,7 @@ impl TaskStorage for PostgresTaskStorage {
                 retry_count = $8,
                 consecutive_timeout_failures = $9,
                 circuit_breaker_tripped = $10,
-                progress = $11,
+                payload = $11,
                 result = $12
             WHERE track_id = $1
             "#,
@@ -156,7 +202,7 @@ impl TaskStorage for PostgresTaskStorage {
         .bind(task.retry_count)
         .bind(task.consecutive_timeout_failures)
         .bind(task.circuit_breaker_tripped)
-        .bind(serde_json::to_value(&task.progress)?)
+        .bind(&payload)
         .bind(&task.result)
         .execute(&*self.pool)
         .await
@@ -184,13 +230,14 @@ impl TaskStorage for PostgresTaskStorage {
     }
 
     async fn list_tasks(&self, filter: TaskFilter, pagination: Pagination) -> TaskResult<TaskList> {
-        // Build query with filters
+        // WHY: Query uses `payload` column instead of separate task_data, metadata, progress columns
+        // The payload JSONB contains all three fields combined
         let mut query = String::from(
             "SELECT 
                 track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
                 started_at, completed_at, error_message, error, retry_count,
                 max_retries, consecutive_timeout_failures, circuit_breaker_tripped,
-                task_data, metadata, progress, result
+                payload, result
             FROM tasks WHERE 1=1",
         );
 
@@ -258,6 +305,27 @@ impl TaskStorage for PostgresTaskStorage {
         let tasks: Vec<Task> = rows
             .into_iter()
             .filter_map(|row| {
+                // Extract payload JSONB and decompose into task_data, metadata, progress
+                let payload: serde_json::Value = row.get("payload");
+                let task_data = payload
+                    .get("task_data")
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
+                let metadata = payload.get("metadata").cloned().and_then(|v| {
+                    if v.is_null() {
+                        None
+                    } else {
+                        Some(v)
+                    }
+                });
+                let progress = payload.get("progress").cloned().and_then(|v| {
+                    if v.is_null() {
+                        None
+                    } else {
+                        serde_json::from_value(v).ok()
+                    }
+                });
+
                 Some(Task {
                     track_id: row.get("track_id"),
                     tenant_id: row.get("tenant_id"),
@@ -276,11 +344,9 @@ impl TaskStorage for PostgresTaskStorage {
                     max_retries: row.get("max_retries"),
                     consecutive_timeout_failures: row.get("consecutive_timeout_failures"),
                     circuit_breaker_tripped: row.get("circuit_breaker_tripped"),
-                    task_data: row.get("task_data"),
-                    metadata: row.get("metadata"),
-                    progress: row
-                        .get::<Option<serde_json::Value>, _>("progress")
-                        .and_then(|v| serde_json::from_value(v).ok()),
+                    task_data,
+                    metadata,
+                    progress,
                     result: row.get("result"),
                 })
             })
