@@ -29,6 +29,7 @@ mod column_detector;
 mod geometric;
 pub mod hyphenation;
 pub mod list_hierarchy;
+pub mod page_filter;
 mod pymupdf_grouper;
 mod pymupdf_renderer;
 pub mod pymupdf_structs; // OODA-43: Made public for pdfium_backend imports
