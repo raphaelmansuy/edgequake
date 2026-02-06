@@ -210,19 +210,23 @@ impl MarkdownRenderer {
             return String::new();
         }
 
+        // OODA-04: Compute dominant font size for superscript detection
+        let ref_font_size = line.dominant_font_size();
+
         if line.spans.len() == 1 {
             let span = &line.spans[0];
             let text = filter_pua(&span.text);
             if text.trim().is_empty() {
                 return text;
             }
-            return self.style_text(&text, span);
+            let style = get_style_type_with_ref(span, ref_font_size);
+            return apply_style(&text, style);
         }
 
         // Group consecutive spans with same style, including spaces within groups
         let mut groups: Vec<(String, StyleType)> = Vec::new();
         let mut current_text = String::new();
-        let mut current_style = get_style_type(&line.spans[0]);
+        let mut current_style = get_style_type_with_ref(&line.spans[0], ref_font_size);
 
         for (i, span) in line.spans.iter().enumerate() {
             // OODA-02: Filter PUA characters from each span
@@ -250,7 +254,7 @@ impl MarkdownRenderer {
                 false
             };
 
-            let span_style = get_style_type(span);
+            let span_style = get_style_type_with_ref(span, ref_font_size);
 
             // Only flush when style actually changes
             if span_style != current_style {
@@ -301,6 +305,7 @@ impl MarkdownRenderer {
 }
 
 /// Style types for span grouping.
+/// OODA-04: Added Superscript for footnote markers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StyleType {
     Plain,
@@ -308,10 +313,19 @@ enum StyleType {
     Italic,
     BoldItalic,
     Code,
+    Superscript,
 }
 
 /// Get the style type of a span.
-fn get_style_type(span: &super::pymupdf_structs::Span) -> StyleType {
+/// OODA-04: Accepts reference_font_size for superscript detection.
+fn get_style_type_with_ref(
+    span: &super::pymupdf_structs::Span,
+    reference_font_size: f32,
+) -> StyleType {
+    // Check superscript first (highest priority - short markers)
+    if span.is_superscript(reference_font_size) {
+        return StyleType::Superscript;
+    }
     if span.is_bold() && span.is_italic() {
         StyleType::BoldItalic
     } else if span.is_bold() {
@@ -325,10 +339,14 @@ fn get_style_type(span: &super::pymupdf_structs::Span) -> StyleType {
     }
 }
 
+/// Get the style type of a span (without superscript detection).
+fn get_style_type(span: &super::pymupdf_structs::Span) -> StyleType {
+    get_style_type_with_ref(span, 0.0)
+}
+
 /// Apply style markers to text.
 /// OODA-12: Preserve leading/trailing spaces outside style markers
-/// WHY: pymupdf4llm produces `_italic_ **bold**` not `*italic***bold**`
-/// OODA-12: Use underscores for italic to match gold standard format
+/// OODA-04: Added Superscript rendering as [text] for footnote markers
 fn apply_style(text: &str, style: StyleType) -> String {
     if text.trim().is_empty() {
         return text.to_string();
@@ -340,15 +358,16 @@ fn apply_style(text: &str, style: StyleType) -> String {
     let trimmed = text.trim();
 
     let styled = match style {
+        StyleType::Superscript => format!("[{}]", trimmed),
         StyleType::BoldItalic => format!("**_{}_**", trimmed),
         StyleType::Bold => format!("**{}**", trimmed),
-        StyleType::Italic => format!("_{}_", trimmed), // Use underscores for italic
+        StyleType::Italic => format!("_{}_", trimmed),
         StyleType::Code if !trimmed.starts_with('`') => format!("`{}`", trimmed),
         _ => trimmed.to_string(),
     };
 
     // Re-add whitespace
-    let leading: String = " ".repeat(leading_space.min(1)); // Cap at 1 space
+    let leading: String = " ".repeat(leading_space.min(1));
     let trailing: String = " ".repeat(trailing_space.min(1));
     format!("{}{}{}", leading, styled, trailing)
 }
@@ -517,6 +536,63 @@ mod tests {
         assert!(
             md.contains("- First item"),
             "Missing normalized bullet: {}",
+            md
+        );
+    }
+
+    /// OODA-04: Test superscript rendering as [text] bracket notation
+    #[test]
+    fn test_render_superscript() {
+        let renderer = MarkdownRenderer::new();
+
+        // Create a line with normal text and a superscript footnote marker
+        let normal_span = Span {
+            text: "reference".to_string(),
+            x0: 0.0,
+            y0: 0.0,
+            x1: 80.0,
+            y1: 12.0,
+            font_size: 12.0,
+            font_name: Some("Arial".to_string()),
+            page_num: 0,
+            font_is_bold: Some(false),
+            font_is_italic: Some(false),
+            font_is_monospace: Some(false),
+        };
+        let superscript_span = Span {
+            text: "1".to_string(),
+            x0: 80.0,
+            y0: 4.0, // Higher position
+            x1: 86.0,
+            y1: 10.0,
+            font_size: 7.0, // Much smaller than 12.0 (< 70%)
+            font_name: Some("Arial".to_string()),
+            page_num: 0,
+            font_is_bold: Some(false),
+            font_is_italic: Some(false),
+            font_is_monospace: Some(false),
+        };
+
+        let line = make_line(vec![normal_span, superscript_span]);
+        let block = Block {
+            lines: vec![line],
+            x0: 0.0,
+            y0: 0.0,
+            x1: 86.0,
+            y1: 12.0,
+            page_num: 0,
+            block_type: BlockType::Paragraph,
+        };
+
+        let md = renderer.render(&[block]);
+        assert!(
+            md.contains("[1]"),
+            "Superscript should render as [1], got: {}",
+            md
+        );
+        assert!(
+            md.contains("reference"),
+            "Normal text should be preserved: {}",
             md
         );
     }
