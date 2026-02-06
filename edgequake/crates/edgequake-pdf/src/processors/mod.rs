@@ -38,6 +38,8 @@ mod test_helpers;
 // Re-exports for public API
 pub use font_analysis::FontAnalyzer;
 pub use heading_classifier::HeadingClassifier;
+// OODA-IT19: Export shared prose detection for use by structure_detection and external tests
+pub use heading_classifier::has_prose_indicators;
 pub use llm_enhance::{LlmEnhanceConfig, LlmEnhanceProcessor, LlmEnhanced};
 pub use provider::{ByteProvider, FileProvider, PdfProvider};
 pub use stats::DocumentStats;

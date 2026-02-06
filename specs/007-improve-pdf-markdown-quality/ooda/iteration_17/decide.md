@@ -1,4 +1,4 @@
-```markdown
+````markdown
 # OODA Iteration 17 - Decide
 
 ## Decision
@@ -11,14 +11,16 @@ Implement **paragraph continuation detection** in the page renderer to join cons
 
 ```rust
 /// Detect if block B is a paragraph continuation of block A.
-/// WHY: PDF backends extract bold/styled text as separate blocks, 
+/// WHY: PDF backends extract bold/styled text as separate blocks,
 /// fragmenting paragraphs like "focus on **workflows** teams".
 fn is_paragraph_continuation(prev: &Block, curr: &Block) -> bool
 ```
+````
 
 ### 2. Modify `render_page_with_arxiv()` to use continuation detection
 
 Instead of always adding `\n\n` after render_text, check if the next block is a continuation:
+
 - If YES: add just a space (or nothing for inline bold)
 - If NO: add `\n\n` as before
 
@@ -44,4 +46,7 @@ render_page_with_arxiv()
 3. "header text" + "body text" → separate (different block types)
 4. List items remain separate
 5. Code blocks remain separate
+
+```
+
 ```

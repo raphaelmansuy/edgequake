@@ -18,6 +18,9 @@ use crate::schema::{Block, BlockType, Document};
 use crate::Result;
 use regex::Regex;
 
+// OODA-IT19: Import shared prose detection (DRY principle)
+use super::heading_classifier::has_prose_indicators;
+
 // =============================================================================
 // Processor Trait
 // =============================================================================
@@ -614,8 +617,14 @@ impl StyleDetectionProcessor {
 
         if ratio > 1.5 && is_short {
             // Large font ratio (>=1.5x) is always H1
-            block.block_type = BlockType::SectionHeader;
-            block.level = Some(1);
+            // OODA-IT19: BUT only if the text is NOT prose-like.
+            // WHY: "This is the second" at 18pt (ratio 1.8x) passes font size
+            // checks but contains prose indicators ("is" + "the" lowercase),
+            // proving it's a sentence fragment, not a heading label.
+            if !has_prose_indicators(text) {
+                block.block_type = BlockType::SectionHeader;
+                block.level = Some(1);
+            }
         } else if is_first_block_on_first_page && ratio > 1.2 && is_short && looks_like_title_case {
             // WHY: First block on first page with title-case text and larger font
             // is almost always the document title, even if ratio < 1.5

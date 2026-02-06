@@ -8,6 +8,7 @@
 **File:** `src/renderers/markdown.rs`
 
 Detects when consecutive Text blocks are parts of the same paragraph:
+
 - Both blocks must be Text/Paragraph type
 - Previous must NOT end with sentence punctuation (. ! ? : ;)
 - Vertical gap must be within 2.5x line height
@@ -24,6 +25,7 @@ Renders a text block inline within a paragraph without adding `\n\n` suffix.
 **File:** `src/renderers/markdown.rs` (line 137)
 
 Added continuation tracking:
+
 1. For each block, check if next block is a continuation
 2. If YES: strip trailing `\n\n` from output, replace with space
 3. Next iteration renders the continuation block inline
@@ -41,23 +43,29 @@ Added continuation tracking:
 
 ## Results
 
-### Before (AI_Services__Elitizon.pdf)
+### Before (AI_Services\_\_Elitizon.pdf)
 ```
-Elitizon designs and delivers production-grade AI systems with a focus on 
+
+Elitizon designs and delivers production-grade AI systems with a focus on
 
 **workflows**
 
 teams move from prototypes to reliable...
+
 ```
 
 ### After
 ```
+
 Elitizon designs and delivers production-grade AI systems with a focus on **workflows** teams move from prototypes to reliable, governed deployments with measurable ROI.
+
 ```
 
 ### Test Results
 ```
+
 test result: ok. 556 passed; 0 failed; 0 ignored
+
 ```
 
 ## Quality Impact

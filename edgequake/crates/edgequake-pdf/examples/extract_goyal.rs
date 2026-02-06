@@ -8,9 +8,9 @@ use std::sync::Arc;
 async fn main() {
     let path = "crates/edgequake-pdf/test-data/real_dataset/2900_Goyal_et_al.pdf";
     let pdf_bytes = fs::read(path).expect("Read failed");
-    
+
     let extractor = PdfExtractor::new(Arc::new(MockProvider::new()));
-    
+
     match extractor.extract_to_markdown(&pdf_bytes).await {
         Ok(md) => {
             fs::write("/tmp/goyal_extracted.md", &md).expect("Write failed");

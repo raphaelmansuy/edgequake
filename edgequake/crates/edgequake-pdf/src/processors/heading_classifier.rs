@@ -5,6 +5,54 @@
 
 use crate::schema::Block;
 
+/// OODA-IT19: Check if text contains prose indicator patterns that suggest it's
+/// a sentence, NOT a heading.
+///
+/// **First Principles:** Headings are short, declarative labels. Sentences contain
+/// articles and copulas (connecting verbs) followed by lowercase words.
+///
+/// ```text
+/// ┌──────────────────────────────────────────────────────────┐
+/// │  PROSE INDICATOR DETECTION                                │
+/// │                                                           │
+/// │  "Introduction"          → No indicators → HEADING OK     │
+/// │  "This is the second"    → "is" + "the" (lower) → PROSE  │
+/// │  "What We Deliver"       → "We" (uppercase) → HEADING OK │
+/// │  "It was a dark night"   → "was" + "a" (lower) → PROSE   │
+/// └──────────────────────────────────────────────────────────┘
+/// ```
+///
+/// WHY public: Used by both `HeadingClassifier` and `structure_detection.rs`
+/// to prevent prose text from being classified as headings. DRY principle.
+pub fn has_prose_indicators(text: &str) -> bool {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    if words.len() < 3 {
+        return false;
+    }
+    // Check positions 1..min(5, len) for prose indicators
+    // Position 0 is the subject/first word - we check AFTER it
+    for i in 1..words.len().min(5) {
+        let word_lower = words[i].to_lowercase();
+        let is_indicator = matches!(
+            word_lower.as_str(),
+            "the" | "a" | "an" | "it" | "this" | "that" | "as" | "is" | "are" | "was"
+        );
+        if is_indicator {
+            if let Some(next_word) = words.get(i + 1) {
+                let next_starts_lower = next_word
+                    .chars()
+                    .next()
+                    .map(|c| c.is_lowercase())
+                    .unwrap_or(false);
+                if next_starts_lower {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Classifies blocks as headings based on geometric and semantic properties.
 ///
 /// **Single Responsibility:** Heading identification and level determination.
@@ -148,28 +196,12 @@ impl HeadingClassifier {
             return false;
         }
 
-        // Generic prose detector: article/pronoun words after first position
-        // indicate sentence continuation, not heading structure
-        let words: Vec<&str> = text.split_whitespace().collect();
-        if words.len() >= 3 {
-            for i in 1..words.len().min(5) {
-                let word_lower = words[i].to_lowercase();
-                let is_prose_indicator = matches!(
-                    word_lower.as_str(),
-                    "the" | "a" | "an" | "it" | "this" | "that" | "as" | "is" | "are" | "was"
-                );
-                if is_prose_indicator
-                    && i + 1 < words.len() {
-                        let next_char_lower = words[i + 1]
-                            .chars()
-                            .next()
-                            .map(|c| c.is_lowercase())
-                            .unwrap_or(false);
-                        if next_char_lower {
-                            return false;
-                        }
-                    }
-            }
+        // OODA-IT19: Use shared prose indicator detection (DRY).
+        // WHY: article/pronoun words after first position indicate sentence
+        // continuation, not heading structure. Same logic used by
+        // structure_detection.rs to prevent prose text from becoming headings.
+        if has_prose_indicators(text) {
+            return false;
         }
 
         // Generic caption pattern: figures and tables are labeled with standard prefixes
@@ -341,5 +373,45 @@ mod tests {
         assert!(!classifier.contains_sentence_boundary("Dr. Smith"));
         assert!(!classifier.contains_sentence_boundary("Fig. 1"));
         assert!(!classifier.contains_sentence_boundary("e.g. Example"));
+    }
+
+    // =================================================================
+    // OODA-IT19: Tests for shared has_prose_indicators() function
+    // =================================================================
+
+    #[test]
+    fn test_prose_indicators_sentence_patterns() {
+        // Clearly prose: articles/copulas + lowercase
+        assert!(has_prose_indicators("This is the second"));
+        assert!(has_prose_indicators("It was a dark night"));
+        assert!(has_prose_indicators("There are many options"));
+        assert!(has_prose_indicators("She is the manager"));
+    }
+
+    #[test]
+    fn test_prose_indicators_heading_patterns() {
+        // Real headings: no prose indicators
+        assert!(!has_prose_indicators("Introduction"));
+        assert!(!has_prose_indicators("Methods and Results"));
+        assert!(!has_prose_indicators("What We Deliver"));
+        assert!(!has_prose_indicators("Architecture & Governance"));
+        assert!(!has_prose_indicators("Executive Summary"));
+        assert!(!has_prose_indicators("Next Steps"));
+    }
+
+    #[test]
+    fn test_prose_indicators_short_text() {
+        // Less than 3 words: can't detect prose patterns
+        assert!(!has_prose_indicators("Hello"));
+        assert!(!has_prose_indicators("Two Words"));
+        assert!(!has_prose_indicators(""));
+    }
+
+    #[test]
+    fn test_prose_indicators_uppercase_after_indicator() {
+        // Indicator followed by uppercase: heading, not prose
+        // "What Is AI" → "Is" is indicator but "AI" is uppercase → OK
+        assert!(!has_prose_indicators("What Is AI"));
+        assert!(!has_prose_indicators("This Is Important"));
     }
 }

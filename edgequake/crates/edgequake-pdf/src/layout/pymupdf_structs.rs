@@ -260,7 +260,7 @@ impl Span {
         if let Some(is_bold) = self.font_is_bold {
             return is_bold;
         }
-        
+
         // Fallback to font name pattern matching
         self.font_name
             .as_ref()
@@ -280,7 +280,7 @@ impl Span {
     ///
     /// **Priority:** Uses font descriptor flag from PDFium if available (most accurate),
     /// otherwise falls back to font name pattern matching.
-    /// 
+    ///
     /// WHY font flags are preferred:
     /// - PyMuPDF4llm uses font descriptor flags (like `flags & 2` for italic)
     /// - Font name matching is unreliable - many PDFs don't use "italic" in font name
@@ -296,15 +296,14 @@ impl Span {
         if let Some(is_italic) = self.font_is_italic {
             return is_italic;
         }
-        
+
         // Fallback to font name pattern matching
         self.font_name
             .as_ref()
             .map(|n| {
                 let lower = n.to_lowercase();
-                lower.contains("italic") 
-                    || lower.contains("oblique")
-                    || lower.contains("ital")  // OODA-09: Abbreviated form (Nimbus fonts)
+                lower.contains("italic") || lower.contains("oblique") || lower.contains("ital")
+                // OODA-09: Abbreviated form (Nimbus fonts)
             })
             .unwrap_or(false)
     }
@@ -430,10 +429,8 @@ impl Line {
 
         // Compare baseline (y0) or top (y1) - matches pymupdf4llm get_raw_lines.py:178
         // "if any of top or bottom coordinates are close enough, join..."
-        
-        
-        (self.y0 - span.y0).abs() <= tolerance 
-            || (self.y1 - span.y1).abs() <= tolerance
+
+        (self.y0 - span.y0).abs() <= tolerance || (self.y1 - span.y1).abs() <= tolerance
     }
 
     /// Add a span to this line.
@@ -888,14 +885,14 @@ mod tests {
         // Now try to append a non-bold character
         let normal_char = RawChar {
             char: 'h',
-            x0: 18.0,  // Adjacent position
+            x0: 18.0, // Adjacent position
             y0: 100.0,
             x1: 26.0,
             y1: 112.0,
             font_size: 12.0,
             font_name: Some("Arial".to_string()),
             page_num: 0,
-            is_bold: false,  // Different style!
+            is_bold: false, // Different style!
             is_italic: false,
             is_monospace: false,
         };
@@ -934,7 +931,7 @@ mod tests {
             font_name: Some("Times".to_string()),
             page_num: 0,
             is_bold: false,
-            is_italic: false,  // Different style!
+            is_italic: false, // Different style!
             is_monospace: false,
         };
 
@@ -955,7 +952,7 @@ mod tests {
             font_name: Some("Times".to_string()),
             page_num: 0,
             is_bold: false,
-            is_italic: true,  // Same style!
+            is_italic: true, // Same style!
             is_monospace: false,
         };
 
@@ -978,7 +975,7 @@ mod tests {
             page_num: 0,
             is_bold: false,
             is_italic: false,
-            is_monospace: true,  // Monospace font
+            is_monospace: true, // Monospace font
         };
         mono_span.append(&mono_char);
 
@@ -994,7 +991,7 @@ mod tests {
             page_num: 0,
             is_bold: false,
             is_italic: false,
-            is_monospace: false,  // Different style!
+            is_monospace: false, // Different style!
         };
 
         // Should reject because monospace differs
@@ -1015,7 +1012,7 @@ mod tests {
             page_num: 0,
             is_bold: false,
             is_italic: false,
-            is_monospace: true,  // Same style!
+            is_monospace: true, // Same style!
         };
 
         assert!(

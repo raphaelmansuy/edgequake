@@ -5,6 +5,12 @@
 Your mission is to systematically improve the quality of PDF-to-Markdown conversion in the `edgequake-pdf` crate to match or exceed the quality of PyMuPDF4LLM, the industry gold standard for LLM-optimized PDF extraction.
 
 
+If image is discovered in the PDF they should be extracted in ./assets/ subfolder and linked as image in the transformed markdown as a Markdown image, use png or jpeg for images, use unique names for image extracted.
+
+
+Ensure to always use First Principle logic not poor heuristics that use keywords or content of a specific document (it is cheating). always use timeout for tests (don't be blocked)
+
+
 Read files to compare gold vs converted at the end of each iteration to evaluate the quality.
 
 FULLY READ this file !!!!

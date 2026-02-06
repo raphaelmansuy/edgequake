@@ -14,7 +14,7 @@ fn main() {
     let ops = lopdf::content::Content::decode(&content).expect("Decode failed");
 
     println!("=== Text Matrix (Tm) and Font (Tf) operators ===\n");
-    
+
     let mut cur_font_size = 0.0f64;
     let mut cur_font = String::new();
     let mut tm: [f64; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
@@ -50,7 +50,7 @@ fn main() {
                         };
                     }
                     if op_count < 20 {
-                        let scale = (tm[0]*tm[0] + tm[1]*tm[1]).sqrt();
+                        let scale = (tm[0] * tm[0] + tm[1] * tm[1]).sqrt();
                         let effective_size = cur_font_size * scale;
                         println!("Tm: [{:.2} {:.2} {:.2} {:.2} {:.1} {:.1}] scale={:.2} effective_size={:.1}", 
                             tm[0], tm[1], tm[2], tm[3], tm[4], tm[5], scale, effective_size);
@@ -65,7 +65,10 @@ fn main() {
             "Tj" | "TJ" => {
                 op_count += 1;
                 if op_count <= 5 {
-                    println!("  -> Text op #{} with font_size={:.1}", op_count, cur_font_size);
+                    println!(
+                        "  -> Text op #{} with font_size={:.1}",
+                        op_count, cur_font_size
+                    );
                 }
             }
             _ => {}

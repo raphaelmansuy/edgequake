@@ -18,6 +18,9 @@ use crate::schema::{Block, BlockType, Document};
 use crate::Result;
 use regex::Regex;
 use std::collections::HashSet;
+
+// OODA-IT19: Import shared prose detection (DRY principle)
+use super::heading_classifier::has_prose_indicators;
 use std::sync::OnceLock;
 
 use super::Processor;
@@ -359,7 +362,12 @@ impl Processor for HeaderDetectionProcessor {
                         && !text.ends_with('.')
                         && !text.contains(',')
                         && !is_metadata
-                        && !has_sentence_boundary;
+                        && !has_sentence_boundary
+                        // OODA-IT19: Reject prose-like text (articles/copulas + lowercase).
+                        // WHY: "This is the second" passes all other checks but contains
+                        // prose indicators ("is" + "the" lowercase) proving it's a sentence
+                        // fragment, not a heading label. Shared with heading_classifier.rs.
+                        && !has_prose_indicators(text);
 
                     // Section headers start with digit OR are all-caps
                     let looks_like_section = text.starts_with(|c: char| c.is_ascii_digit())

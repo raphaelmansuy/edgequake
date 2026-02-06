@@ -229,7 +229,10 @@ impl ExtractionEngine {
             return (Vec::new(), Vec::new());
         }
 
-        info!("ENG-COLUMN: using pre-detected boundary = {:?}", column_boundary);
+        info!(
+            "ENG-COLUMN: using pre-detected boundary = {:?}",
+            column_boundary
+        );
 
         // Use TextGrouper to group elements into lines
         let lines =
@@ -489,7 +492,7 @@ impl ExtractionEngine {
         // 2. Remove them from the main text flow
         let rotated_elements: Vec<_> = elements.iter().filter(|e| e.is_rotated).cloned().collect();
         let elements: Vec<_> = elements.into_iter().filter(|e| !e.is_rotated).collect();
-        
+
         // OODA-21: Extract arXiv ID from rotated elements for metadata
         // WHY: Gold files expect arXiv identifier at document top as bold text.
         // We filter rotated text but should preserve arXiv metadata.
@@ -507,7 +510,7 @@ impl ExtractionEngine {
         } else {
             None
         };
-        
+
         if !rotated_elements.is_empty() {
             info!(
                 "OODA19-ROTATED: Page {} has {} rotated text elements (filtered out)",
@@ -536,7 +539,11 @@ impl ExtractionEngine {
         // WHY: In two-column layouts, tables that span both columns are likely
         // false positives (side-by-side tables merged). We need to filter these out.
         let column_boundary = self.detect_columns(&elements, page_width);
-        tracing::info!("Page {} OODA08 column boundary: {:?}", page_num, column_boundary);
+        tracing::info!(
+            "Page {} OODA08 column boundary: {:?}",
+            page_num,
+            column_boundary
+        );
 
         // Detect tables using lattice-based line detection
         let detected_tables =
@@ -677,7 +684,8 @@ impl ExtractionEngine {
 
         // Group into lines (handles two-column layouts) and get column bounding boxes
         // OODA-22 FIX: Pass the pre-detected column_boundary to avoid re-detection with filtered elements
-        let (lines, columns) = self.group_into_lines(non_table_elements, page_width, page_height, column_boundary);
+        let (lines, columns) =
+            self.group_into_lines(non_table_elements, page_width, page_height, column_boundary);
         debug!(
             "Page {} has {} lines, {} columns detected",
             page_num,
@@ -756,10 +764,10 @@ impl ExtractionEngine {
 
         let mut page = Page::new(page_num, page_width, page_height);
         page.blocks = blocks;
-        
+
         page.columns = columns; // Set detected columns to prevent LayoutProcessor re-analysis
         page.method = ExtractionMethod::Native;
-        
+
         // OODA-21: Store arXiv ID in page metadata if found
         if let Some(ref arxiv) = arxiv_id {
             page.metadata.insert(
@@ -767,7 +775,7 @@ impl ExtractionEngine {
                 serde_json::Value::String(arxiv.clone()),
             );
         }
-        
+
         page.stats = PageStats {
             text_blocks: page.blocks.len(),
             tables: page

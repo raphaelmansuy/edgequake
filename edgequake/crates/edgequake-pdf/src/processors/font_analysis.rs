@@ -127,7 +127,10 @@ mod tests {
         let analyzer = FontAnalyzer::new();
         // Even count: median is element at index n/2
         // [10, 11, 12, 13] → index 2 → 12
-        assert_eq!(analyzer.calculate_median(vec![10.0, 11.0, 12.0, 13.0]), 12.0);
+        assert_eq!(
+            analyzer.calculate_median(vec![10.0, 11.0, 12.0, 13.0]),
+            12.0
+        );
     }
 
     #[test]
