@@ -157,6 +157,7 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 - Task completed with status `indexed`
 
 **Database State**:
+
 - AGE Graph: 2,801 nodes, 2,219 edges total
 - Vector Storage: 149 vectors
 
@@ -187,11 +188,11 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 
 ### 📋 Iterations 08-10 - BACKLOG
 
-| Iteration | Focus                           | Priority | Effort          |
-| --------- | ------------------------------- | -------- | --------------- |
-| 08        | Fix Ollama timeout (increase from 60s) | Medium | 2-3h      |
-| 09        | Fix PDF-document FK race condition | Low   | 2-3h            |
-| 10        | Final regression testing        | Low      | 2-3h            |
+| Iteration | Focus                                  | Priority | Effort |
+| --------- | -------------------------------------- | -------- | ------ |
+| 08        | Fix Ollama timeout (increase from 60s) | Medium   | 2-3h   |
+| 09        | Fix PDF-document FK race condition     | Low      | 2-3h   |
+| 10        | Final regression testing               | Low      | 2-3h   |
 
 ---
 

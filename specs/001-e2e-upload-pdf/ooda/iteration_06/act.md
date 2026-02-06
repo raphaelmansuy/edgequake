@@ -15,11 +15,13 @@ Successfully implemented PostgreSQL-based task storage and verified the full E2E
 **Location**: Line ~793 in `new_postgres()` function
 
 **Before**:
+
 ```rust
 let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
 ```
 
 **After**:
+
 ```rust
 // WHY (OODA-06): Tasks must persist across backend restarts so cancel/retry work correctly
 // The tasks table already exists from migration 002
@@ -36,17 +38,19 @@ tracing::info!("✓ Task storage: PostgreSQL (persistent across restarts)");
 The database schema uses `payload` (JSONB) to store task data, but the Task struct has separate fields. Fixed the mapping:
 
 **Key Changes**:
+
 - `create_task()`: Combines `task_data`, `metadata`, `progress` into single `payload` JSONB
 - `get_task()`: Extracts from `payload` and decomposes back to separate fields
 - `update_task()`: Stores combined payload JSONB
 - `list_tasks()`: Queries `payload` column instead of separate columns
 
 **Schema Mapping**:
+
 ```
 Task struct          →  Database column
 ─────────────────────────────────────────
 task_data           →  payload.task_data
-metadata            →  payload.metadata  
+metadata            →  payload.metadata
 progress            →  payload.progress
 ```
 
@@ -55,9 +59,10 @@ progress            →  payload.progress
 **Issue**: `tasks_valid_status` constraint didn't include status values used by Rust code.
 
 **SQL Executed**:
+
 ```sql
 ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_valid_status;
-ALTER TABLE tasks ADD CONSTRAINT tasks_valid_status 
+ALTER TABLE tasks ADD CONSTRAINT tasks_valid_status
   CHECK (status::text = ANY (ARRAY['pending', 'processing', 'running', 'indexed', 'completed', 'failed', 'cancelled']::text[]));
 ```
 
@@ -66,11 +71,13 @@ ALTER TABLE tasks ADD CONSTRAINT tasks_valid_status
 ## E2E Verification Results
 
 ### Test Document
+
 - **File**: `AI_Services__Elitizon.pdf`
 - **Size**: 5 pages
 - **Upload method**: `/api/v1/documents/pdf` endpoint
 
 ### Pipeline Execution
+
 ```
 Phase 1: PDF → Markdown   ✅ 5,338 bytes extracted
 Phase 2: Chunking         ✅ 2 chunks created
@@ -83,30 +90,35 @@ Phase 6: Task Completion  ✅ Status: indexed
 ### Database Verification
 
 **Tasks Table**:
+
 ```sql
 SELECT track_id, status, retry_count FROM tasks;
 -- pdf-21f40259-0051-4616-adf9-d23235e57d52 | indexed | 1
 ```
 
 **AGE Graph (Entities)**:
+
 ```sql
 SELECT COUNT(*) FROM "eq_eq_default_graph"."Node";
 -- 2801 nodes total
 ```
 
 **AGE Graph (Relationships)**:
+
 ```sql
 SELECT COUNT(*) FROM "eq_eq_default_graph"."EDGE";
 -- 2219 edges total
 ```
 
 **Vector Storage**:
+
 ```sql
 SELECT COUNT(*) FROM eq_eq_default_ws_00000000_vectors;
 -- 149 vectors
 ```
 
 ### Sample Entity Extracted
+
 ```json
 {
   "node_id": "Automation",
@@ -123,6 +135,7 @@ SELECT COUNT(*) FROM eq_eq_default_ws_00000000_vectors;
 ## Known Issues
 
 ### 1. Entity Extraction Timeouts
+
 - **Symptom**: Chunk 0 times out after 60s (3 retries)
 - **Cause**: `gemma3:12b` model on local Ollama is slow
 - **Impact**: 50% success rate (1/2 chunks)
@@ -130,6 +143,7 @@ SELECT COUNT(*) FROM eq_eq_default_ws_00000000_vectors;
 - **Future Fix**: Increase timeout or use faster model
 
 ### 2. Foreign Key Constraint on PDF Linking
+
 - **Symptom**: `pdf_documents.document_id_fkey` violation
 - **Cause**: Race condition between document creation and PDF linking
 - **Impact**: Non-fatal, processing completes successfully
@@ -148,16 +162,16 @@ SELECT COUNT(*) FROM eq_eq_default_ws_00000000_vectors;
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Files Modified | 2 |
-| Lines Added | ~100 |
-| Lines Removed | ~10 |
-| Test Document | AI_Services__Elitizon.pdf |
-| Markdown Extracted | 5,338 bytes |
-| Entities Created | 20 |
-| Relationships Created | 9 |
-| Processing Time | ~3 minutes (with retry) |
+| Metric                | Value                       |
+| --------------------- | --------------------------- |
+| Files Modified        | 2                           |
+| Lines Added           | ~100                        |
+| Lines Removed         | ~10                         |
+| Test Document         | AI_Services\_\_Elitizon.pdf |
+| Markdown Extracted    | 5,338 bytes                 |
+| Entities Created      | 20                          |
+| Relationships Created | 9                           |
+| Processing Time       | ~3 minutes (with retry)     |
 
 ## Next Steps
 
@@ -179,6 +193,7 @@ SELECT COUNT(*) FROM eq_eq_default_ws_00000000_vectors;
 ## Commit Reference
 
 To be committed with message:
+
 ```
 fix(tasks): PostgresTaskStorage schema mapping and status constraint (OODA-06)
 

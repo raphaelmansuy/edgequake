@@ -1,0 +1,848 @@
+- generic [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Pipeline" [ref=e43] [cursor=pointer]:
+            - /url: /pipeline
+            - img [ref=e44]
+            - generic [ref=e46]: Pipeline
+          - link "Query" [ref=e47] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e48]
+            - generic [ref=e50]: Query
+          - link "Workspace" [ref=e51] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e52]
+            - generic [ref=e54]: Workspace
+          - link "Costs" [ref=e55] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e56]
+            - generic [ref=e58]: Costs
+          - link "API Explorer" [ref=e59] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e60]
+            - generic [ref=e62]: API Explorer
+          - link "Settings" [ref=e63] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e64]
+            - generic [ref=e67]: Settings
+        - generic [ref=e68]:
+          - button "Collapse sidebar" [ref=e69]:
+            - img
+            - generic [ref=e70]: Collapse
+          - generic [ref=e71]:
+            - img [ref=e73]
+            - generic [ref=e78]:
+              - generic [ref=e79]: EdgeQuake
+              - generic [ref=e80]: v0.1.0
+    - generic [ref=e81]:
+      - banner [ref=e82]:
+        - button "Default / Default Workspace" [ref=e85]:
+          - img
+          - generic [ref=e86]: Default / Default Workspace
+          - img
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - img [ref=e89]
+            - generic [ref=e91]: v0.1.0
+          - button "Change language" [ref=e92]:
+            - img
+            - generic [ref=e93]: Change language
+          - button "Toggle theme" [ref=e94]:
+            - img
+            - generic [ref=e95]: Toggle theme
+          - button "User menu" [ref=e96]:
+            - img
+            - generic [ref=e97]: User menu
+      - navigation "breadcrumb" [ref=e99]:
+        - list [ref=e100]:
+          - listitem [ref=e101]:
+            - link "EdgeQuake" [ref=e102] [cursor=pointer]:
+              - /url: /
+              - img [ref=e103]
+              - generic [ref=e106]: EdgeQuake
+          - listitem [ref=e107]:
+            - img [ref=e108]
+          - listitem [ref=e110]:
+            - link "Documents" [disabled] [ref=e111]:
+              - img [ref=e112]
+              - generic [ref=e115]: Documents
+      - main [ref=e116]:
+        - generic [ref=e117]:
+          - generic [ref=e118]:
+            - generic [ref=e119]:
+              - generic [ref=e120]:
+                - generic [ref=e121]:
+                  - generic [ref=e122]:
+                    - heading "Documents" [level=1] [ref=e123]
+                    - generic [ref=e203]: "24"
+                  - paragraph [ref=e127]: Upload and manage documents for knowledge graph extraction
+                - generic [ref=e128]:
+                  - button "Pipeline Busy" [ref=e918]:
+                    - img
+                    - text: Pipeline Busy
+                  - button "Retry Failed (6)" [ref=e204]:
+                    - img
+                    - text: Retry Failed (6)
+                  - button "Refresh" [active] [ref=e129]:
+                    - img
+                    - text: Refresh
+                  - button "Clear All" [ref=e205]:
+                    - img
+                    - text: Clear All
+              - generic [ref=e130]:
+                - generic [ref=e131]:
+                  - img [ref=e132]
+                  - textbox "Search documents..." [ref=e135]
+                - generic [ref=e136]:
+                  - combobox [ref=e137]:
+                    - generic: All Status (24)
+                    - img
+                  - generic [ref=e139]:
+                    - generic [ref=e140]: "Sort by:"
+                    - button "Created" [ref=e141]
+                    - button "Updated" [ref=e142]:
+                      - text: Updated
+                      - img
+              - 'button "Processing 1 document(s) large-test-cancel.md: Splitting document into chunks... 3 done Click for details →" [ref=e919] [cursor=pointer]':
+                - generic [ref=e920]:
+                  - img [ref=e921]
+                  - generic [ref=e923]:
+                    - paragraph [ref=e924]: Processing 1 document(s)
+                    - paragraph [ref=e926]: "large-test-cancel.md: Splitting document into chunks..."
+                  - generic [ref=e927]:
+                    - generic [ref=e928]:
+                      - img [ref=e929]
+                      - text: 3 done
+                    - generic [ref=e932]: Click for details →
+              - generic [ref=e143] [cursor=pointer]:
+                - button "Choose File" [ref=e144]
+                - img [ref=e146]
+                - paragraph [ref=e150]: Drag & drop or click to upload • TXT, MD, JSON, PDF (max 10MB)
+            - generic [ref=e152]:
+              - generic [ref=e153]:
+                - img [ref=e154]
+                - generic [ref=e157]: Documents (24)
+              - table [ref=e207]:
+                - rowgroup [ref=e208]:
+                  - row "Select all Title Status Entities Cost Created" [ref=e209]:
+                    - columnheader "Select all" [ref=e210]:
+                      - checkbox "Select all" [ref=e211]
+                    - columnheader "Title" [ref=e212]
+                    - columnheader "Status" [ref=e213]
+                    - columnheader "Entities" [ref=e214]
+                    - columnheader "Cost" [ref=e215]
+                    - columnheader "Created" [ref=e216]
+                    - columnheader [ref=e217]
+                - rowgroup [ref=e218]:
+                  - row "Select large-test-cancel.md Chunking 0 - NEW less than a minute ago" [ref=e963] [cursor=pointer]:
+                    - cell "Select" [ref=e964]:
+                      - checkbox "Select" [ref=e965]
+                    - cell "large-test-cancel.md" [ref=e966]:
+                      - generic [ref=e968]:
+                        - img [ref=e969]
+                        - generic [ref=e974]: large-test-cancel.md
+                    - cell "Chunking" [ref=e975]:
+                      - generic [ref=e977]:
+                        - img
+                        - text: Chunking
+                    - cell "0" [ref=e978]
+                    - cell "-" [ref=e979]
+                    - cell "NEW less than a minute ago" [ref=e980]:
+                      - generic [ref=e981]:
+                        - generic [ref=e982]: NEW
+                        - generic [ref=e983]: less than a minute ago
+                    - cell [ref=e984]:
+                      - generic [ref=e985]:
+                        - button [ref=e986]:
+                          - img
+                        - button [ref=e987]:
+                          - img
+                        - button [ref=e988]:
+                          - img
+                  - row "Select test-cancel-e2e.md Completed 11 0.00044 NEW 1 minute ago" [ref=e989] [cursor=pointer]:
+                    - cell "Select" [ref=e877]:
+                      - checkbox "Select" [ref=e878]
+                    - cell "test-cancel-e2e.md" [ref=e879]:
+                      - generic [ref=e881]:
+                        - img [ref=e882]
+                        - generic [ref=e887]: test-cancel-e2e.md
+                    - cell "Completed" [ref=e990]:
+                      - generic [ref=e991]:
+                        - img
+                        - text: Completed
+                    - cell "11" [ref=e992]
+                    - cell "0.00044" [ref=e993]:
+                      - generic [ref=e994]:
+                        - img
+                        - generic [ref=e995]: "0.00044"
+                    - cell "NEW 1 minute ago" [ref=e996]:
+                      - generic [ref=e894]:
+                        - generic [ref=e895]: NEW
+                        - generic [ref=e896]: 1 minute ago
+                    - cell [ref=e897]:
+                      - generic [ref=e898]:
+                        - button [ref=e899]:
+                          - img
+                        - button [ref=e900]:
+                          - img
+                        - button [ref=e997]:
+                          - img
+                        - button [ref=e901]:
+                          - img
+                  - row "Select Apple-Sandbox-Guide-v1.0.pdf Completed 39 0.0015 NEW 12 minutes ago" [ref=e998] [cursor=pointer]:
+                    - cell "Select" [ref=e220]:
+                      - checkbox "Select" [ref=e221]
+                    - cell "Apple-Sandbox-Guide-v1.0.pdf" [ref=e222]:
+                      - generic [ref=e224]:
+                        - img [ref=e225]
+                        - generic [ref=e228]: Apple-Sandbox-Guide-v1.0.pdf
+                    - cell "Completed" [ref=e229]:
+                      - generic [ref=e231]:
+                        - img
+                        - text: Completed
+                    - cell "39" [ref=e232]
+                    - cell "0.0015" [ref=e233]:
+                      - generic [ref=e234]:
+                        - img
+                        - generic [ref=e235]: "0.0015"
+                    - cell "NEW 12 minutes ago" [ref=e999]:
+                      - generic [ref=e237]:
+                        - generic [ref=e238]: NEW
+                        - generic [ref=e239]: 12 minutes ago
+                    - cell [ref=e240]:
+                      - generic [ref=e241]:
+                        - button [ref=e242]:
+                          - img
+                        - button [ref=e243]:
+                          - img
+                        - button [ref=e244]:
+                          - img
+                        - button [ref=e245]:
+                          - img
+                  - row "Select AI_Services__Elitizon.pdf Completed 20 0.00063 about 3 hours ago" [ref=e246] [cursor=pointer]:
+                    - cell "Select" [ref=e247]:
+                      - checkbox "Select" [ref=e248]
+                    - cell "AI_Services__Elitizon.pdf" [ref=e249]:
+                      - generic [ref=e251]:
+                        - img [ref=e252]
+                        - generic [ref=e255]: AI_Services__Elitizon.pdf
+                    - cell "Completed" [ref=e256]:
+                      - generic [ref=e258]:
+                        - img
+                        - text: Completed
+                    - cell "20" [ref=e259]
+                    - cell "0.00063" [ref=e260]:
+                      - generic [ref=e261]:
+                        - img
+                        - generic [ref=e262]: "0.00063"
+                    - cell "about 3 hours ago" [ref=e263]:
+                      - generic [ref=e265]: about 3 hours ago
+                    - cell [ref=e266]:
+                      - generic [ref=e267]:
+                        - button [ref=e268]:
+                          - img
+                        - button [ref=e269]:
+                          - img
+                        - button [ref=e270]:
+                          - img
+                        - button [ref=e271]:
+                          - img
+                  - 'row "Select AI_Services__Elitizon.pdf Pipeline processing failed: Entity extraction e... Failed 0 - about 3 hours ago" [ref=e272] [cursor=pointer]':
+                    - cell "Select" [ref=e273]:
+                      - checkbox "Select" [ref=e274]
+                    - 'cell "AI_Services__Elitizon.pdf Pipeline processing failed: Entity extraction e..." [ref=e275]':
+                      - generic [ref=e276]:
+                        - generic [ref=e277]:
+                          - img [ref=e278]
+                          - generic [ref=e281]: AI_Services__Elitizon.pdf
+                        - 'button "Pipeline processing failed: Entity extraction e..." [ref=e282]':
+                          - img [ref=e283]
+                          - generic [ref=e285]: "Pipeline processing failed: Entity extraction e..."
+                    - cell "Failed" [ref=e286]:
+                      - generic [ref=e288]:
+                        - img
+                        - text: Failed
+                    - cell "0" [ref=e289]
+                    - cell "-" [ref=e290]
+                    - cell "about 3 hours ago" [ref=e291]:
+                      - generic [ref=e293]: about 3 hours ago
+                    - cell [ref=e294]:
+                      - generic [ref=e295]:
+                        - button [ref=e296]:
+                          - img
+                        - button [ref=e297]:
+                          - img
+                        - button [ref=e298]:
+                          - img
+                        - button [ref=e299]:
+                          - img
+                  - row "Select AI_Services__Elitizon.pdf Completed 19 0.00054 about 3 hours ago" [ref=e300] [cursor=pointer]:
+                    - cell "Select" [ref=e301]:
+                      - checkbox "Select" [ref=e302]
+                    - cell "AI_Services__Elitizon.pdf" [ref=e303]:
+                      - generic [ref=e305]:
+                        - img [ref=e306]
+                        - generic [ref=e309]: AI_Services__Elitizon.pdf
+                    - cell "Completed" [ref=e310]:
+                      - generic [ref=e312]:
+                        - img
+                        - text: Completed
+                    - cell "19" [ref=e313]
+                    - cell "0.00054" [ref=e314]:
+                      - generic [ref=e315]:
+                        - img
+                        - generic [ref=e316]: "0.00054"
+                    - cell "about 3 hours ago" [ref=e317]:
+                      - generic [ref=e319]: about 3 hours ago
+                    - cell [ref=e320]:
+                      - generic [ref=e321]:
+                        - button [ref=e322]:
+                          - img
+                        - button [ref=e323]:
+                          - img
+                        - button [ref=e324]:
+                          - img
+                        - button [ref=e325]:
+                          - img
+                  - row "Select test_simple.md Completed 5 - about 3 hours ago" [ref=e326] [cursor=pointer]:
+                    - cell "Select" [ref=e327]:
+                      - checkbox "Select" [ref=e328]
+                    - cell "test_simple.md" [ref=e329]:
+                      - generic [ref=e331]:
+                        - img [ref=e332]
+                        - generic [ref=e337]: test_simple.md
+                    - cell "Completed" [ref=e338]:
+                      - generic [ref=e340]:
+                        - img
+                        - text: Completed
+                    - cell "5" [ref=e341]
+                    - cell "-" [ref=e342]
+                    - cell "about 3 hours ago" [ref=e343]:
+                      - generic [ref=e345]: about 3 hours ago
+                    - cell [ref=e346]:
+                      - generic [ref=e347]:
+                        - button [ref=e348]:
+                          - img
+                        - button [ref=e349]:
+                          - img
+                        - button [ref=e350]:
+                          - img
+                        - button [ref=e351]:
+                          - img
+                  - row "Select test-cancel-doc.md Completed 5 - about 3 hours ago" [ref=e352] [cursor=pointer]:
+                    - cell "Select" [ref=e353]:
+                      - checkbox "Select" [ref=e354]
+                    - cell "test-cancel-doc.md" [ref=e355]:
+                      - generic [ref=e357]:
+                        - img [ref=e358]
+                        - generic [ref=e363]: test-cancel-doc.md
+                    - cell "Completed" [ref=e364]:
+                      - generic [ref=e366]:
+                        - img
+                        - text: Completed
+                    - cell "5" [ref=e367]
+                    - cell "-" [ref=e368]
+                    - cell "about 3 hours ago" [ref=e369]:
+                      - generic [ref=e371]: about 3 hours ago
+                    - cell [ref=e372]:
+                      - generic [ref=e373]:
+                        - button [ref=e374]:
+                          - img
+                        - button [ref=e375]:
+                          - img
+                        - button [ref=e376]:
+                          - img
+                        - button [ref=e377]:
+                          - img
+                  - row "Select agentfail_2601.22984v1.pdf Cancelled 0 - about 4 hours ago" [ref=e378] [cursor=pointer]:
+                    - cell "Select" [ref=e379]:
+                      - checkbox "Select" [ref=e380]
+                    - cell "agentfail_2601.22984v1.pdf" [ref=e381]:
+                      - generic [ref=e383]:
+                        - img [ref=e384]
+                        - generic [ref=e387]: agentfail_2601.22984v1.pdf
+                    - cell "Cancelled" [ref=e388]:
+                      - generic [ref=e390]:
+                        - img
+                        - text: Cancelled
+                    - cell "0" [ref=e391]
+                    - cell "-" [ref=e392]
+                    - cell "about 4 hours ago" [ref=e393]:
+                      - generic [ref=e395]: about 4 hours ago
+                    - cell [ref=e396]:
+                      - generic [ref=e397]:
+                        - button [ref=e398]:
+                          - img
+                        - button [ref=e399]:
+                          - img
+                        - button [ref=e400]:
+                          - img
+                  - 'row "Select lighrag_2410.05779v3.pdf Pipeline processing failed: Entity extraction e... Failed 0 - about 5 hours ago" [ref=e401] [cursor=pointer]':
+                    - cell "Select" [ref=e402]:
+                      - checkbox "Select" [ref=e403]
+                    - 'cell "lighrag_2410.05779v3.pdf Pipeline processing failed: Entity extraction e..." [ref=e404]':
+                      - generic [ref=e405]:
+                        - generic [ref=e406]:
+                          - img [ref=e407]
+                          - generic [ref=e410]: lighrag_2410.05779v3.pdf
+                        - 'button "Pipeline processing failed: Entity extraction e..." [ref=e411]':
+                          - img [ref=e412]
+                          - generic [ref=e414]: "Pipeline processing failed: Entity extraction e..."
+                    - cell "Failed" [ref=e415]:
+                      - generic [ref=e417]:
+                        - img
+                        - text: Failed
+                    - cell "0" [ref=e418]
+                    - cell "-" [ref=e419]
+                    - cell "about 5 hours ago" [ref=e420]:
+                      - generic [ref=e422]: about 5 hours ago
+                    - cell [ref=e423]:
+                      - generic [ref=e424]:
+                        - button [ref=e425]:
+                          - img
+                        - button [ref=e426]:
+                          - img
+                        - button [ref=e427]:
+                          - img
+                        - button [ref=e428]:
+                          - img
+                  - 'row "Select lighrag_2410.05779v3.pdf Pipeline processing failed: Entity extraction e... Failed 0 - about 5 hours ago" [ref=e429] [cursor=pointer]':
+                    - cell "Select" [ref=e430]:
+                      - checkbox "Select" [ref=e431]
+                    - 'cell "lighrag_2410.05779v3.pdf Pipeline processing failed: Entity extraction e..." [ref=e432]':
+                      - generic [ref=e433]:
+                        - generic [ref=e434]:
+                          - img [ref=e435]
+                          - generic [ref=e438]: lighrag_2410.05779v3.pdf
+                        - 'button "Pipeline processing failed: Entity extraction e..." [ref=e439]':
+                          - img [ref=e440]
+                          - generic [ref=e442]: "Pipeline processing failed: Entity extraction e..."
+                    - cell "Failed" [ref=e443]:
+                      - generic [ref=e445]:
+                        - img
+                        - text: Failed
+                    - cell "0" [ref=e446]
+                    - cell "-" [ref=e447]
+                    - cell "about 5 hours ago" [ref=e448]:
+                      - generic [ref=e450]: about 5 hours ago
+                    - cell [ref=e451]:
+                      - generic [ref=e452]:
+                        - button [ref=e453]:
+                          - img
+                        - button [ref=e454]:
+                          - img
+                        - button [ref=e455]:
+                          - img
+                        - button [ref=e456]:
+                          - img
+                  - 'row "Select Qwen.pdf Pipeline processing failed: Entity extraction e... Failed 0 - 4 days ago" [ref=e457] [cursor=pointer]':
+                    - cell "Select" [ref=e458]:
+                      - checkbox "Select" [ref=e459]
+                    - 'cell "Qwen.pdf Pipeline processing failed: Entity extraction e..." [ref=e460]':
+                      - generic [ref=e461]:
+                        - generic [ref=e462]:
+                          - img [ref=e463]
+                          - generic [ref=e466]: Qwen.pdf
+                        - 'button "Pipeline processing failed: Entity extraction e..." [ref=e467]':
+                          - img [ref=e468]
+                          - generic [ref=e470]: "Pipeline processing failed: Entity extraction e..."
+                    - cell "Failed" [ref=e471]:
+                      - generic [ref=e473]:
+                        - img
+                        - text: Failed
+                    - cell "0" [ref=e474]
+                    - cell "-" [ref=e475]
+                    - cell "4 days ago" [ref=e476]:
+                      - generic [ref=e478]: 4 days ago
+                    - cell [ref=e479]:
+                      - generic [ref=e480]:
+                        - button [ref=e481]:
+                          - img
+                        - button [ref=e482]:
+                          - img
+                        - button [ref=e483]:
+                          - img
+                        - button [ref=e484]:
+                          - img
+                  - 'row "Select Qwen.pdf Pipeline processing failed: Entity extraction e... Failed 0 - 4 days ago" [ref=e485] [cursor=pointer]':
+                    - cell "Select" [ref=e486]:
+                      - checkbox "Select" [ref=e487]
+                    - 'cell "Qwen.pdf Pipeline processing failed: Entity extraction e..." [ref=e488]':
+                      - generic [ref=e489]:
+                        - generic [ref=e490]:
+                          - img [ref=e491]
+                          - generic [ref=e494]: Qwen.pdf
+                        - 'button "Pipeline processing failed: Entity extraction e..." [ref=e495]':
+                          - img [ref=e496]
+                          - generic [ref=e498]: "Pipeline processing failed: Entity extraction e..."
+                    - cell "Failed" [ref=e499]:
+                      - generic [ref=e501]:
+                        - img
+                        - text: Failed
+                    - cell "0" [ref=e502]
+                    - cell "-" [ref=e503]
+                    - cell "4 days ago" [ref=e504]:
+                      - generic [ref=e506]: 4 days ago
+                    - cell [ref=e507]:
+                      - generic [ref=e508]:
+                        - button [ref=e509]:
+                          - img
+                        - button [ref=e510]:
+                          - img
+                        - button [ref=e511]:
+                          - img
+                        - button [ref=e512]:
+                          - img
+                  - 'row "Select Qwen.pdf Pipeline processing failed: Entity extraction e... Failed 0 - 4 days ago" [ref=e513] [cursor=pointer]':
+                    - cell "Select" [ref=e514]:
+                      - checkbox "Select" [ref=e515]
+                    - 'cell "Qwen.pdf Pipeline processing failed: Entity extraction e..." [ref=e516]':
+                      - generic [ref=e517]:
+                        - generic [ref=e518]:
+                          - img [ref=e519]
+                          - generic [ref=e522]: Qwen.pdf
+                        - 'button "Pipeline processing failed: Entity extraction e..." [ref=e523]':
+                          - img [ref=e524]
+                          - generic [ref=e526]: "Pipeline processing failed: Entity extraction e..."
+                    - cell "Failed" [ref=e527]:
+                      - generic [ref=e529]:
+                        - img
+                        - text: Failed
+                    - cell "0" [ref=e530]
+                    - cell "-" [ref=e531]
+                    - cell "4 days ago" [ref=e532]:
+                      - generic [ref=e534]: 4 days ago
+                    - cell [ref=e535]:
+                      - generic [ref=e536]:
+                        - button [ref=e537]:
+                          - img
+                        - button [ref=e538]:
+                          - img
+                        - button [ref=e539]:
+                          - img
+                        - button [ref=e540]:
+                          - img
+                  - row "Select ooda84-duplicate-test.md Completed 2 <0.0001 5 days ago" [ref=e541] [cursor=pointer]:
+                    - cell "Select" [ref=e542]:
+                      - checkbox "Select" [ref=e543]
+                    - cell "ooda84-duplicate-test.md" [ref=e544]:
+                      - generic [ref=e546]:
+                        - img [ref=e547]
+                        - generic [ref=e552]: ooda84-duplicate-test.md
+                    - cell "Completed" [ref=e553]:
+                      - generic [ref=e555]:
+                        - img
+                        - text: Completed
+                    - cell "2" [ref=e556]
+                    - cell "<0.0001" [ref=e557]:
+                      - generic [ref=e558]:
+                        - img
+                        - generic [ref=e559]: <0.0001
+                    - cell "5 days ago" [ref=e560]:
+                      - generic [ref=e562]: 5 days ago
+                    - cell [ref=e563]:
+                      - generic [ref=e564]:
+                        - button [ref=e565]:
+                          - img
+                        - button [ref=e566]:
+                          - img
+                        - button [ref=e567]:
+                          - img
+                        - button [ref=e568]:
+                          - img
+                  - row "Select ooda84-test.md Completed 4 0.00017 5 days ago" [ref=e569] [cursor=pointer]:
+                    - cell "Select" [ref=e570]:
+                      - checkbox "Select" [ref=e571]
+                    - cell "ooda84-test.md" [ref=e572]:
+                      - generic [ref=e574]:
+                        - img [ref=e575]
+                        - generic [ref=e580]: ooda84-test.md
+                    - cell "Completed" [ref=e581]:
+                      - generic [ref=e583]:
+                        - img
+                        - text: Completed
+                    - cell "4" [ref=e584]
+                    - cell "0.00017" [ref=e585]:
+                      - generic [ref=e586]:
+                        - img
+                        - generic [ref=e587]: "0.00017"
+                    - cell "5 days ago" [ref=e588]:
+                      - generic [ref=e590]: 5 days ago
+                    - cell [ref=e591]:
+                      - generic [ref=e592]:
+                        - button [ref=e593]:
+                          - img
+                        - button [ref=e594]:
+                          - img
+                        - button [ref=e595]:
+                          - img
+                        - button [ref=e596]:
+                          - img
+                  - row "Select ooda84-test.md Completed 4 0.00017 5 days ago" [ref=e597] [cursor=pointer]:
+                    - cell "Select" [ref=e598]:
+                      - checkbox "Select" [ref=e599]
+                    - cell "ooda84-test.md" [ref=e600]:
+                      - generic [ref=e602]:
+                        - img [ref=e603]
+                        - generic [ref=e608]: ooda84-test.md
+                    - cell "Completed" [ref=e609]:
+                      - generic [ref=e611]:
+                        - img
+                        - text: Completed
+                    - cell "4" [ref=e612]
+                    - cell "0.00017" [ref=e613]:
+                      - generic [ref=e614]:
+                        - img
+                        - generic [ref=e615]: "0.00017"
+                    - cell "5 days ago" [ref=e616]:
+                      - generic [ref=e618]: 5 days ago
+                    - cell [ref=e619]:
+                      - generic [ref=e620]:
+                        - button [ref=e621]:
+                          - img
+                        - button [ref=e622]:
+                          - img
+                        - button [ref=e623]:
+                          - img
+                        - button [ref=e624]:
+                          - img
+                  - row "Select ooda84-test.md Completed 4 0.00017 5 days ago" [ref=e625] [cursor=pointer]:
+                    - cell "Select" [ref=e626]:
+                      - checkbox "Select" [ref=e627]
+                    - cell "ooda84-test.md" [ref=e628]:
+                      - generic [ref=e630]:
+                        - img [ref=e631]
+                        - generic [ref=e636]: ooda84-test.md
+                    - cell "Completed" [ref=e637]:
+                      - generic [ref=e639]:
+                        - img
+                        - text: Completed
+                    - cell "4" [ref=e640]
+                    - cell "0.00017" [ref=e641]:
+                      - generic [ref=e642]:
+                        - img
+                        - generic [ref=e643]: "0.00017"
+                    - cell "5 days ago" [ref=e644]:
+                      - generic [ref=e646]: 5 days ago
+                    - cell [ref=e647]:
+                      - generic [ref=e648]:
+                        - button [ref=e649]:
+                          - img
+                        - button [ref=e650]:
+                          - img
+                        - button [ref=e651]:
+                          - img
+                        - button [ref=e652]:
+                          - img
+                  - row "Select Document AgenticP Completed 215 0.012 5 days ago" [ref=e653] [cursor=pointer]:
+                    - cell "Select" [ref=e654]:
+                      - checkbox "Select" [ref=e655]
+                    - cell "Document AgenticP" [ref=e656]:
+                      - generic [ref=e658]:
+                        - img [ref=e659]
+                        - generic [ref=e662]: Document AgenticP
+                    - cell "Completed" [ref=e663]:
+                      - generic [ref=e665]:
+                        - img
+                        - text: Completed
+                    - cell "215" [ref=e666]
+                    - cell "0.012" [ref=e667]:
+                      - generic [ref=e668]:
+                        - img
+                        - generic [ref=e669]: "0.012"
+                    - cell "5 days ago" [ref=e670]:
+                      - generic [ref=e672]: 5 days ago
+                    - cell [ref=e673]:
+                      - generic [ref=e674]:
+                        - button [ref=e675]:
+                          - img
+                        - button [ref=e676]:
+                          - img
+                        - button [ref=e677]:
+                          - img
+                        - button [ref=e678]:
+                          - img
+                  - row "Select tech_report.md Completed 11 0.00052 6 days ago" [ref=e679] [cursor=pointer]:
+                    - cell "Select" [ref=e680]:
+                      - checkbox "Select" [ref=e681]
+                    - cell "tech_report.md" [ref=e682]:
+                      - generic [ref=e684]:
+                        - img [ref=e685]
+                        - generic [ref=e690]: tech_report.md
+                    - cell "Completed" [ref=e691]:
+                      - generic [ref=e693]:
+                        - img
+                        - text: Completed
+                    - cell "11" [ref=e694]
+                    - cell "0.00052" [ref=e695]:
+                      - generic [ref=e696]:
+                        - img
+                        - generic [ref=e697]: "0.00052"
+                    - cell "6 days ago" [ref=e698]:
+                      - generic [ref=e700]: 6 days ago
+                    - cell [ref=e701]:
+                      - generic [ref=e702]:
+                        - button [ref=e703]:
+                          - img
+                        - button [ref=e704]:
+                          - img
+                        - button [ref=e705]:
+                          - img
+                        - button [ref=e706]:
+                          - img
+                  - row "Select simple_test.md Completed 6 0.00028 6 days ago" [ref=e707] [cursor=pointer]:
+                    - cell "Select" [ref=e708]:
+                      - checkbox "Select" [ref=e709]
+                    - cell "simple_test.md" [ref=e710]:
+                      - generic [ref=e712]:
+                        - img [ref=e713]
+                        - generic [ref=e718]: simple_test.md
+                    - cell "Completed" [ref=e719]:
+                      - generic [ref=e721]:
+                        - img
+                        - text: Completed
+                    - cell "6" [ref=e722]
+                    - cell "0.00028" [ref=e723]:
+                      - generic [ref=e724]:
+                        - img
+                        - generic [ref=e725]: "0.00028"
+                    - cell "6 days ago" [ref=e726]:
+                      - generic [ref=e728]: 6 days ago
+                    - cell [ref=e729]:
+                      - generic [ref=e730]:
+                        - button [ref=e731]:
+                          - img
+                        - button [ref=e732]:
+                          - img
+                        - button [ref=e733]:
+                          - img
+                        - button [ref=e734]:
+                          - img
+                  - row "Select tech_report.draft.md Completed 15 0.00064 6 days ago" [ref=e735] [cursor=pointer]:
+                    - cell "Select" [ref=e736]:
+                      - checkbox "Select" [ref=e737]
+                    - cell "tech_report.draft.md" [ref=e738]:
+                      - generic [ref=e740]:
+                        - img [ref=e741]
+                        - generic [ref=e746]: tech_report.draft.md
+                    - cell "Completed" [ref=e747]:
+                      - generic [ref=e749]:
+                        - img
+                        - text: Completed
+                    - cell "15" [ref=e750]
+                    - cell "0.00064" [ref=e751]:
+                      - generic [ref=e752]:
+                        - img
+                        - generic [ref=e753]: "0.00064"
+                    - cell "6 days ago" [ref=e754]:
+                      - generic [ref=e756]: 6 days ago
+                    - cell [ref=e757]:
+                      - generic [ref=e758]:
+                        - button [ref=e759]:
+                          - img
+                        - button [ref=e760]:
+                          - img
+                        - button [ref=e761]:
+                          - img
+                        - button [ref=e762]:
+                          - img
+                  - row "Select token_seek_2601.19739v1.extracted.md Completed 6 0.0010 8 days ago" [ref=e763] [cursor=pointer]:
+                    - cell "Select" [ref=e764]:
+                      - checkbox "Select" [ref=e765]
+                    - cell "token_seek_2601.19739v1.extracted.md" [ref=e766]:
+                      - generic [ref=e768]:
+                        - img [ref=e769]
+                        - generic [ref=e774]: token_seek_2601.19739v1.extracted.md
+                    - cell "Completed" [ref=e775]:
+                      - generic [ref=e777]:
+                        - img
+                        - text: Completed
+                    - cell "6" [ref=e778]
+                    - cell "0.0010" [ref=e779]:
+                      - generic [ref=e780]:
+                        - img
+                        - generic [ref=e781]: "0.0010"
+                    - cell "8 days ago" [ref=e782]:
+                      - generic [ref=e784]: 8 days ago
+                    - cell [ref=e785]:
+                      - generic [ref=e786]:
+                        - button [ref=e787]:
+                          - img
+                        - button [ref=e788]:
+                          - img
+                        - button [ref=e789]:
+                          - img
+                        - button [ref=e790]:
+                          - img
+                  - row "Select scienti_2601.16282v1.extracted.md Completed 106 0.0045 9 days ago" [ref=e791] [cursor=pointer]:
+                    - cell "Select" [ref=e792]:
+                      - checkbox "Select" [ref=e793]
+                    - cell "scienti_2601.16282v1.extracted.md" [ref=e794]:
+                      - generic [ref=e796]:
+                        - img [ref=e797]
+                        - generic [ref=e802]: scienti_2601.16282v1.extracted.md
+                    - cell "Completed" [ref=e803]:
+                      - generic [ref=e805]:
+                        - img
+                        - text: Completed
+                    - cell "106" [ref=e806]
+                    - cell "0.0045" [ref=e807]:
+                      - generic [ref=e808]:
+                        - img
+                        - generic [ref=e809]: "0.0045"
+                    - cell "9 days ago" [ref=e810]:
+                      - generic [ref=e812]: 9 days ago
+                    - cell [ref=e813]:
+                      - generic [ref=e814]:
+                        - button [ref=e815]:
+                          - img
+                        - button [ref=e816]:
+                          - img
+                        - button [ref=e817]:
+                          - img
+                        - button [ref=e818]:
+                          - img
+            - generic [ref=e820]:
+              - generic [ref=e821]:
+                - generic [ref=e822]: "Rows per page:"
+                - combobox [ref=e823]:
+                  - generic: "20"
+                  - img
+              - generic [ref=e824]:
+                - generic [ref=e825]: Page 1 of 2
+                - generic [ref=e826]:
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+                  - button [ref=e827]:
+                    - img
+                  - button [ref=e828]:
+                    - img
+          - button "Expand Preview" [ref=e199] [cursor=pointer]:
+            - img [ref=e200]
+            - generic [ref=e202]: Preview
+  - region "Notifications alt+T"

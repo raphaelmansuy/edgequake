@@ -281,7 +281,11 @@ async fn test_timeout_query_after_ingestion_30s() {
     })
     .await;
 
-    assert!(result.is_ok(), "Query after ingestion: {}", result.unwrap_err());
+    assert!(
+        result.is_ok(),
+        "Query after ingestion: {}",
+        result.unwrap_err()
+    );
     let body = result.unwrap();
     assert!(body["answer"].is_string());
 }

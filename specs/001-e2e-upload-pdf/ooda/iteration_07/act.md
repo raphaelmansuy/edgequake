@@ -35,7 +35,7 @@ curl -s "http://localhost:8080/api/v1/documents" \
 
 ```sql
 -- Tasks table (OODA-06 fix verified)
-SELECT track_id, status, retry_count FROM tasks 
+SELECT track_id, status, retry_count FROM tasks
 WHERE workspace_id = '00000000-0000-0000-0000-000000000003';
 -- Result: pdf-21f40259-0051-4616-adf9-d23235e57d52 | indexed | 1
 
@@ -53,7 +53,7 @@ Using MCP Playwright:
 
 1. **Navigated to documents page**: `http://localhost:3000/documents`
 2. **Verified document count**: Page title "Documents (23)"
-3. **Clicked first document**: AI_Services__Elitizon.pdf
+3. **Clicked first document**: AI_Services\_\_Elitizon.pdf
 4. **Clicked "View Details"**: Side-by-side viewer opened
 5. **Verified PDF panel**: Page 1/5, zoom controls, PDF content visible
 6. **Verified Markdown panel**: Headings, lists, bold text rendered correctly
@@ -62,26 +62,26 @@ Using MCP Playwright:
 
 ### Document List Evidence
 
-| Field | Value |
-|-------|-------|
-| Total Documents | 23 |
-| Completed | 15 |
-| Failed | 6 |
-| Processing | 1 |
-| Cancelled | 1 |
+| Field           | Value |
+| --------------- | ----- |
+| Total Documents | 23    |
+| Completed       | 15    |
+| Failed          | 6     |
+| Processing      | 1     |
+| Cancelled       | 1     |
 
-### Sample Document (AI_Services__Elitizon.pdf)
+### Sample Document (AI_Services\_\_Elitizon.pdf)
 
-| Field | Value |
-|-------|-------|
-| ID | 22b86f1b-093a-4d56-aa23-094752389775 |
-| Status | completed |
-| Entity Count | 20 |
-| Cost | $0.00063 |
-| LLM Model | gemma3:12b |
-| Embedding Model | embeddinggemma |
-| Source Type | pdf |
-| PDF ID | ec2174c0-b6e2-4ed4-842f-a80f835c3f5a |
+| Field           | Value                                |
+| --------------- | ------------------------------------ |
+| ID              | 22b86f1b-093a-4d56-aa23-094752389775 |
+| Status          | completed                            |
+| Entity Count    | 20                                   |
+| Cost            | $0.00063                             |
+| LLM Model       | gemma3:12b                           |
+| Embedding Model | embeddinggemma                       |
+| Source Type     | pdf                                  |
+| PDF ID          | ec2174c0-b6e2-4ed4-842f-a80f835c3f5a |
 
 ### Side-by-Side Viewer Evidence
 
@@ -106,16 +106,16 @@ The snapshot was taken during the t=0-100ms window, showing the loading state.
 
 ## Acceptance Criteria Status
 
-| Criterion | Status | Evidence |
-|-----------|--------|----------|
-| Backend healthy | ✅ | Health endpoint returns healthy |
-| Frontend healthy | ✅ | Page loads correctly |
-| Documents visible | ✅ | 23 documents in list |
-| Side-by-side viewer | ✅ | PDF + Markdown displayed |
-| Task persistence | ✅ | Task in PostgreSQL tasks table |
-| PDF extraction | ✅ | Markdown extracted from PDF |
-| Entity extraction | ✅ | 20 entities extracted |
-| OODA documentation | ✅ | 4 files created |
+| Criterion           | Status | Evidence                        |
+| ------------------- | ------ | ------------------------------- |
+| Backend healthy     | ✅     | Health endpoint returns healthy |
+| Frontend healthy    | ✅     | Page loads correctly            |
+| Documents visible   | ✅     | 23 documents in list            |
+| Side-by-side viewer | ✅     | PDF + Markdown displayed        |
+| Task persistence    | ✅     | Task in PostgreSQL tasks table  |
+| PDF extraction      | ✅     | Markdown extracted from PDF     |
+| Entity extraction   | ✅     | 20 entities extracted           |
+| OODA documentation  | ✅     | 4 files created                 |
 
 ## Changes Made
 
@@ -123,14 +123,14 @@ The snapshot was taken during the t=0-100ms window, showing the loading state.
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Files Modified | 0 |
-| Lines Added | 0 |
-| Lines Removed | 0 |
-| Documentation Files Created | 4 |
-| Tests Run | N/A (manual E2E) |
-| Time Spent | ~30 minutes |
+| Metric                      | Value            |
+| --------------------------- | ---------------- |
+| Files Modified              | 0                |
+| Lines Added                 | 0                |
+| Lines Removed               | 0                |
+| Documentation Files Created | 4                |
+| Tests Run                   | N/A (manual E2E) |
+| Time Spent                  | ~30 minutes      |
 
 ## Conclusion
 
