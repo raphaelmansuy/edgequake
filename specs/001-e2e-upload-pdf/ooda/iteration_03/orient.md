@@ -3,6 +3,7 @@
 ## Problem Domain
 
 The cancel functionality consists of three layers:
+
 1. **Frontend UI** - Cancel button in dropdown menu (works correctly)
 2. **Frontend API** - `cancelTask(trackId)` function calls `POST /api/v1/tasks/{trackId}/cancel` (works correctly)
 3. **Backend Storage** - Document metadata must contain `track_id` for cancel to work (**BROKEN**)
@@ -36,10 +37,12 @@ The cancel functionality consists of three layers:
 **File**: `edgequake/crates/edgequake-api/src/processor.rs`
 
 **Function 1**: `process_text_insert()` (lines 650-658)
+
 - Creates PDF processing metadata JSON
 - Does NOT include `track_id` in the JSON
 
 **Function 2**: `ensure_document_source_type()` (lines 1384-1510)
+
 - Creates/updates document metadata
 - Does NOT accept `track_id` parameter
 - Does NOT store `track_id` in metadata

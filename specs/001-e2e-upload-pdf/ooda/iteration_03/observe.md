@@ -1,9 +1,11 @@
 # OODA Iteration 03: Cancel Document Functionality Fix
 
 ## Observation Date
+
 2026-02-06
 
 ## Mission Extension
+
 User requested: "Ensure we can cancel a document with a processing state"
 
 ## Problem Discovered
@@ -13,15 +15,19 @@ User requested: "Ensure we can cancel a document with a processing state"
 ### Evidence Gathering
 
 1. **Frontend Code Review** ([document-manager.tsx](../../../../../../edgequake_webui/src/components/documents/document-manager.tsx#L1598-L1606)):
+
    ```tsx
-   {(doc.status === 'pending' || doc.status === 'processing') && doc.track_id && (
-     <DropdownMenuItem onClick={() => cancelMutation.mutate(doc.track_id!)}>
-       <StopCircle className="h-4 w-4 mr-2" />
-       {t('documents.actions.cancel', 'Cancel Extraction')}
-     </DropdownMenuItem>
-   )}
+   {
+     (doc.status === "pending" || doc.status === "processing") &&
+       doc.track_id && (
+         <DropdownMenuItem onClick={() => cancelMutation.mutate(doc.track_id!)}>
+           <StopCircle className="h-4 w-4 mr-2" />
+           {t("documents.actions.cancel", "Cancel Extraction")}
+         </DropdownMenuItem>
+       );
+   }
    ```
-   
+
    The condition requires `doc.track_id` to be truthy.
 
 2. **API Response Investigation**:
@@ -44,6 +50,7 @@ User requested: "Ensure we can cancel a document with a processing state"
 ## Root Cause
 
 The `track_id` field was NOT being stored in the document metadata when PDF processing tasks were created. This caused:
+
 1. Document metadata has no track_id
 2. API returns documents with `track_id: null` (omitted due to skip_serializing_if)
 3. Frontend condition `doc.track_id && ...` evaluates to false

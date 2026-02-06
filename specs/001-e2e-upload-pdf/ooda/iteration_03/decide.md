@@ -11,6 +11,7 @@
 **Location**: `processor.rs` line ~1700 (inside `process_text_insert`)
 
 **Before**:
+
 ```rust
 let metadata_json = json!({
     "id": early_doc_id,
@@ -20,6 +21,7 @@ let metadata_json = json!({
 ```
 
 **After**:
+
 ```rust
 let metadata_json = json!({
     "id": early_doc_id,
@@ -34,6 +36,7 @@ let metadata_json = json!({
 **Location**: `processor.rs` line ~1384
 
 **Before**:
+
 ```rust
 async fn ensure_document_source_type(
     ...
@@ -43,6 +46,7 @@ async fn ensure_document_source_type(
 ```
 
 **After**:
+
 ```rust
 async fn ensure_document_source_type(
     ...

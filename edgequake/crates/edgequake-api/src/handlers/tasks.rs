@@ -25,7 +25,10 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use chrono::Utc;
 use edgequake_tasks::{Pagination, SortField, SortOrder, TaskFilter, TaskStatus, TaskType};
+use serde_json::json;
+use tracing;
 
 use crate::{error::ApiError, state::AppState};
 
@@ -161,34 +164,128 @@ pub async fn list_tasks(
         (status = 409, description = "Cannot cancel task in current status")
     )
 )]
+/// @implements FEAT0562: Task cancellation
+/// @implements SPEC-002: Document status sync on task cancel
 pub async fn cancel_task(
     State(state): State<AppState>,
     Path(track_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let mut task = state
+    // SPEC-002: First, always try to update document status for this track_id
+    // WHY: After backend restart, tasks are lost but documents persist in KV storage.
+    // Users need a way to cancel "stuck" documents even when the task no longer exists.
+    let mut doc_updated = false;
+    if let Ok(keys) = state.kv_storage.keys().await {
+        let metadata_keys: Vec<String> = keys
+            .iter()
+            .filter(|k| k.ends_with("-metadata"))
+            .cloned()
+            .collect();
+
+        if let Ok(metadata_values) = state.kv_storage.get_by_ids(&metadata_keys).await {
+            for (key, value) in metadata_keys.iter().zip(metadata_values.iter()) {
+                if let Some(obj) = value.as_object() {
+                    if let Some(doc_track_id) = obj.get("track_id").and_then(|v| v.as_str()) {
+                        if doc_track_id == track_id {
+                            // Update this document's status to cancelled
+                            let mut updated = obj.clone();
+                            updated.insert("status".to_string(), json!("cancelled"));
+                            updated.insert("current_stage".to_string(), json!("cancelled"));
+                            updated.insert(
+                                "stage_message".to_string(),
+                                json!("Task cancelled by user"),
+                            );
+                            updated
+                                .insert("updated_at".to_string(), json!(Utc::now().to_rfc3339()));
+
+                            // Don't fail cancel if document update fails - log and continue
+                            match state
+                                .kv_storage
+                                .upsert(&[(key.clone(), json!(updated))])
+                                .await
+                            {
+                                Ok(_) => {
+                                    doc_updated = true;
+                                    tracing::info!("Updated document status to cancelled: {}", key);
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to update document status on cancel: {} - {}",
+                                        key,
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Now try to get and cancel the task if it exists
+    let task = state
         .task_storage
         .get_task(&track_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?
-        .ok_or_else(|| ApiError::NotFound(format!("Task not found: {}", track_id)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?;
 
-    // Check if task can be cancelled
-    if task.status == TaskStatus::Indexed || task.status == TaskStatus::Cancelled {
-        return Err(ApiError::Conflict(format!(
-            "Cannot cancel task in status: {}",
-            task.status
-        )));
+    match task {
+        Some(mut task) => {
+            // Check if task can be cancelled
+            if task.status == TaskStatus::Indexed || task.status == TaskStatus::Cancelled {
+                return Err(ApiError::Conflict(format!(
+                    "Cannot cancel task in status: {}",
+                    task.status
+                )));
+            }
+
+            task.mark_cancelled();
+
+            state
+                .task_storage
+                .update_task(&task)
+                .await
+                .map_err(|e| ApiError::Internal(format!("Failed to cancel task: {}", e)))?;
+
+            Ok(Json(TaskResponse::from(task)))
+        }
+        None => {
+            // Task not found, but we may have updated document status
+            if doc_updated {
+                // Return success response since document was updated
+                // WHY: The user's intent was to cancel processing, which we achieved
+                // by updating the document status even though the task was already gone.
+                // Create a synthetic TaskResponse for compatibility with the API contract.
+                let now = Utc::now().to_rfc3339();
+                Ok(Json(TaskResponse {
+                    track_id: track_id.clone(),
+                    tenant_id: "default".to_string(),
+                    workspace_id: "default".to_string(),
+                    task_type: "document_processing".to_string(),
+                    status: "cancelled".to_string(),
+                    created_at: now.clone(),
+                    updated_at: now.clone(),
+                    started_at: None,
+                    completed_at: Some(now),
+                    error_message: Some(
+                        "Task was cancelled (task no longer exists, document status updated)"
+                            .to_string(),
+                    ),
+                    error: None,
+                    retry_count: 0,
+                    max_retries: 0,
+                    progress: None,
+                    result: None,
+                    metadata: Some(json!({
+                        "document_updated": true,
+                        "reason": "Task not found but document status was updated to cancelled"
+                    })),
+                }))
+            } else {
+                Err(ApiError::NotFound(format!("Task not found: {}", track_id)))
+            }
+        }
     }
-
-    task.mark_cancelled();
-
-    state
-        .task_storage
-        .update_task(&task)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to cancel task: {}", e)))?;
-
-    Ok(Json(TaskResponse::from(task)))
 }
 
 /// Retry a failed task
