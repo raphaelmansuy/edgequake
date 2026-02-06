@@ -90,6 +90,9 @@ impl MarkdownRenderer {
             }
         }
 
+        // OODA-21: Post-render cleanup
+        clean_markdown_output(&mut output);
+
         output
     }
 
@@ -415,6 +418,37 @@ impl Default for MarkdownRenderer {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// OODA-21: Clean up rendered markdown output.
+/// - Trim trailing whitespace from each line
+/// - Collapse 3+ consecutive blank lines to 2 (one empty line)
+/// - Trim trailing newlines from final output
+fn clean_markdown_output(output: &mut String) {
+    // Trim trailing whitespace from each line and collapse excessive blank lines
+    let lines: Vec<&str> = output.lines().collect();
+    let mut cleaned = String::with_capacity(output.len());
+    let mut blank_count = 0;
+
+    for line in &lines {
+        let trimmed = line.trim_end();
+        if trimmed.is_empty() {
+            blank_count += 1;
+            // Allow at most 2 consecutive blank lines (1 visual separator)
+            if blank_count <= 2 {
+                cleaned.push('\n');
+            }
+        } else {
+            blank_count = 0;
+            cleaned.push_str(trimmed);
+            cleaned.push('\n');
+        }
+    }
+
+    // Trim trailing newlines, then add exactly one
+    let trimmed_end = cleaned.trim_end_matches('\n');
+    *output = trimmed_end.to_string();
+    output.push('\n');
 }
 
 /// Normalize bullet characters to standard Markdown bullets.
