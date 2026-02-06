@@ -48,7 +48,15 @@ pub fn filter_pua(text: &str) -> String {
             '\u{FB03}' => result.push_str("ffi"),
             '\u{FB04}' => result.push_str("ffl"),
             '\u{FB05}' | '\u{FB06}' => result.push_str("st"),
-            _ => result.push(normalize_whitespace(c)),
+            _ => {
+                // OODA-18: Use normalize_char for extended normalization
+                match normalize_char(c) {
+                    Some(NormResult::Char(normalized)) => result.push(normalized),
+                    Some(NormResult::Str(s)) => result.push_str(s),
+                    Some(NormResult::Skip) => {}
+                    None => result.push(c),
+                }
+            }
         }
     }
     result
@@ -57,7 +65,8 @@ pub fn filter_pua(text: &str) -> String {
 /// OODA-15: Normalize Unicode whitespace characters to ASCII space.
 /// WHY: PDFs frequently use non-breaking spaces (U+00A0), thin spaces (U+2009),
 /// and other Unicode space variants that cause comparison mismatches.
-fn normalize_whitespace(c: char) -> char {
+/// OODA-18: Also handles ellipsis, fraction chars, and zero-width joiners.
+fn normalize_char(c: char) -> Option<NormResult> {
     match c {
         '\u{00A0}' // Non-breaking space
         | '\u{2000}' // En quad
@@ -76,15 +85,35 @@ fn normalize_whitespace(c: char) -> char {
         | '\u{205F}' // Medium mathematical space
         | '\u{3000}' // Ideographic space
         | '\u{FEFF}' // BOM / zero-width no-break space
-        => ' ',
+        => Some(NormResult::Char(' ')),
+        // OODA-18: Strip zero-width joiners and soft hyphens
+        '\u{200C}' // Zero-width non-joiner
+        | '\u{200D}' // Zero-width joiner
+        | '\u{00AD}' // Soft hyphen
+        => Some(NormResult::Skip),
         // OODA-16: Normalize smart quotes to straight quotes
-        '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}' => '\'', // Single quotes
-        '\u{201C}' | '\u{201D}' | '\u{201E}' | '\u{201F}' => '"',  // Double quotes
+        '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}' => Some(NormResult::Char('\'')), // Single quotes
+        '\u{201C}' | '\u{201D}' | '\u{201E}' | '\u{201F}' => Some(NormResult::Char('"')),  // Double quotes
         // Normalize Unicode dashes to ASCII hyphen-minus
-        '\u{2010}' | '\u{2011}' => '-', // Hyphen and non-breaking hyphen
-        '\u{2212}' => '-', // Minus sign
-        _ => c,
+        '\u{2010}' | '\u{2011}' => Some(NormResult::Char('-')), // Hyphen and non-breaking hyphen
+        '\u{2212}' => Some(NormResult::Char('-')), // Minus sign
+        // OODA-18: Ellipsis → three dots
+        '\u{2026}' => Some(NormResult::Str("...")),
+        // OODA-18: Common fractions → text form
+        '\u{00BC}' => Some(NormResult::Str("1/4")),
+        '\u{00BD}' => Some(NormResult::Str("1/2")),
+        '\u{00BE}' => Some(NormResult::Str("3/4")),
+        '\u{2153}' => Some(NormResult::Str("1/3")),
+        '\u{2154}' => Some(NormResult::Str("2/3")),
+        _ => None,
     }
+}
+
+/// Result of character normalization.
+enum NormResult {
+    Char(char),
+    Str(&'static str),
+    Skip,
 }
 
 /// Filter PUA characters, returning None if the result is empty.
@@ -225,5 +254,30 @@ mod tests {
         assert_eq!(filter_pua("\u{FB02}ow"), "flow");
         assert_eq!(filter_pua("o\u{FB00}er"), "offer");
         assert_eq!(filter_pua("mu\u{FB04}e"), "muffle");
+    }
+
+    /// OODA-18: Test ellipsis, fraction, and zero-width char normalization
+    #[test]
+    fn test_normalize_ellipsis_fractions() {
+        // Horizontal ellipsis → three dots
+        assert_eq!(filter_pua("Wait\u{2026}"), "Wait...");
+        assert_eq!(filter_pua("a\u{2026}z"), "a...z");
+        // Fractions → text form
+        assert_eq!(filter_pua("\u{00BD} cup"), "1/2 cup");
+        assert_eq!(filter_pua("\u{00BC}"), "1/4");
+        assert_eq!(filter_pua("\u{00BE}"), "3/4");
+        assert_eq!(filter_pua("\u{2153}"), "1/3");
+        assert_eq!(filter_pua("\u{2154}"), "2/3");
+    }
+
+    /// OODA-18: Test zero-width and soft hyphen stripping
+    #[test]
+    fn test_strip_zero_width() {
+        // Zero-width joiner stripped
+        assert_eq!(filter_pua("ab\u{200D}cd"), "abcd");
+        // Zero-width non-joiner stripped
+        assert_eq!(filter_pua("ab\u{200C}cd"), "abcd");
+        // Soft hyphen stripped
+        assert_eq!(filter_pua("hyphen\u{00AD}ation"), "hyphenation");
     }
 }
