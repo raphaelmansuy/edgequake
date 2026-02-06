@@ -27,6 +27,7 @@
 mod block_classifier;
 mod column_detector;
 mod geometric;
+pub mod hyphenation;
 pub mod list_hierarchy;
 mod pymupdf_grouper;
 mod pymupdf_renderer;
