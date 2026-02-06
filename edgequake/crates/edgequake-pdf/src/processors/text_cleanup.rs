@@ -672,10 +672,13 @@ impl GarbledTextFilterProcessor {
         }
 
         // Common valid short words
+        // WHY include "&": ampersand is a standard English conjunction used in titles
+        // like "AI Strategy & Co-Creation", "Search UX & APIs". Without it, these
+        // legitimate section headers get filtered as "garbled text".
         let valid_short_words = [
             "a", "an", "as", "at", "be", "by", "do", "go", "he", "if", "in", "is", "it", "me",
             "my", "no", "of", "on", "or", "so", "to", "up", "us", "we", "i", "1", "2", "3", "4",
-            "5", "6", "7", "8", "9",
+            "5", "6", "7", "8", "9", "&",
         ];
 
         // OODA-13 FIX: Count short words, but exclude author initials (e.g., "X.", "J.")
@@ -693,6 +696,15 @@ impl GarbledTextFilterProcessor {
                 // Skip author initials: single uppercase letter + period (e.g., "X.", "J.")
                 let chars: Vec<char> = w.chars().collect();
                 if chars.len() == 2 && chars[0].is_ascii_uppercase() && chars[1] == '.' {
+                    return false;
+                }
+                // WHY skip section numbers: "0)", "1)", "2.", "3." are section numbering
+                // patterns, not garbled text. Without this, section headers like
+                // "0) AI Strategy & Co-Creation" get falsely filtered.
+                if chars.len() == 2
+                    && chars[0].is_ascii_digit()
+                    && (chars[1] == ')' || chars[1] == '.')
+                {
                     return false;
                 }
                 true
