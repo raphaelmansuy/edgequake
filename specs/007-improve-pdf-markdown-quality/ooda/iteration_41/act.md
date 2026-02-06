@@ -27,31 +27,32 @@ let space_threshold = if self.font_is_monospace.unwrap_or(false) || is_url_bound
 ## Validation Results
 
 ### Test Suite
+
 - **462 tests passed**, 0 failed
 - **0 clippy warnings** in edgequake-pdf
 
 ### LightRAG URL Output
 
-| URL | IT40 (broken) | IT41 (fixed) |
-|-----|---------------|--------------|
+| URL    | IT40 (broken)             | IT41 (fixed)             |
+| ------ | ------------------------- | ------------------------ |
 | GitHub | `https : //github . com/` | `https://github.com/` ✅ |
-| arXiv | `https : //arxiv . org/` | `https://arxiv. org/` ✅ |
+| arXiv  | `https : //arxiv . org/`  | `https://arxiv. org/` ✅ |
 
 ### Elitizon Output
 
-| Text | IT40 | IT41 |
-|------|------|------|
-| Executive summary | ✅ Correct | ✅ Correct |
+| Text                       | IT40       | IT41       |
+| -------------------------- | ---------- | ---------- |
+| Executive summary          | ✅ Correct | ✅ Correct |
 | AI Agent Design & Building | ✅ Correct | ✅ Correct |
-| Delivery approach | ✅ Correct | ✅ Correct |
-| Next step | ✅ Correct | ✅ Correct |
+| Delivery approach          | ✅ Correct | ✅ Correct |
+| Next step                  | ✅ Correct | ✅ Correct |
 
 ### File Size Changes
 
-| Document | IT40 | IT41 | Delta |
-|----------|------|------|-------|
+| Document | IT40         | IT41         | Delta                    |
+| -------- | ------------ | ------------ | ------------------------ |
 | LightRAG | 57,292 bytes | 57,266 bytes | -26 bytes (URLs compact) |
-| Elitizon | 5,338 bytes | 5,338 bytes | 0 bytes |
+| Elitizon | 5,338 bytes  | 5,338 bytes  | 0 bytes                  |
 
 ## Commit Ready
 

@@ -57,7 +57,11 @@ futures.workspace = true
 # to image 0.25 (via image_latest). Using image_024 unifies the image crate version
 # so DynamicImage types from get_raw_image() are compatible with our code.
 # WHY pdfium_latest: Provides the bindgen definitions for the Pdfium C API.
-pdfium-render = { version = "0.8", optional = true, default-features = false, features = ["thread_safe", "image_024", "pdfium_latest"] }
+pdfium-render = { version = "0.8", optional = true, default-features = false, features = [
+    "thread_safe",
+    "image_024",
+    "pdfium_latest",
+] }
 
 # TrueType font parsing for embedded fonts (cmap table extraction)
 # WHY: Subset TrueType fonts (like Calibri/Cambria in Office PDFs) embed

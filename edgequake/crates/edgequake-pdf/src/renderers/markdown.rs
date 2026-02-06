@@ -980,6 +980,29 @@ impl MarkdownRenderer {
             return;
         }
 
+        // OODA-IT42: Validate table structure before rendering
+        // WHY: Inconsistent column counts produce garbled markdown tables that are
+        // worse than plain text. Fall back to plain text if structure is irregular.
+        let header_cols = rows[0].len();
+        let has_inconsistent_columns = rows.iter().skip(1).any(|row| row.len() != header_cols);
+
+        if has_inconsistent_columns || header_cols < 2 {
+            tracing::debug!(
+                "OODA-IT42: Falling back to plain text for table with {} rows, header_cols={}, inconsistent={}",
+                rows.len(),
+                header_cols,
+                has_inconsistent_columns
+            );
+            // Fall back to plain text rendering
+            for row in &rows {
+                let row_text: Vec<&str> = row.iter().map(|cell| cell.text.as_str()).collect();
+                output.push_str(&row_text.join(" "));
+                output.push('\n');
+            }
+            output.push('\n');
+            return;
+        }
+
         // Header row
         let header = &rows[0];
         output.push('|');

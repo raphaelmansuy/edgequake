@@ -41,6 +41,7 @@ let space_threshold = if self.font_is_monospace.unwrap_or(false) || is_url_bound
 ## Risk Assessment
 
 **Low risk**:
+
 - Refines existing logic without changing overall approach
 - URL punctuation list is conservative (common cases only)
 - General punctuation still uses word-boundary-friendly threshold

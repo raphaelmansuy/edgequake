@@ -557,7 +557,10 @@ fn extract_and_save_images(
         // Save image as PNG
         // WHY PNG: Lossless format preserves quality of diagrams, charts, and text.
         // JPEG would lose quality on sharp edges common in PDF figures.
-        match img_data.image.save_with_format(&file_path, image::ImageFormat::Png) {
+        match img_data
+            .image
+            .save_with_format(&file_path, image::ImageFormat::Png)
+        {
             Ok(()) => {
                 refs.push(ImageRef {
                     page_num: img_data.page_num,
@@ -624,7 +627,11 @@ fn insert_image_references(markdown: &str, refs: &[ImageRef]) -> String {
             // So we should insert images for the page that's about to end.
             // But since we're scanning forward, we insert images for the
             // current page at the NEXT page marker (or end of document).
-            let prev_page = if page_num >= 2 { page_num - 2 } else { continue };
+            let prev_page = if page_num >= 2 {
+                page_num - 2
+            } else {
+                continue;
+            };
             if let Some(page_images) = images_by_page.get(&prev_page) {
                 if !inserted_pages.contains(&prev_page) {
                     result.push('\n');

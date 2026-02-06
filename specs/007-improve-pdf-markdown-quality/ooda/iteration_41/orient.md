@@ -7,6 +7,7 @@ IT40's 22% threshold for proportional fonts is correct for word boundaries but t
 ## Key Insight: Punctuation Has Different Roles
 
 **URL/Path Punctuation** (bind tightly to adjacent chars):
+
 - `:` — protocol separator (https:)
 - `/` — path separator (/path/to)
 - `.` — domain/file extension (github.com, file.txt)
@@ -14,6 +15,7 @@ IT40's 22% threshold for proportional fonts is correct for word boundaries but t
 - `-` `_` — word connectors in identifiers (my-file, my_var)
 
 **General Punctuation** (typically word boundaries):
+
 - `&` — "A & B" should have spaces
 - `,` — "one, two" has space after
 - `;` — semicolon ends clauses
@@ -43,6 +45,7 @@ fn is_url_punctuation(c: char) -> bool {
 ## Alternative Considered: Post-Processing URL Cleanup
 
 **Rejected** because:
+
 - Would require URL regex matching in markdown output
 - Treating symptoms rather than root cause
 - Would miss edge cases like custom protocols

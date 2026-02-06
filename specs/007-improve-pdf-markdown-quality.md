@@ -250,3 +250,9 @@ python3 -c "import pymupdf4llm; print(pymupdf4llm.to_markdown('zz_test_docs/AI_S
 4. **Image extraction** - Optional inline or separate
 5. **Page chunks** - Configurable chunking for RAG
 6. **Format support** - PDF, XPS, eBooks
+
+
+Image extracted png, svg, jpeg, tiff, bmp, gif, webp, heif, avif, pdf (for vector graphics) and linked as markdown image in the output markdown file.
+
+
+Ensure image name is idopotent (e.g., hash of content) to avoid duplicates and enable caching.

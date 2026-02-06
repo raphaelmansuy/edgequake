@@ -2,12 +2,12 @@
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `Cargo.toml` | Updated pdfium-render features to `["thread_safe", "image_024", "pdfium_latest"]` |
-| `src/backend/pdfium.rs` | Added `ExtractedImageData` struct, `extract_images_from_bytes()`, `get_object_bbox()` |
-| `src/backend/mod.rs` | Exported `ExtractedImageData` |
-| `src/bin.rs` | Added `--extract-images` flag, `extract_and_save_images()`, `insert_image_references()`, `parse_page_marker()` |
+| File                    | Change                                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `Cargo.toml`            | Updated pdfium-render features to `["thread_safe", "image_024", "pdfium_latest"]`                              |
+| `src/backend/pdfium.rs` | Added `ExtractedImageData` struct, `extract_images_from_bytes()`, `get_object_bbox()`                          |
+| `src/backend/mod.rs`    | Exported `ExtractedImageData`                                                                                  |
+| `src/bin.rs`            | Added `--extract-images` flag, `extract_and_save_images()`, `insert_image_references()`, `parse_page_marker()` |
 
 ## Test Results
 
