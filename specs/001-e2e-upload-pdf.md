@@ -151,11 +151,33 @@ Find the best way to package pdfium dynamic library for macOS, Linux and Windows
 
 **Reference**: `specs/001-e2e-upload-pdf/ooda/iteration_06/`
 
-### 📋 Iterations 07-10 - BACKLOG
+### ✅ Iteration 07 - COMPLETE
+
+**Focus**: E2E Pipeline Verification
+
+**Objective**: Verify full pipeline works and investigate reported document visibility issue.
+
+**Findings**:
+
+1. "Documents (0)" was a **transient React loading state**, NOT a bug
+2. API returns 23 documents correctly
+3. Side-by-side viewer fully functional
+4. Task persistence verified (OODA-06 fix working)
+5. No code changes required
+
+**E2E Verification Results**:
+
+- Frontend: 23 documents visible in list
+- PDF viewer: Page navigation, zoom working
+- Markdown renderer: Headings, lists, bold all rendered
+- Database: 2,801 nodes, 2,219 edges, 149 vectors
+
+**Reference**: `specs/001-e2e-upload-pdf/ooda/iteration_07/`
+
+### 📋 Iterations 08-10 - BACKLOG
 
 | Iteration | Focus                           | Priority | Effort          |
 | --------- | ------------------------------- | -------- | --------------- |
-| 07        | Test task persistence on restart | Medium   | 1-2h            |
 | 08        | Fix Ollama timeout (increase from 60s) | Medium | 2-3h      |
 | 09        | Fix PDF-document FK race condition | Low   | 2-3h            |
 | 10        | Final regression testing        | Low      | 2-3h            |
