@@ -9,6 +9,7 @@
 //! - Paragraph separation
 
 use super::pymupdf_structs::{Block, BlockType, Line};
+use crate::layout::list_hierarchy::compute_list_levels;
 use crate::renderers::pua_filter::filter_pua;
 
 /// Markdown renderer configuration.
@@ -54,9 +55,13 @@ impl MarkdownRenderer {
     }
 
     /// Render blocks to Markdown string.
+    /// OODA-03: Computes list hierarchy levels before rendering for proper indentation.
     pub fn render(&self, blocks: &[Block]) -> String {
         let mut output = String::new();
         let mut last_page = 0;
+
+        // OODA-03: Compute list hierarchy levels from x0 coordinates
+        let list_levels = compute_list_levels(blocks);
 
         for (i, block) in blocks.iter().enumerate() {
             // Add page separator if page changed
@@ -65,8 +70,8 @@ impl MarkdownRenderer {
                 last_page = block.page_num;
             }
 
-            // Render this block
-            let block_text = self.render_block(block);
+            // Render this block (pass list level if applicable)
+            let block_text = self.render_block(block, list_levels.get(&i).copied());
             output.push_str(&block_text);
 
             // Add spacing between blocks
@@ -78,11 +83,11 @@ impl MarkdownRenderer {
         output
     }
 
-    fn render_block(&self, block: &Block) -> String {
+    fn render_block(&self, block: &Block, list_level: Option<u8>) -> String {
         match block.block_type {
             BlockType::Header(level) => self.render_header(block, level),
             BlockType::Code => self.render_code(block),
-            BlockType::ListItem => self.render_list_item(block),
+            BlockType::ListItem => self.render_list_item(block, list_level.unwrap_or(0)),
             BlockType::Table => self.render_table(block),
             BlockType::Paragraph => self.render_paragraph(block),
         }
@@ -126,26 +131,25 @@ impl MarkdownRenderer {
         }
     }
 
-    fn render_list_item(&self, block: &Block) -> String {
-        // First line should have the bullet/number
-        // Subsequent lines are continuation
+    /// OODA-03: Render list item with proper indentation based on hierarchy level.
+    /// Level 0 = no indent, level 1 = 2 spaces, level 2 = 4 spaces, etc.
+    fn render_list_item(&self, block: &Block, level: u8) -> String {
+        let indent = "  ".repeat(level as usize);
         let mut lines_iter = block.lines.iter();
 
         if let Some(first_line) = lines_iter.next() {
             let first_text = self.render_line_styled(first_line);
-
-            // Check if we need to normalize the bullet
             let normalized = normalize_bullet(&first_text);
 
             let continuation: String = lines_iter
-                .map(|l| format!("  {}", self.render_line_styled(l)))
+                .map(|l| format!("{}  {}", indent, self.render_line_styled(l)))
                 .collect::<Vec<_>>()
                 .join("\n");
 
             if continuation.is_empty() {
-                normalized
+                format!("{}{}", indent, normalized)
             } else {
-                format!("{}\n{}", normalized, continuation)
+                format!("{}{}\n{}", indent, normalized, continuation)
             }
         } else {
             String::new()

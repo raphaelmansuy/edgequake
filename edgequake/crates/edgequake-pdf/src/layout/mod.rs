@@ -27,6 +27,7 @@
 mod block_classifier;
 mod column_detector;
 mod geometric;
+pub mod list_hierarchy;
 mod pymupdf_grouper;
 mod pymupdf_renderer;
 pub mod pymupdf_structs; // OODA-43: Made public for pdfium_backend imports
