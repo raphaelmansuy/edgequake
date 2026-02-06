@@ -138,9 +138,13 @@ impl PdfBackend for PdfiumBackend {
         // Create fresh extractor for this call (thread safety)
         let extractor = self.create_extractor()?;
 
-        // Step 1: Extract raw characters with accurate font flags
-        let chars = extractor.extract_chars_from_bytes(pdf_bytes)?;
-        debug!("PdfiumBackend: extracted {} raw characters", chars.len());
+        // Step 1: Extract raw characters with accurate font flags AND page dimensions
+        // WHY (OODA-IT21): We need actual page heights to normalize Y coordinates
+        // from PDF coordinate system (Y=0 at bottom) to document coordinate system
+        // (Y=0 at top). Without this, the LayoutProcessor's reading order detection
+        // reverses block order because it expects Y=0 at top.
+        let (chars, page_sizes) = extractor.extract_chars_and_page_sizes_from_bytes(pdf_bytes)?;
+        debug!("PdfiumBackend: extracted {} raw characters, {} pages", chars.len(), page_sizes.len());
 
         if chars.is_empty() {
             debug!("PdfiumBackend: no characters found, returning empty document");
@@ -165,27 +169,38 @@ impl PdfBackend for PdfiumBackend {
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
 
+            // Get actual page dimensions from PDFium (default to US Letter if missing)
+            let (page_width, page_height) = page_sizes
+                .get(page_num)
+                .copied()
+                .unwrap_or((612.0, 792.0));
+
             // Group into text blocks
             let text_blocks = grouper.group(page_chars);
             debug!(
-                "PdfiumBackend: page {} has {} text blocks",
+                "PdfiumBackend: page {} has {} text blocks (page_height={:.1})",
                 page_num,
-                text_blocks.len()
+                text_blocks.len(),
+                page_height
             );
 
             // Step 3: Classify blocks by font size (detect headers)
             let body_size = detect_body_font_size(&text_blocks);
             let classified_blocks = classify_blocks(&text_blocks, body_size);
 
-            // Step 4: Convert to schema::Block
+            // Step 4: Convert to schema::Block WITH Y-coordinate normalization
+            // WHY (OODA-IT21): PDF coordinates have Y=0 at BOTTOM, increasing upward.
+            // All downstream processors (LayoutProcessor, ReadingOrderDetector) expect
+            // document coordinates with Y=0 at TOP, increasing downward.
+            // The lopdf backend (extraction_engine.rs) does this same normalization.
             let schema_blocks: Vec<Block> = classified_blocks
                 .iter()
                 .enumerate()
-                .map(|(idx, tb)| convert_text_block_to_schema_block(tb, page_num, idx))
+                .map(|(idx, tb)| convert_text_block_to_schema_block(tb, page_num, idx, page_height))
                 .collect();
 
-            // Create page (default US Letter size, would need PDF metadata for actual size)
-            let mut page = Page::new(page_num + 1, 612.0, 792.0);
+            // Create page with actual dimensions from PDFium
+            let mut page = Page::new(page_num + 1, page_width, page_height);
             page.blocks = schema_blocks;
             page.method = ExtractionMethod::Native;
             page.update_stats();
@@ -219,8 +234,9 @@ impl PdfBackend for PdfiumBackend {
         // Create fresh extractor for this call
         let extractor = self.create_extractor()?;
 
-        // Extract raw characters with accurate font flags
-        let chars = extractor.extract_chars_from_bytes(pdf_bytes)?;
+        // Extract raw characters with accurate font flags AND page dimensions
+        // WHY (OODA-IT21): Same Y normalization as extract()
+        let (chars, page_sizes) = extractor.extract_chars_and_page_sizes_from_bytes(pdf_bytes)?;
 
         if chars.is_empty() {
             callback.on_extraction_start(0);
@@ -252,6 +268,12 @@ impl PdfBackend for PdfiumBackend {
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
 
+            // Get actual page dimensions from PDFium
+            let (page_width, page_height) = page_sizes
+                .get(page_num)
+                .copied()
+                .unwrap_or((612.0, 792.0));
+
             // Group into text blocks
             let text_blocks = grouper.group(page_chars);
 
@@ -259,14 +281,15 @@ impl PdfBackend for PdfiumBackend {
             let body_size = detect_body_font_size(&text_blocks);
             let classified_blocks = classify_blocks(&text_blocks, body_size);
 
+            // Convert with Y normalization (OODA-IT21)
             let schema_blocks: Vec<Block> = classified_blocks
                 .iter()
                 .enumerate()
-                .map(|(idx, tb)| convert_text_block_to_schema_block(tb, page_num, idx))
+                .map(|(idx, tb)| convert_text_block_to_schema_block(tb, page_num, idx, page_height))
                 .collect();
 
-            // Create page
-            let mut page = Page::new(page_num + 1, 612.0, 792.0);
+            // Create page with actual dimensions
+            let mut page = Page::new(page_num + 1, page_width, page_height);
             page.blocks = schema_blocks;
             page.method = ExtractionMethod::Native;
             page.update_stats();
@@ -419,7 +442,12 @@ fn classify_blocks(blocks: &[TextBlock], body_size: f32) -> Vec<TextBlock> {
 /// layout::Span.font_is_italic → FontStyle.italic = true
 /// layout::Span.font_is_monospace → FontStyle (for code detection)
 /// ```
-fn convert_span_to_text_span(span: &LayoutSpan) -> TextSpan {
+///
+/// ## OODA-IT21: Y-Coordinate Normalization
+///
+/// Span Y coordinates are also normalized from PDF coords (Y=0 at bottom)
+/// to document coords (Y=0 at top) for consistency with block-level coords.
+fn convert_span_to_text_span(span: &LayoutSpan, page_height: f32) -> TextSpan {
     let mut style = FontStyle::default();
 
     // WHY 700: Font-weight 700 is the CSS standard for "bold"
@@ -432,8 +460,10 @@ fn convert_span_to_text_span(span: &LayoutSpan) -> TextSpan {
     style.size = Some(span.font_size);
     style.family = span.font_name.clone();
 
-    // Create bounding box for the span
-    let bbox = BoundingBox::new(span.x0, span.y0, span.x1, span.y1);
+    // Create bounding box for the span with Y normalization (OODA-IT21)
+    let norm_y1 = page_height - span.y1; // old top → new top (small y)
+    let norm_y2 = page_height - span.y0; // old bottom → new bottom (large y)
+    let bbox = BoundingBox::new(span.x0, norm_y1, span.x1, norm_y2);
     let mut text_span = TextSpan::styled(span.text.clone(), style);
     text_span.bbox = Some(bbox);
 
@@ -454,10 +484,22 @@ fn convert_span_to_text_span(span: &LayoutSpan) -> TextSpan {
 /// - Bounding box coordinates
 /// - Page and position metadata
 /// - **OODA-IT05: Styled spans for bold/italic/code rendering**
+///
+/// ## OODA-IT21: Y-Coordinate Normalization
+///
+/// PDF coordinates have Y=0 at BOTTOM, Y increases UPWARD.
+/// Document coordinates have Y=0 at TOP, Y increases DOWNWARD.
+///
+/// This function normalizes: `new_y = page_height - old_y`
+/// and swaps y0/y1 to maintain the y1 < y2 invariant.
+///
+/// Without this normalization, the LayoutProcessor's reading order
+/// detection (which expects document coords) reverses block order.
 fn convert_text_block_to_schema_block(
     text_block: &TextBlock,
     page_num: usize,
     position: usize,
+    page_height: f32,
 ) -> Block {
     // Map layout block type to schema block type
     let block_type = match text_block.block_type {
@@ -468,8 +510,15 @@ fn convert_text_block_to_schema_block(
         LayoutBlockType::Table => BlockType::Table,
     };
 
-    // Create bounding box
-    let bbox = BoundingBox::new(text_block.x0, text_block.y0, text_block.x1, text_block.y1);
+    // Create bounding box WITH Y normalization (OODA-IT21)
+    // PDF coords: y0 = bottom of glyph (smaller), y1 = top of glyph (larger)
+    // Document coords: y1 = top of block (smaller), y2 = bottom of block (larger)
+    // Normalization: new_y = page_height - old_y
+    // After flipping, old y1 (top, larger) becomes smaller → new y1
+    //                  old y0 (bottom, smaller) becomes larger → new y2
+    let norm_y1 = page_height - text_block.y1; // old top → new top (small y)
+    let norm_y2 = page_height - text_block.y0; // old bottom → new bottom (large y)
+    let bbox = BoundingBox::new(text_block.x0, norm_y1, text_block.x1, norm_y2);
 
     // Create block with appropriate type
     let mut block = Block::new(block_type, bbox);
@@ -490,7 +539,7 @@ fn convert_text_block_to_schema_block(
     // 4. Add newline TextSpan between lines for proper line breaks
     for (line_idx, line) in text_block.lines.iter().enumerate() {
         for span in &line.spans {
-            let text_span = convert_span_to_text_span(span);
+            let text_span = convert_span_to_text_span(span, page_height);
             block.spans.push(text_span);
         }
         // Add newline between lines (except after last line)
@@ -560,7 +609,7 @@ mod tests {
         span.y0 = 0.0;
         span.y1 = 14.0;
 
-        let text_span = convert_span_to_text_span(&span);
+        let text_span = convert_span_to_text_span(&span, 792.0);
 
         assert_eq!(text_span.text, "Bold text");
         assert_eq!(
@@ -585,7 +634,7 @@ mod tests {
         span.y0 = 0.0;
         span.y1 = 14.0;
 
-        let text_span = convert_span_to_text_span(&span);
+        let text_span = convert_span_to_text_span(&span, 792.0);
 
         assert_eq!(text_span.text, "Italic text");
         assert!(text_span.style.italic, "Should be italic");
@@ -624,8 +673,8 @@ mod tests {
 
         let text_block = TextBlock::from_line(line);
 
-        // Convert to schema block
-        let schema_block = convert_text_block_to_schema_block(&text_block, 0, 0);
+        // Convert to schema block (page_height=792.0 for US Letter)
+        let schema_block = convert_text_block_to_schema_block(&text_block, 0, 0, 792.0);
 
         // Verify spans are populated
         assert_eq!(schema_block.spans.len(), 2, "Should have 2 spans");
