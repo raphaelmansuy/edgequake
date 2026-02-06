@@ -221,6 +221,8 @@ impl MarkdownRenderer {
 
         // OODA-04: Compute dominant font size for superscript detection
         let ref_font_size = line.dominant_font_size();
+        // OODA-19: Compute reference y1 for subscript detection
+        let ref_y1 = line.y1;
 
         if line.spans.len() == 1 {
             let span = &line.spans[0];
@@ -228,14 +230,14 @@ impl MarkdownRenderer {
             if text.trim().is_empty() {
                 return text;
             }
-            let style = get_style_type_with_ref(span, ref_font_size);
+            let style = get_style_type_with_ref(span, ref_font_size, ref_y1);
             return apply_style(&text, style);
         }
 
         // Group consecutive spans with same style, including spaces within groups
         let mut groups: Vec<(String, StyleType)> = Vec::new();
         let mut current_text = String::new();
-        let mut current_style = get_style_type_with_ref(&line.spans[0], ref_font_size);
+        let mut current_style = get_style_type_with_ref(&line.spans[0], ref_font_size, ref_y1);
 
         for (i, span) in line.spans.iter().enumerate() {
             // OODA-02: Filter PUA characters from each span
@@ -263,7 +265,7 @@ impl MarkdownRenderer {
                 false
             };
 
-            let span_style = get_style_type_with_ref(span, ref_font_size);
+            let span_style = get_style_type_with_ref(span, ref_font_size, ref_y1);
 
             // Only flush when style actually changes
             if span_style != current_style {
@@ -310,6 +312,7 @@ impl MarkdownRenderer {
 
 /// Style types for span grouping.
 /// OODA-04: Added Superscript for footnote markers
+/// OODA-19: Added Subscript for chemical/math notation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StyleType {
     Plain,
@@ -318,16 +321,30 @@ enum StyleType {
     BoldItalic,
     Code,
     Superscript,
+    Subscript,
 }
 
 /// Get the style type of a span.
 /// OODA-04: Accepts reference_font_size for superscript detection.
+/// OODA-19: Also accepts ref_y1 for subscript detection.
+/// Distinguishes super/subscript by vertical position within the line.
 fn get_style_type_with_ref(
     span: &super::pymupdf_structs::Span,
     reference_font_size: f32,
+    ref_y1: f32,
 ) -> StyleType {
-    // Check superscript first (highest priority - short markers)
-    if span.is_superscript(reference_font_size) {
+    // Check for small text that could be super/subscript
+    let is_small = reference_font_size > 0.0
+        && span.font_size / reference_font_size < 0.7
+        && span.text.chars().count() < 5;
+
+    if is_small {
+        // OODA-19: Distinguish by position - subscripts touch the baseline (y1 near ref_y1)
+        let near_baseline = (span.y1 - ref_y1).abs() < reference_font_size * 0.15;
+        if near_baseline {
+            return StyleType::Subscript;
+        }
+        // Otherwise it's superscript (floats above baseline)
         return StyleType::Superscript;
     }
     if span.is_bold() && span.is_italic() {
@@ -346,6 +363,7 @@ fn get_style_type_with_ref(
 /// Apply style markers to text.
 /// OODA-12: Preserve leading/trailing spaces outside style markers
 /// OODA-04: Added Superscript rendering as [text] for footnote markers
+/// OODA-19: Added Subscript rendering as ~text~ for chemical/math notation
 fn apply_style(text: &str, style: StyleType) -> String {
     if text.trim().is_empty() {
         return text.to_string();
@@ -358,6 +376,7 @@ fn apply_style(text: &str, style: StyleType) -> String {
 
     let styled = match style {
         StyleType::Superscript => format!("[{}]", trimmed),
+        StyleType::Subscript => format!("~{}~", trimmed),
         StyleType::BoldItalic => format!("**_{}_**", trimmed),
         StyleType::Bold => format!("**{}**", trimmed),
         StyleType::Italic => format!("_{}_", trimmed),
@@ -603,6 +622,76 @@ mod tests {
         );
         assert!(
             md.contains("reference"),
+            "Normal text should be preserved: {}",
+            md
+        );
+    }
+
+    /// OODA-19: Test subscript rendering as ~text~ notation
+    #[test]
+    fn test_render_subscript() {
+        let renderer = MarkdownRenderer::new();
+
+        // "H" normal span + "2" subscript span (small font, at bottom of line)
+        let normal_span = Span {
+            text: "H".to_string(),
+            x0: 0.0,
+            y0: 0.0,
+            x1: 10.0,
+            y1: 12.0,
+            font_size: 12.0,
+            font_name: Some("Arial".to_string()),
+            page_num: 0,
+            font_is_bold: Some(false),
+            font_is_italic: Some(false),
+            font_is_monospace: Some(false),
+        };
+        let subscript_span = Span {
+            text: "2".to_string(),
+            x0: 10.0,
+            y0: 4.0,
+            x1: 15.0,
+            y1: 12.0, // y1 at bottom of line (subscript sits at baseline)
+            font_size: 7.0, // Much smaller than 12.0 (< 70%)
+            font_name: Some("Arial".to_string()),
+            page_num: 0,
+            font_is_bold: Some(false),
+            font_is_italic: Some(false),
+            font_is_monospace: Some(false),
+        };
+        let normal_span2 = Span {
+            text: "O".to_string(),
+            x0: 15.0,
+            y0: 0.0,
+            x1: 25.0,
+            y1: 12.0,
+            font_size: 12.0,
+            font_name: Some("Arial".to_string()),
+            page_num: 0,
+            font_is_bold: Some(false),
+            font_is_italic: Some(false),
+            font_is_monospace: Some(false),
+        };
+
+        let line = make_line(vec![normal_span, subscript_span, normal_span2]);
+        let block = Block {
+            lines: vec![line],
+            x0: 0.0,
+            y0: 0.0,
+            x1: 25.0,
+            y1: 12.0,
+            page_num: 0,
+            block_type: BlockType::Paragraph,
+        };
+
+        let md = renderer.render(&[block]);
+        assert!(
+            md.contains("~2~"),
+            "Subscript should render as ~2~, got: {}",
+            md
+        );
+        assert!(
+            md.contains("H"),
             "Normal text should be preserved: {}",
             md
         );
