@@ -85,8 +85,16 @@ impl MarkdownRenderer {
             output.push_str(&block_text);
 
             // Add spacing between blocks
+            // OODA-24: Use single newline between consecutive list items (tight list)
             if self.config.block_spacing && i < blocks.len() - 1 {
-                output.push_str("\n\n");
+                let next_block = &blocks[i + 1];
+                let is_list_continuation = block.block_type == BlockType::ListItem
+                    && next_block.block_type == BlockType::ListItem;
+                if is_list_continuation {
+                    output.push('\n');
+                } else {
+                    output.push_str("\n\n");
+                }
             }
         }
 
