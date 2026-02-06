@@ -720,7 +720,12 @@ impl Processor for ListDetectionProcessor {
             let min_x = page
                 .blocks
                 .iter()
-                .filter(|b| matches!(b.block_type, BlockType::Text | BlockType::Paragraph | BlockType::ListItem))
+                .filter(|b| {
+                    matches!(
+                        b.block_type,
+                        BlockType::Text | BlockType::Paragraph | BlockType::ListItem
+                    )
+                })
                 .map(|b| b.bbox.x1)
                 .fold(f32::MAX, |a, b| a.min(b));
 

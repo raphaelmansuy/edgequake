@@ -116,10 +116,7 @@ mod tests {
 
     #[test]
     fn test_soft_hyphen() {
-        let lines = vec![
-            "computa\u{00AD}".to_string(),
-            "tion of results".to_string(),
-        ];
+        let lines = vec!["computa\u{00AD}".to_string(), "tion of results".to_string()];
         let resolved = resolve_hyphenation(&lines);
         assert_eq!(resolved, vec!["computation of results"]);
     }
@@ -143,10 +140,7 @@ mod tests {
         // "- item" should not be treated as hyphenation
         let lines = vec!["- ".to_string(), "item text".to_string()];
         let resolved = resolve_hyphenation(&lines);
-        assert_eq!(
-            resolved,
-            vec!["- ".to_string(), "item text".to_string()]
-        );
+        assert_eq!(resolved, vec!["- ".to_string(), "item text".to_string()]);
     }
 
     #[test]
@@ -193,34 +187,22 @@ mod tests {
     #[test]
     fn test_number_after_hyphen_preserved() {
         // "Figure 3-" followed by "2" should not be resolved
-        let lines = vec![
-            "Figure 3-".to_string(),
-            "2 shows the results".to_string(),
-        ];
+        let lines = vec!["Figure 3-".to_string(), "2 shows the results".to_string()];
         let resolved = resolve_hyphenation(&lines);
         assert_eq!(
             resolved,
-            vec![
-                "Figure 3-".to_string(),
-                "2 shows the results".to_string()
-            ]
+            vec!["Figure 3-".to_string(), "2 shows the results".to_string()]
         );
     }
 
     #[test]
     fn test_gpu_hyphen_preserved() {
         // "GPU-" followed by "Accelerated" should keep hyphen (uppercase)
-        let lines = vec![
-            "GPU-".to_string(),
-            "Accelerated training".to_string(),
-        ];
+        let lines = vec!["GPU-".to_string(), "Accelerated training".to_string()];
         let resolved = resolve_hyphenation(&lines);
         assert_eq!(
             resolved,
-            vec![
-                "GPU-".to_string(),
-                "Accelerated training".to_string()
-            ]
+            vec!["GPU-".to_string(), "Accelerated training".to_string()]
         );
     }
 }

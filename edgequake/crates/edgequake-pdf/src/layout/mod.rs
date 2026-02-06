@@ -26,6 +26,7 @@
 
 mod block_classifier;
 mod column_detector;
+pub mod footnote;
 mod geometric;
 pub mod hyphenation;
 pub mod list_hierarchy;
