@@ -186,8 +186,14 @@ impl Span {
         // Check horizontal gap for word boundary detection
         // WHY: Characters within a word have minimal gaps (kerning, ~0-15% of font size)
         // Word boundaries have larger gaps (space character ~25-33% of font size)
-        // Using 25% threshold to detect word boundaries
-        let space_threshold = self.font_size * 0.25;
+        // OODA-IT32: Increased from 0.25 to 0.33 to reduce false word boundaries.
+        // In monospace fonts (e.g., Inconsolatazi4 at 9pt), inter-character spacing
+        // can reach 28% of font size, while space width is only ~25.6%.
+        // Using 33% threshold avoids splitting words while still catching most gaps
+        // that aren't covered by explicit space characters.
+        // Explicit space chars in the PDF stream are the PRIMARY word boundary signal
+        // (handled in chars_to_spans). This gap check is the SECONDARY signal.
+        let space_threshold = self.font_size * 0.33;
         let gap = ch.x0 - self.x1;
 
         // If gap is larger than threshold, it's a word boundary → new span

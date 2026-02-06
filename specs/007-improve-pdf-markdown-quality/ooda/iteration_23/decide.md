@@ -19,6 +19,7 @@ if line.trim().is_empty() {
 ```
 
 This ensures:
+
 1. Originally-empty lines → preserved as separators
 2. Content lines that become empty after TOC cleaning → skipped (as intended)
 3. Content lines with remaining text after cleaning → preserved

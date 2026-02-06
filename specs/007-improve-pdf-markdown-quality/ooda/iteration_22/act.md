@@ -23,10 +23,13 @@ if span_idx > 0 {
 ### 2. Inter-line separator change (`pdfium_backend.rs`)
 
 Changed line 575 from:
+
 ```rust
 block.spans.push(TextSpan::plain("\n"));
 ```
+
 To:
+
 ```rust
 block.spans.push(TextSpan::plain(" "));
 ```

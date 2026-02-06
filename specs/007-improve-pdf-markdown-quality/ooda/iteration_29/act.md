@@ -42,11 +42,14 @@ All tests pass including the new `test_indented_single_column_not_split`.
 ## Output quality comparison
 
 ### Before (IT28 output):
+
 Content ordering WRONG — "Co‑creation outputs (examples)" displaced after its bullet items
 because ReadingOrderDetector used multi_column_order with 2 false columns.
 
 ### After (IT29 output):
+
 Content ordering CORRECT:
+
 ```
 Co‑creation workshops: fast alignment through working sessions...
 Co‑creation outputs (examples)         ← now in correct position

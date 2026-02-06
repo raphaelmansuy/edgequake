@@ -5,6 +5,7 @@
 ### Files Deleted (22 files, ~13,600 lines)
 
 **Backend modules (13 files):**
+
 - `src/backend/extraction_engine.rs` (1,359 lines)
 - `src/backend/content_parser.rs` (712 lines)
 - `src/backend/element_processing.rs` (389 lines)
@@ -20,11 +21,13 @@
 - `src/processors/image_processor.rs` (307 lines)
 
 **Debug binaries (10 files):**
+
 - `src/bin/count_ops.rs`, `debug_merge.rs`, `debug_page1.rs`, `diagnose_fonts.rs`
 - `test_decode.rs`, `trace_content.rs`, `trace_ctm.rs`, `trace_elements.rs`
 - `trace_page1.rs`, `trace_y.rs`
 
 **Examples (7 files):**
+
 - `examples/convert_one_tool.rs`, `debug_all_page1.rs`, `debug_page2_xcoords.rs`
 - `debug_page_content.rs`, `debug_page_coords.rs`, `debug_tj_kerning.rs`
 - `debug_tm_scale.rs`
@@ -39,11 +42,13 @@
 6. **src/backend/pdfium_backend.rs**: Updated doc comments (removed ExtractionEngine references).
 
 ## Test Results
+
 - **440 lib tests pass** (131 tests removed with lopdf modules)
 - **Pre-existing integration test failures**: `test_extract_full`, `test_extract_text` fail with PdfiumBackend on `sample.pdf` — NOT a regression (confirmed by testing on pre-change code)
 - **clippy**: No new warnings
 
 ## Net Impact
+
 - **12,025 lines removed** (git diff --stat)
 - Single extraction pipeline: PdfiumBackend only
 - Cleaner feature flags: `default = ["pdfium"]`

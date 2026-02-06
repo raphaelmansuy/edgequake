@@ -4,11 +4,11 @@
 
 ### Quality comparison
 
-| Metric | Current | Gold | Delta |
-|--------|---------|------|-------|
-| Lines  | 168     | 191  | -23   |
-| Bytes  | 5105    | —    | —     |
-| Headers with bold wrapping | ALL | NONE | **FIXED this iteration** |
+| Metric                     | Current | Gold | Delta                    |
+| -------------------------- | ------- | ---- | ------------------------ |
+| Lines                      | 168     | 191  | -23                      |
+| Bytes                      | 5105    | —    | —                        |
+| Headers with bold wrapping | ALL     | NONE | **FIXED this iteration** |
 
 ### Issues identified
 

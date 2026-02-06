@@ -7,6 +7,7 @@
 **Removed digit exclusion from not_list guard** (line ~395)
 
 Before:
+
 ```rust
 let not_list = !text.starts_with('•')
     && !text.starts_with('-')
@@ -15,6 +16,7 @@ let not_list = !text.starts_with('•')
 ```
 
 After:
+
 ```rust
 let not_list = !text.starts_with('•')
     && !text.starts_with('-')
@@ -22,7 +24,7 @@ let not_list = !text.starts_with('•')
 ```
 
 WHY: Font size is the authority for header classification. Blocks with
-font_size >= body_size * 1.2 should be headers regardless of starting
+font_size >= body_size \* 1.2 should be headers regardless of starting
 character. "0) AI Strategy & Co‑Creation" (15pt, ratio 1.25) was incorrectly
 excluded because it starts with a digit.
 
@@ -31,6 +33,7 @@ excluded because it starts with a digit.
 **Replaced broad criteria with section-number pattern** (line ~1248)
 
 Only standalone bold lines matching a section-number regex are promoted to headers:
+
 - Pattern: `^(\d+[\).\-:\s]|section\s+\d|chapter\s+\d|part\s+[IVX\d])`
 - `**0) AI Strategy**` → `## 0) AI Strategy` ✓
 - `**What we deliver**` → stays as `**What we deliver**` ✓
@@ -51,6 +54,7 @@ Only standalone bold lines matching a section-number regex are promoted to heade
 ## Output quality
 
 Before (IT29):
+
 ```
 ## What we deliver       ← false header (×3)
 ## Capabilities          ← false header (×2)
@@ -59,6 +63,7 @@ Before (IT29):
 ```
 
 After (IT30):
+
 ```
 **What we deliver**      ← correct bold paragraph
 **Capabilities**         ← correct bold paragraph

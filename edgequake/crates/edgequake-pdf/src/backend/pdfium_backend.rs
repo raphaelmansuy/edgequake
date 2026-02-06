@@ -290,6 +290,12 @@ impl PdfBackend for PdfiumBackend {
                 .map(|(idx, tb)| convert_text_block_to_schema_block(tb, page_num, idx, page_height))
                 .collect();
 
+            // WHY (OODA-IT32): Merge horizontally adjacent blocks on the same line.
+            // This was missing from extract_with_progress (bug from IT28/IT31).
+            // Without this, text fragments like "AI Services" + "—" + "Elitizon"
+            // remain as 3 separate blocks instead of one "AI Services — Elitizon".
+            let schema_blocks = merge_same_line_blocks(schema_blocks);
+
             // Create page with actual dimensions
             let mut page = Page::new(page_num + 1, page_width, page_height);
             page.blocks = schema_blocks;

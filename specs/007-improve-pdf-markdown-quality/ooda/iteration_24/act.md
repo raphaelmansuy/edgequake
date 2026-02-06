@@ -5,11 +5,13 @@
 ### 1. `src/renderers/markdown.rs` – `render_header()` (line ~272)
 
 **Before**:
+
 ```rust
 output.push_str(&format!("{} **{}**\n\n", prefix, text.trim()));
 ```
 
 **After**:
+
 ```rust
 output.push_str(&format!("{} {}\n\n", prefix, text.trim()));
 ```
@@ -19,11 +21,13 @@ Also removed bold wrapping from setext-style headers.
 ### 2. `src/renderers/markdown.rs` – `convert_standalone_bold_to_headers()` (line ~1291)
 
 **Before**:
+
 ```rust
 result_lines.push(format!("## **{}**", trimmed));
 ```
 
 **After**:
+
 ```rust
 result_lines.push(format!("## {}", trimmed));
 ```

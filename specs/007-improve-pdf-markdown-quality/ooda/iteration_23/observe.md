@@ -7,12 +7,15 @@ After OODA-IT22 fixed word spacing, the markdown output had proper text content 
 ## Evidence
 
 Using `xxd` on the output file:
+
 ```
 00000000: 2320 2a2a 456c 6974 697a 6f6e 2a2a 0a2a  # **Elitizon**.*
 ```
-Offset `0x0e`: only one `0a` (newline) after "Elitizon**", immediately followed by the next block. No `0a0a` (blank line) present.
+
+Offset `0x0e`: only one `0a` (newline) after "Elitizon\*\*", immediately followed by the next block. No `0a0a` (blank line) present.
 
 Using debug tracing in the `render()` pipeline:
+
 ```
 Before normalize: 84 blank lines ✓
 After normalize:  84 blank lines ✓

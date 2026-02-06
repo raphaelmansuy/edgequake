@@ -7,6 +7,7 @@
 **File**: `src/renderers/markdown.rs`, function `cleanup_toc_leader_dots()`
 
 **Before**: All lines that were empty (or became empty after cleaning) were discarded:
+
 ```rust
 if !cleaned.trim().is_empty() {
     result_lines.push(cleaned);
@@ -14,6 +15,7 @@ if !cleaned.trim().is_empty() {
 ```
 
 **After**: Originally-empty lines are preserved as paragraph separators:
+
 ```rust
 if line.trim().is_empty() {
     result_lines.push(String::new());

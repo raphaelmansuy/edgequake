@@ -13,6 +13,7 @@ The pdfium backend produces **completely reversed reading order** when convertin
 **Document coordinate system (expected by processors):** Y=0 at TOP, Y increases DOWNWARD.
 
 The lopdf backend (extraction_engine.rs, line ~462) normalizes Y coordinates:
+
 ```rust
 e.y = max_y - e.y;
 ```
@@ -30,12 +31,14 @@ The pdfium backend passes raw PDF coordinates through TextGrouper → schema::Bl
 ### Debug Evidence
 
 **BEFORE processing (correct order from TextGrouper):**
+
 ```
 block 0 bbox=[72,636,234,659]: 'AI Services'        ← title at top (large Y)
 block 3 bbox=[72,587,212,602]: 'Executive summary'   ← below title
 ```
 
 **AFTER processing (LayoutProcessor reversed):**
+
 ```
 block 0 (Paragraph): 'Blueprint pack...'             ← bottom content now first
 block 13 (SectionHeader): 'AI Services'              ← title now last
