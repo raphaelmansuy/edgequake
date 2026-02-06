@@ -7,9 +7,11 @@
 
 mod json;
 mod markdown;
+pub mod pua_filter;
 
 pub use json::JsonRenderer;
 pub use markdown::{MarkdownRenderer, MarkdownStyle};
+pub use pua_filter::{filter_pua, is_pua_char};
 
 use crate::schema::Document;
 use crate::Result;
