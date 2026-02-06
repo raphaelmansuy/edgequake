@@ -193,12 +193,15 @@ impl MarkdownRenderer {
         self.render_lines_inline(&block.lines)
     }
 
-    /// Render multiple lines joined by newlines (preserving PDF line breaks).
+    /// Render multiple lines joined with spaces (continuous text flow).
     /// OODA-05: Applies hyphenation resolution before joining.
+    /// OODA-12: Join with space instead of newline for natural text flow.
+    /// WHY: PDF line breaks within paragraphs are column-width artifacts,
+    /// not intentional formatting. Joining with spaces produces clean markdown.
     fn render_lines_inline(&self, lines: &[Line]) -> String {
         let rendered: Vec<String> = lines.iter().map(|l| self.render_line_styled(l)).collect();
         let resolved = resolve_hyphenation(&rendered);
-        resolved.join("\n")
+        resolved.join(" ")
     }
 
     /// OODA-10: Render multiple lines as plain text (no bold/italic).
