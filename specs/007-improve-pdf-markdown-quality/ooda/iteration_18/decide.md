@@ -11,6 +11,7 @@ rare cases where PDF text boxes split a word like "netw\n\norking" across blocks
 (with `render_text()` adding `\n\n` between them).
 
 However, this feature causes **false positive joins** that damage document structure:
+
 - `"...interleave the lines with\n\nsome space and tests..."` gets joined because
   "with" ends lowercase and "some" starts lowercase
 - This destroys paragraph boundaries and produces long concatenated text blobs
@@ -19,6 +20,7 @@ However, this feature causes **false positive joins** that damage document struc
 
 The `should_join_lines()` function uses a simple "lowercase→lowercase" heuristic
 that cannot distinguish between:
+
 1. A broken word fragment: `"netw"` (short, incomplete)
 2. A complete sentence ending: `"...interleave the lines with"` (long, complete)
 
@@ -27,6 +29,7 @@ that cannot distinguish between:
 **Add a line length threshold (≤30 chars) for cross-empty-line joins.**
 
 First principles reasoning:
+
 - PDF text boxes that split words are typically NARROW (short fragments)
 - Complete sentences/paragraphs span the full column width (long lines)
 - A 30-char threshold catches word fragments while rejecting full sentences
@@ -54,12 +57,12 @@ First principles reasoning:
 
 ### Examples
 
-| Current Line | Length | Next-Next Line | Join? |
-|---|---|---|---|
-| `"netw"` | 4 | `"orking is prohibited"` | ✅ YES |
-| `"TCP/IP netw"` | 11 | `"orking is prohibited"` | ✅ YES |
-| `"...interleave the lines with"` | 50+ | `"some space and tests"` | ❌ NO |
-| `"sockets"` | 7 | `"based networking"` | ✅ YES |
+| Current Line                     | Length | Next-Next Line           | Join?  |
+| -------------------------------- | ------ | ------------------------ | ------ |
+| `"netw"`                         | 4      | `"orking is prohibited"` | ✅ YES |
+| `"TCP/IP netw"`                  | 11     | `"orking is prohibited"` | ✅ YES |
+| `"...interleave the lines with"` | 50+    | `"some space and tests"` | ❌ NO  |
+| `"sockets"`                      | 7      | `"based networking"`     | ✅ YES |
 
 ### Changes Required
 

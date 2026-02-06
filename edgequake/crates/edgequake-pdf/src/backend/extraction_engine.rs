@@ -240,12 +240,17 @@ impl ExtractionEngine {
                 .group_into_lines(elements, page_width, page_height, column_boundary);
 
         // Create column bounding boxes if two-column layout
+        // OODA-IT20: When backend explicitly detects single-column (including table override),
+        // set a single full-page column to prevent LayoutProcessor from re-detecting columns.
+        // WHY: Empty columns causes LayoutProcessor to run its own DBSCAN column detection,
+        // which may incorrectly detect table cells as columns.
         let columns = if let Some(boundary) = column_boundary {
             let left_column = BoundingBox::new(0.0, 0.0, boundary, page_height);
             let right_column = BoundingBox::new(boundary, 0.0, page_width, page_height);
             vec![left_column, right_column]
         } else {
-            Vec::new()
+            // Single full-page column (signals "analyzed, confirmed single-column")
+            vec![BoundingBox::new(0.0, 0.0, page_width, page_height)]
         };
 
         (lines, columns)

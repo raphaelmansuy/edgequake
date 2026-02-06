@@ -39,14 +39,14 @@ pub fn has_prose_indicators(text: &str) -> bool {
 
 ### Test Cases
 
-| Input | Result | Reason |
-|---|---|---|
-| "Introduction" | false | Single word |
-| "This is the second" | true | "is" + "the" (lowercase) |
-| "What We Deliver" | false | "We" is uppercase |
-| "Methods and Results" | false | "and" not in indicator set |
-| "It was a dark" | true | "was" + "a" (lowercase) |
-| "Architecture & Governance" | false | No indicators |
+| Input                       | Result | Reason                     |
+| --------------------------- | ------ | -------------------------- |
+| "Introduction"              | false  | Single word                |
+| "This is the second"        | true   | "is" + "the" (lowercase)   |
+| "What We Deliver"           | false  | "We" is uppercase          |
+| "Methods and Results"       | false  | "and" not in indicator set |
+| "It was a dark"             | true   | "was" + "a" (lowercase)    |
+| "Architecture & Governance" | false  | No indicators              |
 
 ### Risk Assessment
 

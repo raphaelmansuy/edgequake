@@ -10,6 +10,8 @@ If image is discovered in the PDF they should be extracted in ./assets/ subfolde
 
 Ensure to always use First Principle logic not poor heuristics that use keywords or content of a specific document (it is cheating). always use timeout for tests (don't be blocked)
 
+Ensure to remove lopdf legacy code in other to improve the quality of the code: dead code is not good for maintenance: only keep one extraction , conversion pipeline for clarity.
+
 
 Read files to compare gold vs converted at the end of each iteration to evaluate the quality.
 
