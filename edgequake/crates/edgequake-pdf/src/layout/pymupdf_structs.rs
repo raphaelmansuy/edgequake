@@ -185,15 +185,23 @@ impl Span {
 
         // Check horizontal gap for word boundary detection
         // WHY: Characters within a word have minimal gaps (kerning, ~0-15% of font size)
-        // Word boundaries have larger gaps (space character ~25-33% of font size)
-        // OODA-IT32: Increased from 0.25 to 0.33 to reduce false word boundaries.
-        // In monospace fonts (e.g., Inconsolatazi4 at 9pt), inter-character spacing
-        // can reach 28% of font size, while space width is only ~25.6%.
-        // Using 33% threshold avoids splitting words while still catching most gaps
-        // that aren't covered by explicit space characters.
+        // Word boundaries have larger gaps (space character ~20-33% of font size)
+        //
+        // OODA-IT40: Font-aware threshold to handle both monospace and proportional fonts.
+        // - Monospace fonts (Courier, Inconsolata): inter-char gaps ~25-28%, space ~26%
+        //   → Use 33% threshold to avoid false word boundaries (OODA-IT32 fix)
+        // - Proportional fonts (Arial, Times): inter-char gaps ~5-15%, space ~20-25%
+        //   → Use 22% threshold to catch word boundaries without splitting kerned pairs
+        //
         // Explicit space chars in the PDF stream are the PRIMARY word boundary signal
         // (handled in chars_to_spans). This gap check is the SECONDARY signal.
-        let space_threshold = self.font_size * 0.33;
+        let space_threshold = if self.font_is_monospace.unwrap_or(false) {
+            // Monospace: wide inter-char spacing requires higher threshold
+            self.font_size * 0.33
+        } else {
+            // Proportional: tight kerning allows lower threshold for better word detection
+            self.font_size * 0.22
+        };
         let gap = ch.x0 - self.x1;
 
         // If gap is larger than threshold, it's a word boundary → new span
@@ -589,11 +597,38 @@ impl Line {
         let first = trimmed.chars().next().unwrap();
         let is_bullet = matches!(
             first,
-            '•' | '◦' | '▪' | '▸' | '▹' | '►' | '▻'
-                | '●' | '○' | '■' | '□' | '▲' | '△' | '▶' | '▷'
-                | '★' | '☆' | '✦' | '✧' | '✓' | '✔' | '✗' | '✘'
-                | '➤' | '➢' | '➣' | '➜' | '➡' | '⁃' | '∙'
-                | '·' | '†' | '‡'
+            '•' | '◦'
+                | '▪'
+                | '▸'
+                | '▹'
+                | '►'
+                | '▻'
+                | '●'
+                | '○'
+                | '■'
+                | '□'
+                | '▲'
+                | '△'
+                | '▶'
+                | '▷'
+                | '★'
+                | '☆'
+                | '✦'
+                | '✧'
+                | '✓'
+                | '✔'
+                | '✗'
+                | '✘'
+                | '➤'
+                | '➢'
+                | '➣'
+                | '➜'
+                | '➡'
+                | '⁃'
+                | '∙'
+                | '·'
+                | '†'
+                | '‡'
         );
 
         if is_bullet {
