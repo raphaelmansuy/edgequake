@@ -661,11 +661,48 @@ impl MarkdownRenderer {
         };
 
         // Render content with formatting (from spans if available)
+        // OODA-IT36: Preserve bold/italic formatting from spans when skipping bullet prefix.
+        // WHY: Previous code used clean_text(after_prefix) which drops all styling.
+        // Now we skip bullet prefix spans and render remaining spans with formatting.
         let content = if content_start > 0 && !block.spans.is_empty() {
-            // Get the text content after the prefix
-            let after_prefix = &raw_text[content_start..];
-            // For simplicity, use clean text since spans may not align well with prefix removal
-            self.clean_text(after_prefix)
+            // Skip spans that correspond to the bullet prefix.
+            // Count characters consumed until we've passed content_start bytes.
+            let mut chars_consumed = 0;
+            let mut skip_spans = 0;
+            for span in &block.spans {
+                let span_len = span.text.len();
+                if chars_consumed + span_len <= content_start {
+                    chars_consumed += span_len;
+                    skip_spans += 1;
+                } else {
+                    break;
+                }
+            }
+            // Render remaining spans with formatting
+            if skip_spans < block.spans.len() {
+                let remaining = &block.spans[skip_spans..];
+                // If we partially consumed a span, trim its beginning
+                if chars_consumed < content_start && !remaining.is_empty() {
+                    let first = &remaining[0];
+                    let trim_bytes = content_start - chars_consumed;
+                    if trim_bytes < first.text.len() {
+                        // Create a modified first span with trimmed text
+                        let mut trimmed_span = first.clone();
+                        trimmed_span.text = first.text[trim_bytes..].to_string();
+                        let mut trimmed_spans = vec![trimmed_span];
+                        trimmed_spans.extend_from_slice(&remaining[1..]);
+                        self.render_spans_styled(&trimmed_spans, false, false)
+                    } else {
+                        self.render_spans_styled(&remaining[1..], false, false)
+                    }
+                } else {
+                    self.render_spans_styled(remaining, false, false)
+                }
+            } else {
+                // All spans consumed by prefix — fallback to clean text
+                let after_prefix = &raw_text[content_start..];
+                self.clean_text(after_prefix)
+            }
         } else if !block.spans.is_empty() {
             self.render_spans(&block.spans)
         } else {

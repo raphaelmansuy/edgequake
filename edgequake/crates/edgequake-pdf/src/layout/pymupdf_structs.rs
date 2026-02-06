@@ -550,6 +550,83 @@ impl Line {
             self.spans[0].font_size
         }
     }
+
+    /// OODA-IT36: Check if this line starts with a list marker (bullet or number).
+    ///
+    /// WHY (First Principles): PDFs render each bullet item as a separate visual
+    /// line starting with a bullet character (•, -, *, ▪, etc.) or a number
+    /// pattern ("1.", "2)", "(a)"). When the TextGrouper merges these lines into
+    /// one block, the downstream ListDetectionProcessor can only see the FIRST
+    /// bullet — all subsequent items become invisible paragraph text.
+    ///
+    /// By detecting list markers at the line level, we can prevent merging and
+    /// preserve each list item as a separate block.
+    ///
+    /// ```text
+    /// Before (merged):           After (split):
+    /// ┌──────────────────┐       ┌──────────────────┐
+    /// │ • Item A text    │       │ • Item A text    │  ← Block 1
+    /// │ • Item B text    │  →    └──────────────────┘
+    /// │ • Item C text    │       ┌──────────────────┐
+    /// └──────────────────┘       │ • Item B text    │  ← Block 2
+    ///                            └──────────────────┘
+    ///                            ┌──────────────────┐
+    ///                            │ • Item C text    │  ← Block 3
+    ///                            └──────────────────┘
+    /// ```
+    pub fn starts_with_list_marker(&self) -> bool {
+        let text = self.text();
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+
+        // Check for common bullet characters
+        // WHY: This is a subset of the full 530+ character set in
+        // structure_detection.rs. We only need the most common ones here
+        // to prevent block merging. The full set is used by
+        // ListDetectionProcessor for final classification.
+        let first = trimmed.chars().next().unwrap();
+        let is_bullet = matches!(
+            first,
+            '•' | '◦' | '▪' | '▸' | '▹' | '►' | '▻'
+                | '●' | '○' | '■' | '□' | '▲' | '△' | '▶' | '▷'
+                | '★' | '☆' | '✦' | '✧' | '✓' | '✔' | '✗' | '✘'
+                | '➤' | '➢' | '➣' | '➜' | '➡' | '⁃' | '∙'
+                | '·' | '†' | '‡'
+        );
+
+        if is_bullet {
+            // Bullet followed by space, end, uppercase, or asterisk
+            let rest = &trimmed[first.len_utf8()..];
+            return rest.is_empty()
+                || rest.starts_with(' ')
+                || rest.starts_with('\t')
+                || rest.starts_with('*')
+                || rest.starts_with(|c: char| c.is_uppercase());
+        }
+
+        // Check for numbered list: "1. " or "1) " or "(1)" etc.
+        // WHY: Numbered items like "1. Introduction" also get merged
+        // Use a simple check: digit(s) followed by . or ) then space
+        let bytes = trimmed.as_bytes();
+        if bytes[0].is_ascii_digit() {
+            // Find end of digits
+            let digit_end = bytes.iter().position(|b| !b.is_ascii_digit()).unwrap_or(0);
+            if digit_end > 0 && digit_end < bytes.len() {
+                let after_digit = bytes[digit_end];
+                // "1. text" or "1) text" — must have space after
+                if (after_digit == b'.' || after_digit == b')') && digit_end + 1 < bytes.len() {
+                    let after_marker = bytes[digit_end + 1];
+                    if after_marker == b' ' || after_marker == b'\t' {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
 }
 
 /// A block is a collection of lines in the same column/region.
@@ -638,8 +715,20 @@ impl Block {
     /// Check if a line belongs to this block.
     ///
     /// Uses horizontal overlap and vertical proximity.
+    ///
+    /// OODA-IT36: Also rejects lines that start with list markers (bullets,
+    /// numbers) to prevent merging separate list items into one block.
     pub fn can_add_line(&self, line: &Line, line_gap_tolerance: f32) -> bool {
         if self.page_num != line.page_num {
+            return false;
+        }
+
+        // OODA-IT36: Lines starting with a list marker ALWAYS start a new block.
+        // WHY (First Principles): Each bullet/numbered item is a separate
+        // semantic element. Merging "• Item A" with "• Item B" into one block
+        // makes them invisible to ListDetectionProcessor, which only checks
+        // block.text.starts_with(bullet).
+        if line.starts_with_list_marker() {
             return false;
         }
 
