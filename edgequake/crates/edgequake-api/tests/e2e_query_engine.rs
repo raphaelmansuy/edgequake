@@ -13,121 +13,22 @@
 //! These tests ensure all query modes work, response structure is stable,
 //! and conversation management integrates correctly with queries.
 
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
+mod common;
+
+use axum::http::StatusCode;
+use common::{
+    create_test_app, get_with_tenant, post_json, post_json_with_tenant, with_timeout,
 };
-use edgequake_api::{AppState, Server, ServerConfig};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::time::Duration;
-use tower::ServiceExt;
 
 // ============================================================================
-// Constants
+// Constants — unique UUIDs for this test file
 // ============================================================================
 
-/// WHY: Conversation endpoints require valid UUID tenant/user headers.
-const TEST_TENANT_ID: &str = "aaaaaaaa-0018-0018-0018-aaaaaaaaaaaa";
-const TEST_USER_ID: &str = "bbbbbbbb-0018-0018-0018-bbbbbbbbbbbb";
-const TEST_WORKSPACE_ID: &str = "cccccccc-0018-0018-0018-cccccccccccc";
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-async fn with_timeout<F, T>(duration: Duration, future: F) -> Result<T, String>
-where
-    F: std::future::Future<Output = T>,
-{
-    tokio::time::timeout(duration, future)
-        .await
-        .map_err(|_| format!("Test exceeded timeout of {:?}", duration))
-}
-
-fn create_test_app() -> axum::Router {
-    let config = ServerConfig {
-        host: "127.0.0.1".to_string(),
-        port: 0,
-        enable_cors: false,
-        enable_compression: false,
-        enable_swagger: true,
-    };
-    let server = Server::new(config, AppState::test_state());
-    server.build_router()
-}
-
-async fn extract_json(response: axum::response::Response) -> Value {
-    let bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024)
-        .await
-        .expect("Failed to read response body");
-    serde_json::from_slice(&bytes).unwrap_or(Value::Null)
-}
-
-/// Post JSON without tenant headers (for query endpoint which uses TenantContext optionally).
-async fn post_json(app: &axum::Router, uri: &str, payload: &Value) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(uri)
-                .header("Content-Type", "application/json")
-                .body(Body::from(serde_json::to_string(payload).unwrap()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = response.status();
-    let body = extract_json(response).await;
-    (status, body)
-}
-
-/// Post JSON with tenant + user headers (required for conversation endpoints).
-async fn post_json_with_tenant(
-    app: &axum::Router,
-    uri: &str,
-    payload: &Value,
-) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(uri)
-                .header("Content-Type", "application/json")
-                .header("X-Tenant-ID", TEST_TENANT_ID)
-                .header("X-User-ID", TEST_USER_ID)
-                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
-                .body(Body::from(serde_json::to_string(payload).unwrap()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = response.status();
-    let body = extract_json(response).await;
-    (status, body)
-}
-
-/// GET with tenant + user headers.
-async fn get_with_tenant(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .header("X-Tenant-ID", TEST_TENANT_ID)
-                .header("X-User-ID", TEST_USER_ID)
-                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = response.status();
-    let body = extract_json(response).await;
-    (status, body)
-}
+const TENANT_ID: &str = "aaaaaaaa-0018-0018-0018-aaaaaaaaaaaa";
+const USER_ID: &str = "bbbbbbbb-0018-0018-0018-bbbbbbbbbbbb";
+const WORKSPACE_ID: &str = "cccccccc-0018-0018-0018-cccccccccccc";
 
 // ============================================================================
 // Basic Query Tests
@@ -305,7 +206,7 @@ async fn test_create_conversation() {
         });
         // WHY: Conversation endpoints require X-Tenant-ID and X-User-ID headers
         let (status, body) =
-            post_json_with_tenant(&app, "/api/v1/conversations", &payload).await;
+            post_json_with_tenant(&app, "/api/v1/conversations", &payload, TENANT_ID, USER_ID, WORKSPACE_ID).await;
 
         assert_eq!(
             status,
@@ -363,11 +264,11 @@ async fn test_list_conversations() {
         // Create a conversation first
         let payload = json!({ "title": "List Test Conv" });
         let (status, _) =
-            post_json_with_tenant(&app, "/api/v1/conversations", &payload).await;
+            post_json_with_tenant(&app, "/api/v1/conversations", &payload, TENANT_ID, USER_ID, WORKSPACE_ID).await;
         assert_eq!(status, StatusCode::CREATED);
 
         // List conversations
-        let (status, body) = get_with_tenant(&app, "/api/v1/conversations").await;
+        let (status, body) = get_with_tenant(&app, "/api/v1/conversations", TENANT_ID, USER_ID, WORKSPACE_ID).await;
         assert_eq!(status, StatusCode::OK, "List conversations should return 200: {}", body);
 
         // WHY: PaginatedConversationsResponse has items + pagination fields
