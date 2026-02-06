@@ -594,7 +594,10 @@ mod tests {
         // Paragraph: ratio < 1.5 (10pt / 10pt = 1.0)
         assert!(
             matches!(
-                classifier.classify_block(&make_heading_block(10.0, "Regular paragraph text"), body_size),
+                classifier.classify_block(
+                    &make_heading_block(10.0, "Regular paragraph text"),
+                    body_size
+                ),
                 BlockType::Paragraph
             ),
             "10pt on 10pt body (1.0x) should be Paragraph"

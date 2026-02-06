@@ -42,12 +42,12 @@ fn main() {
                     if fname != "F4" {
                         continue;
                     }
-                    
+
                     let font_id = match font_obj {
                         Object::Reference(r) => *r,
                         _ => continue,
                     };
-                    
+
                     if let Ok(font_dict) = doc.get_dictionary(font_id) {
                         // WHY: Combined Ok and Reference patterns per clippy suggestion
                         if let Ok(Object::Reference(ref_id)) = font_dict.get(b"ToUnicode") {
@@ -66,10 +66,7 @@ fn main() {
                                             .iter()
                                             .filter_map(|&c| char::from_u32(c as u32))
                                             .collect();
-                                        println!(
-                                            "  0x{:04X} -> {:?} = '{}'",
-                                            key, val, chars
-                                        );
+                                        println!("  0x{:04X} -> {:?} = '{}'", key, val, chars);
                                     }
 
                                     // Test decoding the actual bytes from the PDF
@@ -78,13 +75,12 @@ fn main() {
                                     // From the content stream: <0037> should be 'T'
                                     let bytes1 = [0x00, 0x37];
                                     let result1 = cmap.decode(&bytes1);
-                                    println!(
-                                        "decode([0x00, 0x37]) = '{}' (expected 'T')",
-                                        result1
-                                    );
+                                    println!("decode([0x00, 0x37]) = '{}' (expected 'T')", result1);
 
                                     // <004C0057004F0048001D> should be "itle:"
-                                    let bytes2 = [0x00, 0x4C, 0x00, 0x57, 0x00, 0x4F, 0x00, 0x48, 0x00, 0x1D];
+                                    let bytes2 = [
+                                        0x00, 0x4C, 0x00, 0x57, 0x00, 0x4F, 0x00, 0x48, 0x00, 0x1D,
+                                    ];
                                     let result2 = cmap.decode(&bytes2);
                                     println!(
                                         "decode([0x00,0x4C,...]) = '{}' (expected 'itle:')",
@@ -94,10 +90,7 @@ fn main() {
                                     // <0003> should be space
                                     let bytes3 = [0x00, 0x03];
                                     let result3 = cmap.decode(&bytes3);
-                                    println!(
-                                        "decode([0x00, 0x03]) = '{}' (expected ' ')",
-                                        result3
-                                    );
+                                    println!("decode([0x00, 0x03]) = '{}' (expected ' ')", result3);
                                 }
                             }
                         }

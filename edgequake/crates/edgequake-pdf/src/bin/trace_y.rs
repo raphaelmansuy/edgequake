@@ -22,16 +22,16 @@ fn main() {
     let page_ids = doc.get_pages();
     if let Some((_, &page_id)) = page_ids.iter().next() {
         let fonts = get_page_fonts(&doc, page_id);
-        
+
         if let Ok(content_bytes) = doc.get_page_content(page_id) {
             let content = Content::decode(&content_bytes).expect("Failed to decode content");
-            
+
             let mut current_font: Option<&FontInfo> = None;
             let mut text_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
             let mut line_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
-            
+
             let mut elements_at_target = Vec::new();
-            
+
             for op in &content.operations {
                 match op.operator.as_str() {
                     "BT" => {
@@ -70,12 +70,18 @@ fn main() {
                                 } else {
                                     String::from_utf8_lossy(bytes).to_string()
                                 };
-                                
+
                                 let y = text_matrix[5];
-                                
+
                                 // Target Y=-6.27 ± 0.5
                                 if (y - (-6.27)).abs() < 0.5 {
-                                    elements_at_target.push((text_matrix[4], text.clone(), current_font.map(|f| f.base_font.clone()).unwrap_or_default()));
+                                    elements_at_target.push((
+                                        text_matrix[4],
+                                        text.clone(),
+                                        current_font
+                                            .map(|f| f.base_font.clone())
+                                            .unwrap_or_default(),
+                                    ));
                                 }
                             }
                         }
@@ -83,7 +89,7 @@ fn main() {
                     _ => {}
                 }
             }
-            
+
             println!("Elements at Y≈-6.27: {} total", elements_at_target.len());
             for (i, (x, text, font)) in elements_at_target.iter().enumerate() {
                 println!("  [{:2}] X={:7.2} text='{}' font={}", i + 1, x, text, font);
@@ -94,7 +100,7 @@ fn main() {
 
 fn get_page_fonts(doc: &Document, page_id: lopdf::ObjectId) -> BTreeMap<Vec<u8>, FontInfo> {
     let mut fonts = BTreeMap::new();
-    
+
     if let Ok((Some(resources), _)) = doc.get_page_resources(page_id) {
         if let Ok(font_obj) = resources.get(b"Font") {
             let font_dict = match font_obj {
@@ -105,7 +111,7 @@ fn get_page_fonts(doc: &Document, page_id: lopdf::ObjectId) -> BTreeMap<Vec<u8>,
                 }),
                 _ => None,
             };
-            
+
             if let Some(font_dict) = font_dict {
                 for (name, value) in font_dict.iter() {
                     if let Object::Reference(id) = value {
@@ -117,7 +123,7 @@ fn get_page_fonts(doc: &Document, page_id: lopdf::ObjectId) -> BTreeMap<Vec<u8>,
             }
         }
     }
-    
+
     fonts
 }
 

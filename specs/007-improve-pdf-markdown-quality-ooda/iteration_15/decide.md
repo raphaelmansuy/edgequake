@@ -3,6 +3,7 @@
 ## Decision
 
 ### Chosen Solution
+
 Post-process markdown output to convert standalone bold lines to section headers.
 
 ### Implementation Details
@@ -25,10 +26,10 @@ Post-process markdown output to convert standalone bold lines to section headers
 
 ### Risk Assessment
 
-| Risk | Mitigation |
-|------|------------|
-| False positives | Strict criteria (length, punctuation, case) |
-| Missing headers | Allowed exceptions list |
+| Risk              | Mitigation                                      |
+| ----------------- | ----------------------------------------------- |
+| False positives   | Strict criteria (length, punctuation, case)     |
+| Missing headers   | Allowed exceptions list                         |
 | Breaking captions | Regex checks for "Figure N", "Table N" patterns |
 
 ### Test Coverage

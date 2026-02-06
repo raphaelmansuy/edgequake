@@ -1,6 +1,7 @@
 # OODA Iteration 15 - Observe
 
 ## Observation Date
+
 2025-02-05
 
 ## Quality Issue Detected
@@ -9,6 +10,7 @@
 
 **Symptom:**
 Many standalone bold lines in output should be section headers but are rendered as just bold text:
+
 ```markdown
 **Executive summary**
 **What we deliver**
@@ -17,6 +19,7 @@ Many standalone bold lines in output should be section headers but are rendered 
 ```
 
 **Expected Output:**
+
 ```markdown
 ## **Executive summary**
 
@@ -27,7 +30,7 @@ Many standalone bold lines in output should be section headers but are rendered 
 ## **Outcomes**
 ```
 
-**Test Document:** AI_Services__Elitizon.pdf
+**Test Document:** AI_Services\_\_Elitizon.pdf
 
 ### Root Cause Analysis
 
@@ -38,6 +41,7 @@ Many standalone bold lines in output should be section headers but are rendered 
 ### Evidence
 
 From `/tmp/it15_elitizon.md`:
+
 ```markdown
 **Executive summary**
 
@@ -63,12 +67,12 @@ These are clearly section headings by context but not detected as such.
 
 ### Impact Assessment
 
-| Category | Impact |
-|----------|--------|
+| Category           | Impact                            |
+| ------------------ | --------------------------------- |
 | Document Structure | High - missing semantic hierarchy |
-| TOC Generation | High - no automatic TOC possible |
-| Readability | Medium - no visual separation |
-| Quality Score | Headers: 75 → 85 |
+| TOC Generation     | High - no automatic TOC possible  |
+| Readability        | Medium - no visual separation     |
+| Quality Score      | Headers: 75 → 85                  |
 
 ## Metrics
 

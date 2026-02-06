@@ -14,7 +14,7 @@ fn main() {
     let ops = lopdf::content::Content::decode(&content).expect("Decode failed");
 
     println!("=== TJ kerning values in hotmess title ===\n");
-    
+
     let mut title_region = false;
     let mut tj_count = 0;
 

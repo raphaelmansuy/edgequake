@@ -40,9 +40,16 @@ async fn test_qwen_reading_order() {
 
     let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
     let extractor = make_extractor();
-    let markdown = extractor.extract_to_markdown(&pdf_bytes).await.expect("Extraction failed");
+    let markdown = extractor
+        .extract_to_markdown(&pdf_bytes)
+        .await
+        .expect("Extraction failed");
 
-    println!("Qwen.pdf output ({} bytes):\n{}", markdown.len(), &markdown[..markdown.len().min(500)]);
+    println!(
+        "Qwen.pdf output ({} bytes):\n{}",
+        markdown.len(),
+        &markdown[..markdown.len().min(500)]
+    );
 
     // Find positions of key phrases
     let markdown_lower = markdown.to_lowercase();
@@ -72,7 +79,10 @@ async fn test_qwen_key_content() {
 
     let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
     let extractor = make_extractor();
-    let markdown = extractor.extract_to_markdown(&pdf_bytes).await.expect("Extraction failed");
+    let markdown = extractor
+        .extract_to_markdown(&pdf_bytes)
+        .await
+        .expect("Extraction failed");
 
     let markdown_lower = markdown.to_lowercase();
 
@@ -102,7 +112,10 @@ async fn test_beyond_transformer_content() {
 
     let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
     let extractor = make_extractor();
-    let markdown = extractor.extract_to_markdown(&pdf_bytes).await.expect("Extraction failed");
+    let markdown = extractor
+        .extract_to_markdown(&pdf_bytes)
+        .await
+        .expect("Extraction failed");
 
     println!("Beyond Transformer output: {} bytes", markdown.len());
 
@@ -136,7 +149,10 @@ async fn test_beyond_transformer_structure() {
 
     let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
     let extractor = make_extractor();
-    let doc = extractor.extract_document(&pdf_bytes).await.expect("Extraction failed");
+    let doc = extractor
+        .extract_document(&pdf_bytes)
+        .await
+        .expect("Extraction failed");
 
     // Multi-page PDF should have multiple pages
     assert!(
@@ -147,11 +163,7 @@ async fn test_beyond_transformer_structure() {
 
     // Each page should have content
     for (i, page) in doc.pages.iter().enumerate() {
-        assert!(
-            !page.blocks.is_empty(),
-            "Page {} should have blocks",
-            i + 1
-        );
+        assert!(!page.blocks.is_empty(), "Page {} should have blocks", i + 1);
     }
 }
 
@@ -169,7 +181,10 @@ async fn test_agentic_platform_content() {
 
     let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
     let extractor = make_extractor();
-    let markdown = extractor.extract_to_markdown(&pdf_bytes).await.expect("Extraction failed");
+    let markdown = extractor
+        .extract_to_markdown(&pdf_bytes)
+        .await
+        .expect("Extraction failed");
 
     println!("Agentic Platform output: {} bytes", markdown.len());
 
@@ -210,10 +225,14 @@ async fn test_agentic_platform_headings() {
 
     let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
     let extractor = make_extractor();
-    let markdown = extractor.extract_to_markdown(&pdf_bytes).await.expect("Extraction failed");
+    let markdown = extractor
+        .extract_to_markdown(&pdf_bytes)
+        .await
+        .expect("Extraction failed");
 
     // Count markdown headings
-    let h1_count = markdown.matches("\n# ").count() + if markdown.starts_with("# ") { 1 } else { 0 };
+    let h1_count =
+        markdown.matches("\n# ").count() + if markdown.starts_with("# ") { 1 } else { 0 };
     let h2_count = markdown.matches("\n## ").count();
 
     println!("Headings: H1={}, H2={}", h1_count, h2_count);
@@ -237,7 +256,10 @@ async fn test_agentic_platform_code_blocks() {
 
     let pdf_bytes = fs::read(&path).expect("Failed to read PDF");
     let extractor = make_extractor();
-    let markdown = extractor.extract_to_markdown(&pdf_bytes).await.expect("Extraction failed");
+    let markdown = extractor
+        .extract_to_markdown(&pdf_bytes)
+        .await
+        .expect("Extraction failed");
 
     // Check for diagram-like content (boxes, ASCII art)
     let has_box_chars = markdown.contains("┌") || markdown.contains("│") || markdown.contains("└");
@@ -260,8 +282,16 @@ async fn test_agentic_platform_code_blocks() {
 async fn test_all_pdfs_extraction_summary() {
     let test_files = [
         ("Qwen.pdf", 500, vec!["qwen"]),
-        ("001-BEYONG-TRANFORMER-OUTLINE-V1_1.pdf", 10000, vec!["transformer"]),
-        ("AgenticPlatformReference Architecture.pdf", 50000, vec!["agentic"]),
+        (
+            "001-BEYONG-TRANFORMER-OUTLINE-V1_1.pdf",
+            10000,
+            vec!["transformer"],
+        ),
+        (
+            "AgenticPlatformReference Architecture.pdf",
+            50000,
+            vec!["agentic"],
+        ),
     ];
 
     let extractor = make_extractor();
@@ -291,7 +321,11 @@ async fn test_all_pdfs_extraction_summary() {
                 results.push((name, status, markdown.len(), min_bytes));
                 println!(
                     "{}: {} - {} bytes (min: {}), has_keywords: {}",
-                    status, name, markdown.len(), min_bytes, has_required
+                    status,
+                    name,
+                    markdown.len(),
+                    min_bytes,
+                    has_required
                 );
             }
             Err(e) => {
@@ -303,7 +337,10 @@ async fn test_all_pdfs_extraction_summary() {
 
     println!("\n=== EXTRACTION QUALITY SUMMARY ===");
     for (name, status, actual, expected) in &results {
-        println!("{}: {} ({} bytes, expected >= {})", status, name, actual, expected);
+        println!(
+            "{}: {} ({} bytes, expected >= {})",
+            status, name, actual, expected
+        );
     }
 
     // All tests should pass

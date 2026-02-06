@@ -257,4 +257,3 @@ mod tests {
     // which is complex. The integration tests in tests/ directory will verify
     // the full functionality of adaptive thresholds.
 }
-

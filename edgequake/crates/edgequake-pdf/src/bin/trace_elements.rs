@@ -26,22 +26,22 @@ fn main() {
     let page_ids = doc.get_pages();
     if let Some((_, &page_id)) = page_ids.iter().next() {
         println!("\n=== Page 1 ===\n");
-        
+
         // Get fonts
         let fonts = get_page_fonts(&doc, page_id);
         println!("Found {} fonts", fonts.len());
-        
+
         // Get content stream
         if let Ok(content_bytes) = doc.get_page_content(page_id) {
             let content = Content::decode(&content_bytes).expect("Failed to decode content");
-            
+
             // Track state
             let mut current_font: Option<&FontInfo> = None;
             let mut text_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
             let mut line_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
-            
+
             let mut element_count = 0;
-            
+
             for op in &content.operations {
                 match op.operator.as_str() {
                     "BT" => {
@@ -80,7 +80,7 @@ fn main() {
                                 } else {
                                     String::from_utf8_lossy(bytes).to_string()
                                 };
-                                
+
                                 element_count += 1;
                                 if element_count <= 100 {
                                     println!(
@@ -98,7 +98,7 @@ fn main() {
                     _ => {}
                 }
             }
-            
+
             println!("\nTotal text elements: {}", element_count);
         }
     }
@@ -106,7 +106,7 @@ fn main() {
 
 fn get_page_fonts(doc: &Document, page_id: lopdf::ObjectId) -> BTreeMap<Vec<u8>, FontInfo> {
     let mut fonts = BTreeMap::new();
-    
+
     if let Ok((Some(resources), _)) = doc.get_page_resources(page_id) {
         if let Ok(font_obj) = resources.get(b"Font") {
             let font_dict = match font_obj {
@@ -117,7 +117,7 @@ fn get_page_fonts(doc: &Document, page_id: lopdf::ObjectId) -> BTreeMap<Vec<u8>,
                 }),
                 _ => None,
             };
-            
+
             if let Some(font_dict) = font_dict {
                 for (name, value) in font_dict.iter() {
                     if let Object::Reference(id) = value {
@@ -129,7 +129,7 @@ fn get_page_fonts(doc: &Document, page_id: lopdf::ObjectId) -> BTreeMap<Vec<u8>,
             }
         }
     }
-    
+
     fonts
 }
 
