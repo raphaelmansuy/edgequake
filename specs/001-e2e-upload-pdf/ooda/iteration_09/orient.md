@@ -7,6 +7,7 @@
 The Makefile `dev-bg` target always sets `OLLAMA_HOST` and `OLLAMA_MODEL`, which triggers Ollama provider selection even when `OPENAI_API_KEY` is available.
 
 **Factory Logic** (factory.rs:111-145):
+
 1. `EDGEQUAKE_LLM_PROVIDER` → explicit selection (HIGHEST priority)
 2. `OLLAMA_HOST` or `OLLAMA_MODEL` → selects Ollama
 3. `LMSTUDIO_HOST` or `LMSTUDIO_MODEL` → selects LM Studio
@@ -39,18 +40,18 @@ dev-bg:
 
 ### Provider Configuration Matrix
 
-| Environment | Provider | Model | Embedding |
-|-------------|----------|-------|-----------|
-| `OPENAI_API_KEY` set | OpenAI | gpt-4o-mini | text-embedding-3-small (1536d) |
-| `OPENAI_API_KEY` unset | Ollama | gemma3:latest | nomic-embed-text (768d) |
+| Environment            | Provider | Model         | Embedding                      |
+| ---------------------- | -------- | ------------- | ------------------------------ |
+| `OPENAI_API_KEY` set   | OpenAI   | gpt-4o-mini   | text-embedding-3-small (1536d) |
+| `OPENAI_API_KEY` unset | Ollama   | gemma3:latest | nomic-embed-text (768d)        |
 
 ### Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Breaking existing dev flow | Low | Medium | Keep Ollama as default |
-| OpenAI cost | Medium | Low | Use gpt-4o-mini (cheapest) |
-| API rate limits | Low | Medium | Backend handles retries |
+| Risk                       | Likelihood | Impact | Mitigation                 |
+| -------------------------- | ---------- | ------ | -------------------------- |
+| Breaking existing dev flow | Low        | Medium | Keep Ollama as default     |
+| OpenAI cost                | Medium     | Low    | Use gpt-4o-mini (cheapest) |
+| API rate limits            | Low        | Medium | Backend handles retries    |
 
 ## Decision
 

@@ -53,6 +53,7 @@ The `TaskType::Reindex` exists but is not implemented.
 ### Data Model Investigation
 
 **PDF Document Table** (`pdf_documents`):
+
 - `pdf_id` (UUID, PK)
 - `workspace_id` (UUID)
 - `document_id` (UUID, nullable, FK to documents)
@@ -60,6 +61,7 @@ The `TaskType::Reindex` exists but is not implemented.
 - `processing_status` (enum: pending, processing, completed, failed)
 
 **Relationship Chain**:
+
 ```
 pdf_documents → documents → entities/relationships (graph)
                          → embeddings (vectors)

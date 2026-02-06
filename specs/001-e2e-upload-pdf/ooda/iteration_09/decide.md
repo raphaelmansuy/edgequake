@@ -9,6 +9,7 @@ Update the `dev-bg` Makefile target to use OpenAI provider when `OPENAI_API_KEY`
 ### Changes to Makefile
 
 **Current** (lines 223-260):
+
 ```makefile
 dev-bg:
     # Always sets OLLAMA_* vars regardless of OPENAI_API_KEY
@@ -18,6 +19,7 @@ dev-bg:
 ```
 
 **New**:
+
 ```makefile
 dev-bg:
     # Use EDGEQUAKE_LLM_PROVIDER for explicit selection

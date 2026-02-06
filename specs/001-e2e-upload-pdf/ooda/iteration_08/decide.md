@@ -11,6 +11,7 @@
 **File**: `edgequake/crates/edgequake-api/src/handlers/pdf_upload.rs`
 
 Add new field:
+
 ```rust
 pub struct PdfUploadOptions {
     pub force_reindex: bool,  // NEW: Force re-indexing of duplicate PDF
@@ -23,6 +24,7 @@ pub struct PdfUploadOptions {
 **File**: `edgequake/crates/edgequake-api/src/handlers/pdf_upload.rs`
 
 Add parsing in the multipart loop:
+
 ```rust
 Some("force_reindex") => {
     if let Ok(text) = field.text().await {
@@ -36,6 +38,7 @@ Some("force_reindex") => {
 **File**: `edgequake/crates/edgequake-api/src/handlers/pdf_upload.rs`
 
 When duplicate detected and `force_reindex=true`:
+
 1. Get existing document_id from pdf_documents
 2. Call `clear_document_data()` to remove graph/vector data
 3. Reset pdf_documents.processing_status to 'pending'
@@ -45,6 +48,7 @@ When duplicate detected and `force_reindex=true`:
 ### Step 4: Add `clear_document_data()` helper
 
 This function will:
+
 1. Delete vectors associated with document
 2. Delete graph entities/relationships for document
 3. Keep raw PDF and markdown (for faster re-extraction if LLM unchanged)
@@ -64,11 +68,11 @@ Add method to reset PDF status to 'pending'.
 
 ## Risk Mitigation
 
-| Risk | Mitigation |
-|------|------------|
-| Race condition | Reset status atomically with task creation |
-| Data loss | Only delete derived data (vectors, graph), preserve raw PDF |
-| Orphaned tasks | Cancel existing pending tasks before creating new one |
+| Risk           | Mitigation                                                  |
+| -------------- | ----------------------------------------------------------- |
+| Race condition | Reset status atomically with task creation                  |
+| Data loss      | Only delete derived data (vectors, graph), preserve raw PDF |
+| Orphaned tasks | Cancel existing pending tasks before creating new one       |
 
 ## Success Criteria
 

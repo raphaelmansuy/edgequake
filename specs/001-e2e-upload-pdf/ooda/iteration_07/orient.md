@@ -65,48 +65,57 @@ This is a **design decision**, not a bug. The current implementation works corre
 ## Strategic Options
 
 ### Option 1: No Changes (Recommended)
+
 **Rationale**: System is working. No bugs identified.
 
 **Pros**:
+
 - Zero risk
 - No development time
 - Focus on remaining backlog items
 
 **Cons**:
+
 - Document visibility issue remains poorly understood by users
 
 ### Option 2: Migrate to SQL Documents Table
+
 **Rationale**: Consistent architecture with RLS support.
 
 **Pros**:
+
 - Better alignment with PostgreSQL-first strategy
 - Enables RLS for document access control
 - Cleaner architecture
 
 **Cons**:
+
 - Significant effort (estimated 8-16 hours)
 - Risk of introducing bugs
 - Not part of current mission scope
 
 ### Option 3: Add Loading Indicator
+
 **Rationale**: Improve UX for initial page load.
 
 **Pros**:
+
 - Better user experience
 - Low effort (1-2 hours)
 - Prevents confusion about "Documents (0)"
 
 **Cons**:
+
 - UI change, not mission-critical
 - May already exist (skeleton loading)
 
 ## Decision Matrix
 
-| Option | Effort | Risk | Impact | Mission Alignment |
-|--------|--------|------|--------|-------------------|
-| No Changes | 0 | 0 | 0 | High ✅ |
-| SQL Migration | High | Medium | Medium | Low |
-| Loading Indicator | Low | Low | Low | Medium |
+| Option            | Effort | Risk   | Impact | Mission Alignment |
+| ----------------- | ------ | ------ | ------ | ----------------- |
+| No Changes        | 0      | 0      | 0      | High ✅           |
+| SQL Migration     | High   | Medium | Medium | Low               |
+| Loading Indicator | Low    | Low    | Low    | Medium            |
 
 ## Recommendation
 
@@ -115,6 +124,7 @@ This is a **design decision**, not a bug. The current implementation works corre
 The mission is "test and make PDF upload and processing fully work."
 
 Current verification confirms:
+
 1. ✅ PDF upload works
 2. ✅ PDF extraction to Markdown works
 3. ✅ Entity extraction works (with timeout handling)
@@ -128,12 +138,12 @@ Current verification confirms:
 
 ## Remaining Backlog Items (from Mission File)
 
-| Item | Priority | Status |
-|------|----------|--------|
-| Task persistence on restart | Medium | Verified (OODA-06) |
-| Ollama timeout increase | Medium | Backlog (iteration 08) |
-| PDF-document FK race condition | Low | Backlog (iteration 09) |
-| Frontend PID management | Low | Backlog (iteration 03) |
+| Item                           | Priority | Status                 |
+| ------------------------------ | -------- | ---------------------- |
+| Task persistence on restart    | Medium   | Verified (OODA-06)     |
+| Ollama timeout increase        | Medium   | Backlog (iteration 08) |
+| PDF-document FK race condition | Low      | Backlog (iteration 09) |
+| Frontend PID management        | Low      | Backlog (iteration 03) |
 
 ## Risk Assessment
 

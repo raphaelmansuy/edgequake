@@ -69,6 +69,7 @@ curl -X POST http://localhost:8080/api/v1/documents/pdf \
 ```
 
 **Response**:
+
 ```json
 {
   "pdf_id": "abc123",

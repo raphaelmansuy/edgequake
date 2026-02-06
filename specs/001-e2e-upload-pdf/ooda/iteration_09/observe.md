@@ -10,6 +10,7 @@
 ### Current State
 
 **Backend Health Check**:
+
 ```json
 {
   "status": "healthy",
@@ -24,10 +25,12 @@
 **Location**: `edgequake/crates/edgequake-llm/src/factory.rs:110-145`
 
 **Priority Order**:
+
 1. `EDGEQUAKE_LLM_PROVIDER` environment variable (explicit selection)
 2. Auto-detect: `OLLAMA_HOST` → `LMSTUDIO_HOST` → `OPENAI_API_KEY` → Mock
 
 **Current Detection**:
+
 - `OLLAMA_HOST` or `OLLAMA_MODEL` is set → selects Ollama
 - `OPENAI_API_KEY` is NOT set or is "test-key" → skipped
 
@@ -53,6 +56,7 @@ OLLAMA_EMBEDDING_MODEL=embeddinggemma:latest
 ### Makefile Analysis
 
 **Current backend target** (`Makefile`):
+
 ```makefile
 backend-dev:
     PDFIUM_DYNAMIC_LIB_PATH=... \
@@ -80,6 +84,7 @@ This explicitly sets Ollama variables, which triggers Ollama provider selection.
 ### Recommended Approach
 
 **Option A** is cleanest:
+
 - Add `backend-openai` Makefile target
 - Requires `OPENAI_API_KEY` environment variable
 - Uses `gpt-4o-mini` for chat, `text-embedding-3-small` for embeddings

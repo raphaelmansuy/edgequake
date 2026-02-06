@@ -29,6 +29,7 @@ This iteration focused on verifying the full E2E pipeline works and investigatin
 **Actual Finding**: This was a **transient loading state**, NOT a bug.
 
 **Evidence**:
+
 - Page title showed "Documents (23)" immediately
 - Snapshot after load showed 23 documents with full details
 - API endpoint returns 23 documents correctly
@@ -85,7 +86,7 @@ curl "http://localhost:8080/api/v1/documents" \
 ### 4. Task Persistence Verification
 
 ```sql
-SELECT track_id, status, retry_count FROM tasks 
+SELECT track_id, status, retry_count FROM tasks
 WHERE workspace_id = '00000000-0000-0000-0000-000000000003';
 
 -- Result:
@@ -96,9 +97,10 @@ Tasks are persisted correctly in PostgreSQL as fixed in OODA-06.
 
 ### 5. Side-by-Side Viewer Verification
 
-**Tested Document**: AI_Services__Elitizon.pdf
+**Tested Document**: AI_Services\_\_Elitizon.pdf
 
 **Results**:
+
 - ✅ PDF viewer renders correctly (left panel)
 - ✅ Markdown rendered with proper formatting (right panel)
 - ✅ Page navigation works (1/5 pages)
@@ -112,12 +114,12 @@ Tasks are persisted correctly in PostgreSQL as fixed in OODA-06.
 SELECT COUNT(*) FROM "eq_eq_default_graph"."Node";    -- 2801 nodes
 SELECT COUNT(*) FROM "eq_eq_default_graph"."EDGE";    -- 2219 edges
 
--- Vector storage  
+-- Vector storage
 SELECT COUNT(*) FROM eq_eq_default_ws_00000000_vectors; -- 149 vectors
 
 -- Documents by status
 -- completed: 15
--- failed: 6  
+-- failed: 6
 -- processing: 1
 -- cancelled: 1
 ```
@@ -148,6 +150,7 @@ SELECT COUNT(*) FROM eq_eq_default_ws_00000000_vectors; -- 149 vectors
 ## Evidence Collected
 
 ### API Response Sample
+
 ```json
 {
   "documents": [
@@ -172,13 +175,15 @@ SELECT COUNT(*) FROM eq_eq_default_ws_00000000_vectors; -- 149 vectors
 ```
 
 ### Browser Snapshot Evidence
+
 - Page title: "Documents (23) - EdgeQuake"
 - Table headers: Select, Title, Status, Entities, Cost, Created
-- First row: AI_Services__Elitizon.pdf, Completed, 20 entities, $0.00063, 30 min ago
+- First row: AI_Services\_\_Elitizon.pdf, Completed, 20 entities, $0.00063, 30 min ago
 
 ## Conclusion
 
 The system is operating correctly. The initial concern about document visibility was due to:
+
 1. Misinterpretation of React loading state
 2. Confusion about KV storage vs SQL table design
 

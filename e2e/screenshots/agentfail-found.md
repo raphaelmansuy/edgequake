@@ -1,0 +1,195 @@
+- generic [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Pipeline" [ref=e43] [cursor=pointer]:
+            - /url: /pipeline
+            - img [ref=e44]
+            - generic [ref=e46]: Pipeline
+          - link "Query" [ref=e47] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e48]
+            - generic [ref=e50]: Query
+          - link "Workspace" [ref=e51] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e52]
+            - generic [ref=e54]: Workspace
+          - link "Costs" [ref=e55] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e56]
+            - generic [ref=e58]: Costs
+          - link "API Explorer" [ref=e59] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e60]
+            - generic [ref=e62]: API Explorer
+          - link "Settings" [ref=e63] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e64]
+            - generic [ref=e67]: Settings
+        - generic [ref=e68]:
+          - button "Collapse sidebar" [ref=e69]:
+            - img
+            - generic [ref=e70]: Collapse
+          - generic [ref=e71]:
+            - img [ref=e73]
+            - generic [ref=e78]:
+              - generic [ref=e79]: EdgeQuake
+              - generic [ref=e80]: v0.1.0
+    - generic [ref=e81]:
+      - banner [ref=e82]:
+        - button "Default / Default Workspace" [ref=e85]:
+          - img
+          - generic [ref=e86]: Default / Default Workspace
+          - img
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - img [ref=e89]
+            - generic [ref=e91]: v0.1.0
+          - button "Change language" [ref=e92]:
+            - img
+            - generic [ref=e93]: Change language
+          - button "Toggle theme" [ref=e94]:
+            - img
+            - generic [ref=e95]: Toggle theme
+          - button "User menu" [ref=e96]:
+            - img
+            - generic [ref=e97]: User menu
+      - navigation "breadcrumb" [ref=e99]:
+        - list [ref=e100]:
+          - listitem [ref=e101]:
+            - link "EdgeQuake" [ref=e102] [cursor=pointer]:
+              - /url: /
+              - img [ref=e103]
+              - generic [ref=e106]: EdgeQuake
+          - listitem [ref=e107]:
+            - img [ref=e108]
+          - listitem [ref=e110]:
+            - link "Documents" [disabled] [ref=e111]:
+              - img [ref=e112]
+              - generic [ref=e115]: Documents
+      - main [ref=e116]:
+        - generic [ref=e117]:
+          - generic [ref=e118]:
+            - generic [ref=e119]:
+              - generic [ref=e120]:
+                - generic [ref=e121]:
+                  - generic [ref=e122]:
+                    - heading "Documents" [level=1] [ref=e123]
+                    - generic [ref=e124]: "1"
+                  - paragraph [ref=e128]: Upload and manage documents for knowledge graph extraction
+                - generic [ref=e129]:
+                  - button "Retry Failed (6)" [ref=e130]:
+                    - img
+                    - text: Retry Failed (6)
+                  - button "Refresh" [ref=e131]:
+                    - img
+                    - text: Refresh
+                  - button "Clear All" [ref=e132]:
+                    - img
+                    - text: Clear All
+              - generic [ref=e133]:
+                - generic [ref=e134]:
+                  - img [ref=e135]
+                  - textbox "Search documents..." [active] [ref=e138]: agentfail
+                  - button "Clear search" [ref=e762]:
+                    - img [ref=e763]
+                - generic [ref=e139]:
+                  - combobox [ref=e140]:
+                    - generic: All Status (21)
+                    - img
+                  - generic [ref=e142]:
+                    - generic [ref=e143]: "Sort by:"
+                    - button "Created" [ref=e144]
+                    - button "Updated" [ref=e145]:
+                      - text: Updated
+                      - img
+              - generic [ref=e146] [cursor=pointer]:
+                - button "Choose File" [ref=e147]
+                - img [ref=e149]
+                - paragraph [ref=e153]: Drag & drop or click to upload • TXT, MD, JSON, PDF (max 10MB)
+            - generic [ref=e155]:
+              - generic [ref=e156]:
+                - img [ref=e157]
+                - generic [ref=e160]: Documents (1)
+              - table [ref=e163]:
+                - rowgroup [ref=e164]:
+                  - row "Select all Title Status Entities Cost Created" [ref=e165]:
+                    - columnheader "Select all" [ref=e166]:
+                      - checkbox "Select all" [ref=e167]
+                    - columnheader "Title" [ref=e168]
+                    - columnheader "Status" [ref=e169]
+                    - columnheader "Entities" [ref=e170]
+                    - columnheader "Cost" [ref=e171]
+                    - columnheader "Created" [ref=e172]
+                    - columnheader [ref=e173]
+                - rowgroup [ref=e174]:
+                  - row "Select agentfail_2601.22984v1.pdf Cancelled 0 - about 3 hours ago" [ref=e307] [cursor=pointer]:
+                    - cell "Select" [ref=e308]:
+                      - checkbox "Select" [ref=e309]
+                    - cell "agentfail_2601.22984v1.pdf" [ref=e310]:
+                      - generic [ref=e312]:
+                        - img [ref=e313]
+                        - generic [ref=e316]:
+                          - mark [ref=e766]: agentfail
+                          - text: _2601.22984v1.pdf
+                    - cell "Cancelled" [ref=e317]:
+                      - generic [ref=e319]:
+                        - img
+                        - text: Cancelled
+                    - cell "0" [ref=e320]
+                    - cell "-" [ref=e321]
+                    - cell "about 3 hours ago" [ref=e322]:
+                      - generic [ref=e324]: about 3 hours ago
+                    - cell [ref=e325]:
+                      - generic [ref=e326]:
+                        - button [ref=e327]:
+                          - img
+                        - button [ref=e328]:
+                          - img
+                        - button [ref=e329]:
+                          - img
+            - generic [ref=e748]:
+              - paragraph [ref=e767]: Showing 1 of 1 documents matching "agentfail"
+              - generic [ref=e749]:
+                - generic [ref=e750]:
+                  - generic [ref=e751]: "Rows per page:"
+                  - combobox [ref=e752]:
+                    - generic: "20"
+                    - img
+                - generic [ref=e753]:
+                  - generic [ref=e754]: Page 1 of 1
+                  - generic [ref=e755]:
+                    - button [disabled]:
+                      - img
+                    - button [disabled]:
+                      - img
+                    - button [disabled]:
+                      - img
+                    - button [disabled]:
+                      - img
+          - button "Expand Preview" [ref=e758] [cursor=pointer]:
+            - img [ref=e759]
+            - generic [ref=e761]: Preview
+  - region "Notifications alt+T"

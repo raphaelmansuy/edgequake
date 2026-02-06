@@ -480,10 +480,7 @@ async fn test_list_documents_pagination_structure() {
         assert!(list["page_size"].is_number(), "Missing page_size");
         assert!(list["total_pages"].is_number(), "Missing total_pages");
         assert!(list["has_more"].is_boolean(), "Missing has_more");
-        assert!(
-            list["status_counts"].is_object(),
-            "Missing status_counts"
-        );
+        assert!(list["status_counts"].is_object(), "Missing status_counts");
 
         // Should have at least 1 document
         let docs = list["documents"].as_array().unwrap();
@@ -608,10 +605,7 @@ async fn test_query_response_structure() {
 
         // Stats subfields
         let stats = &query["stats"];
-        assert!(
-            stats["total_time_ms"].is_number(),
-            "Missing total_time_ms"
-        );
+        assert!(stats["total_time_ms"].is_number(), "Missing total_time_ms");
 
         query
     })
@@ -710,10 +704,7 @@ async fn test_health_response_structure() {
 
         assert_eq!(health["status"].as_str(), Some("healthy"));
         assert!(health["version"].is_string(), "Missing version");
-        assert!(
-            health["components"].is_object(),
-            "Missing components"
-        );
+        assert!(health["components"].is_object(), "Missing components");
 
         health
     })
@@ -773,10 +764,7 @@ async fn test_delete_response_structure() {
         // Required fields per DeleteDocumentResponse
         assert!(del["document_id"].is_string(), "Missing document_id");
         assert!(del["deleted"].is_boolean(), "Missing deleted");
-        assert!(
-            del["chunks_deleted"].is_number(),
-            "Missing chunks_deleted"
-        );
+        assert!(del["chunks_deleted"].is_number(), "Missing chunks_deleted");
         assert!(
             del["entities_affected"].is_number(),
             "Missing entities_affected"
@@ -909,10 +897,7 @@ async fn test_cost_estimation_response_fields() {
             cost["estimated_cost_usd"].is_number(),
             "Missing estimated_cost_usd"
         );
-        assert!(
-            cost["formatted_cost"].is_string(),
-            "Missing formatted_cost"
-        );
+        assert!(cost["formatted_cost"].is_string(), "Missing formatted_cost");
 
         // Cost should be positive for non-zero tokens
         let estimated = cost["estimated_cost_usd"].as_f64().unwrap();

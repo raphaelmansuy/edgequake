@@ -1,20 +1,21 @@
 # OODA-11 Decide: Timeout Enforcement Implementation
 
 ## Decision
+
 Create `e2e_timeout_enforcement.rs` with 8 timeout-guarded tests covering critical paths.
 
 ## Timeout Budget
 
-| Category | Timeout | Rationale |
-|----------|---------|-----------|
-| Health check | 5s | No I/O, just config |
-| Tenant creation | 5s | In-memory only |
-| Small doc upload | 10s | Single chunk, mock pipeline |
-| Medium doc upload | 30s | Multiple chunks, mock extraction |
-| Large doc upload | 30s | Many chunks, mock extraction |
-| Full pipeline | 30s | Upload + graph check + document retrieval |
-| Query after ingestion | 30s | Upload + graph traversal + mock LLM |
-| Sequential uploads | 30s | 3 uploads, verifies no accumulating latency |
+| Category              | Timeout | Rationale                                   |
+| --------------------- | ------- | ------------------------------------------- |
+| Health check          | 5s      | No I/O, just config                         |
+| Tenant creation       | 5s      | In-memory only                              |
+| Small doc upload      | 10s     | Single chunk, mock pipeline                 |
+| Medium doc upload     | 30s     | Multiple chunks, mock extraction            |
+| Large doc upload      | 30s     | Many chunks, mock extraction                |
+| Full pipeline         | 30s     | Upload + graph check + document retrieval   |
+| Query after ingestion | 30s     | Upload + graph traversal + mock LLM         |
+| Sequential uploads    | 30s     | 3 uploads, verifies no accumulating latency |
 
 ## Test Coverage Map
 
@@ -50,13 +51,16 @@ Sequential Uploads (30s)
 ```
 
 ## Implementation Pattern
+
 ```rust
 async fn with_timeout<F, T>(duration: Duration, future: F) -> Result<T, String>
 ```
 
 ## Files to Create
+
 1. `edgequake/crates/edgequake-api/tests/e2e_timeout_enforcement.rs`
 
 ## Risk Assessment
+
 - **Zero risk**: New file only, no modifications to existing tests
 - **Regression**: None possible — additive change only
