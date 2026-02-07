@@ -2160,12 +2160,32 @@ impl SOTAQueryEngine {
         let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
 
         // Step 5: Build entity context with source tracking
-        for (id, node) in &nodes_map {
-            let degree = degrees.get(id).copied().unwrap_or(0);
-            // Use preserved similarity score from vector search (fixes score=0.0 bug)
-            let entity_score = entity_scores.get(id).copied().unwrap_or(0.0);
-            let entity = build_entity_from_node(id, &node.properties, degree, entity_score);
-            context.add_entity(entity);
+        //
+        // WHY: Iterate in vector search score order (entity_ids) instead of HashMap iteration.
+        // HashMap iteration is non-deterministic, causing same query → different results.
+        // By preserving entity_ids order (Vec), we maintain deterministic entity ordering.
+        //
+        //   Before (Random):              After (Deterministic):
+        //   Vector Search                 Vector Search
+        //      ↓                             ↓
+        //   entity_ids=[A,B,C]           entity_ids=[A,B,C]
+        //   (score order)                (score order)
+        //      ↓                             ↓
+        //   nodes_map={A,C,B}            nodes_map={A,C,B}
+        //   (HashMap - random)           (HashMap - lookup only)
+        //      ↓                             ↓
+        //   for (id,node) in map         for id in entity_ids
+        //      ↓                             ↓
+        //   [C,A,B] ← RANDOM!            [A,B,C] ← STABLE!
+        //
+        for id in &entity_ids {
+            if let Some(node) = nodes_map.get(id) {
+                let degree = degrees.get(id).copied().unwrap_or(0);
+                // Use preserved similarity score from vector search (fixes score=0.0 bug)
+                let entity_score = entity_scores.get(id).copied().unwrap_or(0.0);
+                let entity = build_entity_from_node(id, &node.properties, degree, entity_score);
+                context.add_entity(entity);
+            }
         }
 
         // Step 6: Batch fetch edges for these entities
@@ -2208,8 +2228,15 @@ impl SOTAQueryEngine {
 
         // Retrieve chunks from vector storage if any chunk IDs were collected
         if !chunk_ids.is_empty() {
-            let chunk_ids_vec: Vec<String> =
-                chunk_ids.into_iter().take(self.config.max_chunks).collect();
+            // WHY: Sort chunk IDs for deterministic ordering.
+            // HashSet iteration is non-deterministic, so we sort alphabetically before querying.
+            // This ensures same query → same chunk retrieval order.
+            let mut chunk_ids_vec: Vec<String> = chunk_ids.into_iter().collect();
+            chunk_ids_vec.sort();
+            let chunk_ids_vec: Vec<String> = chunk_ids_vec
+                .into_iter()
+                .take(self.config.max_chunks)
+                .collect();
 
             // Use the low-level keyword embedding to query for these specific chunks
             // Query with filter to retrieve only the specific chunks
@@ -2392,10 +2419,15 @@ impl SOTAQueryEngine {
             let nodes_map = nodes_map?;
             let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
 
-            for (id, node) in &nodes_map {
-                let degree = degrees.get(id).copied().unwrap_or(0);
-                let entity = build_entity_from_node(id, &node.properties, degree, 0.0);
-                context.add_entity(entity);
+            // WHY: Iterate in relationship discovery order (entity_ids) instead of HashMap.
+            // Global mode discovers entities from relationship endpoints in vector search score order.
+            // Preserving that order ensures deterministic retrieval (same query → same results).
+            for id in &entity_ids {
+                if let Some(node) = nodes_map.get(id) {
+                    let degree = degrees.get(id).copied().unwrap_or(0);
+                    let entity = build_entity_from_node(id, &node.properties, degree, 0.0);
+                    context.add_entity(entity);
+                }
             }
         }
 
@@ -2430,8 +2462,14 @@ impl SOTAQueryEngine {
         // Retrieve source chunks if any were collected and we haven't hit max chunks
         if !source_chunk_ids.is_empty() && context.chunks.len() < self.config.max_chunks {
             let remaining_slots = self.config.max_chunks - context.chunks.len();
+
+            // WHY: Sort chunk IDs for deterministic ordering.
+            // HashSet iteration is non-deterministic, so we sort alphabetically before converting to Vec.
+            // This ensures same query → same chunk retrieval order.
+            let mut chunk_ids_vec: Vec<String> = source_chunk_ids.into_iter().collect();
+            chunk_ids_vec.sort();
             let chunk_ids_vec: Vec<String> =
-                source_chunk_ids.into_iter().take(remaining_slots).collect();
+                chunk_ids_vec.into_iter().take(remaining_slots).collect();
 
             // Use the high-level keyword embedding to query for these specific chunks
             // Query with filter to retrieve only the specific chunks
