@@ -402,14 +402,34 @@ impl PdfiumExtractor {
             // PyMuPDF uses numeric flags from font descriptors, and pdfium-render
             // provides the same information via font_is_italic() and font_weight().
             let is_italic = char_obj.font_is_italic();
-            let is_bold = char_obj.font_weight().is_some_and(|w| {
-                matches!(
-                    w,
-                    PdfFontWeight::Weight700Bold
-                        | PdfFontWeight::Weight800
-                        | PdfFontWeight::Weight900
-                ) || matches!(w, PdfFontWeight::Custom(n) if n >= 700)
-            });
+            // OODA-58: Combine font weight with font name fallback for bold detection.
+            // WHY: PDFium reports wrong weight for some fonts (e.g., Computer Modern
+            // SFBX* bold fonts get weight=250). When weight is unreliable (< 400),
+            // also check font name patterns used by CM/EC/LM and standard fonts.
+            let is_bold = {
+                let weight_bold = char_obj.font_weight().is_some_and(|w| {
+                    matches!(
+                        w,
+                        PdfFontWeight::Weight700Bold
+                            | PdfFontWeight::Weight800
+                            | PdfFontWeight::Weight900
+                    ) || matches!(w, PdfFontWeight::Custom(n) if n >= 700)
+                });
+                if weight_bold {
+                    true
+                } else {
+                    // Fallback: check font name when weight is unreliable
+                    let name = char_obj.font_name();
+                    let lower = name.to_lowercase();
+                    lower.contains("bold")
+                        || lower.contains("black")
+                        || lower.contains("heavy")
+                        || lower.contains("sfbx")  // Computer Modern Bold Extended
+                        || lower.contains("cmbx")  // CM Bold Extended
+                        || lower.contains("ecbx")  // EC Bold Extended
+                        || lower.contains("lmbx")  // Latin Modern Bold Extended
+                }
+            };
             // OODA-03: Monospace detection from font descriptor
             // WHY: Font name pattern matching ("Mono", "Courier") misses many monospace fonts.
             // PDFium provides accurate fixed-pitch flag from font descriptor via font_is_fixed_pitch().

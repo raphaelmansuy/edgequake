@@ -328,15 +328,17 @@ fn count_structural_elements(text: &str) -> std::collections::HashMap<&'static s
             *counts.entry("bold").or_insert(0) += 1;
         }
 
-        // Numbered list: "1. ", "2. ", etc.
+        // OODA-58: Numbered list: "1. ", "12. ", "123) ", etc.
+        // WHY: Previous code consumed only one digit, missing multi-digit items
+        // like "12. Item" which is common in papers with 10+ list items.
         if !trimmed.is_empty() {
-            let mut chars = trimmed.chars();
-            if let Some(c) = chars.next() {
-                if c.is_ascii_digit() {
-                    let rest: String = chars.collect();
-                    if rest.starts_with(". ") || rest.starts_with(") ") {
-                        *counts.entry("numbered_list").or_insert(0) += 1;
-                    }
+            let num_end = trimmed
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(trimmed.len());
+            if num_end > 0 {
+                let rest = &trimmed[num_end..];
+                if rest.starts_with(". ") || rest.starts_with(") ") {
+                    *counts.entry("numbered_list").or_insert(0) += 1;
                 }
             }
         }
