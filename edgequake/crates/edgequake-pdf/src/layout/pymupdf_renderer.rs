@@ -61,6 +61,7 @@ impl MarkdownRenderer {
 
     /// Render blocks to Markdown string.
     /// OODA-03: Computes list hierarchy levels before rendering for proper indentation.
+    /// OODA-32: Skips empty/whitespace-only blocks to prevent spurious blank lines.
     pub fn render(&self, blocks: &[Block]) -> String {
         let mut output = String::new();
         let mut last_page = 0;
@@ -69,6 +70,12 @@ impl MarkdownRenderer {
         let list_levels = compute_list_levels(blocks);
 
         for (i, block) in blocks.iter().enumerate() {
+            // OODA-32: Skip blocks that are entirely whitespace
+            // WHY: Empty blocks from PDF metadata or spacing artifacts create
+            // spurious blank lines in output. Filter them early.
+            if block.lines.is_empty() || block.text().trim().is_empty() {
+                continue;
+            }
             // Add page separator if page changed
             if block.page_num != last_page && i > 0 {
                 if self.config.page_separators {

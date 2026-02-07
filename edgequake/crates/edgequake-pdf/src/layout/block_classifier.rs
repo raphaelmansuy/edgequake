@@ -144,16 +144,17 @@ impl BlockClassifier {
             && total_chars < self.max_header_chars
         {
             let ratio = dominant_size / body_font_size;
-            // WHY (OODA-12): Heading level based on size ratio to body text.
-            // - 2.0x: Very large (double body) = major heading (#)
-            // - 1.7x: Large (70% bigger) = secondary heading (##)
-            // - 1.5x: Medium = default to # (conservative)
+            // OODA-33: Finer-grained heading level based on size ratio.
+            // - 2.5x+: Document title = h1 (#)
+            // - 2.0x:  Major heading  = h1 (#)
+            // - 1.7x:  Section        = h2 (##)
+            // - 1.5x:  Subsection     = h3 (###)
             let level = if ratio >= 2.0 {
                 1 // Very large = #
             } else if ratio >= 1.7 {
                 2 // Large = ##
             } else {
-                1 // Title = # (most conservative)
+                3 // Medium-large = ###
             };
             return BlockType::Header(level);
         }
@@ -752,14 +753,14 @@ mod tests {
             "18pt on 10pt body (1.8x) should be H2"
         );
 
-        // H1 conservative: ratio >= 1.5, < 1.7 (16pt / 10pt = 1.6)
-        // WHY: Conservative approach - mid-range headers default to H1
+        // H3: ratio >= 1.5, < 1.7 (16pt / 10pt = 1.6)
+        // OODA-33: Mid-range headers now map to H3 for finer granularity
         assert!(
             matches!(
                 classifier.classify_block(&make_heading_block(16.0, "Subsection"), body_size, 0.0),
-                BlockType::Header(1)
+                BlockType::Header(3)
             ),
-            "16pt on 10pt body (1.6x) should be H1 (conservative)"
+            "16pt on 10pt body (1.6x) should be H3 (OODA-33 finer levels)"
         );
 
         // Paragraph: ratio < 1.5 (10pt / 10pt = 1.0)
