@@ -364,14 +364,25 @@ backend-memory: ## Run backend with in-memory storage (for testing only)
 
 backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENAI_API_KEY if set)
 	@echo "$(BLUE)Starting backend in background...$(RESET)"
-	@cd $(BACKEND_DIR) && \
-		DATABASE_URL="$(DATABASE_URL)" \
-		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
-		OLLAMA_HOST="http://localhost:11434" \
-		OLLAMA_MODEL="gemma3:latest" \
-		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "$(YELLOW)→ OPENAI_API_KEY detected, using OpenAI provider (gpt-4o-mini)$(RESET)"; \
+		cd $(BACKEND_DIR) && \
+			DATABASE_URL="$(DATABASE_URL)" \
+			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			EDGEQUAKE_LLM_PROVIDER="openai" \
+			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
+	else \
+		echo "$(YELLOW)→ No OPENAI_API_KEY, using Ollama provider (gemma3)$(RESET)"; \
+		cd $(BACKEND_DIR) && \
+			DATABASE_URL="$(DATABASE_URL)" \
+			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			EDGEQUAKE_LLM_PROVIDER="ollama" \
+			OLLAMA_HOST="http://localhost:11434" \
+			OLLAMA_MODEL="gemma3:latest" \
+			OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
+	fi
 	@echo "$(GREEN)✓ Backend starting in background. Log: /tmp/edgequake-backend.log$(RESET)"
 
 backend-build: ## Build backend for release
