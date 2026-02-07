@@ -87,14 +87,23 @@ impl MarkdownRenderer {
             // Add spacing between blocks
             // OODA-24: Use single newline between consecutive list items (tight list)
             // OODA-27: Merge consecutive paragraphs when text continues (no sentence break)
+            // OODA-29: Also use tight spacing for consecutive code blocks
             if self.config.block_spacing && i < blocks.len() - 1 {
                 let next_block = &blocks[i + 1];
                 let is_list_continuation = block.block_type == BlockType::ListItem
                     && next_block.block_type == BlockType::ListItem;
+                let is_code_continuation = block.block_type == BlockType::Code
+                    && next_block.block_type == BlockType::Code;
+                let is_footnote_continuation = block.block_type == BlockType::Footnote
+                    && next_block.block_type == BlockType::Footnote;
                 let is_paragraph_continuation = block.block_type == BlockType::Paragraph
                     && next_block.block_type == BlockType::Paragraph
                     && is_continuation(&block_text, next_block);
-                if is_list_continuation || is_paragraph_continuation {
+                if is_list_continuation
+                    || is_paragraph_continuation
+                    || is_code_continuation
+                    || is_footnote_continuation
+                {
                     output.push('\n');
                 } else {
                     output.push_str("\n\n");
