@@ -99,6 +99,9 @@ pub fn filter_headers_footers(
     // (they don't need to repeat since each is unique)
     // Detected by: single number or "Page X" in margin
 
+    // OODA-42: Also filter copyright notices (always appear in margins)
+    // Detected by: "©" or "Copyright" prefix
+
     // Step 3: Filter blocks
     blocks
         .iter()
@@ -115,6 +118,11 @@ pub fn filter_headers_footers(
 
             // Filter standalone page numbers
             if is_page_number(trimmed) {
+                return false;
+            }
+
+            // OODA-42: Filter copyright notices in margins
+            if is_copyright_notice(trimmed) {
                 return false;
             }
 
@@ -158,6 +166,26 @@ fn is_page_number(text: &str) -> bool {
         }
     }
 
+    // OODA-41: "X of N" pattern: "1 of 10", "3 of 25"
+    {
+        let lower = trimmed.to_lowercase();
+        if let Some(rest) = lower.strip_prefix("page ") {
+            // Already handled above for "page X", but handle "page X of N"
+            if rest.contains(" of ") {
+                return true;
+            }
+        }
+        // "1 of 10", "3 of 25"
+        let parts: Vec<&str> = lower.split_whitespace().collect();
+        if parts.len() == 3
+            && parts[1] == "of"
+            && parts[0].chars().all(|c| c.is_ascii_digit())
+            && parts[2].chars().all(|c| c.is_ascii_digit())
+        {
+            return true;
+        }
+    }
+
     // Roman numerals: "i", "ii", "iii", "iv", "v", etc.
     if !trimmed.is_empty()
         && trimmed.len() <= 5
@@ -181,6 +209,23 @@ fn normalize_for_comparison(text: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
         .to_lowercase()
+}
+
+/// OODA-42: Check if text is a copyright notice.
+///
+/// Patterns: "© 2024 IEEE", "Copyright 2024", "(c) Springer"
+/// WHY: Copyright notices in page margins are noise and should be filtered.
+fn is_copyright_notice(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() || trimmed.len() > 120 {
+        return false;
+    }
+    let lower = trimmed.to_lowercase();
+    lower.starts_with("©")
+        || lower.starts_with("copyright")
+        || lower.starts_with("(c) ")
+        || lower.contains("all rights reserved")
+        || lower.contains("licensed under")
 }
 
 #[cfg(test)]
@@ -221,10 +266,15 @@ mod tests {
         assert!(is_page_number("- 5 -"));
         assert!(is_page_number("ii"));
         assert!(is_page_number("iv"));
+        // OODA-41: "X of N" patterns
+        assert!(is_page_number("1 of 10"));
+        assert!(is_page_number("3 of 25"));
+        assert!(is_page_number("Page 1 of 10"));
 
         assert!(!is_page_number("Introduction"));
         assert!(!is_page_number("Table 3"));
         assert!(!is_page_number(""));
+        assert!(!is_page_number("one of many"));
     }
 
     #[test]
@@ -283,6 +333,40 @@ mod tests {
 
         let filtered = filter_headers_footers(&blocks, page_height, &config);
         assert_eq!(filtered.len(), 3, "Non-repeated margin text should be kept");
+    }
+
+    /// OODA-42: Test copyright notice detection
+    #[test]
+    fn test_is_copyright_notice() {
+        assert!(is_copyright_notice("© 2024 IEEE"));
+        assert!(is_copyright_notice("Copyright 2024 Springer"));
+        assert!(is_copyright_notice("(c) 2024 ACM"));
+        assert!(is_copyright_notice("All rights reserved."));
+        assert!(is_copyright_notice("Licensed under CC BY 4.0"));
+
+        assert!(!is_copyright_notice("Introduction"));
+        assert!(!is_copyright_notice(""));
+        assert!(!is_copyright_notice("The copyright holder agrees."));
+    }
+
+    /// OODA-42: Test copyright filtering in margin blocks
+    #[test]
+    fn test_filter_copyright_in_margin() {
+        let page_height = 792.0;
+        let config = HeaderFooterConfig::default();
+
+        let blocks = vec![
+            make_block("Body text", 0, 400.0, 412.0),
+            make_block("© 2024 IEEE", 0, 20.0, 30.0), // Copyright at bottom margin
+            make_block("Body 2", 1, 400.0, 412.0),
+        ];
+
+        let filtered = filter_headers_footers(&blocks, page_height, &config);
+        assert_eq!(
+            filtered.len(),
+            2,
+            "Copyright notice in margin should be filtered"
+        );
     }
 
     #[test]
