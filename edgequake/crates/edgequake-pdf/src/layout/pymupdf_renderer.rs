@@ -530,12 +530,11 @@ fn detect_code_language(code: &str) -> &'static str {
     }
 
     // JSON patterns
-    if (trimmed.starts_with('{') && trimmed.ends_with('}'))
-        || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+    if ((trimmed.starts_with('{') && trimmed.ends_with('}'))
+        || (trimmed.starts_with('[') && trimmed.ends_with(']')))
+        && (trimmed.contains("\":") || trimmed.contains("\": "))
     {
-        if trimmed.contains("\":") || trimmed.contains("\": ") {
-            return "json";
-        }
+        return "json";
     }
 
     // XML/HTML patterns
