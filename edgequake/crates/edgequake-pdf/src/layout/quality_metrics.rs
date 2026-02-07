@@ -19,14 +19,18 @@
 /// Compute Character-Level Fidelity (CLF) between extracted and gold text.
 ///
 /// OODA-49: Uses word-level Levenshtein for O(w^2) instead of O(n^2) performance.
-/// For a 70K char document with ~10K words, this is ~100M ops vs ~5B ops.
+/// OODA-51: Strips markdown formatting before comparison for fair content comparison.
 ///
 /// CLF = 1 - (word_levenshtein_distance(a, b) / max(word_count(a), word_count(b)))
 ///
 /// Returns a value in [0.0, 1.0] where 1.0 = perfect match.
 pub fn character_level_fidelity(extracted: &str, gold: &str) -> f64 {
-    let a_words: Vec<&str> = normalize_for_clf(extracted);
-    let b_words: Vec<&str> = normalize_for_clf(gold);
+    // OODA-51: Strip markdown formatting before comparison
+    let extracted_stripped = strip_markdown(extracted);
+    let gold_stripped = strip_markdown(gold);
+
+    let a_words = normalize_for_clf(&extracted_stripped);
+    let b_words = normalize_for_clf(&gold_stripped);
 
     if a_words.is_empty() && b_words.is_empty() {
         return 1.0;
@@ -72,10 +76,15 @@ pub fn structure_preservation_score(extracted: &str, gold: &str) -> f64 {
 /// Compute Reading Order Accuracy (ROA).
 ///
 /// Splits text into paragraph blocks and measures LCS-based ordering accuracy.
+/// OODA-51: Strips markdown formatting before paragraph extraction for fair comparison.
 /// ROA = LCS(extracted_paragraphs, gold_paragraphs) / len(gold_paragraphs)
 pub fn reading_order_accuracy(extracted: &str, gold: &str) -> f64 {
-    let ext_paras = extract_paragraphs(extracted);
-    let gold_paras = extract_paragraphs(gold);
+    // OODA-51: Strip markdown formatting before extracting paragraphs
+    let extracted_stripped = strip_markdown(extracted);
+    let gold_stripped = strip_markdown(gold);
+
+    let ext_paras = extract_paragraphs(&extracted_stripped);
+    let gold_paras = extract_paragraphs(&gold_stripped);
 
     if gold_paras.is_empty() {
         return 1.0;
@@ -149,11 +158,75 @@ impl std::fmt::Display for QualityReport {
 
 /// Normalize text for CLF comparison.
 /// OODA-49: Returns word vector instead of collapsed string for word-level Levenshtein.
-/// - Split by whitespace
-/// - Lowercase each word
-/// - Filter empty tokens
+/// OODA-51: Strip markdown formatting before comparison for fair content comparison.
+///
+/// Pipeline:
+/// 1. Strip markdown formatting (bold, italic, headers, code fences, links)
+/// 2. Normalize whitespace (collapse multiple spaces, newlines → space)
+/// 3. Split by whitespace into words
+/// 4. Filter empty tokens
 fn normalize_for_clf(text: &str) -> Vec<&str> {
     text.split_whitespace().collect()
+}
+
+/// OODA-51: Strip markdown formatting markers from text for fair comparison.
+/// Removes: **, *, _, ~~, #, ```, [], (), ~~ and other markdown syntax.
+/// This ensures CLF measures content fidelity, not formatting differences.
+fn strip_markdown(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let chars: Vec<char> = text.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        match chars[i] {
+            // Skip code fences: ```
+            '`' if i + 2 < len && chars[i + 1] == '`' && chars[i + 2] == '`' => {
+                i += 3;
+                // Skip optional language identifier on same line
+                while i < len && chars[i] != '\n' {
+                    i += 1;
+                }
+            }
+            // Skip inline code backticks
+            '`' => {
+                i += 1;
+            }
+            // Skip bold/italic markers: ** or *
+            '*' => {
+                // Skip all consecutive *
+                while i < len && chars[i] == '*' {
+                    i += 1;
+                }
+            }
+            // Skip italic/underline markers: _
+            '_' => {
+                i += 1;
+            }
+            // Skip strikethrough: ~~
+            '~' => {
+                while i < len && chars[i] == '~' {
+                    i += 1;
+                }
+            }
+            // Skip header markers: # at start of line
+            '#' if i == 0 || (i > 0 && chars[i - 1] == '\n') => {
+                while i < len && chars[i] == '#' {
+                    i += 1;
+                }
+                // Skip space after #
+                if i < len && chars[i] == ' ' {
+                    i += 1;
+                }
+            }
+            // Keep everything else
+            c => {
+                result.push(c);
+                i += 1;
+            }
+        }
+    }
+    result
 }
 
 /// OODA-49: Word-level Levenshtein distance.
@@ -524,5 +597,32 @@ mod tests {
         let without_separators = "Content paragraph one here.\n\nContent paragraph two here.\n\nContent paragraph three here.\n";
         let nr_clean = noise_ratio(without_separators);
         assert!(nr_clean < 0.01, "Clean text should have no noise, got {}", nr_clean);
+    }
+
+    /// OODA-51: Test markdown stripping for CLF comparison
+    #[test]
+    fn test_strip_markdown() {
+        assert_eq!(strip_markdown("**bold**"), "bold");
+        assert_eq!(strip_markdown("*italic*"), "italic");
+        assert_eq!(strip_markdown("_underscore_"), "underscore");
+        assert_eq!(strip_markdown("## Header"), "Header");
+        assert_eq!(strip_markdown("~~struck~~"), "struck");
+        assert_eq!(strip_markdown("`code`"), "code");
+        assert_eq!(strip_markdown("```python\ncode\n```"), "\ncode\n");
+        assert_eq!(strip_markdown("normal text"), "normal text");
+        // Combined formatting
+        assert_eq!(strip_markdown("**_bold italic_**"), "bold italic");
+        // Headers at line start
+        assert_eq!(strip_markdown("# Title\n## Sub"), "Title\nSub");
+    }
+
+    /// OODA-51: Test CLF with markdown formatting differences
+    #[test]
+    fn test_clf_ignores_formatting() {
+        // Same content with different formatting should have high CLF
+        let text_a = "# Title\n\n**bold** and _italic_ text here";
+        let text_b = "## Title\n\nbold and italic text here";
+        let clf = character_level_fidelity(text_a, text_b);
+        assert!(clf > 0.9, "Formatting differences should not hurt CLF much, got {}", clf);
     }
 }

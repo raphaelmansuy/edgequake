@@ -130,3 +130,60 @@ fn test_quality_single_paper() {
         assert!(clf > 0.20, "CLF should be >0.20 baseline for {}", name);
     }
 }
+
+/// Diagnostic test: dump extracted output and gold standard to /tmp for manual comparison.
+///
+/// Run: `cargo test -p edgequake-pdf --test quality_metrics_real test_dump_extracted_output -- --nocapture`
+#[test]
+fn test_dump_extracted_output() {
+    let pdf_name = "01_2512.25075v1";
+    let real_dir = test_data_dir().join("real_dataset");
+    let pdf_path = real_dir.join(format!("{}.pdf", pdf_name));
+    let gold_path = real_dir.join(format!("{}.pymupdf.gold.md", pdf_name));
+
+    if !pdf_path.exists() {
+        eprintln!("SKIP: {} PDF not found at {:?}", pdf_name, pdf_path);
+        return;
+    }
+    if !gold_path.exists() {
+        eprintln!("SKIP: {} gold file not found at {:?}", pdf_name, gold_path);
+        return;
+    }
+
+    // Load gold standard
+    let gold = fs::read_to_string(&gold_path).expect("failed to read gold standard file");
+
+    // Extract via PymupdfPipeline
+    let pipeline =
+        edgequake_pdf::pipeline::PymupdfPipeline::new().expect("failed to create PymupdfPipeline");
+    let extracted = pipeline
+        .convert_file(&pdf_path)
+        .expect("failed to convert PDF");
+
+    // Write both to /tmp for easy diffing
+    let extracted_out = "/tmp/edgequake_extracted_01.md";
+    let gold_out = "/tmp/edgequake_gold_01.md";
+
+    fs::write(extracted_out, &extracted).expect("failed to write extracted output");
+    fs::write(gold_out, &gold).expect("failed to write gold standard");
+
+    // Print character counts
+    eprintln!("\n=== Diagnostic Dump for {} ===", pdf_name);
+    eprintln!("Extracted: {} chars -> {}", extracted.len(), extracted_out);
+    eprintln!("Gold:      {} chars -> {}", gold.len(), gold_out);
+
+    // Print first 50 lines of extracted output
+    eprintln!("\n--- Extracted (first 50 lines) ---");
+    for (i, line) in extracted.lines().enumerate().take(50) {
+        eprintln!("{:4}: {}", i + 1, line);
+    }
+
+    // Print first 50 lines of gold standard
+    eprintln!("\n--- Gold Standard (first 50 lines) ---");
+    for (i, line) in gold.lines().enumerate().take(50) {
+        eprintln!("{:4}: {}", i + 1, line);
+    }
+
+    eprintln!("\nFiles written. Compare with:");
+    eprintln!("  diff {} {}", extracted_out, gold_out);
+}
