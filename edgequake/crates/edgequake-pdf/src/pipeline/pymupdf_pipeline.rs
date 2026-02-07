@@ -181,29 +181,50 @@ impl PymupdfPipeline {
 
 /// Detect the most common (body) font size from blocks.
 ///
+/// OODA-30: Enhanced with outlier filtering and finer-grained binning.
 /// This uses the pymupdf4llm approach: the most frequent font size
-/// is assumed to be body text.
+/// (weighted by text length) is assumed to be body text.
+///
+/// Improvements over basic approach:
+/// - Filter extreme outliers (< 4pt or > 36pt) that are likely metadata or display text
+/// - Use half-point binning (round to nearest 0.5pt) for better discrimination
+/// - Ignore whitespace-only spans
 fn detect_body_font_size(blocks: &[TextBlock]) -> f32 {
     use std::collections::HashMap;
 
+    // OODA-30: Use half-point bins for finer discrimination
+    // WHY: Some documents have 9.5pt body and 10pt headers - integer binning
+    // merges them, making header detection unreliable.
     let mut size_counts: HashMap<i32, usize> = HashMap::new();
 
     for block in blocks {
         for line in &block.lines {
             for span in &line.spans {
-                // Round to nearest integer for binning
-                let size_key = span.font_size.round() as i32;
-                let text_len = span.text.len();
+                // OODA-30: Skip tiny/huge outliers
+                // WHY: PDFs contain metadata chars at 0-3pt and display text at 40-200pt.
+                // These pollute body font detection. 4-36pt covers all reasonable body text.
+                if span.font_size < 4.0 || span.font_size > 36.0 {
+                    continue;
+                }
+
+                // OODA-30: Skip whitespace-only spans
+                if span.text.trim().is_empty() {
+                    continue;
+                }
+
+                // OODA-30: Half-point binning (multiply by 2, round, use as key)
+                let size_key = (span.font_size * 2.0).round() as i32;
+                let text_len = span.text.trim().len();
                 *size_counts.entry(size_key).or_insert(0) += text_len;
             }
         }
     }
 
-    // Find most common font size
+    // Find most common font size (convert back from half-point bin)
     size_counts
         .into_iter()
         .max_by_key(|&(_, count)| count)
-        .map(|(size, _)| size as f32)
+        .map(|(size_key, _)| size_key as f32 / 2.0)
         .unwrap_or(12.0) // Default fallback
 }
 
@@ -299,5 +320,93 @@ mod tests {
 
         let body_size = detect_body_font_size(&blocks);
         assert_eq!(body_size, 12.0);
+    }
+
+    /// OODA-30: Test outlier filtering in body font detection
+    #[test]
+    fn test_detect_body_font_size_with_outliers() {
+        // Create blocks with outlier sizes (tiny metadata, huge display text)
+        // Body text at 10pt should still be detected correctly
+        let make_block = |text: &str, font_size: f32| TextBlock {
+            lines: vec![crate::layout::Line {
+                spans: vec![Span {
+                    text: text.to_string(),
+                    font_size,
+                    x0: 0.0,
+                    y0: 0.0,
+                    x1: 200.0,
+                    y1: font_size,
+                    font_name: None,
+                    page_num: 0,
+                    font_is_bold: None,
+                    font_is_italic: None,
+                    font_is_monospace: None,
+                }],
+                x0: 0.0,
+                y0: 0.0,
+                x1: 200.0,
+                y1: font_size,
+                page_num: 0,
+            }],
+            x0: 0.0,
+            y0: 0.0,
+            x1: 200.0,
+            y1: font_size,
+            page_num: 0,
+            block_type: BlockType::Paragraph,
+        };
+
+        let blocks = vec![
+            make_block("x", 2.0),  // Tiny outlier - should be filtered
+            make_block("This is the main body text with many words to ensure it dominates the count for detection purposes", 10.0),
+            make_block("HUGE DISPLAY", 50.0),  // Huge outlier - should be filtered
+            make_block("Another paragraph of body text that reinforces the ten point font", 10.0),
+        ];
+
+        let body_size = detect_body_font_size(&blocks);
+        assert_eq!(body_size, 10.0, "Should detect 10pt body despite outliers");
+    }
+
+    /// OODA-30: Test half-point binning
+    #[test]
+    fn test_detect_body_font_size_half_point() {
+        let make_block = |text: &str, font_size: f32| TextBlock {
+            lines: vec![crate::layout::Line {
+                spans: vec![Span {
+                    text: text.to_string(),
+                    font_size,
+                    x0: 0.0,
+                    y0: 0.0,
+                    x1: 200.0,
+                    y1: font_size,
+                    font_name: None,
+                    page_num: 0,
+                    font_is_bold: None,
+                    font_is_italic: None,
+                    font_is_monospace: None,
+                }],
+                x0: 0.0,
+                y0: 0.0,
+                x1: 200.0,
+                y1: font_size,
+                page_num: 0,
+            }],
+            x0: 0.0,
+            y0: 0.0,
+            x1: 200.0,
+            y1: font_size,
+            page_num: 0,
+            block_type: BlockType::Paragraph,
+        };
+
+        // 9.5pt body text should be distinguished from 10pt header
+        let blocks = vec![
+            make_block("Header text which is shorter", 10.0),
+            make_block("This is body text at nine point five which is much longer than header to ensure correct detection as body font", 9.5),
+            make_block("More body text at nine point five confirming the pattern for the detection algorithm to pick up", 9.5),
+        ];
+
+        let body_size = detect_body_font_size(&blocks);
+        assert_eq!(body_size, 9.5, "Should detect 9.5pt body with half-point binning");
     }
 }
