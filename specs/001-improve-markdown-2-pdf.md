@@ -124,6 +124,8 @@ Metrics MUST be collected in Rust test code for reproducibility:
 7. **Noise Filtering**: Page numbers, headers/footers, copyright notices, watermarks
 8. **Multi-Language**: French manuals, mixed-language documents
 
+
+Envisage parallel test execution and incremental metric collection to speed up feedback loops. Focus on the 22-document corpus in `zz_test_docs/` for all quality improvements.
 ---
 
 ## Process: Rapid OODA Loop (50+ iterations)
