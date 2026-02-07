@@ -270,6 +270,7 @@ fn word_levenshtein_distance(a: &[&str], b: &[&str]) -> usize {
 }
 
 /// Character-level Levenshtein (kept for small string comparisons in tests).
+#[cfg(test)]
 fn levenshtein_distance(a: &str, b: &str) -> usize {
     let a_chars: Vec<char> = a.chars().collect();
     let b_chars: Vec<char> = b.chars().collect();
