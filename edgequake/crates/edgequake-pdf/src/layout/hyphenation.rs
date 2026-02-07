@@ -29,6 +29,7 @@
 /// - Line ending with `-` followed by next line starting with lowercase: join without hyphen
 /// - Line ending with `-` followed by uppercase, digit, or special: keep hyphen (hard hyphen)
 /// - Soft hyphens (U+00AD) are always resolved
+/// - OODA-36: Lines containing URLs are never resolved (preserve URL integrity)
 pub fn resolve_hyphenation(lines: &[String]) -> Vec<String> {
     if lines.len() <= 1 {
         return lines.to_vec();
@@ -57,11 +58,28 @@ pub fn resolve_hyphenation(lines: &[String]) -> Vec<String> {
     result
 }
 
+/// OODA-36: Check if a line contains a URL pattern.
+/// WHY: URLs with hyphens (e.g., "https://example-site.com/path-") should not
+/// be resolved across line breaks. The hyphen is part of the URL.
+fn contains_url(text: &str) -> bool {
+    text.contains("http://")
+        || text.contains("https://")
+        || text.contains("ftp://")
+        || text.contains("www.")
+        || text.contains("doi.org")
+        || text.contains("arxiv.org")
+}
+
 /// Try to resolve a hyphenated word break between two lines.
 ///
 /// Returns Some(joined) if hyphenation was resolved, None if not.
 fn try_resolve_hyphen(current: &str, next: &str) -> Option<String> {
     let trimmed_current = current.trim_end();
+
+    // OODA-36: Never resolve hyphens in lines containing URLs
+    if contains_url(trimmed_current) || contains_url(next) {
+        return None;
+    }
 
     // Check for soft hyphen (U+00AD) - always resolve
     if trimmed_current.ends_with('\u{00AD}') {
@@ -238,6 +256,24 @@ mod tests {
         assert_eq!(
             resolved,
             vec!["e-".to_string(), "mail systems".to_string()]
+        );
+    }
+
+    /// OODA-36: URLs should not have hyphens resolved
+    #[test]
+    fn test_url_hyphen_preserved() {
+        // URL with hyphen at line end
+        let lines = vec![
+            "See https://example-".to_string(),
+            "site.com/path for details.".to_string(),
+        ];
+        let resolved = resolve_hyphenation(&lines);
+        assert_eq!(
+            resolved,
+            vec![
+                "See https://example-".to_string(),
+                "site.com/path for details.".to_string()
+            ]
         );
     }
 }
