@@ -585,7 +585,15 @@ fn detect_code_language(code: &str) -> &'static str {
         return "go";
     }
 
-    // JavaScript/TypeScript patterns
+    // OODA-45: TypeScript patterns (BEFORE JavaScript to distinguish typed code)
+    if trimmed.contains(": string") || trimmed.contains(": number") || trimmed.contains(": boolean")
+        || trimmed.contains("interface ") && trimmed.contains('{')
+        || trimmed.contains("type ") && trimmed.contains(" = {")
+    {
+        return "typescript";
+    }
+
+    // JavaScript patterns
     if trimmed.contains("const ") && trimmed.contains(" = ")
         || trimmed.contains("function ") && trimmed.contains("(")
         || trimmed.contains("console.log")
@@ -652,6 +660,14 @@ fn detect_code_language(code: &str) -> &'static str {
     // XML/HTML patterns
     if trimmed.starts_with("<?xml") || trimmed.starts_with("<!DOCTYPE") || trimmed.starts_with("<html") {
         return "xml";
+    }
+
+    // OODA-45: R language patterns
+    if trimmed.contains("<- ") && (trimmed.contains("function(") || trimmed.contains("c("))
+        || trimmed.contains("library(") && trimmed.contains(')')
+        || trimmed.contains("ggplot(")
+    {
+        return "r";
     }
 
     ""
@@ -1137,5 +1153,10 @@ mod tests {
         assert_eq!(detect_code_language("[package]\nname = \"foo\""), "toml");
         assert_eq!(detect_code_language("\\documentclass{article}"), "latex");
         assert_eq!(detect_code_language("\\begin{equation}"), "latex");
+        // OODA-45: R and TypeScript detection
+        assert_eq!(detect_code_language("x <- function(a) { a + 1 }"), "r");
+        assert_eq!(detect_code_language("library(ggplot2)"), "r");
+        assert_eq!(detect_code_language("interface User {\n  name: string\n}"), "typescript");
+        assert_eq!(detect_code_language("const x: number = 42"), "typescript");
     }
 }
