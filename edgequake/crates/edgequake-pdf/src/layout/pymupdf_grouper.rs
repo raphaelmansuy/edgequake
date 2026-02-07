@@ -814,32 +814,59 @@ impl TextGrouper {
 
     /// Group lines by column, then within each column.
     fn group_lines_by_column(&self, lines: Vec<Line>, columns: &[(f32, f32)]) -> Vec<Block> {
-        // Assign each line to a column
+        // OODA-56: Separate full-width lines from column-specific lines.
+        // WHY: Pages with figures often have full-width content (title, figure text,
+        // captions) above the two-column body text. Without separation, these lines
+        // get assigned to columns incorrectly, scattering title/author/figure content.
+        //
+        // Strategy:
+        // 1. Full-width lines (spanning across the gutter): sort by Y, output first
+        // 2. Column-specific lines: group by column, left column first, then right
+        //
+        // A line is "full-width" if it extends past the gutter region,
+        // i.e., it doesn't fit entirely within any single column.
+
+        let mut full_width_lines = Vec::new();
         let mut column_lines: Vec<Vec<Line>> = vec![vec![]; columns.len()];
 
         for line in lines {
             let line_center = (line.x0 + line.x1) / 2.0;
 
-            // Find which column this line belongs to
+            // Check if line fits within any single column
             let mut assigned = false;
             for (i, &(col_start, col_end)) in columns.iter().enumerate() {
-                if line_center >= col_start && line_center <= col_end {
+                // Line center must be within column, AND line must not span too far
+                // beyond column boundaries (allow 10% overflow for edge alignment)
+                let col_width = col_end - col_start;
+                let overflow_tolerance = col_width * 0.10;
+                if line_center >= col_start
+                    && line_center <= col_end
+                    && line.x0 >= col_start - overflow_tolerance
+                    && line.x1 <= col_end + overflow_tolerance
+                {
                     column_lines[i].push(line.clone());
                     assigned = true;
                     break;
                 }
             }
 
-            // If line spans multiple columns (like a header), assign to first column
-            if !assigned && !column_lines.is_empty() {
-                column_lines[0].push(line);
+            if !assigned {
+                // Line spans multiple columns or doesn't fit any column
+                full_width_lines.push(line);
             }
         }
 
-        // Group lines within each column, then concatenate
-        // Blocks are already in reading order within each column
-        // We just need to process left column fully before right column
+        // Build output: full-width blocks first (in Y order), then column blocks
         let mut all_blocks = Vec::new();
+
+        // Full-width blocks sorted top-to-bottom
+        if !full_width_lines.is_empty() {
+            let mut fw_blocks = self.group_lines_simple(full_width_lines);
+            fw_blocks.sort_by(|a, b| b.y1.partial_cmp(&a.y1).unwrap());
+            all_blocks.extend(fw_blocks);
+        }
+
+        // Column blocks: left column first, then right column
         for col_lines in column_lines {
             if !col_lines.is_empty() {
                 let mut col_blocks = self.group_lines_simple(col_lines);
