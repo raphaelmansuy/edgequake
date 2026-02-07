@@ -1945,6 +1945,38 @@ impl Pipeline {
             None
         };
 
+        // FIX-2: Validate processing results before returning Ok
+        // WHY: Prevent silent failures where Ok() returned but no entities extracted
+        // CRITICAL: This ensures pipeline failures are visible to caller (processor.rs)
+        // SCENARIO: Chunks created successfully but LLM extraction returns 0 entities
+        if stats.chunk_count == 0 {
+            return Err(crate::error::PipelineError::ChunkingError(
+                "Document chunking produced 0 chunks - content may be empty or malformed"
+                    .to_string(),
+            ));
+        }
+
+        // Note: complete chunk failure already caught at line 1650
+        // This check handles: "some chunks succeeded but extracted 0 entities"
+        if stats.entity_count == 0 && stats.chunk_count > 0 {
+            tracing::warn!(
+                document_id = document_id,
+                chunk_count = stats.chunk_count,
+                successful_chunks = stats.successful_chunks,
+                failed_chunks = stats.failed_chunks,
+                "Pipeline processed {} chunks but extracted 0 entities - possible LLM failure or content without extractable entities",
+                stats.chunk_count
+            );
+
+            // Return error to trigger "failed" status instead of "completed"
+            return Err(crate::error::PipelineError::ExtractionError(
+                format!(
+                    "Extracted 0 entities from {} chunks ({} succeeded, {} failed) - document cannot be indexed",
+                    stats.chunk_count, stats.successful_chunks, stats.failed_chunks
+                )
+            ));
+        }
+
         Ok(ProcessingResult {
             document_id: document_id.to_string(),
             chunks,
