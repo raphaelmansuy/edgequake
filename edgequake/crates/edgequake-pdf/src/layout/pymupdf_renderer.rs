@@ -222,6 +222,8 @@ impl MarkdownRenderer {
         // between every line. Our grouper merges adjacent lines into blocks, producing
         // fewer paragraphs (963 vs 1620 for Apple-Sandbox). Splitting at line boundaries
         // matches the gold standard's paragraph granularity, improving ROA.
+        // OODA-66: Tried smart sentence-ending heuristic but it was worse overall
+        // because single-column golds have \n\n between non-sentence-ending lines too.
         let rendered: Vec<String> = block.lines.iter().map(|l| self.render_line_styled(l)).collect();
         let resolved = resolve_hyphenation(&rendered);
         resolved.join("\n\n")
