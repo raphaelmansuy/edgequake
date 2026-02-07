@@ -213,6 +213,7 @@
       "processing": "Processing",
       "completed": "Completed",
       "failed": "Failed",
+      "partial_failure": "Partial Failure",
       "cancelled": "Cancelled"
     },
     "pagination": {

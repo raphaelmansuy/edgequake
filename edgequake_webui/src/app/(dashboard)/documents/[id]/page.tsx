@@ -11,18 +11,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getDocument, getPdfContent, getPdfDownloadUrl } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
 import {
     AlertCircle,
     ArrowLeft,
     CheckCircle,
     Clock,
-    Copy,
     Download,
     Loader2,
     Network,
     RefreshCw,
-    XCircle,
+    XCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -35,7 +33,9 @@ const statusConfig = {
   processing: { icon: Loader2, color: 'text-blue-500', bg: 'bg-blue-500/10', label: 'Processing' },
   completed: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', label: 'Completed' },
   indexed: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', label: 'Indexed' },
+  partial_failure: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-500/10', label: 'Partial Failure' },
   failed: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', label: 'Failed' },
+  cancelled: { icon: XCircle, color: 'text-gray-500', bg: 'bg-gray-500/10', label: 'Cancelled' },
 } as const;
 
 type DocumentStatus = keyof typeof statusConfig;
@@ -125,7 +125,7 @@ export default function DocumentViewPage() {
   const status = (document?.status || 'completed') as DocumentStatus;
   const statusInfo = statusConfig[status] || statusConfig.completed;
   const StatusIcon = statusInfo.icon;
-  const isFailed = status === 'failed';
+  const isFailed = status === 'failed' || status === 'partial_failure';
 
   // Loading state
   if (isLoading) {
@@ -182,6 +182,12 @@ export default function DocumentViewPage() {
               <Badge variant="outline" className="text-xs">
                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 Processing
+              </Badge>
+            )}
+            {status === 'partial_failure' && (
+              <Badge variant="outline" className="text-xs border-orange-500 text-orange-500">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Partial Failure
               </Badge>
             )}
             {status === 'failed' && (
