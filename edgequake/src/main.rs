@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(
             EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "edgequake=debug,tower_http=debug,axum=debug".into()),
+                .unwrap_or_else(|_| "edgequake=debug,edgequake_query=debug,edgequake_api=debug,edgequake_core=debug,edgequake_storage=debug,edgequake_llm=debug,edgequake_pipeline=debug,edgequake_tasks=debug,tower_http=debug,axum=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
