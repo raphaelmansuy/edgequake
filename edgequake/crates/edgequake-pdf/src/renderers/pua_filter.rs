@@ -105,6 +105,21 @@ fn normalize_char(c: char) -> Option<NormResult> {
         '\u{00BE}' => Some(NormResult::Str("3/4")),
         '\u{2153}' => Some(NormResult::Str("1/3")),
         '\u{2154}' => Some(NormResult::Str("2/3")),
+        // OODA-25: Copyright, trademark, registered symbols → ASCII equivalents
+        '\u{00A9}' => Some(NormResult::Str("(c)")),
+        '\u{00AE}' => Some(NormResult::Str("(R)")),
+        '\u{2122}' => Some(NormResult::Str("(TM)")),
+        // OODA-25: Superscript digits → regular digits (common in PDF footnote refs)
+        '\u{00B2}' => Some(NormResult::Char('2')), // Superscript 2
+        '\u{00B3}' => Some(NormResult::Char('3')), // Superscript 3
+        '\u{00B9}' => Some(NormResult::Char('1')), // Superscript 1
+        // OODA-25: Common mathematical symbols
+        '\u{00D7}' => Some(NormResult::Char('x')), // Multiplication sign → x
+        '\u{00F7}' => Some(NormResult::Char('/')), // Division sign → /
+        '\u{2260}' => Some(NormResult::Str("!=")),  // Not equal
+        '\u{2264}' => Some(NormResult::Str("<=")),   // Less than or equal
+        '\u{2265}' => Some(NormResult::Str(">=")),   // Greater than or equal
+        '\u{2248}' => Some(NormResult::Str("~=")),   // Almost equal
         _ => None,
     }
 }
@@ -279,5 +294,20 @@ mod tests {
         assert_eq!(filter_pua("ab\u{200C}cd"), "abcd");
         // Soft hyphen stripped
         assert_eq!(filter_pua("hyphen\u{00AD}ation"), "hyphenation");
+    }
+
+    /// OODA-25: Test copyright, trademark, and math symbol normalization
+    #[test]
+    fn test_normalize_symbols() {
+        assert_eq!(filter_pua("\u{00A9} 2024"), "(c) 2024");
+        assert_eq!(filter_pua("Brand\u{00AE}"), "Brand(R)");
+        assert_eq!(filter_pua("Name\u{2122}"), "Name(TM)");
+        // Superscript digits
+        assert_eq!(filter_pua("x\u{00B2}"), "x2");
+        assert_eq!(filter_pua("n\u{00B3}"), "n3");
+        // Math symbols
+        assert_eq!(filter_pua("a \u{2260} b"), "a != b");
+        assert_eq!(filter_pua("x \u{2264} 5"), "x <= 5");
+        assert_eq!(filter_pua("3 \u{00D7} 4"), "3 x 4");
     }
 }
