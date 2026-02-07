@@ -349,6 +349,7 @@ fn lcs_length(a: &[String], b: &[String]) -> usize {
 
 /// Check if a non-blank line is likely noise (page number, separator).
 /// OODA-49: Blank lines pre-filtered by noise_ratio(), not counted here.
+/// OODA-50: Extended with "Page N" patterns and more separator variants.
 fn is_noise_line(line: &str) -> bool {
     let trimmed = line.trim();
 
@@ -357,7 +358,14 @@ fn is_noise_line(line: &str) -> bool {
         return true;
     }
 
-    // Page separator markers from our renderer
+    // "Page N" or "page N" patterns
+    if let Some(rest) = trimmed.strip_prefix("Page ").or_else(|| trimmed.strip_prefix("page ")) {
+        if rest.chars().all(|c| c.is_ascii_digit()) && !rest.is_empty() {
+            return true;
+        }
+    }
+
+    // Page separator markers (--- or ----- variants)
     if trimmed.starts_with("---") && trimmed.chars().all(|c| c == '-' || c.is_whitespace()) {
         return true;
     }
@@ -488,5 +496,33 @@ mod tests {
             "Should extract at least 2 paragraphs, got {}",
             paras.len()
         );
+    }
+
+    /// OODA-50: Test noise detection includes "Page N" patterns
+    #[test]
+    fn test_is_noise_line_page_patterns() {
+        assert!(is_noise_line("42"), "Standalone page number");
+        assert!(is_noise_line("1"), "Single digit page number");
+        assert!(is_noise_line("Page 1"), "Page N pattern");
+        assert!(is_noise_line("Page 42"), "Page NN pattern");
+        assert!(is_noise_line("page 5"), "Lowercase page pattern");
+        assert!(is_noise_line("---"), "Triple dash separator");
+        assert!(is_noise_line("-----"), "Five dash separator");
+        assert!(!is_noise_line("Page title here"), "Not a page number");
+        assert!(!is_noise_line("This is normal text"), "Normal text");
+        assert!(!is_noise_line("12345"), "5+ digit number not noise");
+    }
+
+    /// OODA-50: Test noise ratio with page separator patterns
+    #[test]
+    fn test_noise_ratio_page_separators() {
+        let with_separators = "Content paragraph one here.\n\n-----\n\nPage 2\n\nContent paragraph two here.\n\n-----\n\nPage 3\n\nContent paragraph three here.\n";
+        let nr = noise_ratio(with_separators);
+        // 3 content + 2 "-----" + 2 "Page N" = 7 non-blank, 4 noise → NR ≈ 0.571
+        assert!(nr > 0.4, "Should detect page separators as noise, got {}", nr);
+
+        let without_separators = "Content paragraph one here.\n\nContent paragraph two here.\n\nContent paragraph three here.\n";
+        let nr_clean = noise_ratio(without_separators);
+        assert!(nr_clean < 0.01, "Clean text should have no noise, got {}", nr_clean);
     }
 }

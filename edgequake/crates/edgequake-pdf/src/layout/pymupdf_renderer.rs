@@ -36,7 +36,8 @@ impl Default for MarkdownConfig {
             preserve_styles: true,
             fenced_code: true,
             max_heading_level: 6,
-            page_separators: true,
+            // OODA-50: Default off for SOTA quality - gold standards don't use separators
+            page_separators: false,
         }
     }
 }
@@ -81,9 +82,8 @@ impl MarkdownRenderer {
                 if self.config.page_separators {
                     // OODA-10: Include page number in separator
                     output.push_str(&format!("\n-----\n\nPage {}\n\n", block.page_num + 1));
-                } else {
-                    output.push_str("\n---\n\n");
                 }
+                // OODA-50: When separators off, just let normal block spacing handle it
                 last_page = block.page_num;
             }
 
@@ -1062,7 +1062,12 @@ mod tests {
     /// OODA-10: Test page separators with page numbers
     #[test]
     fn test_page_separators() {
-        let renderer = MarkdownRenderer::new(); // page_separators = true by default
+        // OODA-50: page_separators now defaults to false, explicitly enable
+        let config = MarkdownConfig {
+            page_separators: true,
+            ..Default::default()
+        };
+        let renderer = MarkdownRenderer::with_config(config);
 
         let blocks = vec![
             Block {
@@ -1134,7 +1139,17 @@ mod tests {
             "Should NOT contain enhanced separator when disabled: {}",
             md
         );
-        assert!(md.contains("---"), "Should have plain separator: {}", md);
+        // OODA-50: When separators off, no --- either, just normal block spacing
+        assert!(
+            !md.contains("---"),
+            "Should NOT have any separator when disabled: {}",
+            md
+        );
+        assert!(
+            md.contains("First section") && md.contains("Second section"),
+            "Should contain both sections: {}",
+            md
+        );
     }
 
     /// OODA-22: Test code language detection
