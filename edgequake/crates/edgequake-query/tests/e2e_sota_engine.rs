@@ -1083,12 +1083,8 @@ mod chunk_ranking_and_hybrid_tests {
     ///   1 = directional       -- high_level (Global mode)
     ///   2 = directional       -- low_level  (Local mode)
     async fn enqueue_directional_embeddings(provider: &MockProvider) {
-        provider
-            .add_embedding(make_directional_vec(1.0, 0.0))
-            .await;
-        provider
-            .add_embedding(make_directional_vec(1.0, 0.0))
-            .await;
+        provider.add_embedding(make_directional_vec(1.0, 0.0)).await;
+        provider.add_embedding(make_directional_vec(1.0, 0.0)).await;
     }
 
     // -----------------------------------------------------------------
@@ -1162,13 +1158,8 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine = SOTAQueryEngine::with_mock_keywords(
-            config,
-            vs,
-            gs,
-            provider.clone(),
-            provider,
-        );
+        let engine =
+            SOTAQueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("test query")
             .with_mode(QueryMode::Local)
@@ -1269,10 +1260,7 @@ mod chunk_ranking_and_hybrid_tests {
             [
                 ("entity_type".to_string(), json!("CONCEPT")),
                 ("description".to_string(), json!("Beta")),
-                (
-                    "source_chunk_ids".to_string(),
-                    json!(["chunk-worst"]),
-                ),
+                ("source_chunk_ids".to_string(), json!(["chunk-worst"])),
             ]
             .into_iter()
             .collect(),
@@ -1294,13 +1282,8 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine = SOTAQueryEngine::with_mock_keywords(
-            config,
-            vs,
-            gs,
-            provider.clone(),
-            provider,
-        );
+        let engine =
+            SOTAQueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("test query")
             .with_mode(QueryMode::Global)
@@ -1397,13 +1380,8 @@ mod chunk_ranking_and_hybrid_tests {
         let mut config = base_config();
         config.max_chunks = 1; // Only keep the single best chunk
 
-        let engine = SOTAQueryEngine::with_mock_keywords(
-            config,
-            vs,
-            gs,
-            provider.clone(),
-            provider,
-        );
+        let engine =
+            SOTAQueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("test query")
             .with_mode(QueryMode::Local)
@@ -1490,13 +1468,8 @@ mod chunk_ranking_and_hybrid_tests {
         let mut config = base_config();
         config.max_chunks = 3; // Keep only top 3
 
-        let engine = SOTAQueryEngine::with_mock_keywords(
-            config,
-            vs,
-            gs,
-            provider.clone(),
-            provider,
-        );
+        let engine =
+            SOTAQueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("test query")
             .with_mode(QueryMode::Local)
@@ -1614,13 +1587,8 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine = SOTAQueryEngine::with_mock_keywords(
-            config,
-            vs,
-            gs,
-            provider.clone(),
-            provider,
-        );
+        let engine =
+            SOTAQueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("hybrid test")
             .with_mode(QueryMode::Hybrid)
@@ -1688,10 +1656,7 @@ mod chunk_ranking_and_hybrid_tests {
             [
                 ("entity_type".to_string(), json!("CONCEPT")),
                 ("description".to_string(), json!("Alpha")),
-                (
-                    "source_chunk_ids".to_string(),
-                    json!(["shared-chunk"]),
-                ),
+                ("source_chunk_ids".to_string(), json!(["shared-chunk"])),
             ]
             .into_iter()
             .collect(),
@@ -1704,10 +1669,7 @@ mod chunk_ranking_and_hybrid_tests {
             [
                 ("entity_type".to_string(), json!("CONCEPT")),
                 ("description".to_string(), json!("Beta")),
-                (
-                    "source_chunk_ids".to_string(),
-                    json!(["shared-chunk"]),
-                ),
+                ("source_chunk_ids".to_string(), json!(["shared-chunk"])),
             ]
             .into_iter()
             .collect(),
@@ -1729,13 +1691,8 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine = SOTAQueryEngine::with_mock_keywords(
-            config,
-            vs,
-            gs,
-            provider.clone(),
-            provider,
-        );
+        let engine =
+            SOTAQueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("dedup test")
             .with_mode(QueryMode::Hybrid)
@@ -1819,10 +1776,7 @@ mod chunk_ranking_and_hybrid_tests {
             [
                 ("entity_type".to_string(), json!("CONCEPT")),
                 ("description".to_string(), json!("Alpha")),
-                (
-                    "source_chunk_ids".to_string(),
-                    json!(["chunk-alpha-1"]),
-                ),
+                ("source_chunk_ids".to_string(), json!(["chunk-alpha-1"])),
             ]
             .into_iter()
             .collect(),
@@ -1835,10 +1789,7 @@ mod chunk_ranking_and_hybrid_tests {
             [
                 ("entity_type".to_string(), json!("CONCEPT")),
                 ("description".to_string(), json!("Beta")),
-                (
-                    "source_chunk_ids".to_string(),
-                    json!(["chunk-beta-1"]),
-                ),
+                ("source_chunk_ids".to_string(), json!(["chunk-beta-1"])),
             ]
             .into_iter()
             .collect(),
@@ -1850,13 +1801,8 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine = SOTAQueryEngine::with_mock_keywords(
-            config,
-            vs,
-            gs,
-            provider.clone(),
-            provider,
-        );
+        let engine =
+            SOTAQueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("multi entity")
             .with_mode(QueryMode::Local)
@@ -1916,10 +1862,7 @@ mod chunk_ranking_and_hybrid_tests {
             "EMPTY_ENTITY",
             [
                 ("entity_type".to_string(), json!("CONCEPT")),
-                (
-                    "description".to_string(),
-                    json!("Entity with no chunks"),
-                ),
+                ("description".to_string(), json!("Entity with no chunks")),
             ]
             .into_iter()
             .collect(),
@@ -1931,13 +1874,8 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine = SOTAQueryEngine::with_mock_keywords(
-            config,
-            vs,
-            gs,
-            provider.clone(),
-            provider,
-        );
+        let engine =
+            SOTAQueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("empty chunks test")
             .with_mode(QueryMode::Local)
@@ -2065,14 +2003,9 @@ mod chunk_ranking_and_hybrid_tests {
 
         let reranker: Arc<dyn Reranker> = Arc::new(BM25Reranker::new());
 
-        let engine = SOTAQueryEngine::with_mock_keywords(
-            config,
-            vs,
-            gs,
-            provider.clone(),
-            provider,
-        )
-        .with_reranker(reranker);
+        let engine =
+            SOTAQueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider)
+                .with_reranker(reranker);
 
         let request = QueryRequest::new("EdgeQuake knowledge graph")
             .with_mode(QueryMode::Local)
@@ -2089,7 +2022,8 @@ mod chunk_ranking_and_hybrid_tests {
         // BM25 reranking should put chunk-bm25 first because its content
         // matches "EdgeQuake knowledge graph" while chunk-cosine does not.
         assert_eq!(
-            response.context.chunks[0].id, "chunk-bm25",
+            response.context.chunks[0].id,
+            "chunk-bm25",
             "BM25 reranker should rank chunk-bm25 first due to term matching, \
              but got: {:?}",
             response

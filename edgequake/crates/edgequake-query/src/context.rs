@@ -68,32 +68,47 @@ impl QueryContext {
     pub fn to_context_string(&self) -> String {
         let mut parts = Vec::new();
 
-        if !self.chunks.is_empty() {
-            parts.push("## Retrieved Documents\n".to_string());
-            for chunk in &self.chunks {
-                parts.push(format!(
-                    "### Document (score: {:.3})\n{}\n",
-                    chunk.score, chunk.content
-                ));
-            }
-        }
-
         if !self.entities.is_empty() {
-            parts.push("\n## Knowledge Graph Entities\n".to_string());
+            parts.push("### Knowledge Graph Data (Entities)\n\n".to_string());
             for entity in &self.entities {
+                let degree_info = if entity.degree > 0 {
+                    format!(" [connections: {}]", entity.degree)
+                } else {
+                    String::new()
+                };
                 parts.push(format!(
-                    "- **{}** ({}): {}\n",
-                    entity.name, entity.entity_type, entity.description
+                    "- **{}** ({}){}: {}\n",
+                    entity.name, entity.entity_type, degree_info, entity.description
                 ));
             }
+            parts.push("\n".to_string());
         }
 
         if !self.relationships.is_empty() {
-            parts.push("\n## Entity Relationships\n".to_string());
+            parts.push("### Knowledge Graph Data (Relationships)\n\n".to_string());
             for rel in &self.relationships {
+                if rel.description.is_empty() {
+                    parts.push(format!(
+                        "- {} --[{}]--> {}\n",
+                        rel.source, rel.relation_type, rel.target
+                    ));
+                } else {
+                    parts.push(format!(
+                        "- {} --[{}]--> {}: {}\n",
+                        rel.source, rel.relation_type, rel.target, rel.description
+                    ));
+                }
+            }
+            parts.push("\n".to_string());
+        }
+
+        if !self.chunks.is_empty() {
+            parts.push("### Document Chunks\n\n".to_string());
+            for (i, chunk) in self.chunks.iter().enumerate() {
+                let ref_id = i + 1;
                 parts.push(format!(
-                    "- {} --[{}]--> {}\n",
-                    rel.source, rel.relation_type, rel.target
+                    "[{}] (score: {:.3})\n{}\n\n",
+                    ref_id, chunk.score, chunk.content
                 ));
             }
         }
@@ -373,9 +388,9 @@ mod tests {
 
         let s = ctx.to_context_string();
 
-        assert!(s.contains("Retrieved Documents"));
+        assert!(s.contains("Document Chunks"));
         assert!(s.contains("Test content"));
-        assert!(s.contains("Knowledge Graph Entities"));
+        assert!(s.contains("Knowledge Graph Data (Entities)"));
     }
 
     #[test]
