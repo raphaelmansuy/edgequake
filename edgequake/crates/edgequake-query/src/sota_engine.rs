@@ -160,7 +160,15 @@ impl Default for SOTAQueryConfig {
             min_score: 0.1,
             use_keyword_extraction: true,
             use_adaptive_mode: true,
-            truncation: TruncationConfig::default(),
+            // WHY derived from max_context_tokens: The truncation budget MUST match
+            // the context token budget, otherwise the system fetches chunks it then
+            // throws away. LightRAG splits: 50% entities, 50% relationships, chunks
+            // fill the remainder. With 30K total: entities=10K, rels=10K, chunks=10K.
+            truncation: TruncationConfig {
+                max_entity_tokens: 10000,
+                max_relation_tokens: 10000,
+                max_total_tokens: 30000,
+            },
             keyword_cache_ttl_secs: 24 * 60 * 60, // 24 hours
             enable_rerank: true,                  // Enable by default for SOTA quality
             // WHY 0.1: BM25 scores can be low for short documents or simple queries.

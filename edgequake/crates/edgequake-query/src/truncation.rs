@@ -26,10 +26,10 @@
 //! We allocate tokens across context types (BR0102):
 //!
 //! ```text
-//! Total Budget: 16,000 tokens (default)
-//! ├── Entities:      8,000 tokens (50%)  ← Graph context (priority)
-//! ├── Relationships: 8,000 tokens (50%)  ← Graph context (priority)
-//! └── Chunks:        Remaining space     ← Naive context (secondary)
+//! Total Budget: 30,000 tokens (default, matching LightRAG)
+//! ├── Entities:      10,000 tokens (33%)  ← Graph context (priority)
+//! ├── Relationships: 10,000 tokens (33%)  ← Graph context (priority)
+//! └── Chunks:        10,000 tokens (33%)  ← Primary evidence source
 //! └── System prompt: ~500 tokens (separate)
 //! ```
 //!
@@ -64,10 +64,12 @@ pub struct TruncationConfig {
 
 impl Default for TruncationConfig {
     fn default() -> Self {
+        // WHY 30000: LightRAG uses max_total_tokens=30000. Entity and relationship
+        // budgets are 1/3 each, leaving 1/3 for chunks (the primary evidence source).
         Self {
-            max_entity_tokens: 8000,
-            max_relation_tokens: 8000,
-            max_total_tokens: 16000,
+            max_entity_tokens: 10000,
+            max_relation_tokens: 10000,
+            max_total_tokens: 30000,
         }
     }
 }
@@ -409,8 +411,8 @@ mod tests {
     fn test_truncation_config_default() {
         let config = TruncationConfig::default();
 
-        assert_eq!(config.max_entity_tokens, 8000);
-        assert_eq!(config.max_relation_tokens, 8000);
-        assert_eq!(config.max_total_tokens, 16000);
+        assert_eq!(config.max_entity_tokens, 10000);
+        assert_eq!(config.max_relation_tokens, 10000);
+        assert_eq!(config.max_total_tokens, 30000);
     }
 }
