@@ -401,7 +401,25 @@ impl PdfiumExtractor {
             // WHY: Font name matching ("bold", "italic" in name) is unreliable.
             // PyMuPDF uses numeric flags from font descriptors, and pdfium-render
             // provides the same information via font_is_italic() and font_weight().
-            let is_italic = char_obj.font_is_italic();
+            // OODA-60: Combine font_is_italic with font name fallback.
+            // WHY: PDFium may report incorrect italic flag for some fonts
+            // (e.g., Computer Modern SFTI* italic fonts). When the flag says false,
+            // also check font name patterns used by CM/EC/LM and standard fonts.
+            let is_italic = {
+                let flag_italic = char_obj.font_is_italic();
+                if flag_italic {
+                    true
+                } else {
+                    let name = char_obj.font_name();
+                    let lower = name.to_lowercase();
+                    lower.contains("italic")
+                        || lower.contains("oblique")
+                        || lower.contains("sfti")  // Computer Modern Text Italic
+                        || lower.contains("sfsi")  // Computer Modern Sans Italic
+                        || lower.contains("cmti")  // CM Text Italic
+                        || lower.contains("ecti")  // EC Text Italic
+                }
+            };
             // OODA-58: Combine font weight with font name fallback for bold detection.
             // WHY: PDFium reports wrong weight for some fonts (e.g., Computer Modern
             // SFBX* bold fonts get weight=250). When weight is unreliable (< 400),
