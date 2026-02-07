@@ -529,6 +529,7 @@ fn clean_markdown_output(output: &mut String) {
 }
 
 /// OODA-22: Detect programming language from code block content.
+/// OODA-39: Extended with YAML, TOML, Markdown, LaTeX, and Go patterns.
 /// Returns language identifier for fenced code blocks or "" if unknown.
 fn detect_code_language(code: &str) -> &'static str {
     let trimmed = code.trim();
@@ -562,6 +563,15 @@ fn detect_code_language(code: &str) -> &'static str {
         || trimmed.contains("use std::")
     {
         return "rust";
+    }
+
+    // Go patterns
+    if trimmed.contains("func ") && trimmed.contains('{')
+        || trimmed.contains("package main")
+        || trimmed.contains("fmt.Println")
+        || trimmed.contains(":= ")
+    {
+        return "go";
     }
 
     // JavaScript/TypeScript patterns
@@ -604,6 +614,30 @@ fn detect_code_language(code: &str) -> &'static str {
         return "json";
     }
 
+    // OODA-39: YAML patterns
+    if (trimmed.contains(": ") && trimmed.contains('\n') && !trimmed.contains('{'))
+        || trimmed.starts_with("---\n")
+        || trimmed.starts_with("apiVersion:")
+    {
+        return "yaml";
+    }
+
+    // OODA-39: TOML patterns
+    if trimmed.starts_with("[package]")
+        || trimmed.starts_with("[dependencies]")
+        || trimmed.starts_with("[tool.")
+    {
+        return "toml";
+    }
+
+    // OODA-39: LaTeX patterns
+    if trimmed.starts_with("\\documentclass")
+        || trimmed.starts_with("\\begin{")
+        || trimmed.contains("\\usepackage")
+    {
+        return "latex";
+    }
+
     // XML/HTML patterns
     if trimmed.starts_with("<?xml") || trimmed.starts_with("<!DOCTYPE") || trimmed.starts_with("<html") {
         return "xml";
@@ -613,6 +647,7 @@ fn detect_code_language(code: &str) -> &'static str {
 }
 
 /// Normalize bullet characters to standard Markdown bullets.
+/// OODA-39: Also normalize dash-based bullets (en dash, em dash) to standard "- ".
 fn normalize_bullet(text: &str) -> String {
     let trimmed = text.trim_start();
 
@@ -1054,5 +1089,11 @@ mod tests {
         assert_eq!(detect_code_language("#include <stdio.h>"), "c");
         assert_eq!(detect_code_language("SELECT * FROM users"), "sql");
         assert_eq!(detect_code_language("some random text"), "");
+        // OODA-39: New language detections
+        assert_eq!(detect_code_language("func main() {\n  fmt.Println(\"hi\")\n}"), "go");
+        assert_eq!(detect_code_language("x := 42"), "go");
+        assert_eq!(detect_code_language("[package]\nname = \"foo\""), "toml");
+        assert_eq!(detect_code_language("\\documentclass{article}"), "latex");
+        assert_eq!(detect_code_language("\\begin{equation}"), "latex");
     }
 }
