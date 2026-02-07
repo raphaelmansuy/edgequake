@@ -2873,6 +2873,8 @@ impl SOTAQueryEngine {
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
 
+        // WHY 2x oversampling: Vector storage returns all types (entities, relationships, chunks).
+        // We retrieve 2x max_chunks to compensate for non-chunk results in top results.
         let results = vector_storage
             .query(&embeddings.query, self.config.max_chunks * 2, None)
             .await?;

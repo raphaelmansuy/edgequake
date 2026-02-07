@@ -175,7 +175,14 @@ pub fn balance_context(
     let mut entities = truncate_entities(entities, config.max_entity_tokens, tokenizer);
     let mut relationships =
         truncate_relationships(relationships, config.max_relation_tokens, tokenizer);
-    let mut chunks = truncate_chunks(chunks, config.max_entity_tokens, tokenizer); // Use entity limit for chunks
+    // WHY: Chunk budget = total - entity - relationship (the remainder).
+    // Previously used max_entity_tokens by mistake, which was correct by coincidence
+    // when all 3 budgets are equal (10K each), but wrong in general.
+    let max_chunk_tokens = config
+        .max_total_tokens
+        .saturating_sub(config.max_entity_tokens)
+        .saturating_sub(config.max_relation_tokens);
+    let mut chunks = truncate_chunks(chunks, max_chunk_tokens, tokenizer);
 
     tracing::debug!(
         input_entities = input_entity_count,

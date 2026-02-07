@@ -18,17 +18,18 @@ EdgeQuake successfully ported LightRAG's entity extraction format and core graph
 
 ### 1.1 Chunking — PARITY ✅
 
-| Parameter | LightRAG | EdgeQuake | Verdict |
-|-----------|----------|-----------|---------|
-| chunk_size | 1200 tokens | 1200 tokens | Same |
-| overlap | 100 tokens | 100 tokens | Same |
-| tokenizer | tiktoken (gpt-4o-mini) | SimpleTokenizer (char/4) | EdgeQuake's is approximate |
+| Parameter  | LightRAG               | EdgeQuake                | Verdict                    |
+| ---------- | ---------------------- | ------------------------ | -------------------------- |
+| chunk_size | 1200 tokens            | 1200 tokens              | Same                       |
+| overlap    | 100 tokens             | 100 tokens               | Same                       |
+| tokenizer  | tiktoken (gpt-4o-mini) | SimpleTokenizer (char/4) | EdgeQuake's is approximate |
 
 **Note**: EdgeQuake's `SimpleTokenizer` divides `len/4` for token count — this is a rough approximation. LightRAG uses tiktoken which is exact for OpenAI models. For gpt-4o-mini this matters less (BPE is fairly consistent), but edge cases exist with multi-byte characters and code.
 
 ### 1.2 Entity Extraction Prompts — PARITY ✅
 
 Both use identical tuple-delimited extraction format:
+
 - Delimiter: `<|#|>`
 - Completion: `<|COMPLETE|>`
 - Same 3 few-shot examples (Alex/Taylor, Stock Markets, Dr. Sarah Chen)
@@ -39,11 +40,11 @@ Both use identical tuple-delimited extraction format:
 
 ### 1.3 Gleaning — UNCLEAR ⚠️
 
-| Feature | LightRAG | EdgeQuake |
-|---------|----------|-----------|
-| Default gleaning passes | 1 (`entity_extract_max_gleaning=1`) | Has prompt, unclear if called |
-| Token overflow guard | `max_extract_input_tokens=20480` | `MAX_CHUNK_TOKENS=1500` |
-| Gleaning abort on overflow | Yes (checks total context) | No explicit check |
+| Feature                    | LightRAG                            | EdgeQuake                     |
+| -------------------------- | ----------------------------------- | ----------------------------- |
+| Default gleaning passes    | 1 (`entity_extract_max_gleaning=1`) | Has prompt, unclear if called |
+| Token overflow guard       | `max_extract_input_tokens=20480`    | `MAX_CHUNK_TOKENS=1500`       |
+| Gleaning abort on overflow | Yes (checks total context)          | No explicit check             |
 
 **LightRAG** always does exactly 1 gleaning pass by default. It checks if the combined context (system_prompt + history + continue_prompt) exceeds `max_extract_input_tokens` (20480) before making the gleaning LLM call.
 
@@ -51,30 +52,30 @@ Both use identical tuple-delimited extraction format:
 
 ### 1.4 LLM Response Cache — GAP ❌
 
-| Feature | LightRAG | EdgeQuake |
-|---------|----------|-----------|
-| Extraction cache | `llm_response_cache` KV store | None |
-| Cache key | hash(system_prompt + user_prompt) | N/A |
-| Benefit | Re-processes without re-calling LLM | Every retry costs $$ |
+| Feature          | LightRAG                            | EdgeQuake            |
+| ---------------- | ----------------------------------- | -------------------- |
+| Extraction cache | `llm_response_cache` KV store       | None                 |
+| Cache key        | hash(system_prompt + user_prompt)   | N/A                  |
+| Benefit          | Re-processes without re-calling LLM | Every retry costs $$ |
 
 **Impact**: Medium. On failure/restart, LightRAG skips already-extracted chunks. EdgeQuake re-extracts everything. For a 50-page document with 200 chunks, this saves ~200 LLM calls on retry.
 
 ### 1.5 Entity Vector Content — SIMILAR ✅
 
-| System | Entity vector content |
-|--------|----------------------|
-| LightRAG | `"{entity_name}\n{description}"` |
+| System    | Entity vector content                           |
+| --------- | ----------------------------------------------- |
+| LightRAG  | `"{entity_name}\n{description}"`                |
 | EdgeQuake | `"{entity_name}\n{description}"` (via metadata) |
 
 Both embed the same content for entities. Good.
 
 ### 1.6 Relationship Vector Content & Storage — GAP ❌
 
-| Feature | LightRAG | EdgeQuake |
-|---------|----------|-----------|
-| Relationship vector content | `"{keywords}\t{src}\n{tgt}\n{description}"` | Stored in same vector table |
-| Separate VDB | Yes (`relationships_vdb`) | No (shared `VectorStorage` with `vec_type` metadata) |
-| Searchable independently | Yes | Yes (via `filter_by_type(VectorType::Relationship)`) |
+| Feature                     | LightRAG                                    | EdgeQuake                                            |
+| --------------------------- | ------------------------------------------- | ---------------------------------------------------- |
+| Relationship vector content | `"{keywords}\t{src}\n{tgt}\n{description}"` | Stored in same vector table                          |
+| Separate VDB                | Yes (`relationships_vdb`)                   | No (shared `VectorStorage` with `vec_type` metadata) |
+| Searchable independently    | Yes                                         | Yes (via `filter_by_type(VectorType::Relationship)`) |
 
 **LightRAG** embeds relationship keywords + entity names + description as the vector content. This means a search for "trade agreements" can find the relationship "USA --[TRADE_PARTNER]--> China" directly.
 
@@ -84,22 +85,22 @@ Both embed the same content for entities. Good.
 
 ### 1.7 Entity-Chunk Tracking — DIFFERENT APPROACH
 
-| Feature | LightRAG | EdgeQuake |
-|---------|----------|-----------|
-| Tracking mechanism | `entity_chunks_storage` (separate KV store) | `source_chunk_ids` in entity metadata |
+| Feature                 | LightRAG                                      | EdgeQuake                                |
+| ----------------------- | --------------------------------------------- | ---------------------------------------- |
+| Tracking mechanism      | `entity_chunks_storage` (separate KV store)   | `source_chunk_ids` in entity metadata    |
 | Relation-chunk tracking | `relation_chunks_storage` (separate KV store) | `source_chunk_id` in relationship struct |
-| Incremental updates | Yes (compute_incremental_chunk_ids) | Overwrite on merge |
+| Incremental updates     | Yes (compute_incremental_chunk_ids)           | Overwrite on merge                       |
 
 Both systems can resolve entity → chunk_ids. LightRAG's approach is more robust for incremental updates (add new chunks without losing old ones).
 
 ### 1.8 Entity Merge — SIMILAR ✅
 
-| Feature | LightRAG | EdgeQuake |
-|---------|----------|-----------|
-| Dedup | By entity name (normalized) | By entity name (UPPERCASE normalized) |
-| Description merge | LLM summarization when > 8 descriptions | LLM summarization (configurable) |
-| Max description | `SUMMARY_MAX_TOKENS=1200` | `max_description_length=4096` |
-| Decay factor | N/A | `description_decay=0.9` |
+| Feature           | LightRAG                                | EdgeQuake                             |
+| ----------------- | --------------------------------------- | ------------------------------------- |
+| Dedup             | By entity name (normalized)             | By entity name (UPPERCASE normalized) |
+| Description merge | LLM summarization when > 8 descriptions | LLM summarization (configurable)      |
+| Max description   | `SUMMARY_MAX_TOKENS=1200`               | `max_description_length=4096`         |
+| Decay factor      | N/A                                     | `description_decay=0.9`               |
 
 Both use LLM-based summarization. EdgeQuake's decay factor is an interesting addition (weights recent descriptions higher).
 
@@ -109,16 +110,16 @@ Both use LLM-based summarization. EdgeQuake's decay factor is an interesting add
 
 ### 2.1 Default Parameters — CRITICAL GAP 🔴🔴🔴
 
-| Parameter | LightRAG | EdgeQuake | Ratio | Impact |
-|-----------|----------|-----------|-------|--------|
-| **top_k (entities)** | **60** | **20** | **3x less** | **HIGH** |
-| **chunk_top_k** | **20** | **10** | **2x less** | **HIGH** |
-| **max_entity_tokens** | **6000** | **N/A** | **MISSING** | **MEDIUM** |
-| **max_relation_tokens** | **8000** | **N/A** | **MISSING** | **MEDIUM** |
-| **max_total_tokens** | **30000** | **4000** | **7.5x less** | **CRITICAL** |
-| cosine_threshold | 0.2 | 0.1 (min_score) | ~similar | Low |
-| related_chunk_number | 5 | N/A | N/A | Medium |
-| graph_depth | N/A | 2 | EdgeQuake extra | N/A |
+| Parameter               | LightRAG  | EdgeQuake       | Ratio           | Impact       |
+| ----------------------- | --------- | --------------- | --------------- | ------------ |
+| **top_k (entities)**    | **60**    | **20**          | **3x less**     | **HIGH**     |
+| **chunk_top_k**         | **20**    | **10**          | **2x less**     | **HIGH**     |
+| **max_entity_tokens**   | **6000**  | **N/A**         | **MISSING**     | **MEDIUM**   |
+| **max_relation_tokens** | **8000**  | **N/A**         | **MISSING**     | **MEDIUM**   |
+| **max_total_tokens**    | **30000** | **4000**        | **7.5x less**   | **CRITICAL** |
+| cosine_threshold        | 0.2       | 0.1 (min_score) | ~similar        | Low          |
+| related_chunk_number    | 5         | N/A             | N/A             | Medium       |
+| graph_depth             | N/A       | 2               | EdgeQuake extra | N/A          |
 
 **This is the single biggest problem.** EdgeQuake caps context at 4000 tokens — that's roughly 3000 words. A typical RAG response needs 20-30 chunks of context. At 1200 tokens per chunk, 4000 tokens fits **~3 chunks**. We're feeding 3 chunks when we could feed 25.
 
@@ -127,6 +128,7 @@ With `gpt-4o-mini` having a 128K context window, there is ZERO reason to limit t
 ### 2.2 Keyword Extraction — PARITY ✅
 
 Both systems use LLM-based keyword extraction producing:
+
 - `high_level_keywords`: Overarching concepts/themes
 - `low_level_keywords`: Specific entities/details
 
@@ -138,6 +140,7 @@ EdgeQuake actually has a nice addition: **keyword validation against the graph**
 ### 2.3 Search Flow — LOCAL MODE
 
 **LightRAG local flow:**
+
 ```
 1. entities_vdb.query(ll_keywords, top_k=60) → 60 entity vectors
 2. get_nodes_batch() + node_degrees_batch() → enriched entity data
@@ -150,6 +153,7 @@ EdgeQuake actually has a nice addition: **keyword validation against the graph**
 ```
 
 **EdgeQuake local flow:**
+
 ```
 1. vector_storage.query(embeddings.low_level, max_entities*3) → filter entity vectors
 2. get_nodes_batch() + node_degrees_batch() → enriched entity data
@@ -160,6 +164,7 @@ EdgeQuake actually has a nice addition: **keyword validation against the graph**
 ```
 
 **Key differences:**
+
 - LightRAG searches 60 entities, EdgeQuake searches 20
 - LightRAG has a sophisticated chunk picking algorithm (VECTOR/WEIGHT), EdgeQuake does simple ID lookup
 - LightRAG applies per-category token truncation, EdgeQuake uses count limits
@@ -168,6 +173,7 @@ EdgeQuake actually has a nice addition: **keyword validation against the graph**
 ### 2.4 Search Flow — GLOBAL MODE
 
 **LightRAG global flow:**
+
 ```
 1. relationships_vdb.query(hl_keywords, top_k=60) → 60 relationship vectors
 2. _find_most_related_entities_from_relationships() → connected entity nodes
@@ -176,6 +182,7 @@ EdgeQuake actually has a nice addition: **keyword validation against the graph**
 ```
 
 **EdgeQuake global flow:**
+
 ```
 1. vector_storage.query(embeddings.high_level, max_relationships*3)
 2. filter_by_type(VectorType::Relationship) → relationship vectors
@@ -188,6 +195,7 @@ Both search relationship vectors in global mode. The main difference is the top_
 ### 2.5 Search Flow — HYBRID/MIX MODE
 
 **LightRAG mix (default recommended):**
+
 ```
 1. Parallel: local search + global search + vector_chunks search
 2. Round-robin merge entities: alternate local ↔ global
@@ -200,6 +208,7 @@ Both search relationship vectors in global mode. The main difference is the top_
 ```
 
 **EdgeQuake hybrid (after fix):**
+
 ```
 1. tokio::join!(local, global, naive) → parallel execution
 2. Use naive context as base
@@ -215,13 +224,14 @@ Both search relationship vectors in global mode. The main difference is the top_
 
 ### 2.6 Chunk-from-Entity Resolution — GAP ❌
 
-| Feature | LightRAG | EdgeQuake |
-|---------|----------|-----------|
-| Default method | **VECTOR** (embedding similarity) | Direct ID lookup |
-| Alternative | WEIGHT (gradient polling) | N/A |
+| Feature            | LightRAG                          | EdgeQuake                         |
+| ------------------ | --------------------------------- | --------------------------------- |
+| Default method     | **VECTOR** (embedding similarity) | Direct ID lookup                  |
+| Alternative        | WEIGHT (gradient polling)         | N/A                               |
 | Relevance ordering | Re-ranked by cosine(query, chunk) | No ordering — whatever comes back |
 
 **LightRAG's VECTOR method:**
+
 1. Collect candidate chunk IDs from entities' `source_id` field
 2. Get chunk embeddings from `chunks_vdb`
 3. Compute cosine similarity between query embedding and each candidate chunk
@@ -234,11 +244,13 @@ This means even when the KG says "entity X appears in chunks A, B, C", LightRAG 
 ### 2.7 Token-Based Truncation — GAP ❌
 
 **LightRAG**: `_apply_token_truncation()` per category:
+
 - Entities: iterate through entity list, count tokens, stop at `max_entity_tokens` (6000)
 - Relations: iterate through relation list, count tokens, stop at `max_relation_tokens` (8000)
 - Final context: total <= `max_total_tokens` (30000)
 
 **EdgeQuake**: Count-based truncation only:
+
 - `max_entities=20` (take first 20)
 - `max_relationships=20` (take first 20)
 - `max_chunks=10` (take first 10)
@@ -248,65 +260,76 @@ This means even when the KG says "entity X appears in chunks A, B, C", LightRAG 
 
 ### 2.8 Reranking — DEAD CODE ❌
 
-| Feature | LightRAG | EdgeQuake |
-|---------|----------|-----------|
-| Reranker | Configurable (BAAI/bge-reranker, Jina, etc.) | Code exists, `reranker: None` |
-| Default | `enable_rerank=True` | `enable_rerank=true` but no reranker wired |
-| Top-k after rerank | chunk_top_k (20) | rerank_top_k (10) |
+| Feature            | LightRAG                                     | EdgeQuake                                  |
+| ------------------ | -------------------------------------------- | ------------------------------------------ |
+| Reranker           | Configurable (BAAI/bge-reranker, Jina, etc.) | Code exists, `reranker: None`              |
+| Default            | `enable_rerank=True`                         | `enable_rerank=true` but no reranker wired |
+| Top-k after rerank | chunk_top_k (20)                             | rerank_top_k (10)                          |
 
 **EdgeQuake has a fully implemented `rerank_chunks()` method** (lines 350-440 of sota_engine.rs). It handles BM25 scores, fallback for zero-score chunks, score-based filtering. It's good code. **It just never runs because `self.reranker` is always `None`.**
 
 To wire it, someone needs to:
+
 1. Implement the `Reranker` trait for a provider (e.g., Jina, Cohere, or local cross-encoder)
 2. Call `engine.with_reranker(reranker)` when constructing the engine
 
 ### 2.9 Context Format — DIFFERENT
 
 **LightRAG** uses structured JSON in markdown code blocks:
-```
+
+````
 Knowledge Graph Data (Entity):
 ```json
 [{"entity_name": "X", "description": "...", "entity_type": "..."}]
-```
+````
 
 Knowledge Graph Data (Relationship):
+
 ```json
-[{"src_id": "X", "tgt_id": "Y", "description": "...", "keywords": "..."}]
+[{ "src_id": "X", "tgt_id": "Y", "description": "...", "keywords": "..." }]
 ```
 
 Document Chunks:
+
 ```json
-[{"content": "...", "reference_id": 1, "file_path": "..."}]
+[{ "content": "...", "reference_id": 1, "file_path": "..." }]
 ```
 
 Reference Document List:
 [1] Document Title
+
 ```
 
 **EdgeQuake** uses simple markdown:
 ```
+
 ## Retrieved Documents
+
 ### Document (score: 0.850)
+
 [chunk content]
 
 ## Knowledge Graph Entities
+
 - **ENTITY_NAME** (TYPE): description
 
 ## Entity Relationships
+
 - SOURCE --[RELATION]--> TARGET
+
 ```
 
 LightRAG's format is more structured and enables citation tracking via `reference_id`. EdgeQuake's format is simpler and more human-readable but loses structural information.
 
 ### 2.10 Conversation History — GAP ❌
 
-**LightRAG**: `conversation_history` in QueryParam, sent to LLM as additional context.  
+**LightRAG**: `conversation_history` in QueryParam, sent to LLM as additional context.
 **EdgeQuake**: Not supported. Each query is stateless.
 
 ### 2.11 Query Caching
 
-**LightRAG**: Full query result caching in `llm_response_cache`.  
-**EdgeQuake**: Keyword extraction caching (`CachedKeywordExtractor` with TTL).  
+**LightRAG**: Full query result caching in `llm_response_cache`.
+**EdgeQuake**: Keyword extraction caching (`CachedKeywordExtractor` with TTL).
 
 EdgeQuake's approach is lighter but also less aggressive. LightRAG caches the entire LLM response for identical queries, avoiding expensive generation.
 
@@ -368,28 +391,27 @@ Credit where it's due:
 ## 5. Recommended Implementation Order
 
 ```
+
 Week 0 (Today - 15 min):
-  [x] Change SOTAQueryConfig defaults:
-      - max_context_tokens: 4000 → 30000
-      - max_entities: 20 → 60
-      - max_chunks: 10 → 20
-  [ ] Re-run evaluation to measure impact
+[x] Change SOTAQueryConfig defaults: - max_context_tokens: 4000 → 30000 - max_entities: 20 → 60 - max_chunks: 10 → 20
+[ ] Re-run evaluation to measure impact
 
 Week 1 (2-3 days):
-  [ ] Implement round-robin chunk merge in hybrid mode
-  [ ] Add token-based truncation per category
-  [ ] Wire up a reranker (Jina or cross-encoder)
+[ ] Implement round-robin chunk merge in hybrid mode
+[ ] Add token-based truncation per category
+[ ] Wire up a reranker (Jina or cross-encoder)
 
 Week 2 (2-3 days):
-  [ ] Implement VECTOR chunk picking from entities
-  [ ] Add structured context format with reference_ids
-  [ ] Verify gleaning is actually running
+[ ] Implement VECTOR chunk picking from entities
+[ ] Add structured context format with reference_ids
+[ ] Verify gleaning is actually running
 
 Week 3+:
-  [ ] Add LLM response cache for extractions
-  [ ] Add conversation history support
-  [ ] Implement exact tokenizer (tiktoken-rs or similar)
-```
+[ ] Add LLM response cache for extractions
+[ ] Add conversation history support
+[ ] Implement exact tokenizer (tiktoken-rs or similar)
+
+````
 
 ---
 
@@ -476,6 +498,6 @@ pub struct SOTAQueryConfig {
     pub max_context_tokens: usize,     // 30000
     // ...
 }
-```
+````
 
 That's it. Four number changes. The rest of the code already handles larger values correctly.
