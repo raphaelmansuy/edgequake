@@ -90,7 +90,7 @@ use crate::truncation::{balance_context, TruncationConfig};
 use crate::vector_filter::{filter_by_type, VectorType};
 
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
-use edgequake_llm::{BM25Reranker, Reranker};
+use edgequake_llm::Reranker;
 use edgequake_storage::traits::{GraphStorage, VectorStorage};
 
 /// Configuration for the SOTA query engine.
@@ -2246,23 +2246,17 @@ impl SOTAQueryEngine {
 
         // Retrieve chunks from vector storage if any chunk IDs were collected
         if !chunk_ids.is_empty() {
-            // WHY: Sort chunk IDs for deterministic ordering.
-            // HashSet iteration is non-deterministic, so we sort alphabetically before querying.
-            // This ensures same query → same chunk retrieval order.
-            let mut chunk_ids_vec: Vec<String> = chunk_ids.into_iter().collect();
-            chunk_ids_vec.sort();
-            let chunk_ids_vec: Vec<String> = chunk_ids_vec
-                .into_iter()
-                .take(self.config.max_chunks)
-                .collect();
+            // WHY: Pass ALL candidate chunk IDs to vector storage and let cosine similarity
+            // determine the best max_chunks. The old approach sorted alphabetically and
+            // truncated before scoring, which could discard high-relevance chunks.
+            // VectorStorage.query() returns results sorted by score descending (contract).
+            let chunk_ids_vec: Vec<String> = chunk_ids.into_iter().collect();
 
-            // Use the low-level keyword embedding to query for these specific chunks
-            // Query with filter to retrieve only the specific chunks
             let results = self
                 .vector_storage
                 .query(
                     &embeddings.low_level,
-                    chunk_ids_vec.len(),
+                    self.config.max_chunks,
                     Some(&chunk_ids_vec),
                 )
                 .await?;
@@ -2481,21 +2475,15 @@ impl SOTAQueryEngine {
         if !source_chunk_ids.is_empty() && context.chunks.len() < self.config.max_chunks {
             let remaining_slots = self.config.max_chunks - context.chunks.len();
 
-            // WHY: Sort chunk IDs for deterministic ordering.
-            // HashSet iteration is non-deterministic, so we sort alphabetically before converting to Vec.
-            // This ensures same query → same chunk retrieval order.
-            let mut chunk_ids_vec: Vec<String> = source_chunk_ids.into_iter().collect();
-            chunk_ids_vec.sort();
-            let chunk_ids_vec: Vec<String> =
-                chunk_ids_vec.into_iter().take(remaining_slots).collect();
+            // WHY: Pass ALL candidate chunk IDs to vector storage and let cosine similarity
+            // rank them. VectorStorage.query() returns results sorted by score descending.
+            let chunk_ids_vec: Vec<String> = source_chunk_ids.into_iter().collect();
 
-            // Use the high-level keyword embedding to query for these specific chunks
-            // Query with filter to retrieve only the specific chunks
             let results = self
                 .vector_storage
                 .query(
                     &embeddings.high_level,
-                    chunk_ids_vec.len(),
+                    remaining_slots,
                     Some(&chunk_ids_vec),
                 )
                 .await?;
@@ -2585,11 +2573,22 @@ impl SOTAQueryEngine {
             }
         }
 
-        // Combine chunks (deduplicated)
+        // WHY: Round-robin interleave chunks for balanced source diversity.
+        // The old approach chained local-then-global, giving local chunks priority.
+        // Round-robin ensures the top chunk from each source is represented first,
+        // matching the entity/relationship interleaving pattern above.
         let mut seen_chunks = std::collections::HashSet::new();
-        for c in local.chunks.iter().chain(global.chunks.iter()) {
-            if seen_chunks.insert(c.id.clone()) {
-                context.add_chunk(c.clone());
+        let max_chunk_len = local.chunks.len().max(global.chunks.len());
+        for i in 0..max_chunk_len {
+            if let Some(c) = local.chunks.get(i) {
+                if seen_chunks.insert(c.id.clone()) {
+                    context.add_chunk(c.clone());
+                }
+            }
+            if let Some(c) = global.chunks.get(i) {
+                if seen_chunks.insert(c.id.clone()) {
+                    context.add_chunk(c.clone());
+                }
             }
         }
 
@@ -3047,27 +3046,29 @@ impl SOTAQueryEngine {
 
         // Retrieve chunks from workspace vector storage using chunk IDs
         if !chunk_ids.is_empty() {
-            let chunk_ids_vec: Vec<String> =
-                chunk_ids.into_iter().take(self.config.max_chunks).collect();
+            // WHY: Pass ALL candidate chunk IDs to vector storage and let cosine similarity
+            // rank them. VectorStorage.query() returns results sorted by score descending.
+            let chunk_ids_vec: Vec<String> = chunk_ids.into_iter().collect();
 
             tracing::debug!(
-                chunk_ids = ?chunk_ids_vec,
-                "OODA-231: Requesting chunks by ID from vector storage"
+                chunk_ids_count = chunk_ids_vec.len(),
+                max_chunks = self.config.max_chunks,
+                "OODA-231: Requesting chunks by ID from vector storage (score-ranked)"
             );
 
-            // Query with filter to retrieve only the specific chunks
+            // Query with filter to retrieve only the specific chunks, score-ranked
             let results = vector_storage
                 .query(
                     &embeddings.low_level,
-                    chunk_ids_vec.len(),
+                    self.config.max_chunks,
                     Some(&chunk_ids_vec),
                 )
                 .await?;
 
             tracing::debug!(
-                requested = chunk_ids_vec.len(),
+                candidates = chunk_ids_vec.len(),
                 returned = results.len(),
-                "OODA-231: Chunk retrieval result"
+                "OODA-231: Chunk retrieval result (top-k by cosine similarity)"
             );
 
             for result in results {
@@ -3264,20 +3265,14 @@ impl SOTAQueryEngine {
 
         // Retrieve chunks from workspace vector storage using chunk IDs
         if !chunk_ids.is_empty() {
-            // WHY: Sort chunk IDs for deterministic ordering.
-            // HashSet iteration is non-deterministic, so we sort before querying.
-            let mut chunk_ids_vec: Vec<String> = chunk_ids.into_iter().collect();
-            chunk_ids_vec.sort();
-            let chunk_ids_vec: Vec<String> = chunk_ids_vec
-                .into_iter()
-                .take(self.config.max_chunks)
-                .collect();
+            // WHY: Pass ALL candidate chunk IDs to vector storage and let cosine similarity
+            // rank them. VectorStorage.query() returns results sorted by score descending.
+            let chunk_ids_vec: Vec<String> = chunk_ids.into_iter().collect();
 
-            // Query with filter to retrieve only the specific chunks
             let results = vector_storage
                 .query(
                     &embeddings.high_level,
-                    chunk_ids_vec.len(),
+                    self.config.max_chunks,
                     Some(&chunk_ids_vec),
                 )
                 .await?;
@@ -3334,57 +3329,83 @@ impl SOTAQueryEngine {
         let global_context = global_context?;
         let naive_context = naive_context?;
 
-        // WHY: Start with naive chunks as the base (highest recall),
-        // then add entity-based chunks that may be missed by naive search.
-        let mut merged = naive_context;
-
         tracing::debug!(
-            naive_chunks = merged.chunks.len(),
+            naive_chunks = naive_context.chunks.len(),
             local_chunks = local_context.chunks.len(),
             local_entities = local_context.entities.len(),
             global_chunks = global_context.chunks.len(),
             global_entities = global_context.entities.len(),
-            "Hybrid merge: naive + local + global"
+            "Hybrid merge: round-robin (local, global, naive)"
         );
 
-        // Add local entity-graph chunks (dedup by ID)
-        for chunk in local_context.chunks {
-            if !merged.chunks.iter().any(|c| c.id == chunk.id) {
-                merged.add_chunk(chunk);
+        // WHY: Round-robin interleave chunks from local, global, and naive sources.
+        // KG-derived chunks (local, global) go first at each position since they carry
+        // entity/relationship context. The old approach gave naive all slots first,
+        // which could starve KG-derived chunks even when they were more relevant.
+        let mut merged = QueryContext::new();
+        let mut seen_chunks = std::collections::HashSet::new();
+        let max_chunk_len = local_context
+            .chunks
+            .len()
+            .max(global_context.chunks.len())
+            .max(naive_context.chunks.len());
+
+        for i in 0..max_chunk_len {
+            // KG-derived first (higher signal), then naive (broader recall)
+            if let Some(c) = local_context.chunks.get(i) {
+                if seen_chunks.insert(c.id.clone()) {
+                    merged.add_chunk(c.clone());
+                }
             }
-        }
-        // Add global entity-graph chunks (dedup by ID)
-        for chunk in global_context.chunks {
-            if !merged.chunks.iter().any(|c| c.id == chunk.id) {
-                merged.add_chunk(chunk);
+            if let Some(c) = global_context.chunks.get(i) {
+                if seen_chunks.insert(c.id.clone()) {
+                    merged.add_chunk(c.clone());
+                }
+            }
+            if let Some(c) = naive_context.chunks.get(i) {
+                if seen_chunks.insert(c.id.clone()) {
+                    merged.add_chunk(c.clone());
+                }
             }
         }
 
-        // Add entities from local+global (entity context enriches LLM reasoning)
-        for entity in local_context.entities {
-            if !merged.entities.iter().any(|e| e.name == entity.name) {
-                merged.add_entity(entity);
+        // Round-robin entities from local+global
+        let mut seen_entities = std::collections::HashSet::new();
+        let max_entity_len = local_context
+            .entities
+            .len()
+            .max(global_context.entities.len());
+        for i in 0..max_entity_len {
+            if let Some(e) = local_context.entities.get(i) {
+                if seen_entities.insert(e.name.clone()) {
+                    merged.add_entity(e.clone());
+                }
             }
-        }
-        for entity in global_context.entities {
-            if !merged.entities.iter().any(|e| e.name == entity.name) {
-                merged.add_entity(entity);
+            if let Some(e) = global_context.entities.get(i) {
+                if seen_entities.insert(e.name.clone()) {
+                    merged.add_entity(e.clone());
+                }
             }
         }
 
-        // Add relationships from local+global
-        for rel in local_context.relationships {
-            merged.add_relationship(rel);
-        }
-        for rel in global_context.relationships {
-            merged.add_relationship(rel);
+        // Add relationships from local+global (dedup by key)
+        let mut seen_rels = std::collections::HashSet::new();
+        for rel in local_context
+            .relationships
+            .iter()
+            .chain(global_context.relationships.iter())
+        {
+            let key = format!("{}-{}-{}", rel.source, rel.relation_type, rel.target);
+            if seen_rels.insert(key) {
+                merged.add_relationship(rel.clone());
+            }
         }
 
         tracing::debug!(
             merged_chunks = merged.chunks.len(),
             merged_entities = merged.entities.len(),
             merged_relationships = merged.relationships.len(),
-            "Hybrid merge complete"
+            "Hybrid merge complete (round-robin)"
         );
 
         Ok(merged)

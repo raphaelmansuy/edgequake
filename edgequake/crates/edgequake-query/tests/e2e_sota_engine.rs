@@ -1035,3 +1035,1069 @@ mod reranker_integration_tests {
         assert_eq!(minimal_results[0].index, 0);
     }
 }
+
+// =============================================================================
+// Chunk Ranking & Hybrid E2E Tests
+//
+// These tests verify that the SOTA engine ranks chunks by cosine similarity
+// (not alphabetically or by insertion order) and that Hybrid mode correctly
+// merges and deduplicates results from Local and Global paths.
+// =============================================================================
+
+mod chunk_ranking_and_hybrid_tests {
+    use super::*;
+    use edgequake_llm::{BM25Reranker, Reranker};
+
+    /// Create a 1536-dim vector with controlled direction in dims 0 and 1.
+    ///
+    /// This enables predictable cosine similarity against a `[1.0, 0.0, ...]`
+    /// query embedding: `cos(query, v) = dim0 / sqrt(dim0^2 + dim1^2)`.
+    fn make_directional_vec(dim0: f32, dim1: f32) -> Vec<f32> {
+        let mut v = vec![0.0_f32; 1536];
+        v[0] = dim0;
+        v[1] = dim1;
+        v
+    }
+
+    /// Build the base config used by most tests in this module.
+    ///
+    /// Disables keyword extraction, adaptive mode, and reranking so that
+    /// test assertions reflect pure cosine-similarity ranking.
+    fn base_config() -> SOTAQueryConfig {
+        SOTAQueryConfig {
+            min_score: 0.0,
+            enable_rerank: false,
+            use_keyword_extraction: false,
+            use_adaptive_mode: false,
+            ..Default::default()
+        }
+    }
+
+    /// Enqueue two directional embeddings so that, after the default occupies
+    /// position 0 (query), positions 1 (high_level) and 2 (low_level) both
+    /// resolve to `[1.0, 0.0, ...]`.
+    ///
+    /// MockProvider starts with one default `[0.1; 1536]` embedding. When
+    /// `embed(&[query, high_level, low_level])` is called, the three pops are:
+    ///   0 = default (query)   -- unused in Local/Global/Hybrid modes
+    ///   1 = directional       -- high_level (Global mode)
+    ///   2 = directional       -- low_level  (Local mode)
+    async fn enqueue_directional_embeddings(provider: &MockProvider) {
+        provider
+            .add_embedding(make_directional_vec(1.0, 0.0))
+            .await;
+        provider
+            .add_embedding(make_directional_vec(1.0, 0.0))
+            .await;
+    }
+
+    // -----------------------------------------------------------------
+    // Test 1
+    // -----------------------------------------------------------------
+
+    /// Local mode must return chunks ranked by cosine similarity (descending),
+    /// not by insertion order or alphabetical order.
+    #[tokio::test]
+    async fn test_local_chunks_sorted_by_score_descending() {
+        let vs = Arc::new(MemoryVectorStorage::new("test", 1536));
+        vs.initialize().await.unwrap();
+
+        // Entity vector (found by low_level search, type="entity")
+        vs.upsert(&[(
+            "entity-alpha".into(),
+            make_directional_vec(0.9, 0.3),
+            json!({
+                "type": "entity",
+                "entity_name": "ALPHA",
+                "entity_type": "CONCEPT",
+                "description": "Alpha entity"
+            }),
+        )])
+        .await
+        .unwrap();
+
+        // Three chunks with descending cosine similarity to [1,0,...]:
+        //   chunk-best  ~ 0.995
+        //   chunk-mid   ~ 0.707
+        //   chunk-worst ~ 0.101
+        vs.upsert(&[
+            (
+                "chunk-best".into(),
+                make_directional_vec(0.99, 0.1),
+                json!({"type": "chunk", "content": "Best chunk - closest to query direction"}),
+            ),
+            (
+                "chunk-mid".into(),
+                make_directional_vec(0.5, 0.5),
+                json!({"type": "chunk", "content": "Mid chunk - medium distance"}),
+            ),
+            (
+                "chunk-worst".into(),
+                make_directional_vec(0.1, 0.99),
+                json!({"type": "chunk", "content": "Worst chunk - furthest from query"}),
+            ),
+        ])
+        .await
+        .unwrap();
+
+        let gs = Arc::new(MemoryGraphStorage::new("test"));
+        gs.initialize().await.unwrap();
+        gs.upsert_node(
+            "ALPHA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Alpha entity")),
+                (
+                    "source_chunk_ids".to_string(),
+                    json!(["chunk-best", "chunk-mid", "chunk-worst"]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        let provider = Arc::new(MockProvider::new());
+        enqueue_directional_embeddings(&provider).await;
+
+        let config = base_config();
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vs,
+            gs,
+            provider.clone(),
+            provider,
+        );
+
+        let request = QueryRequest::new("test query")
+            .with_mode(QueryMode::Local)
+            .context_only();
+
+        let response = engine.query(request).await.unwrap();
+
+        assert_eq!(response.mode, QueryMode::Local);
+        assert!(
+            response.context.chunks.len() >= 2,
+            "Expected at least 2 chunks, got {}",
+            response.context.chunks.len()
+        );
+
+        // Scores must be non-increasing (descending)
+        for i in 0..response.context.chunks.len() - 1 {
+            assert!(
+                response.context.chunks[i].score >= response.context.chunks[i + 1].score,
+                "Chunk {} (score={:.4}) must be >= chunk {} (score={:.4})",
+                i,
+                response.context.chunks[i].score,
+                i + 1,
+                response.context.chunks[i + 1].score,
+            );
+        }
+
+        // First chunk should be the closest to the query direction
+        assert_eq!(response.context.chunks[0].id, "chunk-best");
+    }
+
+    // -----------------------------------------------------------------
+    // Test 2
+    // -----------------------------------------------------------------
+
+    /// Global mode must also return source-tracked chunks in score order.
+    #[tokio::test]
+    async fn test_global_chunks_sorted_by_score() {
+        let vs = Arc::new(MemoryVectorStorage::new("test", 1536));
+        vs.initialize().await.unwrap();
+
+        // Relationship vector (found by high_level search)
+        vs.upsert(&[(
+            "rel-alpha-beta".into(),
+            make_directional_vec(0.9, 0.3),
+            json!({
+                "type": "relationship",
+                "src_id": "ALPHA",
+                "tgt_id": "BETA",
+                "relation_type": "CONNECTED_TO",
+                "description": "Alpha connects to Beta"
+            }),
+        )])
+        .await
+        .unwrap();
+
+        // Three chunk vectors with known cosine ordering
+        vs.upsert(&[
+            (
+                "chunk-best".into(),
+                make_directional_vec(0.99, 0.1),
+                json!({"type": "chunk", "content": "Best chunk"}),
+            ),
+            (
+                "chunk-mid".into(),
+                make_directional_vec(0.5, 0.5),
+                json!({"type": "chunk", "content": "Mid chunk"}),
+            ),
+            (
+                "chunk-worst".into(),
+                make_directional_vec(0.1, 0.99),
+                json!({"type": "chunk", "content": "Worst chunk"}),
+            ),
+        ])
+        .await
+        .unwrap();
+
+        let gs = Arc::new(MemoryGraphStorage::new("test"));
+        gs.initialize().await.unwrap();
+
+        gs.upsert_node(
+            "ALPHA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Alpha")),
+                (
+                    "source_chunk_ids".to_string(),
+                    json!(["chunk-best", "chunk-mid"]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        gs.upsert_node(
+            "BETA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Beta")),
+                (
+                    "source_chunk_ids".to_string(),
+                    json!(["chunk-worst"]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        gs.upsert_edge(
+            "ALPHA",
+            "BETA",
+            [("relation_type".to_string(), json!("CONNECTED_TO"))]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+        let provider = Arc::new(MockProvider::new());
+        enqueue_directional_embeddings(&provider).await;
+
+        let config = base_config();
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vs,
+            gs,
+            provider.clone(),
+            provider,
+        );
+
+        let request = QueryRequest::new("test query")
+            .with_mode(QueryMode::Global)
+            .context_only();
+
+        let response = engine.query(request).await.unwrap();
+
+        assert_eq!(response.mode, QueryMode::Global);
+
+        // Global mode should find chunks (from relationship search + source tracking)
+        assert!(
+            !response.context.chunks.is_empty(),
+            "Global mode should return at least one chunk"
+        );
+
+        // Scores must be non-increasing
+        for i in 0..response.context.chunks.len().saturating_sub(1) {
+            assert!(
+                response.context.chunks[i].score >= response.context.chunks[i + 1].score,
+                "Chunk {} (score={:.4}) must be >= chunk {} (score={:.4})",
+                i,
+                response.context.chunks[i].score,
+                i + 1,
+                response.context.chunks[i + 1].score,
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Test 3: KEY REGRESSION
+    // -----------------------------------------------------------------
+
+    /// When max_chunks=1, the chunk with the highest cosine score must be
+    /// returned, even if it sorts last alphabetically ("chunk-zzz").
+    ///
+    /// This is the key regression test for the alphabetical-sort bug.
+    #[tokio::test]
+    async fn test_alphabetically_last_but_highest_score_returned() {
+        let vs = Arc::new(MemoryVectorStorage::new("test", 1536));
+        vs.initialize().await.unwrap();
+
+        // Entity vector
+        vs.upsert(&[(
+            "entity-alpha".into(),
+            make_directional_vec(0.9, 0.3),
+            json!({
+                "type": "entity",
+                "entity_name": "ALPHA",
+                "entity_type": "CONCEPT",
+                "description": "Alpha"
+            }),
+        )])
+        .await
+        .unwrap();
+
+        // chunk-aaa: alphabetically first, LOW cosine score
+        // chunk-zzz: alphabetically last,  HIGH cosine score
+        vs.upsert(&[
+            (
+                "chunk-aaa".into(),
+                make_directional_vec(0.1, 0.99),
+                json!({"type": "chunk", "content": "AAA first alphabetically"}),
+            ),
+            (
+                "chunk-zzz".into(),
+                make_directional_vec(0.99, 0.1),
+                json!({"type": "chunk", "content": "ZZZ last alphabetically"}),
+            ),
+        ])
+        .await
+        .unwrap();
+
+        let gs = Arc::new(MemoryGraphStorage::new("test"));
+        gs.initialize().await.unwrap();
+        gs.upsert_node(
+            "ALPHA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Alpha")),
+                (
+                    "source_chunk_ids".to_string(),
+                    json!(["chunk-aaa", "chunk-zzz"]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        let provider = Arc::new(MockProvider::new());
+        enqueue_directional_embeddings(&provider).await;
+
+        let mut config = base_config();
+        config.max_chunks = 1; // Only keep the single best chunk
+
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vs,
+            gs,
+            provider.clone(),
+            provider,
+        );
+
+        let request = QueryRequest::new("test query")
+            .with_mode(QueryMode::Local)
+            .context_only();
+
+        let response = engine.query(request).await.unwrap();
+
+        assert_eq!(
+            response.context.chunks.len(),
+            1,
+            "Expected exactly 1 chunk with max_chunks=1"
+        );
+        assert_eq!(
+            response.context.chunks[0].id, "chunk-zzz",
+            "chunk-zzz (highest score) must beat chunk-aaa (alphabetically first)"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 4
+    // -----------------------------------------------------------------
+
+    /// Engine must consider all 10 candidate chunks before selecting top 3.
+    #[tokio::test]
+    async fn test_all_candidates_considered_before_truncation() {
+        let vs = Arc::new(MemoryVectorStorage::new("test", 1536));
+        vs.initialize().await.unwrap();
+
+        // Entity vector
+        vs.upsert(&[(
+            "entity-alpha".into(),
+            make_directional_vec(0.95, 0.2),
+            json!({
+                "type": "entity",
+                "entity_name": "ALPHA",
+                "entity_type": "CONCEPT",
+                "description": "Alpha"
+            }),
+        )])
+        .await
+        .unwrap();
+
+        // 10 chunks with linearly decreasing similarity to [1,0,...]:
+        //   chunk-c00: dim0=1.0 dim1=0.0 -> cos=1.0
+        //   chunk-c01: dim0=0.9 dim1=0.1 -> cos~0.994
+        //   ...
+        //   chunk-c09: dim0=0.1 dim1=0.9 -> cos~0.110
+        let mut chunk_data = Vec::new();
+        let mut chunk_ids = Vec::new();
+        for i in 0..10u32 {
+            let dim0 = 1.0 - (i as f32) * 0.1;
+            let dim1 = (i as f32) * 0.1;
+            let id = format!("chunk-c{:02}", i);
+            chunk_ids.push(id.clone());
+            chunk_data.push((
+                id,
+                make_directional_vec(dim0, dim1),
+                json!({"type": "chunk", "content": format!("Chunk number {}", i)}),
+            ));
+        }
+        vs.upsert(&chunk_data).await.unwrap();
+
+        let gs = Arc::new(MemoryGraphStorage::new("test"));
+        gs.initialize().await.unwrap();
+        gs.upsert_node(
+            "ALPHA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Alpha")),
+                (
+                    "source_chunk_ids".to_string(),
+                    serde_json::to_value(&chunk_ids).unwrap(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        let provider = Arc::new(MockProvider::new());
+        enqueue_directional_embeddings(&provider).await;
+
+        let mut config = base_config();
+        config.max_chunks = 3; // Keep only top 3
+
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vs,
+            gs,
+            provider.clone(),
+            provider,
+        );
+
+        let request = QueryRequest::new("test query")
+            .with_mode(QueryMode::Local)
+            .context_only();
+
+        let response = engine.query(request).await.unwrap();
+
+        assert_eq!(
+            response.context.chunks.len(),
+            3,
+            "Expected exactly 3 chunks with max_chunks=3"
+        );
+
+        // The top 3 must be c00, c01, c02 (highest cosine similarity)
+        let ids: Vec<&str> = response
+            .context
+            .chunks
+            .iter()
+            .map(|c| c.id.as_str())
+            .collect();
+        assert!(ids.contains(&"chunk-c00"), "Top-3 must include chunk-c00");
+        assert!(ids.contains(&"chunk-c01"), "Top-3 must include chunk-c01");
+        assert!(ids.contains(&"chunk-c02"), "Top-3 must include chunk-c02");
+
+        // Verify score ordering within the top 3
+        for i in 0..2 {
+            assert!(
+                response.context.chunks[i].score >= response.context.chunks[i + 1].score,
+                "Score ordering violated at position {}",
+                i
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Test 5
+    // -----------------------------------------------------------------
+
+    /// Hybrid mode must run without panicking and return results.
+    #[tokio::test]
+    async fn test_hybrid_mode_returns_results() {
+        let vs = Arc::new(MemoryVectorStorage::new("test", 1536));
+        vs.initialize().await.unwrap();
+
+        vs.upsert(&[
+            (
+                "entity-alpha".into(),
+                make_directional_vec(0.9, 0.3),
+                json!({
+                    "type": "entity",
+                    "entity_name": "ALPHA",
+                    "entity_type": "CONCEPT",
+                    "description": "Alpha entity"
+                }),
+            ),
+            (
+                "rel-ab".into(),
+                make_directional_vec(0.8, 0.5),
+                json!({
+                    "type": "relationship",
+                    "src_id": "ALPHA",
+                    "tgt_id": "BETA",
+                    "relation_type": "LINKS_TO",
+                    "description": "Alpha links to Beta"
+                }),
+            ),
+            (
+                "chunk-1".into(),
+                make_directional_vec(0.7, 0.7),
+                json!({"type": "chunk", "content": "Chunk one content"}),
+            ),
+        ])
+        .await
+        .unwrap();
+
+        let gs = Arc::new(MemoryGraphStorage::new("test"));
+        gs.initialize().await.unwrap();
+
+        gs.upsert_node(
+            "ALPHA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Alpha")),
+                ("source_chunk_ids".to_string(), json!(["chunk-1"])),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        gs.upsert_node(
+            "BETA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Beta")),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        gs.upsert_edge(
+            "ALPHA",
+            "BETA",
+            [("relation_type".to_string(), json!("LINKS_TO"))]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+        let provider = Arc::new(MockProvider::new());
+        enqueue_directional_embeddings(&provider).await;
+
+        let config = base_config();
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vs,
+            gs,
+            provider.clone(),
+            provider,
+        );
+
+        let request = QueryRequest::new("hybrid test")
+            .with_mode(QueryMode::Hybrid)
+            .context_only();
+
+        let response = engine.query(request).await.unwrap();
+
+        assert_eq!(response.mode, QueryMode::Hybrid);
+        // Hybrid should not panic and should return some context
+        assert!(
+            !response.context.is_empty(),
+            "Hybrid mode should return non-empty context"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 6
+    // -----------------------------------------------------------------
+
+    /// When the same chunk is referenced by both an entity (Local path) and
+    /// a relationship endpoint (Global path), Hybrid mode must deduplicate
+    /// so the chunk appears exactly once.
+    #[tokio::test]
+    async fn test_hybrid_deduplicates_across_sources() {
+        let vs = Arc::new(MemoryVectorStorage::new("test", 1536));
+        vs.initialize().await.unwrap();
+
+        vs.upsert(&[
+            (
+                "entity-alpha".into(),
+                make_directional_vec(0.9, 0.3),
+                json!({
+                    "type": "entity",
+                    "entity_name": "ALPHA",
+                    "entity_type": "CONCEPT",
+                    "description": "Alpha"
+                }),
+            ),
+            (
+                "rel-ab".into(),
+                make_directional_vec(0.85, 0.4),
+                json!({
+                    "type": "relationship",
+                    "src_id": "ALPHA",
+                    "tgt_id": "BETA",
+                    "relation_type": "RELATED_TO",
+                    "description": "Connection"
+                }),
+            ),
+            (
+                "shared-chunk".into(),
+                make_directional_vec(0.7, 0.7),
+                json!({"type": "chunk", "content": "Shared content across both paths"}),
+            ),
+        ])
+        .await
+        .unwrap();
+
+        let gs = Arc::new(MemoryGraphStorage::new("test"));
+        gs.initialize().await.unwrap();
+
+        // Both entities reference the same chunk
+        gs.upsert_node(
+            "ALPHA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Alpha")),
+                (
+                    "source_chunk_ids".to_string(),
+                    json!(["shared-chunk"]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        gs.upsert_node(
+            "BETA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Beta")),
+                (
+                    "source_chunk_ids".to_string(),
+                    json!(["shared-chunk"]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        gs.upsert_edge(
+            "ALPHA",
+            "BETA",
+            [("relation_type".to_string(), json!("RELATED_TO"))]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+        let provider = Arc::new(MockProvider::new());
+        enqueue_directional_embeddings(&provider).await;
+
+        let config = base_config();
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vs,
+            gs,
+            provider.clone(),
+            provider,
+        );
+
+        let request = QueryRequest::new("dedup test")
+            .with_mode(QueryMode::Hybrid)
+            .context_only();
+
+        let response = engine.query(request).await.unwrap();
+
+        // Count occurrences of shared-chunk
+        let shared_count = response
+            .context
+            .chunks
+            .iter()
+            .filter(|c| c.id == "shared-chunk")
+            .count();
+
+        assert_eq!(
+            shared_count, 1,
+            "shared-chunk must appear exactly once after deduplication, found {}",
+            shared_count
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 7
+    // -----------------------------------------------------------------
+
+    /// Chunks from multiple entities (ALPHA and BETA) must both appear in
+    /// the Local mode response.
+    #[tokio::test]
+    async fn test_multi_entity_recall() {
+        let vs = Arc::new(MemoryVectorStorage::new("test", 1536));
+        vs.initialize().await.unwrap();
+
+        // Two entity vectors (both close enough to low_level to pass min_score=0.0)
+        vs.upsert(&[
+            (
+                "entity-alpha".into(),
+                make_directional_vec(0.9, 0.3),
+                json!({
+                    "type": "entity",
+                    "entity_name": "ALPHA",
+                    "entity_type": "CONCEPT",
+                    "description": "Alpha"
+                }),
+            ),
+            (
+                "entity-beta".into(),
+                make_directional_vec(0.8, 0.5),
+                json!({
+                    "type": "entity",
+                    "entity_name": "BETA",
+                    "entity_type": "CONCEPT",
+                    "description": "Beta"
+                }),
+            ),
+        ])
+        .await
+        .unwrap();
+
+        // Chunks unique to each entity
+        vs.upsert(&[
+            (
+                "chunk-alpha-1".into(),
+                make_directional_vec(0.95, 0.2),
+                json!({"type": "chunk", "content": "Alpha-specific content"}),
+            ),
+            (
+                "chunk-beta-1".into(),
+                make_directional_vec(0.6, 0.6),
+                json!({"type": "chunk", "content": "Beta-specific content"}),
+            ),
+        ])
+        .await
+        .unwrap();
+
+        let gs = Arc::new(MemoryGraphStorage::new("test"));
+        gs.initialize().await.unwrap();
+
+        gs.upsert_node(
+            "ALPHA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Alpha")),
+                (
+                    "source_chunk_ids".to_string(),
+                    json!(["chunk-alpha-1"]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        gs.upsert_node(
+            "BETA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Beta")),
+                (
+                    "source_chunk_ids".to_string(),
+                    json!(["chunk-beta-1"]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        let provider = Arc::new(MockProvider::new());
+        enqueue_directional_embeddings(&provider).await;
+
+        let config = base_config();
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vs,
+            gs,
+            provider.clone(),
+            provider,
+        );
+
+        let request = QueryRequest::new("multi entity")
+            .with_mode(QueryMode::Local)
+            .context_only();
+
+        let response = engine.query(request).await.unwrap();
+
+        let chunk_ids: Vec<&str> = response
+            .context
+            .chunks
+            .iter()
+            .map(|c| c.id.as_str())
+            .collect();
+
+        assert!(
+            chunk_ids.contains(&"chunk-alpha-1"),
+            "Must include ALPHA's chunk, got: {:?}",
+            chunk_ids
+        );
+        assert!(
+            chunk_ids.contains(&"chunk-beta-1"),
+            "Must include BETA's chunk, got: {:?}",
+            chunk_ids
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 8
+    // -----------------------------------------------------------------
+
+    /// An entity with empty (or absent) `source_chunk_ids` must not cause
+    /// a panic. The entity should appear in the response but no chunks
+    /// should be retrieved for it.
+    #[tokio::test]
+    async fn test_empty_source_chunk_ids_graceful() {
+        let vs = Arc::new(MemoryVectorStorage::new("test", 1536));
+        vs.initialize().await.unwrap();
+
+        vs.upsert(&[(
+            "entity-empty".into(),
+            make_directional_vec(0.9, 0.3),
+            json!({
+                "type": "entity",
+                "entity_name": "EMPTY_ENTITY",
+                "entity_type": "CONCEPT",
+                "description": "Entity with no chunk references"
+            }),
+        )])
+        .await
+        .unwrap();
+
+        let gs = Arc::new(MemoryGraphStorage::new("test"));
+        gs.initialize().await.unwrap();
+
+        // Node intentionally has NO source_chunk_ids property
+        gs.upsert_node(
+            "EMPTY_ENTITY",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                (
+                    "description".to_string(),
+                    json!("Entity with no chunks"),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        let provider = Arc::new(MockProvider::new());
+        enqueue_directional_embeddings(&provider).await;
+
+        let config = base_config();
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vs,
+            gs,
+            provider.clone(),
+            provider,
+        );
+
+        let request = QueryRequest::new("empty chunks test")
+            .with_mode(QueryMode::Local)
+            .context_only();
+
+        // Must not panic
+        let response = engine.query(request).await.unwrap();
+
+        // Entity should be found
+        assert!(
+            !response.context.entities.is_empty(),
+            "Entity should be present in the response"
+        );
+
+        // No chunks should be found (source_chunk_ids is absent)
+        assert!(
+            response.context.chunks.is_empty(),
+            "No chunks expected when source_chunk_ids is absent"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Test 9
+    // -----------------------------------------------------------------
+
+    /// Default config values must match LightRAG parity targets.
+    #[test]
+    fn test_config_lightrag_parity_defaults() {
+        let config = SOTAQueryConfig::default();
+
+        assert_eq!(config.max_entities, 60, "LightRAG parity: max_entities=60");
+        assert_eq!(
+            config.max_relationships, 60,
+            "LightRAG parity: max_relationships=60"
+        );
+        assert_eq!(config.max_chunks, 20, "LightRAG parity: max_chunks=20");
+        assert_eq!(
+            config.max_context_tokens, 30000,
+            "LightRAG parity: max_context_tokens=30000"
+        );
+        assert_eq!(
+            config.truncation.max_total_tokens, 30000,
+            "Truncation budget must match max_context_tokens"
+        );
+        assert_eq!(config.truncation.max_entity_tokens, 10000);
+        assert_eq!(config.truncation.max_relation_tokens, 10000);
+        assert_eq!(config.default_mode, QueryMode::Hybrid);
+        assert!(config.use_keyword_extraction);
+        assert!(config.use_adaptive_mode);
+        assert!(config.enable_rerank);
+    }
+
+    // -----------------------------------------------------------------
+    // Test 10
+    // -----------------------------------------------------------------
+
+    /// When the BM25 reranker is attached, chunks with matching terms must
+    /// outrank chunks that only have high cosine similarity but no term overlap.
+    #[tokio::test]
+    async fn test_reranker_preserves_score_ranking() {
+        let vs = Arc::new(MemoryVectorStorage::new("test", 1536));
+        vs.initialize().await.unwrap();
+
+        vs.upsert(&[(
+            "entity-alpha".into(),
+            make_directional_vec(0.9, 0.3),
+            json!({
+                "type": "entity",
+                "entity_name": "ALPHA",
+                "entity_type": "CONCEPT",
+                "description": "Alpha"
+            }),
+        )])
+        .await
+        .unwrap();
+
+        // chunk-cosine: HIGH cosine sim, but content has NO matching query terms
+        // chunk-bm25:   lower cosine sim, but content MATCHES "EdgeQuake knowledge graph"
+        vs.upsert(&[
+            (
+                "chunk-cosine".into(),
+                make_directional_vec(0.99, 0.1),
+                json!({
+                    "type": "chunk",
+                    "content": "Vector storage optimization and indexing strategies"
+                }),
+            ),
+            (
+                "chunk-bm25".into(),
+                make_directional_vec(0.5, 0.5),
+                json!({
+                    "type": "chunk",
+                    "content": "EdgeQuake is a knowledge graph system for RAG"
+                }),
+            ),
+        ])
+        .await
+        .unwrap();
+
+        let gs = Arc::new(MemoryGraphStorage::new("test"));
+        gs.initialize().await.unwrap();
+        gs.upsert_node(
+            "ALPHA",
+            [
+                ("entity_type".to_string(), json!("CONCEPT")),
+                ("description".to_string(), json!("Alpha")),
+                (
+                    "source_chunk_ids".to_string(),
+                    json!(["chunk-cosine", "chunk-bm25"]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+
+        let provider = Arc::new(MockProvider::new());
+        enqueue_directional_embeddings(&provider).await;
+
+        let mut config = base_config();
+        config.enable_rerank = true;
+        config.min_rerank_score = 0.0; // Keep all chunks including zero-score
+        config.rerank_top_k = 10;
+
+        let reranker: Arc<dyn Reranker> = Arc::new(BM25Reranker::new());
+
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vs,
+            gs,
+            provider.clone(),
+            provider,
+        )
+        .with_reranker(reranker);
+
+        let request = QueryRequest::new("EdgeQuake knowledge graph")
+            .with_mode(QueryMode::Local)
+            .context_only();
+
+        let response = engine.query(request).await.unwrap();
+
+        assert!(
+            response.context.chunks.len() >= 2,
+            "Expected at least 2 chunks, got {}",
+            response.context.chunks.len()
+        );
+
+        // BM25 reranking should put chunk-bm25 first because its content
+        // matches "EdgeQuake knowledge graph" while chunk-cosine does not.
+        assert_eq!(
+            response.context.chunks[0].id, "chunk-bm25",
+            "BM25 reranker should rank chunk-bm25 first due to term matching, \
+             but got: {:?}",
+            response
+                .context
+                .chunks
+                .iter()
+                .map(|c| (c.id.as_str(), c.score))
+                .collect::<Vec<_>>()
+        );
+    }
+}
