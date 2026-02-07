@@ -451,23 +451,35 @@ impl Default for MarkdownRenderer {
 }
 
 /// OODA-27: Check if the next block is a continuation of the current paragraph.
+/// OODA-35: Enhanced with markdown-marker stripping and closing bracket/paren handling.
 /// A paragraph continues if:
 /// - Current text does NOT end with sentence-ending punctuation (.!?:)
 /// - Next block starts with a lowercase letter
-/// - Both blocks have similar dominant font size
 fn is_continuation(current_text: &str, next_block: &Block) -> bool {
     let trimmed = current_text.trim_end();
     if trimmed.is_empty() {
         return false;
     }
 
+    // OODA-35: Strip trailing markdown markers to see the actual last text character
+    // WHY: Lines like "**bold text**" end with `*` which isn't punctuation,
+    // but the actual content ends with "text" which should allow continuation.
+    let stripped = trimmed
+        .trim_end_matches('*')
+        .trim_end_matches('_')
+        .trim_end_matches('`')
+        .trim_end_matches('~')
+        .trim_end_matches(']');
+
+    let effective_end = if stripped.is_empty() { trimmed } else { stripped };
+
     // Check current text doesn't end with sentence-terminal punctuation
-    let last_char = trimmed.chars().last().unwrap_or('.');
+    let last_char = effective_end.chars().last().unwrap_or('.');
     if matches!(last_char, '.' | '!' | '?' | ':' | ';') {
         return false;
     }
-    // Also don't merge after closing markdown markers
-    if trimmed.ends_with("**") || trimmed.ends_with("__") {
+    // OODA-35: Don't merge after closing parens/brackets (often end of citations)
+    if matches!(last_char, ')' | ']') {
         return false;
     }
 
