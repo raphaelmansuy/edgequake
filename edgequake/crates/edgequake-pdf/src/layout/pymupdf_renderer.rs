@@ -284,7 +284,12 @@ impl MarkdownRenderer {
                 let prev = &line.spans[i - 1];
                 let gap = span.x0 - prev.x1;
                 let avg_size = (prev.font_size + span.font_size) / 2.0;
-                let space_threshold = avg_size * 0.15;
+                // OODA-51: Lowered from 0.15 to 0.08 for justified academic text
+                // WHY: Justified text has micro-spaces (~0.5pt) that fall below 0.15 threshold
+                // causing run-together words like "timefor" instead of "time for".
+                // 0.08 = ~0.8pt for 10pt font, which catches most word spaces while
+                // avoiding false spaces within kerned letter pairs.
+                let space_threshold = avg_size * 0.08;
 
                 let starts_with_hyphen = span.text.starts_with('-')
                     || span.text.starts_with('–')
@@ -352,7 +357,8 @@ impl MarkdownRenderer {
                 let prev = &line.spans[i - 1];
                 let gap = span.x0 - prev.x1;
                 let avg_size = (prev.font_size + span.font_size) / 2.0;
-                let space_threshold = avg_size * 0.15;
+                // OODA-51: Lowered from 0.15 to 0.08 (see styled renderer comment)
+                let space_threshold = avg_size * 0.08;
                 if gap > space_threshold {
                     result.push(' ');
                 }
