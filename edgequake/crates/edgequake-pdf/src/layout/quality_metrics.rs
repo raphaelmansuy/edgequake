@@ -367,6 +367,8 @@ fn count_structural_elements(text: &str) -> std::collections::HashMap<&'static s
 }
 
 /// Extract meaningful paragraphs (non-empty, non-structural blocks).
+/// OODA-63: Lowered minimum from 20 to 5 chars to include short section headers
+/// and bullet items that pymupdf4llm produces as separate paragraphs.
 fn extract_paragraphs(text: &str) -> Vec<String> {
     let mut paragraphs = Vec::new();
     let mut current = String::new();
@@ -377,8 +379,8 @@ fn extract_paragraphs(text: &str) -> Vec<String> {
             if !current.is_empty() {
                 // Normalize and store paragraph
                 let normalized = current.split_whitespace().collect::<Vec<_>>().join(" ");
-                if normalized.len() > 20 {
-                    // Only meaningful paragraphs
+                if normalized.len() >= 5 {
+                    // Include short paragraphs (headers, items)
                     paragraphs.push(normalized.to_lowercase());
                 }
                 current.clear();
@@ -393,7 +395,7 @@ fn extract_paragraphs(text: &str) -> Vec<String> {
 
     if !current.is_empty() {
         let normalized = current.split_whitespace().collect::<Vec<_>>().join(" ");
-        if normalized.len() > 20 {
+        if normalized.len() >= 5 {
             paragraphs.push(normalized.to_lowercase());
         }
     }
@@ -587,12 +589,12 @@ mod tests {
 
     #[test]
     fn test_extract_paragraphs() {
-        let text = "# Header\n\nFirst paragraph with enough text to count.\n\nSecond paragraph also with enough text.\n\nShort.\n";
+        let text = "# Header\n\nFirst paragraph with enough text to count.\n\nSecond paragraph also with enough text.\n\nShort.\n\nHi.\n";
         let paras = extract_paragraphs(text);
-        // "Short." is less than 20 chars, so excluded
+        // OODA-63: "Short." (6 chars) now included, "Hi." (3 chars) excluded
         assert!(
-            paras.len() >= 2,
-            "Should extract at least 2 paragraphs, got {}",
+            paras.len() >= 3,
+            "Should extract at least 3 paragraphs (incl short), got {}",
             paras.len()
         );
     }
