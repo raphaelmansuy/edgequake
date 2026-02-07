@@ -68,9 +68,10 @@ impl Default for QueryEngineConfig {
     fn default() -> Self {
         Self {
             default_mode: QueryMode::Hybrid,
-            max_chunks: 10,
-            max_entities: 20,
-            max_context_tokens: 4000,
+            // WHY 20/60/30000: Aligned with SOTAQueryConfig LightRAG-parity defaults.
+            max_chunks: 20,
+            max_entities: 60,
+            max_context_tokens: 30000,
             graph_depth: 2,
             min_score: 0.1,
             include_sources: true,
@@ -683,7 +684,7 @@ mod tests {
         let config = QueryEngineConfig::default();
 
         assert_eq!(config.default_mode, QueryMode::Hybrid);
-        assert_eq!(config.max_chunks, 10);
+        assert_eq!(config.max_chunks, 20);
         assert!(config.include_sources);
     }
 }

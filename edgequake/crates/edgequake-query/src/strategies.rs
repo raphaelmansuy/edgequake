@@ -42,8 +42,9 @@ pub struct StrategyConfig {
 impl Default for StrategyConfig {
     fn default() -> Self {
         Self {
-            max_chunks: 10,
-            max_entities: 20,
+            // WHY 20/60: Aligned with SOTAQueryConfig LightRAG-parity defaults.
+            max_chunks: 20,
+            max_entities: 60,
             max_relationships_per_entity: 5,
             graph_depth: 2,
             min_score: 0.1,
@@ -545,8 +546,8 @@ mod tests {
     #[test]
     fn test_strategy_config_default() {
         let config = StrategyConfig::default();
-        assert_eq!(config.max_chunks, 10);
-        assert_eq!(config.max_entities, 20);
+        assert_eq!(config.max_chunks, 20);
+        assert_eq!(config.max_entities, 60);
         assert!((config.vector_weight - 0.5).abs() < f32::EPSILON);
     }
 
@@ -807,7 +808,7 @@ mod tests {
         let config = StrategyConfig::default();
         let debug_str = format!("{:?}", config);
         assert!(debug_str.contains("max_chunks"));
-        assert!(debug_str.contains("10"));
+        assert!(debug_str.contains("20"));
     }
 
     #[test]

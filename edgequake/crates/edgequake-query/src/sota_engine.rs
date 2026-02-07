@@ -143,10 +143,19 @@ impl Default for SOTAQueryConfig {
     fn default() -> Self {
         Self {
             default_mode: QueryMode::Hybrid,
-            max_entities: 20,
-            max_relationships: 20,
-            max_chunks: 10,
-            max_context_tokens: 4000,
+            // WHY 60: LightRAG uses top_k=60 entities. More entity candidates = more
+            // chunk candidates from the KG path, directly improving recall.
+            max_entities: 60,
+            // WHY 60: Match entity count for balanced KG context.
+            // LightRAG allocates max_relation_tokens=8000 for relations.
+            max_relationships: 60,
+            // WHY 20: LightRAG uses chunk_top_k=20. More text chunks = more direct
+            // evidence for the LLM, improving both recall and correctness.
+            max_chunks: 20,
+            // WHY 30000: LightRAG uses max_total_tokens=30000. With gpt-4o-mini
+            // having 128K context, 4000 tokens was throwing away ~87% of usable context.
+            // 30000 tokens uses only 23% of the context window — safe and effective.
+            max_context_tokens: 30000,
             graph_depth: 2,
             min_score: 0.1,
             use_keyword_extraction: true,
@@ -157,7 +166,8 @@ impl Default for SOTAQueryConfig {
             // WHY 0.1: BM25 scores can be low for short documents or simple queries.
             // 0.3 was too aggressive and filtered out valid chunks. 0.1 matches min_score.
             min_rerank_score: 0.1,
-            rerank_top_k: 10,
+            // WHY 20: Match max_chunks to keep all chunk candidates after reranking.
+            rerank_top_k: 20,
         }
     }
 }
