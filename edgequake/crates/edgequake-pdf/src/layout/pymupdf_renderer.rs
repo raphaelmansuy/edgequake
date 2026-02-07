@@ -217,7 +217,14 @@ impl MarkdownRenderer {
     }
 
     fn render_paragraph(&self, block: &Block) -> String {
-        self.render_lines_inline(&block.lines)
+        // OODA-65: Join lines with \n\n to match pymupdf4llm line-level paragraph granularity.
+        // WHY: pymupdf4llm treats each PDF line as a separate text block, producing \n\n
+        // between every line. Our grouper merges adjacent lines into blocks, producing
+        // fewer paragraphs (963 vs 1620 for Apple-Sandbox). Splitting at line boundaries
+        // matches the gold standard's paragraph granularity, improving ROA.
+        let rendered: Vec<String> = block.lines.iter().map(|l| self.render_line_styled(l)).collect();
+        let resolved = resolve_hyphenation(&rendered);
+        resolved.join("\n\n")
     }
 
     /// Render multiple lines joined with newlines (preserve soft breaks).
