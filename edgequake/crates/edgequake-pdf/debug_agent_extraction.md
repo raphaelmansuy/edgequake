@@ -19,17 +19,30 @@ Artificial intelligence (AI) is a powerful technology that is transforming cogni
 
 ## Page 2
 
-LLM agents represent a new paradigm that breaks traditional barriers. They enable the execution of tasks that were previously costly, time-consuming, or even infeasible. More than tools, agents act as collaborators, assisting humans in dynamic environments and automating decision-making in critical systems. However, this transformation is still in its early stages. Engaging with LLM agents is comparable to engaging with a new species, one that we are only beginning to understand, train, and guide [3]. This raises a crucial question: How can we build agents who think and act intelligently? How should we structure their 'minds' so that they can interpret information, reason, plan effectively, and make decisions that we can trust? Building on this vision of LLM agents as intelligent collaborators, this review explores and defines the architectural foundations that enable their autonomous and effective performance in complex tasks [20].
+LLM agents represent a new paradigm that breaks traditional barriers. They enable the execution of tasks that were previously costly, time-consuming, or even infeasible. More than tools, agents act as collaborators, assisting humans in dynamic environments and automating decision-making in critical systems. However, this transformation is still in its early stages. Engaging with LLM agents is comparable to engaging with a new species, one that we are only beginning to understand, train, and guide [3].
+
+This raises a crucial question: How can we build agents who think and act intelligently? How should we structure their 'minds' so that they can interpret information, reason, plan effectively, and make decisions that we can trust? Building on this vision of LLM agents as intelligent collaborators, this review explores and defines the architectural foundations that enable their autonomous and effective performance in complex tasks [20].
 
 1.2. Review Objective
 
 The primary objective of this research is to review the design and implementation of intelligent agents powered by large language models (LLMs) to improve the execution of complex automation tasks [13, 14]. Specifically, the review focuses on the agents' perception, memory, reasoning, planning, and execution capabilities. The review aims to accomplish this by pursuing the following particular goals:
 
-1. Explore the options for perception systems, including multimodal LLMs and image processing tools, analyzing their contributions to interpreting visual inputs for task execution.
+1. Explore the options for perception systems, including multimodal LLMs and image processing tools, analyzing their contributions to interpreting visual
+
+inputs for task execution.
+
 2. Examine reasoning architectures, such as Chain-of-Thought (CoT) and Tree of-Thought (ToT), and their contributions to generating structured plans for complex tasks, including how reflection enhances iterative problem solving.
-3. Explore and evaluate memory-augmented architectures, such as Retrieval Augmented Generation (RAG) and long-term memory systems, investigating effective methods for information storage to enable practical and useful applications.
-4. Examine the available execution architectures, such as tool-based frameworks, and code generation approaches, exploring their contributions to automating tasks.
-5. Finally, evaluate the complexity of implementation of each system solution proposed.
+3. Explore and evaluate memory-augmented architectures, such as Retrieval Augmented Generation (RAG) and long-term memory systems, investigating effective methods for information storage to enable practical and useful
+
+applications.
+
+4. Examine the available execution architectures, such as tool-based frameworks, and code generation approaches, exploring their contributions to automating
+
+tasks.
+
+5. Finally, evaluate the complexity of implementation of each system solution
+
+proposed.
 
 To achieve these objectives, some challenges need to be overcome.
 
@@ -63,19 +76,25 @@ To guide this survey, we formulate the following research questions that structu
 
 4. RQ4, Memory impact, How do long-term and short-term memory mech anisms, for example, RAG and context management, influence accuracy, robustness to context length limits, and adaptation in long-horizon tasks?
 5. RQ5, Failures and mitigation, What are the principal failure modes in agentic settings, for example, hallucination, GUI misgrounding, repeti tive loops, and tool misuse, and which mitigation techniques, for example, reflection, anticipatory reflection, SoM, and guardrails, are most effective?
-6. RQ6, Evaluation and generalization, Which benchmarks and metrics are appropriate for assessing these systems, for example, OSWorld, WebArena, and Mind2Web [8, 70, 71], and to what extent do agents generalize across tasks, applications, and interfaces?
+6. RQ6, Evaluation and generalization, Which benchmarks and metrics are appropriate for assessing these systems, for example, OSWorld, WebArena, and Mind2Web [8, 70, 71], and to what extent do agents generalize across
 
-Before delving into these research questions, let us first explore the origins of LLM-based agents.
+tasks, applications, and interfaces?
+
+Before delving into these research questions, let us first explore the origins of
+
+LLM-based agents.
 
 Fundamentals
 
-Background of LLMs The introduction of machine learning methods, particularly deep learning, brought a significant shift by laying the groundwork for advanced modern AI models. Large language models (LLMs) are among the most significant developments. Their appearance represents a major breakthrough in AI's ability to understand and produce complex language, influencing the state of LLM-based agents today and their future course. A key technological advance in the development of LLMs has been the transformer architecture, distinguished by its "attention mechanism" [52]. This mechanism allows LLMs to attend to different words in the input enabling them to understand long-range dependencies [52]. This architectural shift, alongside their training on vast datasets and the principles of generative AI, has enabled LLMs to perform a wide range of tasks, including natural language processing (NLP), machine translation, vision applications, and question-answering.
+2.1. Background of LLMs
 
-2.1
+The introduction of machine learning methods, particularly deep learning, brought a significant shift by laying the groundwork for advanced modern AI models. Large language models (LLMs) are among the most significant developments. Their appearance represents a major breakthrough in AI's ability to understand and produce complex language, influencing the state of LLM-based agents today and their future course.
 
-From LLMs to LLM Agents LLMs in their standard form have significant limitations due to their chatbot nature. This restricts their effectiveness in real-world tasks. These models lack long-term memory, cannot autonomously interact with external tools, and struggle to pursue goals in dynamic environments. Such shortcomings hinder their perfor mance in scenarios requiring sustained reasoning or multi-step workflows [61]. To overcome these constraints, LLMs are guided to follow a reasoning path and are provided with tools to interact with the environment that enables them to function as autonomous agents. They are well-suited for dynamic tasks because they exhibit good planning skills, context adaptability, and they minimize human intervention. Such agents offer a scalable and flexible solution by simulating human-like team strategies and leveraging external tools [29].
+A key technological advance in the development of LLMs has been the transformer architecture, distinguished by its "attention mechanism" [52]. This mechanism allows LLMs to attend to different words in the input enabling them to understand long-range dependencies [52]. This architectural shift, alongside their training on vast datasets and the principles of generative AI, has enabled LLMs to perform a wide range of tasks, including natural language processing (NLP), machine translation, vision applications, and question-answering.
 
-2.2
+2.2. From LLMs to LLM Agents
+
+LLMs in their standard form have significant limitations due to their chatbot nature. This restricts their effectiveness in real-world tasks. These models lack long-term memory, cannot autonomously interact with external tools, and struggle to pursue goals in dynamic environments. Such shortcomings hinder their perfor mance in scenarios requiring sustained reasoning or multi-step workflows [61]. To overcome these constraints, LLMs are guided to follow a reasoning path and are provided with tools to interact with the environment that enables them to function as autonomous agents. They are well-suited for dynamic tasks because they exhibit good planning skills, context adaptability, and they minimize human intervention. Such agents offer a scalable and flexible solution by simulating human-like team strategies and leveraging external tools [29].
 
 ## Page 5
 
@@ -123,13 +142,23 @@ Multimodal Perception Agents can process and integrate information from a variet
 
 ## Page 8
 
-are fed to the LLM. The LLM processes these representations, answering using the semantic understanding of the inputs. –Output Projector (for multimodal generation): For tasks requiring out puts in other modalities (e.g., generating images), this component maps signal token representations from the LLM Backbone into features understandable by a Modality Generator. –Modality Generator (for multimodal generation): This component is tasked with producing outputs in distinct modalities, such as synthesizing images using modelslike Latent Diffusion Models.
+are fed to the LLM. The LLM processes these representations, answering using the semantic understanding of the inputs.
+
+- Output Projector (for multimodal generation): For tasks requiring out puts in other modalities (e.g., generating images), this component maps signal token representations from the LLM Backbone into features understandable
+
+by a Modality Generator.
+
+- Modality Generator (for multimodal generation): This component is tasked with producing outputs in distinct modalities, such as synthesizing
+
+images using modelslike Latent Diffusion Models.
 
 Fig. 2. Architecture of Multimodal Large Language Models (MM-LLMs) for Under standing and Generation [67]
 
 While the architectural components of MM-LLMs enable multimodal processing, their perceptual capabilities often require further enhancement to address limitations in visual understanding, as explored in the following subsection.
 
-Enhancing Perception in MM-LLMs As outlined in the paper "VCoder: Versatile Vision Encoders for Multimodal Large Language Models" by Jain et al. (2023) [28], traditional MM-LLM systems often face limitations in fundamental visual perception, such as accurately identifying or counting objects, and a tendency to hallucinate non-existent entities. A faster and more cost-effective way to enhance perception (rather than improving each individual component of an MM-LLM) is to use visual encoders. These encoders, which can be separate models, extract relevant information from images to help the MM-LLM interpret them more effectively. While this approach doesn't match the performance gains of directly improving each component of the MM-LLM, it offers a practical trade-off by significantly improving results at a much lower computational and developmental cost. These are different ways to enhance visual perception with visual encoders:
+Enhancing Perception in MM-LLMs As outlined in the paper "VCoder: Versatile Vision Encoders for Multimodal Large Language Models" by Jain et al. (2023) [28], traditional MM-LLM systems often face limitations in fundamental visual perception, such as accurately identifying or counting objects, and a tendency to hallucinate non-existent entities.
+
+A faster and more cost-effective way to enhance perception (rather than improving each individual component of an MM-LLM) is to use visual encoders. These encoders, which can be separate models, extract relevant information from images to help the MM-LLM interpret them more effectively. While this approach doesn't match the performance gains of directly improving each component of the MM-LLM, it offers a practical trade-off by significantly improving results at a much lower computational and developmental cost. These are different ways to enhance visual perception with visual encoders:
 
 - Segmentation and Depth Maps: VCoder enhances MM-LLM capabilities through a specialized adaptive architecture and the integration of additional
 
@@ -171,13 +200,31 @@ Example of a Perception System in an LLM Agent Let's consider an LLM agent desig
 
 ## Page 12
 
-GUI components, such as buttons, text fields, links, and list items—along with their roles, labels, states (e.g., "unread"). Such data is typically extracted through browser automation tools. The accessibility tree and the visual encoder output combine to create a perception system. This system allows the agent to understand the interface: its visual layout, the semantics and roles of individual elements, and their spatial structure. When combined with the image understanding capabilities of a MM LLM, this perception system enables the agent to build a rich, actionable model of the GUI environment. Despite the robustness of this perception system, it has a number of drawbacks and restrictions that can impact its performance and reliability.
+GUI components, such as buttons, text fields, links, and list items—along with their roles, labels, states (e.g., "unread"). Such data is typically extracted through browser automation tools.
 
-Perception Challenges and Limitations While significant progress has been made in empowering LLM agents with advanced perceptual capabilities, several critical challenges and limitations persist across all approaches:
+The accessibility tree and the visual encoder output combine to create a perception system. This system allows the agent to understand the interface: its visual layout, the semantics and roles of individual elements, and their spatial structure. When combined with the image understanding capabilities of a MM LLM, this perception system enables the agent to build a rich, actionable model of the GUI environment.
 
-3.6
+Despite the robustness of this perception system, it has a number of drawbacks and restrictions that can impact its performance and reliability.
 
-- Hallucination: The tendency for models to "hallucinate" non-existent objects or misinterpret visual cues remains a significant hurdle. This can lead to agents making decisions based on incorrect interpretations, resulting in errors or undesirable behavior [25]. –Latency in Inference Pipelines: Integrating complex perception modules, especially those involving multimodal processing or external tool calls, can introduce substantial latency. Real-world applications, particularly those requiring real-time interaction (e.g., robotics, dynamic GUI automation), demand rapid perceptual updates. The sequential nature of many perception pipelines, from raw data acquisition to final LLM interpretation, can create bottlenecks, hindering the agent's responsiveness. –Context Window Limits: Large inputs, such as high-resolution images or extensive structured data, can generate a vast amount of tokens or embeddings. Encoding and feeding this entire information into the LLM's context window can quickly exceed its limitations [57]. –Data Collection: Training robust perception systems, particularly for mul timodal or specialized domains, often requires large volumes of high-quality, annotated data. The collection of this data can be costly and time-consuming. –Computational Resources: High-fidelity perception, especially with mul timodal inputs, requires high computational resources for both training and inference. This can be a barrier for execution in resource-constrained environments or for widespread adoption.
+3.6. Perception Challenges and Limitations
+
+While significant progress has been made in empowering LLM agents with advanced perceptual capabilities, several critical challenges and limitations persist across all approaches:
+
+- Hallucination: The tendency for models to "hallucinate" non-existent objects or misinterpret visual cues remains a significant hurdle. This can lead to agents making decisions based on incorrect interpretations, resulting in errors
+
+or undesirable behavior [25].
+
+- Latency in Inference Pipelines: Integrating complex perception modules, especially those involving multimodal processing or external tool calls, can introduce substantial latency. Real-world applications, particularly those requiring real-time interaction (e.g., robotics, dynamic GUI automation), demand rapid perceptual updates. The sequential nature of many perception pipelines, from raw data acquisition to final LLM interpretation, can create
+
+bottlenecks, hindering the agent's responsiveness.
+
+- Context Window Limits: Large inputs, such as high-resolution images or extensive structured data, can generate a vast amount of tokens or embeddings. Encoding and feeding this entire information into the LLM's context window
+
+can quickly exceed its limitations [57].
+
+- Data Collection: Training robust perception systems, particularly for mul timodal or specialized domains, often requires large volumes of high-quality, annotated data. The collection of this data can be costly and time-consuming. –Computational Resources: High-fidelity perception, especially with mul timodal inputs, requires high computational resources for both training and inference. This can be a barrier for execution in resource-constrained
+
+environments or for widespread adoption.
 
 Ultimately, the quality and fidelity of an LLM agent's perception system directly affects the reasoning and planning modules. Therefore, continuous ad vancements in perception technologies are not merely improvements to one component, but fundamental enablers for building more intelligent, reliable, and capable LLM agents.
 
@@ -202,7 +249,9 @@ A key tactic for helping LLM agents solve complicated problems is task decom pos
 3. Forgetting the main goal
 4. Cohesion between subtasks
 
-DPPM tackles these problems with the following methods: First, it decomposes the complex task into subtasks. Second, it generates subplans for each of these subtasks concurrently using individual LLM agents. This parallel planning allows each agent to focus only on its assigned subtask, promoting independent work and avoiding the cascading errors that can occur when subplans are sequentially dependent. Finally, DPPM merges these independently generated local subplans into a coherent global plan [36]. Although this method can struggle to adapt well to unexpected environmental problems, this limitation can be mitigated by reflecting on the plan after each execution step. In contrast, interleaved decomposition methods, such as Chain-of-Thought (CoT) [60] and ReAct [66], interleave the decomposition and subtask planning process, revealing only one or two subtasks at a time based on the current state. This dynamic adjustment based on environmental feedback enhances fault
+DPPM tackles these problems with the following methods: First, it decomposes the complex task into subtasks. Second, it generates subplans for each of these subtasks concurrently using individual LLM agents. This parallel planning allows each agent to focus only on its assigned subtask, promoting independent work and avoiding the cascading errors that can occur when subplans are sequentially dependent. Finally, DPPM merges these independently generated local subplans into a coherent global plan [36]. Although this method can struggle to adapt well to unexpected environmental problems, this limitation can be mitigated by reflecting on the plan after each execution step.
+
+In contrast, interleaved decomposition methods, such as Chain-of-Thought (CoT) [60] and ReAct [66], interleave the decomposition and subtask planning process, revealing only one or two subtasks at a time based on the current state. This dynamic adjustment based on environmental feedback enhances fault
 
 ## Page 15
 
@@ -256,10 +305,7 @@ Example of a Reasoning System A reasoning system can be developed by integrating
 
 Building Autonomous LLM Agents
 
-2. Minor error: The actions were close but not entirely accurate (e.g., the agent missed clicking a button because the coordinates were slightly off). In this
-
-case, the steps would be adjusted and corrected accordingly.
-
+2. Minor error: The actions were close but not entirely accurate (e.g., the agent missed clicking a button because the coordinates were slightly off). In this case, the steps would be adjusted and corrected accordingly.
 3. Execution failure: The plan cannot be completed as-is (e.g., the button to be clicked does not exist). Here, the agent must reflect on whether the issue lies within the specific subplan or if the entire plan needs to be reconsidered. If only the subplan is flawed, a new one would be generated. If the problem is more fundamental, the entire planning process would restart from the
 
 beginning.
@@ -282,19 +328,47 @@ Having outlined some possible experts within multi-agent systems, we now turn to
 
 4.6. How to Build an Expert
 
-Building an "expert" within an LLM agent involves a combination of design principles and leveraging the capabilities of Large Language Models Define the Expert's Role and Scope (Profile and Specialization). The first step is to precisely define the "distinctive attributes and roles" [51] of your expert. This involves:
+Building an "expert" within an LLM agent involves a combination of design principles and leveraging the capabilities of Large Language Models
 
-- Clear Specialization: What specific task, domain, or reasoning capability will this expert excel at? (e.g., planning, code generation, error handling). –Input and Output: What kind of information does this expert take as input, and what kind of output does it produce? –Boundaries: What are the limitations of its expertise? When should other experts be consulted or take over? [33].
+Define the Expert's Role and Scope (Profile and Specialization). The first step is to precisely define the "distinctive attributes and roles" [51] of your expert.
+
+This involves:
+
+- Clear Specialization: What specific task, domain, or reasoning capability will this expert excel at? (e.g., planning, code generation, error handling). –Input and Output: What kind of information does this expert take as
+
+input, and what kind of output does it produce?
+
+- Boundaries: What are the limitations of its expertise? When should other
+
+experts be consulted or take over? [33].
 
 Equip with Knowledge An expert's effectiveness hinges on its specialized knowledge. This can be achieved by:
 
-- Targeted Prompting: Crafting precise and detailed prompts to steer the LLM toward performing as the expert, incorporating specific prompting techniques such as Chain-of-Thought to enhance its reasoning process. –Fine-tuning (if applicable): For highly specialized tasks, fine-tuning a base LLM on a dataset relevant to the expert's domain can enhance its performance. –External Knowledge Bases: Integrating the expert with external tools or databases that provide specific, up-to-date, or proprietary knowledge relevant to its role [21]. –Memory Integration: The expert may have access to its memory (short term context and long-term knowledge) which can store past experiences or knowledge relevant to its task [23, 33]. With the methodology for crafting specialized experts established, the follow ing example illustrates how these components collaborate within a multi-agent framework.
+- Targeted Prompting: Crafting precise and detailed prompts to steer the LLM toward performing as the expert, incorporating specific prompting techniques such as Chain-of-Thought to enhance its reasoning process. –Fine-tuning (if applicable): For highly specialized tasks, fine-tuning a base LLM on a dataset relevant to the expert's domain can enhance its
 
-Example of a Multi-agent System First, the planning expert decomposes the main task into subplans. This expert is also responsible for avoiding infinite loops or repeated attempts if problems occur. Additionally, it collaborates with the constraint satisfaction expert to ensure that no constraints are violated during planning. Next, the execution expert generates the specific actions to be performed in the environment. If any tools are required, it consults the tool expert to determine
+performance.
+
+- External Knowledge Bases: Integrating the expert with external tools or databases that provide specific, up-to-date, or proprietary knowledge relevant
+
+to its role [21].
+
+- Memory Integration: The expert may have access to its memory (short term context and long-term knowledge) which can store past experiences or
+
+knowledge relevant to its task [23, 33].
+
+With the methodology for crafting specialized experts established, the following example illustrates how these components collaborate within a multi-agent framework.
+
+Example of a Multi-agent System First, the planning expert decomposes the main task into subplans. This expert is also responsible for avoiding infinite loops or repeated attempts if problems occur. Additionally, it collaborates with the constraint satisfaction expert to ensure that no constraints are violated during planning.
+
+Next, the execution expert generates the specific actions to be performed in the environment. If any tools are required, it consults the tool expert to determine
 
 ## Page 22
 
-22 which tools to use and how to use them. If executable code is needed beyond basic actions, the coding expert is called upon to produce it. Once actions are executed, feedback from the environment is received and processed by the reflection expert, which works together with the error handling expert to diagnose issues and propose solutions. Based on this diagnosis, the reflection expert decides how to proceed. To improve its recommendations, the memory expert retrieves past experiences or successful workflows related to similar tasks. This knowledge is used to inform and enhance the next steps proposed to the planning or execution experts.
+22 which tools to use and how to use them. If executable code is needed beyond basic actions, the coding expert is called upon to produce it.
+
+Once actions are executed, feedback from the environment is received and processed by the reflection expert, which works together with the error handling expert to diagnose issues and propose solutions. Based on this diagnosis, the reflection expert decides how to proceed.
+
+To improve its recommendations, the memory expert retrieves past experiences or successful workflows related to similar tasks. This knowledge is used to inform and enhance the next steps proposed to the planning or execution experts.
 
 Fig. 8. Example of the communication between agents in a multi-agent system
 
@@ -332,7 +406,19 @@ What Kind of Data to Store
 
 The memory module within an LLM agent's architecture is designed to store diverse types of information perceived from its environment and interactions. This stored data is then used to make better decisions, enabling the agent to accumulate experiences, evolve, and behave in a more consistent and effective manner.
 
-- Experiences: It is beneficial to store records of both successful and failed tasks. Research has indicated that even failed experiences, when appropriately logged and distinguished as such, can be valuable. By explicitly noting a "failed experience," LLMs can learn to avoid repeating similar mistakes in the future. This continuous learning from past interactions, including the identification of "invalid action filtering," contributes to the agent's robust development and ability to adapt [1, 22]. To store an experience, you capture a task's natural language instruction (e.g., "Who ordered order 0130?") and the sequence of steps taken to solve it, where each step includes the agent's observation of the environment (e.g., "The current page shows order 0130") and the action performed (e.g., click("126") or stop()). This data, structured as an experience with the instruction and a trajectory of observation-action pairs, is saved in a storage system like a database or a JSON file within a collection of experiences. This format ensures that the experience is retrievable for later use, such as inducing a workflow with a summarized description and generalized steps, which can then be integrated into the agent's memory to guide future tasks [59]. –Procedures: LLM agents can learn reusable task workflows from past expe riences to guide future actions, similar to humans. Agent Workflow Memory (AWM) is a method that induces commonly reused routines (workflows) from training examples and then selectively provides these workflows to the agent to guide subsequent generations [59]. –Knowledge: This category encompasses external information received as facts, such as data from articles, company-specific information, details about machinery, and internal company rules [11], including document-based dis covery pipelines in microservices architectures [17]. –User information: Beyond just user preferences, this includes personal information that the user has supplied, such as details about their past activ ities (e.g., where they spent the last Christmas) or background (e.g., where
+- Experiences: It is beneficial to store records of both successful and failed tasks. Research has indicated that even failed experiences, when appropriately logged and distinguished as such, can be valuable. By explicitly noting a "failed experience," LLMs can learn to avoid repeating similar mistakes in the future. This continuous learning from past interactions, including the identification of "invalid action filtering," contributes to the agent's robust development and ability to adapt [1, 22]. To store an experience, you capture a task's natural language instruction (e.g., "Who ordered order 0130?") and the sequence of steps taken to solve it, where each step includes the agent's observation of the environment (e.g., "The current page shows order 0130") and the action performed (e.g., click("126") or stop()). This data, structured as an experience with the instruction and a trajectory of observation-action pairs, is saved in a storage system like a database or a JSON file within a collection of experiences. This format ensures that the experience is retrievable for later use, such as inducing a workflow with a summarized description and generalized steps, which can then be integrated into the agent's memory to
+
+guide future tasks [59].
+
+- Procedures: LLM agents can learn reusable task workflows from past expe riences to guide future actions, similar to humans. Agent Workflow Memory (AWM) is a method that induces commonly reused routines (workflows) from training examples and then selectively provides these workflows to the agent
+
+to guide subsequent generations [59].
+
+- Knowledge: This category encompasses external information received as facts, such as data from articles, company-specific information, details about machinery, and internal company rules [11], including document-based dis
+
+covery pipelines in microservices architectures [17].
+
+- User information: Beyond just user preferences, this includes personal information that the user has supplied, such as details about their past activ ities (e.g., where they spent the last Christmas) or background (e.g., where
 
 ## Page 27
 
@@ -372,13 +458,15 @@ Multimodal Action Spaces
 
 Multimodal action spaces represent one of the most significant advances in LLM agent capabilities, enabling them to interact with environments beyond pure text interfaces [8, 70]. Here's a deeper exploration:
 
-Visual Interface Automation: LLM agents can control graphical user inter faces through computer vision and automation frameworks to generate precise mouse clicks, keyboard inputs, and drag-and-drop operations [41]. This capa bility allows agents to automate tasks in any software application, from web browsers to desktop applications, even when no programmatic API exists. The technical implementation typically involves vision-language models that can process screenshots and generate coordinate-based actions, or integration with UI automation libraries that can identify elements through accessibility trees or DOM structures [46].
+Visual Interface Automation: LLM agents can control graphical user inter faces through computer vision and automation frameworks to generate precise mouse clicks, keyboard inputs, and drag-and-drop operations [41]. This capa bility allows agents to automate tasks in any software application, from web browsers to desktop applications, even when no programmatic API exists. The technical implementation typically involves vision-language models that can process screenshots and generate coordinate-based actions, or integration with UI automation libraries that can identify elements through accessibility trees or
+
+DOM structures [46].
 
 ## Page 31
 
 Building Autonomous LLM Agents
 
-Code Generation and Execution: A particularly powerful multimodal capa bility is dynamic code generation where agents write executable code in various programming languages to solve specific problems. This approach is especially valuable for data manipulation tasks, complex calculations, file processing, and integration between different systems. Agents can write Python scripts for data analysis, generate SQL queries for database operations, create shell scripts for system administration, or produce HTML/CSS/JavaScript for web-based solutions [10, 42].
+Code Generation and Execution: A particularly powerful multimodal capa bility is dynamic code generation where agents write executable code in various programming languages to solve specific problems. This approach is especially valuable for data manipulation tasks, complex calculations, file processing, and integration between different systems. Agents can write Python scripts for data analysis, generate SQL queries for database operations, create shell scripts for system administration, or produce HTML/CSS/JavaScript for web-based solu tions [10, 42].
 
 Robotic and Physical System Control: In robotics applications, LLM agents can control physical systems through appropriate APIs and sensor in tegrations [61]. They process sensor data (cameras, force sensors, temperature sensors) to understand the physical environment, generate motion plans and control commands, coordinate multiple actuators and subsystems, and adapt to real-time feedback from the physical world.
 
@@ -408,7 +496,11 @@ Future research can extend this work in several promising directions. One critic
 
 ## Conclusion
 
-This paper set out to explore the intricate design and implementation strategies for creating intelligent LLM agents, focusing on their core capabilities across perception, memory, reasoning, planning, and execution. Our exploration revealed that LLM agents are not merely large language models, but complex systems built upon specialized components that mimic human cognitive processes. Specifically, we reviewed reasoning techniques, such as Chain-of-Thought and Tree-of-Thought, that significantly enhance an agent's problem-solving abilities. Moreover, the review showed that using different experts to focus on each part of the reasoning improves performance. Another conclusion from the review is that robust memory systems are crucial for personalized responses, continuous learning, and long-term coherence and adaptability. Furthermore, our analysis highlighted the critical role of a well-implemented perception system in enabling agents to interpret diverse environmental inputs, and the necessity of action systems for translating decisions into tangible outcomes. These findings directly address our initial objectives by illustrating how specific architectural designs and advanced techniques contribute to building more capable
+This paper set out to explore the intricate design and implementation strategies for creating intelligent LLM agents, focusing on their core capabilities across perception, memory, reasoning, planning, and execution. Our exploration revealed that LLM agents are not merely large language models, but complex systems built upon specialized components that mimic human cognitive processes. Specifically, we reviewed reasoning techniques, such as Chain-of-Thought and Tree-of-Thought, that significantly enhance an agent's problem-solving abilities.
+
+Moreover, the review showed that using different experts to focus on each part of the reasoning improves performance. Another conclusion from the review is that robust memory systems are crucial for personalized responses, continuous learning, and long-term coherence and adaptability.
+
+Furthermore, our analysis highlighted the critical role of a well-implemented perception system in enabling agents to interpret diverse environmental inputs, and the necessity of action systems for translating decisions into tangible outcomes. These findings directly address our initial objectives by illustrating how specific architectural designs and advanced techniques contribute to building more capable
 
 ## Page 33
 
@@ -501,14 +593,38 @@ Building Autonomous LLM Agents
 
 ## Page 38
 
-62. Xiang, J., Tao, T., Gu, Y., Shu, T., Wang, Z., Yang, Z., Hu, Z.: Language models meet world models: Embodied experiences enhance language models. arXiv preprint (2023), https://arxiv.org/abs/2305.10626
-63. Xu, B., Peng, Z., Lei, B., Mukherjee, S., Liu, Y., Xu, D.: Rewoo: Decoupling reasoning from observations for efficient augmented language models. arXiv preprint (2023), https://arxiv.org/abs/2305.18323
-64. Yang, J., Zhang, H., Li, F., Zou, X., Li, C., Gao, J.: Set-of-mark prompting unleashes extraordinary visual grounding in gpt-4v. arXiv preprint arXiv:2310.11441 (2023), https://arxiv.org/abs/2310.11441
-65. Yao, S., Yu, D., Zhao, J., Shafran, I., Griffiths, T.L., Cao, Y., Narasimhan, K.: Tree of thoughts: Deliberate problem solving with large language models. arXiv preprint (2023), https://arxiv.org/abs/2305.10601
-66. Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K., Cao, Y.: React: Synergizing reasoning and acting in language models. arXiv preprint (2023), https: //arxiv.org/abs/2210.03629
-67. Zhang, D., Yu, Y., Dong, J., Li, C., Su, D., Chu, C., Yu, D.: Mm-llms: Recent advances in multimodal large language models. arXiv preprint arXiv:2401.13601 (2024), https://arxiv.org/abs/2401.13601
+62. Xiang, J., Tao, T., Gu, Y., Shu, T., Wang, Z., Yang, Z., Hu, Z.: Language models meet world models: Embodied experiences enhance language models. arXiv preprint
+
+(2023), https://arxiv.org/abs/2305.10626
+
+63. Xu, B., Peng, Z., Lei, B., Mukherjee, S., Liu, Y., Xu, D.: Rewoo: Decoupling reasoning from observations for efficient augmented language models. arXiv preprint
+
+(2023), https://arxiv.org/abs/2305.18323
+
+64. Yang, J., Zhang, H., Li, F., Zou, X., Li, C., Gao, J.: Set-of-mark prompting unleashes extraordinary visual grounding in gpt-4v. arXiv preprint arXiv:2310.11441 (2023),
+
+https://arxiv.org/abs/2310.11441
+
+65. Yao, S., Yu, D., Zhao, J., Shafran, I., Griffiths, T.L., Cao, Y., Narasimhan, K.: Tree of thoughts: Deliberate problem solving with large language models. arXiv preprint
+
+(2023), https://arxiv.org/abs/2305.10601
+
+66. Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K., Cao, Y.: React: Synergizing reasoning and acting in language models. arXiv preprint (2023), https:
+
+//arxiv.org/abs/2210.03629
+
+67. Zhang, D., Yu, Y., Dong, J., Li, C., Su, D., Chu, C., Yu, D.: Mm-llms: Recent advances in multimodal large language models. arXiv preprint arXiv:2401.13601
+
+(2024), https://arxiv.org/abs/2401.13601
+
 68. Zhao, Z., Lee, W.S., Hsu, D.: Large language models as commonsense knowledge for large-scale task planning. In: Thirty-seventh Conference on Neural Information Processing Systems (2023), https://openreview.net/forum?id=Wjp1AYB8lH
-69. Zhong, W., Guo, L., Gao, Q., Ye, H., Wang, Y.: Memorybank: Enhancing large language models with long-term memory. arXiv preprint (2023), https://arxiv.org/ abs/2305.10250
+69. Zhong, W., Guo, L., Gao, Q., Ye, H., Wang, Y.: Memorybank: Enhancing large language models with long-term memory. arXiv preprint (2023), https://arxiv.org/
+
+abs/2305.10250
+
 70. Zhou, S., Xu, F.F., Zhu, H., Zhou, X., Lo, R., Sridhar, A., Cheng, X., Ou, T., Bisk, Y., Fried, D., Alon, U., Neubig, G.: Webarena: A realistic web environment for building autonomous agents. arXiv preprint (2024), https://arxiv.org/abs/2307.13854
-71. Zhu, X., Chen, Y., Wang, H., et al.: OSWorld: A realistic benchmark for generalist agents in operating systems. arXiv preprint (2024), https://arxiv.org/pdf/2404. 07972
+71. Zhu, X., Chen, Y., Wang, H., et al.: OSWorld: A realistic benchmark for generalist agents in operating systems. arXiv preprint (2024), https://arxiv.org/pdf/2404.
+
+07972
+
 72. Zhu, X., Li, Q., Cui, L., Liu, Y.: Large language model enhanced text-to-sql generation: A survey. arXiv preprint (2024), https://arxiv.org/abs/2410.06011
