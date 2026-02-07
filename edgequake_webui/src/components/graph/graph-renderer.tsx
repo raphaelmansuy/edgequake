@@ -213,25 +213,76 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
     const nodeColor = (type: string | undefined) => getNodeColor(type);
     const borderColor = isDark ? '#374151' : '#ffffff';
     
+    let addedNodeCount = 0;
+    let skippedNodeCount = 0;
+    
     nodes.forEach((node, index) => {
+      // Validate node ID
+      if (!node.id || typeof node.id !== 'string' || node.id.trim() === '') {
+        console.error(`[GraphRenderer] Invalid node ID at index ${index}:`, node);
+        skippedNodeCount++;
+        return;
+      }
+      
+      // Skip if node already exists (defensive check for duplicates)
+      if (graph.hasNode(node.id)) {
+        console.warn(
+          `[GraphRenderer] Duplicate node detected: "${node.id}" (${node.label}). ` +
+          'This indicates the backend returned duplicate data.'
+        );
+        skippedNodeCount++;
+        return;
+      }
+      
       const angle = (2 * Math.PI * index) / nodes.length;
       const radius = 100;
       
-      graph.addNode(node.id, {
-        label: node.label,
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
-        size: nodeSize,
-        color: nodeColor(node.node_type),
-        borderColor: borderColor,
-        borderSize: 0.15, // Border width as ratio of node size
-        entityType: node.node_type,
-        description: node.description,
-      });
+      try {
+        graph.addNode(node.id, {
+          label: node.label,
+          x: Math.cos(angle) * radius,
+          y: Math.sin(angle) * radius,
+          size: nodeSize,
+          color: nodeColor(node.node_type),
+          borderColor: borderColor,
+          borderSize: 0.15, // Border width as ratio of node size
+          entityType: node.node_type,
+          description: node.description,
+        });
+        addedNodeCount++;
+      } catch (error) {
+        console.error(
+          `[GraphRenderer] Failed to add node "${node.id}":`,
+          error,
+          'Node data:',
+          node
+        );
+        skippedNodeCount++;
+      }
     });
+    
+    // Log node addition stats
+    if (skippedNodeCount > 0) {
+      console.warn(
+        `[GraphRenderer] Skipped ${skippedNodeCount} nodes ` +
+        `(${addedNodeCount} successfully added)`
+      );
+    }
 
     // Add edges with curved arrow styling
+    let addedEdgeCount = 0;
+    let skippedEdgeCount = 0;
+    
     edges.forEach((edge) => {
+      // Validate edge has valid source and target
+      if (!edge.source || !edge.target ||
+          typeof edge.source !== 'string' || typeof edge.target !== 'string' ||
+          edge.source.trim() === '' || edge.target.trim() === '') {
+        console.error('[GraphRenderer] Invalid edge source/target:', edge);
+        skippedEdgeCount++;
+        return;
+      }
+      
       if (graph.hasNode(edge.source) && graph.hasNode(edge.target)) {
         try {
           graph.addEdge(edge.source, edge.target, {
@@ -241,11 +292,28 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
             type: 'curvedArrow',
             curvature: 0.25,
           });
-        } catch {
-          // Edge already exists or invalid
+          addedEdgeCount++;
+        } catch (error) {
+          // Edge already exists or invalid - silently skip
+          skippedEdgeCount++;
         }
+      } else {
+        // Source or target node doesn't exist
+        console.warn(
+          `[GraphRenderer] Skipping edge because nodes don't exist: ` +
+          `"${edge.source}" → "${edge.target}" (${edge.relationship_type})`
+        );
+        skippedEdgeCount++;
       }
     });
+    
+    // Log edge addition stats
+    if (skippedEdgeCount > 0) {
+      console.warn(
+        `[GraphRenderer] Skipped ${skippedEdgeCount} edges ` +
+        `(${addedEdgeCount} successfully added)`
+      );
+    }
 
     // Apply community detection if in community color mode
     if (colorMode === 'community' && graph.order > 1 && graph.size > 0) {
