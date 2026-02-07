@@ -636,6 +636,23 @@ fn normalize_bullet(text: &str) -> String {
         return text.to_string();
     }
 
+    // OODA-38: Normalize parenthesized list items to standard numbered form
+    // "(1) text" → "1. text", "(a) text" → "a. text"
+    if trimmed.starts_with('(') {
+        if let Some(close) = trimmed.find(')') {
+            if close > 1 && close < 6 {
+                let inner = &trimmed[1..close];
+                let rest = trimmed[close + 1..].trim_start();
+                let is_valid = inner.chars().all(|c| c.is_ascii_digit())
+                    || (inner.len() == 1 && inner.chars().all(|c| c.is_ascii_lowercase()))
+                    || inner.chars().all(|c| matches!(c, 'i' | 'v' | 'x'));
+                if is_valid && !rest.is_empty() {
+                    return format!("{}. {}", inner, rest);
+                }
+            }
+        }
+    }
+
     // Numbered list - keep as is
     text.to_string()
 }
@@ -762,6 +779,10 @@ mod tests {
         assert_eq!(normalize_bullet("■ Square"), "- Square");
         assert_eq!(normalize_bullet("‣ Triangular"), "- Triangular");
         assert_eq!(normalize_bullet("† Dagger"), "- Dagger");
+        // OODA-38: Parenthesized list items
+        assert_eq!(normalize_bullet("(1) First item"), "1. First item");
+        assert_eq!(normalize_bullet("(a) Sub-item"), "a. Sub-item");
+        assert_eq!(normalize_bullet("(ii) Roman"), "ii. Roman");
     }
 
     #[test]
