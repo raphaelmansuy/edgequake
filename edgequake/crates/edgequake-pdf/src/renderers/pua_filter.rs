@@ -34,6 +34,7 @@ pub fn is_pua_char(c: char) -> bool {
 /// smart quotes straightened, and ligatures decomposed.
 /// OODA-15: Normalize non-breaking spaces, thin spaces, etc.
 /// OODA-17: Decompose common ligatures (fi, fl, ff, ffi, ffl).
+/// OODA-34: Collapse multiple consecutive spaces to single space.
 pub fn filter_pua(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     for c in text.chars() {
@@ -59,7 +60,33 @@ pub fn filter_pua(text: &str) -> String {
             }
         }
     }
+    // OODA-34: Collapse multiple consecutive spaces to a single space
+    // WHY: After normalization, various Unicode spaces may produce runs of ASCII spaces.
+    // This also handles original double-spaces from PDF text extraction.
+    collapse_spaces(&mut result);
     result
+}
+
+/// OODA-34: Collapse runs of multiple spaces to a single space.
+/// Preserves leading/trailing whitespace structure (for code block indentation).
+fn collapse_spaces(text: &mut String) {
+    if !text.contains("  ") {
+        return; // Fast path: no double spaces
+    }
+    let mut collapsed = String::with_capacity(text.len());
+    let mut prev_was_space = false;
+    for c in text.chars() {
+        if c == ' ' {
+            if !prev_was_space {
+                collapsed.push(' ');
+            }
+            prev_was_space = true;
+        } else {
+            prev_was_space = false;
+            collapsed.push(c);
+        }
+    }
+    *text = collapsed;
 }
 
 /// OODA-15: Normalize Unicode whitespace characters to ASCII space.
@@ -309,5 +336,18 @@ mod tests {
         assert_eq!(filter_pua("a \u{2260} b"), "a != b");
         assert_eq!(filter_pua("x \u{2264} 5"), "x <= 5");
         assert_eq!(filter_pua("3 \u{00D7} 4"), "3 x 4");
+    }
+
+    /// OODA-34: Test multiple space collapsing
+    #[test]
+    fn test_collapse_multiple_spaces() {
+        assert_eq!(filter_pua("hello  world"), "hello world");
+        assert_eq!(filter_pua("a   b   c"), "a b c");
+        // Multiple Unicode spaces → single space
+        assert_eq!(filter_pua("a\u{00A0}\u{00A0}b"), "a b");
+        // Single space unchanged
+        assert_eq!(filter_pua("hello world"), "hello world");
+        // No spaces at all
+        assert_eq!(filter_pua("helloworld"), "helloworld");
     }
 }
