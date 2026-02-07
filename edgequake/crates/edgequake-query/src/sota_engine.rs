@@ -2975,11 +2975,14 @@ impl SOTAQueryEngine {
             let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
 
             // Step 5: Build entity context
-            for (id, node) in &nodes_map {
-                let degree = degrees.get(id).copied().unwrap_or(0);
-                let entity_score = entity_scores.get(id).copied().unwrap_or(0.0);
-                let entity = build_entity_from_node(id, &node.properties, degree, entity_score);
-                context.add_entity(entity);
+            // WHY: Use entity_ids (Vec) for deterministic ordering, not HashMap iteration.
+            for id in &entity_ids {
+                if let Some(node) = nodes_map.get(id) {
+                    let degree = degrees.get(id).copied().unwrap_or(0);
+                    let entity_score = entity_scores.get(id).copied().unwrap_or(0.0);
+                    let entity = build_entity_from_node(id, &node.properties, degree, entity_score);
+                    context.add_entity(entity);
+                }
             }
 
             // Step 6: Batch fetch edges
@@ -3201,10 +3204,14 @@ impl SOTAQueryEngine {
             // Step 5: Batch fetch entity nodes
             let nodes_map = self.graph_storage.get_nodes_batch(&entity_ids).await?;
 
-            for (id, node) in &nodes_map {
-                let degree = self.graph_storage.node_degree(id).await?;
-                let entity = build_entity_from_node(id, &node.properties, degree, 0.5);
-                context.add_entity(entity);
+            // WHY: Iterate entity_ids (Vec) for deterministic ordering instead of HashMap.
+            // HashMap iteration order is random, causing non-deterministic results.
+            for id in &entity_ids {
+                if let Some(node) = nodes_map.get(id) {
+                    let degree = self.graph_storage.node_degree(id).await?;
+                    let entity = build_entity_from_node(id, &node.properties, degree, 0.5);
+                    context.add_entity(entity);
+                }
             }
         }
 
@@ -3237,8 +3244,14 @@ impl SOTAQueryEngine {
 
         // Retrieve chunks from workspace vector storage using chunk IDs
         if !chunk_ids.is_empty() {
-            let chunk_ids_vec: Vec<String> =
-                chunk_ids.into_iter().take(self.config.max_chunks).collect();
+            // WHY: Sort chunk IDs for deterministic ordering.
+            // HashSet iteration is non-deterministic, so we sort before querying.
+            let mut chunk_ids_vec: Vec<String> = chunk_ids.into_iter().collect();
+            chunk_ids_vec.sort();
+            let chunk_ids_vec: Vec<String> = chunk_ids_vec
+                .into_iter()
+                .take(self.config.max_chunks)
+                .collect();
 
             // Query with filter to retrieve only the specific chunks
             let results = vector_storage
