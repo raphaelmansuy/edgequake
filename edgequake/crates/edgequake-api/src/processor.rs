@@ -818,10 +818,18 @@ impl DocumentTaskProcessor {
                 result
             }
             Err(e) => {
+                // FIX-3: Comprehensive error logging with context
                 let error_msg = format!("Pipeline processing failed: {}", e);
-                error!("{}", error_msg);
+                error!(
+                    document_id = %document_id,
+                    workspace_id = ?workspace_id,
+                    tenant_id = ?tenant_id,
+                    content_length = data.text.len(),
+                    error = %e,
+                    "CRITICAL: Pipeline processing failed - document marked as failed"
+                );
 
-                // Update document status to failed
+                // Update document status to failed with detailed error
                 self.update_document_status(&document_id, "failed", Some(&error_msg))
                     .await?;
 
@@ -1222,8 +1230,44 @@ impl DocumentTaskProcessor {
         stats_with_lineage.embedding_model = Some(provider_lineage.embedding_model.clone());
         stats_with_lineage.embedding_dimensions = Some(provider_lineage.embedding_dimension);
 
-        // Update document status to completed with stats and lineage
-        self.update_document_status_with_stats(&document_id, "completed", &stats_with_lineage)
+        // FIX-1: Validate processing results before marking completed
+        // WHY: Prevent silent failures where status="completed" but entity_count=0
+        // CRITICAL: This detects documents that went through pipeline but extracted nothing
+        let final_status = if result.stats.entity_count == 0 && result.stats.chunk_count > 0 {
+            // Pipeline created chunks but extracted 0 entities - likely LLM failure
+            warn!(
+                document_id = %document_id,
+                chunk_count = result.stats.chunk_count,
+                failed_chunks = result.stats.failed_chunks,
+                "ANOMALY: Document processed but extracted 0 entities from {} chunks - marking as partial_failure",
+                result.stats.chunk_count
+            );
+            "partial_failure"
+        } else if result.stats.failed_chunks == result.stats.chunk_count
+            && result.stats.chunk_count > 0
+        {
+            // ALL chunks failed extraction - complete failure
+            error!(
+                document_id = %document_id,
+                chunk_count = result.stats.chunk_count,
+                "CRITICAL: ALL {} chunks failed entity extraction - marking as failed",
+                result.stats.chunk_count
+            );
+            "failed"
+        } else if result.stats.chunk_count == 0 {
+            // No chunks created at all - chunking failed
+            error!(
+                document_id = %document_id,
+                content_length = data.text.len(),
+                "CRITICAL: Document chunking produced 0 chunks - marking as failed"
+            );
+            "failed"
+        } else {
+            "completed"
+        };
+
+        // Update document status with validation
+        self.update_document_status_with_stats(&document_id, final_status, &stats_with_lineage)
             .await?;
 
         // OODA-17: Update PDF phase progress - graph storage complete, all phases done
