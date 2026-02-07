@@ -293,29 +293,34 @@ impl MarkdownRenderer {
                     || prev.text.ends_with('–')
                     || prev.text.ends_with('—');
 
-                // OODA-55: Context-aware space threshold.
-                // WHY: A fixed 0.08 threshold creates mid-word splits ("tem poral")
-                // because spans are often split by style changes (bold→regular) with
-                // small kerning gaps. Use a two-tier approach:
+                // OODA-57: Style-aware space threshold.
+                // WHY: Spans are separated either by:
+                //   (a) PDF space character → gap = visual space width → NEED space
+                //   (b) Font/style change → gap = kerning → NO space needed
                 //
-                // 1. If previous span ends with a letter and current starts with a letter
-                //    (likely same word split by style change): use HIGHER threshold (0.18)
-                //    to avoid mid-word spaces.
+                // When font/style is the SAME between spans, the break was caused
+                // by a space character in chars_to_spans(). Use LOW threshold (0.08)
+                // to catch compressed justified-text spaces.
                 //
-                // 2. Otherwise (one side is punctuation, digit, or empty): use lower
-                //    threshold (0.10) to catch most word boundaries.
-                //
-                // The can_append() threshold in pymupdf_structs.rs uses 0.22 for
-                // proportional fonts; any gap below 0.22 was NOT detected as a word
-                // boundary there. Using 0.18 means we only insert a space for truly
-                // large gaps when both sides are letters.
+                // When font/style DIFFERS, the break was from a style change.
+                // Use HIGH threshold (0.20) to avoid mid-word splits at style
+                // boundaries (e.g., italic→regular within "temporal").
+                let same_style = prev.font_name == span.font_name
+                    && prev.font_is_bold == span.font_is_bold
+                    && prev.font_is_italic == span.font_is_italic;
+
                 let prev_ends_alpha = prev.text.chars().last().map(|c| c.is_alphabetic()).unwrap_or(false);
                 let cur_starts_alpha = span.text.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false);
 
-                let space_threshold = if prev_ends_alpha && cur_starts_alpha {
-                    avg_size * 0.18 // Conservative: avoid mid-word splits
+                let space_threshold = if same_style {
+                    // Same font/style: break was from a space char or gap
+                    avg_size * 0.10
+                } else if prev_ends_alpha && cur_starts_alpha {
+                    // Different style, alpha-alpha: likely mid-word style change
+                    avg_size * 0.20
                 } else {
-                    avg_size * 0.10 // Permissive: catch word boundaries near punctuation
+                    // Different style, involves punctuation/digits
+                    avg_size * 0.10
                 };
 
                 gap > space_threshold && !starts_with_hyphen && !ends_with_hyphen
@@ -377,12 +382,17 @@ impl MarkdownRenderer {
                 let prev = &line.spans[i - 1];
                 let gap = span.x0 - prev.x1;
                 let avg_size = (prev.font_size + span.font_size) / 2.0;
-                // OODA-55: Context-aware space threshold (same as styled renderer)
+                // OODA-57: Style-aware space threshold (same logic as styled renderer)
+                let same_style = prev.font_name == span.font_name
+                    && prev.font_is_bold == span.font_is_bold
+                    && prev.font_is_italic == span.font_is_italic;
                 let prev_ends_alpha = prev.text.chars().last().map(|c| c.is_alphabetic()).unwrap_or(false);
                 let cur_starts_alpha = span.text.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false);
 
-                let space_threshold = if prev_ends_alpha && cur_starts_alpha {
-                    avg_size * 0.18
+                let space_threshold = if same_style {
+                    avg_size * 0.10
+                } else if prev_ends_alpha && cur_starts_alpha {
+                    avg_size * 0.20
                 } else {
                     avg_size * 0.10
                 };
