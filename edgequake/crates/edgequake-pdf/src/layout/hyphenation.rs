@@ -75,12 +75,24 @@ fn try_resolve_hyphen(current: &str, next: &str) -> Option<String> {
         return None;
     }
 
+    // OODA-26: Don't resolve double hyphens (em dash substitutes)
+    if trimmed_current.ends_with("--") {
+        return None;
+    }
+
     // Get the word fragment before the hyphen
     let prefix = &trimmed_current[..trimmed_current.len() - 1];
 
     // Must have actual text before the hyphen
     if prefix.is_empty() || prefix.ends_with(' ') {
         return None; // It's a list marker or standalone dash
+    }
+
+    // OODA-26: Don't resolve if the word before the hyphen is very short (likely compound)
+    // e.g., "e-mail" split as "e-" / "mail" should NOT be resolved to "email"
+    let word_before = prefix.rsplit_once(' ').map(|(_, w)| w).unwrap_or(prefix);
+    if word_before.len() <= 2 && word_before.chars().all(|c| c.is_alphabetic()) {
+        return None; // Short prefix like "e-", "x-", "re-" = likely compound
     }
 
     let next_trimmed = next.trim_start();
@@ -203,6 +215,29 @@ mod tests {
         assert_eq!(
             resolved,
             vec!["GPU-".to_string(), "Accelerated training".to_string()]
+        );
+    }
+
+    /// OODA-26: Double hyphens should not be resolved
+    #[test]
+    fn test_double_hyphen_preserved() {
+        let lines = vec!["hello--".to_string(), "world".to_string()];
+        let resolved = resolve_hyphenation(&lines);
+        assert_eq!(
+            resolved,
+            vec!["hello--".to_string(), "world".to_string()]
+        );
+    }
+
+    /// OODA-26: Short compound prefixes should not be resolved
+    #[test]
+    fn test_short_compound_preserved() {
+        // "e-" + "mail" = compound word, don't resolve
+        let lines = vec!["e-".to_string(), "mail systems".to_string()];
+        let resolved = resolve_hyphenation(&lines);
+        assert_eq!(
+            resolved,
+            vec!["e-".to_string(), "mail systems".to_string()]
         );
     }
 }
