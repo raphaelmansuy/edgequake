@@ -452,9 +452,11 @@ impl Default for MarkdownRenderer {
 
 /// OODA-27: Check if the next block is a continuation of the current paragraph.
 /// OODA-35: Enhanced with markdown-marker stripping and closing bracket/paren handling.
+/// OODA-44: Also merge when current text ends with a comma or conjunction word.
 /// A paragraph continues if:
 /// - Current text does NOT end with sentence-ending punctuation (.!?:)
 /// - Next block starts with a lowercase letter
+/// - OR current text ends with comma/conjunction and next starts with letter
 fn is_continuation(current_text: &str, next_block: &Block) -> bool {
     let trimmed = current_text.trim_end();
     if trimmed.is_empty() {
@@ -490,11 +492,20 @@ fn is_continuation(current_text: &str, next_block: &Block) -> bool {
         .map(|l| l.text())
         .unwrap_or_default();
     let next_trimmed = next_text.trim_start();
+
     if let Some(first_char) = next_trimmed.chars().next() {
-        first_char.is_lowercase()
-    } else {
-        false
+        if first_char.is_lowercase() {
+            return true;
+        }
+
+        // OODA-44: If current line ends with comma, merge even with uppercase next
+        // WHY: Enumerations like "Smith, Jones," / "Anderson and Brown" should merge
+        if last_char == ',' && first_char.is_alphabetic() {
+            return true;
+        }
     }
+
+    false
 }
 
 /// OODA-21: Clean up rendered markdown output.

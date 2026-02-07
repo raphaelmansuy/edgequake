@@ -84,6 +84,7 @@ pub fn is_footnote(
 /// - Bracketed: "[1] text"
 /// - OODA-28: Multi-digit numbers: "12 text", "23. text"
 /// - OODA-28: Letter markers: "a text", "b) note"
+/// - OODA-43: Symbol sequences: "**text", "††text", "‡‡text"
 pub fn starts_with_footnote_marker(text: &str) -> bool {
     if text.is_empty() {
         return false;
@@ -99,9 +100,14 @@ pub fn starts_with_footnote_marker(text: &str) -> bool {
         return true;
     }
 
-    // Footnote symbols
+    // Footnote symbols (single or repeated sequences)
     if matches!(first, '*' | '†' | '‡' | '§' | '¶' | '‖') {
-        return true;
+        // OODA-43: Accept symbol followed by more symbols or space/text
+        let rest = &text[first.len_utf8()..];
+        // Accept repeated symbols (**, ††, ‡‡) or symbol followed by space/text
+        if rest.is_empty() || rest.starts_with(first) || !rest.trim().is_empty() {
+            return true;
+        }
     }
 
     // Bracketed number: "[1]", "[2]", "[12]"
@@ -194,6 +200,10 @@ mod tests {
         // OODA-28: Letter markers
         assert!(starts_with_footnote_marker("a) Author affiliation info."));
         assert!(starts_with_footnote_marker("b Equal contribution."));
+        // OODA-43: Symbol sequences
+        assert!(starts_with_footnote_marker("** Double asterisk note."));
+        assert!(starts_with_footnote_marker("†† Double dagger note."));
+        assert!(starts_with_footnote_marker("§ Section symbol note."));
 
         assert!(!starts_with_footnote_marker("Normal paragraph text."));
         assert!(!starts_with_footnote_marker("The experiment showed..."));
