@@ -54,12 +54,10 @@ fn measure_quality(
     };
     let elapsed = start.elapsed().as_secs_f64();
 
-    let clf =
-        edgequake_pdf::layout::quality_metrics::character_level_fidelity(&extracted, &gold);
+    let clf = edgequake_pdf::layout::quality_metrics::character_level_fidelity(&extracted, &gold);
     let sps =
         edgequake_pdf::layout::quality_metrics::structure_preservation_score(&extracted, &gold);
-    let roa =
-        edgequake_pdf::layout::quality_metrics::reading_order_accuracy(&extracted, &gold);
+    let roa = edgequake_pdf::layout::quality_metrics::reading_order_accuracy(&extracted, &gold);
     let nr = edgequake_pdf::layout::quality_metrics::noise_ratio(&extracted);
 
     let short_name = pdf_path
@@ -128,7 +126,11 @@ fn print_summary(results: &[(String, f64, f64, f64, f64, f64)]) -> (f64, f64, f6
     let avg_nr: f64 = results.iter().map(|r| r.4).sum::<f64>() / n;
     let total_time: f64 = results.iter().map(|r| r.5).sum();
 
-    eprintln!("\n=== AVERAGES ({} documents, {:.1}s total) ===", results.len(), total_time);
+    eprintln!(
+        "\n=== AVERAGES ({} documents, {:.1}s total) ===",
+        results.len(),
+        total_time
+    );
     eprintln!("  CLF={:.3} (target >0.95)", avg_clf);
     eprintln!("  SPS={:.3} (target >0.90)", avg_sps);
     eprintln!("  ROA={:.3} (target >0.95)", avg_roa);
@@ -173,13 +175,16 @@ fn test_quick_metrics() {
     // 7 small, diverse PDFs for quick feedback (<5s conversion time)
     // Avoids slow docs: CCN (50pg/22s), national-capitals (6pg/21s table-only)
     let quick_set: Vec<(&str, &str)> = vec![
-        ("technical_docs", "AI_Services__Elitizon"),          // 5pg, tech doc
-        ("technical_docs", "Apple-Sandbox-Guide-v1.0"),       // 48pg, tech guide
+        ("technical_docs", "AI_Services__Elitizon"), // 5pg, tech doc
+        ("technical_docs", "Apple-Sandbox-Guide-v1.0"), // 48pg, tech guide
         ("reference_materials", "001-BEYONG-TRANFORMER-OUTLINE-V1_1"), // 15pg, outline
-        ("reference_materials", "SEAL_U_DM-i-0225-FR-V5"),   // 6pg, French ref
-        ("reference_materials", "Scottish SMEs Delegation - AI Learning Expedition to France - February 2026"), // 5pg
-        ("academic_papers", "lighrag_2410.05779v3"),          // 16pg, academic
-        ("academic_papers", "stackplanner_2601.05890v1"),     // 16pg, academic
+        ("reference_materials", "SEAL_U_DM-i-0225-FR-V5"), // 6pg, French ref
+        (
+            "reference_materials",
+            "Scottish SMEs Delegation - AI Learning Expedition to France - February 2026",
+        ), // 5pg
+        ("academic_papers", "lighrag_2410.05779v3"), // 16pg, academic
+        ("academic_papers", "stackplanner_2601.05890v1"), // 16pg, academic
     ];
 
     let mut results = Vec::new();
@@ -270,7 +275,9 @@ fn test_dump_worst() {
         .iter()
         .filter_map(|(pdf, gold)| {
             let g = fs::read_to_string(gold).ok()?;
-            if g.trim().is_empty() { return None; }
+            if g.trim().is_empty() {
+                return None;
+            }
             let e = pipeline.convert_file(pdf).ok()?;
             let clf = edgequake_pdf::layout::quality_metrics::character_level_fidelity(&e, &g);
             Some((pdf.clone(), gold.clone(), e, g, clf))
