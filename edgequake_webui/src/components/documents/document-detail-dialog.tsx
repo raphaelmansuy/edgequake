@@ -71,6 +71,7 @@ function StatusBadge({ status, document }: { status: Document['status']; documen
     completed: { label: 'Completed', variant: 'default' as const },
     indexed: { label: 'Indexed', variant: 'default' as const },
     failed: { label: 'Failed', variant: 'destructive' as const },
+    partial_failure: { label: 'Partial Failure', variant: 'destructive' as const },
     cancelled: { label: 'Cancelled', variant: 'outline' as const },
   };
 

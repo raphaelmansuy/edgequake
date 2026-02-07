@@ -453,6 +453,108 @@ async fn cleanup_document_graph_data(
     Ok(stats)
 }
 
+/// Delete all document data for re-ingestion.
+///
+/// @implements FIX-4: Duplicate re-ingestion
+///
+/// WHY: When a duplicate document is detected, the user may want to re-process it
+/// (e.g., because the original processing failed). This function deletes all
+/// existing data for the document so it can be processed fresh.
+///
+/// # Safety
+///
+/// This function refuses to delete documents that are actively being processed
+/// (status = "pending" or "processing") to avoid race conditions.
+///
+/// # Returns
+///
+/// * `Ok(true)` - Document data deleted successfully
+/// * `Ok(false)` - Document is still processing, cannot delete
+/// * `Err(ApiError)` - If deletion fails
+async fn delete_document_for_reingestion(
+    document_id: &str,
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<bool, ApiError> {
+    // Get document metadata to check status
+    let metadata_key = format!("{}-metadata", document_id);
+    let status = if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
+        metadata
+            .get("status")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "unknown".to_string())
+    } else {
+        // No metadata found - document doesn't exist or was partially created
+        "unknown".to_string()
+    };
+
+    // Safety check - don't delete documents that are being processed
+    if status == "pending" || status == "processing" {
+        tracing::warn!(
+            document_id = %document_id,
+            status = %status,
+            "Cannot re-ingest document that is still being processed"
+        );
+        return Ok(false);
+    }
+
+    tracing::info!(
+        document_id = %document_id,
+        workspace_id = %workspace_id,
+        status = %status,
+        "Re-ingestion requested - deleting existing document data"
+    );
+
+    // Get workspace-specific vector storage for cleanup
+    let workspace_vector_storage = get_workspace_vector_storage_strict(state, workspace_id).await?;
+
+    // Clean up graph data (entities, relationships, embeddings)
+    let cleanup_stats = cleanup_document_graph_data(
+        document_id,
+        &state.graph_storage,
+        Some(&workspace_vector_storage),
+    )
+    .await?;
+
+    // Delete chunk embeddings from vector storage
+    let keys = state.kv_storage.keys().await?;
+    let chunk_prefix = format!("{}-chunk-", document_id);
+    let chunk_ids: Vec<String> = keys
+        .iter()
+        .filter(|k| k.starts_with(&chunk_prefix))
+        .cloned()
+        .collect();
+
+    if !chunk_ids.is_empty() {
+        if let Err(e) = workspace_vector_storage.delete(&chunk_ids).await {
+            tracing::warn!(
+                document_id = %document_id,
+                error = %e,
+                "Failed to delete chunk embeddings during re-ingestion"
+            );
+        }
+    }
+
+    // Collect all KV keys to delete (chunks, metadata, content)
+    let mut keys_to_delete: Vec<String> = chunk_ids;
+    keys_to_delete.push(metadata_key);
+    keys_to_delete.push(format!("{}-content", document_id));
+
+    // Delete all KV storage entries
+    state.kv_storage.delete(&keys_to_delete).await?;
+
+    tracing::info!(
+        document_id = %document_id,
+        chunks_deleted = keys_to_delete.len(),
+        entities_removed = cleanup_stats.entities_removed,
+        relationships_removed = cleanup_stats.relationships_removed,
+        "Document data deleted for re-ingestion"
+    );
+
+    Ok(true)
+}
+
 /// Upload a document for processing.
 ///
 /// # Implements
@@ -528,28 +630,57 @@ pub async fn upload_document(
     let tenant_id_for_storage = tenant_ctx.tenant_id.clone();
 
     // WHY-OODA81+84: Workspace-scoped duplicate detection
-    // Same content in same workspace = duplicate (reject)
+    // FIX-4: Duplicates now trigger re-ingestion instead of rejection
+    // Same content in same workspace = re-ingest (delete old data, process new)
     // Same content in different workspace = allowed (multi-tenancy)
     let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, &content_hash);
     debug!(hash_key = %hash_key, workspace_id = %workspace_id_for_storage, "Checking for workspace-scoped duplicate hash");
     if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
         debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash in workspace");
         if let Some(doc_id_str) = existing_doc_id.as_str() {
-            // Duplicates return 200 OK, not 201 CREATED
-            return Ok((
-                StatusCode::OK,
-                Json(UploadDocumentResponse {
-                    document_id: doc_id_str.to_string(),
-                    status: "duplicate".to_string(),
-                    task_id: None,
-                    track_id: track_id.clone(),
-                    duplicate_of: Some(doc_id_str.to_string()),
-                    chunk_count: None,
-                    entity_count: None,
-                    relationship_count: None,
-                    cost: None,
-                }),
-            ));
+            // FIX-4: Try to delete old document data for re-ingestion
+            match delete_document_for_reingestion(doc_id_str, &state, &workspace_id_for_storage)
+                .await
+            {
+                Ok(true) => {
+                    // Successfully deleted - proceed with new upload
+                    tracing::info!(
+                        old_doc_id = %doc_id_str,
+                        workspace_id = %workspace_id_for_storage,
+                        "Duplicate document found - old data deleted, proceeding with re-ingestion"
+                    );
+                    // Hash key will be updated below with new document_id
+                }
+                Ok(false) => {
+                    // Document still processing - return duplicate response
+                    tracing::warn!(
+                        old_doc_id = %doc_id_str,
+                        "Duplicate document is still being processed - cannot re-ingest"
+                    );
+                    return Ok((
+                        StatusCode::OK,
+                        Json(UploadDocumentResponse {
+                            document_id: doc_id_str.to_string(),
+                            status: "duplicate_processing".to_string(),
+                            task_id: None,
+                            track_id: track_id.clone(),
+                            duplicate_of: Some(doc_id_str.to_string()),
+                            chunk_count: None,
+                            entity_count: None,
+                            relationship_count: None,
+                            cost: None,
+                        }),
+                    ));
+                }
+                Err(e) => {
+                    // Failed to delete - log error and proceed with re-ingestion anyway
+                    tracing::warn!(
+                        old_doc_id = %doc_id_str,
+                        error = %e,
+                        "Failed to delete old document data - proceeding with re-ingestion"
+                    );
+                }
+            }
         }
     }
 
@@ -1434,6 +1565,11 @@ pub async fn list_documents(
                     || d.status.as_deref() == Some("indexed")
             })
             .count(),
+        // FIX-5: Track partial_failure status
+        partial_failure: documents
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("partial_failure"))
+            .count(),
         failed: documents
             .iter()
             .filter(|d| d.status.as_deref() == Some("failed"))
@@ -1874,13 +2010,14 @@ pub async fn delete_document(
     //   2. Orphaned data: Entities/edges created AFTER deletion check starts
     //   3. Partial deletion: Some entities exist, others don't
     //
-    // Status lifecycle:
-    //   "pending"    → Cannot delete (queued for processing)
-    //   "processing" → Cannot delete (actively being processed)
-    //   "completed"  → Can delete (processing finished successfully)
-    //   "processed"  → Can delete (legacy status, same as completed)
-    //   "failed"     → Can delete (processing failed, cleanup partial data)
-    //   "unknown"    → Can delete (legacy documents without status)
+    // Status lifecycle (FIX-5: Added partial_failure):
+    //   "pending"         → Cannot delete (queued for processing)
+    //   "processing"      → Cannot delete (actively being processed)
+    //   "completed"       → Can delete (processing finished successfully with entities)
+    //   "processed"       → Can delete (legacy status, same as completed)
+    //   "partial_failure" → Can delete (processed but 0 entities extracted - FIX-5)
+    //   "failed"          → Can delete (processing failed, cleanup partial data)
+    //   "unknown"         → Can delete (legacy documents without status)
     match document_status.as_str() {
         "pending" => {
             tracing::warn!(
@@ -1908,7 +2045,7 @@ pub async fn delete_document(
                 document_id
             )));
         }
-        "completed" | "processed" | "failed" | "unknown" => {
+        "completed" | "processed" | "partial_failure" | "failed" | "unknown" => {
             // OK to delete
             tracing::debug!(
                 document_id = %document_id,
@@ -2370,26 +2507,58 @@ pub async fn upload_file(
     let tenant_id_for_storage = tenant_ctx.tenant_id.clone();
 
     // WHY-OODA81+83: Use ContentHasher for workspace-scoped hash key
+    // FIX-4: Duplicates now trigger re-ingestion instead of rejection
     let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, &content_hash);
     debug!(hash_key = %hash_key, workspace_id = %workspace_id_for_storage, "Checking for workspace-scoped duplicate hash");
     if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
         debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash in workspace");
         if let Some(doc_id_str) = existing_doc_id.as_str() {
-            // Note: Duplicates return 200 OK, not 201 CREATED
-            return Ok((
-                StatusCode::OK,
-                Json(FileUploadResponse {
-                    document_id: doc_id_str.to_string(),
-                    filename,
-                    size: content.len(),
-                    content_hash,
-                    status: "duplicate".to_string(),
-                    chunk_count: 0,
-                    entity_count: 0,
-                    relationship_count: 0,
-                    is_duplicate: true,
-                }),
-            ));
+            // FIX-4: Try to delete old document data for re-ingestion
+            match delete_document_for_reingestion(doc_id_str, &state, &workspace_id_for_storage)
+                .await
+            {
+                Ok(true) => {
+                    // Successfully deleted - proceed with new upload
+                    tracing::info!(
+                        old_doc_id = %doc_id_str,
+                        workspace_id = %workspace_id_for_storage,
+                        filename = %filename,
+                        "Duplicate file found - old data deleted, proceeding with re-ingestion"
+                    );
+                    // Hash key will be updated below with new document_id
+                }
+                Ok(false) => {
+                    // Document still processing - return duplicate response
+                    tracing::warn!(
+                        old_doc_id = %doc_id_str,
+                        filename = %filename,
+                        "Duplicate file is still being processed - cannot re-ingest"
+                    );
+                    return Ok((
+                        StatusCode::OK,
+                        Json(FileUploadResponse {
+                            document_id: doc_id_str.to_string(),
+                            filename,
+                            size: content.len(),
+                            content_hash,
+                            status: "duplicate_processing".to_string(),
+                            chunk_count: 0,
+                            entity_count: 0,
+                            relationship_count: 0,
+                            is_duplicate: true,
+                        }),
+                    ));
+                }
+                Err(e) => {
+                    // Failed to delete - log error and proceed with re-ingestion anyway
+                    tracing::warn!(
+                        old_doc_id = %doc_id_str,
+                        filename = %filename,
+                        error = %e,
+                        "Failed to delete old file data - proceeding with re-ingestion"
+                    );
+                }
+            }
         }
     }
 
@@ -3044,6 +3213,11 @@ pub async fn get_track_status(
                     || d.status.as_deref() == Some("completed")
                     || d.status.as_deref() == Some("indexed")
             })
+            .count(),
+        // FIX-5: Track partial_failure status
+        partial_failure: track_docs
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("partial_failure"))
             .count(),
         failed: track_docs
             .iter()
@@ -4063,6 +4237,7 @@ mod tests {
                 pending: 0,
                 processing: 0,
                 completed: 1,
+                partial_failure: 0,
                 failed: 0,
                 cancelled: 0,
             },
@@ -4171,6 +4346,7 @@ mod tests {
                 pending: 0,
                 processing: 0,
                 completed: 1,
+                partial_failure: 0,
                 failed: 0,
                 cancelled: 0,
             },
