@@ -3282,39 +3282,68 @@ impl SOTAQueryEngine {
         workspace_id: Option<String>,
         vector_storage: &Arc<dyn VectorStorage>,
     ) -> Result<QueryContext> {
-        // Combine local and global results
-        let local_context = self
-            .query_local_with_vector_storage(
+        // WHY: Run entity-based (local+global) AND naive chunk retrieval in parallel.
+        // Entity-based retrieval provides graph context (entities, relationships),
+        // but ONLY finds chunks linked to matching entities.
+        // Naive retrieval finds chunks by direct semantic similarity to the query,
+        // ensuring high recall even when entity extraction doesn't match.
+        let (local_context, global_context, naive_context) = tokio::join!(
+            self.query_local_with_vector_storage(
                 keywords,
                 embeddings,
                 tenant_id.clone(),
                 workspace_id.clone(),
                 vector_storage,
-            )
-            .await?;
-
-        let global_context = self
-            .query_global_with_vector_storage(
+            ),
+            self.query_global_with_vector_storage(
                 keywords,
                 embeddings,
-                tenant_id,
-                workspace_id,
+                tenant_id.clone(),
+                workspace_id.clone(),
                 vector_storage,
-            )
-            .await?;
-
-        // Merge contexts
-        let mut merged = local_context;
-
-        tracing::debug!(
-            local_chunks = merged.chunks.len(),
-            global_chunks = global_context.chunks.len(),
-            "OODA-231: Merging hybrid mode contexts"
+            ),
+            self.query_naive_with_vector_storage(
+                embeddings,
+                tenant_id.clone(),
+                workspace_id.clone(),
+                vector_storage,
+            ),
         );
 
+        let local_context = local_context?;
+        let global_context = global_context?;
+        let naive_context = naive_context?;
+
+        // WHY: Start with naive chunks as the base (highest recall),
+        // then add entity-based chunks that may be missed by naive search.
+        let mut merged = naive_context;
+
+        tracing::debug!(
+            naive_chunks = merged.chunks.len(),
+            local_chunks = local_context.chunks.len(),
+            local_entities = local_context.entities.len(),
+            global_chunks = global_context.chunks.len(),
+            global_entities = global_context.entities.len(),
+            "Hybrid merge: naive + local + global"
+        );
+
+        // Add local entity-graph chunks (dedup by ID)
+        for chunk in local_context.chunks {
+            if !merged.chunks.iter().any(|c| c.id == chunk.id) {
+                merged.add_chunk(chunk);
+            }
+        }
+        // Add global entity-graph chunks (dedup by ID)
         for chunk in global_context.chunks {
             if !merged.chunks.iter().any(|c| c.id == chunk.id) {
                 merged.add_chunk(chunk);
+            }
+        }
+
+        // Add entities from local+global (entity context enriches LLM reasoning)
+        for entity in local_context.entities {
+            if !merged.entities.iter().any(|e| e.name == entity.name) {
+                merged.add_entity(entity);
             }
         }
         for entity in global_context.entities {
@@ -3323,10 +3352,19 @@ impl SOTAQueryEngine {
             }
         }
 
+        // Add relationships from local+global
+        for rel in local_context.relationships {
+            merged.add_relationship(rel);
+        }
+        for rel in global_context.relationships {
+            merged.add_relationship(rel);
+        }
+
         tracing::debug!(
             merged_chunks = merged.chunks.len(),
             merged_entities = merged.entities.len(),
-            "OODA-231: After merge"
+            merged_relationships = merged.relationships.len(),
+            "Hybrid merge complete"
         );
 
         Ok(merged)
