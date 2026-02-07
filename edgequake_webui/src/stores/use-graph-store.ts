@@ -204,7 +204,7 @@ interface GraphActions {
   setTruncationInfo: (
     isTruncated: boolean,
     totalNodes: number,
-    totalEdges: number
+    totalEdges: number,
   ) => void;
 
   // Streaming actions for progressive loading
@@ -295,9 +295,81 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
 
   // Data actions
   setGraph: (graph) => {
-    const entityTypes = new Set(graph.nodes.map((n) => n.node_type));
+    // Deduplicate nodes by ID (keep last occurrence)
+    // Also filter out invalid nodes (null/undefined/empty IDs)
+    const uniqueNodesMap = new Map<string, GraphNode>();
+    let invalidNodeCount = 0;
+
+    for (const node of graph.nodes) {
+      // Validate node has a valid ID
+      if (!node.id || typeof node.id !== "string" || node.id.trim() === "") {
+        console.warn("[GraphStore] Skipping node with invalid ID:", node);
+        invalidNodeCount++;
+        continue;
+      }
+      uniqueNodesMap.set(node.id, node);
+    }
+    const uniqueNodes = Array.from(uniqueNodesMap.values());
+
+    // Log deduplication stats
+    const originalNodeCount = graph.nodes.length;
+    const deduplicatedCount = originalNodeCount - uniqueNodes.length;
+    if (deduplicatedCount > 0) {
+      console.warn(
+        `[GraphStore] Deduplicated ${deduplicatedCount} duplicate nodes ` +
+          `(${originalNodeCount} → ${uniqueNodes.length})`,
+      );
+    }
+    if (invalidNodeCount > 0) {
+      console.warn(
+        `[GraphStore] Filtered out ${invalidNodeCount} nodes with invalid IDs`,
+      );
+    }
+
+    // Deduplicate edges by source-target-type combination
+    const uniqueEdgesMap = new Map<string, GraphEdge>();
+    let invalidEdgeCount = 0;
+
+    for (const edge of graph.edges) {
+      // Validate edge has valid source and target
+      if (
+        !edge.source ||
+        !edge.target ||
+        typeof edge.source !== "string" ||
+        typeof edge.target !== "string" ||
+        edge.source.trim() === "" ||
+        edge.target.trim() === ""
+      ) {
+        console.warn(
+          "[GraphStore] Skipping edge with invalid source/target:",
+          edge,
+        );
+        invalidEdgeCount++;
+        continue;
+      }
+      const edgeKey = `${edge.source}-${edge.target}-${edge.relationship_type}`;
+      uniqueEdgesMap.set(edgeKey, edge);
+    }
+    const uniqueEdges = Array.from(uniqueEdgesMap.values());
+
+    // Log edge deduplication stats
+    const originalEdgeCount = graph.edges.length;
+    const deduplicatedEdgeCount = originalEdgeCount - uniqueEdges.length;
+    if (deduplicatedEdgeCount > 0) {
+      console.warn(
+        `[GraphStore] Deduplicated ${deduplicatedEdgeCount} duplicate edges ` +
+          `(${originalEdgeCount} → ${uniqueEdges.length})`,
+      );
+    }
+    if (invalidEdgeCount > 0) {
+      console.warn(
+        `[GraphStore] Filtered out ${invalidEdgeCount} edges with invalid source/target`,
+      );
+    }
+
+    const entityTypes = new Set(uniqueNodes.map((n) => n.node_type));
     const relationshipTypes = new Set(
-      graph.edges.map((e) => e.relationship_type)
+      uniqueEdges.map((e) => e.relationship_type),
     );
 
     // Build indexed data structures for O(1) lookups
@@ -308,7 +380,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
     const edgesByTarget = new Map<string, Set<string>>();
 
     // Index nodes
-    for (const node of graph.nodes) {
+    for (const node of uniqueNodes) {
       nodeMap.set(node.id, node);
 
       // Index by type
@@ -319,7 +391,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
     }
 
     // Index edges
-    for (const edge of graph.edges) {
+    for (const edge of uniqueEdges) {
       const edgeId = `${edge.source}-${edge.target}-${edge.relationship_type}`;
       edgeMap.set(edgeId, edge);
 
@@ -337,9 +409,13 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
     }
 
     set({
-      graph,
-      nodes: graph.nodes,
-      edges: graph.edges,
+      graph: {
+        ...graph,
+        nodes: uniqueNodes,
+        edges: uniqueEdges,
+      },
+      nodes: uniqueNodes,
+      edges: uniqueEdges,
       nodeMap,
       edgeMap,
       nodesByType,
@@ -415,7 +491,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
             y: nodePosition.y,
             ratio: 0.5,
           },
-          { duration: 500 }
+          { duration: 500 },
         );
       }
     }
@@ -476,7 +552,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       set({
         visibleEntityTypes: new Set(graph.metadata.entity_types || []),
         visibleRelationshipTypes: new Set(
-          graph.metadata.relationship_types || []
+          graph.metadata.relationship_types || [],
         ),
         searchQuery: "",
         timeFilterEnabled: false,
@@ -542,14 +618,18 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       // Create sets of existing IDs for quick lookup
       const existingNodeIds = new Set(state.nodes.map((n) => n.id));
       const existingEdgeIds = new Set(
-        state.edges.map((e) => `${e.source}-${e.target}-${e.relationship_type}`)
+        state.edges.map(
+          (e) => `${e.source}-${e.target}-${e.relationship_type}`,
+        ),
       );
 
       // Filter out duplicates
       const nodesToAdd = newNodes.filter((n) => !existingNodeIds.has(n.id));
       const edgesToAdd = newEdges.filter(
         (e) =>
-          !existingEdgeIds.has(`${e.source}-${e.target}-${e.relationship_type}`)
+          !existingEdgeIds.has(
+            `${e.source}-${e.target}-${e.relationship_type}`,
+          ),
       );
 
       // Update entity types if needed
@@ -614,12 +694,12 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
 
       // Find edges to remove (those connected to this node)
       const edgesToRemove = state.edges.filter(
-        (e) => e.source === nodeId || e.target === nodeId
+        (e) => e.source === nodeId || e.target === nodeId,
       );
 
       // Remove all edges connected to this node
       const edges = state.edges.filter(
-        (e) => e.source !== nodeId && e.target !== nodeId
+        (e) => e.source !== nodeId && e.target !== nodeId,
       );
 
       // Update indexed data structures
@@ -774,7 +854,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
   renameBookmark: (bookmarkId: string, newName: string) => {
     const state = get();
     const updatedBookmarks = state.bookmarks.map((b) =>
-      b.id === bookmarkId ? { ...b, name: newName } : b
+      b.id === bookmarkId ? { ...b, name: newName } : b,
     );
 
     try {
@@ -813,7 +893,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
   setTruncationInfo: (
     isTruncated: boolean,
     totalNodes: number,
-    totalEdges: number
+    totalEdges: number,
   ) => {
     set({
       isTruncated,
@@ -908,7 +988,7 @@ export const useFilteredEdges = () => {
   const nodes = useGraphStore((state) => state.nodes);
   const visibleEntityTypes = useGraphStore((state) => state.visibleEntityTypes);
   const visibleRelationshipTypes = useGraphStore(
-    (state) => state.visibleRelationshipTypes
+    (state) => state.visibleRelationshipTypes,
   );
   const searchQuery = useGraphStore((state) => state.searchQuery);
   const timeFilterEnabled = useGraphStore((state) => state.timeFilterEnabled);
@@ -937,7 +1017,7 @@ export const useFilteredEdges = () => {
         }
         return true;
       })
-      .map((n) => n.id)
+      .map((n) => n.id),
   );
 
   return edges.filter((edge) => {
