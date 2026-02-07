@@ -18,24 +18,26 @@
 
 /// Compute Character-Level Fidelity (CLF) between extracted and gold text.
 ///
-/// CLF = 1 - (levenshtein_distance(a, b) / max(len(a), len(b)))
+/// OODA-49: Uses word-level Levenshtein for O(w^2) instead of O(n^2) performance.
+/// For a 70K char document with ~10K words, this is ~100M ops vs ~5B ops.
+///
+/// CLF = 1 - (word_levenshtein_distance(a, b) / max(word_count(a), word_count(b)))
 ///
 /// Returns a value in [0.0, 1.0] where 1.0 = perfect match.
-/// Uses normalized text (stripped of excessive whitespace) for fair comparison.
 pub fn character_level_fidelity(extracted: &str, gold: &str) -> f64 {
-    let a = normalize_for_clf(extracted);
-    let b = normalize_for_clf(gold);
+    let a_words: Vec<&str> = normalize_for_clf(extracted);
+    let b_words: Vec<&str> = normalize_for_clf(gold);
 
-    if a.is_empty() && b.is_empty() {
+    if a_words.is_empty() && b_words.is_empty() {
         return 1.0;
     }
 
-    let max_len = a.len().max(b.len());
+    let max_len = a_words.len().max(b_words.len());
     if max_len == 0 {
         return 1.0;
     }
 
-    let dist = levenshtein_distance(&a, &b);
+    let dist = word_levenshtein_distance(&a_words, &b_words);
     1.0 - (dist as f64 / max_len as f64)
 }
 
@@ -85,16 +87,19 @@ pub fn reading_order_accuracy(extracted: &str, gold: &str) -> f64 {
 
 /// Compute Noise Ratio (NR).
 ///
-/// NR = noise_lines / total_lines
-/// Noise lines: empty blocks, standalone page numbers, repeated headers.
+/// OODA-49: Improved to not count blank lines between paragraphs as noise.
+/// NR = noise_lines / total_non_blank_lines
+/// Noise lines: standalone page numbers, separator lines, very short orphan lines.
 pub fn noise_ratio(text: &str) -> f64 {
     let lines: Vec<&str> = text.lines().collect();
-    let total = lines.len();
+    // Only count non-blank lines in total (blank lines between paragraphs are normal)
+    let non_blank: Vec<&&str> = lines.iter().filter(|l| !l.trim().is_empty()).collect();
+    let total = non_blank.len();
     if total == 0 {
         return 0.0;
     }
 
-    let noise_count = lines.iter().filter(|line| is_noise_line(line)).count();
+    let noise_count = non_blank.iter().filter(|line| is_noise_line(line)).count();
     noise_count as f64 / total as f64
 }
 
@@ -143,18 +148,55 @@ impl std::fmt::Display for QualityReport {
 // --- Internal helpers ---
 
 /// Normalize text for CLF comparison.
-/// - Collapse whitespace (multiple spaces/newlines → single space)
-/// - Trim lines
-/// - Lowercase for case-insensitive comparison
-fn normalize_for_clf(text: &str) -> String {
-    text.split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase()
+/// OODA-49: Returns word vector instead of collapsed string for word-level Levenshtein.
+/// - Split by whitespace
+/// - Lowercase each word
+/// - Filter empty tokens
+fn normalize_for_clf(text: &str) -> Vec<&str> {
+    text.split_whitespace().collect()
 }
 
-/// Levenshtein edit distance between two strings.
-/// Uses optimized single-row DP (O(min(m,n)) memory).
+/// OODA-49: Word-level Levenshtein distance.
+/// Compares word sequences instead of character sequences.
+/// O(m*n) where m,n are word counts (~10K) instead of char counts (~70K).
+fn word_levenshtein_distance(a: &[&str], b: &[&str]) -> usize {
+    let m = a.len();
+    let n = b.len();
+
+    if m == 0 {
+        return n;
+    }
+    if n == 0 {
+        return m;
+    }
+
+    // Use shorter sequence for columns (memory optimization)
+    if m < n {
+        return word_levenshtein_distance(b, a);
+    }
+
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr = vec![0usize; n + 1];
+
+    for i in 1..=m {
+        curr[0] = i;
+        for j in 1..=n {
+            let cost = if a[i - 1].eq_ignore_ascii_case(b[j - 1]) {
+                0
+            } else {
+                1
+            };
+            curr[j] = (prev[j] + 1)
+                .min(curr[j - 1] + 1)
+                .min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[n]
+}
+
+/// Character-level Levenshtein (kept for small string comparisons in tests).
 fn levenshtein_distance(a: &str, b: &str) -> usize {
     let a_chars: Vec<char> = a.chars().collect();
     let b_chars: Vec<char> = b.chars().collect();
@@ -305,17 +347,13 @@ fn lcs_length(a: &[String], b: &[String]) -> usize {
     dp[m][n]
 }
 
-/// Check if a line is likely noise (page number, empty, separator).
+/// Check if a non-blank line is likely noise (page number, separator).
+/// OODA-49: Blank lines pre-filtered by noise_ratio(), not counted here.
 fn is_noise_line(line: &str) -> bool {
     let trimmed = line.trim();
 
-    // Empty lines
-    if trimmed.is_empty() {
-        return true;
-    }
-
     // Standalone page numbers
-    if trimmed.chars().all(|c| c.is_ascii_digit()) && trimmed.len() <= 4 {
+    if trimmed.chars().all(|c| c.is_ascii_digit()) && !trimmed.is_empty() && trimmed.len() <= 4 {
         return true;
     }
 
@@ -346,13 +384,21 @@ mod tests {
         assert!((character_level_fidelity("hello world", "hello world") - 1.0).abs() < 0.001);
         assert!((character_level_fidelity("", "") - 1.0).abs() < 0.001);
 
-        // Small difference
-        let clf = character_level_fidelity("hello world", "hello worl");
-        assert!(clf > 0.9);
+        // Small difference (one word changed)
+        let clf = character_level_fidelity("hello world foo", "hello world bar");
+        assert!(clf > 0.5, "One word diff in 3 should be >0.5, got {}", clf);
 
-        // Case insensitive
+        // Case insensitive word matching
         let clf = character_level_fidelity("Hello World", "hello world");
-        assert!((clf - 1.0).abs() < 0.001);
+        assert!((clf - 1.0).abs() < 0.001, "Case insensitive should match, got {}", clf);
+
+        // OODA-49: Word-level distance test
+        let clf = character_level_fidelity(
+            "the quick brown fox jumps over the lazy dog",
+            "the quick brown fox jumps over the lazy cat",
+        );
+        // 1 word differs out of 9 → CLF = 1 - 1/9 ≈ 0.889
+        assert!(clf > 0.85, "One word diff should give high CLF, got {}", clf);
     }
 
     #[test]
