@@ -512,6 +512,8 @@ impl TextGrouper {
         }
 
         let mut all_blocks: Vec<Block> = Vec::new();
+        // OODA-53: Track if any page has multi-column layout
+        let mut has_columns = false;
 
         // Get sorted page numbers for deterministic output
         let mut page_nums: Vec<usize> = pages.keys().cloned().collect();
@@ -529,6 +531,7 @@ impl TextGrouper {
                 all_blocks.extend(page_blocks);
             } else {
                 // Multi-column - assign lines to columns, then group within each
+                has_columns = true;
                 let page_blocks = self.group_lines_by_column(page_lines, &columns);
                 all_blocks.extend(page_blocks);
             }
@@ -538,8 +541,15 @@ impl TextGrouper {
         // Normalizes x0/x1 boundaries within 3pt tolerance, then merges close blocks
         Self::join_blocks_phase2(&mut all_blocks);
 
-        // Apply reading order sorting (left column first, then right)
-        self.sort_blocks_reading_order(&mut all_blocks);
+        // OODA-53: Only apply smart sort if NO columns were detected.
+        // WHY: group_lines_by_column() already produces blocks in correct column order
+        // (left column first, then right). sort_blocks_reading_order() re-sorts by Y
+        // coordinate, which interleaves left/right column blocks at the same Y level.
+        // This causes "generative ren-" (col 1) → "Given a monocular" (col 2) →
+        // "dering" (col 1) instead of reading column 1 fully then column 2.
+        if !has_columns {
+            self.sort_blocks_reading_order(&mut all_blocks);
+        }
 
         all_blocks
     }
