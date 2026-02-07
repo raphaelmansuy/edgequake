@@ -86,11 +86,15 @@ impl MarkdownRenderer {
 
             // Add spacing between blocks
             // OODA-24: Use single newline between consecutive list items (tight list)
+            // OODA-27: Merge consecutive paragraphs when text continues (no sentence break)
             if self.config.block_spacing && i < blocks.len() - 1 {
                 let next_block = &blocks[i + 1];
                 let is_list_continuation = block.block_type == BlockType::ListItem
                     && next_block.block_type == BlockType::ListItem;
-                if is_list_continuation {
+                let is_paragraph_continuation = block.block_type == BlockType::Paragraph
+                    && next_block.block_type == BlockType::Paragraph
+                    && is_continuation(&block_text, next_block);
+                if is_list_continuation || is_paragraph_continuation {
                     output.push('\n');
                 } else {
                     output.push_str("\n\n");
@@ -427,6 +431,41 @@ fn apply_style(text: &str, style: StyleType) -> String {
 impl Default for MarkdownRenderer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// OODA-27: Check if the next block is a continuation of the current paragraph.
+/// A paragraph continues if:
+/// - Current text does NOT end with sentence-ending punctuation (.!?:)
+/// - Next block starts with a lowercase letter
+/// - Both blocks have similar dominant font size
+fn is_continuation(current_text: &str, next_block: &Block) -> bool {
+    let trimmed = current_text.trim_end();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    // Check current text doesn't end with sentence-terminal punctuation
+    let last_char = trimmed.chars().last().unwrap_or('.');
+    if matches!(last_char, '.' | '!' | '?' | ':' | ';') {
+        return false;
+    }
+    // Also don't merge after closing markdown markers
+    if trimmed.ends_with("**") || trimmed.ends_with("__") {
+        return false;
+    }
+
+    // Check next block starts with lowercase
+    let next_text = next_block
+        .lines
+        .first()
+        .map(|l| l.text())
+        .unwrap_or_default();
+    let next_trimmed = next_text.trim_start();
+    if let Some(first_char) = next_trimmed.chars().next() {
+        first_char.is_lowercase()
+    } else {
+        false
     }
 }
 
