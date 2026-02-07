@@ -72,6 +72,7 @@ const statusConfig = {
   // Terminal states
   completed: { icon: CheckCircle, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', label: 'Completed', animate: false },
   failed: { icon: XCircle, color: 'bg-red-500', textColor: 'text-red-600 dark:text-red-400', label: 'Failed', animate: false },
+  partial_failure: { icon: XCircle, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', label: 'Partial Failure', animate: false },
   
   // === LEGACY STAGES (backward compatibility) ===
   pending: { icon: Clock, color: 'bg-yellow-500', textColor: 'text-yellow-600 dark:text-yellow-400', label: 'Pending', animate: false },
@@ -129,7 +130,7 @@ export function isProcessingStatus(status: DocumentStatus): boolean {
  * Check if a status represents a terminal (final) state
  */
 export function isTerminalStatus(status: DocumentStatus): boolean {
-  return ['completed', 'indexed', 'failed', 'cancelled'].includes(status);
+  return ['completed', 'indexed', 'failed', 'partial_failure', 'cancelled'].includes(status);
 }
 
 /**

@@ -729,6 +729,7 @@ export function DocumentManager() {
     processing: serverStatusCounts.processing,
     completed: serverStatusCounts.completed,
     failed: serverStatusCounts.failed,
+    partial_failure: serverStatusCounts.partial_failure || 0,
     cancelled: serverStatusCounts.cancelled || 0,
   } : {
     all: allDocuments.length,
@@ -736,6 +737,7 @@ export function DocumentManager() {
     processing: allDocuments.filter((d) => d.status === 'processing').length,
     completed: allDocuments.filter((d) => !d.status || d.status === 'completed' || d.status === 'indexed').length,
     failed: allDocuments.filter((d) => d.status === 'failed').length,
+    partial_failure: allDocuments.filter((d) => d.status === 'partial_failure').length,
     cancelled: allDocuments.filter((d) => d.status === 'cancelled').length,
   };
 
@@ -1412,7 +1414,8 @@ export function DocumentManager() {
                         selectedDocument?.id === doc.id && "bg-primary/10 dark:bg-primary/15 ring-1 ring-primary/20",
                         index % 2 === 0 ? "bg-background" : "bg-muted/20",
                         // OODA-25: Failed documents highlight
-                        doc.status === 'failed' && "bg-red-50/50 dark:bg-red-950/20 border-l-4 border-l-red-500"
+                        doc.status === 'failed' && "bg-red-50/50 dark:bg-red-950/20 border-l-4 border-l-red-500",
+                        doc.status === 'partial_failure' && "bg-orange-50/50 dark:bg-orange-950/20 border-l-4 border-l-orange-500"
                       )}
                       onClick={() => handleDocumentClick(doc)}
                       onDoubleClick={() => handleDocumentDoubleClick(doc)}
@@ -1441,7 +1444,7 @@ export function DocumentManager() {
                             </span>
                           </div>
                           {/* OODA-05: Enhanced error display with copy and retry */}
-                          {doc.status === 'failed' && doc.error_message && (
+                          {(doc.status === 'failed' || doc.status === 'partial_failure') && doc.error_message && (
                             <ErrorMessagePopover
                               message={doc.error_message}
                               documentId={doc.id}
@@ -1545,8 +1548,8 @@ export function DocumentManager() {
                             </TooltipProvider>
                           )}
                           
-                          {/* Retry button (for failed documents) */}
-                          {doc.status === 'failed' && (
+                          {/* Retry button (for failed/partial_failure documents) */}
+                          {(doc.status === 'failed' || doc.status === 'partial_failure') && (
                             <TooltipProvider delayDuration={300}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1588,7 +1591,7 @@ export function DocumentManager() {
                                   {t('documents.actions.viewPdf', 'View PDF')}
                                 </DropdownMenuItem>
                               )}
-                              {doc.status === 'failed' && (
+                              {(doc.status === 'failed' || doc.status === 'partial_failure') && (
                                 <DropdownMenuItem asChild>
                                   <div className="p-0">
                                     <ResetDocumentStatusButton document={doc} iconOnly={false} size="sm" />

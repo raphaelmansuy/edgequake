@@ -143,6 +143,7 @@
       "processing": "处理中",
       "completed": "已完成",
       "failed": "失败",
+      "partial_failure": "部分失败",
       "cancelled": "已取消"
     },
     "pagination": {

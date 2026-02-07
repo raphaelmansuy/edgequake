@@ -143,6 +143,7 @@
       "processing": "En cours",
       "completed": "Terminé",
       "failed": "Échoué",
+      "partial_failure": "Échec Partiel",
       "cancelled": "Annulé"
     },
     "pagination": {

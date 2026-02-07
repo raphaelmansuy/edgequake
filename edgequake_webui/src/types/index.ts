@@ -86,6 +86,7 @@ export interface Document {
     | "pending"
     | "processing"
     | "completed"
+    | "partial_failure"
     | "failed"
     | "indexed"
     | "cancelled";
@@ -194,6 +195,7 @@ export interface DocumentStatusCounts {
   pending: number;
   processing: number;
   completed: number;
+  partial_failure: number;
   failed: number;
   cancelled: number;
 }

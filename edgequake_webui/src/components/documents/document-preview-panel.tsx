@@ -21,10 +21,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { getDocument } from '@/lib/api/edgequake';
 import { categorizeError, getCategoryColor, type ErrorCategory } from '@/lib/error-categories';
@@ -32,29 +32,29 @@ import type { Document } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  AlertCircle,
-  Brain,
-  Calendar,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Copy,
-  Cpu,
-  Database,
-  DollarSign,
-  ExternalLink,
-  Eye,
-  FileText,
-  FileWarning,
-  HardDrive,
-  Loader2,
-  Network,
-  RefreshCw,
-  Trash2,
-  Wifi,
-  XCircle,
-  Zap,
+    AlertCircle,
+    Brain,
+    Calendar,
+    CheckCircle,
+    ChevronDown,
+    ChevronUp,
+    Clock,
+    Copy,
+    Cpu,
+    Database,
+    DollarSign,
+    ExternalLink,
+    Eye,
+    FileText,
+    FileWarning,
+    HardDrive,
+    Loader2,
+    Network,
+    RefreshCw,
+    Trash2,
+    Wifi,
+    XCircle,
+    Zap,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -66,6 +66,7 @@ const statusConfig = {
   completed: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', label: 'Completed' },
   indexed: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', label: 'Indexed' },
   failed: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', label: 'Failed' },
+  partial_failure: { icon: XCircle, color: 'text-orange-500', bg: 'bg-orange-500/10', label: 'Partial Failure' },
 } as const;
 
 type DocumentStatus = keyof typeof statusConfig;
@@ -199,7 +200,7 @@ export function DocumentPreviewPanel({
   const statusInfo = statusConfig[status] || statusConfig.completed;
   const StatusIcon = statusInfo.icon;
   const isProcessing = status === 'processing';
-  const isFailed = status === 'failed';
+  const isFailed = status === 'failed' || status === 'partial_failure';
 
   const contentPreview = fullDocument?.content || document?.content_summary || '';
   const previewLength = 500;
