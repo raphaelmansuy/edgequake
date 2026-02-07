@@ -688,6 +688,33 @@ fn normalize_bullet(text: &str) -> String {
         }
     }
 
+    // OODA-40: Normalize numbered list separators to standard "N. " form
+    // "2) text" → "2. text", "3: text" → "3. text"
+    {
+        let mut chars = trimmed.chars().peekable();
+        let mut digits = String::new();
+        while let Some(&c) = chars.peek() {
+            if c.is_ascii_digit() {
+                digits.push(c);
+                chars.next();
+            } else {
+                break;
+            }
+        }
+        if !digits.is_empty() {
+            match chars.next() {
+                Some(')') | Some(':') => {
+                    let rest_str: String = chars.collect();
+                    let rest_trimmed = rest_str.trim_start();
+                    if !rest_trimmed.is_empty() {
+                        return format!("{}. {}", digits, rest_trimmed);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     // Numbered list - keep as is
     text.to_string()
 }
@@ -818,6 +845,10 @@ mod tests {
         assert_eq!(normalize_bullet("(1) First item"), "1. First item");
         assert_eq!(normalize_bullet("(a) Sub-item"), "a. Sub-item");
         assert_eq!(normalize_bullet("(ii) Roman"), "ii. Roman");
+        // OODA-40: Numbered list separator normalization
+        assert_eq!(normalize_bullet("2) Second item"), "2. Second item");
+        assert_eq!(normalize_bullet("3: Third item"), "3. Third item");
+        assert_eq!(normalize_bullet("10) Tenth item"), "10. Tenth item");
     }
 
     #[test]
