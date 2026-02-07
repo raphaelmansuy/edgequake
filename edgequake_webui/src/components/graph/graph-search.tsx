@@ -109,8 +109,38 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
       },
     });
 
-    miniSearch.addAll(nodes);
-    return miniSearch;
+    // Deduplicate nodes by ID to prevent MiniSearch errors
+    // WHY: MiniSearch throws on duplicate IDs, backend may return duplicates
+    const uniqueNodes = new Map<string, GraphNode>();
+    const duplicates: string[] = [];
+    
+    nodes.forEach((node) => {
+      if (uniqueNodes.has(node.id)) {
+        duplicates.push(node.id);
+      } else {
+        uniqueNodes.set(node.id, node);
+      }
+    });
+
+    // Log warning if duplicates found (helps debugging)
+    if (duplicates.length > 0) {
+      console.warn(
+        `[GraphSearch] Found ${duplicates.length} duplicate node ID(s):`,
+        duplicates.slice(0, 5), // Show first 5
+        duplicates.length > 5 ? `... and ${duplicates.length - 5} more` : ''
+      );
+    }
+
+    try {
+      // Add unique nodes to search index
+      const uniqueNodesArray = Array.from(uniqueNodes.values());
+      miniSearch.addAll(uniqueNodesArray);
+      
+      return miniSearch;
+    } catch (error) {
+      console.error('[GraphSearch] Failed to initialize search index:', error);
+      return null;
+    }
   }, [nodes]);
 
   // Show searching state while debouncing
@@ -131,23 +161,34 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
     
     // If no query, show recent/popular nodes (first 8)
     if (!debouncedQuery.trim()) {
-      return nodes.slice(0, 8).map((node) => ({
-        id: node.id,
-        label: node.label || node.id,
-        entityType: node.node_type,
-        description: node.description,
-        score: 0,
-      }));
+      // Deduplicate nodes for display (same robustness as search index)
+      const uniqueDisplayNodes = new Map<string, GraphNode>();
+      nodes.forEach((node) => {
+        if (!uniqueDisplayNodes.has(node.id)) {
+          uniqueDisplayNodes.set(node.id, node);
+        }
+      });
+      
+      return Array.from(uniqueDisplayNodes.values())
+        .slice(0, 8)
+        .map((node) => ({
+          id: node.id,
+          label: node.label || node.id,
+          entityType: node.node_type,
+          description: node.description,
+          score: 0,
+        }));
     }
 
-    // Get MiniSearch results first
-    const miniSearchResults = searchEngine.search(debouncedQuery).slice(0, 10);
-    
-    // Convert to our SearchResult format
-    const searchResults: SearchResult[] = miniSearchResults.map((r) => ({
-      id: r.id,
-      label: r.label || r.id,
-      entityType: r.node_type,
+    try {
+      // Get MiniSearch results first
+      const miniSearchResults = searchEngine.search(debouncedQuery).slice(0, 10);
+      
+      // Convert to our SearchResult format
+      const searchResults: SearchResult[] = miniSearchResults.map((r) => ({
+        id: r.id,
+        label: r.label || r.id,
+        entityType: r.node_type,
       description: r.description,
       score: r.score,
     }));
@@ -176,6 +217,10 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
     }
     
     return searchResults;
+    } catch (error) {
+      console.error('[GraphSearch] Search failed:', error);
+      return [];
+    }
   }, [debouncedQuery, searchEngine, nodes]);
 
   // Handle node selection

@@ -199,6 +199,16 @@ pub struct ListDocumentsRequest {
 }
 
 /// Status counts for document filtering.
+///
+/// @implements FIX-5: Strict mode enforcement with partial_failure status
+///
+/// Document statuses:
+/// - `pending`: Queued for processing, not yet started
+/// - `processing`: Currently being processed
+/// - `completed`: Processing finished successfully with entities extracted
+/// - `partial_failure`: Processing completed but with issues (e.g., 0 entities extracted)
+/// - `failed`: Processing failed with an error
+/// - `cancelled`: Processing was cancelled by user
 #[derive(Debug, Clone, Serialize, Default, ToSchema)]
 pub struct StatusCounts {
     /// Number of pending documents.
@@ -207,6 +217,9 @@ pub struct StatusCounts {
     pub processing: usize,
     /// Number of completed documents.
     pub completed: usize,
+    /// Number of documents with partial failure (processed but 0 entities).
+    /// @implements FIX-5
+    pub partial_failure: usize,
     /// Number of failed documents.
     pub failed: usize,
     /// Number of cancelled documents.
@@ -1067,6 +1080,7 @@ mod tests {
                 pending: 0,
                 processing: 0,
                 completed: 1,
+                partial_failure: 0,
                 failed: 0,
                 cancelled: 0,
             },
@@ -1175,6 +1189,7 @@ mod tests {
                 pending: 0,
                 processing: 0,
                 completed: 1,
+                partial_failure: 0,
                 failed: 0,
                 cancelled: 0,
             },
