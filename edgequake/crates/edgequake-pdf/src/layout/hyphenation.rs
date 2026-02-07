@@ -59,6 +59,7 @@ pub fn resolve_hyphenation(lines: &[String]) -> Vec<String> {
 }
 
 /// OODA-36: Check if a line contains a URL pattern.
+/// OODA-46: Extended with DOI patterns and common academic URL domains.
 /// WHY: URLs with hyphens (e.g., "https://example-site.com/path-") should not
 /// be resolved across line breaks. The hyphen is part of the URL.
 fn contains_url(text: &str) -> bool {
@@ -68,6 +69,8 @@ fn contains_url(text: &str) -> bool {
         || text.contains("www.")
         || text.contains("doi.org")
         || text.contains("arxiv.org")
+        || text.contains("doi:")
+        || text.contains("10.") && text.contains('/')  // DOI pattern: 10.xxxx/yyyy
 }
 
 /// Try to resolve a hyphenated word break between two lines.
@@ -273,6 +276,23 @@ mod tests {
             vec![
                 "See https://example-".to_string(),
                 "site.com/path for details.".to_string()
+            ]
+        );
+    }
+
+    /// OODA-46: DOI patterns should not have hyphens resolved
+    #[test]
+    fn test_doi_hyphen_preserved() {
+        let lines = vec![
+            "doi: 10.1145/1234-".to_string(),
+            "5678.2024".to_string(),
+        ];
+        let resolved = resolve_hyphenation(&lines);
+        assert_eq!(
+            resolved,
+            vec![
+                "doi: 10.1145/1234-".to_string(),
+                "5678.2024".to_string()
             ]
         );
     }
