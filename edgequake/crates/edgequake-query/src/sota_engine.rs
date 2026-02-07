@@ -90,7 +90,7 @@ use crate::truncation::{balance_context, TruncationConfig};
 use crate::vector_filter::{filter_by_type, VectorType};
 
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
-use edgequake_llm::Reranker;
+use edgequake_llm::{BM25Reranker, Reranker};
 use edgequake_storage::traits::{GraphStorage, VectorStorage};
 
 /// Configuration for the SOTA query engine.
