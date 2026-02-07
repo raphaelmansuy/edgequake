@@ -294,11 +294,32 @@ pub fn is_bullet_item(text: &str) -> bool {
 
 /// Check if text starts with a numbered list item pattern.
 ///
-/// Patterns: "1. ", "2) ", "3: "
+/// Patterns: "1. ", "2) ", "3: ", "(1) ", "(a) "
 ///
 /// OODA-10: Excludes section header patterns (X.Y.) which look similar.
+/// OODA-37: Added parenthesized patterns "(1)", "(a)", "(i)".
 pub fn is_numbered_list_item(text: &str) -> bool {
     let trimmed = text.trim_start();
+
+    // OODA-37: Check for parenthesized list items: "(1) ", "(a) ", "(i) "
+    if trimmed.starts_with('(') {
+        if let Some(close_pos) = trimmed.find(')') {
+            if close_pos > 1 && close_pos < 6 {
+                let inner = &trimmed[1..close_pos];
+                let is_valid = inner.chars().all(|c| c.is_ascii_digit())
+                    || (inner.len() == 1 && inner.chars().all(|c| c.is_ascii_lowercase()))
+                    || inner.chars().all(|c| matches!(c, 'i' | 'v' | 'x'));
+                if is_valid {
+                    // Must have space or text after closing paren
+                    let after = &trimmed[close_pos + 1..];
+                    if after.starts_with(' ') || after.starts_with('\t') {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
     let mut chars = trimmed.chars().peekable();
 
     // Check for digit(s)
@@ -624,10 +645,16 @@ mod tests {
         assert!(is_numbered_list_item("1. First"));
         assert!(is_numbered_list_item("23) Item"));
         assert!(is_numbered_list_item("5: Something"));
+        // OODA-37: Parenthesized list items
+        assert!(is_numbered_list_item("(1) First item"));
+        assert!(is_numbered_list_item("(a) Sub-item"));
+        assert!(is_numbered_list_item("(ii) Roman numeral"));
 
         // Section headers should NOT match
         assert!(!is_numbered_list_item("2.1. Subsection"));
         assert!(!is_numbered_list_item("3.2 Architecture"));
+        // Parenthesized non-list
+        assert!(!is_numbered_list_item("(see above)"));
     }
 
     #[test]
