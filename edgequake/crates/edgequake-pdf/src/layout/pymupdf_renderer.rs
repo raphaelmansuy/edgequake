@@ -551,10 +551,79 @@ fn is_continuation(current_text: &str, next_block: &Block) -> bool {
     false
 }
 
+/// OODA-59: Split reference entries at [N] boundaries.
+/// WHY: PDF reference sections often produce continuous text blocks where
+/// multiple references are merged. The gold standard has each reference
+/// as its own paragraph. This function inserts blank lines before [N]
+/// patterns that start a new reference entry within a paragraph.
+fn split_reference_entries(text: &mut String) {
+    use std::fmt::Write;
+
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.len() < 3 {
+        return;
+    }
+
+    let mut result = String::with_capacity(text.len() + text.len() / 20);
+    let mut in_references = false;
+
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+
+        // Detect when we enter a references section
+        if !in_references {
+            // OODA-59: Robust reference header detection.
+            // WHY: Papers use varied formats: "**References**", "## **References**",
+            // "**7.** **References**", "REFERENCES". Strip markdown and check content.
+            let stripped = trimmed
+                .replace("**", "")
+                .replace("##", "")
+                .replace('#', "")
+                .trim()
+                .to_lowercase();
+            // Strip leading numbered prefix like "7. " or "7 "
+            let content = stripped
+                .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.')
+                .trim();
+            if content == "references" || content == "bibliography" {
+                in_references = true;
+            }
+        }
+
+        if in_references && i > 0 && is_reference_start(trimmed) {
+            // Check if previous line was NOT blank or a reference header
+            let prev = lines[i - 1].trim();
+            if !prev.is_empty() {
+                // Insert blank line before this reference entry
+                let _ = writeln!(result);
+            }
+        }
+
+        let _ = writeln!(result, "{}", line);
+    }
+
+    *text = result;
+}
+
+/// Check if a line starts a reference entry like "[1]", "[23]", etc.
+fn is_reference_start(trimmed: &str) -> bool {
+    if !trimmed.starts_with('[') {
+        return false;
+    }
+    // Match [N] where N is one or more digits
+    let rest = &trimmed[1..];
+    let num_end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(0);
+    if num_end == 0 {
+        return false;
+    }
+    rest[num_end..].starts_with(']')
+}
+
 /// OODA-21: Clean up rendered markdown output.
 /// - Trim trailing whitespace from each line
 /// - Collapse 3+ consecutive blank lines to 2 (one empty line)
 /// - OODA-52: Filter isolated CJK characters between ASCII text
+/// - OODA-59: Split reference entries at [N] boundaries
 /// - Trim trailing newlines from final output
 fn clean_markdown_output(output: &mut String) {
     // OODA-52: Remove isolated CJK characters that appear between ASCII text.
@@ -562,6 +631,13 @@ fn clean_markdown_output(output: &mut String) {
     // with English text (e.g., "graceful" → "g你ra的cef落ul") due to overlapping
     // text layers. Filter these by removing single CJK chars surrounded by ASCII.
     filter_isolated_cjk(output);
+
+    // OODA-59: Split reference entries at [N] boundaries.
+    // WHY: References like "[1] Author..." "[2] Author..." are often grouped
+    // into one block by the grouper, producing a single mega-paragraph.
+    // The gold standard separates each reference as its own paragraph.
+    // Inserting blank lines at [N] boundaries fixes ROA for reference sections.
+    split_reference_entries(output);
 
     // Trim trailing whitespace from each line and collapse excessive blank lines
     let lines: Vec<&str> = output.lines().collect();
