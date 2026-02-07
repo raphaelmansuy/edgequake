@@ -82,6 +82,8 @@ pub fn is_footnote(
 /// - Superscript numbers: "1 text", "¹text", "²text"
 /// - Symbols: "*text", "†text", "‡text"
 /// - Bracketed: "[1] text"
+/// - OODA-28: Multi-digit numbers: "12 text", "23. text"
+/// - OODA-28: Letter markers: "a text", "b) note"
 pub fn starts_with_footnote_marker(text: &str) -> bool {
     if text.is_empty() {
         return false;
@@ -102,7 +104,7 @@ pub fn starts_with_footnote_marker(text: &str) -> bool {
         return true;
     }
 
-    // Bracketed number: "[1]", "[2]"
+    // Bracketed number: "[1]", "[2]", "[12]"
     if first == '[' {
         let end = text.find(']');
         if let Some(pos) = end {
@@ -113,11 +115,36 @@ pub fn starts_with_footnote_marker(text: &str) -> bool {
         }
     }
 
-    // Simple digit followed by space or period: "1 ", "2."
+    // OODA-28: Digit(s) followed by space, period, or parenthesis: "1 ", "12.", "3)"
     if first.is_ascii_digit() {
-        let rest = &text[1..];
-        if rest.starts_with(' ') || rest.starts_with('.') || rest.starts_with(')') {
-            return true;
+        let mut chars = text.chars().skip(1);
+        // Consume additional digits for multi-digit markers
+        let mut next_ch = None;
+        for ch in chars.by_ref() {
+            if ch.is_ascii_digit() {
+                continue;
+            }
+            next_ch = Some(ch);
+            break;
+        }
+        if let Some(sep) = next_ch {
+            if matches!(sep, ' ' | '.' | ')') {
+                return true;
+            }
+        }
+    }
+
+    // OODA-28: Single lowercase letter followed by separator: "a ", "b)", "c."
+    if first.is_ascii_lowercase() && text.len() > 1 {
+        let second = text.chars().nth(1).unwrap_or(' ');
+        if matches!(second, ')' | '.' | ' ') {
+            // Only if the rest looks like footnote text (short prefix)
+            let prefix_end = if matches!(second, ')' | '.') { 2 } else { 1 };
+            let rest = text[prefix_end..].trim_start();
+            // Must have text after the marker (not just a letter at start of paragraph)
+            if !rest.is_empty() && rest.len() > 3 {
+                return true;
+            }
         }
     }
 
@@ -161,6 +188,12 @@ mod tests {
         assert!(starts_with_footnote_marker("[1] Source reference."));
         assert!(starts_with_footnote_marker("1 This is a footnote."));
         assert!(starts_with_footnote_marker("2. Second footnote."));
+        // OODA-28: Multi-digit markers
+        assert!(starts_with_footnote_marker("12 Multi-digit footnote."));
+        assert!(starts_with_footnote_marker("23. Another footnote."));
+        // OODA-28: Letter markers
+        assert!(starts_with_footnote_marker("a) Author affiliation info."));
+        assert!(starts_with_footnote_marker("b Equal contribution."));
 
         assert!(!starts_with_footnote_marker("Normal paragraph text."));
         assert!(!starts_with_footnote_marker("The experiment showed..."));
