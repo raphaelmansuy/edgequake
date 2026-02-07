@@ -5,7 +5,7 @@
 Your mission is to make `edgequake/crates/edgequake-pdf` **exceed pymupdf4llm** in PDF-to-Markdown conversion quality, as measured by unfalsifiable automated metrics against a diverse 22-document test corpus spanning academic papers, technical docs, manuals, presentations, and reference materials.
 
 
-Use First Principles thinking, and inspiration from pymupdf4llm's key algorithms, to design and implement improvements in Rust. Focus on preserving document intent, spatial reasoning, progressive enhancement, and fail-gracefully approaches.
+Use First Principles thinking, and inspiration from pymupdf4llm's key algorithms, to design and implement improvements in Rust. Focus on preserving document intent, spatial reasoning, progressive enhancement, and fail-gracefully approaches. You must reverse engineer zz-explore/pymupdf4llm files like `document_layout.py`, `multi_column.py`, and `pymupdf_rag.py` to understand their algorithms and exceed them in quality.
 
 FULLY Read this entire mission file at the start of EVERY OODA iteration to avoid alignment drift.
 
@@ -15,7 +15,7 @@ FULLY Read this entire mission file at the start of EVERY OODA iteration to avoi
 
 Failure to re-read causes alignment drift.
 
-Don't stop until you reach 50+ NEW OODA iterations (OODA-61 through OODA-110+) with significant quality improvements and all tests passing.
+Don't stop until you reach 70+ NEW OODA iterations (OODA-61 through OODA-110+) with significant quality improvements and all tests passing.
 
 ## Context
 
