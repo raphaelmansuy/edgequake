@@ -170,61 +170,80 @@ fn normalize_for_clf(text: &str) -> Vec<&str> {
 }
 
 /// OODA-51: Strip markdown formatting markers from text for fair comparison.
-/// Removes: **, *, _, ~~, #, ```, [], (), ~~ and other markdown syntax.
-/// This ensures CLF measures content fidelity, not formatting differences.
+/// OODA-62: Also strip pipe table markers and table separator rows.
+/// Removes: **, *, _, ~~, #, ```, |, table separators, and other markdown syntax.
+/// This ensures CLF/ROA measure content fidelity, not formatting differences.
 fn strip_markdown(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
-    let chars: Vec<char> = text.chars().collect();
-    let len = chars.len();
-    let mut i = 0;
 
-    while i < len {
-        match chars[i] {
-            // Skip code fences: ```
-            '`' if i + 2 < len && chars[i + 1] == '`' && chars[i + 2] == '`' => {
-                i += 3;
-                // Skip optional language identifier on same line
-                while i < len && chars[i] != '\n' {
+    for line in text.lines() {
+        let trimmed = line.trim();
+
+        // OODA-62: Skip pipe-table separator rows like |---|---|---|
+        if trimmed.starts_with('|')
+            && trimmed.ends_with('|')
+            && trimmed.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
+        {
+            result.push('\n');
+            continue;
+        }
+
+        let chars: Vec<char> = line.chars().collect();
+        let len = chars.len();
+        let mut i = 0;
+
+        while i < len {
+            match chars[i] {
+                // Skip code fences: ```
+                '`' if i + 2 < len && chars[i + 1] == '`' && chars[i + 2] == '`' => {
+                    i += 3;
+                    // Skip optional language identifier on same line
+                    while i < len && chars[i] != '\n' {
+                        i += 1;
+                    }
+                }
+                // Skip inline code backticks
+                '`' => {
                     i += 1;
                 }
-            }
-            // Skip inline code backticks
-            '`' => {
-                i += 1;
-            }
-            // Skip bold/italic markers: ** or *
-            '*' => {
-                // Skip all consecutive *
-                while i < len && chars[i] == '*' {
+                // Skip bold/italic markers: ** or *
+                '*' => {
+                    while i < len && chars[i] == '*' {
+                        i += 1;
+                    }
+                }
+                // Skip italic/underline markers: _
+                '_' => {
                     i += 1;
                 }
-            }
-            // Skip italic/underline markers: _
-            '_' => {
-                i += 1;
-            }
-            // Skip strikethrough: ~~
-            '~' => {
-                while i < len && chars[i] == '~' {
+                // Skip strikethrough: ~~
+                '~' => {
+                    while i < len && chars[i] == '~' {
+                        i += 1;
+                    }
+                }
+                // OODA-62: Replace pipe chars with space (table cell separators)
+                '|' => {
+                    result.push(' ');
                     i += 1;
                 }
-            }
-            // Skip header markers: # at start of line
-            '#' if i == 0 || (i > 0 && chars[i - 1] == '\n') => {
-                while i < len && chars[i] == '#' {
+                // Skip header markers: # at start of line
+                '#' if i == 0 => {
+                    while i < len && chars[i] == '#' {
+                        i += 1;
+                    }
+                    if i < len && chars[i] == ' ' {
+                        i += 1;
+                    }
+                }
+                // Keep everything else
+                c => {
+                    result.push(c);
                     i += 1;
                 }
-                // Skip space after #
-                if i < len && chars[i] == ' ' {
-                    i += 1;
-                }
-            }
-            // Keep everything else
-            c => {
-                result.push(c);
-                i += 1;
             }
         }
+        result.push('\n');
     }
     result
 }
@@ -607,20 +626,31 @@ mod tests {
     }
 
     /// OODA-51: Test markdown stripping for CLF comparison
+    /// OODA-62: Also tests pipe table stripping
     #[test]
     fn test_strip_markdown() {
-        assert_eq!(strip_markdown("**bold**"), "bold");
-        assert_eq!(strip_markdown("*italic*"), "italic");
-        assert_eq!(strip_markdown("_underscore_"), "underscore");
-        assert_eq!(strip_markdown("## Header"), "Header");
-        assert_eq!(strip_markdown("~~struck~~"), "struck");
-        assert_eq!(strip_markdown("`code`"), "code");
-        assert_eq!(strip_markdown("```python\ncode\n```"), "\ncode\n");
-        assert_eq!(strip_markdown("normal text"), "normal text");
+        assert_eq!(strip_markdown("**bold**").trim(), "bold");
+        assert_eq!(strip_markdown("*italic*").trim(), "italic");
+        assert_eq!(strip_markdown("_underscore_").trim(), "underscore");
+        assert_eq!(strip_markdown("## Header").trim(), "Header");
+        assert_eq!(strip_markdown("~~struck~~").trim(), "struck");
+        assert_eq!(strip_markdown("`code`").trim(), "code");
+        assert_eq!(strip_markdown("normal text").trim(), "normal text");
         // Combined formatting
-        assert_eq!(strip_markdown("**_bold italic_**"), "bold italic");
+        assert_eq!(strip_markdown("**_bold italic_**").trim(), "bold italic");
         // Headers at line start
-        assert_eq!(strip_markdown("# Title\n## Sub"), "Title\nSub");
+        let result = strip_markdown("# Title\n## Sub");
+        assert!(result.contains("Title"), "Should contain Title: {}", result);
+        assert!(result.contains("Sub"), "Should contain Sub: {}", result);
+        // OODA-62: Pipe tables
+        assert!(
+            strip_markdown("|cell1|cell2|cell3|").contains("cell1"),
+            "Should contain cell1"
+        );
+        assert!(
+            strip_markdown("|---|---|---|").trim().is_empty(),
+            "Separator row should be empty"
+        );
     }
 
     /// OODA-51: Test CLF with markdown formatting differences

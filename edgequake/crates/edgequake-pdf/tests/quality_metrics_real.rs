@@ -187,3 +187,108 @@ fn test_dump_extracted_output() {
     eprintln!("\nFiles written. Compare with:");
     eprintln!("  diff {} {}", extracted_out, gold_out);
 }
+
+/// Diagnostic test: dump all 3 worst-performing papers to /tmp for CLF gap analysis.
+///
+/// Run: `cargo test -p edgequake-pdf --test quality_metrics_real test_dump_worst_papers -- --nocapture`
+#[test]
+fn test_dump_worst_papers() {
+    let papers = [
+        "AlphaEvolve",
+        "one_tool_2512.20957v2",
+        "2900_Goyal_et_al",
+    ];
+
+    let pipeline = match edgequake_pdf::pipeline::PymupdfPipeline::new() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("SKIP: PymupdfPipeline not available: {}", e);
+            return;
+        }
+    };
+
+    let real_dir = test_data_dir().join("real_dataset");
+
+    for pdf_name in &papers {
+        let pdf_path = real_dir.join(format!("{}.pdf", pdf_name));
+        let gold_path = real_dir.join(format!("{}.pymupdf.gold.md", pdf_name));
+
+        if !pdf_path.exists() || !gold_path.exists() {
+            eprintln!("SKIP: {} (missing pdf or gold)", pdf_name);
+            continue;
+        }
+
+        let gold = fs::read_to_string(&gold_path).expect("read gold");
+        let extracted = pipeline.convert_file(&pdf_path).expect("convert PDF");
+
+        // Write to /tmp
+        let ext_out = format!("/tmp/edgequake_extracted_{}.md", pdf_name);
+        let gold_out_path = format!("/tmp/edgequake_gold_{}.md", pdf_name);
+        fs::write(&ext_out, &extracted).expect("write extracted");
+        fs::write(&gold_out_path, &gold).expect("write gold");
+
+        // Compute CLF
+        let clf = edgequake_pdf::layout::quality_metrics::character_level_fidelity(&extracted, &gold);
+
+        eprintln!("\n========== {} ==========", pdf_name);
+        eprintln!("CLF={:.3}  extracted={}ch  gold={}ch  diff={}ch",
+            clf, extracted.len(), gold.len(),
+            extracted.len() as i64 - gold.len() as i64);
+
+        // Word counts after stripping markdown
+        let ext_words: Vec<&str> = extracted.split_whitespace().collect();
+        let gold_words: Vec<&str> = gold.split_whitespace().collect();
+        eprintln!("Words: extracted={} gold={} diff={}",
+            ext_words.len(), gold_words.len(),
+            ext_words.len() as i64 - gold_words.len() as i64);
+
+        // Line counts
+        let ext_lines: Vec<&str> = extracted.lines().collect();
+        let gold_lines: Vec<&str> = gold.lines().collect();
+        eprintln!("Lines: extracted={} gold={}", ext_lines.len(), gold_lines.len());
+
+        // Count specific features in both
+        let count_feature = |text: &str, marker: &str| -> usize {
+            text.lines().filter(|l| l.contains(marker)).count()
+        };
+        eprintln!("--- Feature comparison ---");
+        for (label, marker) in &[
+            ("Headers (#)", "#"),
+            ("Bold (**)", "**"),
+            ("Table (|)", "|"),
+            ("Italic (_)", "_"),
+            ("Strikethrough (~~)", "~~"),
+            ("Code (`)", "`"),
+            ("Link ([)", "["),
+            ("Blockquote (>)", ">"),
+        ] {
+            let ec = count_feature(&extracted, marker);
+            let gc = count_feature(&gold, marker);
+            if ec != gc {
+                eprintln!("  {:25} ext={:4}  gold={:4}  gap={:+}", label, ec, gc, ec as i64 - gc as i64);
+            }
+        }
+
+        // Show first 30 words unique to extracted but not in gold (potential noise)
+        let gold_word_set: std::collections::HashSet<&str> = gold_words.iter().copied().collect();
+        let ext_only: Vec<&&str> = ext_words.iter().filter(|w| !gold_word_set.contains(**w)).collect();
+        eprintln!("Words in extracted but NOT in gold: {} ({:.1}% of extracted words)",
+            ext_only.len(), ext_only.len() as f64 / ext_words.len().max(1) as f64 * 100.0);
+        if !ext_only.is_empty() {
+            let sample: Vec<&str> = ext_only.iter().take(30).map(|w| **w).collect();
+            eprintln!("  Sample: {:?}", sample);
+        }
+
+        // Show first 30 words unique to gold but not in extracted (missing content)
+        let ext_word_set: std::collections::HashSet<&str> = ext_words.iter().copied().collect();
+        let gold_only: Vec<&&str> = gold_words.iter().filter(|w| !ext_word_set.contains(**w)).collect();
+        eprintln!("Words in gold but NOT in extracted: {} ({:.1}% of gold words)",
+            gold_only.len(), gold_only.len() as f64 / gold_words.len().max(1) as f64 * 100.0);
+        if !gold_only.is_empty() {
+            let sample: Vec<&str> = gold_only.iter().take(30).map(|w| **w).collect();
+            eprintln!("  Sample: {:?}", sample);
+        }
+
+        eprintln!("\nFiles: diff {} {}", ext_out, gold_out_path);
+    }
+}
