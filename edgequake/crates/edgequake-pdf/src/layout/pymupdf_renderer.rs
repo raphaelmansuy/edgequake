@@ -517,8 +517,15 @@ fn is_continuation(current_text: &str, next_block: &Block) -> bool {
 /// OODA-21: Clean up rendered markdown output.
 /// - Trim trailing whitespace from each line
 /// - Collapse 3+ consecutive blank lines to 2 (one empty line)
+/// - OODA-52: Filter isolated CJK characters between ASCII text
 /// - Trim trailing newlines from final output
 fn clean_markdown_output(output: &mut String) {
+    // OODA-52: Remove isolated CJK characters that appear between ASCII text.
+    // WHY: PDFs with figure overlays often produce CJK characters interspersed
+    // with English text (e.g., "graceful" → "g你ra的cef落ul") due to overlapping
+    // text layers. Filter these by removing single CJK chars surrounded by ASCII.
+    filter_isolated_cjk(output);
+
     // Trim trailing whitespace from each line and collapse excessive blank lines
     let lines: Vec<&str> = output.lines().collect();
     let mut cleaned = String::with_capacity(output.len());
@@ -543,6 +550,59 @@ fn clean_markdown_output(output: &mut String) {
     let trimmed_end = cleaned.trim_end_matches('\n');
     *output = trimmed_end.to_string();
     output.push('\n');
+}
+
+/// OODA-52: Remove isolated CJK characters from text.
+/// Targets single CJK chars (or short runs of 1-2) that appear between ASCII characters.
+/// WHY: PDF figure overlays produce garbage like "g你ra的cef落ul" from overlapping text layers.
+fn filter_isolated_cjk(text: &mut String) {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() < 3 {
+        return;
+    }
+
+    let mut result = String::with_capacity(text.len());
+    let mut i = 0;
+
+    while i < chars.len() {
+        if is_cjk_char(chars[i]) {
+            // Check if this is an isolated CJK char (surrounded by non-CJK on both sides)
+            let prev_is_ascii = i > 0 && !is_cjk_char(chars[i - 1]) && chars[i - 1] != '\n';
+            let mut cjk_run_end = i + 1;
+            while cjk_run_end < chars.len() && is_cjk_char(chars[cjk_run_end]) {
+                cjk_run_end += 1;
+            }
+            let cjk_run_len = cjk_run_end - i;
+            let next_is_ascii = cjk_run_end < chars.len()
+                && !is_cjk_char(chars[cjk_run_end])
+                && chars[cjk_run_end] != '\n';
+
+            // Only filter short CJK runs (1-2 chars) between ASCII text
+            if prev_is_ascii && next_is_ascii && cjk_run_len <= 2 {
+                // Skip the isolated CJK chars
+                i = cjk_run_end;
+                continue;
+            }
+        }
+        result.push(chars[i]);
+        i += 1;
+    }
+
+    *text = result;
+}
+
+/// Check if a character is in a CJK Unicode block.
+fn is_cjk_char(c: char) -> bool {
+    let cp = c as u32;
+    matches!(
+        cp,
+        0x4E00..=0x9FFF       // CJK Unified Ideographs
+        | 0x3400..=0x4DBF     // CJK Unified Ideographs Extension A
+        | 0x2E80..=0x2EFF     // CJK Radicals Supplement
+        | 0x2F00..=0x2FDF     // Kangxi Radicals
+        | 0x3000..=0x303F     // CJK Symbols and Punctuation
+        | 0xF900..=0xFAFF     // CJK Compatibility Ideographs
+    )
 }
 
 /// OODA-22: Detect programming language from code block content.
@@ -1156,6 +1216,31 @@ mod tests {
             "Should contain both sections: {}",
             md
         );
+    }
+
+    /// OODA-52: Test CJK filtering
+    #[test]
+    fn test_filter_isolated_cjk() {
+        // Isolated CJK between ASCII should be removed
+        let mut text = "g\u{4F60}ra\u{7684}cef\u{843D}ul".to_string();
+        filter_isolated_cjk(&mut text);
+        assert_eq!(text, "graceful", "Should remove isolated CJK chars: {}", text);
+
+        // Pure CJK text should be preserved
+        let mut chinese = "\u{4F60}\u{597D}\u{4E16}\u{754C}".to_string();
+        filter_isolated_cjk(&mut chinese);
+        assert_eq!(chinese, "\u{4F60}\u{597D}\u{4E16}\u{754C}", "Should preserve CJK runs");
+
+        // CJK at start/end of line should be preserved
+        let mut edge = "\u{4F60}hello".to_string();
+        filter_isolated_cjk(&mut edge);
+        // Single CJK at start with no prev ASCII -> preserved
+        assert!(edge.contains('\u{4F60}'), "CJK at start should be kept");
+
+        // Short text should not crash
+        let mut short = "ab".to_string();
+        filter_isolated_cjk(&mut short);
+        assert_eq!(short, "ab");
     }
 
     /// OODA-22: Test code language detection
