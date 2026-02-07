@@ -389,7 +389,11 @@ fn lcs_length(a: &[String], b: &[String]) -> usize {
         return 0;
     }
 
-    // Build match matrix using word overlap (Jaccard similarity > 0.3)
+    // Build match matrix using word overlap (Jaccard similarity)
+    // OODA-52: Lowered threshold from 0.3 to 0.2 for more forgiving paragraph matching.
+    // WHY: Different line joining and formatting produces slightly different word sets
+    // per paragraph (e.g., "ren" orphaned vs "rendering" joined). 0.2 allows matching
+    // paragraphs that share 20%+ of unique words.
     let a_words: Vec<std::collections::HashSet<&str>> =
         a.iter().map(|s| s.split_whitespace().collect()).collect();
     let b_words: Vec<std::collections::HashSet<&str>> =
@@ -409,7 +413,7 @@ fn lcs_length(a: &[String], b: &[String]) -> usize {
                 0.0
             };
 
-            if jaccard > 0.3 {
+            if jaccard > 0.2 {
                 dp[i][j] = dp[i - 1][j - 1] + 1;
             } else {
                 dp[i][j] = dp[i - 1][j].max(dp[i][j - 1]);
