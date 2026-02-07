@@ -34,6 +34,7 @@ pub mod page_filter;
 mod pymupdf_grouper;
 mod pymupdf_renderer;
 pub mod pymupdf_structs; // OODA-43: Made public for pdfium_backend imports
+pub mod quality_metrics; // OODA-47: Quality metrics (CLF, SPS, ROA, NR)
 mod reading_order;
 mod xy_cut;
 
