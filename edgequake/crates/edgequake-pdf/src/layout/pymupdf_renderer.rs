@@ -226,15 +226,16 @@ impl MarkdownRenderer {
         self.render_lines_inline(&block.lines)
     }
 
-    /// Render multiple lines joined with spaces (continuous text flow).
+    /// Render multiple lines joined with newlines (preserve soft breaks).
     /// OODA-05: Applies hyphenation resolution before joining.
-    /// OODA-12: Join with space instead of newline for natural text flow.
-    /// WHY: PDF line breaks within paragraphs are column-width artifacts,
-    /// not intentional formatting. Joining with spaces produces clean markdown.
+    /// OODA-55: Join with newline instead of space to preserve soft line breaks.
+    /// WHY: Gold standards (pymupdf4llm) preserve soft line breaks at column width.
+    /// Joining with spaces creates mega-lines (2000+ chars) that hurt readability
+    /// and ROA paragraph matching. Newlines preserve the natural column structure.
     fn render_lines_inline(&self, lines: &[Line]) -> String {
         let rendered: Vec<String> = lines.iter().map(|l| self.render_line_styled(l)).collect();
         let resolved = resolve_hyphenation(&rendered);
-        resolved.join(" ")
+        resolved.join("\n")
     }
 
     /// Render a line with style markers (bold, italic).
@@ -284,12 +285,6 @@ impl MarkdownRenderer {
                 let prev = &line.spans[i - 1];
                 let gap = span.x0 - prev.x1;
                 let avg_size = (prev.font_size + span.font_size) / 2.0;
-                // OODA-51: Lowered from 0.15 to 0.08 for justified academic text
-                // WHY: Justified text has micro-spaces (~0.5pt) that fall below 0.15 threshold
-                // causing run-together words like "timefor" instead of "time for".
-                // 0.08 = ~0.8pt for 10pt font, which catches most word spaces while
-                // avoiding false spaces within kerned letter pairs.
-                let space_threshold = avg_size * 0.08;
 
                 let starts_with_hyphen = span.text.starts_with('-')
                     || span.text.starts_with('–')
@@ -297,6 +292,31 @@ impl MarkdownRenderer {
                 let ends_with_hyphen = prev.text.ends_with('-')
                     || prev.text.ends_with('–')
                     || prev.text.ends_with('—');
+
+                // OODA-55: Context-aware space threshold.
+                // WHY: A fixed 0.08 threshold creates mid-word splits ("tem poral")
+                // because spans are often split by style changes (bold→regular) with
+                // small kerning gaps. Use a two-tier approach:
+                //
+                // 1. If previous span ends with a letter and current starts with a letter
+                //    (likely same word split by style change): use HIGHER threshold (0.18)
+                //    to avoid mid-word spaces.
+                //
+                // 2. Otherwise (one side is punctuation, digit, or empty): use lower
+                //    threshold (0.10) to catch most word boundaries.
+                //
+                // The can_append() threshold in pymupdf_structs.rs uses 0.22 for
+                // proportional fonts; any gap below 0.22 was NOT detected as a word
+                // boundary there. Using 0.18 means we only insert a space for truly
+                // large gaps when both sides are letters.
+                let prev_ends_alpha = prev.text.chars().last().map(|c| c.is_alphabetic()).unwrap_or(false);
+                let cur_starts_alpha = span.text.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false);
+
+                let space_threshold = if prev_ends_alpha && cur_starts_alpha {
+                    avg_size * 0.18 // Conservative: avoid mid-word splits
+                } else {
+                    avg_size * 0.10 // Permissive: catch word boundaries near punctuation
+                };
 
                 gap > space_threshold && !starts_with_hyphen && !ends_with_hyphen
             } else {
@@ -357,8 +377,15 @@ impl MarkdownRenderer {
                 let prev = &line.spans[i - 1];
                 let gap = span.x0 - prev.x1;
                 let avg_size = (prev.font_size + span.font_size) / 2.0;
-                // OODA-51: Lowered from 0.15 to 0.08 (see styled renderer comment)
-                let space_threshold = avg_size * 0.08;
+                // OODA-55: Context-aware space threshold (same as styled renderer)
+                let prev_ends_alpha = prev.text.chars().last().map(|c| c.is_alphabetic()).unwrap_or(false);
+                let cur_starts_alpha = span.text.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false);
+
+                let space_threshold = if prev_ends_alpha && cur_starts_alpha {
+                    avg_size * 0.18
+                } else {
+                    avg_size * 0.10
+                };
                 if gap > space_threshold {
                     result.push(' ');
                 }
