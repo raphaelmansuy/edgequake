@@ -586,3 +586,7 @@ cd edgequake_webui && npx playwright test e2e/<spec>.spec.ts
 ```
 
 See: [playwright-ux-ui-capture SKILL](.github/skills/playwright-ux-ui-capture/SKILL.md)
+
+
+
+Use SRP and DRY principles when developing new features or fixing bugs. For example, if you find yourself copying and pasting code, consider refactoring it into a reusable function or module. This not only reduces code duplication but also makes maintenance easier in the long run. Always aim for clean, modular code that adheres to the project's coding standards and conventions.

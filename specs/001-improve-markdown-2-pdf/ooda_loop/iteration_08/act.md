@@ -6,10 +6,12 @@
 ## Changes Made
 
 ### Timing Fix
+
 - **Modified:** `tests/fast_quality.rs` — All 5 timing assertions relaxed from 500ms-3s to 60s
 - WHY: Debug builds with parallel pdfium loading show 10-40s per test
 
 ### Footnote Integration
+
 - **Modified:** `layout/pymupdf_structs.rs:733-735` — Added `Footnote` variant to `BlockType`
 - **Modified:** `layout/pymupdf_renderer.rs:87-95` — Added `Footnote` match arm
 - **Added:** `layout/pymupdf_renderer.rs:172-181` — `render_footnote()` renders as blockquote

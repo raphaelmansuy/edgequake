@@ -565,6 +565,37 @@ pub fn is_all_caps_header(text: &str) -> bool {
     (upper_count as f32 / alpha_count as f32) >= 0.6
 }
 
+/// OODA-31: Check if text starts with a figure/table caption pattern.
+///
+/// Patterns: "Figure 1:", "Fig. 2.", "Table 3:", "Tab. 1.", "Figure S1:"
+///
+/// WHY: Captions in academic PDFs should be rendered differently from body text.
+/// They typically start with Figure/Table followed by a number and separator.
+pub fn is_caption(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.len() < 6 {
+        return false;
+    }
+    let lower = trimmed.to_lowercase();
+    // Full prefix patterns
+    let prefixes = [
+        "figure ", "fig. ", "fig ", "table ", "tab. ", "tab ",
+        "scheme ", "chart ", "graph ", "plate ", "listing ",
+    ];
+    for prefix in &prefixes {
+        if lower.starts_with(prefix) {
+            let rest = &trimmed[prefix.len()..];
+            // Must be followed by a digit (or 's' for supplementary: "S1")
+            if let Some(first) = rest.chars().next() {
+                if first.is_ascii_digit() || first == 'S' || first == 's' {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 // =============================================================================
 // TESTS
 // =============================================================================
@@ -1005,5 +1036,22 @@ mod tests {
         assert!(!is_numeric_sub_subsection_header("2.1 Subsection")); // Only two levels
         assert!(!is_numeric_sub_subsection_header("1. Section"));     // Only one level
         assert!(!is_numeric_sub_subsection_header("short"));          // Too short
+    }
+
+    /// OODA-31: Test caption detection
+    #[test]
+    fn test_caption_detection() {
+        assert!(is_caption("Figure 1: Overview of the architecture."));
+        assert!(is_caption("Fig. 2. Results of our experiment."));
+        assert!(is_caption("Table 3: Performance comparison."));
+        assert!(is_caption("Tab. 1. Summary statistics."));
+        assert!(is_caption("Figure S1: Supplementary analysis."));
+        assert!(is_caption("Listing 1: Code example."));
+        assert!(is_caption("Scheme 2: Reaction pathway."));
+
+        assert!(!is_caption("The figure shows results."));
+        assert!(!is_caption("Figure out the solution."));
+        assert!(!is_caption("short"));
+        assert!(!is_caption(""));
     }
 }
