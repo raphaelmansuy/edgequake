@@ -2360,7 +2360,7 @@ pub async fn delete_all_documents(
 
         // Get document status and metadata to check if safe to delete
         let (status, updated_at_opt, stage_progress_opt) =
-            if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
+            if let Ok(Some(metadata)) = state.kv_storage.get_by_id(metadata_key).await {
                 let status = metadata
                     .get("status")
                     .and_then(|v| v.as_str())
