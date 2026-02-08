@@ -1,0 +1,316 @@
+- generic [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Pipeline" [ref=e43] [cursor=pointer]:
+            - /url: /pipeline
+            - img [ref=e44]
+            - generic [ref=e46]: Pipeline
+          - link "Query" [ref=e47] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e48]
+            - generic [ref=e50]: Query
+          - link "Workspace" [ref=e51] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e52]
+            - generic [ref=e54]: Workspace
+          - link "Costs" [ref=e55] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e56]
+            - generic [ref=e58]: Costs
+          - link "API Explorer" [ref=e59] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e60]
+            - generic [ref=e62]: API Explorer
+          - link "Settings" [ref=e63] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e64]
+            - generic [ref=e67]: Settings
+        - generic [ref=e68]:
+          - button "Collapse sidebar" [ref=e69]:
+            - img
+            - generic [ref=e70]: Collapse
+          - generic [ref=e71]:
+            - img [ref=e73]
+            - generic [ref=e78]:
+              - generic [ref=e79]: EdgeQuake
+              - generic [ref=e80]: v0.1.0
+    - generic [ref=e81]:
+      - banner [ref=e82]:
+        - button "TenantA / Default Workspace" [ref=e85]:
+          - img
+          - generic [ref=e86]: TenantA / Default Workspace
+          - img
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - img [ref=e89]
+            - generic [ref=e91]: v0.1.0
+          - button "Change language" [ref=e92]:
+            - img
+            - generic [ref=e93]: Change language
+          - button "Toggle theme" [ref=e94]:
+            - img
+            - generic [ref=e95]: Toggle theme
+          - button "User menu" [ref=e96]:
+            - img
+            - generic [ref=e97]: User menu
+      - navigation "breadcrumb" [ref=e99]:
+        - list [ref=e100]:
+          - listitem [ref=e101]:
+            - link "EdgeQuake" [ref=e102] [cursor=pointer]:
+              - /url: /
+              - img [ref=e103]
+              - generic [ref=e106]: EdgeQuake
+          - listitem [ref=e107]:
+            - img [ref=e108]
+          - listitem [ref=e110]:
+            - link "Documents" [disabled] [ref=e111]:
+              - img [ref=e112]
+              - generic [ref=e115]: Documents
+      - main [ref=e116]:
+        - generic [ref=e117]:
+          - generic [ref=e118]:
+            - generic [ref=e119]:
+              - generic [ref=e120]:
+                - generic [ref=e121]:
+                  - generic [ref=e122]:
+                    - heading "Documents" [level=1] [ref=e123]
+                    - generic [ref=e203]: "5"
+                  - paragraph [ref=e127]: Upload and manage documents for knowledge graph extraction
+                - generic [ref=e128]:
+                  - button "Pipeline Busy" [ref=e338]:
+                    - img
+                    - text: Pipeline Busy
+                  - button "Refresh" [ref=e129]:
+                    - img
+                    - text: Refresh
+                  - button "Clear All" [ref=e204]:
+                    - img
+                    - text: Clear All
+              - generic [ref=e130]:
+                - generic [ref=e131]:
+                  - img [ref=e132]
+                  - textbox "Search documents..." [ref=e135]
+                - generic [ref=e136]:
+                  - combobox [ref=e137]:
+                    - generic: All Status (5)
+                    - img
+                  - generic [ref=e139]:
+                    - generic [ref=e140]: "Sort by:"
+                    - button "Created" [ref=e141]
+                    - button "Updated" [ref=e142]:
+                      - text: Updated
+                      - img
+              - 'button "Processing 1 document(s) lighrag_2410.05779v3.pdf: Converting PDF to Markdown: page 16/16 (100%) 2 done Click for details →" [ref=e339] [cursor=pointer]':
+                - generic [ref=e340]:
+                  - img [ref=e341]
+                  - generic [ref=e343]:
+                    - paragraph [ref=e344]: Processing 1 document(s)
+                    - paragraph [ref=e346]: "lighrag_2410.05779v3.pdf: Converting PDF to Markdown: page 16/16 (100%)"
+                  - generic [ref=e347]:
+                    - generic [ref=e348]:
+                      - img [ref=e349]
+                      - text: 2 done
+                    - generic [ref=e352]: Click for details →
+              - generic [active] [ref=e143] [cursor=pointer]:
+                - button "Choose File" [ref=e144]
+                - img [ref=e146]
+                - paragraph [ref=e150]: Drag & drop or click to upload • TXT, MD, JSON, PDF (max 10MB)
+            - generic [ref=e152]:
+              - generic [ref=e153]:
+                - img [ref=e154]
+                - generic [ref=e157]: Documents (5)
+              - table [ref=e206]:
+                - rowgroup [ref=e207]:
+                  - row "Select all Title Status Entities Cost Created" [ref=e208]:
+                    - columnheader "Select all" [ref=e209]:
+                      - checkbox "Select all" [ref=e210]
+                    - columnheader "Title" [ref=e211]
+                    - columnheader "Status" [ref=e212]
+                    - columnheader "Entities" [ref=e213]
+                    - columnheader "Cost" [ref=e214]
+                    - columnheader "Created" [ref=e215]
+                    - columnheader [ref=e216]
+                - rowgroup [ref=e217]:
+                  - 'row "Select lighrag_2410.05779v3.pdf Converting PDF Converting PDF to Markdown: page 16/16 (100%) 0 - NEW less than a minute ago" [ref=e372] [cursor=pointer]':
+                    - cell "Select" [ref=e373]:
+                      - checkbox "Select" [ref=e374]
+                    - cell "lighrag_2410.05779v3.pdf" [ref=e375]:
+                      - generic [ref=e377]:
+                        - img [ref=e378]
+                        - generic [ref=e381]: lighrag_2410.05779v3.pdf
+                    - 'cell "Converting PDF Converting PDF to Markdown: page 16/16 (100%)" [ref=e382]':
+                      - generic [ref=e383]:
+                        - generic [ref=e384]:
+                          - img
+                          - text: Converting PDF
+                        - generic [ref=e385]: "Converting PDF to Markdown: page 16/16 (100%)"
+                    - cell "0" [ref=e386]
+                    - cell "-" [ref=e387]
+                    - cell "NEW less than a minute ago" [ref=e388]:
+                      - generic [ref=e389]:
+                        - generic [ref=e390]: NEW
+                        - generic [ref=e391]: less than a minute ago
+                    - cell [ref=e392]:
+                      - generic [ref=e393]:
+                        - button [ref=e394]:
+                          - img
+                        - button [ref=e395]:
+                          - img
+                        - button [ref=e396]:
+                          - img
+                  - row "Select 001-BEYONG-TRANFORMER-OUTLINE-V1_0.docx.md Completed 66 0.0035 NEW 5 minutes ago" [ref=e332] [cursor=pointer]:
+                    - cell "Select" [ref=e219]:
+                      - checkbox "Select" [ref=e220]
+                    - cell "001-BEYONG-TRANFORMER-OUTLINE-V1_0.docx.md" [ref=e221]:
+                      - generic [ref=e223]:
+                        - img [ref=e224]
+                        - generic [ref=e229]: 001-BEYONG-TRANFORMER-OUTLINE-V1_0.docx.md
+                    - cell "Completed" [ref=e230]:
+                      - generic [ref=e232]:
+                        - img
+                        - text: Completed
+                    - cell "66" [ref=e233]
+                    - cell "0.0035" [ref=e234]:
+                      - generic [ref=e235]:
+                        - img
+                        - generic [ref=e236]: "0.0035"
+                    - cell "NEW 5 minutes ago" [ref=e333]:
+                      - generic [ref=e238]:
+                        - generic [ref=e239]: NEW
+                        - generic [ref=e240]: 5 minutes ago
+                    - cell [ref=e241]:
+                      - generic [ref=e242]:
+                        - button [ref=e243]:
+                          - img
+                        - button [ref=e244]:
+                          - img
+                        - button [ref=e245]:
+                          - img
+                        - button [ref=e246]:
+                          - img
+                  - row "Select test_entities.txt Completed 3 - NEW about 1 hour ago" [ref=e397] [cursor=pointer]:
+                    - cell "Select" [ref=e248]:
+                      - checkbox "Select" [ref=e249]
+                    - cell "test_entities.txt" [ref=e250]:
+                      - generic [ref=e252]:
+                        - img [ref=e253]
+                        - generic [ref=e256]: test_entities.txt
+                    - cell "Completed" [ref=e257]:
+                      - generic [ref=e259]:
+                        - img
+                        - text: Completed
+                    - cell "3" [ref=e260]
+                    - cell "-" [ref=e261]
+                    - cell "NEW about 1 hour ago" [ref=e398]:
+                      - generic [ref=e263]:
+                        - generic [ref=e264]: NEW
+                        - generic [ref=e265]: about 1 hour ago
+                    - cell [ref=e266]:
+                      - generic [ref=e267]:
+                        - button [ref=e268]:
+                          - img
+                        - button [ref=e269]:
+                          - img
+                        - button [ref=e270]:
+                          - img
+                        - button [ref=e271]:
+                          - img
+                  - row "Select test_tenantA.txt Completed 1 - NEW about 1 hour ago" [ref=e272] [cursor=pointer]:
+                    - cell "Select" [ref=e273]:
+                      - checkbox "Select" [ref=e274]
+                    - cell "test_tenantA.txt" [ref=e275]:
+                      - generic [ref=e277]:
+                        - img [ref=e278]
+                        - generic [ref=e281]: test_tenantA.txt
+                    - cell "Completed" [ref=e282]:
+                      - generic [ref=e284]:
+                        - img
+                        - text: Completed
+                    - cell "1" [ref=e285]
+                    - cell "-" [ref=e286]
+                    - cell "NEW about 1 hour ago" [ref=e287]:
+                      - generic [ref=e288]:
+                        - generic [ref=e289]: NEW
+                        - generic [ref=e290]: about 1 hour ago
+                    - cell [ref=e291]:
+                      - generic [ref=e292]:
+                        - button [ref=e293]:
+                          - img
+                        - button [ref=e294]:
+                          - img
+                        - button [ref=e295]:
+                          - img
+                        - button [ref=e296]:
+                          - img
+                  - row "Select Invoice-VRIPSKPR-0001.pdf Completed 13 0.00047 about 1 hour ago" [ref=e336] [cursor=pointer]:
+                    - cell "Select" [ref=e298]:
+                      - checkbox "Select" [ref=e299]
+                    - cell "Invoice-VRIPSKPR-0001.pdf" [ref=e300]:
+                      - generic [ref=e302]:
+                        - img [ref=e303]
+                        - generic [ref=e306]: Invoice-VRIPSKPR-0001.pdf
+                    - cell "Completed" [ref=e307]:
+                      - generic [ref=e309]:
+                        - img
+                        - text: Completed
+                    - cell "13" [ref=e310]
+                    - cell "0.00047" [ref=e311]:
+                      - generic [ref=e312]:
+                        - img
+                        - generic [ref=e313]: "0.00047"
+                    - cell "about 1 hour ago" [ref=e337]:
+                      - generic [ref=e317]: about 1 hour ago
+                    - cell [ref=e318]:
+                      - generic [ref=e319]:
+                        - button [ref=e320]:
+                          - img
+                        - button [ref=e321]:
+                          - img
+                        - button [ref=e322]:
+                          - img
+                        - button [ref=e323]:
+                          - img
+            - generic [ref=e325]:
+              - generic [ref=e326]:
+                - generic [ref=e327]: "Rows per page:"
+                - combobox [ref=e328]:
+                  - generic: "20"
+                  - img
+              - generic [ref=e329]:
+                - generic [ref=e330]: Page 1 of 1
+                - generic [ref=e331]:
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+          - button "Expand Preview" [ref=e199] [cursor=pointer]:
+            - img [ref=e200]
+            - generic [ref=e202]: Preview
+  - region "Notifications alt+T"

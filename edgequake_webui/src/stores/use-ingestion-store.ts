@@ -26,6 +26,8 @@
 
 import type { CostUpdateEvent } from "@/types/cost";
 import type {
+  ChunkFailureEvent,
+  ChunkProgressEvent,
   IngestionCompletedEvent,
   IngestionError,
   IngestionFailedEvent,
@@ -33,6 +35,7 @@ import type {
   IngestionResult,
   IngestionStage,
   IngestionStartedEvent,
+  PdfPageProgressEvent,
   StageCompletedEvent,
   StageProgress,
   StageProgressEvent,
@@ -381,6 +384,159 @@ function formatStageResult(result: {
   return parts.join(", ");
 }
 
+/**
+ * Handle PDF page progress event.
+ * 
+ * @implements OODA-06: PDF page-by-page progress tracking
+ * 
+ * WHY: Large PDFs (30+ pages) take significant time. This provides
+ * page-level granularity so users see continuous progress during
+ * PDF→Markdown conversion phase.
+ */
+function handlePdfPageProgress(
+  state: IngestionState,
+  event: PdfPageProgressEvent
+): Map<string, IngestionProgress> {
+  const tracks = new Map(state.tracks);
+  const track = tracks.get(event.data.task_id);
+
+  if (track) {
+    track.updated_at = new Date().toISOString();
+
+    // Initialize or update PDF progress
+    track.progress.pdf_progress = {
+      current_page: event.data.current_page,
+      total_pages: event.data.total_pages,
+      progress: Math.round(event.data.progress * 100),
+      phase: "extraction",
+    };
+
+    // Update latest message with page info
+    if (event.data.current_page > 0) {
+      track.progress.latest_message = `Converting PDF to Markdown: page ${event.data.current_page}/${event.data.total_pages} (${Math.round(event.data.progress * 100)}%)`;
+    } else {
+      track.progress.latest_message = `Starting PDF extraction (${event.data.total_pages} pages)...`;
+    }
+
+    // Update converting stage if it exists
+    const convertingStageIndex = track.progress.stages.findIndex(
+      (s) => s.stage === "converting"
+    );
+    if (convertingStageIndex >= 0) {
+      track.progress.stages[convertingStageIndex].progress = Math.round(
+        event.data.progress * 100
+      );
+      track.progress.stages[convertingStageIndex].completed_items =
+        event.data.current_page;
+      track.progress.stages[convertingStageIndex].total_items =
+        event.data.total_pages;
+    }
+
+    // Recalculate overall progress
+    track.overall_progress = calculateOverallProgress(track.progress.stages);
+  }
+
+  return tracks;
+}
+
+/**
+ * Handle chunk extraction progress event.
+ * 
+ * @implements SPEC-001/Objective-A: Chunk-Level Progress Visibility
+ * 
+ * WHY: Entity extraction processes chunks in parallel. This provides
+ * chunk-level granularity showing real-time progress through the
+ * map-reduce extraction phase.
+ */
+function handleChunkProgress(
+  state: IngestionState,
+  event: ChunkProgressEvent
+): Map<string, IngestionProgress> {
+  const tracks = new Map(state.tracks);
+  const track = tracks.get(event.data.task_id);
+
+  if (track) {
+    track.updated_at = new Date().toISOString();
+
+    // Calculate chunk progress percentage
+    const progress =
+      event.data.total_chunks > 0
+        ? Math.round(
+            ((event.data.chunk_index + 1) / event.data.total_chunks) * 100
+          )
+        : 0;
+
+    // Initialize or update chunk progress
+    track.progress.chunk_progress = {
+      current_chunk: event.data.chunk_index + 1, // Convert to 1-indexed
+      total_chunks: event.data.total_chunks,
+      progress,
+      current_chunk_preview: event.data.chunk_preview,
+      eta_seconds: event.data.eta_seconds,
+      cumulative_cost: event.data.cost_usd,
+      failed_chunks: track.progress.chunk_progress?.failed_chunks ?? 0,
+    };
+
+    // Update latest message with chunk info
+    const etaMsg = event.data.eta_seconds
+      ? ` (ETA: ${Math.round(event.data.eta_seconds)}s)`
+      : "";
+    track.progress.latest_message = `Extracting entities: chunk ${event.data.chunk_index + 1}/${event.data.total_chunks}${etaMsg}`;
+
+    // Update extracting stage progress
+    const extractingStageIndex = track.progress.stages.findIndex(
+      (s) => s.stage === "extracting"
+    );
+    if (extractingStageIndex >= 0) {
+      track.progress.stages[extractingStageIndex].progress = progress;
+      track.progress.stages[extractingStageIndex].completed_items =
+        event.data.chunk_index + 1;
+      track.progress.stages[extractingStageIndex].total_items =
+        event.data.total_chunks;
+    }
+
+    // Recalculate overall progress
+    track.overall_progress = calculateOverallProgress(track.progress.stages);
+  }
+
+  return tracks;
+}
+
+/**
+ * Handle chunk extraction failure event.
+ * 
+ * @implements SPEC-003: Chunk-level resilience with failure visibility
+ * 
+ * WHY: When using resilient processing, some chunks may fail while
+ * others succeed. This tracks failed chunks for UI display and debugging.
+ */
+function handleChunkFailure(
+  state: IngestionState,
+  event: ChunkFailureEvent
+): Map<string, IngestionProgress> {
+  const tracks = new Map(state.tracks);
+  const track = tracks.get(event.data.task_id);
+
+  if (track && track.progress.chunk_progress) {
+    track.updated_at = new Date().toISOString();
+
+    // Increment failed chunks counter
+    track.progress.chunk_progress.failed_chunks += 1;
+
+    // Update latest message with failure info
+    const timeoutMsg = event.data.was_timeout ? " (timeout)" : "";
+    track.progress.latest_message = `Chunk ${event.data.chunk_index + 1} failed${timeoutMsg}: ${event.data.error_message}`;
+
+    // Log warning for debugging
+    console.warn(
+      `[IngestionStore] Chunk ${event.data.chunk_index + 1}/${event.data.total_chunks} failed for ${track.document_name}:`,
+      event.data.error_message
+    );
+  }
+
+  return tracks;
+}
+
 // ============================================================================
 // Store Definition
 // ============================================================================
@@ -478,6 +634,30 @@ export const useIngestionStore = create<IngestionStore>()(
               }
               return { tracks };
             }
+
+            case "PdfPageProgress":
+              return {
+                tracks: handlePdfPageProgress(
+                  state,
+                  message as PdfPageProgressEvent
+                ),
+              };
+
+            case "ChunkProgress":
+              return {
+                tracks: handleChunkProgress(
+                  state,
+                  message as ChunkProgressEvent
+                ),
+              };
+
+            case "ChunkFailure":
+              return {
+                tracks: handleChunkFailure(
+                  state,
+                  message as ChunkFailureEvent
+                ),
+              };
 
             default:
               return state;

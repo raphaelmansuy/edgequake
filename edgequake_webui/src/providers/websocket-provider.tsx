@@ -118,6 +118,14 @@ export function WebSocketProvider({
       handleMessage(message as WebSocketProgressMessage);
     });
 
+    const unsubPdfProgress = client.on('pdf_progress', (message) => {
+      handleMessage(message as WebSocketProgressMessage);
+    });
+
+    const unsubStatusSnapshot = client.on('status_snapshot', (message) => {
+      handleMessage(message as WebSocketProgressMessage);
+    });
+
     // Auto-connect if enabled
     if (autoConnect) {
       client.connect();
@@ -130,6 +138,8 @@ export function WebSocketProvider({
       unsubReconnecting();
       unsubMaxReconnects();
       unsubProgress();
+      unsubPdfProgress();
+      unsubStatusSnapshot();
     };
   }, [enabled, autoConnect, handleMessage, setWsConnected, setWsReconnecting]);
 
