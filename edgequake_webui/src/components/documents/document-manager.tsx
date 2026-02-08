@@ -1149,7 +1149,6 @@ export function DocumentManager() {
           )}
         </div>
       </div>
-      </div>
 
       {/* Bulk Actions Bar - Fixed below dropzone */}
       {selectedIds.size > 0 && (

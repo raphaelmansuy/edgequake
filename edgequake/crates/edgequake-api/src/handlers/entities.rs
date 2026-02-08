@@ -45,6 +45,7 @@ use edgequake_storage::GraphNode;
 use std::collections::HashMap;
 
 use crate::error::{ApiError, ApiResult};
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 // Re-export DTOs from entities_types module
@@ -53,6 +54,64 @@ pub use crate::handlers::entities_types::*;
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/// Filter nodes by tenant context.
+///
+/// # Implements
+///
+/// - **BR0201**: Tenant isolation
+///
+/// # WHY: Strict Multi-tenant Data Isolation
+///
+/// For proper multi-tenancy, nodes are filtered as follows:
+/// 1. If tenant context is set, ONLY return nodes that have matching tenant_id
+/// 2. Nodes without tenant_id property are EXCLUDED when tenant context is set
+/// 3. This prevents data leakage between tenants
+fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) -> Vec<GraphNode> {
+    // If no tenant context is set, return all nodes (admin/system view)
+    if ctx.tenant_id.is_none() && ctx.workspace_id.is_none() {
+        return nodes;
+    }
+
+    nodes
+        .into_iter()
+        .filter(|node| {
+            // Check tenant_id - strict matching required
+            if let Some(ref ctx_tenant_id) = ctx.tenant_id {
+                match node.properties.get("tenant_id").and_then(|v| v.as_str()) {
+                    Some(node_tenant_id) => {
+                        // Node has tenant_id - must match exactly
+                        if node_tenant_id != ctx_tenant_id {
+                            return false;
+                        }
+                    }
+                    None => {
+                        // Node has no tenant_id - EXCLUDE (strict multi-tenancy)
+                        return false;
+                    }
+                }
+            }
+
+            // Check workspace_id - strict matching required
+            if let Some(ref ctx_workspace_id) = ctx.workspace_id {
+                match node.properties.get("workspace_id").and_then(|v| v.as_str()) {
+                    Some(node_workspace_id) => {
+                        // Node has workspace_id - must match exactly
+                        if node_workspace_id != ctx_workspace_id {
+                            return false;
+                        }
+                    }
+                    None => {
+                        // Node has no workspace_id - EXCLUDE (strict multi-tenancy)
+                        return false;
+                    }
+                }
+            }
+
+            true
+        })
+        .collect()
+}
 
 /// Normalize entity name to UPPERCASE with underscores.
 ///
@@ -114,6 +173,10 @@ fn node_to_entity_response(node: GraphNode, degree: usize) -> EntityResponse {
 // ============================================================================
 
 /// List entities with pagination and filtering.
+///
+/// # Implements
+///
+/// - **BR0201**: Tenant isolation (entities filtered by tenant/workspace context)
 #[utoipa::path(
     get,
     path = "/api/v1/graph/entities",
@@ -130,6 +193,7 @@ fn node_to_entity_response(node: GraphNode, degree: usize) -> EntityResponse {
 )]
 pub async fn list_entities(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Query(query): Query<ListEntitiesQuery>,
 ) -> ApiResult<Json<ListEntitiesResponse>> {
     // Clamp page_size to range [1, 100]
@@ -143,8 +207,12 @@ pub async fn list_entities(
     // would push these filters down to the storage layer.
     let all_nodes = state.graph_storage.get_all_nodes().await?;
 
-    // Apply filters
-    let mut filtered_nodes: Vec<_> = all_nodes
+    // WHY: Apply tenant isolation first to ensure multi-tenancy is respected
+    // This filters out nodes belonging to other tenants/workspaces
+    let tenant_filtered_nodes = filter_nodes_by_tenant_context(all_nodes, &tenant_ctx);
+
+    // Apply additional filters (entity_type, search)
+    let mut filtered_nodes: Vec<_> = tenant_filtered_nodes
         .into_iter()
         .filter(|node| {
             // Filter by entity_type if specified
@@ -209,6 +277,10 @@ pub async fn list_entities(
 }
 
 /// Create a new entity.
+///
+/// # Implements
+///
+/// - **BR0201**: Tenant isolation (entity created with tenant/workspace context)
 #[utoipa::path(
     post,
     path = "/api/v1/graph/entities",
@@ -221,6 +293,7 @@ pub async fn list_entities(
 )]
 pub async fn create_entity(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Json(req): Json<CreateEntityRequest>,
 ) -> ApiResult<Json<CreateEntityResponse>> {
     let entity_name = normalize_entity_name(&req.entity_name);
@@ -243,6 +316,14 @@ pub async fn create_entity(
     properties.insert("updated_at".to_string(), now.clone().into());
     properties.insert("is_manual".to_string(), true.into());
     properties.insert("metadata".to_string(), req.metadata.clone());
+
+    // WHY: Add tenant context to isolate entity to the current tenant/workspace
+    if let Some(ref tenant_id) = tenant_ctx.tenant_id {
+        properties.insert("tenant_id".to_string(), tenant_id.clone().into());
+    }
+    if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        properties.insert("workspace_id".to_string(), workspace_id.clone().into());
+    }
 
     // Create node using upsert_node
     state
