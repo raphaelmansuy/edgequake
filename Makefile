@@ -374,16 +374,20 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
 		cargo run
 
-# OODA-02: WARNING - In-memory mode is for LOCAL TESTING ONLY
-# DO NOT use in production. Data does not persist across restarts.
-# Use `make backend-dev` or `make backend-db` for production deployments.
-backend-memory: ## Run backend with in-memory storage (for testing only - NOT FOR PRODUCTION)
-	@echo "$(RED)╔════════════════════════════════════════════════════════════════╗$(RESET)"
-	@echo "$(RED)║  ⚠️  WARNING: IN-MEMORY MODE - NOT FOR PRODUCTION USE          ║$(RESET)"
-	@echo "$(RED)║  Data WILL NOT PERSIST across restarts.                        ║$(RESET)"
-	@echo "$(RED)║  Use 'make backend-dev' for production with PostgreSQL.        ║$(RESET)"
-	@echo "$(RED)╚════════════════════════════════════════════════════════════════╝$(RESET)"
-	@cd $(BACKEND_DIR) && cargo run
+# OODA-03: In-memory storage has been REMOVED for production consistency.
+# This target now fails with guidance to use PostgreSQL instead.
+backend-memory: ## DEPRECATED - In-memory storage removed, use backend-dev with PostgreSQL
+	@echo "$(RED)╔══════════════════════════════════════════════════════════════════╗$(RESET)"
+	@echo "$(RED)║  ❌  ERROR: In-memory storage has been REMOVED                   ║$(RESET)"
+	@echo "$(RED)║                                                                  ║$(RESET)"
+	@echo "$(RED)║  The mission directive requires PostgreSQL for all operations.  ║$(RESET)"
+	@echo "$(RED)║  Please use one of these alternatives:                          ║$(RESET)"
+	@echo "$(RED)║                                                                  ║$(RESET)"
+	@echo "$(RED)║    make dev          # Full stack with PostgreSQL               ║$(RESET)"
+	@echo "$(RED)║    make backend-dev  # Backend only with PostgreSQL             ║$(RESET)"
+	@echo "$(RED)║                                                                  ║$(RESET)"
+	@echo "$(RED)╚══════════════════════════════════════════════════════════════════╝$(RESET)"
+	@exit 1
 
 backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENAI_API_KEY if set)
 	@echo "$(BLUE)Starting backend in background...$(RESET)"

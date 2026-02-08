@@ -8,7 +8,7 @@ use edgequake_tasks::{
     Pagination, TaskFilter, TaskQueue, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig,
 };
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// Print the EdgeQuake startup banner with storage mode information.
@@ -244,23 +244,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get API key from environment (optional - Ollama doesn't need it)
     let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
 
-    // Create application state - use PostgreSQL if DATABASE_URL is set
-    let state = if let Ok(database_url) = std::env::var("DATABASE_URL") {
-        info!("🐘 DATABASE_URL detected - using PostgreSQL storage");
-        AppState::new_postgres(&database_url, &api_key)
-            .await
-            .expect("Failed to initialize PostgreSQL storage")
-    } else {
-        // OODA-02: Enhanced warning for memory mode - NOT FOR PRODUCTION
-        warn!("⚠️ WARNING: No DATABASE_URL set - using IN-MEMORY storage.");
-        warn!("   Data WILL NOT PERSIST across restarts. NOT FOR PRODUCTION USE.");
-        warn!("   Set DATABASE_URL to use PostgreSQL for production.");
-        AppState::new_memory(if api_key.is_empty() {
-            None
-        } else {
-            Some(api_key)
-        })
-    };
+    // OODA-03: DATABASE_URL is now REQUIRED - in-memory storage removed for production consistency
+    // WHY: Mission directive requires eliminating in-memory providers to ensure:
+    // 1. Consistent behavior between dev and production
+    // 2. No accidental data loss from memory mode
+    // 3. Proper testing against real storage
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        error!("═══════════════════════════════════════════════════════════════════════");
+        error!(" FATAL: DATABASE_URL environment variable is REQUIRED");
+        error!("═══════════════════════════════════════════════════════════════════════");
+        error!(" In-memory storage has been removed for production consistency.");
+        error!(" Please set DATABASE_URL to a PostgreSQL connection string:");
+        error!("");
+        error!("   export DATABASE_URL=\"postgresql://user:pass@localhost:5432/edgequake\"");
+        error!("");
+        error!(" Or use the Makefile:");
+        error!("   make dev          # Starts with PostgreSQL (recommended)");
+        error!("   make backend-dev  # Backend only with PostgreSQL");
+        error!("═══════════════════════════════════════════════════════════════════════");
+        std::process::exit(1);
+    });
+
+    info!("🐘 PostgreSQL storage mode (DATABASE_URL detected)");
+    let state = AppState::new_postgres(&database_url, &api_key)
+        .await
+        .expect("Failed to initialize PostgreSQL storage");
 
     // Initialize default tenant and workspace for non-authenticated mode
     if let Err(e) = state.initialize_defaults().await {
@@ -271,48 +279,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // This ensures that rebuild/reprocess operations use the workspace's configured
     // LLM and embedding providers, not the server's default providers.
     //
-    // OODA-223: Use strict mode for PostgreSQL (production) to enforce workspace isolation.
-    // Memory mode (development) uses non-strict mode for test compatibility.
+    // OODA-03: Always use STRICT workspace isolation mode (PostgreSQL required now).
+    // OODA-223: Strict mode enforces workspace isolation.
     // OODA-10: Also attach progress broadcaster for WebSocket event delivery.
-    let processor = if state.storage_mode.is_postgresql() {
-        info!("🔒 Using STRICT workspace isolation mode (PostgreSQL storage)");
-        let mut proc = DocumentTaskProcessor::with_workspace_support_strict(
-            Arc::clone(&state.pipeline),
-            Arc::clone(&state.llm_provider),
-            Arc::clone(&state.kv_storage),
-            Arc::clone(&state.vector_storage),
-            Arc::clone(&state.vector_registry),
-            Arc::clone(&state.graph_storage),
-            state.pipeline_state.clone(),
-            Arc::clone(&state.workspace_service),
-            Arc::clone(&state.models_config),
-        )
-        .with_progress_broadcaster(state.progress_broadcaster.clone());
+    info!("🔒 Using STRICT workspace isolation mode (PostgreSQL storage)");
+    let mut processor = DocumentTaskProcessor::with_workspace_support_strict(
+        Arc::clone(&state.pipeline),
+        Arc::clone(&state.llm_provider),
+        Arc::clone(&state.kv_storage),
+        Arc::clone(&state.vector_storage),
+        Arc::clone(&state.vector_registry),
+        Arc::clone(&state.graph_storage),
+        state.pipeline_state.clone(),
+        Arc::clone(&state.workspace_service),
+        Arc::clone(&state.models_config),
+    )
+    .with_progress_broadcaster(state.progress_broadcaster.clone());
 
-        // CRITICAL: Attach PDF storage for PDF processing tasks
-        if let Some(ref pdf_storage) = state.pdf_storage {
-            proc = proc.with_pdf_storage(Arc::clone(pdf_storage));
-            info!("📄 PDF storage attached to task processor");
-        }
+    // CRITICAL: Attach PDF storage for PDF processing tasks
+    if let Some(ref pdf_storage) = state.pdf_storage {
+        processor = processor.with_pdf_storage(Arc::clone(pdf_storage));
+        info!("📄 PDF storage attached to task processor");
+    }
 
-        Arc::new(proc)
-    } else {
-        info!("⚠️ Using non-strict workspace mode (in-memory storage)");
-        Arc::new(
-            DocumentTaskProcessor::with_workspace_support(
-                Arc::clone(&state.pipeline),
-                Arc::clone(&state.llm_provider),
-                Arc::clone(&state.kv_storage),
-                Arc::clone(&state.vector_storage),
-                Arc::clone(&state.vector_registry),
-                Arc::clone(&state.graph_storage),
-                state.pipeline_state.clone(),
-                Arc::clone(&state.workspace_service),
-                Arc::clone(&state.models_config),
-            )
-            .with_progress_broadcaster(state.progress_broadcaster.clone()),
-        )
-    };
+    let processor = Arc::new(processor);
 
     // Configure worker pool
     let worker_config = WorkerPoolConfig {
