@@ -155,6 +155,50 @@ impl KVStorage for MemoryKVStorage {
         data.clear();
         Ok(())
     }
+
+    /// Atomically transition document status if current status matches expected.
+    ///
+    /// @implements FIX-RACE-01: Prevent TOCTOU race conditions
+    ///
+    /// # WHY: Memory-Safe Atomic Transition
+    ///
+    /// The write lock ensures atomicity - only one thread can check and update
+    /// the status at a time. This prevents race conditions where:
+    /// 1. Thread A reads status = "failed"
+    /// 2. Thread B changes status to "processing"
+    /// 3. Thread A thinks it can delete (based on stale read)
+    ///
+    /// With this method, the check and update are atomic within the lock.
+    async fn transition_if_status(
+        &self,
+        key: &str,
+        expected_status: &str,
+        new_status: &str,
+    ) -> Result<bool> {
+        let mut data = self
+            .data
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+
+        // Check if key exists and status matches
+        if let Some(value) = data.get_mut(key) {
+            let current_status = value.get("status").and_then(|v| v.as_str());
+
+            if current_status == Some(expected_status) {
+                // Status matches - update it
+                if let Some(obj) = value.as_object_mut() {
+                    obj.insert(
+                        "status".to_string(),
+                        serde_json::json!(new_status),
+                    );
+                    return Ok(true);
+                }
+            }
+        }
+
+        // Key not found or status didn't match
+        Ok(false)
+    }
 }
 
 #[cfg(test)]
@@ -245,5 +289,83 @@ mod tests {
 
         let item = storage.get_by_id("1").await.unwrap();
         assert!(item.is_none());
+    }
+
+    /// @implements FIX-RACE-01: Test atomic status transition
+    #[tokio::test]
+    async fn test_transition_if_status_success() {
+        let storage = MemoryKVStorage::new("test");
+        storage.initialize().await.unwrap();
+
+        // Setup: document with status "failed"
+        let doc = json!({
+            "id": "doc-123",
+            "status": "failed",
+            "title": "Test Document"
+        });
+        storage
+            .upsert(&[("doc-123-metadata".to_string(), doc)])
+            .await
+            .unwrap();
+
+        // Action: transition from "failed" to "deleting"
+        let result = storage
+            .transition_if_status("doc-123-metadata", "failed", "deleting")
+            .await
+            .unwrap();
+
+        // Assert: transition succeeded
+        assert!(result, "Transition should succeed when status matches");
+
+        // Verify: status is now "deleting"
+        let updated = storage.get_by_id("doc-123-metadata").await.unwrap().unwrap();
+        assert_eq!(updated.get("status").unwrap(), "deleting");
+    }
+
+    /// @implements FIX-RACE-01: Test atomic status transition fails on wrong status
+    #[tokio::test]
+    async fn test_transition_if_status_wrong_status() {
+        let storage = MemoryKVStorage::new("test");
+        storage.initialize().await.unwrap();
+
+        // Setup: document with status "processing"
+        let doc = json!({
+            "id": "doc-123",
+            "status": "processing",
+            "title": "Test Document"
+        });
+        storage
+            .upsert(&[("doc-123-metadata".to_string(), doc)])
+            .await
+            .unwrap();
+
+        // Action: try to transition from "failed" to "deleting" (wrong expected status)
+        let result = storage
+            .transition_if_status("doc-123-metadata", "failed", "deleting")
+            .await
+            .unwrap();
+
+        // Assert: transition failed (status was "processing", not "failed")
+        assert!(!result, "Transition should fail when status doesn't match");
+
+        // Verify: status is still "processing"
+        let unchanged = storage.get_by_id("doc-123-metadata").await.unwrap().unwrap();
+        assert_eq!(unchanged.get("status").unwrap(), "processing");
+    }
+
+    /// @implements FIX-RACE-01: Test atomic status transition on non-existent key
+    #[tokio::test]
+    async fn test_transition_if_status_key_not_found() {
+        let storage = MemoryKVStorage::new("test");
+        storage.initialize().await.unwrap();
+
+        // Action: try to transition non-existent document
+        let result = storage
+            .transition_if_status("non-existent-key", "failed", "deleting")
+            .await
+            .unwrap();
+
+        // Assert: transition failed (key doesn't exist)
+        assert!(!result, "Transition should fail for non-existent key");
     }
 }

@@ -136,6 +136,58 @@ pub trait KVStorage: Send + Sync {
 
     /// Clear all records from storage.
     async fn clear(&self) -> Result<()>;
+
+    /// Atomically transition document status if current status matches expected.
+    ///
+    /// @implements FIX-RACE-01: Prevent TOCTOU race conditions in document operations
+    ///
+    /// # WHY: Race Condition Prevention
+    ///
+    /// Document operations like re-ingestion have a race condition:
+    /// 1. Read status = "failed"
+    /// 2. Another process starts ingestion, status = "processing"
+    /// 3. First process deletes data (corrupts active ingestion)
+    ///
+    /// This method provides atomic compare-and-swap:
+    /// - Only updates if current status matches expected
+    /// - Returns false if status changed (enables conflict detection)
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Document metadata key (e.g., "doc-123-metadata")
+    /// * `expected_status` - Status value that must match for transition
+    /// * `new_status` - Status value to set if match succeeds
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - Transition succeeded (status matched and was updated)
+    /// * `Ok(false)` - Transition failed (status did not match expected, or key not found)
+    /// * `Err(...)` - Database error
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // Atomically claim document for deletion
+    /// let transitioned = storage.transition_if_status(
+    ///     "doc-123-metadata",
+    ///     "failed",    // Expected current status
+    ///     "deleting",  // New status if match
+    /// ).await?;
+    ///
+    /// if transitioned {
+    ///     // Safe to delete - we have exclusive "deleting" status
+    ///     delete_document_data().await?;
+    /// } else {
+    ///     // Status changed - return conflict error
+    ///     return Err(ApiError::Conflict("Document state changed"));
+    /// }
+    /// ```
+    async fn transition_if_status(
+        &self,
+        key: &str,
+        expected_status: &str,
+        new_status: &str,
+    ) -> Result<bool>;
 }
 
 /// Extension trait for KV storage with typed access.
