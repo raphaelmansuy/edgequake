@@ -77,7 +77,7 @@ impl Default for LlmConfig {
             provider: "openai".to_string(),
             api_key: None,
             base_url: None,
-            model: "gpt-4o-mini".to_string(),
+            model: "gpt-5-nano".to_string(),
             embedding_model: "text-embedding-3-small".to_string(),
             embedding_dim: 1536,
             max_tokens: 4096,

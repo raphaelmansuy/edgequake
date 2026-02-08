@@ -427,7 +427,7 @@ impl Pipeline {
         let model_pricing = pricing
             .get(model_name)
             .cloned()
-            .unwrap_or_else(|| crate::progress::ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006));
+            .unwrap_or_else(|| crate::progress::ModelPricing::new("gpt-5-nano", 0.00015, 0.0006));
         let model_pricing = Arc::new(model_pricing);
 
         // Create futures for all chunks with progress tracking
@@ -668,7 +668,7 @@ impl Pipeline {
         let model_pricing = pricing
             .get(model_name)
             .cloned()
-            .unwrap_or_else(|| crate::progress::ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006));
+            .unwrap_or_else(|| crate::progress::ModelPricing::new("gpt-5-nano", 0.00015, 0.0006));
         let model_pricing = Arc::new(model_pricing);
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -959,7 +959,7 @@ impl Pipeline {
                 let model_name = extractor.model_name();
                 let pricing = crate::progress::default_model_pricing();
                 let model_pricing = pricing.get(model_name).cloned().unwrap_or_else(|| {
-                    crate::progress::ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006)
+                    crate::progress::ModelPricing::new("gpt-5-nano", 0.00015, 0.0006)
                 });
 
                 let extraction_cost =
@@ -1310,7 +1310,7 @@ impl Pipeline {
                 let model_name = extractor.model_name();
                 let pricing = crate::progress::default_model_pricing();
                 let model_pricing = pricing.get(model_name).cloned().unwrap_or_else(|| {
-                    crate::progress::ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006)
+                    crate::progress::ModelPricing::new("gpt-5-nano", 0.00015, 0.0006)
                 });
 
                 let extraction_cost =
@@ -1738,7 +1738,7 @@ impl Pipeline {
                 let model_name = extractor.model_name();
                 let pricing = crate::progress::default_model_pricing();
                 let model_pricing = pricing.get(model_name).cloned().unwrap_or_else(|| {
-                    crate::progress::ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006)
+                    crate::progress::ModelPricing::new("gpt-5-nano", 0.00015, 0.0006)
                 });
 
                 let extraction_cost =

@@ -81,7 +81,7 @@ impl PdfUploadOptions {
             .clone()
             .unwrap_or_else(|| match self.vision_provider.as_str() {
                 "ollama" => "gemma3:latest".to_string(),
-                _ => "gpt-4o-mini".to_string(),
+                _ => "gpt-5-nano".to_string(),
             })
     }
 }

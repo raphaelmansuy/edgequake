@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n📡 Initializing OpenAI provider...");
     let provider = Arc::new(
         OpenAIProvider::new(api_key)
-            .with_model("gpt-4o-mini") // Cost-effective and fast
+            .with_model("gpt-5-nano") // Cost-effective and fast
             .with_embedding_model("text-embedding-3-small"),
     );
 
