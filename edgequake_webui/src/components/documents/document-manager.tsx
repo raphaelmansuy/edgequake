@@ -81,6 +81,7 @@ import { useDocumentMutations } from '@/hooks/use-document-mutations';
 import { useBulkSelection } from '@/hooks/use-bulk-selection';
 import { useDocumentPreferences, type DocStatus } from '@/hooks/use-document-preferences';
 import { useDocumentKeyboard } from '@/hooks/use-document-keyboard';
+import { useDocumentFiltering } from '@/hooks/use-document-filtering';
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -227,66 +228,15 @@ export function DocumentManager() {
     noClick: false, // Allow click on dropzone
   });
 
-  // Filter documents client-side (fallback when backend doesn't support filtering)
-  const filterDocuments = (docs: Document[]): Document[] => {
-    let filtered = docs;
-    
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter((doc) => {
-        const title = doc.title?.toLowerCase() || '';
-        const fileName = doc.file_name?.toLowerCase() || '';
-        return title.includes(query) || fileName.includes(query) || doc.id.includes(query);
-      });
-    }
-    
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((doc) => {
-        const docStatus = doc.status || 'completed';
-        return docStatus === statusFilter;
-      });
-    }
-    
-    return filtered;
-  };
-
-  // Sort documents client-side for now
-  const sortDocuments = (docs: Document[]): Document[] => {
-    return [...docs].sort((a, b) => {
-      let aVal: string | number | Date = '';
-      let bVal: string | number | Date = '';
-      
-      switch (sortField) {
-        case 'title':
-          aVal = a.title || a.file_name || a.id;
-          bVal = b.title || b.file_name || b.id;
-          break;
-        case 'created_at':
-          aVal = new Date(a.created_at || 0);
-          bVal = new Date(b.created_at || 0);
-          break;
-        case 'status':
-          aVal = a.status || '';
-          bVal = b.status || '';
-          break;
-        case 'entity_count':
-          aVal = a.entity_count ?? a.chunk_count ?? 0;
-          bVal = b.entity_count ?? b.chunk_count ?? 0;
-          break;
-      }
-      
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-  };
-
-  const documents = sortDocuments(filterDocuments(data?.items || []));
-  const allDocuments = data?.items || [];
-  const totalPages = Math.ceil(documents.length / pageSize);
-  const totalCount = documents.length;
+  // OODA-19: Filter and sort documents using extracted hook
+  const { documents, totalCount, totalPages, allDocuments } = useDocumentFiltering({
+    documents: data?.items || [],
+    searchQuery,
+    statusFilter,
+    sortField,
+    sortDirection,
+    pageSize,
+  });
   
   // Use server-side status counts from API response (more efficient)
   // Fall back to client-side calculation if not available
