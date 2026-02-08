@@ -80,6 +80,7 @@ import { useFileUpload } from '@/hooks/use-file-upload';
 import { useDocumentMutations } from '@/hooks/use-document-mutations';
 import { useBulkSelection } from '@/hooks/use-bulk-selection';
 import { useDocumentPreferences, type DocStatus } from '@/hooks/use-document-preferences';
+import { useDocumentKeyboard } from '@/hooks/use-document-keyboard';
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -377,43 +378,16 @@ export function DocumentManager() {
    * - Ctrl/Cmd + A: Select all documents
    * - R: Refresh document list (when not in input)
    */
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip if in input field or textarea
-      const target = e.target as HTMLElement;
-      const tagName = target.tagName.toUpperCase();
-      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || target.isContentEditable) {
-        return;
-      }
-
-      // Escape: Clear selection or close preview panel
-      if (e.key === 'Escape') {
-        if (previewPanelOpen) {
-          handlePreviewClose();
-        } else if (selectedCount > 0) {
-          handleClearSelection();
-        }
-        return;
-      }
-
-      // Ctrl/Cmd + A: Select all documents
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
-        e.preventDefault(); // Prevent browser select all
-        handleSelectAll(true);
-        return;
-      }
-
-      // R: Refresh documents (single key, no modifier)
-      if (e.key.toLowerCase() === 'r' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        refetch();
-        toast.info(t('documents.refresh.triggered', 'Refreshing documents...'), { duration: 1000 });
-        return;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [previewPanelOpen, selectedCount, handlePreviewClose, handleSelectAll, handleClearSelection, refetch, t]);
+  // OODA-18: Document keyboard shortcuts (Escape, Ctrl+A, R)
+  useDocumentKeyboard({
+    previewPanelOpen,
+    selectedCount,
+    onPreviewClose: handlePreviewClose,
+    onSelectAll: handleSelectAll,
+    onClearSelection: handleClearSelection,
+    onRefresh: refetch,
+    t,
+  });
 
   /**
    * OODA-26: Update page title with document count
