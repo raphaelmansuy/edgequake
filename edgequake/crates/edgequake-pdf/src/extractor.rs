@@ -321,13 +321,24 @@ impl PdfExtractor {
             .extract_document_with_progress(pdf_bytes, callback)
             .await?;
 
+        info!(
+            "✅ Document extraction completed, starting markdown rendering (pages={})",
+            doc.page_count()
+        );
+
         let style = MarkdownStyle {
             page_numbers: self.config.include_page_numbers,
             ..Default::default()
         };
 
         let renderer = MarkdownRenderer::with_style(style);
-        renderer.render(&doc)
+        let markdown = renderer.render(&doc)?;
+
+        info!(
+            "✅ Markdown rendering completed (markdown_len={})",
+            markdown.len()
+        );
+        Ok(markdown)
     }
 
     /// Extract structured Document from PDF bytes with progress callbacks.
@@ -353,9 +364,13 @@ impl PdfExtractor {
             .extract_with_progress(pdf_bytes, callback)
             .await?;
 
+        info!("✅ Backend extraction completed, starting post-processing");
+
         // Apply post-processing pipeline
         // NOTE: Processors don't report progress yet (future OODA iteration)
         let mut doc = self.apply_processors(doc).await?;
+
+        info!("✅ Processors completed, checking AI enhancement config");
 
         // Apply AI enhancement if configured
         // NOTE: AI enhancement doesn't report progress yet (future OODA iteration)
@@ -473,6 +488,11 @@ impl PdfExtractor {
     /// 11. BlockMerge: Join related blocks
     /// 12. PostProcessor: Final cleanup
     async fn apply_processors(&self, document: Document) -> Result<Document> {
+        info!(
+            "🔧 Starting processor chain with {} pages",
+            document.page_count()
+        );
+
         let chain = ProcessorChain::new()
             .add(SpacedTextProcessor::new()) // OODA-05: Fix spaced text BEFORE garbled filter!
             .add(MarginFilterProcessor::new()) // Filter margin content (line numbers, page numbers)
@@ -496,9 +516,13 @@ impl PdfExtractor {
             .add(BlockMergeProcessor::new())
             .add(PostProcessor::new());
 
-        chain
+        info!("🔧 Processor chain built, running synchronous chain.process()...");
+        let result = chain
             .process(document)
-            .map_err(|e| PdfError::Processor(e.to_string()))
+            .map_err(|e| PdfError::Processor(e.to_string()))?;
+
+        info!("🔧 Processor chain completed successfully");
+        Ok(result)
     }
 }
 
