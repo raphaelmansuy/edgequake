@@ -42,9 +42,6 @@ import {
     getDocuments,
     getPipelineStatus,
     reprocessDocument,
-    uploadDocument,
-    uploadPdfDocument,
-    type DocumentsListResult,
 } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
 import { useTenantStore } from '@/stores/use-tenant-store';
@@ -88,9 +85,9 @@ import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ProcessingStatusSummary } from './processing-status-summary';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { UploadProgressList } from './upload-progress-list';
-import type { UploadingFile } from './types';
 import { useStuckDetection } from '@/hooks/use-stuck-detection';
 import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
+import { useFileUpload } from '@/hooks/use-file-upload';
 
 /**
  * OODA-30: File type icon helper
@@ -223,9 +220,19 @@ export function DocumentManager() {
   // Pipeline status dialog state
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
 
-  // Upload progress tracking state
-  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  // OODA-13: Upload state extracted to useFileUpload hook
+  const {
+    uploadingFiles,
+    isUploading,
+    handleFilesUpload,
+    removeUploadingFile,
+    handleUploadComplete,
+    handleUploadFailed,
+  } = useFileUpload({
+    tenantId: selectedTenantId,
+    workspaceId: selectedWorkspaceId,
+    onUploadStart: () => setStatusFilter('all'),
+  });
 
   // OODA-42 COMPLETE: WebSocket-based real-time updates (NO POLLING)
   // WHY: Users want instant document status updates without polling overhead
@@ -259,322 +266,6 @@ export function DocumentManager() {
     timeout: 30000,
     checkInterval: 30000,
   });
-
-  // Enhanced upload handler with progress tracking
-  const handleFilesUpload = useCallback(
-    async (files: File[]) => {
-      if (files.length === 0) return;
-      
-      // Auto-switch to 'all' filter so processing documents are visible
-      setStatusFilter('all');
-      
-      setIsUploading(true);
-      
-      // Generate a shared track_id for this batch
-      const trackId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      
-      // Initialize upload state for all files
-      const initialFiles: UploadingFile[] = files.map((file) => ({
-        file,
-        progress: 0,
-        status: 'pending' as const,
-        phase: 'Waiting...',
-      }));
-      setUploadingFiles(initialFiles);
-
-      // Show loading toast
-      const toastId = toast.loading(
-        t('documents.upload.inProgress', { count: files.length }) || `Uploading ${files.length} file(s)...`,
-        { duration: Infinity }
-      );
-
-      let successCount = 0;
-      let errorCount = 0;
-
-      // Process files sequentially for better feedback
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        
-        // Phase 1: Reading file
-        setUploadingFiles((prev) =>
-          prev.map((f, idx) =>
-            idx === i ? { ...f, status: 'reading' as const, progress: 10, phase: t('documents.upload.reading', 'Reading file...') } : f
-          )
-        );
-
-        try {
-          // Phase 2: Uploading to server
-          setUploadingFiles((prev) =>
-            prev.map((f, idx) =>
-              idx === i ? { ...f, status: 'uploading' as const, progress: 40, phase: t('documents.upload.uploading', 'Uploading to server...') } : f
-            )
-          );
-
-          let response: { document_id?: string; pdf_id?: string; duplicate_of?: string; task_id?: string; track_id?: string };
-
-          // Check if file is PDF - route to PDF upload endpoint
-          // OODA-22: Track isPdf flag for enhanced progress component
-          const isPdfFile = file.type === 'application/pdf';
-          
-          if (isPdfFile) {
-            // Upload PDF file directly (multipart/form-data)
-            const pdfResponse = await uploadPdfDocument(file, {
-              title: file.name,
-              enable_vision: true, // Enable vision extraction by default for PDFs
-              track_id: trackId, // Pass batch tracking ID
-            });
-            
-            // Map PdfUploadResponse to compatible format
-            response = {
-              document_id: pdfResponse.document_id,
-              pdf_id: pdfResponse.pdf_id,
-              duplicate_of: pdfResponse.duplicate_of,
-              task_id: pdfResponse.task_id,
-              track_id: pdfResponse.track_id, // Use track_id from response
-            };
-            
-            // OODA-42: Optimistic update for PDF upload
-            // WHY: PDFs must appear immediately in documents panel (same as markdown)
-            // The backend creates the document record async, but we add it to cache now
-            // FIX: Include tenant_id and workspace_id for multi-tenant filtering
-            if (pdfResponse.pdf_id && !pdfResponse.duplicate_of) {
-              const optimisticDoc: Document = {
-                id: pdfResponse.pdf_id, // Use pdf_id as temporary ID until document_id is assigned
-                title: file.name,
-                file_name: file.name,
-                file_size: file.size,
-                source_type: 'pdf',
-                status: 'processing',
-                mime_type: 'application/pdf',
-                created_at: new Date().toISOString(),
-                pdf_id: pdfResponse.pdf_id,
-                track_id: pdfResponse.track_id,
-                tenant_id: selectedTenantId ?? undefined,
-                workspace_id: selectedWorkspaceId ?? undefined,
-              };
-              
-              // Add to the SPECIFIC tenant/workspace query cache for instant visibility
-              // IMPORTANT: Must match exact query key to appear immediately
-              queryClient.setQueriesData<DocumentsListResult>(
-                { queryKey: ['documents', selectedTenantId, selectedWorkspaceId] },
-                (old) => {
-                  if (!old || !old.items || !Array.isArray(old.items)) return old;
-                  // Check if document already exists (by pdf_id)
-                  const exists = old.items.some(d => d.pdf_id === pdfResponse.pdf_id || d.id === pdfResponse.pdf_id);
-                  if (exists) return old;
-                  return {
-                    ...old,
-                    items: [optimisticDoc, ...old.items],
-                    total: (old.total ?? 0) + 1,
-                  };
-                }
-              );
-            }
-            
-            // OODA-22: Store track_id and isPdf flag for enhanced progress tracking
-            setUploadingFiles((prev) =>
-              prev.map((f, idx) =>
-                idx === i ? { 
-                  ...f, 
-                  trackId: pdfResponse.track_id,
-                  isPdf: true,
-                } : f
-              )
-            );
-          } else {
-            // Read text file content
-            const text = await file.text();
-            
-            // Upload text document with async processing
-            const textResponse = await uploadDocument({ 
-              content: text, 
-              source_type: 'text',
-              title: file.name,
-              async_processing: true,
-              track_id: trackId,
-            });
-            
-            response = textResponse;
-            
-            // OODA-42 EXTENDED: Optimistic update for text/markdown files (same as PDF)
-            // WHY: Text files must also appear immediately in documents panel
-            // FIX: Include tenant_id and workspace_id for multi-tenant filtering
-            if (textResponse.document_id && !textResponse.duplicate_of) {
-              const optimisticDoc: Document = {
-                id: textResponse.document_id,
-                title: file.name,
-                file_name: file.name,
-                file_size: file.size,
-                source_type: 'text',
-                status: 'processing',
-                mime_type: file.type || 'text/plain',
-                created_at: new Date().toISOString(),
-                track_id: textResponse.track_id,
-                tenant_id: selectedTenantId ?? undefined,
-                workspace_id: selectedWorkspaceId ?? undefined,
-              };
-              
-              // Add to the SPECIFIC tenant/workspace query cache for instant visibility
-              // IMPORTANT: Must match exact query key to appear immediately
-              queryClient.setQueriesData<DocumentsListResult>(
-                { queryKey: ['documents', selectedTenantId, selectedWorkspaceId] },
-                (old) => {
-                  if (!old || !old.items || !Array.isArray(old.items)) return old;
-                  // Check if document already exists (by document_id)
-                  const exists = old.items.some(d => d.id === textResponse.document_id);
-                  if (exists) return old;
-                  return {
-                    ...old,
-                    items: [optimisticDoc, ...old.items],
-                    total: (old.total ?? 0) + 1,
-                  };
-                }
-              );
-            }
-          }
-          
-          // Check for duplicate (Phase 4)
-          if (response.duplicate_of) {
-            // Show duplicate warning
-            toast.warning(
-              t('documents.upload.duplicate', '{{name}} is a duplicate (existing: {{id}})', {
-                name: file.name,
-                id: response.duplicate_of.slice(0, 8),
-              }),
-              { duration: 4000 }
-            );
-            
-            // Mark as duplicate (treat as success but with warning)
-            setUploadingFiles((prev) =>
-              prev.map((f, idx) =>
-                idx === i ? { 
-                  ...f, 
-                  status: 'success' as const, 
-                  progress: 100, 
-                  phase: t('documents.upload.duplicateSkipped', 'Duplicate (skipped)'),
-                } : f
-              )
-            );
-            successCount++;
-            continue; // Skip to next file
-          }
-          
-          // Phase 3: Extraction queued
-          setUploadingFiles((prev) =>
-            prev.map((f, idx) =>
-              idx === i ? { 
-                ...f, 
-                status: 'extracting' as const, 
-                progress: 80, 
-                phase: response.task_id 
-                  ? t('documents.upload.queued', 'Queued for extraction (Task: {{taskId}})', { taskId: response.task_id.slice(0, 8) })
-                  : t('documents.upload.extracting', 'Processing...'),
-              } : f
-            )
-          );
-          
-          // Brief delay to show extraction phase
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          // Mark as complete
-          setUploadingFiles((prev) =>
-            prev.map((f, idx) =>
-              idx === i ? { ...f, status: 'success' as const, progress: 100, phase: t('documents.upload.complete', 'Complete!') } : f
-            )
-          );
-          
-          successCount++;
-        } catch (error) {
-          // Mark as error
-          const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-          setUploadingFiles((prev) =>
-            prev.map((f, idx) =>
-              idx === i ? { ...f, status: 'error' as const, progress: 100, error: errorMessage, phase: t('common.failed', 'Failed') } : f
-            )
-          );
-          
-          errorCount++;
-        }
-      }
-
-      // Update toast with final result
-      if (errorCount === 0) {
-        toast.success(
-          t('documents.upload.success', { count: successCount }) || `Successfully uploaded ${successCount} file(s)`,
-          { 
-            id: toastId, 
-            duration: 5000,
-            action: {
-              label: t('documents.upload.viewInGraph', 'View in Graph'),
-              onClick: () => router.push('/graph'),
-            },
-          }
-        );
-      } else if (successCount === 0) {
-        toast.error(
-          t('documents.upload.allFailed', { count: errorCount }) || `All ${errorCount} file(s) failed to upload`,
-          { 
-            id: toastId, 
-            duration: 5000,
-            action: {
-              label: t('common.retry', 'Retry'),
-              onClick: () => {
-                // Reset and allow user to try again
-                setUploadingFiles([]);
-              },
-            },
-          }
-        );
-      } else {
-        toast.warning(
-          t('documents.upload.partial', { success: successCount, failed: errorCount }) || 
-            `Uploaded ${successCount} file(s), ${errorCount} failed`,
-          { 
-            id: toastId, 
-            duration: 5000,
-            action: {
-              label: t('documents.upload.viewInGraph', 'View in Graph'),
-              onClick: () => router.push('/graph'),
-            },
-          }
-        );
-      }
-
-      // Refresh documents list
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-      setIsUploading(false);
-
-      // Clear upload list after a delay
-      setTimeout(() => {
-        setUploadingFiles([]);
-      }, 3000);
-    },
-    [queryClient, t, router, selectedWorkspaceId]
-  );
-
-  // Remove a file from the upload list
-  const removeUploadingFile = useCallback((index: number) => {
-    setUploadingFiles((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  // OODA-06: Callbacks for UploadProgressList component
-  // WHY: Mark PDF upload as successful when PdfUploadProgress completes
-  const handleUploadComplete = useCallback((index: number) => {
-    setUploadingFiles((prev) =>
-      prev.map((f, idx) =>
-        idx === index ? { ...f, status: 'success' as const, progress: 100 } : f
-      )
-    );
-  }, []);
-
-  // WHY: Mark PDF upload as failed when PdfUploadProgress reports error
-  const handleUploadFailed = useCallback((index: number, error: string) => {
-    setUploadingFiles((prev) =>
-      prev.map((f, idx) =>
-        idx === index ? { ...f, status: 'error' as const, error } : f
-      )
-    );
-  }, []);
 
   // Maximum file size: 10MB
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
