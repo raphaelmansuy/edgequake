@@ -134,3 +134,57 @@ Failure to re-read causes alignment drift → catastrophic safety issues → use
 - [ ] Ensure gpt-5-nano works for ingestion
 - [ ] Document that Memory mode is only for test and NEVER for during Makefile dev or production runs. Make test that makefile dev fails if DATABASE_URL is not set.
 - [ ] Document the best way to run EdgeQuake in dev mode during testing session. (Use your experience from this mission to write the best possible doc)
+- [ ] Ensure delete document works fully (including PDF storage cleanup)
+- [ ] Ensure 2 documents can be ingested in parallel without issues
+- [ ] Ensure ingestion works with both Ollama and OpenAI LLM providers
+- [ ] Ensure query works with both Ollama and OpenAI LLM providers
+- [ ] Ensure query works for document uploaded via the UI
+- [ ] Ensure Mock Provider is never displayed as an option in the UI or API during Makefile dev or production runs.
+- [ ] Ensure chunk size is adapted based on embedding model and llm model context length. It must be dynamic to always find the best chunk size based on model capabilities.
+- [ ] Ensure High Signal comments are added in the codebase for every change made during this mission, explaining WHY the change was made, with precise terms. Use high value ASCI diagrams where applicable.
+- [ ] Ensure health API make it easy to know all parts of the applied configuration (llm provider, embedding provider, models used, database connection status, pdf storage status, etc.)
+- [ ] Audit pipeline processing code to ensure all errors are properly handled and propagated using Result<T, Error> types. No panics allowed.
+- [ ] Ensure comprehensive logging is in place for debugging ingestion issues.
+- [ ] Ensure it is impossible to have silent failures in the ingestion pipeline. All errors must be logged and propagated.
+- [ ] Ensure it always possible to cancel the status of document stuck in processing state via the API or UI. 
+- [ ] Ensure no code duplication exists for the ingestion pipeline and query pipeline. Shared logic must be refactored into common modules. SRP and DRY principles must be followed.
+
+--> The OpenAI API quota is exceeded demonstrate an issue, switch to the latest embedding and llm models available on  openai. Use the cheapest possible models that work well for document ingestion. It is vital to ensure the ingestion pipeline works end to end with openai models as well as ollama models.
+
+---
+
+## Model Pricing Reference (OODA-10)
+
+### OpenAI Cheapest Models (2026-02)
+
+| Type | Model | Price | Notes |
+|------|-------|-------|-------|
+| **LLM** | `gpt-5-nano` | $0.05/1M input, $0.40/1M output | 3x cheaper than gpt-4o-mini ✅ |
+| **Embedding** | `text-embedding-3-small` | $0.02/1M tokens | 5x cheaper than ada-002, 1536 dims ✅ |
+
+### Ollama Default Models (No API costs)
+
+| Type | Model | Dimension | Notes |
+|------|-------|-----------|-------|
+| **LLM** | `gemma3:12b` | N/A | 128K context, vision support |
+| **Embedding** | `embeddinggemma` | 768 | Good for local development |
+
+### Troubleshooting Quota Exceeded
+
+If you see "You exceeded your current quota":
+
+1. **Check OpenAI dashboard**: https://platform.openai.com/usage
+2. **Verify billing status**: https://platform.openai.com/account/billing
+3. **Use Ollama for development**: No API costs, works locally
+4. **Switch provider via env var**:
+   ```bash
+   # Use Ollama (default)
+   EDGEQUAKE_DEFAULT_LLM_PROVIDER=ollama
+   
+   # Use OpenAI (requires OPENAI_API_KEY)
+   EDGEQUAKE_DEFAULT_LLM_PROVIDER=openai
+   ```
+
+**Note**: The code already uses the cheapest OpenAI models. Quota exceeded is typically a user account limit, not a configuration issue.
+
+

@@ -25,12 +25,18 @@
 //!
 //! # Example Configuration
 //!
+//! ## Pricing Note (2026-02)
+//!
+//! OpenAI's cheapest models for document ingestion:
+//! - LLM: `gpt-5-nano` - $0.05/1M input tokens (3x cheaper than gpt-4o-mini)
+//! - Embedding: `text-embedding-3-small` - $0.02/1M tokens (5x cheaper than ada-002)
+//!
 //! ```toml
 //! [defaults]
 //! llm_provider = "openai"
-//! llm_model = "gpt-4o-mini"
+//! llm_model = "gpt-5-nano"  # Cheapest: $0.05/1M input, $0.40/1M output
 //! embedding_provider = "openai"
-//! embedding_model = "text-embedding-3-small"
+//! embedding_model = "text-embedding-3-small"  # Cheapest: $0.02/1M tokens
 //!
 //! [[providers]]
 //! name = "openai"
@@ -582,7 +588,8 @@ impl ModelsConfig {
                                 output_per_1k: 0.0006,
                                 ..Default::default()
                             },
-                            description: "Recommended cost-effective model for entity extraction".to_string(),
+                            description: "Recommended cost-effective model for entity extraction"
+                                .to_string(),
                             ..Default::default()
                         },
                         ModelCard {
