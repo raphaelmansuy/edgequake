@@ -732,6 +732,26 @@ export interface HealthResponse {
   };
   /** LLM provider name (e.g., "openai", "mock", "ollama") */
   llm_provider_name?: string;
+  /** Current active provider configuration (LLM and embedding) */
+  providers?: {
+    llm: {
+      name: string;
+      model: string;
+    };
+    embedding: {
+      name: string;
+      model: string;
+      dimension: number;
+    };
+  };
+  /** Database schema health (PostgreSQL only) */
+  schema?: {
+    latest_version?: number;
+    migrations_applied: number;
+    last_applied_at?: string;
+  };
+  /** Whether PDF storage is enabled */
+  pdf_storage_enabled?: boolean;
 }
 
 // Entity types

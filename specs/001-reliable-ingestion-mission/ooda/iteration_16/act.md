@@ -5,9 +5,11 @@
 ### Changes Made
 
 #### 1. Added `get_workspace_pipeline_strict` Method
+
 **File**: `processor.rs` (lines 378-471)
 
 New method that returns `Result<Arc<Pipeline>, String>` instead of always succeeding:
+
 - Fails with clear error if workspace support not configured
 - Fails with clear error if invalid workspace_id
 - Fails with clear error if workspace not found in database
@@ -15,14 +17,17 @@ New method that returns `Result<Arc<Pipeline>, String>` instead of always succee
 - Fails with clear error if embedding provider creation fails
 
 #### 2. Updated `process_document_task` to Use Strict Method
+
 **File**: `processor.rs` (lines 771-801)
 
 When `strict_workspace_mode=true`:
+
 - Calls `get_workspace_pipeline_strict()` instead of `get_workspace_pipeline()`
 - On failure: logs error, updates document status to "failed", returns `TaskError::Process`
 - Non-strict mode: keeps legacy fallback behavior for backward compatibility
 
 #### 3. Added `TaskError` Import
+
 **File**: `processor.rs` (line 36)
 
 Added `TaskError` to the `edgequake_tasks` import to use the proper error type.
@@ -35,12 +40,12 @@ test result: ok. 446 passed; 0 failed; 0 ignored
 
 ### Expected Behavior After Fix
 
-| Scenario | Before (Non-Strict) | After (Strict) |
-|----------|---------------------|----------------|
-| OpenAI key missing | Process with Ollama (wrong dims) | Task FAILS: "OPENAI_API_KEY not set" |
-| Workspace not found | Process with default | Task FAILS: "Workspace not found" |
-| Invalid workspace_id | Process with default | Task FAILS: "Invalid workspace ID" |
-| Valid config | ✅ Process OK | ✅ Process OK |
+| Scenario             | Before (Non-Strict)              | After (Strict)                       |
+| -------------------- | -------------------------------- | ------------------------------------ |
+| OpenAI key missing   | Process with Ollama (wrong dims) | Task FAILS: "OPENAI_API_KEY not set" |
+| Workspace not found  | Process with default             | Task FAILS: "Workspace not found"    |
+| Invalid workspace_id | Process with default             | Task FAILS: "Invalid workspace ID"   |
+| Valid config         | ✅ Process OK                    | ✅ Process OK                        |
 
 ### Next Steps
 
@@ -72,12 +77,14 @@ Tests: 446 passed, 0 failed
 ## Verification Results
 
 ### Log Evidence: Strict Mode Active
+
 ```
 OODA-16: Getting pipeline for workspace (STRICT mode)
 workspace_id=Some("00000000-0000-0000-0000-000000000003")
 ```
 
 ### Log Evidence: Workspace Providers Used (not server defaults)
+
 ```
 OODA-16: Successfully created workspace-specific providers (STRICT mode)
 workspace_id="00000000-0000-0000-0000-000000000003"
@@ -88,6 +95,7 @@ embedding_provider=openai embedding_model=text-embedding-3-small
 ```
 
 ### Log Evidence: All Processed Documents
+
 ```
 extraction_provider=openai extraction_model=gpt-4.1-nano ← Correct!
 - Invoice-VRIPSKPR-0001.pdf
@@ -100,11 +108,11 @@ extraction_provider=openai extraction_model=gpt-4.1-nano ← Correct!
 
 ### Summary
 
-| Metric | Result |
-|--------|--------|
-| Tests passed | 446/446 ✅ |
-| Strict mode active | Yes ✅ |
-| Workspace providers used | Yes (gpt-4.1-nano) ✅ |
+| Metric                   | Result                  |
+| ------------------------ | ----------------------- |
+| Tests passed             | 446/446 ✅              |
+| Strict mode active       | Yes ✅                  |
+| Workspace providers used | Yes (gpt-4.1-nano) ✅   |
 | Server defaults bypassed | Yes (not gpt-5-nano) ✅ |
 
 **OODA-16 FIX VERIFIED WORKING**
