@@ -21,7 +21,7 @@ const OPENAI_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const OPENAI_WORKSPACE_ID = '00000000-0000-0000-0000-000000000003';
 
 // Test PDF file (use a small PDF for faster testing)
-const TEST_PDF = path.join(__dirname, '../zz_test_docs/lighrag_2410.05779v3.pdf');
+const TEST_PDF = path.join(__dirname, '../../zz_test_docs/academic_papers/lighrag_2410.05779v3.pdf');
 
 test.describe('WebSocket Document Upload (OpenAI Tenant)', () => {
   test.beforeEach(async ({ page }) => {
