@@ -42,8 +42,6 @@ Dockerfile*
 
 # Misc
 audit_*/
-benches/
-examples/
 .env
 .env.*
 debug_output.txt

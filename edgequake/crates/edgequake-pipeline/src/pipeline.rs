@@ -115,7 +115,7 @@ impl Default for PipelineConfig {
         Self {
             chunker: ChunkerConfig::default(),
             extraction_batch_size: 10,
-            embedding_batch_size: 100,
+            embedding_batch_size: 50, // Reduced from 100 to prevent exceeding OpenAI's 300k token/request limit
             enable_entity_extraction: true,
             enable_relationship_extraction: true,
             enable_chunk_embeddings: true,
@@ -1002,22 +1002,28 @@ impl Pipeline {
             stats.embedding_provider = Some(provider.name().to_string());
             stats.embedding_dimensions = Some(provider.dimension());
 
-            // Chunk embeddings
+            // Chunk embeddings - BATCHED to respect API token limits
             if self.config.enable_chunk_embeddings {
                 let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
                 if !texts.is_empty() {
-                    let embeddings = provider
-                        .embed(&texts)
-                        .await
-                        .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
+                    let mut all_embeddings = Vec::new();
+                    
+                    // Split into batches based on embedding_batch_size
+                    for batch in texts.chunks(self.config.embedding_batch_size) {
+                        let batch_embeddings = provider
+                            .embed(batch)
+                            .await
+                            .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
+                        all_embeddings.extend(batch_embeddings);
+                    }
 
-                    for (chunk, embedding) in chunks.iter_mut().zip(embeddings) {
+                    for (chunk, embedding) in chunks.iter_mut().zip(all_embeddings) {
                         chunk.embedding = Some(embedding);
                     }
                 }
             }
 
-            // Entity embeddings - OPTIMIZED: Batch all entities together
+            // Entity embeddings - BATCHED to respect API token limits
             if self.config.enable_entity_embeddings {
                 // Collect all entity texts with their indices for reassignment
                 let mut all_entity_texts: Vec<String> = Vec::new();
@@ -1031,22 +1037,27 @@ impl Pipeline {
                 }
 
                 if !all_entity_texts.is_empty() {
-                    // Single batch call for all entities
-                    let all_embeddings = provider
-                        .embed(&all_entity_texts)
-                        .await
-                        .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
-
-                    // Reassign embeddings to their respective entities
-                    for (embedding, (ext_idx, ent_idx)) in
-                        all_embeddings.into_iter().zip(entity_indices)
+                    // Split into batches based on embedding_batch_size
+                    for (batch_texts, batch_indices) in all_entity_texts
+                        .chunks(self.config.embedding_batch_size)
+                        .zip(entity_indices.chunks(self.config.embedding_batch_size))
                     {
-                        extractions[ext_idx].entities[ent_idx].embedding = Some(embedding);
+                        let batch_embeddings = provider
+                            .embed(batch_texts)
+                            .await
+                            .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
+                        
+                        // Reassign embeddings to their respective entities
+                        for (embedding, (ext_idx, ent_idx)) in
+                            batch_embeddings.into_iter().zip(batch_indices.iter().copied())
+                        {
+                            extractions[ext_idx].entities[ent_idx].embedding = Some(embedding);
+                        }
                     }
                 }
             }
 
-            // Relationship embeddings - OPTIMIZED: Batch all relationships together
+            // Relationship embeddings - BATCHED to respect API token limits
             if self.config.enable_relationship_embeddings {
                 // Collect all relationship texts with their indices for reassignment
                 let mut all_relationship_texts: Vec<String> = Vec::new();
@@ -1068,17 +1079,22 @@ impl Pipeline {
                 }
 
                 if !all_relationship_texts.is_empty() {
-                    // Single batch call for all relationships
-                    let all_embeddings = provider
-                        .embed(&all_relationship_texts)
-                        .await
-                        .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
-
-                    // Reassign embeddings to their respective relationships
-                    for (embedding, (ext_idx, rel_idx)) in
-                        all_embeddings.into_iter().zip(relationship_indices)
+                    // Split into batches based on embedding_batch_size
+                    for (batch_texts, batch_indices) in all_relationship_texts
+                        .chunks(self.config.embedding_batch_size)
+                        .zip(relationship_indices.chunks(self.config.embedding_batch_size))
                     {
-                        extractions[ext_idx].relationships[rel_idx].embedding = Some(embedding);
+                        let batch_embeddings = provider
+                            .embed(batch_texts)
+                            .await
+                            .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
+
+                        // Reassign embeddings to their respective relationships
+                        for (embedding, (ext_idx, rel_idx)) in
+                            batch_embeddings.into_iter().zip(batch_indices.iter().copied())
+                        {
+                            extractions[ext_idx].relationships[rel_idx].embedding = Some(embedding);
+                        }
                     }
                 }
             }
