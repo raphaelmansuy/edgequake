@@ -22,7 +22,7 @@ import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-
 import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
 import { RebuildKnowledgeGraphButton } from '@/components/workspace/rebuild-knowledge-graph-button';
 import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
-import { getWorkspace, getWorkspaceStats, updateWorkspace } from '@/lib/api/edgequake';
+import { checkHealth, getWorkspace, getWorkspaceStats, updateWorkspace } from '@/lib/api/edgequake';
 import { fetchProvidersHealth } from '@/lib/api/models';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -114,6 +114,19 @@ export default function WorkspacePage() {
     enabled: !!selectedWorkspaceId,
     staleTime: 0, // Always fetch fresh stats to reflect latest document processing
     refetchOnMount: 'always', // Always refetch when component mounts
+  });
+
+  // Fetch health to get current active provider configuration
+  // WHY: When workspace has 0 documents, show current active provider from environment
+  // instead of stale workspace record (which may show old provider like "ollama/embeddinggemma"
+  // even when OpenAI is now active)
+  const {
+    data: healthData,
+  } = useQuery({
+    queryKey: ['health'],
+    queryFn: checkHealth,
+    staleTime: 10000, // Cache for 10 seconds
+    retry: 1,
   });
 
   // Fetch provider health status (SPEC-032: OODA 201-210)
@@ -520,24 +533,34 @@ export default function WorkspacePage() {
                   </div>
                 )}
               </>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                {getProviderIcon(workspace.llm_provider)}
-                <div>
-                  <div className="font-medium">
-                    {workspace.llm_model || t('workspace.serverDefault', 'Server Default')}
+            ) : (() => {
+              // FIXED: Always show workspace's saved LLM configuration
+              // Do not override with environment defaults even when workspace has 0 documents
+              const displayProvider = workspace.llm_provider;
+              const displayModel = workspace.llm_model;
+              const displayFullId = workspace.llm_full_id;
+
+              return (
+                <>
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    {getProviderIcon(displayProvider)}
+                    <div>
+                      <div className="font-medium">
+                        {displayModel || t('workspace.serverDefault', 'Server Default')}
+                      </div>
+                      <div className="text-sm text-muted-foreground capitalize">
+                        {displayProvider || t('workspace.autoDetect', 'Auto-detected')}
+                      </div>
+                    </div>
+                    {displayFullId && (
+                      <Badge variant="outline" className="ml-auto">
+                        {displayFullId}
+                      </Badge>
+                    )}
                   </div>
-                  <div className="text-sm text-muted-foreground capitalize">
-                    {workspace.llm_provider || t('workspace.autoDetect', 'Auto-detected')}
-                  </div>
-                </div>
-                {workspace.llm_full_id && (
-                  <Badge variant="outline" className="ml-auto">
-                    {workspace.llm_full_id}
-                  </Badge>
-                )}
-              </div>
-            )}
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
 
@@ -568,27 +591,38 @@ export default function WorkspacePage() {
                   </div>
                 )}
               </>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                {getProviderIcon(workspace.embedding_provider)}
-                <div>
-                  <div className="font-medium">
-                    {workspace.embedding_model || t('workspace.serverDefault', 'Server Default')}
-                  </div>
-                  <div className="text-sm text-muted-foreground capitalize">
-                    {workspace.embedding_provider || t('workspace.autoDetect', 'Auto-detected')}
-                    {workspace.embedding_dimension && (
-                      <span className="ml-2">• {workspace.embedding_dimension} dims</span>
+            ) : (() => {
+              // FIXED: Always show workspace's saved embedding configuration
+              // Do not override with environment defaults even when workspace has 0 documents
+              const displayProvider = workspace.embedding_provider;
+              const displayModel = workspace.embedding_model;
+              const displayDimension = workspace.embedding_dimension;
+              const displayFullId = workspace.embedding_full_id;
+
+              return (
+                <>
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    {getProviderIcon(displayProvider)}
+                    <div>
+                      <div className="font-medium">
+                        {displayModel || t('workspace.serverDefault', 'Server Default')}
+                      </div>
+                      <div className="text-sm text-muted-foreground capitalize">
+                        {displayProvider || t('workspace.autoDetect', 'Auto-detected')}
+                        {displayDimension && (
+                          <span className="ml-2">• {displayDimension} dims</span>
+                        )}
+                      </div>
+                    </div>
+                    {displayFullId && (
+                      <Badge variant="outline" className="ml-auto">
+                        {displayFullId}
+                      </Badge>
                     )}
                   </div>
-                </div>
-                {workspace.embedding_full_id && (
-                  <Badge variant="outline" className="ml-auto">
-                    {workspace.embedding_full_id}
-                  </Badge>
-                )}
-              </div>
-            )}
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
