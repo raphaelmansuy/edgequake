@@ -259,6 +259,54 @@ impl KVStorage for PostgresKVStorage {
 
         Ok(())
     }
+
+    /// Atomically transition document status if current status matches expected.
+    ///
+    /// @implements FIX-RACE-01: Prevent TOCTOU race conditions
+    ///
+    /// # WHY: Atomic Compare-And-Swap
+    ///
+    /// Uses PostgreSQL's atomic UPDATE with WHERE clause to ensure only one
+    /// process can successfully transition the status. The affected row count
+    /// tells us if the transition succeeded (1) or failed (0).
+    ///
+    /// SQL: UPDATE ... SET value = jsonb_set(...) WHERE key = $1 AND value->>'status' = $2
+    ///
+    /// This is atomic at the database level - no race window possible.
+    async fn transition_if_status(
+        &self,
+        key: &str,
+        expected_status: &str,
+        new_status: &str,
+    ) -> Result<bool> {
+        let pool = self.pool.get().await?;
+
+        // Atomic update: only succeeds if current status matches expected
+        // jsonb_set updates the 'status' field within the JSONB value
+        let sql = format!(
+            r#"
+            UPDATE {}
+            SET value = jsonb_set(value, '{{status}}', to_jsonb($3::text)),
+                updated_at = NOW()
+            WHERE key = $1 AND value->>'status' = $2
+            "#,
+            self.table_name
+        );
+
+        let result = sqlx::query(&sql)
+            .bind(key)
+            .bind(expected_status)
+            .bind(new_status)
+            .execute(&pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("KV transition_if_status failed: {}", e))
+            })?;
+
+        // rows_affected = 1 means transition succeeded
+        // rows_affected = 0 means status didn't match (or key not found)
+        Ok(result.rows_affected() == 1)
+    }
 }
 
 impl std::fmt::Debug for PostgresKVStorage {

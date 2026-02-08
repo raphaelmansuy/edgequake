@@ -484,39 +484,97 @@ async fn cleanup_document_graph_data(
 /// * `Ok(true)` - Document data deleted successfully
 /// * `Ok(false)` - Document is still processing, cannot delete
 /// * `Err(ApiError)` - If deletion fails
+///
+/// @implements FIX-RACE-01: Atomic status transition prevents TOCTOU race condition
 async fn delete_document_for_reingestion(
     document_id: &str,
     state: &AppState,
     workspace_id: &str,
 ) -> Result<bool, ApiError> {
-    // Get document metadata to check status
     let metadata_key = format!("{}-metadata", document_id);
-    let status = if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
-        metadata
-            .get("status")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "unknown".to_string())
-    } else {
-        // No metadata found - document doesn't exist or was partially created
-        "unknown".to_string()
-    };
 
-    // Safety check - don't delete documents that are being processed
-    if status == "pending" || status == "processing" {
-        tracing::warn!(
+    // WHY: Atomic Status Transition (FIX-RACE-01)
+    //
+    // Previous code had a TOCTOU vulnerability:
+    // 1. Read status = "failed"
+    // 2. Another process changes status to "processing"
+    // 3. Delete data (corrupts active ingestion!)
+    //
+    // New approach: Atomically transition status BEFORE deletion.
+    // If transition fails, another process is using the document.
+    //
+    // Allowed transitions for re-ingestion:
+    // - "failed" → "deleting" (retry after error)
+    // - "completed" → "deleting" (re-extract with new settings)
+    // - "cancelled" → "deleting" (user cancelled, wants to retry)
+    //
+    // Disallowed (return conflict):
+    // - "pending" → (still waiting for processing)
+    // - "processing" → (active ingestion in progress)
+    // - "deleting" → (another delete already in progress)
+
+    // Try to transition from "failed" to "deleting"
+    let transitioned_from_failed = state
+        .kv_storage
+        .transition_if_status(&metadata_key, "failed", "deleting")
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to transition status: {}", e)))?;
+
+    if transitioned_from_failed {
+        tracing::info!(
             document_id = %document_id,
-            status = %status,
-            "Cannot re-ingest document that is still being processed"
+            from_status = "failed",
+            "Atomic status transition succeeded - safe to delete"
         );
-        return Ok(false);
+    } else {
+        // Try "completed" → "deleting"
+        let transitioned_from_completed = state
+            .kv_storage
+            .transition_if_status(&metadata_key, "completed", "deleting")
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to transition status: {}", e)))?;
+
+        if transitioned_from_completed {
+            tracing::info!(
+                document_id = %document_id,
+                from_status = "completed",
+                "Atomic status transition succeeded - safe to delete"
+            );
+        } else {
+            // Try "cancelled" → "deleting"
+            let transitioned_from_cancelled = state
+                .kv_storage
+                .transition_if_status(&metadata_key, "cancelled", "deleting")
+                .await
+                .map_err(|e| ApiError::Internal(format!("Failed to transition status: {}", e)))?;
+
+            if transitioned_from_cancelled {
+                tracing::info!(
+                    document_id = %document_id,
+                    from_status = "cancelled",
+                    "Atomic status transition succeeded - safe to delete"
+                );
+            } else {
+                // None of the allowed transitions worked - document state prevents re-ingestion
+                // WHY: This is not necessarily an error - document might be processing, pending, or deleted
+                tracing::warn!(
+                    document_id = %document_id,
+                    metadata_key = %metadata_key,
+                    "Cannot re-ingest: document status prevents transition (processing/pending/deleting/not found)"
+                );
+                return Ok(false);
+            }
+        }
     }
+
+    // === SAFE DELETION ZONE ===
+    // At this point, status is atomically set to "deleting"
+    // No other process can modify this document until we're done
 
     tracing::info!(
         document_id = %document_id,
         workspace_id = %workspace_id,
-        status = %status,
-        "Re-ingestion requested - deleting existing document data"
+        "Re-ingestion requested - deleting existing document data (status = deleting)"
     );
 
     // Get workspace-specific vector storage for cleanup
