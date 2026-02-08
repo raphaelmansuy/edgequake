@@ -22,14 +22,6 @@
 'use client';
 
 import { RightPanel } from '@/components/layout/right-panel';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Table,
-    TableBody,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import {
     getDocuments,
     getPipelineStatus,
@@ -50,15 +42,13 @@ import { BatchActionsBar } from './batch-actions-bar';
 import { DocumentDropzone } from './document-dropzone';
 import { DocumentErrorAlert } from './document-error-alert';
 import { DocumentHeader } from './document-header';
-import { DocumentTableStates } from './document-table-states';
 
 import { DocumentFilters } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
 import { DocumentSearchBar } from './document-search-bar';
-import { DocumentTableRow } from './document-table-row';
+import { DocumentTableSection } from './document-table-section';
 import { DocumentViewerDialog } from './document-viewer-dialog';
 
-import { PaginationControls } from './pagination-controls';
 import { ProcessingStatusSummary } from './processing-status-summary';
 import { UploadProgressList } from './upload-progress-list';
 import { useStuckDetection } from '@/hooks/use-stuck-detection';
@@ -348,95 +338,35 @@ export function DocumentManager() {
 
       </div>
 
-      {/* Scrollable Documents Table Zone */}
-      <div className="flex-1 min-h-0 overflow-auto">
-        <div className="px-4 py-3">
-          {/* Table Header */}
-          <div className="flex items-center gap-2 mb-3">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Documents ({documents.length})</span>
-          </div>
-          
-          {/* OODA-12: Loading skeleton and empty state - Extracted to DocumentTableStates */}
-          <DocumentTableStates
-            isLoading={isLoading}
-            isEmpty={documents.length === 0}
-            onUploadClick={openFileDialog}
-          />
-          
-          {!isLoading && documents.length > 0 && (
-            <div className="border rounded-lg overflow-hidden shadow-sm">
-              <Table>
-                <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[40px]">
-                      <Checkbox
-                        checked={isAllSelected}
-                        onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                        aria-label={t('documents.bulk.selectAll', 'Select all')}
-                      />
-                    </TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-center">Entities</TableHead>
-                    <TableHead className="text-center">Cost</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="w-[100px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {/* OODA-15: Table rows extracted to DocumentTableRow component */}
-                  {documents.map((doc, index) => (
-                    <DocumentTableRow
-                      key={doc.id}
-                      doc={doc}
-                      index={index}
-                      isSelected={selectedIds.has(doc.id)}
-                      isActive={selectedDocument?.id === doc.id}
-                      searchQuery={searchQuery}
-                      onSelect={handleSelectOne}
-                      onClick={handleDocumentClick}
-                      onDoubleClick={handleDocumentDoubleClick}
-                      onViewDetails={handleViewDetails}
-                      onViewInGraph={handleViewInGraph}
-                      onViewPdf={handleViewPdf}
-                      onRetry={(id) => reprocessMutation.mutate(id)}
-                      onCancel={(trackId) => cancelMutation.mutate(trackId)}
-                      onDelete={(id) => deleteMutation.mutate(id)}
-                      isRetrying={reprocessMutation.isPending}
-                      isCancelling={cancelMutation.isPending}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
-      </div>
-          
-      {/* Fixed Pagination Footer */}
-      {documents.length > 0 && (
-        <div className="shrink-0 px-4 py-3 border-t bg-background">
-          {/* OODA-37: Show filtered vs total count when filtering */}
-          {(searchQuery || statusFilter !== 'all') && (
-            <p className="text-xs text-muted-foreground mb-2 text-center">
-              Showing {documents.length} of {totalCount} documents
-              {statusFilter !== 'all' && ` (${statusFilter})`}
-              {searchQuery && ` matching "${searchQuery}"`}
-            </p>
-          )}
-          <PaginationControls
-            currentPage={currentPage}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(newSize) => {
-              setPageSize(newSize);
-              setCurrentPage(1);
-            }}
-          />
-        </div>
-      )}
+      {/* OODA-26: Table section extracted to DocumentTableSection */}
+      <DocumentTableSection
+        documents={documents}
+        totalCount={totalCount}
+        isLoading={isLoading}
+        selectedIds={selectedIds}
+        selectedDocument={selectedDocument}
+        searchQuery={searchQuery}
+        statusFilter={statusFilter}
+        isAllSelected={isAllSelected}
+        onSelectAll={handleSelectAll}
+        onSelectOne={handleSelectOne}
+        onRowClick={handleDocumentClick}
+        onRowDoubleClick={handleDocumentDoubleClick}
+        onViewDetails={handleViewDetails}
+        onViewInGraph={handleViewInGraph}
+        onViewPdf={handleViewPdf}
+        onRetry={(id) => reprocessMutation.mutate(id)}
+        onCancel={(trackId) => cancelMutation.mutate(trackId)}
+        onDelete={(id) => deleteMutation.mutate(id)}
+        isRetrying={reprocessMutation.isPending}
+        isCancelling={cancelMutation.isPending}
+        onUploadClick={openFileDialog}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+      />
       </div>
 
       {/* Right Panel - Document Preview */}
