@@ -2,12 +2,14 @@
 //!
 //! This is the main entry point for the EdgeQuake server.
 
+use chrono::{Duration, Utc};
 use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
-use edgequake_tasks::{TaskFilter, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig, Pagination};
+use edgequake_tasks::{
+    Pagination, TaskFilter, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig,
+};
 use std::sync::Arc;
 use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use chrono::Utc;
 
 /// Print the EdgeQuake startup banner with storage mode information.
 fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, port: u16) {
@@ -81,7 +83,7 @@ async fn recover_orphaned_tasks(
 
     let task_list = task_storage.list_tasks(filter, pagination).await?;
     let now = Utc::now();
-    let orphan_threshold = chrono::Duration::minutes(5);
+    let orphan_threshold = Duration::minutes(5);
 
     let mut recovered_count = 0;
     let mut skipped_count = 0;
@@ -126,7 +128,7 @@ async fn recover_orphaned_tasks(
             "🔧 Orphaned task recovery complete: {} recovered, {} skipped (too recent)",
             recovered_count, skipped_count
         );
-    } else if task_list.tasks.is_empty() {
+    } else if recovered_count == 0 && skipped_count == 0 {
         info!("✅ No orphaned tasks found - clean startup");
     } else {
         info!(
@@ -235,7 +237,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Recover orphaned tasks from previous backend session (PRODUCTION_BUG_FIX)
     // MUST run BEFORE starting workers to prevent race conditions
-    if let Err(e) = recover_orphaned_tasks(Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>).await {
+    if let Err(e) =
+        recover_orphaned_tasks(Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>).await
+    {
         warn!("Failed to recover orphaned tasks (non-fatal): {}", e);
     }
 

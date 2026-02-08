@@ -78,6 +78,7 @@ serde_json = { workspace = true }
 futures = { workspace = true }
 num_cpus = { workspace = true }
 sqlx = { workspace = true }
+chrono = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
