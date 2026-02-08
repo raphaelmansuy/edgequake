@@ -79,7 +79,7 @@ import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
 import { useFileUpload } from '@/hooks/use-file-upload';
 import { useDocumentMutations } from '@/hooks/use-document-mutations';
 import { useBulkSelection } from '@/hooks/use-bulk-selection';
-import { useDocumentPreferences, type DocStatus } from '@/hooks/use-document-preferences';
+import { useDocumentPreferences } from '@/hooks/use-document-preferences';
 import { useDocumentKeyboard } from '@/hooks/use-document-keyboard';
 import { useDocumentFiltering } from '@/hooks/use-document-filtering';
 
@@ -229,35 +229,16 @@ export function DocumentManager() {
   });
 
   // OODA-19: Filter and sort documents using extracted hook
-  const { documents, totalCount, totalPages, allDocuments } = useDocumentFiltering({
+  // OODA-20: Also compute status counts in hook
+  const { documents, totalCount, totalPages, statusCounts } = useDocumentFiltering({
     documents: data?.items || [],
     searchQuery,
     statusFilter,
     sortField,
     sortDirection,
     pageSize,
+    serverStatusCounts: data?.status_counts,
   });
-  
-  // Use server-side status counts from API response (more efficient)
-  // Fall back to client-side calculation if not available
-  const serverStatusCounts = data?.status_counts;
-  const statusCounts: Record<DocStatus, number> = serverStatusCounts ? {
-    all: allDocuments.length,
-    pending: serverStatusCounts.pending,
-    processing: serverStatusCounts.processing,
-    completed: serverStatusCounts.completed,
-    failed: serverStatusCounts.failed,
-    partial_failure: serverStatusCounts.partial_failure || 0,
-    cancelled: serverStatusCounts.cancelled || 0,
-  } : {
-    all: allDocuments.length,
-    pending: allDocuments.filter((d) => d.status === 'pending').length,
-    processing: allDocuments.filter((d) => d.status === 'processing').length,
-    completed: allDocuments.filter((d) => !d.status || d.status === 'completed' || d.status === 'indexed').length,
-    failed: allDocuments.filter((d) => d.status === 'failed').length,
-    partial_failure: allDocuments.filter((d) => d.status === 'partial_failure').length,
-    cancelled: allDocuments.filter((d) => d.status === 'cancelled').length,
-  };
 
   // OODA-16: Bulk selection extracted to useBulkSelection hook
   const {
