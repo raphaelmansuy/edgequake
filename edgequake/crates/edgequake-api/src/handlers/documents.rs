@@ -1184,7 +1184,21 @@ pub async fn upload_document(
             .progress_broadcaster
             .document_progress(&document_id, result.stats.entity_count, 2, 3);
 
-        // Update document status to completed (preserve content_summary, content_length, track_id, tenant context)
+        // OODA-03: Determine final status based on chunk extraction results
+        // - "completed": All chunks extracted successfully
+        // - "partial_success": Some chunks succeeded, some failed (users need visibility)
+        // - "failed": All chunks failed (already handled upstream by error return)
+        let final_status = if result.stats.failed_chunks > 0 {
+            if result.stats.successful_chunks > 0 {
+                "partial_success"
+            } else {
+                "failed"
+            }
+        } else {
+            "completed"
+        };
+
+        // Update document status (preserve content_summary, content_length, track_id, tenant context)
         let doc_metadata = serde_json::json!({
             "id": document_id,
             "title": request.title,
@@ -1193,8 +1207,10 @@ pub async fn upload_document(
             "content_hash": content_hash,
             "track_id": track_id,
             "created_at": Utc::now().to_rfc3339(),
-            "status": "completed",
+            "status": final_status,
             "chunk_count": result.stats.chunk_count,
+            "successful_chunks": result.stats.successful_chunks,
+            "failed_chunks": result.stats.failed_chunks,
             "entity_count": result.stats.entity_count,
             "relationship_count": result.stats.relationship_count,
             "tenant_id": tenant_id_for_storage,
