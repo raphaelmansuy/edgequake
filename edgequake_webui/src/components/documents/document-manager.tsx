@@ -36,8 +36,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import {
-    cancelTask,
-    deleteAllDocuments,
     deleteDocument,
     getDocuments,
     getPipelineStatus,
@@ -46,7 +44,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
     AlertCircle,
@@ -88,6 +86,7 @@ import { UploadProgressList } from './upload-progress-list';
 import { useStuckDetection } from '@/hooks/use-stuck-detection';
 import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
 import { useFileUpload } from '@/hooks/use-file-upload';
+import { useDocumentMutations } from '@/hooks/use-document-mutations';
 
 /**
  * OODA-30: File type icon helper
@@ -234,6 +233,16 @@ export function DocumentManager() {
     onUploadStart: () => setStatusFilter('all'),
   });
 
+  // OODA-14: Document mutations extracted to useDocumentMutations hook
+  const {
+    deleteMutation,
+    deleteAllMutation,
+    reprocessMutation,
+    cancelMutation,
+  } = useDocumentMutations({
+    onReprocessSuccess: () => setPipelineDialogOpen(true),
+  });
+
   // OODA-42 COMPLETE: WebSocket-based real-time updates (NO POLLING)
   // WHY: Users want instant document status updates without polling overhead
   // HOW: Subscribe to WebSocket events for all processing documents
@@ -300,91 +309,6 @@ export function DocumentManager() {
     },
     [handleFilesUpload, t]
   );
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteDocument,
-    onSuccess: () => {
-      toast.success(t('documents.delete.success', 'Document deleted'), {
-        duration: 4000,
-        description: t('documents.delete.successDesc', 'The document has been permanently removed.'),
-      });
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-    },
-    onError: (error) => {
-      toast.error(t('documents.delete.failed', 'Delete failed'), {
-        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
-        action: {
-          label: t('common.retry', 'Retry'),
-          onClick: () => {
-            // User can retry from the UI
-          },
-        },
-      });
-    },
-  });
-
-  const deleteAllMutation = useMutation({
-    mutationFn: deleteAllDocuments,
-    onSuccess: (data) => {
-      toast.success(t('documents.deleteAll.success', { count: data.deleted_count }) || `Deleted ${data.deleted_count} documents`, {
-        duration: 4000,
-      });
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-    },
-    onError: (error) => {
-      toast.error(t('documents.deleteAll.failed', 'Delete all failed'), {
-        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
-        action: {
-          label: t('common.retry', 'Retry'),
-          onClick: () => deleteAllMutation.mutate(),
-        },
-      });
-    },
-  });
-
-  const reprocessMutation = useMutation({
-    mutationFn: (documentId: string) => reprocessDocument(documentId, true),
-    onSuccess: () => {
-      toast.success(t('documents.reprocess.success', 'Document queued for reprocessing'), {
-        duration: 4000,
-        action: {
-          label: t('documents.viewStatus', 'View Status'),
-          onClick: () => setPipelineDialogOpen(true),
-        },
-      });
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-    },
-    onError: (error) => {
-      toast.error(t('documents.reprocess.failed', 'Reprocess failed'), {
-        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
-        action: {
-          label: t('common.retry', 'Retry'),
-          onClick: () => {
-            // User can retry from the UI
-          },
-        },
-      });
-    },
-  });
-
-  // Cancel mutation for stopping document processing
-  const cancelMutation = useMutation({
-    mutationFn: async (trackId: string) => {
-      await cancelTask(trackId);
-    },
-    onSuccess: () => {
-      toast.success(t('documents.cancel.success', 'Document processing cancelled'), {
-        duration: 4000,
-        description: t('documents.cancel.successDesc', 'The extraction has been stopped.'),
-      });
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-    },
-    onError: (error) => {
-      toast.error(t('documents.cancel.failed', 'Cancel failed'), {
-        description: error instanceof Error ? error.message : t('documents.cancel.failedDesc', 'Could not cancel processing. It may have already completed.'),
-      });
-    },
-  });
 
   const { getRootProps, getInputProps, isDragActive, open: openFileDialog } = useDropzone({
     onDrop,
