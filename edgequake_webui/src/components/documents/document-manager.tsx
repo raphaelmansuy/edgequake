@@ -21,16 +21,11 @@
  */
 'use client';
 
-import {
-    getDocuments,
-    getPipelineStatus,
-} from '@/lib/api/edgequake';
-
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BatchActionsBar } from './batch-actions-bar';
 
@@ -55,24 +50,15 @@ import { useDocumentKeyboard } from '@/hooks/use-document-keyboard';
 import { useDocumentFiltering } from '@/hooks/use-document-filtering';
 import { useDocumentDropzone } from '@/hooks/use-document-dropzone';
 import { useDocumentHandlers } from '@/hooks/use-document-handlers';
+import { useDocumentQueries } from '@/hooks/use-document-queries';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 
 export function DocumentManager() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const router = useRouter();
   
   // Get tenant context for query key
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
-
-  // CRITICAL DEBUG: Log tenant/workspace changes
-  useEffect(() => {
-    console.log('[DocumentManager] Tenant/Workspace context:', {
-      selectedTenantId,
-      selectedWorkspaceId,
-      timestamp: new Date().toISOString(),
-    });
-  }, [selectedTenantId, selectedWorkspaceId]);
   
   // Selected document for preview panel
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
@@ -123,27 +109,13 @@ export function DocumentManager() {
     onReprocessSuccess: () => setPipelineDialogOpen(true),
   });
 
-  // OODA-42 COMPLETE: WebSocket-based real-time updates (NO POLLING)
-  // WHY: Users want instant document status updates without polling overhead
-  // HOW: Subscribe to WebSocket events for all processing documents
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['documents', selectedTenantId, selectedWorkspaceId, currentPage, pageSize, statusFilter],
-    queryFn: () => getDocuments({ 
-      page: currentPage, 
-      page_size: pageSize,
-      status: statusFilter === 'all' ? undefined : statusFilter,
-    }),
-    // NO polling - WebSocket provides real-time updates
-    refetchInterval: false,
-  });
-  
-  // Pipeline status query
-  // OODA-37: Include workspace in queryKey for proper isolation
-  // CRITICAL: Pass tenant_id and workspace_id to getPipelineStatus for multi-tenancy isolation
-  const { data: pipelineStatus } = useQuery({
-    queryKey: ['pipeline-status', selectedTenantId, selectedWorkspaceId],
-    queryFn: () => getPipelineStatus(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined),
-    refetchInterval: 2000,
+  // OODA-29: Document queries extracted to useDocumentQueries hook
+  const { data, isLoading, isError, error, refetch, pipelineStatus, queryClient } = useDocumentQueries({
+    tenantId: selectedTenantId,
+    workspaceId: selectedWorkspaceId,
+    currentPage,
+    pageSize,
+    statusFilter,
   });
 
   // OODA-05: WebSocket subscription for real-time document status updates
