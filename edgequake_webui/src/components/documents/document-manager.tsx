@@ -37,12 +37,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
-import {
     cancelTask,
     deleteAllDocuments,
     deleteDocument,
@@ -62,8 +56,6 @@ import {
     AlertCircle,
     CheckCircle,
     Clock,
-    ExternalLink,
-    Eye,
     File,
     FileCode,
     FileImage,
@@ -73,7 +65,6 @@ import {
     Loader2,
     RefreshCw,
     Search,
-    Sparkles,
     Upload,
     X,
 } from 'lucide-react';
@@ -89,6 +80,7 @@ import { ConnectionStatus } from './connection-status';
 import { CostCell } from './cost-cell';
 import { DocumentActionsMenu } from './document-actions-menu';
 import { DocumentDropzone } from './document-dropzone';
+import { QuickActionButtons } from './quick-action-buttons';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
 import { DocumentViewerDialog } from './document-viewer-dialog';
@@ -1355,81 +1347,15 @@ export function DocumentManager() {
                           : '-'}
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1 justify-end">
-                          {/* OODA-22: Quick action buttons */}
-                          
-                          {/* OODA-41: View Details button - navigates to document detail page */}
-                          <TooltipProvider delayDuration={300}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleViewDetails(doc)}
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>View Details</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          
-                          {/* Preview button (opens side panel) */}
-                          <TooltipProvider delayDuration={300}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleDocumentClick(doc)}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Preview</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          
-                          {/* View in Graph button (for completed documents) */}
-                          {(doc.status === 'completed' || doc.status === 'indexed') && (
-                            <TooltipProvider delayDuration={300}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => handleViewInGraph(doc)}
-                                  >
-                                    <Sparkles className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>View in Graph</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          
-                          {/* Retry button (for failed/partial_failure documents) */}
-                          {(doc.status === 'failed' || doc.status === 'partial_failure') && (
-                            <TooltipProvider delayDuration={300}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                                    onClick={() => reprocessMutation.mutate(doc.id)}
-                                  >
-                                    <RefreshCw className={`h-4 w-4 ${reprocessMutation.isPending ? 'animate-spin' : ''}`} />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Retry</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          
+                        {/* OODA-10: Quick action buttons - Extracted to QuickActionButtons */}
+                        <QuickActionButtons
+                          doc={doc}
+                          onViewDetails={handleViewDetails}
+                          onPreview={handleDocumentClick}
+                          onViewInGraph={handleViewInGraph}
+                          onRetry={(id) => reprocessMutation.mutate(id)}
+                          isRetrying={reprocessMutation.isPending}
+                        >
                           {/* OODA-09: Actions dropdown - Extracted to DocumentActionsMenu */}
                           <DocumentActionsMenu
                             doc={doc}
@@ -1439,7 +1365,7 @@ export function DocumentManager() {
                             onDelete={(id) => deleteMutation.mutate(id)}
                             isCancelling={cancelMutation.isPending}
                           />
-                        </div>
+                        </QuickActionButtons>
                       </TableCell>
                     </TableRow>
                   ))}

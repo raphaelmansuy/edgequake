@@ -92,7 +92,7 @@ export interface StageProgress {
 
 /**
  * PDF extraction progress details.
- * 
+ *
  * @implements OODA-06: PDF page-by-page progress tracking
  */
 export interface PdfProgress {
@@ -110,7 +110,7 @@ export interface PdfProgress {
 
 /**
  * Chunk extraction progress details.
- * 
+ *
  * @implements SPEC-001/Objective-A: Chunk-Level Progress Visibility
  */
 export interface ChunkProgress {

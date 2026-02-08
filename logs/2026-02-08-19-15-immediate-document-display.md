@@ -7,6 +7,7 @@
 ## Context
 
 User uploaded a document and observed that it appeared in the documents panel, but wanted to ensure:
+
 1. **Documents appear IMMEDIATELY** after upload (not after polling delay)
 2. **Status updates SMOOTHLY** as ingestion progresses (pending → processing → completed)
 
@@ -65,25 +66,27 @@ if (textResponse.document_id && !textResponse.duplicate_of) {
     title: file.name,
     file_name: file.name,
     file_size: file.size,
-    source_type: 'text',
-    status: 'processing',
-    mime_type: file.type || 'text/plain',
+    source_type: "text",
+    status: "processing",
+    mime_type: file.type || "text/plain",
     created_at: new Date().toISOString(),
     track_id: textResponse.track_id,
   };
-  
+
   // Add to all document query caches for instant visibility
   queryClient.setQueriesData<{ documents: Document[]; total: number }>(
-    { queryKey: ['documents'] },
+    { queryKey: ["documents"] },
     (old) => {
       if (!old || !old.documents || !Array.isArray(old.documents)) return old;
-      const exists = old.documents.some(d => d.id === textResponse.document_id);
+      const exists = old.documents.some(
+        (d) => d.id === textResponse.document_id,
+      );
       if (exists) return old;
       return {
         documents: [optimisticDoc, ...old.documents],
         total: (old.total ?? 0) + 1,
       };
-    }
+    },
   );
 }
 ```
@@ -91,11 +94,13 @@ if (textResponse.document_id && !textResponse.duplicate_of) {
 ### 2. Reduced Polling Interval for Smoother Status Updates
 
 **Before:**
+
 ```typescript
 refetchInterval: 5000, // Poll for status updates every 5 seconds
 ```
 
 **After:**
+
 ```typescript
 // OODA-42 ENHANCED: Reduce polling to 1s for smooth status updates
 // WHY: Users want to see document status evolve in real-time
@@ -107,30 +112,32 @@ refetchInterval: 1000, // 1 second for smooth updates (was 5000ms)
 
 ### Before
 
-| Event                    | Delay    | User Experience                                  |
-|--------------------------|----------|--------------------------------------------------|
-| Upload text file         | 0-5s     | Document appears after random delay (polling)    |
-| Status change (pending)  | 0-5s     | Status updates lag behind actual progress        |
-| Status change (complete) | 0-5s     | User waits to see final result                   |
+| Event                    | Delay | User Experience                               |
+| ------------------------ | ----- | --------------------------------------------- |
+| Upload text file         | 0-5s  | Document appears after random delay (polling) |
+| Status change (pending)  | 0-5s  | Status updates lag behind actual progress     |
+| Status change (complete) | 0-5s  | User waits to see final result                |
 
 ### After
 
-| Event                    | Delay    | User Experience                                  |
-|--------------------------|----------|--------------------------------------------------|
-| Upload text file         | <100ms   | Document appears **immediately** ✅              |
-| Status change (pending)  | <1s      | Status updates **smoothly** every second ✅      |
-| Status change (complete) | <1s      | User sees final result **quickly** ✅            |
+| Event                    | Delay  | User Experience                             |
+| ------------------------ | ------ | ------------------------------------------- |
+| Upload text file         | <100ms | Document appears **immediately** ✅         |
+| Status change (pending)  | <1s    | Status updates **smoothly** every second ✅ |
+| Status change (complete) | <1s    | User sees final result **quickly** ✅       |
 
 ## Technical Details
 
 ### Optimistic Updates
 
 **Benefits:**
+
 - Documents appear in list within milliseconds of upload
 - No waiting for server round-trip
 - Consistent with PDF upload behavior
 
 **Implementation:**
+
 - React Query `setQueriesData()` updates ALL queries matching `['documents']`
 - Guards against undefined arrays and duplicate entries
 - Uses predicate matching for flexible query key patterns
@@ -138,11 +145,13 @@ refetchInterval: 1000, // 1 second for smooth updates (was 5000ms)
 ### Polling Optimization
 
 **Current Approach:**
+
 - 1-second polling for main document list
 - 2-second polling for processing documents (unchanged)
 - Balance between responsiveness and server load
 
 **Future Enhancement (documented in code):**
+
 - Integrate WebSocket subscription (like `useIngestionProgress`)
 - True real-time updates with zero polling
 - Falls back to polling when WebSocket unavailable
@@ -161,7 +170,7 @@ export function useWebSocket() {
 // hooks/use-ingestion-progress.ts
 export function useIngestionProgress(trackId: string) {
   const { subscribe } = useWebSocket();
-  
+
   useEffect(() => {
     if (connected) {
       subscribe([trackId]); // Real-time progress updates
@@ -171,6 +180,7 @@ export function useIngestionProgress(trackId: string) {
 ```
 
 **Integration Plan:**
+
 1. Add WebSocket subscription in `document-manager.tsx`
 2. Subscribe to all processing documents' `track_id`s
 3. Invalidate queries on WebSocket status change events
@@ -249,21 +259,25 @@ pnpm exec playwright test e2e/upload-pdf.spec.ts
 ## Summary
 
 **Actions:**
+
 - Added optimistic updates for text/markdown files (same as PDF)
 - Reduced polling interval from 5s to 1s for smoother status updates
 - Documented WebSocket integration path for future work
 
 **Decisions:**
+
 - Use 1s polling as intermediate solution (balance UX + server load)
 - Plan WebSocket integration for true real-time updates (future)
 - Maintain consistency between PDF and text upload behavior
 
 **Next Steps:**
+
 - Test with real document uploads across multiple tenants
 - Monitor server load from increased polling frequency
 - Implement WebSocket subscription for document list (future sprint)
 
 **Insights:**
+
 - Optimistic updates are critical for perceived performance
 - Polling interval is a UX lever (1s feels 5x more responsive than 5s)
 - Existing WebSocket infrastructure can be leveraged for instant updates

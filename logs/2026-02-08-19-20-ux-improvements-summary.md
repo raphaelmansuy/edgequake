@@ -9,10 +9,12 @@ You requested: "When I upload a document → once uploaded the document should b
 ### Issue 1: Text Files Not Appearing Immediately ❌
 
 **Before:**
+
 - PDF files: Appeared immediately (optimistic update) ✅
 - Text/markdown files: Waited 0-5 seconds for polling interval ❌
 
 **Root Cause:**
+
 ```typescript
 // PDF upload had optimistic update (lines 345-376)
 if (pdfResponse.pdf_id && !pdfResponse.duplicate_of) {
@@ -26,22 +28,23 @@ const textResponse = await uploadDocument({ ... });
 
 **Fix Applied:**
 Added identical optimistic update for text/markdown files:
+
 ```typescript
 // OODA-42 EXTENDED: Optimistic update for text/markdown files
 if (textResponse.document_id && !textResponse.duplicate_of) {
   const optimisticDoc: Document = {
     id: textResponse.document_id,
     title: file.name,
-    status: 'processing',
+    status: "processing",
     // ... other fields
   };
-  
+
   queryClient.setQueriesData<{ documents: Document[] }>(
-    { queryKey: ['documents'] },
+    { queryKey: ["documents"] },
     (old) => ({
       documents: [optimisticDoc, ...old.documents],
       total: (old.total ?? 0) + 1,
-    })
+    }),
   );
 }
 ```
@@ -49,10 +52,12 @@ if (textResponse.document_id && !textResponse.duplicate_of) {
 ### Issue 2: Status Updates Felt Sluggish ⏱️
 
 **Before:**
+
 - Main document list: 5-second polling
 - Status changes: Took 0-5 seconds to appear
 
 **After:**
+
 - Main document list: 1-second polling (5x faster)
 - Status changes: Update every second (smooth UX)
 
@@ -67,7 +72,7 @@ if (textResponse.document_id && !textResponse.duplicate_of) {
 ## Results
 
 | Metric                    | Before    | After     | Improvement |
-|---------------------------|-----------|-----------|-------------|
+| ------------------------- | --------- | --------- | ----------- |
 | **PDF upload → visible**  | <100ms ✅ | <100ms ✅ | No change   |
 | **Text upload → visible** | 0-5s ❌   | <100ms ✅ | 50x faster  |
 | **Status update latency** | 0-5s ❌   | 0-1s ✅   | 5x faster   |
@@ -133,13 +138,14 @@ const { subscribe, unsubscribe } = useWebSocket();
 
 useEffect(() => {
   if (connected && processingDocuments) {
-    const trackIds = processingDocuments.map(d => d.track_id);
+    const trackIds = processingDocuments.map((d) => d.track_id);
     subscribe(trackIds); // Real-time status updates
   }
 }, [processingDocuments, connected]);
 ```
 
 **Benefits:**
+
 - Zero-latency status updates (no polling at all)
 - Reduced server load (no 1s polling requests)
 - Already implemented for progress tracking (just needs extension)
@@ -149,6 +155,7 @@ useEffect(() => {
 ### Manual Testing
 
 1. **Start services:**
+
    ```bash
    make dev
    ```

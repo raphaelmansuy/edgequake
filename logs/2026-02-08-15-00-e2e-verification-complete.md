@@ -1,13 +1,14 @@
-# Multi-Tenant Security - E2E Verification Report  
+# Multi-Tenant Security - E2E Verification Report
 
 **Date**: 2026-02-08 15:00  
 **Status**: ✅ **ALL CRITICAL VULNERABILITIES FIXED**  
-**Commits**:   - d11edba8 - Entities/Relationships strict filtering  
+**Commits**: - d11edba8 - Entities/Relationships strict filtering
+
 - 4bcda81d - Costs/Graph/Documents strict filtering
 
 ---
 
-## Executive Summary 
+## Executive Summary
 
 Successfully **fixed 5 critical multi-tenant data leakage vulnerabilities** across cost tracking, graph visualization, and document listing endpoints. All endpoints now enforce **strict tenant context requirement with zero exceptions**.
 
@@ -17,13 +18,14 @@ Successfully **fixed 5 critical multi-tenant data leakage vulnerabilities** acro
 
 ## Vulnerabilities Fixed
 
-### ✅ 1. Cost Summary Endpoint (P0 - CRITICAL)  
+### ✅ 1. Cost Summary Endpoint (P0 - CRITICAL)
 
 **File**: [edgequake/crates/edgequake-api/src/handlers/costs.rs](edgequake/crates/edgequake-api/src/handlers/costs.rs)  
 **Endpoint**: `GET /api/v1/costs/summary`  
 **Fix**: Added `tenant_ctx: TenantContext` parameter + strict document filtering
 
 **Before (BROKEN)**:
+
 ```rust
 pub async fn get_cost_summary(
     State(state): State<AppState>,
@@ -33,6 +35,7 @@ pub async fn get_cost_summary(
 ```
 
 **After (FIXED)**:
+
 ```rust
 pub async fn get_cost_summary(
     State(state): State<AppState>,
@@ -43,13 +46,13 @@ pub async fn get_cost_summary(
         warn!("Tenant context missing - returning empty");
         return Ok(Json(empty_summary));
     }
-    
+
     // ✅ Filter documents by BOTH tenant_id AND workspace_id
     for value in values {
         if let Some(obj) = value.as_object() {
             let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
             let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
-            
+
             if tenant_ctx.tenant_id.as_deref() != doc_tenant_id {
                 continue; // Skip other tenant's documents
             }
@@ -63,6 +66,7 @@ pub async fn get_cost_summary(
 ```
 
 **Verification**:
+
 - ✅ TenantA sees only own costs
 - ✅ TenantB sees only own costs (isolated from TenantA)
 - ✅ Admin without headers sees 0 costs (strict enforcement)
@@ -76,6 +80,7 @@ pub async fn get_cost_summary(
 **Fix**: Added `tenant_ctx: TenantContext` parameter + strict document filtering
 
 **Before (BROKEN)**:
+
 ```rust
 pub async fn get_cost_history(
     State(state): State<AppState>,
@@ -86,6 +91,7 @@ pub async fn get_cost_history(
 ```
 
 **After (FIXED)**:
+
 ```rust
 pub async fn get_cost_history(
     State(state): State<AppState>,
@@ -97,13 +103,14 @@ pub async fn get_cost_history(
         warn!("Tenant context missing - returning empty history");
         return Ok(Json(vec![]));
     }
-    
+
     // ✅ Filter historical data by tenant context
     // (same filtering logic as cost summary)
 }
 ```
 
 **Verification**:
+
 - ✅ Cost trends isolated per tenant
 - ✅ No time-series leakage across tenants
 - ✅ Admin without headers sees empty history
@@ -114,12 +121,14 @@ pub async fn get_cost_history(
 
 **File**: [edgequake/crates/edgequake-api/src/handlers/costs.rs](edgequake/crates/edgequake-api/src/handlers/costs.rs#L260-L300)  
 **Endpoints**:
+
 - `GET /api/v1/costs/budget`
 - `PATCH /api/v1/costs/budget`
 
 **Fix**: Added `tenant_ctx: TenantContext` parameter for future tenant-specific budget implementation
 
 **Before (RISKY)**:
+
 ```rust
 pub async fn get_budget_status(
     State(_state): State<AppState>
@@ -130,6 +139,7 @@ pub async fn get_budget_status(
 ```
 
 **After (SECURED)**:
+
 ```rust
 pub async fn get_budget_status(
     State(_state): State<AppState>,
@@ -160,6 +170,7 @@ pub async fn update_budget(
 ```
 
 **Verification**:
+
 - ✅ Budget endpoints ready for multi-tenant implementation
 - ✅ Update endpoint rejects requests without tenant context
 - ✅ No tenant leakage risk when feature is implemented
@@ -173,13 +184,14 @@ pub async fn update_budget(
 **Fix**: Changed from permissive to strict tenant filtering (matches entities.rs)
 
 **Before (BROKEN - OLD LOGIC)**:
+
 ```rust
 let matches_tenant_context = |properties| {
     // ❌ PERMISSIVE: If no tenant context, allow all nodes
     if tenant_ctx.tenant_id.is_none() {
         return true;
     }
-    
+
     // ❌ BACKWARD COMPATIBILITY: Allow legacy NULL nodes
     if let Some(ref ctx_tenant_id) = tenant_ctx.tenant_id {
         if let Some(node_tenant_id) = properties.get("tenant_id") {
@@ -189,12 +201,13 @@ let matches_tenant_context = |properties| {
         }
         // ❌ If node has no tenant_id, still include it
     }
-    
+
     true
 };
 ```
 
 **After (FIXED - STRICT LOGIC)**:
+
 ```rust
 // ✅ EARLY RETURN: Reject if EITHER tenant_id OR workspace_id is missing
 if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
@@ -210,19 +223,21 @@ if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
 let matches_tenant_context = |properties| {
     let node_tenant_id = properties.get("tenant_id").and_then(|v| v.as_str());
     let node_workspace_id = properties.get("workspace_id").and_then(|v| v.as_str());
-    
+
     tenant_ctx.tenant_id.as_deref() == node_tenant_id
         && tenant_ctx.workspace_id.as_deref() == node_workspace_id
 };
 ```
 
 **Changes**:
+
 1. Removed permissive "if tenant_id.is_none() return true" check
 2. Added early return when tenant context missing
 3. Removed backward compatibility for legacy NULL nodes
 4. Requires BOTH tenant_id AND workspace_id to match
 
 **Verification** (from terminal output):
+
 ```bash
 # Test 1: Admin (no headers) - MUST be rejected
 curl http://localhost:8080/api/v1/graph/entities
@@ -240,6 +255,7 @@ curl -H "X-Tenant-ID: 00000000-..." -H "X-Workspace-ID: 00000000-..." \
 ```
 
 **Logs Verification**:
+
 ```
 DEBUG filter_nodes_by_tenant_context called: input_count=426, tenant_id=None, workspace_id=None
 WARN Tenant context missing (tenant_id=None, workspace_id=None) - returning empty results for security
@@ -254,13 +270,14 @@ WARN Tenant context missing (tenant_id=None, workspace_id=None) - returning empt
 **Fix**: Added early return + strict tenant filtering
 
 **Before (PERMISSIVE)**:
+
 ```rust
 pub async fn list_documents(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
 ) -> ApiResult<Json<ListDocumentsResponse>> {
     // ... fetch all documents ...
-    
+
     // ❌ PERMISSIVE: Allows documents when tenant_id OR workspace_id is None
     let matches_tenant_context = |meta: &DocMetadata| -> bool {
         if let Some(ref filter_ws) = filter_workspace_id {
@@ -269,20 +286,21 @@ pub async fn list_documents(
             }
         }
         // ❌ If filter_workspace_id is None, no filtering happens!
-        
+
         if let Some(ref filter_tid) = filter_tenant_id {
             if meta.tenant_id.as_ref() != Some(filter_tid) {
                 return false;
             }
         }
         // ❌ If filter_tenant_id is None, no filtering happens!
-        
+
         true
     };
 }
 ```
 
 **After (STRICT)**:
+
 ```rust
 pub async fn list_documents(
     State(state): State<AppState>,
@@ -308,7 +326,7 @@ pub async fn list_documents(
             },
         }));
     }
-    
+
     // ✅ STRICT: Both must match exactly (None already handled above)
     let matches_tenant_context = |meta: &DocMetadata| -> bool {
         meta.workspace_id.as_ref() == filter_workspace_id.as_ref()
@@ -318,11 +336,13 @@ pub async fn list_documents(
 ```
 
 **Changes**:
+
 1. Added early return when tenant context is None
 2. Simplified filtering logic (no conditional checks needed)
 3. Both tenant_id AND workspace_id must match exactly
 
 **Verification**:
+
 - ✅ TenantA sees only own documents
 - ✅ TenantB sees only own documents (isolated from TenantA)
 - ✅ Admin without headers sees 0 documents (strict enforcement)
@@ -333,33 +353,34 @@ pub async fn list_documents(
 
 ### Before Fixes
 
-| Endpoint | Tenant Context | Filtering Logic | Status |
-|----------|----------------|-----------------|--------|
-| `/api/v1/graph/entities` | ✅ Present | **Strict (OR)** | ✅ Secure (commit d11edba8) |
-| `/api/v1/graph/relationships` | ✅ Present | **Strict (OR)** | ✅ Secure (commit d11edba8) |
-| `/api/v1/query` | ✅ Present | **Strict** | ✅ Secure |
-| `/api/v1/documents` (upload) | ✅ Present | **Strict** | ✅ Secure |
-| `/api/v1/documents` (list) | ✅ Present | **⚠️ Permissive (AND)** | ⚠️ **VULNERABLE** |
-| `/api/v1/graph` | ✅ Present | **⚠️ Permissive** | ⚠️ **VULNERABLE** |
-| `/api/v1/costs/summary` | ❌ **MISSING** | **None** | 🚨 **CRITICAL** |
-| `/api/v1/costs/history` | ❌ **MISSING** | **None** | 🚨 **CRITICAL** |
-| `/api/v1/costs/budget` | ❌ **MISSING** | **None** | ⚠️ **RISKY** |
+| Endpoint                      | Tenant Context | Filtering Logic         | Status                      |
+| ----------------------------- | -------------- | ----------------------- | --------------------------- |
+| `/api/v1/graph/entities`      | ✅ Present     | **Strict (OR)**         | ✅ Secure (commit d11edba8) |
+| `/api/v1/graph/relationships` | ✅ Present     | **Strict (OR)**         | ✅ Secure (commit d11edba8) |
+| `/api/v1/query`               | ✅ Present     | **Strict**              | ✅ Secure                   |
+| `/api/v1/documents` (upload)  | ✅ Present     | **Strict**              | ✅ Secure                   |
+| `/api/v1/documents` (list)    | ✅ Present     | **⚠️ Permissive (AND)** | ⚠️ **VULNERABLE**           |
+| `/api/v1/graph`               | ✅ Present     | **⚠️ Permissive**       | ⚠️ **VULNERABLE**           |
+| `/api/v1/costs/summary`       | ❌ **MISSING** | **None**                | 🚨 **CRITICAL**             |
+| `/api/v1/costs/history`       | ❌ **MISSING** | **None**                | 🚨 **CRITICAL**             |
+| `/api/v1/costs/budget`        | ❌ **MISSING** | **None**                | ⚠️ **RISKY**                |
 
 ### After Fixes (Commit 4bcda81d)
 
-| Endpoint | Tenant Context | Filtering Logic | Status |
-|----------|----------------|-----------------|--------|
-| `/api/v1/graph/entities` | ✅ Required | **Strict (OR)** | ✅ Secure |
-| `/api/v1/graph/relationships` | ✅ Required | **Strict (OR)** | ✅ Secure |
-| `/api/v1/query` | ✅ Required | **Strict** | ✅ Secure |
-| `/api/v1/documents` (upload) | ✅ Required | **Strict** | ✅ Secure |
-| `/api/v1/documents` (list) | ✅ **Required** | **✅ Strict (OR)** | ✅ **FIXED** |
-| `/api/v1/graph` | ✅ **Required** | **✅ Strict (OR)** | ✅ **FIXED** |
-| `/api/v1/costs/summary` | ✅ **Required** | **✅ Strict** | ✅ **FIXED** |
-| `/api/v1/costs/history` | ✅ **Required** | **✅ Strict** | ✅ **FIXED** |
-| `/api/v1/costs/budget` | ✅ **Required** | **✅ Strict** | ✅ **FIXED** |
+| Endpoint                      | Tenant Context  | Filtering Logic    | Status       |
+| ----------------------------- | --------------- | ------------------ | ------------ |
+| `/api/v1/graph/entities`      | ✅ Required     | **Strict (OR)**    | ✅ Secure    |
+| `/api/v1/graph/relationships` | ✅ Required     | **Strict (OR)**    | ✅ Secure    |
+| `/api/v1/query`               | ✅ Required     | **Strict**         | ✅ Secure    |
+| `/api/v1/documents` (upload)  | ✅ Required     | **Strict**         | ✅ Secure    |
+| `/api/v1/documents` (list)    | ✅ **Required** | **✅ Strict (OR)** | ✅ **FIXED** |
+| `/api/v1/graph`               | ✅ **Required** | **✅ Strict (OR)** | ✅ **FIXED** |
+| `/api/v1/costs/summary`       | ✅ **Required** | **✅ Strict**      | ✅ **FIXED** |
+| `/api/v1/costs/history`       | ✅ **Required** | **✅ Strict**      | ✅ **FIXED** |
+| `/api/v1/costs/budget`        | ✅ **Required** | **✅ Strict**      | ✅ **FIXED** |
 
 **Legend**:
+
 - **Strict (OR)**: Returns empty if tenant_id **OR** workspace_id is missing
 - **Strict**: Filters by BOTH tenant_id **AND** workspace_id
 - **Permissive (AND)**: Only filters if **BOTH** are present (allows None)
@@ -384,7 +405,7 @@ fn filter_by_tenant_context(items: Vec<Item>, ctx: &TenantContext) -> Vec<Item> 
         warn!("Tenant context missing - returning empty");
         return Vec::new();
     }
-    
+
     // Filter items where BOTH tenant_id AND workspace_id match
     items.into_iter()
         .filter(|item| {
@@ -396,6 +417,7 @@ fn filter_by_tenant_context(items: Vec<Item>, ctx: &TenantContext) -> Vec<Item> 
 ```
 
 **Files Using This Pattern**:
+
 1. [edgequake/crates/edgequake-api/src/handlers/entities.rs](edgequake/crates/edgequake-api/src/handlers/entities.rs#L70-L88) - `filter_nodes_by_tenant_context()`
 2. [edgequake/crates/edgequake-api/src/handlers/relationships.rs](edgequake/crates/edgequake-api/src/handlers/relationships.rs#L67-L115) - `filter_nodes_by_tenant_context()`, `filter_edges_by_tenant_context()`
 3. [edgequake/crates/edgequake-api/src/handlers/costs.rs](edgequake/crates/edgequake-api/src/handlers/costs.rs) - `get_cost_summary()`, `get_cost_history()`, `get_budget_status()`, `update_budget()`
@@ -411,6 +433,7 @@ fn filter_by_tenant_context(items: Vec<Item>, ctx: &TenantContext) -> Vec<Item> 
 **BREAKING CHANGE**: Admin/system requests **MUST now provide tenant headers**.
 
 **Before**:
+
 ```bash
 # Admin could see ALL data without headers
 curl http://localhost:8080/api/v1/graph/entities
@@ -421,6 +444,7 @@ curl http://localhost:8080/api/v1/costs/summary
 ```
 
 **After**:
+
 ```bash
 # Admin MUST specify which tenant to query
 curl http://localhost:8080/api/v1/graph/entities
@@ -431,6 +455,7 @@ curl http://localhost:8080/api/v1/costs/summary
 ```
 
 **Migration Guide**:
+
 ```bash
 # Admin scripts must now specify tenant context
 curl -H "X-Tenant-ID: $TENANT_ID" \
@@ -444,20 +469,20 @@ React components must include tenant headers in all API calls:
 
 ```typescript
 // BEFORE (broken)
-const { data } = useQuery(['costs'], async () => {
-  return fetch('/api/v1/costs/summary').then(r => r.json());
+const { data } = useQuery(["costs"], async () => {
+  return fetch("/api/v1/costs/summary").then((r) => r.json());
 });
 
 // AFTER (fixed)
 const { selectedTenantId, selectedWorkspaceId } = useTenantContext();
 
-const { data } = useQuery(['costs', selectedTenantId], async () => {
-  return fetch('/api/v1/costs/summary', {
+const { data } = useQuery(["costs", selectedTenantId], async () => {
+  return fetch("/api/v1/costs/summary", {
     headers: {
-      'X-Tenant-ID': selectedTenantId,
-      'X-Workspace-ID': selectedWorkspaceId,
+      "X-Tenant-ID": selectedTenantId,
+      "X-Workspace-ID": selectedWorkspaceId,
     },
-  }).then(r => r.json());
+  }).then((r) => r.json());
 });
 ```
 
@@ -519,12 +544,14 @@ With these fixes, the following data is now properly isolated:
 ## Commits Summary
 
 ### Commit d11edba8: Entities & Relationships
+
 - Fixed `filter_nodes_by_tenant_context()` in entities.rs
 - Fixed `filter_nodes_by_tenant_context()` and `filter_edges_by_tenant_context()` in relationships.rs
 - Changed from AND (both missing) to OR (either missing) logic
 - Added security warning logs
 
 ### Commit 4bcda81d: Costs, Graph, Documents (THIS COMMIT)
+
 - Fixed `get_cost_summary()` - added tenant context + filtering
 - Fixed `get_cost_history()` - added tenant context + filtering
 - Fixed `get_budget_status()` and `update_budget()` - added tenant context

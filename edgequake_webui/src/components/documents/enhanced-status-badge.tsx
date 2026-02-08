@@ -11,11 +11,11 @@
  */
 'use client';
 
-import { StatusBadge, getDocumentDisplayStatus, type DocumentStatus } from './status-badge';
-import { useIngestionStore } from '@/stores/use-ingestion-store';
 import { formatOverallProgress } from '@/lib/utils/progress-formatter';
+import { useIngestionStore } from '@/stores/use-ingestion-store';
 import type { Document } from '@/types';
 import { useMemo } from 'react';
+import { StatusBadge, getDocumentDisplayStatus } from './status-badge';
 
 interface EnhancedStatusBadgeProps {
   document: Document;
@@ -49,13 +49,58 @@ export function EnhancedStatusBadge({
   );
 
   // Determine best status to display
-  const displayStatus = useMemo(
-    () => getDocumentDisplayStatus(document),
-    [document]
-  );
+  const displayStatus = useMemo(() => {
+    const baseStatus = getDocumentDisplayStatus(document);
+    
+    // Priority 0: If document has error_message, show as failed
+    if (document.error_message && document.error_message.trim() !== '') {
+      console.error('[EnhancedStatusBadge] Document has error:', {
+        id: document.id,
+        title: document.title,
+        error: document.error_message,
+        status: document.status,
+        stage: document.current_stage,
+      });
+      return 'failed';
+    }
+    
+    // WHY: Fix confusing status where stage is "complete" but status shows previous stage
+    // If stage_message says "complete" but status is still on that stage, show as transitioning
+    if (document.stage_message) {
+      const msg = document.stage_message.toLowerCase();
+      
+      // PDF conversion complete → should show next stage (Chunking)
+      if (baseStatus === 'converting' && (msg.includes('complete') || msg.includes('extracted'))) {
+        console.log('[EnhancedStatusBadge] PDF complete, transitioning to chunking:', document.id);
+        return 'chunking'; // Transition to next stage
+      }
+      
+      // Chunking complete → should show next stage (Extracting)
+      if (baseStatus === 'chunking' && msg.includes('complete')) {
+        return 'extracting';
+      }
+      
+      // Extracting complete → should show next stage (Embedding)
+      if (baseStatus === 'extracting' && msg.includes('complete')) {
+        return 'embedding';
+      }
+      
+      // Embedding complete → should show next stage (Storing)
+      if (baseStatus === 'embedding' && msg.includes('complete')) {
+        return 'storing';
+      }
+    }
+    
+    return baseStatus;
+  }, [document]);
 
   // Determine best progress message to display
   const progressMessage = useMemo(() => {
+    // Priority 0: Error message (highest priority)
+    if (document.error_message && document.error_message.trim() !== '') {
+      return `Error: ${document.error_message}`;
+    }
+    
     // Priority 1: Track progress message (most detailed, real-time)
     if (track) {
       const trackMessage = formatOverallProgress(track);
@@ -71,7 +116,7 @@ export function EnhancedStatusBadge({
 
     // Priority 3: No custom message (StatusBadge will show default)
     return undefined;
-  }, [track, document.stage_message]);
+  }, [track, document.stage_message, document.error_message]);
 
   // Get progress value (0.0 to 1.0)
   const progressValue = useMemo(() => {

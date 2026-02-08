@@ -1,0 +1,218 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Pipeline" [ref=e43] [cursor=pointer]:
+            - /url: /pipeline
+            - img [ref=e44]
+            - generic [ref=e46]: Pipeline
+          - link "Query" [ref=e47] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e48]
+            - generic [ref=e50]: Query
+          - link "Workspace" [ref=e51] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e52]
+            - generic [ref=e54]: Workspace
+          - link "Costs" [ref=e55] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e56]
+            - generic [ref=e58]: Costs
+          - link "API Explorer" [ref=e59] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e60]
+            - generic [ref=e62]: API Explorer
+          - link "Settings" [ref=e63] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e64]
+            - generic [ref=e67]: Settings
+        - generic [ref=e68]:
+          - button "Collapse sidebar" [ref=e69]:
+            - img
+            - generic [ref=e70]: Collapse
+          - generic [ref=e71]:
+            - img [ref=e73]
+            - generic [ref=e78]:
+              - generic [ref=e79]: EdgeQuake
+              - generic [ref=e80]: v0.1.0
+    - generic [ref=e81]:
+      - banner [ref=e82]:
+        - button "TenantA / Default Workspace" [ref=e85]:
+          - img
+          - generic [ref=e86]: TenantA / Default Workspace
+          - img
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - img [ref=e89]
+            - generic [ref=e91]: v0.1.0
+          - button "Change language" [ref=e92]:
+            - img
+            - generic [ref=e93]: Change language
+          - button "Toggle theme" [ref=e94]:
+            - img
+            - generic [ref=e95]: Toggle theme
+          - button "User menu" [ref=e96]:
+            - img
+            - generic [ref=e97]: User menu
+      - navigation "breadcrumb" [ref=e99]:
+        - list [ref=e100]:
+          - listitem [ref=e101]:
+            - link "EdgeQuake" [ref=e102] [cursor=pointer]:
+              - /url: /
+              - img [ref=e103]
+              - generic [ref=e106]: EdgeQuake
+          - listitem [ref=e107]:
+            - img [ref=e108]
+          - listitem [ref=e110]:
+            - link "Documents" [disabled] [ref=e111]:
+              - img [ref=e112]
+              - generic [ref=e115]: Documents
+      - main [ref=e116]:
+        - generic [ref=e117]:
+          - generic [ref=e118]:
+            - generic [ref=e119]:
+              - generic [ref=e120]:
+                - generic [ref=e121]:
+                  - generic [ref=e122]:
+                    - heading "Documents" [level=1] [ref=e123]
+                    - generic [ref=e124]: "2"
+                  - paragraph [ref=e128]: Upload and manage documents for knowledge graph extraction
+                - generic [ref=e129]:
+                  - button "Refresh" [ref=e131]:
+                    - img
+                    - text: Refresh
+                  - button "Clear All" [ref=e132]:
+                    - img
+                    - text: Clear All
+              - generic [ref=e133]:
+                - generic [ref=e134]:
+                  - img [ref=e135]
+                  - textbox "Search documents..." [ref=e138]
+                - generic [ref=e139]:
+                  - combobox [ref=e140]:
+                    - generic: All Status (2)
+                    - img
+                  - generic [ref=e142]:
+                    - generic [ref=e143]: "Sort by:"
+                    - button "Created" [ref=e144]
+                    - button "Updated" [ref=e145]:
+                      - text: Updated
+                      - img
+              - generic [ref=e160] [cursor=pointer]:
+                - button "Choose File" [ref=e161]
+                - img [ref=e163]
+                - paragraph [ref=e167]: Drag & drop or click to upload • TXT, MD, JSON, PDF (max 10MB)
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - img [ref=e190]
+                - generic [ref=e193]: Documents (2)
+              - table [ref=e196]:
+                - rowgroup [ref=e197]:
+                  - row "Select all Title Status Entities Cost Created" [ref=e198]:
+                    - columnheader "Select all" [ref=e199]:
+                      - checkbox "Select all" [ref=e200]
+                    - columnheader "Title" [ref=e201]
+                    - columnheader "Status" [ref=e202]
+                    - columnheader "Entities" [ref=e203]
+                    - columnheader "Cost" [ref=e204]
+                    - columnheader "Created" [ref=e205]
+                    - columnheader [ref=e206]
+                - rowgroup [ref=e207]:
+                  - row "Select Qwen.pdf Chunking 0 - NEW less than a minute ago" [ref=e208] [cursor=pointer]:
+                    - cell "Select" [ref=e209]:
+                      - checkbox "Select" [ref=e210]
+                    - cell "Qwen.pdf" [ref=e211]:
+                      - generic [ref=e213]:
+                        - img [ref=e214]
+                        - generic [ref=e217]: Qwen.pdf
+                    - cell "Chunking" [ref=e218]:
+                      - generic [ref=e220]:
+                        - img
+                        - text: Chunking
+                    - cell "0" [ref=e221]
+                    - cell "-" [ref=e222]
+                    - cell "NEW less than a minute ago" [ref=e223]:
+                      - generic [ref=e224]:
+                        - generic [ref=e225]: NEW
+                        - generic [ref=e226]: less than a minute ago
+                    - cell [ref=e227]:
+                      - generic [ref=e228]:
+                        - button [ref=e229]:
+                          - img
+                        - button [ref=e230]:
+                          - img
+                        - button [ref=e231]:
+                          - img
+                  - row "Select drift_2602.04770v1.extracted.md Completed 548 0.026 NEW 3 minutes ago" [ref=e232] [cursor=pointer]:
+                    - cell "Select" [ref=e233]:
+                      - checkbox "Select" [ref=e234]
+                    - cell "drift_2602.04770v1.extracted.md" [ref=e235]:
+                      - generic [ref=e237]:
+                        - img [ref=e238]
+                        - generic [ref=e243]: drift_2602.04770v1.extracted.md
+                    - cell "Completed" [ref=e244]:
+                      - generic [ref=e246]:
+                        - img
+                        - text: Completed
+                    - cell "548" [ref=e247]
+                    - cell "0.026" [ref=e248]:
+                      - generic [ref=e249]:
+                        - img
+                        - generic [ref=e250]: "0.026"
+                    - cell "NEW 3 minutes ago" [ref=e251]:
+                      - generic [ref=e252]:
+                        - generic [ref=e253]: NEW
+                        - generic [ref=e254]: 3 minutes ago
+                    - cell [ref=e255]:
+                      - generic [ref=e256]:
+                        - button [ref=e257]:
+                          - img
+                        - button [ref=e258]:
+                          - img
+                        - button [ref=e259]:
+                          - img
+                        - button [ref=e260]:
+                          - img
+            - generic [ref=e262]:
+              - generic [ref=e263]:
+                - generic [ref=e264]: "Rows per page:"
+                - combobox [ref=e265]:
+                  - generic: "20"
+                  - img
+              - generic [ref=e266]:
+                - generic [ref=e267]: Page 1 of 1
+                - generic [ref=e268]:
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+          - button "Expand Preview" [ref=e269] [cursor=pointer]:
+            - img [ref=e270]
+            - generic [ref=e272]: Preview
+  - region "Notifications alt+T"
