@@ -25,11 +25,12 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use edgequake_storage::GraphEdge;
+use edgequake_storage::{GraphEdge, GraphNode};
 use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 // Re-export DTOs for backward compatibility
@@ -51,6 +52,83 @@ pub use crate::handlers::relationships_types::{
 /// Normalize entity name to UPPERCASE with underscores.
 fn normalize_entity_name(name: &str) -> String {
     name.to_uppercase().replace(' ', "_")
+}
+
+/// Filter nodes by tenant context.
+///
+/// # Implements
+///
+/// - **BR0201**: Tenant isolation (strict mode - excludes nodes without tenant_id)
+#[allow(dead_code)]
+fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) -> Vec<GraphNode> {
+    if ctx.tenant_id.is_none() && ctx.workspace_id.is_none() {
+        return nodes;
+    }
+
+    nodes
+        .into_iter()
+        .filter(|node| {
+            if let Some(ref ctx_tenant_id) = ctx.tenant_id {
+                match node.properties.get("tenant_id").and_then(|v| v.as_str()) {
+                    Some(node_tenant_id) => {
+                        if node_tenant_id != ctx_tenant_id {
+                            return false;
+                        }
+                    }
+                    None => return false, // Strict: exclude nodes without tenant_id
+                }
+            }
+            if let Some(ref ctx_workspace_id) = ctx.workspace_id {
+                match node.properties.get("workspace_id").and_then(|v| v.as_str()) {
+                    Some(node_workspace_id) => {
+                        if node_workspace_id != ctx_workspace_id {
+                            return false;
+                        }
+                    }
+                    None => return false, // Strict: exclude nodes without workspace_id
+                }
+            }
+            true
+        })
+        .collect()
+}
+
+/// Filter edges by tenant context.
+///
+/// # Implements
+///
+/// - **BR0201**: Tenant isolation (strict mode - excludes edges without tenant_id)
+fn filter_edges_by_tenant_context(edges: Vec<GraphEdge>, ctx: &TenantContext) -> Vec<GraphEdge> {
+    if ctx.tenant_id.is_none() && ctx.workspace_id.is_none() {
+        return edges;
+    }
+
+    edges
+        .into_iter()
+        .filter(|edge| {
+            if let Some(ref ctx_tenant_id) = ctx.tenant_id {
+                match edge.properties.get("tenant_id").and_then(|v| v.as_str()) {
+                    Some(edge_tenant_id) => {
+                        if edge_tenant_id != ctx_tenant_id {
+                            return false;
+                        }
+                    }
+                    None => return false, // Strict: exclude edges without tenant_id
+                }
+            }
+            if let Some(ref ctx_workspace_id) = ctx.workspace_id {
+                match edge.properties.get("workspace_id").and_then(|v| v.as_str()) {
+                    Some(edge_workspace_id) => {
+                        if edge_workspace_id != ctx_workspace_id {
+                            return false;
+                        }
+                    }
+                    None => return false, // Strict: exclude edges without workspace_id
+                }
+            }
+            true
+        })
+        .collect()
 }
 
 /// Extract relation type from keywords.
@@ -131,6 +209,7 @@ fn edge_to_relationship_response(edge: GraphEdge, rel_id: &str) -> RelationshipR
 )]
 pub async fn list_relationships(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Query(query): Query<ListRelationshipsQuery>,
 ) -> ApiResult<Json<ListRelationshipsResponse>> {
     // Clamp page_size to range [1, 100]
@@ -143,8 +222,11 @@ pub async fn list_relationships(
     // interface doesn't support pagination/filtering yet.
     let all_edges = state.graph_storage.get_all_edges().await?;
 
+    // WHY: Apply tenant isolation first to ensure multi-tenancy is respected
+    let tenant_filtered_edges = filter_edges_by_tenant_context(all_edges, &tenant_ctx);
+
     // Apply filters
-    let mut filtered_edges: Vec<_> = all_edges
+    let mut filtered_edges: Vec<_> = tenant_filtered_edges
         .into_iter()
         .filter(|edge| {
             // Filter by relationship_type if specified
@@ -198,6 +280,10 @@ pub async fn list_relationships(
 }
 
 /// Create a new relationship.
+///
+/// # Implements
+///
+/// - **BR0201**: Tenant isolation (relationship created with tenant/workspace context)
 #[utoipa::path(
     post,
     path = "/api/v1/graph/relationships",
@@ -210,6 +296,7 @@ pub async fn list_relationships(
 )]
 pub async fn create_relationship(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Json(req): Json<CreateRelationshipRequest>,
 ) -> ApiResult<Json<CreateRelationshipResponse>> {
     let src_id = normalize_entity_name(&req.src_id);
@@ -249,6 +336,14 @@ pub async fn create_relationship(
     properties.insert("updated_at".to_string(), now.clone().into());
     properties.insert("is_manual".to_string(), true.into());
     properties.insert("metadata".to_string(), req.metadata.clone());
+
+    // WHY: Add tenant context to isolate relationship to the current tenant/workspace
+    if let Some(ref tenant_id) = tenant_ctx.tenant_id {
+        properties.insert("tenant_id".to_string(), tenant_id.clone().into());
+    }
+    if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        properties.insert("workspace_id".to_string(), workspace_id.clone().into());
+    }
 
     // Create edge using upsert_edge
     state

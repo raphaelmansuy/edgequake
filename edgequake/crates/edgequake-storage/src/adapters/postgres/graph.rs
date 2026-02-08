@@ -1674,22 +1674,22 @@ impl GraphStorage for PostgresAGEGraphStorage {
             ));
         }
 
-        // WHY: Include nodes that match tenant_id OR nodes without tenant_id property
-        // This ensures backward compatibility with nodes created before tenant context was added
+        // WHY: Strict multi-tenant filtering - only include nodes with MATCHING tenant_id
+        // Nodes without tenant_id are EXCLUDED to prevent cross-tenant data leakage
         if let Some(tid) = tenant_id {
             let escaped_tid = Self::escape_sql_string(tid);
             where_conditions.push(format!(
-                "(ag_catalog.agtype_to_json(v.properties)->>'tenant_id' = '{}' OR ag_catalog.agtype_to_json(v.properties)->>'tenant_id' IS NULL)",
+                "ag_catalog.agtype_to_json(v.properties)->>'tenant_id' = '{}'",
                 escaped_tid
             ));
         }
 
-        // WHY: Include nodes that match workspace_id OR nodes without workspace_id property
-        // This ensures backward compatibility with nodes created before workspace context was added
+        // WHY: Strict workspace filtering - only include nodes with MATCHING workspace_id
+        // Nodes without workspace_id are EXCLUDED to prevent cross-workspace data leakage
         if let Some(wid) = workspace_id {
             let escaped_wid = Self::escape_sql_string(wid);
             where_conditions.push(format!(
-                "(ag_catalog.agtype_to_json(v.properties)->>'workspace_id' = '{}' OR ag_catalog.agtype_to_json(v.properties)->>'workspace_id' IS NULL)",
+                "ag_catalog.agtype_to_json(v.properties)->>'workspace_id' = '{}'",
                 escaped_wid
             ));
         }
