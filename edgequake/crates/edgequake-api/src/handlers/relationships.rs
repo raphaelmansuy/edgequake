@@ -59,10 +59,20 @@ fn normalize_entity_name(name: &str) -> String {
 /// # Implements
 ///
 /// - **BR0201**: Tenant isolation (strict mode - excludes nodes without tenant_id)
+///
+/// # SECURITY: STRICT TENANT CONTEXT REQUIRED
+///
+/// Both tenant_id and workspace_id MUST be present. No exceptions for admin.
 #[allow(dead_code)]
 fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) -> Vec<GraphNode> {
-    if ctx.tenant_id.is_none() && ctx.workspace_id.is_none() {
-        return nodes;
+    // SECURITY: Require both tenant_id AND workspace_id - no admin bypass
+    if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
+        tracing::warn!(
+            "Tenant context missing (tenant_id={:?}, workspace_id={:?}) - returning empty for security",
+            ctx.tenant_id,
+            ctx.workspace_id
+        );
+        return Vec::new();
     }
 
     nodes
@@ -98,9 +108,19 @@ fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) ->
 /// # Implements
 ///
 /// - **BR0201**: Tenant isolation (strict mode - excludes edges without tenant_id)
+///
+/// # SECURITY: STRICT TENANT CONTEXT REQUIRED
+///
+/// Both tenant_id and workspace_id MUST be present. No exceptions for admin.
 fn filter_edges_by_tenant_context(edges: Vec<GraphEdge>, ctx: &TenantContext) -> Vec<GraphEdge> {
-    if ctx.tenant_id.is_none() && ctx.workspace_id.is_none() {
-        return edges;
+    // SECURITY: Require both tenant_id AND workspace_id - no admin bypass
+    if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
+        tracing::warn!(
+            "Tenant context missing for edge filtering (tenant_id={:?}, workspace_id={:?}) - returning empty",
+            ctx.tenant_id,
+            ctx.workspace_id
+        );
+        return Vec::new();
     }
 
     edges
