@@ -10,14 +10,14 @@
 
 2. **Updated `document-manager.tsx`**
    - Replaced 60+ lines of DropdownMenu JSX with 10 line component call
-   - Removed 12 unused imports (DropdownMenu*, Copy, MoreVertical, etc.)
+   - Removed 12 unused imports (DropdownMenu\*, Copy, MoreVertical, etc.)
 
 ## Metrics
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| document-manager.tsx lines | 1579 | 1518 | -61 |
-| Extracted components | 3 | 4 | +1 |
+| Metric                     | Before | After | Change |
+| -------------------------- | ------ | ----- | ------ |
+| document-manager.tsx lines | 1579   | 1518  | -61    |
+| Extracted components       | 3      | 4     | +1     |
 
 ## Commit
 
@@ -31,20 +31,20 @@
 
 ## Progress Summary
 
-| Iteration | Description | Lines Saved |
-|-----------|-------------|-------------|
-| OODA-04 | useStuckDetection hook | -33 |
-| OODA-05 | useDocumentWebSocket hook | -50 |
-| OODA-06 | UploadProgressList component | -126 |
-| OODA-07 | BatchActionsBar component | -15 |
-| OODA-08 | DocumentDropzone component | -24 |
-| OODA-09 | DocumentActionsMenu component | -61 |
-| **Total** | | **-309** |
+| Iteration | Description                   | Lines Saved |
+| --------- | ----------------------------- | ----------- |
+| OODA-04   | useStuckDetection hook        | -33         |
+| OODA-05   | useDocumentWebSocket hook     | -50         |
+| OODA-06   | UploadProgressList component  | -126        |
+| OODA-07   | BatchActionsBar component     | -15         |
+| OODA-08   | DocumentDropzone component    | -24         |
+| OODA-09   | DocumentActionsMenu component | -61         |
+| **Total** |                               | **-309**    |
 
 ## Progress
 
 - Started: 1822 lines
-- Current: 1518 lines  
+- Current: 1518 lines
 - Target: <300 lines
 - Remaining: 1218 lines to reduce
 

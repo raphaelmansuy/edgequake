@@ -5,6 +5,7 @@
 **Critical Issue #3**: Partial Extraction Failures Hidden (`pipeline.rs:800-850`)
 
 From mission spec:
+
 > 8/10 chunks succeed → "Completed" status, but 2 chunks failed silently
 > Add `partial_success` status with chunk failure visibility
 
@@ -28,12 +29,12 @@ From mission spec:
 
 ### File Analysis
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| [pipeline.rs](../../../../edgequake/crates/edgequake-pipeline/src/pipeline.rs#L150-250) | 2138 | ProcessingStats definition |
-| [error.rs](../../../../edgequake/crates/edgequake-pipeline/src/error.rs#L206-280) | 392 | ResilientExtractionResult |
-| [documents.rs](../../../../edgequake/crates/edgequake-api/src/handlers/documents.rs#L937-960) | 4717 | Logs partial success but... |
-| [documents.rs](../../../../edgequake/crates/edgequake-api/src/handlers/documents.rs#L1196) | 4717 | ...sets status "completed" anyway |
+| File                                                                                          | Lines | Purpose                           |
+| --------------------------------------------------------------------------------------------- | ----- | --------------------------------- |
+| [pipeline.rs](../../../../edgequake/crates/edgequake-pipeline/src/pipeline.rs#L150-250)       | 2138  | ProcessingStats definition        |
+| [error.rs](../../../../edgequake/crates/edgequake-pipeline/src/error.rs#L206-280)             | 392   | ResilientExtractionResult         |
+| [documents.rs](../../../../edgequake/crates/edgequake-api/src/handlers/documents.rs#L937-960) | 4717  | Logs partial success but...       |
+| [documents.rs](../../../../edgequake/crates/edgequake-api/src/handlers/documents.rs#L1196)    | 4717  | ...sets status "completed" anyway |
 
 ### The Bug: documents.rs:1196
 
@@ -62,18 +63,21 @@ let doc_metadata = serde_json::json!({
 ### Existing Infrastructure
 
 **ProcessingStats** already tracks:
+
 - `chunk_count: usize` - total chunks
 - `successful_chunks: usize` - chunks that worked
 - `failed_chunks: usize` - chunks that failed (the key field)
 - `chunk_errors: Option<Vec<ChunkErrorInfo>>` - detailed error per chunk
 
 **ResilientExtractionResult** has:
+
 - `is_complete_success()` - all chunks succeeded
 - `has_any_success()` - at least one succeeded
 - `is_complete_failure()` - all chunks failed
 - `success_rate()` - percentage 0.0-1.0
 
 **WebSocket already broadcasts** chunk failures:
+
 ```rust
 state.progress_broadcaster.broadcast_chunk_failure(...)
 ```
@@ -81,27 +85,29 @@ state.progress_broadcaster.broadcast_chunk_failure(...)
 ### Frontend Status Handling
 
 **EnhancedStatusBadge** (document-manager.tsx):
+
 ```typescript
 const statusConfig = {
-  completed: { variant: 'success', label: 'Completed' },
-  failed: { variant: 'destructive', label: 'Failed' },
+  completed: { variant: "success", label: "Completed" },
+  failed: { variant: "destructive", label: "Failed" },
   // No "partial_success" defined!
 };
 ```
 
 ### User Impact
 
-| Scenario | Current Behavior | Expected Behavior |
-|----------|------------------|-------------------|
-| 10/10 chunks succeed | Status: "completed" ✓ | Status: "completed" ✓ |
-| 8/10 chunks succeed | Status: "completed" ✗ | Status: "partial_success" |
-| 0/10 chunks succeed | Status: "failed" ✓ | Status: "failed" ✓ |
+| Scenario             | Current Behavior      | Expected Behavior         |
+| -------------------- | --------------------- | ------------------------- |
+| 10/10 chunks succeed | Status: "completed" ✓ | Status: "completed" ✓     |
+| 8/10 chunks succeed  | Status: "completed" ✗ | Status: "partial_success" |
+| 0/10 chunks succeed  | Status: "failed" ✓    | Status: "failed" ✓        |
 
 Users see "Completed" thinking document is fully processed, but 20% of content may be missing from the knowledge graph.
 
 ### API Contract Consideration
 
 Adding `partial_success` status is **backwards compatible**:
+
 - Existing code checks for `status == "completed"` will still work
 - New clients can handle `partial_success` for better UX
 - No breaking changes to existing workflows

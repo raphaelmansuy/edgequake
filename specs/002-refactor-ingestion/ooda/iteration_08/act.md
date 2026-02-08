@@ -12,10 +12,10 @@
 
 ## Metrics
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| document-manager.tsx lines | 1603 | 1579 | -24 |
-| Extracted components | 2 | 3 | +1 |
+| Metric                     | Before | After | Change |
+| -------------------------- | ------ | ----- | ------ |
+| document-manager.tsx lines | 1603   | 1579  | -24    |
+| Extracted components       | 2      | 3     | +1     |
 
 ## Commit
 
@@ -29,18 +29,19 @@
 
 ## Progress Summary
 
-| Iteration | Description | Lines Saved |
-|-----------|-------------|-------------|
-| OODA-04 | useStuckDetection hook | -33 |
-| OODA-05 | useDocumentWebSocket hook | -50 |
-| OODA-06 | UploadProgressList component | -126 |
-| OODA-07 | BatchActionsBar component | -15 |
-| OODA-08 | DocumentDropzone component | -24 |
-| **Total** | | **-248** |
+| Iteration | Description                  | Lines Saved |
+| --------- | ---------------------------- | ----------- |
+| OODA-04   | useStuckDetection hook       | -33         |
+| OODA-05   | useDocumentWebSocket hook    | -50         |
+| OODA-06   | UploadProgressList component | -126        |
+| OODA-07   | BatchActionsBar component    | -15         |
+| OODA-08   | DocumentDropzone component   | -24         |
+| **Total** |                              | **-248**    |
 
 ## Remaining
 
 DocManager is now at 1579 lines (target: <300). Next targets:
+
 - DocumentTable/DocumentRow: The main table (~500+ lines)
 - handleFilesUpload: Large callback (~290 lines)
 - Various mutations and effects

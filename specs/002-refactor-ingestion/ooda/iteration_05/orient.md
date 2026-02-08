@@ -5,6 +5,7 @@
 ### Problem Statement
 
 WebSocket subscription logic (50 lines) is embedded in DocumentManager, making it:
+
 - Hard to test in isolation
 - Not reusable in other document list components
 - Coupled with component lifecycle
@@ -12,6 +13,7 @@ WebSocket subscription logic (50 lines) is embedded in DocumentManager, making i
 ### Solution: Extract useDocumentWebSocket Hook
 
 **Benefits**:
+
 1. **Encapsulation** - All WS logic in one place
 2. **Testability** - Can mock WebSocket for unit tests
 3. **Reusability** - Other components can use same pattern
@@ -22,7 +24,7 @@ WebSocket subscription logic (50 lines) is embedded in DocumentManager, making i
 ```typescript
 /**
  * Hook for real-time document status updates via WebSocket.
- * 
+ *
  * - Auto-subscribes to processing document track IDs
  * - Invalidates query cache on progress updates
  * - Handles cleanup on unmount
@@ -33,7 +35,7 @@ function useDocumentWebSocket(
   options?: {
     queryKey?: unknown[];
     enabled?: boolean;
-  }
+  },
 ): void;
 ```
 

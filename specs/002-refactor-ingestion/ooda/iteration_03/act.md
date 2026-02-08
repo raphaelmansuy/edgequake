@@ -34,6 +34,7 @@ Also added `successful_chunks` and `failed_chunks` to document metadata JSON.
 **File**: [status-badge.tsx](../../../../edgequake_webui/src/components/documents/status-badge.tsx#L72)
 
 Added new status variant:
+
 ```typescript
 partial_success: {
   icon: CheckCircle,  // Success icon (some chunks worked)
@@ -63,15 +64,16 @@ Frontend: ✅ pnpm tsc --noEmit (no errors)
 
 ## User Experience Flow
 
-| Extraction Result | Status | UI Display |
-|-------------------|--------|------------|
-| 10/10 chunks succeed | `completed` | ✅ Green "Completed" |
-| 8/10 chunks succeed | `partial_success` | ⚠️ Amber "Partial" |
-| 0/10 chunks succeed | `failed` | ❌ Red "Failed" |
+| Extraction Result    | Status            | UI Display           |
+| -------------------- | ----------------- | -------------------- |
+| 10/10 chunks succeed | `completed`       | ✅ Green "Completed" |
+| 8/10 chunks succeed  | `partial_success` | ⚠️ Amber "Partial"   |
+| 0/10 chunks succeed  | `failed`          | ❌ Red "Failed"      |
 
 ## API Response Change
 
 **Before**:
+
 ```json
 {
   "id": "doc-123",
@@ -81,6 +83,7 @@ Frontend: ✅ pnpm tsc --noEmit (no errors)
 ```
 
 **After**:
+
 ```json
 {
   "id": "doc-123",
@@ -93,14 +96,15 @@ Frontend: ✅ pnpm tsc --noEmit (no errors)
 
 ## Impact
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Partial failure visibility | ❌ Hidden | ✅ Visible |
-| Status accuracy | 66% (2 of 3 cases) | 100% |
-| Chunk counts in metadata | ❌ No | ✅ Yes |
+| Metric                     | Before             | After      |
+| -------------------------- | ------------------ | ---------- |
+| Partial failure visibility | ❌ Hidden          | ✅ Visible |
+| Status accuracy            | 66% (2 of 3 cases) | 100%       |
+| Chunk counts in metadata   | ❌ No              | ✅ Yes     |
 
 ## Next Iteration
 
 **Issue #4**: DocumentManager SRP Violation (1822 lines)
+
 - Split into focused components: DocumentUploadZone, DocumentList, DocumentFilters
 - Create reusable hooks: useDocumentWebSocket, useStuckDetection

@@ -2,29 +2,26 @@
  * @module useBulkSelection
  * @description Manages bulk document selection state and operations.
  * Extracted from DocumentManager for SRP compliance (OODA-16).
- * 
+ *
  * WHY: Selection logic and bulk operations were inline in DocumentManager.
  * This hook:
  * - Encapsulates selectedIds state
  * - Provides selection handlers (all/one/clear)
  * - Provides bulk operation handlers with progress tracking
  * - Handles toast notifications and cache invalidation
- * 
+ *
  * @implements FEAT0003 - Batch document processing
  * @implements UC0009 - User deletes documents from knowledge graph
  * @implements UC0008 - User reprocesses failed documents
  */
-'use client';
+"use client";
 
-import {
-  deleteDocument,
-  reprocessDocument,
-} from '@/lib/api/edgequake';
-import type { Document } from '@/types';
-import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { deleteDocument, reprocessDocument } from "@/lib/api/edgequake";
+import type { Document } from "@/types";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 /**
  * Options for useBulkSelection hook.
@@ -99,7 +96,7 @@ export interface UseBulkSelectionReturn {
 
 /**
  * Hook for managing bulk document selection and operations.
- * 
+ *
  * @example
  * ```tsx
  * const {
@@ -112,13 +109,13 @@ export interface UseBulkSelectionReturn {
  *   handleBulkDelete,
  *   handleBulkReprocess,
  * } = useBulkSelection({ documents });
- * 
+ *
  * // In checkbox
  * <Checkbox
  *   checked={isAllSelected}
  *   onCheckedChange={handleSelectAll}
  * />
- * 
+ *
  * // In BatchActionsBar
  * <BatchActionsBar
  *   selectedCount={selectedCount}
@@ -136,14 +133,15 @@ export function useBulkSelection({
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  
+
   // Loading states
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkReprocessing, setIsBulkReprocessing] = useState(false);
 
   // Computed values
   const selectedCount = selectedIds.size;
-  const isAllSelected = selectedCount === documents.length && documents.length > 0;
+  const isAllSelected =
+    selectedCount === documents.length && documents.length > 0;
 
   /**
    * Select or deselect all documents.
@@ -157,7 +155,7 @@ export function useBulkSelection({
         setSelectedIds(new Set());
       }
     },
-    [documents]
+    [documents],
   );
 
   /**
@@ -207,15 +205,15 @@ export function useBulkSelection({
 
       if (successCount > 0) {
         toast.success(
-          t('documents.bulk.deleteSuccess', { count: successCount }) ||
-            `Deleted ${successCount} document(s)`
+          t("documents.bulk.deleteSuccess", { count: successCount }) ||
+            `Deleted ${successCount} document(s)`,
         );
-        queryClient.invalidateQueries({ queryKey: ['documents'] });
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
       }
       if (errorCount > 0) {
         toast.error(
-          t('documents.bulk.deleteFailed', { count: errorCount }) ||
-            `Failed to delete ${errorCount} document(s)`
+          t("documents.bulk.deleteFailed", { count: errorCount }) ||
+            `Failed to delete ${errorCount} document(s)`,
         );
       }
     } finally {
@@ -253,15 +251,15 @@ export function useBulkSelection({
 
       if (successCount > 0) {
         toast.success(
-          t('documents.bulk.reprocessSuccess', { count: successCount }) ||
-            `Queued ${successCount} document(s) for reprocessing`
+          t("documents.bulk.reprocessSuccess", { count: successCount }) ||
+            `Queued ${successCount} document(s) for reprocessing`,
         );
-        queryClient.invalidateQueries({ queryKey: ['documents'] });
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
       }
       if (errorCount > 0) {
         toast.error(
-          t('documents.bulk.reprocessFailed', { count: errorCount }) ||
-            `Failed to queue ${errorCount} document(s)`
+          t("documents.bulk.reprocessFailed", { count: errorCount }) ||
+            `Failed to queue ${errorCount} document(s)`,
         );
       }
     } finally {

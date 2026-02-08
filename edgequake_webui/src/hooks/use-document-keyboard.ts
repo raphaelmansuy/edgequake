@@ -2,21 +2,21 @@
  * @module useDocumentKeyboard
  * @description Document-specific keyboard shortcuts for management interface.
  * Extracted from DocumentManager for SRP compliance (OODA-18).
- * 
+ *
  * WHY: Keyboard event handling was inline in DocumentManager.
  * This hook:
  * - Handles Escape (close preview/clear selection)
  * - Handles Ctrl/Cmd+A (select all)
  * - Handles R (refresh)
  * - Skips shortcuts when in input/textarea/contentEditable
- * 
+ *
  * @implements FEAT0605 - Keyboard accessibility
  */
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { toast } from 'sonner';
-import type { TFunction } from 'i18next';
+import type { TFunction } from "i18next";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 /**
  * Options for useDocumentKeyboard hook.
@@ -40,12 +40,12 @@ export interface UseDocumentKeyboardOptions {
 
 /**
  * Hook for document management keyboard shortcuts.
- * 
+ *
  * Shortcuts:
  * - Escape: Close preview panel or clear selection
  * - Ctrl/Cmd + A: Select all documents
  * - R: Refresh documents
- * 
+ *
  * @example
  * ```tsx
  * useDocumentKeyboard({
@@ -75,12 +75,16 @@ export function useDocumentKeyboard(options: UseDocumentKeyboardOptions): void {
       // Skip if in input field or textarea
       const target = e.target as HTMLElement;
       const tagName = target.tagName.toUpperCase();
-      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || target.isContentEditable) {
+      if (
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
         return;
       }
 
       // Escape: Clear selection or close preview panel
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         if (previewPanelOpen) {
           onPreviewClose();
         } else if (selectedCount > 0) {
@@ -90,23 +94,39 @@ export function useDocumentKeyboard(options: UseDocumentKeyboardOptions): void {
       }
 
       // Ctrl/Cmd + A: Select all documents
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
         e.preventDefault(); // Prevent browser select all
         onSelectAll(true);
         return;
       }
 
       // R: Refresh documents (single key, no modifier)
-      if (e.key.toLowerCase() === 'r' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (
+        e.key.toLowerCase() === "r" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
         onRefresh();
-        toast.info(t('documents.refresh.triggered', 'Refreshing documents...'), { duration: 1000 });
+        toast.info(
+          t("documents.refresh.triggered", "Refreshing documents..."),
+          { duration: 1000 },
+        );
         return;
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [previewPanelOpen, selectedCount, onPreviewClose, onSelectAll, onClearSelection, onRefresh, t]);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [
+    previewPanelOpen,
+    selectedCount,
+    onPreviewClose,
+    onSelectAll,
+    onClearSelection,
+    onRefresh,
+    t,
+  ]);
 }
 
 export default useDocumentKeyboard;

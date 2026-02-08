@@ -21,12 +21,12 @@ import { cn } from '@/lib/utils';
 import type { Document } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  File,
-  FileCode,
-  FileImage,
-  FileSpreadsheet,
-  FileText,
-  FileType,
+    File,
+    FileCode,
+    FileImage,
+    FileSpreadsheet,
+    FileText,
+    FileType,
 } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

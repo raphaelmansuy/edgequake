@@ -1,6 +1,7 @@
 # OODA-16 Observe: useBulkSelection Hook Extraction
 
 ## Mission Brief Re-Read
+
 - Target: DocumentManager < 300 lines
 - Current: 841 lines (53.8% reduction achieved)
 - Remaining: ~541 lines to reduce
@@ -8,6 +9,7 @@
 ## Code Analysis
 
 ### Target: Bulk Selection Handlers (Lines ~344-420)
+
 The bulk selection logic includes:
 
 1. **Selection state**: `selectedIds` Set
@@ -22,6 +24,7 @@ The bulk selection logic includes:
 Total: ~75 lines
 
 ### Dependencies
+
 - `selectedIds` state (manages internally)
 - `documents` array (for handleSelectAll mapping)
 - `data?.items` (for track_ids in reprocess)
@@ -31,6 +34,7 @@ Total: ~75 lines
 - `toast` for notifications
 
 ### Hook Interface
+
 ```typescript
 interface UseBulkSelectionOptions {
   documents: Document[];
@@ -47,6 +51,7 @@ interface UseBulkSelectionReturn {
 ```
 
 ## Line Count Estimation
+
 - Lines removed from DocumentManager: ~75
 - New hook: ~150 lines
 - Net reduction: ~75 lines

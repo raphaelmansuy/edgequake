@@ -10,15 +10,15 @@
 /**
  * @module useStuckDetection
  * @description Hook to detect documents stuck in processing state.
- * 
+ *
  * @implements OODA-04: Extract useStuckDetection from DocumentManager
  * @implements UC0007: User monitors document processing progress
  */
-'use client';
+"use client";
 
-import type { Document } from '@/types';
-import { isProcessingStatus } from '@/components/documents/status-badge';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Document } from "@/types";
+import { isProcessingStatus } from "@/components/documents/status-badge";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 export interface UseStuckDetectionOptions {
   /** Timeout in ms before document is considered stuck (default: 30000) */
@@ -43,7 +43,7 @@ const DEFAULT_INTERVAL = 30000;
 
 export function useStuckDetection(
   documents: Document[] | undefined,
-  options: UseStuckDetectionOptions = {}
+  options: UseStuckDetectionOptions = {},
 ): UseStuckDetectionResult {
   const {
     timeout = DEFAULT_TIMEOUT,
@@ -58,7 +58,7 @@ export function useStuckDetection(
   const processingDocs = useMemo(() => {
     if (!documents) return [];
     return documents.filter(
-      (doc) => doc.track_id && isProcessingStatus(doc.status as any)
+      (doc) => doc.track_id && isProcessingStatus(doc.status as any),
     );
   }, [documents]);
 
@@ -73,7 +73,7 @@ export function useStuckDetection(
 
       if (timeSinceUpdate > timeout) {
         stuck.push(doc);
-        console.warn('[useStuckDetection] Document may be stuck:', {
+        console.warn("[useStuckDetection] Document may be stuck:", {
           id: doc.id,
           title: doc.title,
           status: doc.status,
@@ -114,11 +114,13 @@ export default useStuckDetection;
 **File**: `edgequake_webui/src/components/documents/document-manager.tsx`
 
 **Add import**:
+
 ```typescript
-import { useStuckDetection } from '@/hooks/use-stuck-detection';
+import { useStuckDetection } from "@/hooks/use-stuck-detection";
 ```
 
 **Replace useEffect (lines 329-365)** with:
+
 ```typescript
 // OODA-04: Detect stuck documents using extracted hook
 useStuckDetection(data?.items, {
@@ -136,6 +138,7 @@ useStuckDetection(data?.items, {
 ### Rollback Plan
 
 If issues found:
+
 1. Revert document-manager.tsx to inline useEffect
 2. Remove hooks/use-stuck-detection.ts
 3. No runtime changes needed

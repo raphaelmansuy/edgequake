@@ -30,7 +30,7 @@ async fn transition_if_status(
 Uses SQL `jsonb_set` with WHERE clause for atomic update:
 
 ```sql
-UPDATE kv_store 
+UPDATE kv_store
 SET value = jsonb_set(value, '{status}', $3, false)
 WHERE key = $1 AND value->>'status' = $2
 ```
@@ -50,6 +50,7 @@ Uses `RwLock::write()` to ensure atomic check-and-set within a single critical s
 **File**: [edgequake-storage/src/adapters/memory/kv.rs](../../../../edgequake/crates/edgequake-storage/src/adapters/memory/kv.rs#L125-L180)
 
 Added 3 tests:
+
 - `test_transition_if_status_success` - Verifies successful transition
 - `test_transition_if_status_wrong_status` - Verifies rejection when status doesn't match
 - `test_transition_if_status_key_not_found` - Verifies error on missing key
@@ -59,6 +60,7 @@ Added 3 tests:
 **File**: [edgequake-api/src/handlers/documents.rs](../../../../edgequake/crates/edgequake-api/src/handlers/documents.rs#L485-L580)
 
 **Before** (Race-prone):
+
 ```rust
 // Line 495: Check status
 let metadata = kv_storage.get(&doc_key).await?;
@@ -73,6 +75,7 @@ if status == "failed" || status == "completed" {
 ```
 
 **After** (Atomic):
+
 ```rust
 // Try atomic transition: "failed" -> "deleting"
 if kv_storage.transition_if_status(&doc_key, "failed", "deleting").await? {
@@ -109,14 +112,15 @@ test result: ok. 3 passed; 0 failed; 0 ignored
 
 ## Impact
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Race window | ~5-50ms | 0ms |
-| Concurrent safety | ❌ | ✅ |
-| Data corruption risk | High | Eliminated |
+| Metric               | Before  | After      |
+| -------------------- | ------- | ---------- |
+| Race window          | ~5-50ms | 0ms        |
+| Concurrent safety    | ❌      | ✅         |
+| Data corruption risk | High    | Eliminated |
 
 ## Next Iteration
 
 **Issue #2**: Silent WebSocket Disconnection (websocket-provider.tsx)
+
 - Users not notified when real-time updates fail
 - Need exponential backoff and visual feedback

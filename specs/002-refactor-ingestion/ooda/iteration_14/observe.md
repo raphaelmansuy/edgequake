@@ -1,6 +1,7 @@
 # OODA-14 Observe: useDocumentMutations Hook Extraction
 
 ## Mission Brief Re-Read
+
 - Target: DocumentManager < 300 lines
 - Current: 1064 lines (41.6% reduction achieved)
 - Remaining: ~764 lines to reduce
@@ -8,6 +9,7 @@
 ## Code Analysis
 
 ### Target: Mutation Definitions (Lines ~280-370)
+
 Four React Query mutations currently inline in DocumentManager:
 
 ```typescript
@@ -43,12 +45,14 @@ const cancelMutation = useMutation({
 Total: ~90 lines of mutation definitions
 
 ### Dependencies
+
 - `toast` from sonner
 - `queryClient` from useQueryClient
 - `t` from useTranslation
 - `setPipelineDialogOpen` callback (for reprocess success action)
 
 ### Usage Sites
+
 1. `deleteMutation.mutate(id)` - Delete single document
 2. `deleteAllMutation.mutate()` - Not directly used (Clear Documents Dialog handles its own)
 3. `reprocessMutation.mutate(id)` - Retry failed document
@@ -58,6 +62,7 @@ Total: ~90 lines of mutation definitions
 7. `cancelMutation.isPending` - Loading state
 
 ### Extract Pattern (Matches useFileUpload)
+
 ```typescript
 // hooks/use-document-mutations.ts
 export function useDocumentMutations(options: {
@@ -74,6 +79,7 @@ export function useDocumentMutations(options: {
 ```
 
 ## Line Count Estimation
+
 - Lines removed from DocumentManager: ~90
 - New hook file: ~150 lines (includes docs, types, error handling)
 - Net reduction: ~90 lines

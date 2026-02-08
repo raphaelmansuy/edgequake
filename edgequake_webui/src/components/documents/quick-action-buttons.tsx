@@ -8,16 +8,16 @@
  */
 'use client';
 
-import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ExternalLink, Eye, Sparkles, RefreshCw } from 'lucide-react';
 import type { Document } from '@/types';
+import { ExternalLink, Eye, RefreshCw, Sparkles } from 'lucide-react';
+import * as React from 'react';
 
 /**
  * Statuses that allow "View in Graph" action

@@ -2,20 +2,24 @@
  * @module useDocumentFiltering
  * @description Client-side document filtering and sorting logic.
  * Extracted from DocumentManager for SRP compliance (OODA-19).
- * 
+ *
  * WHY: Filter and sort functions were inline in DocumentManager.
  * This hook provides:
  * - Search filtering (title, file_name, id)
  * - Status filtering
  * - Multi-field sorting
- * 
+ *
  * @implements FEAT0401 - Document search and filtering
  */
-'use client';
+"use client";
 
-import type { Document } from '@/types';
-import { useMemo } from 'react';
-import type { DocStatus, SortField, SortDirection } from './use-document-preferences';
+import type { Document } from "@/types";
+import { useMemo } from "react";
+import type {
+  DocStatus,
+  SortDirection,
+  SortField,
+} from "./use-document-preferences";
 
 /**
  * Options for useDocumentFiltering hook.
@@ -79,7 +83,7 @@ export interface UseDocumentFilteringReturn {
 function filterDocuments(
   docs: Document[],
   searchQuery: string,
-  statusFilter: DocStatus
+  statusFilter: DocStatus,
 ): Document[] {
   let filtered = docs;
 
@@ -87,16 +91,20 @@ function filterDocuments(
   if (searchQuery.trim()) {
     const query = searchQuery.toLowerCase().trim();
     filtered = filtered.filter((doc) => {
-      const title = doc.title?.toLowerCase() || '';
-      const fileName = doc.file_name?.toLowerCase() || '';
-      return title.includes(query) || fileName.includes(query) || doc.id.includes(query);
+      const title = doc.title?.toLowerCase() || "";
+      const fileName = doc.file_name?.toLowerCase() || "";
+      return (
+        title.includes(query) ||
+        fileName.includes(query) ||
+        doc.id.includes(query)
+      );
     });
   }
 
   // Apply status filter
-  if (statusFilter !== 'all') {
+  if (statusFilter !== "all") {
     filtered = filtered.filter((doc) => {
-      const docStatus = doc.status || 'completed';
+      const docStatus = doc.status || "completed";
       return docStatus === statusFilter;
     });
   }
@@ -110,41 +118,41 @@ function filterDocuments(
 function sortDocuments(
   docs: Document[],
   sortField: SortField,
-  sortDirection: SortDirection
+  sortDirection: SortDirection,
 ): Document[] {
   return [...docs].sort((a, b) => {
-    let aVal: string | number | Date = '';
-    let bVal: string | number | Date = '';
+    let aVal: string | number | Date = "";
+    let bVal: string | number | Date = "";
 
     switch (sortField) {
-      case 'title':
+      case "title":
         aVal = a.title || a.file_name || a.id;
         bVal = b.title || b.file_name || b.id;
         break;
-      case 'created_at':
-      case 'updated_at':
+      case "created_at":
+      case "updated_at":
         aVal = new Date(a.created_at || 0);
         bVal = new Date(b.created_at || 0);
         break;
-      case 'status':
-        aVal = a.status || '';
-        bVal = b.status || '';
+      case "status":
+        aVal = a.status || "";
+        bVal = b.status || "";
         break;
-      case 'entity_count':
+      case "entity_count":
         aVal = a.entity_count ?? a.chunk_count ?? 0;
         bVal = b.entity_count ?? b.chunk_count ?? 0;
         break;
     }
 
-    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+    if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
     return 0;
   });
 }
 
 /**
  * Hook for client-side document filtering and sorting.
- * 
+ *
  * @example
  * ```tsx
  * const { documents, totalCount, totalPages, allDocuments } = useDocumentFiltering({
@@ -157,7 +165,9 @@ function sortDocuments(
  * });
  * ```
  */
-export function useDocumentFiltering(options: UseDocumentFilteringOptions): UseDocumentFilteringReturn {
+export function useDocumentFiltering(
+  options: UseDocumentFilteringOptions,
+): UseDocumentFilteringReturn {
   const {
     documents: rawDocuments,
     searchQuery,
@@ -195,12 +205,16 @@ export function useDocumentFiltering(options: UseDocumentFilteringOptions): UseD
     // Fallback to client-side calculation
     return {
       all: allDocuments.length,
-      pending: allDocuments.filter((d) => d.status === 'pending').length,
-      processing: allDocuments.filter((d) => d.status === 'processing').length,
-      completed: allDocuments.filter((d) => !d.status || d.status === 'completed' || d.status === 'indexed').length,
-      failed: allDocuments.filter((d) => d.status === 'failed').length,
-      partial_failure: allDocuments.filter((d) => d.status === 'partial_failure').length,
-      cancelled: allDocuments.filter((d) => d.status === 'cancelled').length,
+      pending: allDocuments.filter((d) => d.status === "pending").length,
+      processing: allDocuments.filter((d) => d.status === "processing").length,
+      completed: allDocuments.filter(
+        (d) => !d.status || d.status === "completed" || d.status === "indexed",
+      ).length,
+      failed: allDocuments.filter((d) => d.status === "failed").length,
+      partial_failure: allDocuments.filter(
+        (d) => d.status === "partial_failure",
+      ).length,
+      cancelled: allDocuments.filter((d) => d.status === "cancelled").length,
     };
   }, [allDocuments, serverStatusCounts]);
 

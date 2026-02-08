@@ -1,15 +1,14 @@
 'use client';
 
-import type { PipelineStatus } from '@/types';
-import type { Document } from '@/types';
-import type { UploadingFile } from './types';
 import type { StatusCounts } from '@/hooks/use-document-filtering';
-import type { DocStatus, SortField } from './document-filters';
-import { DocumentSearchBar } from './document-search-bar';
-import { DocumentFilters } from './document-filters';
-import { ProcessingStatusSummary } from './processing-status-summary';
-import { DocumentDropzone, type DocumentDropzoneProps } from './document-dropzone';
+import type { Document, PipelineStatus } from '@/types';
 import { BatchActionsBar } from './batch-actions-bar';
+import { DocumentDropzone, type DocumentDropzoneProps } from './document-dropzone';
+import type { DocStatus, SortField } from './document-filters';
+import { DocumentFilters } from './document-filters';
+import { DocumentSearchBar } from './document-search-bar';
+import { ProcessingStatusSummary } from './processing-status-summary';
+import type { UploadingFile } from './types';
 import { UploadProgressList } from './upload-progress-list';
 
 /**

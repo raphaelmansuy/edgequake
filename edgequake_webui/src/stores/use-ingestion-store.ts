@@ -26,21 +26,21 @@
 
 import type { CostUpdateEvent } from "@/types/cost";
 import type {
-  ChunkFailureEvent,
-  ChunkProgressEvent,
-  IngestionCompletedEvent,
-  IngestionError,
-  IngestionFailedEvent,
-  IngestionProgress,
-  IngestionResult,
-  IngestionStage,
-  IngestionStartedEvent,
-  PdfPageProgressEvent,
-  StageCompletedEvent,
-  StageProgress,
-  StageProgressEvent,
-  StageStartedEvent,
-  WebSocketProgressMessage,
+    ChunkFailureEvent,
+    ChunkProgressEvent,
+    IngestionCompletedEvent,
+    IngestionError,
+    IngestionFailedEvent,
+    IngestionProgress,
+    IngestionResult,
+    IngestionStage,
+    IngestionStartedEvent,
+    PdfPageProgressEvent,
+    StageCompletedEvent,
+    StageProgress,
+    StageProgressEvent,
+    StageStartedEvent,
+    WebSocketProgressMessage,
 } from "@/types/ingestion";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";

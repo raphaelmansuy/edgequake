@@ -16,10 +16,10 @@
 
 ## Metrics
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| document-manager.tsx lines | 1794 | 1744 | -50 |
-| Extracted hooks | 1 | 2 | +1 |
+| Metric                     | Before | After | Change |
+| -------------------------- | ------ | ----- | ------ |
+| document-manager.tsx lines | 1794   | 1744  | -50    |
+| Extracted hooks            | 1      | 2     | +1     |
 
 ## Commit
 
@@ -34,6 +34,7 @@
 ## Next Iteration
 
 Continue with more component extractions from DocumentManager:
+
 - DocumentUploadZone component
-- DocumentFilters component  
+- DocumentFilters component
 - DocumentBatchActions component

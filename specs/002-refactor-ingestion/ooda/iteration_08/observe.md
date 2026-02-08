@@ -41,11 +41,11 @@ interface DocumentDropzoneProps {
   isDragActive: boolean;
 }
 
-function DocumentDropzone({ 
-  getRootProps, 
-  getInputProps, 
-  isDragActive 
-}: DocumentDropzoneProps): JSX.Element
+function DocumentDropzone({
+  getRootProps,
+  getInputProps,
+  isDragActive,
+}: DocumentDropzoneProps): JSX.Element;
 ```
 
 ## Lines to Extract: ~30

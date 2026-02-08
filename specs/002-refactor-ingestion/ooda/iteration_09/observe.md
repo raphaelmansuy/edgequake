@@ -5,6 +5,7 @@
 The table row section (lines 1286-1505) is ~220 lines with many dependencies:
 
 ### Row Dependencies
+
 - doc: Document object
 - selectedDocument?.id: for highlighting
 - selectedIds: Set for checkbox state
@@ -17,6 +18,7 @@ The table row section (lines 1286-1505) is ~220 lines with many dependencies:
 ## Decision: Extract Actions Menu First
 
 The dropdown menu (lines 1446-1502) is ~56 lines and relatively self-contained. It needs:
+
 - doc: Document
 - onCopy, onViewPdf, onCancel, onReprocess, onDelete
 - cancelMutation.isPending

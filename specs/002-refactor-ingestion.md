@@ -3,16 +3,16 @@
 ## Task
 
 Your mission is to refactor the EdgeQuake document ingestion pipeline to achieve:
+
 1. **Single Responsibility Principle (SRP)** compliance - Split large components
 2. **Don't Repeat Yourself (DRY)** compliance - Eliminate code duplication
 3. **Reliability improvements** - Fix silent failures, race conditions, partial extraction visibility
 
-
-FULLY READ this mission brief at the start of every OODA iteration. 
+FULLY READ this mission brief at the start of every OODA iteration.
 
 ## Context
 
-- **Location**: 
+- **Location**:
   - Backend: `edgequake/crates/edgequake-api/src/handlers/documents.rs`
   - Backend: `edgequake/crates/edgequake-pipeline/src/pipeline.rs`
   - Frontend: `edgequake_webui/src/components/documents/document-manager.tsx`
@@ -101,6 +101,7 @@ Ensure very good ingestion / conversion feedback in the UI: progress bars, statu
 ## Success Criteria
 
 ### Quantitative
+
 - [ ] DocumentManager: 1822 lines → <300 lines per component
 - [ ] Upload handler: 300 lines → <100 lines (service layer)
 - [ ] Code duplication: 8 violations → 0 violations
@@ -108,6 +109,7 @@ Ensure very good ingestion / conversion feedback in the UI: progress bars, statu
 - [ ] All existing tests pass: `cargo test --workspace && pnpm test`
 
 ### Qualitative
+
 - [ ] Users see "Connection Lost" banner when WebSocket disconnects
 - [ ] Users see "Partial Success (N/M chunks)" for partial failures
 - [ ] Error messages consistent between backend and frontend
