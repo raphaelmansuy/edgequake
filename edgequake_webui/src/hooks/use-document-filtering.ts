@@ -33,6 +33,28 @@ export interface UseDocumentFilteringOptions {
   sortDirection: SortDirection;
   /** Page size for pagination */
   pageSize: number;
+  /** Server-side status counts (optional, for efficiency) */
+  serverStatusCounts?: {
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    partial_failure?: number;
+    cancelled?: number;
+  };
+}
+
+/**
+ * Status counts for document status tabs.
+ */
+export interface StatusCounts {
+  all: number;
+  pending: number;
+  processing: number;
+  completed: number;
+  failed: number;
+  partial_failure: number;
+  cancelled: number;
 }
 
 /**
@@ -47,6 +69,8 @@ export interface UseDocumentFilteringReturn {
   totalPages: number;
   /** All documents (unfiltered) */
   allDocuments: Document[];
+  /** Status counts for tabs */
+  statusCounts: StatusCounts;
 }
 
 /**
@@ -141,6 +165,7 @@ export function useDocumentFiltering(options: UseDocumentFilteringOptions): UseD
     sortField,
     sortDirection,
     pageSize,
+    serverStatusCounts,
   } = options;
 
   const allDocuments = rawDocuments;
@@ -154,11 +179,37 @@ export function useDocumentFiltering(options: UseDocumentFilteringOptions): UseD
   const totalCount = documents.length;
   const totalPages = Math.ceil(totalCount / pageSize);
 
+  // Calculate status counts (use server-side if available for efficiency)
+  const statusCounts = useMemo<StatusCounts>(() => {
+    if (serverStatusCounts) {
+      return {
+        all: allDocuments.length,
+        pending: serverStatusCounts.pending,
+        processing: serverStatusCounts.processing,
+        completed: serverStatusCounts.completed,
+        failed: serverStatusCounts.failed,
+        partial_failure: serverStatusCounts.partial_failure || 0,
+        cancelled: serverStatusCounts.cancelled || 0,
+      };
+    }
+    // Fallback to client-side calculation
+    return {
+      all: allDocuments.length,
+      pending: allDocuments.filter((d) => d.status === 'pending').length,
+      processing: allDocuments.filter((d) => d.status === 'processing').length,
+      completed: allDocuments.filter((d) => !d.status || d.status === 'completed' || d.status === 'indexed').length,
+      failed: allDocuments.filter((d) => d.status === 'failed').length,
+      partial_failure: allDocuments.filter((d) => d.status === 'partial_failure').length,
+      cancelled: allDocuments.filter((d) => d.status === 'cancelled').length,
+    };
+  }, [allDocuments, serverStatusCounts]);
+
   return {
     documents,
     totalCount,
     totalPages,
     allDocuments,
+    statusCounts,
   };
 }
 
