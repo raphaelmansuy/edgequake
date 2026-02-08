@@ -56,6 +56,7 @@ interface IngestionState {
   // WebSocket connection status
   wsConnected: boolean;
   wsReconnecting: boolean;
+  wsMaxReconnectsReached: boolean;
 
   // Completed jobs (recent history)
   completedJobs: IngestionResult[];
@@ -69,10 +70,10 @@ interface IngestionActions {
   startTracking: (
     trackId: string,
     documentId: string,
-    documentName: string
+    documentName: string,
   ) => void;
   updateFromMessage: (
-    message: WebSocketProgressMessage | CostUpdateEvent
+    message: WebSocketProgressMessage | CostUpdateEvent,
   ) => void;
   stopTracking: (trackId: string) => void;
   clearTrack: (trackId: string) => void;
@@ -81,6 +82,7 @@ interface IngestionActions {
   // WebSocket status
   setWsConnected: (connected: boolean) => void;
   setWsReconnecting: (reconnecting: boolean) => void;
+  setWsMaxReconnectsReached: (reached: boolean) => void;
 
   // Completed jobs
   addCompletedJob: (result: IngestionResult) => void;
@@ -124,7 +126,7 @@ function createInitialStages(): StageProgress[] {
 function createInitialProgress(
   trackId: string,
   documentId: string,
-  documentName: string
+  documentName: string,
 ): IngestionProgress {
   return {
     track_id: trackId,
@@ -145,7 +147,7 @@ function createInitialProgress(
 
 function handleIngestionStarted(
   state: IngestionState,
-  event: IngestionStartedEvent
+  event: IngestionStartedEvent,
 ): Map<string, IngestionProgress> {
   const tracks = new Map(state.tracks);
 
@@ -160,7 +162,7 @@ function handleIngestionStarted(
       ...createInitialProgress(
         event.track_id,
         event.document_id,
-        event.document_name
+        event.document_name,
       ),
       status: "preprocessing",
       started_at: event.started_at,
@@ -172,7 +174,7 @@ function handleIngestionStarted(
 
 function handleStageStarted(
   state: IngestionState,
-  event: StageStartedEvent
+  event: StageStartedEvent,
 ): Map<string, IngestionProgress> {
   const tracks = new Map(state.tracks);
   const track = tracks.get(event.track_id);
@@ -185,7 +187,7 @@ function handleStageStarted(
 
     // Update stage status
     const stageIndex = track.progress.stages.findIndex(
-      (s) => s.stage === event.stage
+      (s) => s.stage === event.stage,
     );
     if (stageIndex >= 0) {
       track.progress.stages[stageIndex].status = "running";
@@ -198,7 +200,7 @@ function handleStageStarted(
 
 function handleStageProgress(
   state: IngestionState,
-  event: StageProgressEvent
+  event: StageProgressEvent,
 ): Map<string, IngestionProgress> {
   const tracks = new Map(state.tracks);
   const track = tracks.get(event.track_id);
@@ -208,7 +210,7 @@ function handleStageProgress(
 
     // Update stage progress
     const stageIndex = track.progress.stages.findIndex(
-      (s) => s.stage === event.stage
+      (s) => s.stage === event.stage,
     );
     if (stageIndex >= 0) {
       track.progress.stages[stageIndex].progress = event.progress;
@@ -222,7 +224,7 @@ function handleStageProgress(
 
     // Update overall progress
     track.progress.completion_percentage = calculateOverallProgress(
-      track.progress.stages
+      track.progress.stages,
     );
     track.overall_progress = track.progress.completion_percentage;
 
@@ -236,7 +238,7 @@ function handleStageProgress(
 
 function handleStageCompleted(
   state: IngestionState,
-  event: StageCompletedEvent
+  event: StageCompletedEvent,
 ): Map<string, IngestionProgress> {
   const tracks = new Map(state.tracks);
   const track = tracks.get(event.track_id);
@@ -246,7 +248,7 @@ function handleStageCompleted(
 
     // Update stage status
     const stageIndex = track.progress.stages.findIndex(
-      (s) => s.stage === event.stage
+      (s) => s.stage === event.stage,
     );
     if (stageIndex >= 0) {
       track.progress.stages[stageIndex].status = "completed";
@@ -256,14 +258,14 @@ function handleStageCompleted(
 
       if (event.result) {
         track.progress.stages[stageIndex].message = formatStageResult(
-          event.result
+          event.result,
         );
       }
     }
 
     // Update overall progress
     track.progress.completion_percentage = calculateOverallProgress(
-      track.progress.stages
+      track.progress.stages,
     );
     track.overall_progress = track.progress.completion_percentage;
     track.progress.latest_message = `Completed ${event.stage}`;
@@ -274,7 +276,7 @@ function handleStageCompleted(
 
 function handleIngestionCompleted(
   state: IngestionState,
-  event: IngestionCompletedEvent
+  event: IngestionCompletedEvent,
 ): { tracks: Map<string, IngestionProgress>; completedJob: IngestionResult } {
   const tracks = new Map(state.tracks);
   const track = tracks.get(event.track_id);
@@ -310,7 +312,7 @@ function handleIngestionCompleted(
 
 function handleIngestionFailed(
   state: IngestionState,
-  event: IngestionFailedEvent
+  event: IngestionFailedEvent,
 ): { tracks: Map<string, IngestionProgress>; error: IngestionError } {
   const tracks = new Map(state.tracks);
   const track = tracks.get(event.track_id);
@@ -322,7 +324,7 @@ function handleIngestionFailed(
 
     // Mark the failed stage
     const stageIndex = track.progress.stages.findIndex(
-      (s) => s.stage === event.stage
+      (s) => s.stage === event.stage,
     );
     if (stageIndex >= 0) {
       track.progress.stages[stageIndex].status = "failed";
@@ -386,16 +388,16 @@ function formatStageResult(result: {
 
 /**
  * Handle PDF page progress event.
- * 
+ *
  * @implements OODA-06: PDF page-by-page progress tracking
- * 
+ *
  * WHY: Large PDFs (30+ pages) take significant time. This provides
  * page-level granularity so users see continuous progress during
  * PDF→Markdown conversion phase.
  */
 function handlePdfPageProgress(
   state: IngestionState,
-  event: PdfPageProgressEvent
+  event: PdfPageProgressEvent,
 ): Map<string, IngestionProgress> {
   const tracks = new Map(state.tracks);
   const track = tracks.get(event.data.task_id);
@@ -420,11 +422,11 @@ function handlePdfPageProgress(
 
     // Update converting stage if it exists
     const convertingStageIndex = track.progress.stages.findIndex(
-      (s) => s.stage === "converting"
+      (s) => s.stage === "converting",
     );
     if (convertingStageIndex >= 0) {
       track.progress.stages[convertingStageIndex].progress = Math.round(
-        event.data.progress * 100
+        event.data.progress * 100,
       );
       track.progress.stages[convertingStageIndex].completed_items =
         event.data.current_page;
@@ -441,16 +443,16 @@ function handlePdfPageProgress(
 
 /**
  * Handle chunk extraction progress event.
- * 
+ *
  * @implements SPEC-001/Objective-A: Chunk-Level Progress Visibility
- * 
+ *
  * WHY: Entity extraction processes chunks in parallel. This provides
  * chunk-level granularity showing real-time progress through the
  * map-reduce extraction phase.
  */
 function handleChunkProgress(
   state: IngestionState,
-  event: ChunkProgressEvent
+  event: ChunkProgressEvent,
 ): Map<string, IngestionProgress> {
   const tracks = new Map(state.tracks);
   const track = tracks.get(event.data.task_id);
@@ -462,7 +464,7 @@ function handleChunkProgress(
     const progress =
       event.data.total_chunks > 0
         ? Math.round(
-            ((event.data.chunk_index + 1) / event.data.total_chunks) * 100
+            ((event.data.chunk_index + 1) / event.data.total_chunks) * 100,
           )
         : 0;
 
@@ -485,7 +487,7 @@ function handleChunkProgress(
 
     // Update extracting stage progress
     const extractingStageIndex = track.progress.stages.findIndex(
-      (s) => s.stage === "extracting"
+      (s) => s.stage === "extracting",
     );
     if (extractingStageIndex >= 0) {
       track.progress.stages[extractingStageIndex].progress = progress;
@@ -504,15 +506,15 @@ function handleChunkProgress(
 
 /**
  * Handle chunk extraction failure event.
- * 
+ *
  * @implements SPEC-003: Chunk-level resilience with failure visibility
- * 
+ *
  * WHY: When using resilient processing, some chunks may fail while
  * others succeed. This tracks failed chunks for UI display and debugging.
  */
 function handleChunkFailure(
   state: IngestionState,
-  event: ChunkFailureEvent
+  event: ChunkFailureEvent,
 ): Map<string, IngestionProgress> {
   const tracks = new Map(state.tracks);
   const track = tracks.get(event.data.task_id);
@@ -530,7 +532,7 @@ function handleChunkFailure(
     // Log warning for debugging
     console.warn(
       `[IngestionStore] Chunk ${event.data.chunk_index + 1}/${event.data.total_chunks} failed for ${track.document_name}:`,
-      event.data.error_message
+      event.data.error_message,
     );
   }
 
@@ -548,6 +550,7 @@ export const useIngestionStore = create<IngestionStore>()(
       tracks: new Map(),
       wsConnected: false,
       wsReconnecting: false,
+      wsMaxReconnectsReached: false,
       completedJobs: [],
       failedJobs: new Map(),
 
@@ -558,7 +561,7 @@ export const useIngestionStore = create<IngestionStore>()(
           if (!tracks.has(trackId)) {
             tracks.set(
               trackId,
-              createInitialProgress(trackId, documentId, documentName)
+              createInitialProgress(trackId, documentId, documentName),
             );
           }
           return { tracks };
@@ -572,7 +575,7 @@ export const useIngestionStore = create<IngestionStore>()(
               return {
                 tracks: handleIngestionStarted(
                   state,
-                  message as IngestionStartedEvent
+                  message as IngestionStartedEvent,
                 ),
               };
 
@@ -585,7 +588,7 @@ export const useIngestionStore = create<IngestionStore>()(
               return {
                 tracks: handleStageProgress(
                   state,
-                  message as StageProgressEvent
+                  message as StageProgressEvent,
                 ),
               };
 
@@ -593,14 +596,14 @@ export const useIngestionStore = create<IngestionStore>()(
               return {
                 tracks: handleStageCompleted(
                   state,
-                  message as StageCompletedEvent
+                  message as StageCompletedEvent,
                 ),
               };
 
             case "ingestion_completed": {
               const { tracks, completedJob } = handleIngestionCompleted(
                 state,
-                message as IngestionCompletedEvent
+                message as IngestionCompletedEvent,
               );
               return {
                 tracks,
@@ -614,7 +617,7 @@ export const useIngestionStore = create<IngestionStore>()(
             case "ingestion_failed": {
               const { tracks, error } = handleIngestionFailed(
                 state,
-                message as IngestionFailedEvent
+                message as IngestionFailedEvent,
               );
               const failedJobs = new Map(state.failedJobs);
               failedJobs.set((message as IngestionFailedEvent).track_id, error);
@@ -629,7 +632,7 @@ export const useIngestionStore = create<IngestionStore>()(
               if (track) {
                 track.updated_at = new Date().toISOString();
                 track.progress.latest_message = `Cost: $${costEvent.cumulative_cost_usd.toFixed(
-                  4
+                  4,
                 )}`;
               }
               return { tracks };
@@ -639,7 +642,7 @@ export const useIngestionStore = create<IngestionStore>()(
               return {
                 tracks: handlePdfPageProgress(
                   state,
-                  message as PdfPageProgressEvent
+                  message as PdfPageProgressEvent,
                 ),
               };
 
@@ -647,16 +650,13 @@ export const useIngestionStore = create<IngestionStore>()(
               return {
                 tracks: handleChunkProgress(
                   state,
-                  message as ChunkProgressEvent
+                  message as ChunkProgressEvent,
                 ),
               };
 
             case "ChunkFailure":
               return {
-                tracks: handleChunkFailure(
-                  state,
-                  message as ChunkFailureEvent
-                ),
+                tracks: handleChunkFailure(state, message as ChunkFailureEvent),
               };
 
             default:
@@ -700,6 +700,10 @@ export const useIngestionStore = create<IngestionStore>()(
         set({ wsReconnecting: reconnecting });
       },
 
+      setWsMaxReconnectsReached: (reached) => {
+        set({ wsMaxReconnectsReached: reached });
+      },
+
       // Completed jobs
       addCompletedJob: (result) => {
         set((state) => ({
@@ -741,6 +745,6 @@ export const useIngestionStore = create<IngestionStore>()(
         return Array.from(get().tracks.values());
       },
     }),
-    { name: "ingestion-store" }
-  )
+    { name: "ingestion-store" },
+  ),
 );
