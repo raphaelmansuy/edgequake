@@ -53,9 +53,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { ClearDocumentsDialog } from './clear-documents-dialog';
 import { BatchActionsBar } from './batch-actions-bar';
 import { ConnectionBanner } from './connection-banner';
@@ -82,6 +80,7 @@ import { useBulkSelection } from '@/hooks/use-bulk-selection';
 import { useDocumentPreferences } from '@/hooks/use-document-preferences';
 import { useDocumentKeyboard } from '@/hooks/use-document-keyboard';
 import { useDocumentFiltering } from '@/hooks/use-document-filtering';
+import { useDocumentDropzone } from '@/hooks/use-document-dropzone';
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -182,50 +181,10 @@ export function DocumentManager() {
     checkInterval: 30000,
   });
 
-  // Maximum file size: 10MB
-  const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-  const onDrop = useCallback(
-    async (acceptedFiles: File[], fileRejections: readonly { file: File; errors: readonly { code: string; message: string }[] }[]) => {
-      // Handle rejected files (too large or wrong type)
-      for (const rejection of fileRejections) {
-        const errorMessages = rejection.errors.map(e => {
-          if (e.code === 'file-too-large') {
-            const sizeMB = (rejection.file.size / (1024 * 1024)).toFixed(2);
-            return t('documents.upload.fileTooLarge', 'File "{{name}}" is too large ({{size}}MB). Maximum size is 10MB.', {
-              name: rejection.file.name,
-              size: sizeMB,
-            });
-          }
-          if (e.code === 'file-invalid-type') {
-            return t('documents.upload.invalidType', 'File "{{name}}" has an unsupported format. Supported: TXT, MD, JSON, PDF.', {
-              name: rejection.file.name,
-            });
-          }
-          return e.message;
-        }).join(', ');
-        
-        toast.error(errorMessages);
-      }
-      
-      // Process accepted files
-      if (acceptedFiles.length > 0) {
-        await handleFilesUpload(acceptedFiles);
-      }
-    },
-    [handleFilesUpload, t]
-  );
-
-  const { getRootProps, getInputProps, isDragActive, open: openFileDialog } = useDropzone({
-    onDrop,
-    accept: {
-      'text/plain': ['.txt'],
-      'text/markdown': ['.md'],
-      'application/json': ['.json'],
-      'application/pdf': ['.pdf'],
-    },
-    maxSize: MAX_FILE_SIZE, // 10MB limit
-    noClick: false, // Allow click on dropzone
+  // OODA-21: Document dropzone with file validation
+  const { getRootProps, getInputProps, isDragActive, openFileDialog } = useDocumentDropzone({
+    onFilesAccepted: handleFilesUpload,
+    t,
   });
 
   // OODA-19: Filter and sort documents using extracted hook
