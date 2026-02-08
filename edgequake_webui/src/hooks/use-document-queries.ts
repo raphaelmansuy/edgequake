@@ -48,13 +48,13 @@ export function useDocumentQueries({
 }: UseDocumentQueriesOptions): UseDocumentQueriesReturn {
   const queryClient = useQueryClient();
 
-  // OODA-42 COMPLETE: WebSocket-based real-time updates (NO POLLING)
+  // OODA-42 COMPLETE: WebSocket-based real-time updates with transition-aware fallback
   // WHY: Users want instant document status updates without polling overhead
-  // HOW: Subscribe to WebSocket events for all processing documents
-  // 
-  // FIX: Add polling fallback for phase transitions (e.g., PDF conversion → entity extraction)
-  // WHY: Backend may have delays between phases where no WebSocket event is sent,
-  //      leaving UI stuck at "Converting PDF 100%" indefinitely
+  // HOW: Subscribe to WebSocket events + smart polling for phase transitions
+  //
+  // FIX: Ensure final refetch when transitioning from processing → completed
+  // WHY: Backend may complete processing, but UI cache still shows intermediate state
+  //      (e.g., "chunking") because WebSocket events stopped and polling disabled too early
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: [
       "documents",
@@ -70,24 +70,37 @@ export function useDocumentQueries({
         page_size: pageSize,
         status: statusFilter === "all" ? undefined : statusFilter,
       }),
-    // Smart polling: only when documents might be transitioning between phases
-    // Check every 2s if there are documents that finished one phase and might start next
+    // Smart polling:
+    // 1. Poll for documents currently processing (to catch real-time updates)
+    // 2. Poll for documents that might be transitioning (stage complete but status not updated)
+    // 3. Stop polling once all documents reach terminal states (completed/failed/cancelled)
     refetchInterval: (query) => {
       const documents = query.state.data?.items || [];
+
+      // Check for actively processing documents
+      const hasProcessingDocs = documents.some(
+        (doc: any) =>
+          doc.status === "processing" ||
+          doc.current_stage === "processing" ||
+          doc.current_stage === "converting" ||
+          doc.current_stage === "preprocessing" ||
+          doc.current_stage === "chunking" ||
+          doc.current_stage === "extracting" ||
+          doc.current_stage === "embedding" ||
+          doc.current_stage === "storing",
+      );
+
+      // Check for documents that completed a stage (might transition soon)
       const hasTransitioningDocs = documents.some(
         (doc: any) =>
           doc.status === "processing" &&
-          doc.current_stage &&
-          (doc.current_stage === "converting" ||
-            doc.current_stage === "preprocessing" ||
-            doc.current_stage === "chunking" ||
-            doc.current_stage === "extracting" ||
-            doc.current_stage === "embedding") &&
-          // Check if stage_message indicates completion (100%)
-          (doc.stage_message?.includes("100%") || doc.stage_message?.includes("complete"))
+          doc.stage_message &&
+          (doc.stage_message.includes("100%") ||
+            doc.stage_message.includes("complete")),
       );
-      // Poll every 2s when documents are transitioning, otherwise rely on WebSocket
-      return hasTransitioningDocs ? 2000 : false;
+
+      // Poll every 2s when documents are processing or transitioning
+      return hasProcessingDocs || hasTransitioningDocs ? 2000 : false;
     },
   });
 
