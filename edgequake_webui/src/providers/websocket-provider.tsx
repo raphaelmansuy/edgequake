@@ -16,8 +16,9 @@ import { disconnectWebSocket, getWebSocketClient } from '@/lib/websocket';
 import { useCostStore } from '@/stores/use-cost-store';
 import { useIngestionStore } from '@/stores/use-ingestion-store';
 import type { CostUpdateEvent } from '@/types/cost';
-import type { WebSocketProgressMessage } from '@/types/ingestion';
+import type { IngestionFailedEvent, WebSocketProgressMessage } from '@/types/ingestion';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { toast } from 'sonner';
 
 // ============================================================================
 // Context Types
@@ -62,7 +63,7 @@ export function WebSocketProvider({
   const clientRef = useRef<ProgressWebSocket | null>(null);
   
   // Get store actions
-  const { updateFromMessage, setWsConnected, setWsReconnecting } = useIngestionStore();
+  const { updateFromMessage, setWsConnected, setWsReconnecting, setWsMaxReconnectsReached } = useIngestionStore();
   const { updateIngestionCost } = useCostStore();
   
   // Track connection state locally for context value
@@ -72,6 +73,35 @@ export function WebSocketProvider({
   // Handle incoming messages
   const handleMessage = useCallback(
     (message: WebSocketProgressMessage | CostUpdateEvent) => {
+      // Log pipeline events for debugging
+      if (message.type === 'ingestion_failed') {
+        const failedEvent = message as IngestionFailedEvent;
+        console.error('[WebSocket] Ingestion failed:', {
+          track_id: failedEvent.track_id,
+          document_id: failedEvent.document_id,
+          stage: failedEvent.stage,
+          error: failedEvent.error,
+        });
+        
+        // Show error toast to user
+        toast.error(
+          `Document processing failed: ${failedEvent.error.message}`,
+          {
+            duration: 10000, // 10 seconds
+            description: `Stage: ${failedEvent.stage}`,
+            action: failedEvent.error.recoverable ? {
+              label: 'Retry',
+              onClick: () => {
+                // Track ID is available for retry logic
+                console.log('[WebSocket] Retry requested for:', failedEvent.track_id);
+              },
+            } : undefined,
+          }
+        );
+      } else if (message.type === 'ingestion_completed') {
+        console.log('[WebSocket] Ingestion completed:', message);
+      }
+      
       // Update ingestion store
       updateFromMessage(message);
       
@@ -96,11 +126,24 @@ export function WebSocketProvider({
       connectedRef.current = true;
       reconnectingRef.current = false;
       setWsConnected(true);
+      // OODA-02: Show reconnection success toast if we were disconnected
+      if (useIngestionStore.getState().wsMaxReconnectsReached) {
+        setWsMaxReconnectsReached(false);
+        toast.success('Connection restored', {
+          description: 'Real-time updates are back online.',
+          duration: 3000,
+        });
+      }
     });
 
     const unsubDisconnected = client.on('disconnected', () => {
       connectedRef.current = false;
       setWsConnected(false);
+      // OODA-02: Notify user of disconnection
+      toast.warning('Connection lost', {
+        description: 'Attempting to reconnect...',
+        duration: 5000,
+      });
     });
 
     const unsubReconnecting = client.on('reconnecting', () => {
@@ -111,7 +154,20 @@ export function WebSocketProvider({
     const unsubMaxReconnects = client.on('max_reconnects_reached', () => {
       reconnectingRef.current = false;
       setWsReconnecting(false);
+      setWsMaxReconnectsReached(true);
       console.warn('[WebSocketProvider] Max reconnection attempts reached');
+      // OODA-02: Show persistent error toast with retry option
+      toast.error('Unable to reconnect', {
+        description: 'Real-time updates unavailable. Click to retry.',
+        duration: Infinity,
+        action: {
+          label: 'Retry',
+          onClick: () => {
+            setWsMaxReconnectsReached(false);
+            clientRef.current?.connect();
+          },
+        },
+      });
     });
 
     const unsubProgress = client.on('progress', (message) => {
@@ -141,7 +197,7 @@ export function WebSocketProvider({
       unsubPdfProgress();
       unsubStatusSnapshot();
     };
-  }, [enabled, autoConnect, handleMessage, setWsConnected, setWsReconnecting]);
+  }, [enabled, autoConnect, handleMessage, setWsConnected, setWsReconnecting, setWsMaxReconnectsReached]);
 
   // Cleanup on unmount
   useEffect(() => {

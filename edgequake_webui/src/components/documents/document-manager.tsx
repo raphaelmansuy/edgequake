@@ -50,6 +50,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useWebSocket } from '@/hooks/use-websocket';
 import {
     cancelTask,
     deleteAllDocuments,
@@ -62,6 +63,7 @@ import {
     type DocumentsListResult,
 } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
+import { getWebSocketClient } from '@/lib/websocket';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -96,23 +98,21 @@ import { useCallback, useEffect, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { useWebSocket } from '@/hooks/use-websocket';
-import { getWebSocketClient } from '@/lib/websocket';
-import { BatchProgressCard } from './batch-progress-card';
 import { ClearDocumentsDialog } from './clear-documents-dialog';
+import { ConnectionBanner } from './connection-banner';
 import { ConnectionStatus } from './connection-status';
 import { CostCell } from './cost-cell';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
 import { DocumentViewerDialog } from './document-viewer-dialog';
+import { EnhancedStatusBadge } from './enhanced-status-badge';
 import { ErrorMessagePopover } from './error-message-popover';
 import { PaginationControls } from './pagination-controls';
 import { PdfUploadProgress } from './pdf-upload-progress';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
-import { StatusBadge, getDocumentDisplayStatus, isProcessingStatus } from './status-badge';
-import { EnhancedStatusBadge } from './enhanced-status-badge';
+import { isProcessingStatus } from './status-badge';
 import type { UploadingFile } from './types';
 
 /**
@@ -249,9 +249,6 @@ export function DocumentManager() {
   // Upload progress tracking state
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  
-  // Track ID for batch progress (Phase 2) - async processing enabled
-  const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
 
   // OODA-42 COMPLETE: WebSocket-based real-time updates (NO POLLING)
   // WHY: Users want instant document status updates without polling overhead
@@ -329,10 +326,52 @@ export function DocumentManager() {
     };
   }, [connected, queryClient]);
 
+  // Detect stuck documents (processing but no updates in 30 seconds)
+  useEffect(() => {
+    if (!data?.items) return;
+
+    const checkStuckDocuments = () => {
+      const processingDocs = data.items.filter(
+        (doc: Document) => doc.track_id && isProcessingStatus(doc.status as any)
+      );
+
+      processingDocs.forEach((doc: Document) => {
+        const updatedAt = doc.updated_at ? new Date(doc.updated_at).getTime() : 0;
+        const now = Date.now();
+        const timeSinceUpdate = now - updatedAt;
+        
+        // If no update in 30 seconds, log warning
+        if (timeSinceUpdate > 30000) {
+          console.warn('[DocumentManager] Document may be stuck:', {
+            id: doc.id,
+            title: doc.title,
+            status: doc.status,
+            current_stage: doc.current_stage,
+            stage_message: doc.stage_message,
+            error_message: doc.error_message,
+            track_id: doc.track_id,
+            seconds_since_update: Math.floor(timeSinceUpdate / 1000),
+          });
+        }
+      });
+    };
+
+    // Check immediately
+    checkStuckDocuments();
+    
+    // Check every 30 seconds
+    const interval = setInterval(checkStuckDocuments, 30000);
+    
+    return () => clearInterval(interval);
+  }, [data?.items]);
+
   // Enhanced upload handler with progress tracking
   const handleFilesUpload = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
+      
+      // Auto-switch to 'all' filter so processing documents are visible
+      setStatusFilter('all');
       
       setIsUploading(true);
       
@@ -609,11 +648,6 @@ export function DocumentManager() {
       // Refresh documents list
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       setIsUploading(false);
-
-      // Set the active track ID to show batch progress card (for async processing)
-      if (successCount > 0) {
-        setActiveTrackId(trackId);
-      }
 
       // Clear upload list after a delay
       setTimeout(() => {
@@ -1073,6 +1107,9 @@ export function DocumentManager() {
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Fixed Header Zone */}
         <div className="shrink-0 px-4 pt-4 space-y-3 bg-background">
+          {/* OODA-02: Connection status banner when disconnected */}
+          <ConnectionBanner />
+          
           {/* Header - Compact */}
           <header className="flex items-center justify-between gap-3 flex-wrap">
             <div className="space-y-0.5">
@@ -1115,7 +1152,6 @@ export function DocumentManager() {
             <ReprocessFailedButton
               failedCount={statusCounts.failed}
               onReprocessStarted={(trackId) => {
-                setActiveTrackId(trackId);
                 setPipelineDialogOpen(true);
               }}
             />
@@ -1428,19 +1464,6 @@ export function DocumentManager() {
         </div>
       )}
 
-      {/* Batch Progress Card (Phase 2) - Fixed zone when active */}
-      {activeTrackId && !isUploading && (
-        <div className="shrink-0 px-4 py-3 border-b">
-          <BatchProgressCard
-            trackId={activeTrackId}
-            onClose={() => setActiveTrackId(null)}
-            onComplete={() => {
-              queryClient.invalidateQueries({ queryKey: ['documents'] });
-              setTimeout(() => setActiveTrackId(null), 5000);
-            }}
-          />
-        </div>
-      )}
       </div>
 
       {/* Scrollable Documents Table Zone */}
