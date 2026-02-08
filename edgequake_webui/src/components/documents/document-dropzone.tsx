@@ -7,7 +7,7 @@ import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
 /**
  * Props for the DocumentDropzone component.
  */
-interface DocumentDropzoneProps {
+export interface DocumentDropzoneProps {
   /** Props to spread on the dropzone container */
   getRootProps: <T extends DropzoneRootProps>(props?: T) => T;
   /** Props to spread on the hidden file input */

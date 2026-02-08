@@ -27,19 +27,12 @@ import type { Document } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BatchActionsBar } from './batch-actions-bar';
 
-import { DocumentDropzone } from './document-dropzone';
 import { DocumentErrorAlert } from './document-error-alert';
 import { DocumentHeader } from './document-header';
-
-import { DocumentFilters } from './document-filters';
 import { DocumentPreviewRightPanel } from './document-preview-right-panel';
-import { DocumentSearchBar } from './document-search-bar';
 import { DocumentTableSection } from './document-table-section';
-
-import { ProcessingStatusSummary } from './processing-status-summary';
-import { UploadProgressList } from './upload-progress-list';
+import { DocumentToolbarSection } from './document-toolbar-section';
 import { useStuckDetection } from '@/hooks/use-stuck-detection';
 import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
 import { useFileUpload } from '@/hooks/use-file-upload';
@@ -220,55 +213,33 @@ export function DocumentManager() {
             workspaceId={selectedWorkspaceId ?? undefined}
           />
       
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pb-3 border-b">
-        <DocumentSearchBar
-          value={searchQuery}
-          onChange={setSearchQuery}
-        />
-        <DocumentFilters
-          status={statusFilter}
-          onStatusChange={setStatusFilter}
-          sortField={sortField}
-          onSortFieldChange={setSortField}
-          sortDirection={sortDirection}
-          onSortDirectionChange={setSortDirection}
-          statusCounts={statusCounts}
-        />
-      </div>
-
-      {/* OODA-11: Processing Status Summary - Extracted to ProcessingStatusSummary component */}
-      {pipelineStatus && (
-        <ProcessingStatusSummary
-          pipelineStatus={pipelineStatus}
-          documents={documents}
-          onOpenDetails={() => setPipelineDialogOpen(true)}
-        />
-      )}
-
-      {/* OODA-08: Compact Upload Zone - Extracted to DocumentDropzone component */}
-      <DocumentDropzone
-        getRootProps={getRootProps}
-        getInputProps={getInputProps}
-        isDragActive={isDragActive}
-      />
-
-      {/* OODA-07: Bulk Actions Bar - Extracted to BatchActionsBar component */}
-      <BatchActionsBar
-        selectedCount={selectedCount}
-        onReprocess={handleBulkReprocess}
-        onDelete={handleBulkDelete}
-        onClear={handleClearSelection}
-      />
-
-      {/* OODA-06: Upload Progress - Extracted to UploadProgressList component */}
-      <UploadProgressList
-        uploadingFiles={uploadingFiles}
-        isUploading={isUploading}
-        onRemove={removeUploadingFile}
-        onComplete={handleUploadComplete}
-        onFailed={handleUploadFailed}
-      />
+          {/* OODA-30: Toolbar section extracted to DocumentToolbarSection */}
+          <DocumentToolbarSection
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            sortField={sortField}
+            onSortFieldChange={setSortField}
+            sortDirection={sortDirection}
+            onSortDirectionChange={setSortDirection}
+            statusCounts={statusCounts}
+            pipelineStatus={pipelineStatus}
+            documents={documents}
+            onOpenPipelineDetails={() => setPipelineDialogOpen(true)}
+            getRootProps={getRootProps}
+            getInputProps={getInputProps}
+            isDragActive={isDragActive}
+            selectedCount={selectedCount}
+            onBulkReprocess={handleBulkReprocess}
+            onBulkDelete={handleBulkDelete}
+            onClearSelection={handleClearSelection}
+            uploadingFiles={uploadingFiles}
+            isUploading={isUploading}
+            onRemoveUpload={removeUploadingFile}
+            onUploadComplete={handleUploadComplete}
+            onUploadFailed={handleUploadFailed}
+          />
 
       </div>
 
