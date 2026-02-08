@@ -37,6 +37,21 @@ pub struct HealthResponse {
     /// the version of edgequake running."
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<SchemaHealth>,
+
+    /// Provider configuration details (LLM and embedding).
+    ///
+    /// WHY: OODA-11 - Mission requirement: "Ensure health API make it easy to know
+    /// all parts of the applied configuration (llm provider, embedding provider,
+    /// models used)".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub providers: Option<ProvidersHealth>,
+
+    /// Whether PDF storage is enabled.
+    ///
+    /// WHY: OODA-11 - Operators need to verify PDF processing is available.
+    /// When false, document uploads may fail silently.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_storage_enabled: Option<bool>,
 }
 
 /// Database schema health information.
@@ -73,6 +88,53 @@ pub struct ComponentHealth {
 }
 
 // ============================================================================
+// Provider Health Types (OODA-11)
+// ============================================================================
+
+/// LLM provider health information.
+///
+/// WHY: OODA-11 - Operators need to verify which LLM model is active.
+/// Model choice affects entity extraction quality and API costs.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct LlmProviderHealth {
+    /// Provider name (e.g., "openai", "ollama", "mock").
+    pub name: String,
+
+    /// Model being used (e.g., "gpt-5-nano", "gemma3:latest").
+    pub model: String,
+}
+
+/// Embedding provider health information.
+///
+/// WHY: OODA-11 - Embedding dimension must match vector storage schema.
+/// Dimension mismatch causes silent failures during semantic search.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct EmbeddingProviderHealth {
+    /// Provider name (e.g., "openai", "ollama").
+    pub name: String,
+
+    /// Embedding model (e.g., "text-embedding-3-small", "nomic-embed-text").
+    pub model: String,
+
+    /// Embedding vector dimension (e.g., 768, 1536, 3072).
+    /// Must match PostgreSQL vector column dimension.
+    pub dimension: usize,
+}
+
+/// Combined provider health for LLM and embedding.
+///
+/// WHY: OODA-11 - Mission requirement: "know all parts of the applied
+/// configuration (llm provider, embedding provider, models used)".
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ProvidersHealth {
+    /// LLM provider details.
+    pub llm: LlmProviderHealth,
+
+    /// Embedding provider details.
+    pub embedding: EmbeddingProviderHealth,
+}
+
+// ============================================================================
 // Unit Tests
 // ============================================================================
 
@@ -95,6 +157,8 @@ mod tests {
             },
             llm_provider_name: Some("openai".to_string()),
             schema: None,
+            providers: None,
+            pdf_storage_enabled: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"status\":\"healthy\""));
@@ -102,6 +166,10 @@ mod tests {
         assert!(json.contains("\"llm_provider_name\":\"openai\""));
         // schema should be skipped when None
         assert!(!json.contains("\"schema\""));
+        // providers should be skipped when None
+        assert!(!json.contains("\"providers\""));
+        // pdf_storage_enabled should be skipped when None
+        assert!(!json.contains("\"pdf_storage_enabled\""));
     }
 
     #[test]
@@ -123,6 +191,8 @@ mod tests {
                 migrations_applied: 15,
                 last_applied_at: Some("2025-01-26T10:00:00Z".to_string()),
             }),
+            providers: None,
+            pdf_storage_enabled: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"schema\""));
@@ -174,6 +244,8 @@ mod tests {
             },
             llm_provider_name: None,
             schema: None,
+            providers: None,
+            pdf_storage_enabled: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         // llm_provider_name should be skipped when None
@@ -192,5 +264,63 @@ mod tests {
         let json = serde_json::to_string(&components).unwrap();
         assert!(json.contains("\"kv_storage\":true"));
         assert!(json.contains("\"graph_storage\":true"));
+    }
+
+    /// OODA-11: Test providers health serialization.
+    #[test]
+    fn test_providers_health_serialization() {
+        let providers = ProvidersHealth {
+            llm: LlmProviderHealth {
+                name: "ollama".to_string(),
+                model: "gemma3:latest".to_string(),
+            },
+            embedding: EmbeddingProviderHealth {
+                name: "ollama".to_string(),
+                model: "nomic-embed-text".to_string(),
+                dimension: 768,
+            },
+        };
+        let json = serde_json::to_string(&providers).unwrap();
+        assert!(json.contains("\"name\":\"ollama\""));
+        assert!(json.contains("\"model\":\"gemma3:latest\""));
+        assert!(json.contains("\"model\":\"nomic-embed-text\""));
+        assert!(json.contains("\"dimension\":768"));
+    }
+
+    /// OODA-11: Test full health response with providers.
+    #[test]
+    fn test_health_response_with_providers() {
+        let response = HealthResponse {
+            status: "healthy".to_string(),
+            version: "0.1.0".to_string(),
+            storage_mode: "postgresql".to_string(),
+            workspace_id: "default".to_string(),
+            components: ComponentHealth {
+                kv_storage: true,
+                vector_storage: true,
+                graph_storage: true,
+                llm_provider: true,
+            },
+            llm_provider_name: Some("openai".to_string()),
+            schema: None,
+            providers: Some(ProvidersHealth {
+                llm: LlmProviderHealth {
+                    name: "openai".to_string(),
+                    model: "gpt-5-nano".to_string(),
+                },
+                embedding: EmbeddingProviderHealth {
+                    name: "openai".to_string(),
+                    model: "text-embedding-3-small".to_string(),
+                    dimension: 1536,
+                },
+            }),
+            pdf_storage_enabled: Some(true),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"providers\""));
+        assert!(json.contains("\"model\":\"gpt-5-nano\""));
+        assert!(json.contains("\"model\":\"text-embedding-3-small\""));
+        assert!(json.contains("\"dimension\":1536"));
+        assert!(json.contains("\"pdf_storage_enabled\":true"));
     }
 }

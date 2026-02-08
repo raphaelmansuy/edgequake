@@ -32,7 +32,10 @@ use crate::error::ApiResult;
 use crate::state::AppState;
 
 // Re-export DTOs from health_types for backwards compatibility
-pub use crate::handlers::health_types::{ComponentHealth, HealthResponse, SchemaHealth};
+pub use crate::handlers::health_types::{
+    ComponentHealth, EmbeddingProviderHealth, HealthResponse, LlmProviderHealth, ProvidersHealth,
+    SchemaHealth,
+};
 
 /// Deep health check with component status.
 ///
@@ -82,6 +85,28 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     // WHY: OODA-14 - Mission requires schema version verification
     let schema = get_schema_health(&state).await;
 
+    // WHY: OODA-11 - Mission requirement: "know all parts of the applied configuration
+    // (llm provider, embedding provider, models used)".
+    // Operators need full visibility to debug ingestion/query issues.
+    let providers = Some(ProvidersHealth {
+        llm: LlmProviderHealth {
+            name: state.llm_provider.name().to_string(),
+            model: state.llm_provider.model().to_string(),
+        },
+        embedding: EmbeddingProviderHealth {
+            name: state.embedding_provider.name().to_string(),
+            model: state.embedding_provider.model().to_string(),
+            dimension: state.embedding_provider.dimension(),
+        },
+    });
+
+    // WHY: OODA-11 - PDF storage availability affects document upload success.
+    // When false, PDF uploads will fail. Helps operators diagnose issues.
+    #[cfg(feature = "postgres")]
+    let pdf_storage_enabled = Some(state.pdf_storage.is_some());
+    #[cfg(not(feature = "postgres"))]
+    let pdf_storage_enabled: Option<bool> = None;
+
     let response = HealthResponse {
         status: "healthy".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -90,6 +115,8 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
         components,
         llm_provider_name,
         schema,
+        providers,
+        pdf_storage_enabled,
     };
 
     Ok(Json(response))

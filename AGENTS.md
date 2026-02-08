@@ -47,50 +47,50 @@ Reflect and validate comprehensively. After tests pass, think about the original
 Refer to the detailed sections below for more information on each step.
 
 1. Fetch Provided URLs
-If the user provides a URL, use the functions.fetch_webpage tool to retrieve the content of the provided URL.
-After fetching, review the content returned by the fetch tool.
-If you find any additional URLs or links that are relevant, use the fetch_webpage tool again to retrieve those links.
-Recursively gather all relevant information by fetching additional links until you have all the information you need.
+   If the user provides a URL, use the functions.fetch_webpage tool to retrieve the content of the provided URL.
+   After fetching, review the content returned by the fetch tool.
+   If you find any additional URLs or links that are relevant, use the fetch_webpage tool again to retrieve those links.
+   Recursively gather all relevant information by fetching additional links until you have all the information you need.
 2. Deeply Understand the Problem
-Carefully read the issue and think hard about a plan to solve it before coding.
+   Carefully read the issue and think hard about a plan to solve it before coding.
 
 3. Codebase Investigation
-Explore relevant files and directories.
-Search for key functions, classes, or variables related to the issue.
-Read and understand relevant code snippets.
-Identify the root cause of the problem.
-Validate and update your understanding continuously as you gather more context.
+   Explore relevant files and directories.
+   Search for key functions, classes, or variables related to the issue.
+   Read and understand relevant code snippets.
+   Identify the root cause of the problem.
+   Validate and update your understanding continuously as you gather more context.
 4. Internet Research
-Use the fetch_webpage tool to search google by fetching the URL https://www.google.com/search?q=your+search+query.
-After fetching, review the content returned by the fetch tool.
-If you find any additional URLs or links that are relevant, use the fetch_webpage  tool again to retrieve those links.
-Recursively gather all relevant information by fetching additional links until you have all the information you need.
+   Use the fetch_webpage tool to search google by fetching the URL https://www.google.com/search?q=your+search+query.
+   After fetching, review the content returned by the fetch tool.
+   If you find any additional URLs or links that are relevant, use the fetch_webpage tool again to retrieve those links.
+   Recursively gather all relevant information by fetching additional links until you have all the information you need.
 5. Develop a Detailed Plan
-Outline a specific, simple, and verifiable sequence of steps to fix the problem.
-Create a todo list in markdown format to track your progress.
-Each time you complete a step, check it off using [x] syntax.
-Each time you check off a step, display the updated todo list to the user.
-Make sure that you ACTUALLY continue on to the next step after checkin off a step instead of ending your turn and asking the user what they want to do next.
+   Outline a specific, simple, and verifiable sequence of steps to fix the problem.
+   Create a todo list in markdown format to track your progress.
+   Each time you complete a step, check it off using [x] syntax.
+   Each time you check off a step, display the updated todo list to the user.
+   Make sure that you ACTUALLY continue on to the next step after checkin off a step instead of ending your turn and asking the user what they want to do next.
 6. Making Code Changes
-Before editing, always read the relevant file contents or section to ensure complete context.
-Always read 2000 lines of code at a time to ensure you have enough context.
-If a patch is not applied correctly, attempt to reapply it.
-Make small, testable, incremental changes that logically follow from your investigation and plan.
+   Before editing, always read the relevant file contents or section to ensure complete context.
+   Always read 2000 lines of code at a time to ensure you have enough context.
+   If a patch is not applied correctly, attempt to reapply it.
+   Make small, testable, incremental changes that logically follow from your investigation and plan.
 7. Debugging
-Use the get_errors tool to check for any problems in the code
-Make code changes only if you have high confidence they can solve the problem
-When debugging, try to determine the root cause rather than addressing symptoms
-Debug for as long as needed to identify the root cause and identify a fix
-Use print statements, logs, or temporary code to inspect program state, including descriptive statements or error messages to understand what's happening
-To test hypotheses, you can also add test statements or functions
-Revisit your assumptions if unexpected behavior occurs.
-How to create a Todo List
-Use the following format to create a todo list:
+   Use the get_errors tool to check for any problems in the code
+   Make code changes only if you have high confidence they can solve the problem
+   When debugging, try to determine the root cause rather than addressing symptoms
+   Debug for as long as needed to identify the root cause and identify a fix
+   Use print statements, logs, or temporary code to inspect program state, including descriptive statements or error messages to understand what's happening
+   To test hypotheses, you can also add test statements or functions
+   Revisit your assumptions if unexpected behavior occurs.
+   How to create a Todo List
+   Use the following format to create a todo list:
 
 - [ ] Step 1: Description of the first step
 - [ ] Step 2: Description of the second step
 - [ ] Step 3: Description of the third step
-Do not ever use HTML tags or any other formatting for the todo list, as it will not be rendered correctly. Always use the markdown format shown above.
+      Do not ever use HTML tags or any other formatting for the todo list, as it will not be rendered correctly. Always use the markdown format shown above.
 
 Communication Guidelines
 Always communicate clearly and concisely in a casual, friendly yet professional tone.
@@ -578,21 +578,21 @@ make status
 
 ### Service Verification Commands
 
-| Check | Command | Expected Result |
-|-------|---------|-----------------|
-| Backend API | `curl http://localhost:8080/health` | `{"status":"healthy","storage_mode":"postgresql"}` |
-| Frontend UI | `curl -I http://localhost:3000` | HTTP 200 OK |
-| PostgreSQL | `docker ps \| grep postgres` | Container running |
-| Ollama | `curl http://localhost:11434/api/tags` | List of models |
+| Check       | Command                                | Expected Result                                    |
+| ----------- | -------------------------------------- | -------------------------------------------------- |
+| Backend API | `curl http://localhost:8080/health`    | `{"status":"healthy","storage_mode":"postgresql"}` |
+| Frontend UI | `curl -I http://localhost:3000`        | HTTP 200 OK                                        |
+| PostgreSQL  | `docker ps \| grep postgres`           | Container running                                  |
+| Ollama      | `curl http://localhost:11434/api/tags` | List of models                                     |
 
 ### LLM Provider Selection
 
 EdgeQuake supports two LLM providers at runtime:
 
-| Provider | When to Use | Setup |
-|----------|-------------|-------|
-| **Ollama** (default) | Development, local testing, no API costs | `ollama serve &` |
-| **OpenAI** | Production, higher quality extraction | `export OPENAI_API_KEY="sk-..."` |
+| Provider             | When to Use                              | Setup                            |
+| -------------------- | ---------------------------------------- | -------------------------------- |
+| **Ollama** (default) | Development, local testing, no API costs | `ollama serve &`                 |
+| **OpenAI**           | Production, higher quality extraction    | `export OPENAI_API_KEY="sk-..."` |
 
 **Important:** If using OpenAI, prefer `gpt-5-nano` over deprecated `gpt-4o-mini`.
 
@@ -662,23 +662,23 @@ make backend-bg
 
 ### Environment Variables Reference
 
-| Variable | Required | Purpose | Example |
-|----------|----------|---------|---------|
-| `DATABASE_URL` | ✅ Yes | PostgreSQL connection | `postgres://edgequake:edgequake@localhost/edgequake` |
-| `OPENAI_API_KEY` | Optional | Enable OpenAI provider | `sk-proj-...` |
-| `PDFIUM_DYNAMIC_LIB_PATH` | Auto-set | PDF extraction library | Set by Makefile |
-| `RUST_LOG` | Optional | Logging level | `debug`, `info`, `warn` |
+| Variable                  | Required | Purpose                | Example                                              |
+| ------------------------- | -------- | ---------------------- | ---------------------------------------------------- |
+| `DATABASE_URL`            | ✅ Yes   | PostgreSQL connection  | `postgres://edgequake:edgequake@localhost/edgequake` |
+| `OPENAI_API_KEY`          | Optional | Enable OpenAI provider | `sk-proj-...`                                        |
+| `PDFIUM_DYNAMIC_LIB_PATH` | Auto-set | PDF extraction library | Set by Makefile                                      |
+| `RUST_LOG`                | Optional | Logging level          | `debug`, `info`, `warn`                              |
 
 ### Troubleshooting Quick Reference
 
-| Problem | Quick Fix |
-|---------|-----------|
-| "DATABASE_URL not set" | Run `make dev` instead of `cargo run` |
-| "Connection refused on 8080" | Check PostgreSQL: `make postgres-start` |
-| "Entity extraction failed" | Start Ollama: `ollama serve &` |
-| "Model not found" | Pull model: `ollama pull gemma3:latest` |
-| "Port 3000 in use" | Kill stale process: `lsof -ti:3000 \| xargs kill` |
-| Tests failing | Run `cargo test -p <crate> --lib` for details |
+| Problem                      | Quick Fix                                         |
+| ---------------------------- | ------------------------------------------------- |
+| "DATABASE_URL not set"       | Run `make dev` instead of `cargo run`             |
+| "Connection refused on 8080" | Check PostgreSQL: `make postgres-start`           |
+| "Entity extraction failed"   | Start Ollama: `ollama serve &`                    |
+| "Model not found"            | Pull model: `ollama pull gemma3:latest`           |
+| "Port 3000 in use"           | Kill stale process: `lsof -ti:3000 \| xargs kill` |
+| Tests failing                | Run `cargo test -p <crate> --lib` for details     |
 
 ### Best Practices (Mission Learnings)
 
@@ -857,7 +857,5 @@ cd edgequake_webui && npx playwright test e2e/<spec>.spec.ts
 ```
 
 See: [playwright-ux-ui-capture SKILL](.github/skills/playwright-ux-ui-capture/SKILL.md)
-
-
 
 Use SRP and DRY principles when developing new features or fixing bugs. For example, if you find yourself copying and pasting code, consider refactoring it into a reusable function or module. This not only reduces code duplication but also makes maintenance easier in the long run. Always aim for clean, modular code that adheres to the project's coding standards and conventions.

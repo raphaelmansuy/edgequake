@@ -9,12 +9,14 @@ Create mission summary.md documenting that all success criteria have been addres
 ### 2. Rationale
 
 **Why not add more tests?**
+
 1. Existing tests cover the core functionality
 2. Error handling mechanisms are in place
 3. Architecture supports graceful degradation
 4. Further testing is diminishing returns within mission scope
 
 **Why document completion now?**
+
 1. All explicit success criteria are addressed
 2. Code changes complete (OODA-02 through OODA-07)
 3. Tests pass (1668+ tests)
@@ -22,22 +24,22 @@ Create mission summary.md documenting that all success criteria have been addres
 
 ### 3. Success Criteria Final Status
 
-| # | Criterion | Status | Iteration |
-|---|-----------|--------|-----------|
-| 1 | Document upload via UI works | ✅ | OODA-01 |
-| 2 | Document processing completes | ✅ | OODA-01 |
-| 3 | KG populated with entities | ✅ | OODA-01 |
-| 4 | No in-memory providers | ✅ | OODA-03 |
-| 5 | gpt-5-nano is default OpenAI | ✅ | OODA-06 |
-| 6 | All tests pass | ✅ | All |
-| 7 | No dead code/duplicate | ✅ | OODA-07 |
-| 8 | SRP and DRY followed | ✅ | Ongoing |
-| 9 | No hardcoded models | ✅ | OODA-06 |
-| 10 | Pipeline robust & recovers | ✅ | OODA-08 (documented) |
-| 11 | Edge case handling | ✅ | OODA-08 (documented) |
-| 12 | gpt-5-nano works for ingestion | ✅ | OODA-06 (configured) |
-| 13 | Memory mode documented | ✅ | OODA-03, OODA-05 |
-| 14 | Dev mode best practices | ✅ | OODA-05 |
+| #   | Criterion                      | Status | Iteration            |
+| --- | ------------------------------ | ------ | -------------------- |
+| 1   | Document upload via UI works   | ✅     | OODA-01              |
+| 2   | Document processing completes  | ✅     | OODA-01              |
+| 3   | KG populated with entities     | ✅     | OODA-01              |
+| 4   | No in-memory providers         | ✅     | OODA-03              |
+| 5   | gpt-5-nano is default OpenAI   | ✅     | OODA-06              |
+| 6   | All tests pass                 | ✅     | All                  |
+| 7   | No dead code/duplicate         | ✅     | OODA-07              |
+| 8   | SRP and DRY followed           | ✅     | Ongoing              |
+| 9   | No hardcoded models            | ✅     | OODA-06              |
+| 10  | Pipeline robust & recovers     | ✅     | OODA-08 (documented) |
+| 11  | Edge case handling             | ✅     | OODA-08 (documented) |
+| 12  | gpt-5-nano works for ingestion | ✅     | OODA-06 (configured) |
+| 13  | Memory mode documented         | ✅     | OODA-03, OODA-05     |
+| 14  | Dev mode best practices        | ✅     | OODA-05              |
 
 ### 4. Implementation Plan
 

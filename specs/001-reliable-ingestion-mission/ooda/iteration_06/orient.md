@@ -7,10 +7,12 @@
 **Why are defaults still gpt-4o-mini?**
 
 The model_config.rs file was written before gpt-4o-mini quota exceeded. It provides:
+
 1. A fallback default when no config file is present
 2. A default for the OpenAI provider definition
 
 These weren't updated during the gpt-5-nano migration (OODA-02/04) because:
+
 - Focus was on deprecating `new_gpt4o_mini()` function
 - Test assertions were fixed (OODA-04)
 - Default functions in config were overlooked
@@ -20,6 +22,7 @@ These weren't updated during the gpt-5-nano migration (OODA-02/04) because:
 **What happens with current code?**
 
 When a user runs EdgeQuake:
+
 1. If no `models.toml` exists → `default_llm_model()` returns "gpt-4o-mini"
 2. If models.toml is partial → OpenAI provider uses "gpt-4o-mini"
 3. Runtime → API calls fail with quota exceeded error
@@ -28,11 +31,11 @@ This is the mission-critical failure path.
 
 ### 3. Risk Analysis
 
-| Approach | Risk | Benefit |
-|----------|------|---------|
-| Change defaults only | Low | Users get working defaults |
-| Change defaults + tests | Medium | May break test assertions |
-| Add both models as options | None | Backward compatible |
+| Approach                   | Risk   | Benefit                    |
+| -------------------------- | ------ | -------------------------- |
+| Change defaults only       | Low    | Users get working defaults |
+| Change defaults + tests    | Medium | May break test assertions  |
+| Add both models as options | None   | Backward compatible        |
 
 **Recommendation:** Change defaults only. Test files test cost tracking math, not model selection.
 
@@ -41,6 +44,7 @@ This is the mission-critical failure path.
 **Question:** What should the default LLM model be?
 
 **Constraints:**
+
 - Must be available (quota not exceeded)
 - Must work for entity extraction
 - Must be cost-effective
@@ -51,12 +55,13 @@ This is the mission-critical failure path.
 ### 5. Dependency Check
 
 Changing `default_llm_model()` affects:
+
 - `DefaultsConfig::default()` (line 420-427)
 - OpenAI provider fallback (line 515)
 - Any code that calls `default_llm_model()`
 
 ```
-default_llm_model() 
+default_llm_model()
     └─> DefaultsConfig::default()
         └─> ModelRegistry::from_config()
             └─> WorkspaceConfig construction
@@ -65,12 +70,12 @@ default_llm_model()
 
 ### 6. Side Effect Assessment
 
-| Code Path | Expected Behavior | After Change |
-|-----------|-------------------|--------------|
-| No config file | Uses gpt-4o-mini | Uses gpt-5-nano ✓ |
+| Code Path      | Expected Behavior         | After Change               |
+| -------------- | ------------------------- | -------------------------- |
+| No config file | Uses gpt-4o-mini          | Uses gpt-5-nano ✓          |
 | Partial config | Falls back to gpt-4o-mini | Falls back to gpt-5-nano ✓ |
-| Full config | Uses specified model | No change |
-| Tests | Uses mock provider | No change |
+| Full config    | Uses specified model      | No change                  |
+| Tests          | Uses mock provider        | No change                  |
 
 ### 7. Mental Model
 

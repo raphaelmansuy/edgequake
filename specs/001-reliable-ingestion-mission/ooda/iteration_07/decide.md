@@ -5,6 +5,7 @@
 ### 1. Analysis of Getter Warning
 
 **Warning:**
+
 ```
 warning: getter function appears to return the wrong field
    --> crates/edgequake-llm/src/providers/lmstudio.rs:616:5
@@ -16,6 +17,7 @@ warning: getter function appears to return the wrong field
 **Finding:** This is a **false positive**. The code is CORRECT.
 
 The `LMStudioProvider` struct has two model fields:
+
 - `model: String` - for LLM completions
 - `embedding_model: String` - for embeddings
 
@@ -25,20 +27,21 @@ The `EmbeddingProvider::model()` trait method correctly returns `embedding_model
 
 ### 2. Selected Actions
 
-| Action | Type | Risk |
-|--------|------|------|
-| Add allow attribute for false positive | Manual | None |
-| Run auto-fix for other warnings | Auto | Low |
-| Run tests | Validation | None |
+| Action                                 | Type       | Risk |
+| -------------------------------------- | ---------- | ---- |
+| Add allow attribute for false positive | Manual     | None |
+| Run auto-fix for other warnings        | Auto       | Low  |
+| Run tests                              | Validation | None |
 
 ### 3. Changes to Make
 
 **lmstudio.rs (line ~616):**
+
 ```rust
 impl EmbeddingProvider for LMStudioProvider {
     // ...
-    
-    // WHY: This is intentional - EmbeddingProvider::model() returns 
+
+    // WHY: This is intentional - EmbeddingProvider::model() returns
     // embedding_model (not self.model which is for LLM).
     // Clippy incorrectly suggests using self.model.
     #[allow(clippy::wrong_self_convention)]
@@ -48,6 +51,7 @@ impl EmbeddingProvider for LMStudioProvider {
 ```
 
 **Auto-fix for other warnings:**
+
 ```bash
 cargo clippy --fix --allow-dirty --allow-staged
 ```

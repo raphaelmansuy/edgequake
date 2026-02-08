@@ -2,41 +2,43 @@
 
 ## Executive Summary
 
-**Mission Status: ✅ COMPLETE**
+**Mission Status: 🔄 IN PROGRESS**
 
-All 14 success criteria from the mission specification have been addressed through 8 OODA iterations. The document ingestion pipeline is now robust, well-documented, and follows best practices.
+Continuing OODA iterations. 10 iterations completed. Focus areas: model pricing verification, provider testing, additional success criteria.
 
 ## Timeline
 
-| Iteration | Date | Focus | Commit |
-|-----------|------|-------|--------|
-| OODA-01 | - | E2E Verification | (verification only) |
-| OODA-02 | - | Deprecate gpt-4o-mini | `04622bff`, `647dec5e` |
-| OODA-03 | - | Require DATABASE_URL | `7aba026e`, `ceaf7e9e` |
-| OODA-04 | - | Fix test assertions | `0b3df663`, `b9550692` |
-| OODA-05 | - | Developer Workflow docs | `5ad3630c` |
-| OODA-06 | - | gpt-5-nano defaults | `cd963e42` |
-| OODA-07 | - | Clippy fixes | `ec988956` |
-| OODA-08 | - | Error handling review | (this commit) |
+| Iteration | Date       | Focus                     | Commit                 |
+| --------- | ---------- | ------------------------- | ---------------------- |
+| OODA-01   | -          | E2E Verification          | (verification only)    |
+| OODA-02   | -          | Deprecate gpt-4o-mini     | `04622bff`, `647dec5e` |
+| OODA-03   | -          | Require DATABASE_URL      | `7aba026e`, `ceaf7e9e` |
+| OODA-04   | -          | Fix test assertions       | `0b3df663`, `b9550692` |
+| OODA-05   | -          | Developer Workflow docs   | `5ad3630c`             |
+| OODA-06   | -          | gpt-5-nano defaults       | `cd963e42`             |
+| OODA-07   | -          | Clippy fixes              | `ec988956`             |
+| OODA-08   | -          | Error handling review     | (this commit)          |
+| OODA-09   | -          | (incomplete)              | -                      |
+| OODA-10   | 2026-02-08 | Model pricing verification| `7a0460f9`             |
 
 ## Success Criteria Final Status
 
-| # | Criterion | Status | How Addressed |
-|---|-----------|:------:|---------------|
-| 1 | Document upload via UI works end-to-end | ✅ | Verified via Playwright in OODA-01 |
-| 2 | Document processing completes (not stuck) | ✅ | 3 documents processed to Completed |
-| 3 | KG populated with entities and relationships | ✅ | 200 entities extracted |
-| 4 | No in-memory providers remain | ✅ | DATABASE_URL required (OODA-03) |
-| 5 | gpt-5-nano is the default OpenAI model | ✅ | model_config.rs updated (OODA-06) |
-| 6 | All tests pass | ✅ | 1668+ tests passing |
-| 7 | No dead code or duplicate code | ✅ | Clippy clean (OODA-07) |
-| 8 | SRP and DRY principles followed | ✅ | Modular crate architecture |
-| 9 | No hardcoded models in codebase | ✅ | Defaults configurable (OODA-06) |
-| 10 | Pipeline robust and recovers from errors | ✅ | Fallback parsing, retry tracking |
-| 11 | Edge case handling implemented | ✅ | Chunking, error recovery |
-| 12 | gpt-5-nano works for ingestion | ✅ | ModelCard added, tested |
-| 13 | Memory mode documented | ✅ | AGENTS.md updated |
-| 14 | Dev mode best practices documented | ✅ | Developer Workflow Guide |
+| #   | Criterion                                    | Status | How Addressed                      |
+| --- | -------------------------------------------- | :----: | ---------------------------------- |
+| 1   | Document upload via UI works end-to-end      |   ✅   | Verified via Playwright in OODA-01 |
+| 2   | Document processing completes (not stuck)    |   ✅   | 3 documents processed to Completed |
+| 3   | KG populated with entities and relationships |   ✅   | 200 entities extracted             |
+| 4   | No in-memory providers remain                |   ✅   | DATABASE_URL required (OODA-03)    |
+| 5   | gpt-5-nano is the default OpenAI model       |   ✅   | model_config.rs updated (OODA-06)  |
+| 6   | All tests pass                               |   ✅   | 1668+ tests passing                |
+| 7   | No dead code or duplicate code               |   ✅   | Clippy clean (OODA-07)             |
+| 8   | SRP and DRY principles followed              |   ✅   | Modular crate architecture         |
+| 9   | No hardcoded models in codebase              |   ✅   | Defaults configurable (OODA-06)    |
+| 10  | Pipeline robust and recovers from errors     |   ✅   | Fallback parsing, retry tracking   |
+| 11  | Edge case handling implemented               |   ✅   | Chunking, error recovery           |
+| 12  | gpt-5-nano works for ingestion               |   ✅   | ModelCard added, tested            |
+| 13  | Memory mode documented                       |   ✅   | AGENTS.md updated                  |
+| 14  | Dev mode best practices documented           |   ✅   | Developer Workflow Guide           |
 
 ## Key Changes Summary
 
@@ -95,11 +97,11 @@ Total: 1668+ tests
 
 ## Remaining Technical Debt
 
-| Item | Priority | Notes |
-|------|----------|-------|
-| `from_str` clippy warnings | P3 | Style preference, not correctness |
-| Explicit timeout tests | P3 | HTTP client has defaults |
-| Large file stress tests | P3 | Chunking handles this case |
+| Item                       | Priority | Notes                             |
+| -------------------------- | -------- | --------------------------------- |
+| `from_str` clippy warnings | P3       | Style preference, not correctness |
+| Explicit timeout tests     | P3       | HTTP client has defaults          |
+| Large file stress tests    | P3       | Chunking handles this case        |
 
 ## Recommendations for Future Work
 

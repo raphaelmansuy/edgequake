@@ -44,11 +44,25 @@ export
 
 # Environment variables (can be overridden from shell)
 OPENAI_API_KEY ?= $(shell echo $$OPENAI_API_KEY)
-EDGEQUAKE_DEFAULT_LLM_PROVIDER ?= $(shell echo $$EDGEQUAKE_DEFAULT_LLM_PROVIDER)
-EDGEQUAKE_DEFAULT_LLM_MODEL ?= $(shell echo $$EDGEQUAKE_DEFAULT_LLM_MODEL)
-EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER ?= $(shell echo $$EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER)
-EDGEQUAKE_DEFAULT_EMBEDDING_MODEL ?= $(shell echo $$EDGEQUAKE_DEFAULT_EMBEDDING_MODEL)
-EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION ?= $(shell echo $$EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION)
+
+# OODA-09: Auto-configure providers based on OPENAI_API_KEY presence.
+# WHY: User sets OPENAI_API_KEY but system still uses Ollama defaults.
+# This ensures correct provider selection when API key is available.
+ifdef OPENAI_API_KEY
+  # Use OpenAI as default when API key is set
+  EDGEQUAKE_DEFAULT_LLM_PROVIDER ?= openai
+  EDGEQUAKE_DEFAULT_LLM_MODEL ?= gpt-5-nano
+  EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER ?= openai
+  EDGEQUAKE_DEFAULT_EMBEDDING_MODEL ?= text-embedding-3-small
+  EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION ?= 1536
+else
+  # Fall back to Ollama when no API key
+  EDGEQUAKE_DEFAULT_LLM_PROVIDER ?= ollama
+  EDGEQUAKE_DEFAULT_LLM_MODEL ?= gemma3:12b
+  EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER ?= ollama
+  EDGEQUAKE_DEFAULT_EMBEDDING_MODEL ?= embeddinggemma
+  EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION ?= 768
+endif
 
 # Default target
 .DEFAULT_GOAL := help
@@ -260,21 +274,25 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 	done
 	@echo ""
 	@echo "$(YELLOW)→ Starting backend in background...$(RESET)"
-	@# Pass all environment variables from .env file to backend
-	@# This ensures predictable configuration across all services
-	@cd $(BACKEND_DIR) && \
-		DATABASE_URL="$(DATABASE_URL)" \
-		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
-		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
-		EDGEQUAKE_DEFAULT_LLM_MODEL="$(EDGEQUAKE_DEFAULT_LLM_MODEL)" \
-		EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER="$(EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER)" \
-		EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="$(EDGEQUAKE_DEFAULT_EMBEDDING_MODEL)" \
-		EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION="$(EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION)" \
-		OLLAMA_HOST="http://localhost:11434" \
-		OLLAMA_MODEL="gemma3:latest" \
-		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
+	@# Use EDGEQUAKE_LLM_PROVIDER (not _DEFAULT_) to explicitly select provider
+	@# When OPENAI_API_KEY is set, use OpenAI. Otherwise use Ollama.
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		cd $(BACKEND_DIR) && \
+			DATABASE_URL="$(DATABASE_URL)" \
+			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+			EDGEQUAKE_LLM_PROVIDER="openai" \
+			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
+	else \
+		cd $(BACKEND_DIR) && \
+			DATABASE_URL="$(DATABASE_URL)" \
+			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			EDGEQUAKE_LLM_PROVIDER="ollama" \
+			OLLAMA_HOST="http://localhost:11434" \
+			OLLAMA_MODEL="gemma3:latest" \
+			OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
+	fi
 	@echo "$(GREEN)✓ Backend starting (log: /tmp/edgequake-backend.log)$(RESET)"
 	@echo ""
 	@echo "$(YELLOW)→ Waiting for backend to start...$(RESET)"
@@ -290,13 +308,12 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
 	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
 	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
-	@if [ -n "$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" ]; then \
-		echo "  $(BLUE)LLM Provider$(RESET): $(EDGEQUAKE_DEFAULT_LLM_PROVIDER) ($(EDGEQUAKE_DEFAULT_LLM_MODEL))"; \
-		echo "  $(BLUE)Embedding$(RESET): $(EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER) ($(EDGEQUAKE_DEFAULT_EMBEDDING_MODEL))"; \
-	elif [ -n "$(OPENAI_API_KEY)" ]; then \
-		echo "  $(BLUE)Provider$(RESET): OpenAI (configured)"; \
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "  $(BLUE)LLM Provider$(RESET): openai (gpt-5-nano)"; \
+		echo "  $(BLUE)Embedding$(RESET): openai (text-embedding-3-small, 1536d)"; \
 	else \
-		echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"; \
+		echo "  $(BLUE)LLM Provider$(RESET): ollama (gemma3:latest)"; \
+		echo "  $(BLUE)Embedding$(RESET): ollama (nomic-embed-text, 768d)"; \
 	fi
 	@echo ""
 	@echo "  Use $(BOLD)make status$(RESET) to check service health"
@@ -392,24 +409,27 @@ backend-memory: ## DEPRECATED - In-memory storage removed, use backend-dev with 
 backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENAI_API_KEY if set)
 	@echo "$(BLUE)Starting backend in background...$(RESET)"
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
-		echo "$(YELLOW)→ OPENAI_API_KEY detected - both OpenAI and Ollama available$(RESET)"; \
-		cd $(BACKEND_DIR) && \
-			DATABASE_URL="$(DATABASE_URL)" \
-			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
-			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-			OLLAMA_HOST="http://localhost:11434" \
-			OLLAMA_MODEL="gemma3:latest" \
-			OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
+		echo "$(YELLOW)→ OPENAI_API_KEY detected - using OpenAI as default provider$(RESET)"; \
+		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
+		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export PDFIUM_DYNAMIC_LIB_PATH=\"$(PDFIUM_LIB_PATH)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"openai\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
+		chmod +x /tmp/edgequake-start.sh; \
+		nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 & \
 	else \
 		echo "$(YELLOW)→ No OPENAI_API_KEY, using Ollama provider$(RESET)"; \
-		cd $(BACKEND_DIR) && \
-			DATABASE_URL="$(DATABASE_URL)" \
-			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
-			OLLAMA_HOST="http://localhost:11434" \
-			OLLAMA_MODEL="gemma3:latest" \
-			OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
+		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
+		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export PDFIUM_DYNAMIC_LIB_PATH=\"$(PDFIUM_LIB_PATH)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export OLLAMA_HOST=\"http://localhost:11434\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export OLLAMA_MODEL=\"gemma3:latest\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export OLLAMA_EMBEDDING_MODEL=\"nomic-embed-text\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
+		chmod +x /tmp/edgequake-start.sh; \
+		nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 & \
 	fi
 	@echo "$(GREEN)✓ Backend starting in background. Log: /tmp/edgequake-backend.log$(RESET)"
 

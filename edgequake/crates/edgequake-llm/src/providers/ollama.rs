@@ -63,6 +63,11 @@ pub struct OllamaProvider {
     embedding_model: String,
     max_context_length: usize,
     embedding_dimension: usize,
+    /// WHY: Ollama embedding models have smaller context windows than LLMs.
+    /// nomic-embed-text and embeddinggemma both have 2048 token max.
+    /// Without this, API returns 400 "input length exceeds context length".
+    /// OODA-09: Added to prevent embedding context overflow errors.
+    embedding_max_tokens: usize,
 }
 
 /// Builder for OllamaProvider
@@ -73,6 +78,7 @@ pub struct OllamaProviderBuilder {
     embedding_model: String,
     max_context_length: usize,
     embedding_dimension: usize,
+    embedding_max_tokens: usize,
 }
 
 impl Default for OllamaProviderBuilder {
@@ -83,6 +89,9 @@ impl Default for OllamaProviderBuilder {
             embedding_model: DEFAULT_OLLAMA_EMBEDDING_MODEL.to_string(),
             max_context_length: 8192,
             embedding_dimension: 768, // embeddinggemma:latest default (VERIFIED via Ollama API)
+            // WHY 2000: Leave 48 token buffer for safety margin.
+            // nomic-embed-text: 2048, embeddinggemma: 2048, mxbai-embed-large: 512
+            embedding_max_tokens: 2000,
         }
     }
 }
@@ -123,6 +132,13 @@ impl OllamaProviderBuilder {
         self
     }
 
+    /// Set the maximum tokens for embedding model context.
+    /// WHY: Ollama embedding models have smaller context than LLMs (typically 2048).
+    pub fn embedding_max_tokens(mut self, tokens: usize) -> Self {
+        self.embedding_max_tokens = tokens;
+        self
+    }
+
     /// Build the OllamaProvider
     pub fn build(self) -> Result<OllamaProvider> {
         let client = Client::builder()
@@ -137,6 +153,7 @@ impl OllamaProviderBuilder {
             embedding_model: self.embedding_model,
             max_context_length: self.max_context_length,
             embedding_dimension: self.embedding_dimension,
+            embedding_max_tokens: self.embedding_max_tokens,
         })
     }
 }
@@ -261,6 +278,35 @@ impl OllamaProvider {
                 content: msg.content.clone(),
             })
             .collect()
+    }
+
+    /// Truncate text to fit within token limit for embedding models.
+    ///
+    /// WHY: Ollama embedding models have smaller context windows than LLMs.
+    /// nomic-embed-text and embeddinggemma both have ~2048 token max.
+    /// Sending longer text causes 400 "input length exceeds context length".
+    ///
+    /// OODA-09: Added to prevent embedding API failures with large chunks.
+    /// Uses ~4 chars per token approximation (standard for English text).
+    fn truncate_for_embedding(&self, text: &str) -> String {
+        // Approximate tokens as chars / 4 (conservative estimate for English)
+        let max_chars = self.embedding_max_tokens * 4;
+
+        if text.len() <= max_chars {
+            return text.to_string();
+        }
+
+        // Log warning when truncating
+        tracing::warn!(
+            original_len = text.len(),
+            truncated_to = max_chars,
+            model = %self.embedding_model,
+            "Truncating text for embedding (exceeds model context)"
+        );
+
+        // Truncate on char boundary
+        let truncated: String = text.chars().take(max_chars).collect();
+        truncated
     }
 }
 
@@ -463,7 +509,10 @@ impl EmbeddingProvider for OllamaProvider {
     }
 
     fn max_tokens(&self) -> usize {
-        8192 // Most Ollama embedding models support this
+        // WHY: Return actual embedding model limit, not LLM context.
+        // nomic-embed-text: 2048, embeddinggemma: 2048
+        // OODA-09: Fixed to return correct embedding context limit.
+        self.embedding_max_tokens
     }
 
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
@@ -471,17 +520,26 @@ impl EmbeddingProvider for OllamaProvider {
             return Ok(vec![]);
         }
 
+        // OODA-09: Truncate texts to fit embedding model's context window.
+        // WHY: Ollama returns 400 "input length exceeds context length" if
+        // any single input exceeds the model's limit (typically 2048 tokens).
+        let truncated_texts: Vec<String> = texts
+            .iter()
+            .map(|t| self.truncate_for_embedding(t))
+            .collect();
+
         debug!(
-            "Ollama embedding request: {} texts with model {}",
-            texts.len(),
-            self.embedding_model
+            "Ollama embedding request: {} texts with model {} (max_tokens={})",
+            truncated_texts.len(),
+            self.embedding_model,
+            self.embedding_max_tokens
         );
 
         let url = format!("{}/api/embed", self.host);
 
         let request = EmbeddingRequest {
             model: self.embedding_model.clone(),
-            input: texts.to_vec(),
+            input: truncated_texts,
         };
 
         let response = self
