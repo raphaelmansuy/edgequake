@@ -3,10 +3,11 @@
 //! This is the main entry point for the EdgeQuake server.
 
 use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
-use edgequake_tasks::{WorkerPool, WorkerPoolConfig};
+use edgequake_tasks::{TaskFilter, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig, Pagination};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use chrono::Utc;
 
 /// Print the EdgeQuake startup banner with storage mode information.
 fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, port: u16) {
@@ -34,6 +35,107 @@ fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, p
     println!("║                                                              ║");
     println!("╚══════════════════════════════════════════════════════════════╝");
     println!();
+}
+
+/// Recover orphaned tasks that were stuck in "processing" state when backend restarted.
+///
+/// ## WHY This Fix Is Critical
+///
+/// When the backend restarts (crash, deployment, manual restart), active tasks remain
+/// in "processing" state in the database. Since workers are stateless and don't persist
+/// which tasks they were processing, these tasks become orphaned:
+/// - They never complete
+/// - Workers don't pick them up (status != "pending")
+/// - UI shows "Converting PDF: 100%" forever
+/// - Users see documents stuck, can't retry without manual DB intervention
+///
+/// ## Recovery Strategy
+///
+/// Tasks stuck in "processing" for >5 minutes are assumed orphaned:
+/// - Mark as "failed" with clear error message
+/// - Users can see the failure and retry manually
+/// - Prevents silent data loss and UI confusion
+///
+/// ## False Positive Risk
+///
+/// Could mark legitimately slow tasks as failed if they take >5 minutes.
+/// Mitigation: 5 minutes is conservative - most docs process in <1 minute.
+/// Users can retry immediately if this happens.
+///
+/// @implements PRODUCTION_BUG_FIX: Orphaned task recovery on startup
+async fn recover_orphaned_tasks(
+    task_storage: Arc<dyn TaskStorage>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("🔍 Checking for orphaned tasks from previous backend session...");
+
+    let filter = TaskFilter {
+        status: Some(TaskStatus::Processing),
+        ..Default::default()
+    };
+
+    let pagination = Pagination {
+        page: 1,
+        page_size: 1000, // Process up to 1000 orphaned tasks
+        ..Default::default()
+    };
+
+    let task_list = task_storage.list_tasks(filter, pagination).await?;
+    let now = Utc::now();
+    let orphan_threshold = chrono::Duration::minutes(5);
+
+    let mut recovered_count = 0;
+    let mut skipped_count = 0;
+
+    for mut task in task_list.tasks {
+        let age = now.signed_duration_since(task.updated_at);
+
+        if age > orphan_threshold {
+            // Task is orphaned - mark as failed
+            task.status = TaskStatus::Failed;
+            task.error_message = Some(format!(
+                "Task orphaned after backend restart. Last updated {} minutes ago. Please retry.",
+                age.num_minutes()
+            ));
+            task.completed_at = Some(now);
+            task.updated_at = now;
+
+            match task_storage.update_task(&task).await {
+                Ok(_) => {
+                    info!(
+                        "✅ Recovered orphaned task: {} (age: {} minutes)",
+                        task.track_id,
+                        age.num_minutes()
+                    );
+                    recovered_count += 1;
+                }
+                Err(e) => {
+                    warn!(
+                        "⚠️ Failed to recover orphaned task {}: {}",
+                        task.track_id, e
+                    );
+                }
+            }
+        } else {
+            // Task is recent - might still be actively processing
+            skipped_count += 1;
+        }
+    }
+
+    if recovered_count > 0 {
+        info!(
+            "🔧 Orphaned task recovery complete: {} recovered, {} skipped (too recent)",
+            recovered_count, skipped_count
+        );
+    } else if task_list.tasks.is_empty() {
+        info!("✅ No orphaned tasks found - clean startup");
+    } else {
+        info!(
+            "✅ All {} processing tasks are recent (<5 min) - likely still active",
+            skipped_count
+        );
+    }
+
+    Ok(())
 }
 
 #[tokio::main]
@@ -130,6 +232,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_retry_delay_ms: 60000,
         backoff_multiplier: 2.0,
     };
+
+    // Recover orphaned tasks from previous backend session (PRODUCTION_BUG_FIX)
+    // MUST run BEFORE starting workers to prevent race conditions
+    if let Err(e) = recover_orphaned_tasks(Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>).await {
+        warn!("Failed to recover orphaned tasks (non-fatal): {}", e);
+    }
 
     // Create and start worker pool
     let mut worker_pool = WorkerPool::new(
