@@ -841,6 +841,7 @@ impl TenantContext {
 /// - Simple name: "gemma3:12b" (provider auto-detected)
 /// - Full ID: "ollama/gemma3:12b" (provider parsed from full ID)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct CreateWorkspaceRequest {
     /// Human-readable name.
     pub name: String,
@@ -876,21 +877,6 @@ pub struct CreateWorkspaceRequest {
     pub embedding_dimension: Option<usize>,
 }
 
-impl Default for CreateWorkspaceRequest {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            slug: None,
-            description: None,
-            max_documents: None,
-            llm_model: None,
-            llm_provider: None,
-            embedding_model: None,
-            embedding_provider: None,
-            embedding_dimension: None,
-        }
-    }
-}
 
 impl CreateWorkspaceRequest {
     /// Create a new request with just a name.

@@ -169,8 +169,10 @@ impl fmt::Display for PipelinePhase {
 /// Status of a single pipeline phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum PhaseStatus {
     /// Phase has not started yet.
+    #[default]
     Pending,
     /// Phase is currently executing.
     Active,
@@ -182,11 +184,6 @@ pub enum PhaseStatus {
     Skipped,
 }
 
-impl Default for PhaseStatus {
-    fn default() -> Self {
-        PhaseStatus::Pending
-    }
-}
 
 /// Error information for a failed phase.
 #[derive(Debug, Clone, Serialize, Deserialize)]

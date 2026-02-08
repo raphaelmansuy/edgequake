@@ -739,7 +739,7 @@ impl DocumentTaskProcessor {
                 // OODA-PERF-01: Update document metadata every 3 chunks for UI polling
                 // WHY: Reduce KV writes while maintaining visibility (update ~every 3-5 seconds)
                 let should_update_metadata =
-                    update.chunk_index % 3 == 0 || update.chunk_index == update.total_chunks - 1;
+                    update.chunk_index.is_multiple_of(3) || update.chunk_index == update.total_chunks - 1;
                 if should_update_metadata {
                     let doc_id_clone = doc_id_for_metadata.clone();
                     let kv_clone = Arc::clone(&kv_storage_for_callback);
