@@ -2,12 +2,30 @@
 //!
 //! @implements SPEC-032: Ollama/LM Studio provider support
 //! @implements FEAT0017: Multi-provider LLM support
+//! @implements SPEC-033: Hybrid provider mode (separate LLM and embedding providers)
 //!
 //! # Environment Variables
 //!
 //! ## Provider Selection
 //!
-//! - `EDGEQUAKE_LLM_PROVIDER`: Override provider selection (openai|ollama|lmstudio|mock)
+//! - `EDGEQUAKE_LLM_PROVIDER`: Override LLM provider selection (openai|ollama|lmstudio|mock)
+//! - `EDGEQUAKE_EMBEDDING_PROVIDER`: Override embedding provider (enables hybrid mode)
+//!
+//! ## Hybrid Mode (SPEC-033)
+//!
+//! When `EDGEQUAKE_EMBEDDING_PROVIDER` is set, you can use different providers for LLM
+//! and embeddings. This is useful when:
+//! - Your OpenAI account has LLM quota but not embedding quota
+//! - You want cost savings (free local embeddings with cloud LLM)
+//! - You prefer local embedding privacy with cloud LLM quality
+//!
+//! Example hybrid configuration:
+//! ```bash
+//! export EDGEQUAKE_LLM_PROVIDER=openai
+//! export EDGEQUAKE_EMBEDDING_PROVIDER=ollama
+//! export OPENAI_API_KEY=sk-...
+//! export OLLAMA_HOST=http://localhost:11434
+//! ```
 //!
 //! ## Provider-Specific Configuration
 //!
@@ -34,6 +52,13 @@
 //! // Explicit provider selection
 //! std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "ollama");
 //! let (llm, embedding) = ProviderFactory::from_env()?;
+//!
+//! // Hybrid mode: OpenAI for LLM, Ollama for embeddings
+//! std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "openai");
+//! std::env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "ollama");
+//! let (llm, embedding) = ProviderFactory::from_env()?;
+//! assert_eq!(llm.name(), "openai");
+//! assert_eq!(embedding.name(), "ollama");
 //! ```
 
 use std::sync::Arc;
@@ -109,36 +134,107 @@ impl ProviderFactory {
     /// assert_eq!(llm.name(), "ollama");
     /// ```
     pub fn from_env() -> Result<(Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)> {
-        // Check explicit provider selection
-        if let Ok(provider_str) = std::env::var("EDGEQUAKE_LLM_PROVIDER") {
-            if let Some(provider_type) = ProviderType::from_str(&provider_str) {
-                return Self::create(provider_type);
+        // SPEC-033: Check for hybrid mode (separate embedding provider)
+        let embedding_provider_override = std::env::var("EDGEQUAKE_EMBEDDING_PROVIDER").ok();
+
+        // Determine LLM provider type
+        let llm_provider_type = if let Ok(provider_str) = std::env::var("EDGEQUAKE_LLM_PROVIDER") {
+            ProviderType::from_str(&provider_str).ok_or_else(|| {
+                LlmError::ConfigError(format!(
+                    "Unknown LLM provider type: {}. Valid options: openai, ollama, lmstudio, mock",
+                    provider_str
+                ))
+            })?
+        } else {
+            // Auto-detect based on environment
+            // Priority: Ollama → LM Studio → OpenAI → Mock
+            if std::env::var("OLLAMA_HOST").is_ok() || std::env::var("OLLAMA_MODEL").is_ok() {
+                ProviderType::Ollama
+            } else if std::env::var("LMSTUDIO_HOST").is_ok()
+                || std::env::var("LMSTUDIO_MODEL").is_ok()
+            {
+                ProviderType::LMStudio
+            } else if std::env::var("OPENAI_API_KEY")
+                .map(|k| !k.is_empty() && k != "test-key")
+                .unwrap_or(false)
+            {
+                ProviderType::OpenAI
+            } else {
+                ProviderType::Mock
             }
-            return Err(LlmError::ConfigError(format!(
-                "Unknown provider type: {}. Valid options: openai, ollama, lmstudio, mock",
-                provider_str
-            )));
+        };
+
+        // SPEC-033: If embedding provider override specified, create hybrid configuration
+        if let Some(embedding_str) = embedding_provider_override {
+            let embedding_type = ProviderType::from_str(&embedding_str).ok_or_else(|| {
+                LlmError::ConfigError(format!(
+                    "Unknown embedding provider type: {}. Valid options: openai, ollama, lmstudio, mock",
+                    embedding_str
+                ))
+            })?;
+
+            tracing::info!(
+                llm_provider = ?llm_provider_type,
+                embedding_provider = ?embedding_type,
+                "Creating hybrid provider configuration (SPEC-033)"
+            );
+
+            return Self::create_hybrid(llm_provider_type, embedding_type);
         }
 
-        // Auto-detect based on environment
-        // Priority: Ollama → LM Studio → OpenAI → Mock
-        if std::env::var("OLLAMA_HOST").is_ok() || std::env::var("OLLAMA_MODEL").is_ok() {
-            return Self::create(ProviderType::Ollama);
-        }
+        // Standard mode: use same provider for both
+        Self::create(llm_provider_type)
+    }
 
-        // LM Studio detection (checks LMSTUDIO_HOST or LMSTUDIO_MODEL)
-        if std::env::var("LMSTUDIO_HOST").is_ok() || std::env::var("LMSTUDIO_MODEL").is_ok() {
-            return Self::create(ProviderType::LMStudio);
-        }
-
-        if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
-            if !api_key.is_empty() && api_key != "test-key" {
-                return Self::create(ProviderType::OpenAI);
+    /// Create hybrid provider configuration (SPEC-033).
+    ///
+    /// Uses different providers for LLM and embedding operations.
+    /// Useful when:
+    /// - OpenAI has LLM quota but not embedding quota
+    /// - Cost optimization (free local embeddings)
+    /// - Privacy (local embeddings, cloud LLM)
+    fn create_hybrid(
+        llm_type: ProviderType,
+        embedding_type: ProviderType,
+    ) -> Result<(Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)> {
+        // Create LLM provider
+        let llm_provider: Arc<dyn LLMProvider> = match llm_type {
+            ProviderType::OpenAI => {
+                let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
+                    LlmError::ConfigError(
+                        "OPENAI_API_KEY not set for OpenAI LLM provider".to_string(),
+                    )
+                })?;
+                Arc::new(OpenAIProvider::new(api_key))
             }
-        }
+            ProviderType::Ollama => Arc::new(OllamaProvider::from_env()?),
+            ProviderType::LMStudio => Arc::new(LMStudioProvider::from_env()?),
+            ProviderType::Mock => Arc::new(MockProvider::new()),
+        };
 
-        // Fallback to mock
-        Ok(Self::create_mock())
+        // Create embedding provider (separate from LLM)
+        let embedding_provider: Arc<dyn EmbeddingProvider> = match embedding_type {
+            ProviderType::OpenAI => {
+                let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
+                    LlmError::ConfigError(
+                        "OPENAI_API_KEY not set for OpenAI embedding provider".to_string(),
+                    )
+                })?;
+                Arc::new(OpenAIProvider::new(api_key))
+            }
+            ProviderType::Ollama => Arc::new(OllamaProvider::from_env()?),
+            ProviderType::LMStudio => Arc::new(LMStudioProvider::from_env()?),
+            ProviderType::Mock => Arc::new(MockProvider::new()),
+        };
+
+        tracing::info!(
+            llm_name = llm_provider.name(),
+            embedding_name = embedding_provider.name(),
+            embedding_dimension = embedding_provider.dimension(),
+            "Hybrid providers initialized"
+        );
+
+        Ok((llm_provider, embedding_provider))
     }
 
     /// Create specific provider type.
@@ -654,6 +750,7 @@ mod tests {
     fn test_invalid_provider_env() {
         // Clean up first to avoid interference from other tests
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_PROVIDER");
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("OPENAI_API_KEY");
         std::env::remove_var("LMSTUDIO_HOST");
@@ -662,7 +759,8 @@ mod tests {
         let result = ProviderFactory::from_env();
         assert!(result.is_err());
         if let Err(e) = result {
-            assert!(e.to_string().contains("Unknown provider type"));
+            // SPEC-033: Error message now says "LLM provider" for clarity in hybrid mode
+            assert!(e.to_string().contains("Unknown LLM provider type"));
         }
 
         // Clean up after
@@ -707,6 +805,7 @@ mod tests {
     fn test_provider_priority_ollama_over_lmstudio() {
         // Clean up first
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_PROVIDER");
         std::env::remove_var("OPENAI_API_KEY");
         std::env::remove_var("LMSTUDIO_HOST");
         std::env::remove_var("LMSTUDIO_MODEL");
@@ -721,5 +820,56 @@ mod tests {
         // Clean up after
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("LMSTUDIO_HOST");
+    }
+
+    /// Test SPEC-033: Hybrid provider mode with separate LLM and embedding providers.
+    #[test]
+    #[serial]
+    fn test_hybrid_mode_separate_providers() {
+        // Clean up first
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_PROVIDER");
+        std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("OLLAMA_HOST");
+        std::env::remove_var("LMSTUDIO_HOST");
+
+        // Set up hybrid mode: mock LLM + mock embedding (different providers simulated)
+        std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "mock");
+
+        let (llm, embedding) = ProviderFactory::from_env().unwrap();
+        
+        // Both should be mock providers in test mode
+        assert_eq!(llm.name(), "mock");
+        assert_eq!(embedding.name(), "mock");
+
+        // Clean up after
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_PROVIDER");
+    }
+
+    /// Test SPEC-033: Invalid embedding provider should fail gracefully.
+    #[test]
+    #[serial]
+    fn test_hybrid_mode_invalid_embedding_provider() {
+        // Clean up first
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_PROVIDER");
+        std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("OLLAMA_HOST");
+
+        // Set up hybrid mode with invalid embedding provider
+        std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "invalid_embedding");
+
+        let result = ProviderFactory::from_env();
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("Unknown embedding provider type"));
+        }
+
+        // Clean up after
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_PROVIDER");
     }
 }
