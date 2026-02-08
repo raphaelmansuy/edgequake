@@ -23,7 +23,6 @@
 
 import { RightPanel } from '@/components/layout/right-panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -46,20 +45,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     AlertCircle,
     FileText,
-    Loader2,
-    RefreshCw,
     Search,
     X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ClearDocumentsDialog } from './clear-documents-dialog';
 import { BatchActionsBar } from './batch-actions-bar';
-import { ConnectionBanner } from './connection-banner';
-import { ConnectionStatus } from './connection-status';
 
 import { DocumentDropzone } from './document-dropzone';
+import { DocumentHeader } from './document-header';
 import { DocumentTableStates } from './document-table-states';
 
 import { DocumentFilters } from './document-filters';
@@ -68,9 +63,7 @@ import { DocumentTableRow } from './document-table-row';
 import { DocumentViewerDialog } from './document-viewer-dialog';
 
 import { PaginationControls } from './pagination-controls';
-import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ProcessingStatusSummary } from './processing-status-summary';
-import { ReprocessFailedButton } from './reprocess-failed-button';
 import { UploadProgressList } from './upload-progress-list';
 import { useStuckDetection } from '@/hooks/use-stuck-detection';
 import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
@@ -309,67 +302,16 @@ export function DocumentManager() {
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Fixed Header Zone */}
         <div className="shrink-0 px-4 pt-4 space-y-3 bg-background">
-          {/* OODA-02: Connection status banner when disconnected */}
-          <ConnectionBanner />
-          
-          {/* Header - Compact */}
-          <header className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-semibold tracking-tight">{t('documents.title')}</h1>
-                {/* OODA-39: Document count badge */}
-                {totalCount > 0 && (
-                  <Badge variant="secondary" className="text-xs font-normal">
-                    {totalCount}
-                  </Badge>
-                )}
-                {/* OODA-30: WebSocket connection status indicator */}
-                <ConnectionStatus compact={true} />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {t('documents.subtitle')}
-              </p>
-            </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Pipeline Status */}
-            {pipelineStatus?.is_busy && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPipelineDialogOpen(true)}
-                className="gap-1 text-orange-500"
-              >
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t('pipeline.busy')}
-              </Button>
-            )}
-            <PipelineStatusDialog
-              open={pipelineDialogOpen}
-              onOpenChange={setPipelineDialogOpen}
-              tenantId={selectedTenantId ?? undefined}
-              workspaceId={selectedWorkspaceId ?? undefined}
-            />
-            
-            {/* Reprocess Failed Button (GAP-UI-002) */}
-            <ReprocessFailedButton
-              failedCount={statusCounts.failed}
-              onReprocessStarted={(trackId) => {
-                setPipelineDialogOpen(true);
-              }}
-            />
-          
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-1" />
-            {t('documents.refresh')}
-          </Button>
-          
-          {/* Clear Documents Dialog (GAP-UI-009) */}
-          <ClearDocumentsDialog
-            documentCount={totalCount}
-            onCleared={() => refetch()}
+          <DocumentHeader
+            totalCount={totalCount}
+            failedCount={statusCounts.failed}
+            pipelineIsBusy={!!pipelineStatus?.is_busy}
+            pipelineDialogOpen={pipelineDialogOpen}
+            onPipelineDialogChange={setPipelineDialogOpen}
+            onRefresh={refetch}
+            tenantId={selectedTenantId ?? undefined}
+            workspaceId={selectedWorkspaceId ?? undefined}
           />
-        </div>
-      </header>
       
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 pb-3 border-b">
