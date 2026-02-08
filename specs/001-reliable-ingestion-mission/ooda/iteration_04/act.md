@@ -1,6 +1,7 @@
 # OODA Iteration 04 - Act
 
 ## Mission Re-Read Checkpoint
+
 ✅ Mission file re-read: `./specs/001-reliable-ingestion-mission.md`
 
 ## Summary
@@ -14,6 +15,7 @@ Successfully fixed the failing test and cleaned up unused code warnings.
 **File:** [edgequake-api/src/handlers/pdf_upload.rs](../../edgequake/crates/edgequake-api/src/handlers/pdf_upload.rs#L1520)
 
 **Change:**
+
 ```rust
 // OODA-04: Updated from gpt-4o-mini to gpt-5-nano per mission directive
 assert_eq!(opts.vision_model(), "gpt-5-nano");
@@ -26,6 +28,7 @@ assert_eq!(opts.vision_model(), "gpt-5-nano");
 **File:** [edgequake-api/src/handlers/documents.rs](../../edgequake/crates/edgequake-api/src/handlers/documents.rs#L55-L57)
 
 **Change:**
+
 ```rust
 // OODA-04: ListPdfFilter is used in feature-gated code below (postgres feature)
 #[cfg(feature = "postgres")]
@@ -39,6 +42,7 @@ use edgequake_storage::ListPdfFilter;
 **Location:** `/Users/raphaelmansuy/Github/03-working/edgequake/zz-explore/EMILE_FREY/`
 
 **Documents Found:**
+
 - `Bordereau_de_remise (4).pdf` - 132KB
 - `C1 - Introduction IFRS 16.pdf` - 3.9MB
 - `C2 - Formation Viareport.pdf` - 2.2MB
@@ -51,6 +55,7 @@ use edgequake_storage::ListPdfFilter;
 ```
 Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.01s
 ```
+
 ✅ Build successful with no errors
 
 ## Commit
@@ -60,21 +65,21 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.01s
 
 ## Updated Success Criteria
 
-| Criterion | Status | Notes |
-|-----------|--------|-------|
-| Document upload via UI works | ✅ | (from iteration 01) |
-| Document processing completes | ✅ | (from iteration 01) |
-| KG populated with entities | ✅ | (from iteration 01) |
-| No in-memory providers in prod | ✅ | OODA-03: DATABASE_URL required |
-| gpt-5-nano is default OpenAI model | ✅ | **Test fixed** |
-| All tests pass | ⚠️ | Need full verification |
-| No dead code/duplicates | ⚠️ | 1 warning fixed, more remain |
-| SRP/DRY followed | ✅ | Modular design |
-| No hardcoded models | ⚠️ | Some legacy references |
-| Pipeline recovers from errors | ❓ | Not tested |
-| Edge cases handled | ❓ | Not tested |
-| Memory mode documented | ✅ | OODA-03: Removed |
-| Makefile dev fails without DB | ✅ | OODA-03: Implemented |
+| Criterion                          | Status | Notes                          |
+| ---------------------------------- | ------ | ------------------------------ |
+| Document upload via UI works       | ✅     | (from iteration 01)            |
+| Document processing completes      | ✅     | (from iteration 01)            |
+| KG populated with entities         | ✅     | (from iteration 01)            |
+| No in-memory providers in prod     | ✅     | OODA-03: DATABASE_URL required |
+| gpt-5-nano is default OpenAI model | ✅     | **Test fixed**                 |
+| All tests pass                     | ⚠️     | Need full verification         |
+| No dead code/duplicates            | ⚠️     | 1 warning fixed, more remain   |
+| SRP/DRY followed                   | ✅     | Modular design                 |
+| No hardcoded models                | ⚠️     | Some legacy references         |
+| Pipeline recovers from errors      | ❓     | Not tested                     |
+| Edge cases handled                 | ❓     | Not tested                     |
+| Memory mode documented             | ✅     | OODA-03: Removed               |
+| Makefile dev fails without DB      | ✅     | OODA-03: Implemented           |
 
 ## Next Steps (Iteration 05)
 
@@ -86,9 +91,11 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.01s
 ## Code Quality Status
 
 **Warnings Fixed:**
+
 - ✅ `ListPdfFilter` unused import → feature-gated
 
 **Warnings Remaining (lower priority):**
+
 - `mut total_pdfs_deleted` - used in feature-gated code
 - Various test file dead code
 - Unused comparisons in test asserts

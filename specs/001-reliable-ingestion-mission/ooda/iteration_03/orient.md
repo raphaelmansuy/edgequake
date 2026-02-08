@@ -1,6 +1,7 @@
 # OODA Iteration 03 - Orient
 
 ## Mission Re-Read Checkpoint
+
 ✅ Mission file re-read: `./specs/001-reliable-ingestion-mission.md`
 
 ## First Principles Analysis
@@ -28,6 +29,7 @@
 ### Option A: Complete Removal (MISSION MAXIMUM)
 
 **Approach:**
+
 - Delete `edgequake-storage/src/adapters/memory/` directory
 - Remove `AppState::new_memory()` method
 - Make DATABASE_URL required for server startup
@@ -36,12 +38,14 @@
   - Use mock traits with `mockall` or similar
 
 **Pros:**
+
 - ✅ Fully aligns with mission
 - ✅ Eliminates code duplication
 - ✅ Forces production-like testing
 - ✅ No risk of accidental memory mode
 
 **Cons:**
+
 - ❌ Major refactor (~1400 lines to remove)
 - ❌ All tests need updating
 - ❌ CI needs PostgreSQL setup
@@ -52,6 +56,7 @@
 ### Option B: Conditional Compilation (COMPROMISE)
 
 **Approach:**
+
 ```rust
 #[cfg(test)]
 mod memory;  // Only compile for tests
@@ -65,12 +70,14 @@ fn require_database_url() -> String {
 ```
 
 **Pros:**
+
 - ✅ Production code requires DATABASE_URL
 - ✅ Tests can still use memory for speed
 - ✅ Moderate effort
 - ✅ Same test infrastructure
 
 **Cons:**
+
 - ⚠️ Memory code still exists (in test builds)
 - ⚠️ Tests may miss database-specific bugs
 - ⚠️ Partial mission compliance
@@ -80,16 +87,19 @@ fn require_database_url() -> String {
 ### Option C: Runtime Guard Only (MINIMUM VIABLE)
 
 **Approach:**
+
 - Keep memory providers but require `--allow-memory` flag
 - Default to DATABASE_URL required
 - Explicit opt-in for testing
 
 **Pros:**
+
 - ✅ Minimal code changes
 - ✅ Production safe by default
 - ✅ Tests work unchanged
 
 **Cons:**
+
 - ❌ Does NOT align with mission (providers still "remain")
 - ❌ Memory code still maintained
 - ❌ Technical debt persists
@@ -101,6 +111,7 @@ fn require_database_url() -> String {
 **Recommended: Option B (Conditional Compilation)**
 
 **Rationale:**
+
 1. Balances mission alignment with practical constraints
 2. Production-safe: DATABASE_URL required for release builds
 3. Test-friendly: Memory providers available for unit tests
@@ -121,7 +132,7 @@ fn main() -> Result<()> {
             eprintln!("Please set DATABASE_URL to a PostgreSQL connection string.");
             std::process::exit(1);
         })?;
-    
+
     // Continue with PostgreSQL-only initialization
 }
 ```
@@ -148,22 +159,22 @@ pub mod postgres;
 
 ## Risk Mitigation
 
-| Risk | Mitigation |
-|------|------------|
-| Breaking tests | Run full test suite before merging |
-| CI failures | Update CI to use test database |
-| Developer friction | Document setup clearly |
-| Emergency rollback | Feature flag allows re-enabling |
+| Risk               | Mitigation                         |
+| ------------------ | ---------------------------------- |
+| Breaking tests     | Run full test suite before merging |
+| CI failures        | Update CI to use test database     |
+| Developer friction | Document setup clearly             |
+| Emergency rollback | Feature flag allows re-enabling    |
 
 ## Files to Modify
 
-| File | Change | Priority |
-|------|--------|----------|
-| `edgequake/src/main.rs` | Remove memory fallback, require DATABASE_URL | P1 |
-| `edgequake-storage/src/adapters/mod.rs` | Add `#[cfg(any(test, feature = "memory-storage"))]` | P1 |
-| `edgequake-api/src/state.rs` | Conditionally compile `new_memory()` | P1 |
-| `Makefile` | Remove/modify `backend-memory` | P2 |
-| `AGENTS.md` | Update documentation | P3 |
+| File                                    | Change                                              | Priority |
+| --------------------------------------- | --------------------------------------------------- | -------- |
+| `edgequake/src/main.rs`                 | Remove memory fallback, require DATABASE_URL        | P1       |
+| `edgequake-storage/src/adapters/mod.rs` | Add `#[cfg(any(test, feature = "memory-storage"))]` | P1       |
+| `edgequake-api/src/state.rs`            | Conditionally compile `new_memory()`                | P1       |
+| `Makefile`                              | Remove/modify `backend-memory`                      | P2       |
+| `AGENTS.md`                             | Update documentation                                | P3       |
 
 ## Decision Input for decide.md
 
