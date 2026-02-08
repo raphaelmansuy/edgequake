@@ -5,7 +5,7 @@
 use chrono::{Duration, Utc};
 use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
 use edgequake_tasks::{
-    Pagination, TaskFilter, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig,
+    Pagination, TaskFilter, TaskQueue, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig,
 };
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -140,6 +140,94 @@ async fn recover_orphaned_tasks(
     Ok(())
 }
 
+/// Requeue pending tasks from database to in-memory queue on startup.
+///
+/// @implements PRODUCTION_BUG_FIX: Pending task recovery
+///
+/// ## WHY this is needed
+///
+/// The worker pool pulls tasks from an in-memory TaskQueue (mpsc channel), not from
+/// the database. When tasks are created via API:
+/// 1. Task is saved to database with status="pending"
+/// 2. Task is enqueued to in-memory TaskQueue
+/// 3. Workers pull from TaskQueue and process
+///
+/// **Problem:** When backend restarts, the in-memory queue is empty! Pending tasks
+/// in the database are never picked up by workers.
+///
+/// **Solution:** On startup, query all pending tasks from database and re-enqueue them
+/// to the TaskQueue so workers can process them.
+///
+/// ## Strategy
+///
+/// - Query ALL tasks with status="pending" (no age threshold - all pending tasks should be processed)
+/// - Enqueue each task to the TaskQueue
+/// - Log requeue statistics for visibility
+/// - Non-fatal: If requeue fails, warning is logged but startup continues
+///
+/// ## Ordering
+///
+/// This MUST run BEFORE starting the worker pool to ensure pending tasks are available
+/// when workers start polling.
+///
+/// ## Risk mitigation
+///
+/// - Idempotent: Re-enqueueing the same task multiple times is safe (workers dedup)
+/// - No race conditions: Workers haven't started yet when this runs
+/// - Non-blocking: Uses queue.send() which is async and won't block startup
+async fn requeue_pending_tasks(
+    task_storage: Arc<dyn TaskStorage>,
+    task_queue: Arc<dyn TaskQueue>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("🔄 Checking for pending tasks to requeue from database...");
+
+    // Query all pending tasks
+    let filter = TaskFilter {
+        status: Some(TaskStatus::Pending),
+        ..Default::default()
+    };
+    let pagination = Pagination {
+        page_size: 1000, // WHY 1000: Most deployments won't have >1000 pending tasks at once
+        ..Default::default()
+    };
+
+    let task_list = task_storage.list_tasks(filter, pagination).await?;
+    let pending_count = task_list.tasks.len();
+
+    if pending_count == 0 {
+        info!("✅ No pending tasks to requeue");
+        return Ok(());
+    }
+
+    info!(
+        "📋 Found {} pending task(s) in database, requeueing to worker pool...",
+        pending_count
+    );
+
+    let mut requeued_count = 0;
+    let mut failed_count = 0;
+
+    for task in task_list.tasks {
+        match task_queue.send(task.clone()).await {
+            Ok(_) => {
+                info!("✅ Requeued task: {}", task.track_id);
+                requeued_count += 1;
+            }
+            Err(e) => {
+                warn!("⚠️ Failed to requeue task {}: {}", task.track_id, e);
+                failed_count += 1;
+            }
+        }
+    }
+
+    info!(
+        "🔧 Pending task requeue complete: {} requeued, {} failed",
+        requeued_count, failed_count
+    );
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
@@ -241,6 +329,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         recover_orphaned_tasks(Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>).await
     {
         warn!("Failed to recover orphaned tasks (non-fatal): {}", e);
+    }
+
+    // Requeue pending tasks from database to in-memory queue (PRODUCTION_BUG_FIX)
+    // MUST run BEFORE starting workers so tasks are available when workers start polling
+    if let Err(e) = requeue_pending_tasks(
+        Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>,
+        Arc::clone(&state.task_queue) as Arc<dyn TaskQueue>,
+    )
+    .await
+    {
+        warn!("Failed to requeue pending tasks (non-fatal): {}", e);
     }
 
     // Create and start worker pool
