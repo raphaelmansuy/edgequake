@@ -112,6 +112,7 @@ import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
 import { StatusBadge, getDocumentDisplayStatus, isProcessingStatus } from './status-badge';
+import { EnhancedStatusBadge } from './enhanced-status-badge';
 import type { UploadingFile } from './types';
 
 /**
@@ -1555,11 +1556,7 @@ export function DocumentManager() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
-                          <StatusBadge 
-                            status={getDocumentDisplayStatus(doc)} 
-                            stageMessage={doc.stage_message}
-                            stageProgressValue={doc.stage_progress}
-                          />
+                          <EnhancedStatusBadge document={doc} />
                           {/* Show stage_message below badge for better visibility during PDF conversion */}
                           {doc.stage_message && doc.current_stage === 'converting' && (
                             <span className="text-xs text-muted-foreground truncate">

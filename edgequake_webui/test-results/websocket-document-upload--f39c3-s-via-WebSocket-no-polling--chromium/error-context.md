@@ -1,0 +1,385 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Pipeline" [ref=e43] [cursor=pointer]:
+            - /url: /pipeline
+            - img [ref=e44]
+            - generic [ref=e46]: Pipeline
+          - link "Query" [ref=e47] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e48]
+            - generic [ref=e50]: Query
+          - link "Workspace" [ref=e51] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e52]
+            - generic [ref=e54]: Workspace
+          - link "Costs" [ref=e55] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e56]
+            - generic [ref=e58]: Costs
+          - link "API Explorer" [ref=e59] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e60]
+            - generic [ref=e62]: API Explorer
+          - link "Settings" [ref=e63] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e64]
+            - generic [ref=e67]: Settings
+        - generic [ref=e68]:
+          - button "Collapse sidebar" [ref=e69]:
+            - img
+            - generic [ref=e70]: Collapse
+          - generic [ref=e71]:
+            - img [ref=e73]
+            - generic [ref=e78]:
+              - generic [ref=e79]: EdgeQuake
+              - generic [ref=e80]: v0.1.0
+    - generic [ref=e81]:
+      - banner [ref=e82]:
+        - button "TestTenant / Default Workspace" [ref=e85]:
+          - img
+          - generic [ref=e86]: TestTenant / Default Workspace
+          - img
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - img [ref=e89]
+            - generic [ref=e91]: v0.1.0
+          - button "Change language" [ref=e92]:
+            - img
+            - generic [ref=e93]: Change language
+          - button "Toggle theme" [ref=e94]:
+            - img
+            - generic [ref=e95]: Toggle theme
+          - button "User menu" [ref=e96]:
+            - img
+            - generic [ref=e97]: User menu
+      - navigation "breadcrumb" [ref=e99]:
+        - list [ref=e100]:
+          - listitem [ref=e101]:
+            - link "EdgeQuake" [ref=e102] [cursor=pointer]:
+              - /url: /
+              - img [ref=e103]
+              - generic [ref=e106]: EdgeQuake
+          - listitem [ref=e107]:
+            - img [ref=e108]
+          - listitem [ref=e110]:
+            - link "Documents" [disabled] [ref=e111]:
+              - img [ref=e112]
+              - generic [ref=e115]: Documents
+      - main [ref=e116]:
+        - generic [ref=e117]:
+          - generic [ref=e118]:
+            - generic [ref=e119]:
+              - generic [ref=e120]:
+                - generic [ref=e121]:
+                  - generic [ref=e122]:
+                    - heading "Documents" [level=1] [ref=e123]
+                    - generic [ref=e124]: "8"
+                  - paragraph [ref=e128]: Upload and manage documents for knowledge graph extraction
+                - generic [ref=e129]:
+                  - button "Refresh" [ref=e130]:
+                    - img
+                    - text: Refresh
+                  - button "Clear All" [ref=e131]:
+                    - img
+                    - text: Clear All
+              - generic [ref=e132]:
+                - generic [ref=e133]:
+                  - img [ref=e134]
+                  - textbox "Search documents..." [ref=e137]
+                - generic [ref=e138]:
+                  - combobox [ref=e139]:
+                    - generic: All Status (8)
+                    - img
+                  - generic [ref=e141]:
+                    - generic [ref=e142]: "Sort by:"
+                    - button "Created" [ref=e143]:
+                      - text: Created
+                      - img
+                    - button "Updated" [ref=e144]
+              - generic [ref=e145] [cursor=pointer]:
+                - button "Choose File" [ref=e146]
+                - img [ref=e148]
+                - paragraph [ref=e152]: Drag & drop or click to upload • TXT, MD, JSON, PDF (max 10MB)
+              - generic [ref=e154]:
+                - generic [ref=e156]:
+                  - generic [ref=e157]:
+                    - img [ref=e158]
+                    - text: Batch Upload Progress
+                  - button [ref=e161]:
+                    - img
+                - generic [ref=e162]:
+                  - generic [ref=e163]:
+                    - generic [ref=e164]:
+                      - generic [ref=e165]: 0/0 documents
+                      - generic [ref=e166]: 0%
+                    - progressbar [ref=e167]
+                  - paragraph [ref=e169]: All documents processed successfully
+                  - generic [ref=e170]: All documents processed successfully!
+                  - generic [ref=e171]: "Track: upload_1770550442793_zhmmj2oh"
+            - generic [ref=e173]:
+              - generic [ref=e174]:
+                - img [ref=e175]
+                - generic [ref=e178]: Documents (8)
+              - table [ref=e181]:
+                - rowgroup [ref=e182]:
+                  - row "Select all Title Status Entities Cost Created" [ref=e183]:
+                    - columnheader "Select all" [ref=e184]:
+                      - checkbox "Select all" [ref=e185]
+                    - columnheader "Title" [ref=e186]
+                    - columnheader "Status" [ref=e187]
+                    - columnheader "Entities" [ref=e188]
+                    - columnheader "Cost" [ref=e189]
+                    - columnheader "Created" [ref=e190]
+                    - columnheader [ref=e191]
+                - rowgroup [ref=e192]:
+                  - 'row "Select lighrag_2410.05779v3.pdf Converting PDF Converting PDF to Markdown: page 16/16 (100%) 0 - NEW less than a minute ago" [ref=e193] [cursor=pointer]':
+                    - cell "Select" [ref=e194]:
+                      - checkbox "Select" [ref=e195]
+                    - cell "lighrag_2410.05779v3.pdf" [ref=e196]:
+                      - generic [ref=e198]:
+                        - img [ref=e199]
+                        - generic [ref=e202]: lighrag_2410.05779v3.pdf
+                    - 'cell "Converting PDF Converting PDF to Markdown: page 16/16 (100%)" [ref=e203]':
+                      - generic [ref=e204]:
+                        - generic [ref=e205]:
+                          - img
+                          - text: Converting PDF
+                        - generic [ref=e206]: "Converting PDF to Markdown: page 16/16 (100%)"
+                    - cell "0" [ref=e207]
+                    - cell "-" [ref=e208]
+                    - cell "NEW less than a minute ago" [ref=e209]:
+                      - generic [ref=e210]:
+                        - generic [ref=e211]: NEW
+                        - generic [ref=e212]: less than a minute ago
+                    - cell [ref=e213]:
+                      - generic [ref=e214]:
+                        - button [ref=e215]:
+                          - img
+                        - button [ref=e216]:
+                          - img
+                        - button [ref=e217]:
+                          - img
+                  - row "Select drift_2602.04770v1.md Completed 10 0.00055 NEW 27 minutes ago" [ref=e218] [cursor=pointer]:
+                    - cell "Select" [ref=e219]:
+                      - checkbox "Select" [ref=e220]
+                    - cell "drift_2602.04770v1.md" [ref=e221]:
+                      - generic [ref=e223]:
+                        - img [ref=e224]
+                        - generic [ref=e229]: drift_2602.04770v1.md
+                    - cell "Completed" [ref=e230]:
+                      - generic [ref=e232]:
+                        - img
+                        - text: Completed
+                    - cell "10" [ref=e233]
+                    - cell "0.00055" [ref=e234]:
+                      - generic [ref=e235]:
+                        - img
+                        - generic [ref=e236]: "0.00055"
+                    - cell "NEW 27 minutes ago" [ref=e237]:
+                      - generic [ref=e238]:
+                        - generic [ref=e239]: NEW
+                        - generic [ref=e240]: 27 minutes ago
+                    - cell [ref=e241]:
+                      - generic [ref=e242]:
+                        - button [ref=e243]:
+                          - img
+                        - button [ref=e244]:
+                          - img
+                        - button [ref=e245]:
+                          - img
+                        - button [ref=e246]:
+                          - img
+                  - row "Select Note De Fiscalité Automobile - Maj 16 Avril 2025 Uploading 0 - about 1 hour ago" [ref=e247] [cursor=pointer]:
+                    - cell "Select" [ref=e248]:
+                      - checkbox "Select" [ref=e249]
+                    - cell "Note De Fiscalité Automobile - Maj 16 Avril 2025" [ref=e250]:
+                      - generic [ref=e252]:
+                        - img [ref=e253]
+                        - generic [ref=e256]: Note De Fiscalité Automobile - Maj 16 Avril 2025
+                    - cell "Uploading" [ref=e257]:
+                      - generic [ref=e259]:
+                        - img
+                        - text: Uploading
+                    - cell "0" [ref=e260]
+                    - cell "-" [ref=e261]
+                    - cell "about 1 hour ago" [ref=e262]:
+                      - generic [ref=e264]: about 1 hour ago
+                    - cell [ref=e265]:
+                      - generic [ref=e266]:
+                        - button [ref=e267]:
+                          - img
+                        - button [ref=e268]:
+                          - img
+                        - button [ref=e269]:
+                          - img
+                  - row "Select Cas 2 Prix De Reprise Inférieur Au Montant À Règler À L Organisme De Financement Uploading 0 - about 1 hour ago" [ref=e270] [cursor=pointer]:
+                    - cell "Select" [ref=e271]:
+                      - checkbox "Select" [ref=e272]
+                    - cell "Cas 2 Prix De Reprise Inférieur Au Montant À Règler À L Organisme De Financement" [ref=e273]:
+                      - generic [ref=e275]:
+                        - img [ref=e276]
+                        - generic [ref=e279]: Cas 2 Prix De Reprise Inférieur Au Montant À Règler À L Organisme De Financement
+                    - cell "Uploading" [ref=e280]:
+                      - generic [ref=e282]:
+                        - img
+                        - text: Uploading
+                    - cell "0" [ref=e283]
+                    - cell "-" [ref=e284]
+                    - cell "about 1 hour ago" [ref=e285]:
+                      - generic [ref=e287]: about 1 hour ago
+                    - cell [ref=e288]:
+                      - generic [ref=e289]:
+                        - button [ref=e290]:
+                          - img
+                        - button [ref=e291]:
+                          - img
+                        - button [ref=e292]:
+                          - img
+                  - row "Select Cas 2 Prix De Reprise Inférieur Au Montant À Règler À L Organisme De Financement – Copie Uploading 0 - about 1 hour ago" [ref=e293] [cursor=pointer]:
+                    - cell "Select" [ref=e294]:
+                      - checkbox "Select" [ref=e295]
+                    - cell "Cas 2 Prix De Reprise Inférieur Au Montant À Règler À L Organisme De Financement – Copie" [ref=e296]:
+                      - generic [ref=e298]:
+                        - img [ref=e299]
+                        - generic [ref=e302]: Cas 2 Prix De Reprise Inférieur Au Montant À Règler À L Organisme De Financement – Copie
+                    - cell "Uploading" [ref=e303]:
+                      - generic [ref=e305]:
+                        - img
+                        - text: Uploading
+                    - cell "0" [ref=e306]
+                    - cell "-" [ref=e307]
+                    - cell "about 1 hour ago" [ref=e308]:
+                      - generic [ref=e310]: about 1 hour ago
+                    - cell [ref=e311]:
+                      - generic [ref=e312]:
+                        - button [ref=e313]:
+                          - img
+                        - button [ref=e314]:
+                          - img
+                        - button [ref=e315]:
+                          - img
+                  - row "Select C2 - Formation Viareport Uploading 0 - about 1 hour ago" [ref=e316] [cursor=pointer]:
+                    - cell "Select" [ref=e317]:
+                      - checkbox "Select" [ref=e318]
+                    - cell "C2 - Formation Viareport" [ref=e319]:
+                      - generic [ref=e321]:
+                        - img [ref=e322]
+                        - generic [ref=e325]: C2 - Formation Viareport
+                    - cell "Uploading" [ref=e326]:
+                      - generic [ref=e328]:
+                        - img
+                        - text: Uploading
+                    - cell "0" [ref=e329]
+                    - cell "-" [ref=e330]
+                    - cell "about 1 hour ago" [ref=e331]:
+                      - generic [ref=e333]: about 1 hour ago
+                    - cell [ref=e334]:
+                      - generic [ref=e335]:
+                        - button [ref=e336]:
+                          - img
+                        - button [ref=e337]:
+                          - img
+                        - button [ref=e338]:
+                          - img
+                  - row "Select C1 - Introduction Ifrs 16 Uploading 0 - about 1 hour ago" [ref=e339] [cursor=pointer]:
+                    - cell "Select" [ref=e340]:
+                      - checkbox "Select" [ref=e341]
+                    - cell "C1 - Introduction Ifrs 16" [ref=e342]:
+                      - generic [ref=e344]:
+                        - img [ref=e345]
+                        - generic [ref=e348]: C1 - Introduction Ifrs 16
+                    - cell "Uploading" [ref=e349]:
+                      - generic [ref=e351]:
+                        - img
+                        - text: Uploading
+                    - cell "0" [ref=e352]
+                    - cell "-" [ref=e353]
+                    - cell "about 1 hour ago" [ref=e354]:
+                      - generic [ref=e356]: about 1 hour ago
+                    - cell [ref=e357]:
+                      - generic [ref=e358]:
+                        - button [ref=e359]:
+                          - img
+                        - button [ref=e360]:
+                          - img
+                        - button [ref=e361]:
+                          - img
+                  - row "Select Bordereau De Remise (4) Uploading 0 - about 1 hour ago" [ref=e362] [cursor=pointer]:
+                    - cell "Select" [ref=e363]:
+                      - checkbox "Select" [ref=e364]
+                    - cell "Bordereau De Remise (4)" [ref=e365]:
+                      - generic [ref=e367]:
+                        - img [ref=e368]
+                        - generic [ref=e371]: Bordereau De Remise (4)
+                    - cell "Uploading" [ref=e372]:
+                      - generic [ref=e374]:
+                        - img
+                        - text: Uploading
+                    - cell "0" [ref=e375]
+                    - cell "-" [ref=e376]
+                    - cell "about 1 hour ago" [ref=e377]:
+                      - generic [ref=e379]: about 1 hour ago
+                    - cell [ref=e380]:
+                      - generic [ref=e381]:
+                        - button [ref=e382]:
+                          - img
+                        - button [ref=e383]:
+                          - img
+                        - button [ref=e384]:
+                          - img
+            - generic [ref=e386]:
+              - generic [ref=e387]:
+                - generic [ref=e388]: "Rows per page:"
+                - combobox [ref=e389]:
+                  - generic: "20"
+                  - img
+              - generic [ref=e390]:
+                - generic [ref=e391]: Page 1 of 1
+                - generic [ref=e392]:
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+          - button "Expand Preview" [ref=e393] [cursor=pointer]:
+            - img [ref=e394]
+            - generic [ref=e396]: Preview
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e397]:
+        - button "Close toast" [ref=e398] [cursor=pointer]:
+          - img [ref=e399]
+        - img [ref=e403]
+        - generic [ref=e407]: 1 file(s) uploaded successfully
+        - button "View in Graph" [ref=e408] [cursor=pointer]
+```

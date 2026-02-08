@@ -90,12 +90,56 @@ export interface StageProgress {
   message?: string;
 }
 
+/**
+ * PDF extraction progress details.
+ * 
+ * @implements OODA-06: PDF page-by-page progress tracking
+ */
+export interface PdfProgress {
+  /** Current page being extracted */
+  current_page: number;
+  /** Total pages in PDF */
+  total_pages: number;
+  /** Progress percentage (0-100) */
+  progress: number;
+  /** Current phase: "start", "extraction", "complete" */
+  phase: string;
+  /** Last error encountered during extraction */
+  last_error?: string;
+}
+
+/**
+ * Chunk extraction progress details.
+ * 
+ * @implements SPEC-001/Objective-A: Chunk-Level Progress Visibility
+ */
+export interface ChunkProgress {
+  /** Current chunk index (0-based) */
+  current_chunk: number;
+  /** Total chunks in document */
+  total_chunks: number;
+  /** Progress percentage (0-100) */
+  progress: number;
+  /** Preview of current chunk (first 80 chars) */
+  current_chunk_preview?: string;
+  /** Estimated time remaining (seconds) */
+  eta_seconds?: number;
+  /** Cumulative cost (USD) */
+  cumulative_cost?: number;
+  /** Failed chunks count */
+  failed_chunks: number;
+}
+
 export interface ProgressDetail {
   current_stage: IngestionStage;
   completion_percentage: number;
   eta_seconds?: number;
   latest_message: string;
   stages: StageProgress[];
+  /** PDF extraction progress (only present for PDF documents) */
+  pdf_progress?: PdfProgress;
+  /** Chunk extraction progress (present during extraction stage) */
+  chunk_progress?: ChunkProgress;
 }
 
 export interface IngestionProgress {
@@ -253,6 +297,8 @@ export interface PdfPageProgressEvent {
   data: {
     /** Document/PDF being processed */
     document_id: string;
+    /** Task tracking ID (matches track_id for ingestion tracking) */
+    task_id: string;
     /** Current page number */
     current_page: number;
     /** Total pages in PDF */
