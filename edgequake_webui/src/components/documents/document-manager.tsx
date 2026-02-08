@@ -64,7 +64,7 @@ import { ConnectionStatus } from './connection-status';
 import { DocumentDropzone } from './document-dropzone';
 import { DocumentTableStates } from './document-table-states';
 
-import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
+import { DocumentFilters } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
 import { DocumentTableRow } from './document-table-row';
 import { DocumentViewerDialog } from './document-viewer-dialog';
@@ -79,6 +79,7 @@ import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
 import { useFileUpload } from '@/hooks/use-file-upload';
 import { useDocumentMutations } from '@/hooks/use-document-mutations';
 import { useBulkSelection } from '@/hooks/use-bulk-selection';
+import { useDocumentPreferences, type DocStatus } from '@/hooks/use-document-preferences';
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -110,43 +111,14 @@ export function DocumentManager() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  // OODA-29: Initialize pageSize from localStorage for persistence
-  const [pageSize, setPageSize] = useState(() => {
-    if (typeof window === 'undefined') return 20;
-    try {
-      const stored = localStorage.getItem('edgequake:documents:prefs');
-      const parsed = stored ? JSON.parse(stored) : null;
-      const size = parsed?.pageSize;
-      return [10, 20, 50, 100].includes(size) ? size : 20;
-    } catch { return 20; }
-  });
   
-  // Filter and sort state
-  // OODA-24/28: Initialize from localStorage for persistence
-  const [statusFilter, setStatusFilter] = useState<DocStatus>(() => {
-    if (typeof window === 'undefined') return 'all';
-    try {
-      const stored = localStorage.getItem('edgequake:documents:prefs');
-      const parsed = stored ? JSON.parse(stored) : null;
-      return (parsed?.statusFilter as DocStatus) || 'all';
-    } catch { return 'all'; }
-  });
-  const [sortField, setSortField] = useState<SortField>(() => {
-    if (typeof window === 'undefined') return 'created_at';
-    try {
-      const stored = localStorage.getItem('edgequake:documents:prefs');
-      const parsed = stored ? JSON.parse(stored) : null;
-      return (parsed?.sortField as SortField) || 'created_at';
-    } catch { return 'created_at'; }
-  });
-  const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
-    if (typeof window === 'undefined') return 'desc';
-    try {
-      const stored = localStorage.getItem('edgequake:documents:prefs');
-      const parsed = stored ? JSON.parse(stored) : null;
-      return (parsed?.sortDirection as SortDirection) || 'desc';
-    } catch { return 'desc'; }
-  });
+  // OODA-17: Filter, sort, and pagination preferences with localStorage persistence
+  const {
+    pageSize, setPageSize,
+    statusFilter, setStatusFilter,
+    sortField, setSortField,
+    sortDirection, setSortDirection,
+  } = useDocumentPreferences();
   
   // Pipeline status dialog state
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
@@ -442,23 +414,6 @@ export function DocumentManager() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [previewPanelOpen, selectedCount, handlePreviewClose, handleSelectAll, handleClearSelection, refetch, t]);
-
-  /**
-   * OODA-24: Persist sort preferences to localStorage
-   * WHY: Users expect their filter/sort preferences to persist across sessions
-   */
-  useEffect(() => {
-    try {
-      localStorage.setItem('edgequake:documents:prefs', JSON.stringify({
-        statusFilter,
-        sortField,
-        sortDirection,
-        pageSize, // OODA-29: Also persist page size preference
-      }));
-    } catch {
-      // Ignore localStorage errors (e.g., in incognito mode)
-    }
-  }, [statusFilter, sortField, sortDirection, pageSize]);
 
   /**
    * OODA-26: Update page title with document count

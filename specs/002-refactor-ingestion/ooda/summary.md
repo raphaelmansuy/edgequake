@@ -4,8 +4,8 @@
 
 **Target**: DocumentManager <300 lines
 **Original**: 1822 lines
-**Current**: 1064 lines
-**Remaining**: ~764 lines to reduce
+**Current**: 767 lines
+**Remaining**: ~467 lines to reduce
 
 ## Completed Iterations
 
@@ -30,19 +30,24 @@
 | OODA-11 | ProcessingStatusSummary | -45 | `4f597574` |
 | OODA-12 | DocumentTableStates | -26 | `6e319c2f` |
 | OODA-13 | useFileUpload hook | -309 | `c37f7815` |
-| **Total** | | **-764** | |
+| OODA-14 | useDocumentMutations | -76 | `273cac5d` |
+| OODA-15 | DocumentTableRow | -147 | `6a04df24` |
+| OODA-16 | useBulkSelection | -74 | `a709262e` |
+| **Total** | | **-1061** | |
 
 ## Reduction Metrics
 - Lines before: 1822
-- Lines after: 1064
-- Total reduction: 758 lines (41.6%)
-- Average per iteration: 58 lines
+- Lines after: 767
+- Total reduction: 1055 lines (57.9%)
+- Average per iteration: ~81 lines
 
 ## Files Created
 ### Hooks (`src/hooks/`)
 - `use-stuck-detection.ts` - Document stuck detection
 - `use-document-websocket.ts` - WebSocket subscription
 - `use-file-upload.ts` - File upload orchestration
+- `use-document-mutations.ts` - Delete/reprocess/cancel operations
+- `use-bulk-selection.ts` - Bulk selection state and operations
 
 ### Components (`src/components/documents/`)
 - `upload-progress-list.tsx` - Upload progress UI
@@ -52,16 +57,18 @@
 - `quick-action-buttons.tsx` - Row action buttons
 - `processing-status-summary.tsx` - Pipeline status display
 - `document-table-states.tsx` - Loading/empty states
+- `document-table-row.tsx` - Table row with memoization
 
 ## Next Steps
 Continue SRP extractions for Issue #4:
-1. Extract header section component
-2. Extract document table row component
-3. Extract mutation handlers
-4. Extract keyboard handlers
+1. Extract localStorage preferences hook
+2. Extract keyboard shortcuts effect
+3. Extract right panel section
+4. Extract error handling component
 
 ## Key Learnings
 1. Large useCallback functions are prime hook extraction candidates
 2. Conditional rendering sections extract cleanly to components
 3. Import cleanup provides additional line reduction
 4. Sequential small extractions maintain stability
+5. Hooks that manage related state + handlers work well together
