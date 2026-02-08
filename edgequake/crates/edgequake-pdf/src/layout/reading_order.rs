@@ -5,6 +5,26 @@
 
 use crate::schema::{Block, BlockType, BoundingBox};
 
+/// WHY: UTF-8 safe string truncation.
+///
+/// Direct byte slicing like `&s[..30]` can panic if byte 30 falls in the middle
+/// of a multi-byte character (e.g., ellipsis '…' is 3 bytes, box-drawing '─' is 3 bytes).
+/// This function finds the nearest valid char boundary at or before `max_bytes`.
+///
+/// PRODUCTION_BUG_FIX: Fix byte index panics in reading_order.rs (line 366, 151, 251).
+/// Reproduction: PDF with ellipsis character at truncation boundary causes:
+/// "byte index 30 is not a char boundary; it is inside '…' (bytes 29..32)"
+fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 /// Reading order result.
 #[derive(Debug, Clone)]
 pub struct ReadingOrder {
@@ -148,7 +168,7 @@ impl ReadingOrderDetector {
                         tracing::trace!(
                             "ASSIGN: block {} '{}...' x1={:.0} -> column {}",
                             idx,
-                            &block.text[..block.text.len().min(30)],
+                            safe_truncate(&block.text, 30),
                             block.bbox.x1,
                             col
                         );
@@ -248,7 +268,7 @@ impl ReadingOrderDetector {
             tracing::debug!(
                 "OODA-38: Detected footer/affiliation: Y={:.1} '{}'",
                 block.bbox.y1,
-                &text[..text.len().min(50)]
+                safe_truncate(text, 50)
             );
             return Some(ColumnAssignment::Footer);
         }
@@ -363,7 +383,7 @@ impl ReadingOrderDetector {
             // This ensures blocks at the same vertical level come after their left neighbors
             tracing::debug!(
                 "OODA-02: Block '{}' uses left-block Y={:.1} for sort (orig Y={:.1})",
-                &block.text[..block.text.len().min(30)],
+                safe_truncate(&block.text, 30),
                 left_block.bbox.y1,
                 block_bbox.y1
             );

@@ -222,17 +222,27 @@ impl HeadingClassifier {
     /// Returns true if text contains patterns like `. [A-Z]` indicating
     /// a sentence break followed by a new sentence.
     fn contains_sentence_boundary(&self, text: &str) -> bool {
-        let chars: Vec<char> = text.chars().collect();
+        // WHY: Use char_indices() instead of chars() to get proper byte positions.
+        // Direct indexing like chars[i] with byte slicing &text[..i] can panic
+        // when i is a character index but text contains multi-byte UTF-8 chars like '€' (3 bytes).
+        let chars: Vec<(usize, char)> = text.char_indices().collect();
         for i in 0..chars.len().saturating_sub(2) {
             // Pattern: sentence-ending punctuation + space + capital letter
-            let is_sentence_end = matches!(chars[i], '.' | '?' | '!');
-            let is_space = chars[i + 1] == ' ';
-            let is_capital = chars.get(i + 2).map(|c| c.is_uppercase()).unwrap_or(false);
+            let (_, char_i) = chars[i];
+            let (_, char_i1) = chars[i + 1];
+            let is_sentence_end = matches!(char_i, '.' | '?' | '!');
+            let is_space = char_i1 == ' ';
+            let is_capital = chars
+                .get(i + 2)
+                .map(|(_, c)| c.is_uppercase())
+                .unwrap_or(false);
 
             if is_sentence_end && is_space && is_capital {
                 // Exception: common abbreviations like "Dr. Smith", "Fig. 1", "vs. The"
                 // Check if preceding word is a common abbreviation
-                let preceding = &text[..i + 1];
+                // WHY: Use byte position from char_indices to safely slice string
+                let byte_pos = chars.get(i + 1).map(|(pos, _)| *pos).unwrap_or(text.len());
+                let preceding = &text[..byte_pos];
                 if !self.is_abbreviation_context(preceding) {
                     return true;
                 }
