@@ -251,7 +251,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .expect("Failed to initialize PostgreSQL storage")
     } else {
-        info!("💾 No DATABASE_URL set - using in-memory storage (data will not persist)");
+        // OODA-02: Enhanced warning for memory mode - NOT FOR PRODUCTION
+        warn!("⚠️ WARNING: No DATABASE_URL set - using IN-MEMORY storage.");
+        warn!("   Data WILL NOT PERSIST across restarts. NOT FOR PRODUCTION USE.");
+        warn!("   Set DATABASE_URL to use PostgreSQL for production.");
         AppState::new_memory(if api_key.is_empty() {
             None
         } else {

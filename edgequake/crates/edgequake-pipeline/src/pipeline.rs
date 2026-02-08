@@ -97,7 +97,9 @@ pub struct PipelineConfig {
 }
 
 fn default_chunk_timeout() -> u64 {
-    60 // 60 seconds default timeout
+    // WHY 180: Ollama and other local LLMs need more time for entity extraction
+    // prompts. Testing showed gemma3 can take 90-120s per chunk. 180s gives margin.
+    180 // 180 seconds default timeout (increased from 60s for local LLM support)
 }
 
 fn default_max_retries() -> u32 {

@@ -374,8 +374,15 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
 		cargo run
 
-backend-memory: ## Run backend with in-memory storage (for testing only)
-	@echo "$(YELLOW)⚠️  Starting backend with IN-MEMORY storage (data will not persist)$(RESET)"
+# OODA-02: WARNING - In-memory mode is for LOCAL TESTING ONLY
+# DO NOT use in production. Data does not persist across restarts.
+# Use `make backend-dev` or `make backend-db` for production deployments.
+backend-memory: ## Run backend with in-memory storage (for testing only - NOT FOR PRODUCTION)
+	@echo "$(RED)╔════════════════════════════════════════════════════════════════╗$(RESET)"
+	@echo "$(RED)║  ⚠️  WARNING: IN-MEMORY MODE - NOT FOR PRODUCTION USE          ║$(RESET)"
+	@echo "$(RED)║  Data WILL NOT PERSIST across restarts.                        ║$(RESET)"
+	@echo "$(RED)║  Use 'make backend-dev' for production with PostgreSQL.        ║$(RESET)"
+	@echo "$(RED)╚════════════════════════════════════════════════════════════════╝$(RESET)"
 	@cd $(BACKEND_DIR) && cargo run
 
 backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENAI_API_KEY if set)

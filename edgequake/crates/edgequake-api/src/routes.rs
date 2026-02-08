@@ -203,6 +203,7 @@ fn api_v1_routes() -> Router<AppState> {
         // Documents
         .route("/documents", post(handlers::upload_document))
         .route("/documents", get(handlers::list_documents))
+        .route("/documents", delete(handlers::delete_all_documents))
         // Track Status (Phase 2) - MUST come before /documents/{document_id}
         .route(
             "/documents/track/{track_id}",

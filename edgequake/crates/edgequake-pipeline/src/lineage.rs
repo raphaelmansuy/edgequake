@@ -359,7 +359,7 @@ pub struct DocumentLineage {
     /// LLM provider used for entity extraction (e.g., "openai", "ollama").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extraction_provider: Option<String>,
-    /// LLM model used for entity extraction (e.g., "gpt-4o-mini").
+    /// LLM model used for entity extraction (e.g., "gpt-5-nano").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extraction_model: Option<String>,
     /// Embedding provider used (e.g., "openai", "ollama").
@@ -410,7 +410,7 @@ impl DocumentLineage {
     /// # Arguments
     ///
     /// * `extraction_provider` - The LLM provider (e.g., "openai", "ollama")
-    /// * `extraction_model` - The LLM model (e.g., "gpt-4o-mini")
+    /// * `extraction_model` - The LLM model (e.g., "gpt-5-nano")
     /// * `embedding_provider` - The embedding provider
     /// * `embedding_model` - The embedding model
     /// * `embedding_dimension` - The embedding vector dimension
@@ -630,12 +630,12 @@ mod tests {
 
     #[test]
     fn test_extraction_metadata() {
-        let meta = ExtractionMetadata::new("gpt-4o-mini")
+        let meta = ExtractionMetadata::new("gpt-5-nano")
             .with_tokens(1000, 500)
             .with_time(150)
             .with_cache(true, Some("cache-123".to_string()));
 
-        assert_eq!(meta.llm_model, "gpt-4o-mini");
+        assert_eq!(meta.llm_model, "gpt-5-nano");
         assert_eq!(meta.input_tokens, 1000);
         assert!(meta.cache_hit);
     }
@@ -691,7 +691,7 @@ mod tests {
             10,
             0,
             500,
-            ExtractionMetadata::new("gpt-4o-mini"),
+            ExtractionMetadata::new("gpt-5-nano"),
         );
 
         builder.record_entity(

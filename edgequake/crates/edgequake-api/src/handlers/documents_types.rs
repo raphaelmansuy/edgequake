@@ -550,6 +550,34 @@ pub struct DeleteDocumentResponse {
     pub relationships_affected: usize,
 }
 
+/// Bulk document deletion response.
+///
+/// WHY: Frontend "Clear All" button needs a bulk delete endpoint.
+/// Returns aggregated deletion statistics across all documents.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct DeleteAllDocumentsResponse {
+    /// Total number of documents deleted.
+    pub deleted_count: usize,
+
+    /// Total number of chunks deleted across all documents.
+    pub total_chunks_deleted: usize,
+
+    /// Total number of entities removed (no other references).
+    pub total_entities_removed: usize,
+
+    /// Total number of relationships removed.
+    pub total_relationships_removed: usize,
+
+    /// Total number of PDF documents deleted from separate storage.
+    pub total_pdfs_deleted: usize,
+
+    /// Number of documents skipped (processing/pending status).
+    pub skipped_count: usize,
+
+    /// Document IDs that were skipped due to active processing.
+    pub skipped_documents: Vec<String>,
+}
+
 /// Document deletion impact analysis response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct DeletionImpactResponse {
