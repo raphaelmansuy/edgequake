@@ -59,6 +59,7 @@ import {
     reprocessDocument,
     uploadDocument,
     uploadPdfDocument,
+    type DocumentsListResult,
 } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
 import { useTenantStore } from '@/stores/use-tenant-store';
@@ -400,6 +401,7 @@ export function DocumentManager() {
             // OODA-42: Optimistic update for PDF upload
             // WHY: PDFs must appear immediately in documents panel (same as markdown)
             // The backend creates the document record async, but we add it to cache now
+            // FIX: Include tenant_id and workspace_id for multi-tenant filtering
             if (pdfResponse.pdf_id && !pdfResponse.duplicate_of) {
               const optimisticDoc: Document = {
                 id: pdfResponse.pdf_id, // Use pdf_id as temporary ID until document_id is assigned
@@ -412,20 +414,22 @@ export function DocumentManager() {
                 created_at: new Date().toISOString(),
                 pdf_id: pdfResponse.pdf_id,
                 track_id: pdfResponse.track_id,
+                tenant_id: selectedTenantId ?? undefined,
+                workspace_id: selectedWorkspaceId ?? undefined,
               };
               
-              // Add to all document query caches for instant visibility
-              // Uses predicate to match all queries starting with 'documents'
-              // OODA-47: Guard against undefined documents array in cache
-              queryClient.setQueriesData<{ documents: Document[]; total: number }>(
-                { queryKey: ['documents'] },
+              // Add to the SPECIFIC tenant/workspace query cache for instant visibility
+              // IMPORTANT: Must match exact query key to appear immediately
+              queryClient.setQueriesData<DocumentsListResult>(
+                { queryKey: ['documents', selectedTenantId, selectedWorkspaceId] },
                 (old) => {
-                  if (!old || !old.documents || !Array.isArray(old.documents)) return old;
+                  if (!old || !old.items || !Array.isArray(old.items)) return old;
                   // Check if document already exists (by pdf_id)
-                  const exists = old.documents.some(d => d.pdf_id === pdfResponse.pdf_id || d.id === pdfResponse.pdf_id);
+                  const exists = old.items.some(d => d.pdf_id === pdfResponse.pdf_id || d.id === pdfResponse.pdf_id);
                   if (exists) return old;
                   return {
-                    documents: [optimisticDoc, ...old.documents],
+                    ...old,
+                    items: [optimisticDoc, ...old.items],
                     total: (old.total ?? 0) + 1,
                   };
                 }
@@ -459,7 +463,7 @@ export function DocumentManager() {
             
             // OODA-42 EXTENDED: Optimistic update for text/markdown files (same as PDF)
             // WHY: Text files must also appear immediately in documents panel
-            // The backend creates the document record, add it to cache now for instant visibility
+            // FIX: Include tenant_id and workspace_id for multi-tenant filtering
             if (textResponse.document_id && !textResponse.duplicate_of) {
               const optimisticDoc: Document = {
                 id: textResponse.document_id,
@@ -471,18 +475,22 @@ export function DocumentManager() {
                 mime_type: file.type || 'text/plain',
                 created_at: new Date().toISOString(),
                 track_id: textResponse.track_id,
+                tenant_id: selectedTenantId ?? undefined,
+                workspace_id: selectedWorkspaceId ?? undefined,
               };
               
-              // Add to all document query caches for instant visibility
-              queryClient.setQueriesData<{ documents: Document[]; total: number }>(
-                { queryKey: ['documents'] },
+              // Add to the SPECIFIC tenant/workspace query cache for instant visibility
+              // IMPORTANT: Must match exact query key to appear immediately
+              queryClient.setQueriesData<DocumentsListResult>(
+                { queryKey: ['documents', selectedTenantId, selectedWorkspaceId] },
                 (old) => {
-                  if (!old || !old.documents || !Array.isArray(old.documents)) return old;
+                  if (!old || !old.items || !Array.isArray(old.items)) return old;
                   // Check if document already exists (by document_id)
-                  const exists = old.documents.some(d => d.id === textResponse.document_id);
+                  const exists = old.items.some(d => d.id === textResponse.document_id);
                   if (exists) return old;
                   return {
-                    documents: [optimisticDoc, ...old.documents],
+                    ...old,
+                    items: [optimisticDoc, ...old.items],
                     total: (old.total ?? 0) + 1,
                   };
                 }
