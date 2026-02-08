@@ -12,31 +12,33 @@ Successfully implemented and verified strict multi-tenant isolation across all A
 
 ### Perfect Tenant Isolation Achieved ✅
 
-| Tenant View | Entity Count | Documents | Isolation Status |
-|-------------|--------------|-----------|------------------|
-| **TenantA** | 17 | 3 | ✅ Shows only own entities |
-| **Default Workspace** | 0 | 18 (no entities extracted) | ✅ Cannot see TenantA data |
-| **Admin View** (no headers) | 426 | 20 | ✅ Sees all legacy + tenant data |
+| Tenant View                 | Entity Count | Documents                  | Isolation Status                 |
+| --------------------------- | ------------ | -------------------------- | -------------------------------- |
+| **TenantA**                 | 17           | 3                          | ✅ Shows only own entities       |
+| **Default Workspace**       | 0            | 18 (no entities extracted) | ✅ Cannot see TenantA data       |
+| **Admin View** (no headers) | 426          | 20                         | ✅ Sees all legacy + tenant data |
 
 ### Test Documents Uploaded
 
 **TenantA Workspace** (`93514645-790f-4916-9525-9971dbce7383`):
-1. **Invoice-VRIPSKPR-0001.pdf** - 13 entities  
+
+1. **Invoice-VRIPSKPR-0001.pdf** - 13 entities
    - Entities: Sarah Chen, Acme Corporation, France, Raphael, etc.
    - Status: Completed
    - Has tenant_id and workspace_id
-  
-2. **test_tenantA.txt** - 1 entity  
+
+2. **test_tenantA.txt** - 1 entity
    - Entity: TenantA (ORGANIZATION)
    - Status: Completed
-  
-3. **test_entities.txt** - 3 entities  
+
+3. **test_entities.txt** - 3 entities
    - Entities: Sarah Chen (PERSON), Acme Corporation (ORGANIZATION), Software Engineer (CONCEPT)
    - Status: Completed
 
 ## Backend Changes
 
 ### 1. Strict Tenant Filtering - entities.rs
+
 **File**: `edgequake/crates/edgequake-api/src/handlers/entities.rs`
 
 ```rust
@@ -69,27 +71,33 @@ fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) ->
 ```
 
 **Changes**:
+
 - Added debug logging with `tracing::debug` and `tracing::trace`
 - Used in `list_entities()` handler
 - Added tenant properties in `create_entity()` handler
 
 ### 2. Strict Edge Filtering - relationships.rs
+
 **File**: `edgequake/crates/edgequake-api/src/handlers/relationships.rs`
 
 **Added**:
+
 - `filter_nodes_by_tenant_context()` - same logic as entities
 - `filter_edges_by_tenant_context()` - filters edges by tenant/workspace
 - Modified `list_relationships()` and `create_relationship()` handlers
 
 ### 3. SQL Query Changes - graph.rs
+
 **File**: `edgequake/crates/edgequake-storage/src/adapters/postgres/graph.rs`
 
 **Before**:
+
 ```sql
 WHERE (tenant_id = 'xxx' OR tenant_id IS NULL)
 ```
 
 **After**:
+
 ```sql
 WHERE tenant_id = 'xxx'
 ```
@@ -99,13 +107,16 @@ WHERE tenant_id = 'xxx'
 ## Frontend Changes
 
 ### Fixed Drag-and-Drop Upload
+
 **File**: `edgequake_webui/src/components/documents/document-manager.tsx`
 
 **Issues Found**:
+
 1. **Duplicate closing div** at line 1152 (removed)
 2. **Missing closing div** for "Fixed Header Zone" container (added at line 1344)
 
 **Before** (broken JSX structure):
+
 ```tsx
       {/* Compact Upload Zone */}
       <div {...getRootProps()}>
@@ -123,6 +134,7 @@ WHERE tenant_id = 'xxx'
 ```
 
 **After** (fixed):
+
 ```tsx
       {/* Compact Upload Zone */}
       <div {...getRootProps()}>
@@ -142,18 +154,19 @@ WHERE tenant_id = 'xxx'
 ## Database Verification
 
 **PostgreSQL Query Results**:
+
 ```sql
-SELECT 
-  ag_catalog.agtype_to_json(properties)->>'tenant_id' AS tenant_id, 
-  COUNT(*) 
-FROM eq_eq_default_graph."Node" 
+SELECT
+  ag_catalog.agtype_to_json(properties)->>'tenant_id' AS tenant_id,
+  COUNT(*)
+FROM eq_eq_default_graph."Node"
 GROUP BY tenant_id;
 ```
 
-| tenant_id | count |
-|-----------|-------|
-| NULL | 409 |
-| `5bfc7a5c-9bad-468e-8d39-203f628f9778` (TenantA) | 17 |
+| tenant_id                                        | count |
+| ------------------------------------------------ | ----- |
+| NULL                                             | 409   |
+| `5bfc7a5c-9bad-468e-8d39-203f628f9778` (TenantA) | 17    |
 
 **Graph Schema**: `eq_eq_default_graph` (not `edgequake_graph`)
 
@@ -164,6 +177,7 @@ GROUP BY tenant_id;
    - Workspace: `93514645-790f-4916-9525-9971dbce7383`
 
 2. **Uploaded documents via API**
+
    ```bash
    curl -X POST "http://localhost:8080/api/v1/documents/upload" \
      -H "X-Tenant-ID: 5bfc7a5c-9bad-468e-8d39-203f628f9778" \
@@ -189,6 +203,7 @@ GROUP BY tenant_id;
 ## Key Learnings
 
 ### 1. Multi-Tenant Filtering Complexity
+
 **Problem**: Initial implementation returned 0 entities for TenantA despite database having 17 nodes.
 
 **Root Cause**: Code was correct, but testing happened before backend fully restarted/compiled.
@@ -196,6 +211,7 @@ GROUP BY tenant_id;
 **Solution**: Wait for backend health check + verify PostgreSQL state separately.
 
 ### 2. Frontend JSX Structure Bugs
+
 **Problem**: Extra `</div>` broke dropzone, but fixing it revealed missing parent closing div.
 
 **Lesson**: JSX structure errors cascade - fix one issue, check entire parent hierarchy.
@@ -203,14 +219,17 @@ GROUP BY tenant_id;
 **Debug Method**: Read structure from opening tag to closing tag, trace div nesting manually.
 
 ### 3. Database Schema Naming
+
 **Discovery**: Graph schema is named `eq_eq_default_graph`, not `edgequake_graph`.
 
 **Impact**: Direct PostgreSQL queries must use correct schema name.
 
 ### 4. Testing Timing Issues
+
 **Challenge**: API returning 0 entities immediately after code changes.
 
-**Solution**: 
+**Solution**:
+
 - Restart backend with `make backend-bg`
 - Wait 5+ seconds for compilation
 - Verify with `curl http://localhost:8080/health`
@@ -219,12 +238,14 @@ GROUP BY tenant_id;
 ## Security Implications
 
 **Strict Isolation Enforcement**:
+
 - Nodes without `tenant_id` are EXCLUDED when tenant context is set
 - No fallback to NULL tenant_id (prevents data leakage)
 - Legacy nodes (409) only visible to admin (no tenant headers)
 - Cross-tenant queries return 0 results (not HTTP 404, to prevent tenant enumeration)
 
 **Backward Compatibility Trade-off**:
+
 - Old pattern: `OR tenant_id IS NULL` (permissive - INSECURE)
 - New pattern: strict match only (SECURE - breaks legacy)
 - Migration path: Admin must assign tenant_id to legacy nodes
@@ -241,9 +262,9 @@ GROUP BY tenant_id;
 
 ## Tenant/Workspace IDs Reference
 
-| Tenant | ID | Workspace ID | Usage |
-|--------|-----|--------------|-------|
-| **TenantA** | `5bfc7a5c-9bad-468e-8d39-203f628f9778` | `93514645-790f-4916-9525-9971dbce7383` | Test uploads |
+| Tenant      | ID                                     | Workspace ID                           | Usage            |
+| ----------- | -------------------------------------- | -------------------------------------- | ---------------- |
+| **TenantA** | `5bfc7a5c-9bad-468e-8d39-203f628f9778` | `93514645-790f-4916-9525-9971dbce7383` | Test uploads     |
 | **Default** | `00000000-0000-0000-0000-000000000002` | `00000000-0000-0000-0000-000000000003` | Legacy workspace |
 
 ## Conclusion

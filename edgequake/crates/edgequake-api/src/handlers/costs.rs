@@ -111,7 +111,35 @@ pub async fn estimate_cost(
 )]
 pub async fn get_cost_summary(
     State(state): State<AppState>,
+    tenant_ctx: crate::middleware::TenantContext,
 ) -> ApiResult<Json<WorkspaceCostSummaryResponse>> {
+    use tracing::{debug, warn};
+
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        "Getting cost summary with tenant context"
+    );
+
+    // SECURITY: Enforce strict tenant context requirement
+    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
+        warn!(
+            tenant_id = ?tenant_ctx.tenant_id,
+            workspace_id = ?tenant_ctx.workspace_id,
+            "Tenant context missing - returning empty cost summary for security"
+        );
+        return Ok(Json(WorkspaceCostSummaryResponse {
+            workspace_id: "unknown".to_string(),
+            total_cost: 0.0,
+            document_count: 0,
+            total_tokens: 0,
+            average_cost_per_document: 0.0,
+            period_start: None,
+            period_end: None,
+            by_operation: vec![],
+            budget: None,
+        }));
+    }
     // Query all document metadata to aggregate costs
     let keys = state.kv_storage.keys().await?;
 
@@ -134,6 +162,18 @@ pub async fn get_cost_summary(
 
         for value in values {
             if let Some(obj) = value.as_object() {
+                // SECURITY: Filter by tenant context
+                let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
+                let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
+
+                // Only process documents matching BOTH tenant_id AND workspace_id
+                if tenant_ctx.tenant_id.as_deref() != doc_tenant_id {
+                    continue; // Skip document from other tenant
+                }
+                if tenant_ctx.workspace_id.as_deref() != doc_workspace_id {
+                    continue; // Skip document from other workspace
+                }
+
                 // Only count completed documents
                 let status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
                 if status == "completed" || status == "indexed" {
@@ -179,7 +219,7 @@ pub async fn get_cost_summary(
     };
 
     Ok(Json(WorkspaceCostSummaryResponse {
-        workspace_id: "default".to_string(),
+        workspace_id: tenant_ctx.workspace_id.unwrap_or_else(|| "default".to_string()),
         total_cost,
         document_count,
         total_tokens,
@@ -219,8 +259,29 @@ pub async fn get_cost_summary(
         (status = 200, description = "Budget status", body = BudgetInfo)
     )
 )]
-pub async fn get_budget_status(State(_state): State<AppState>) -> ApiResult<Json<BudgetInfo>> {
+pub async fn get_budget_status(
+    State(_state): State<AppState>,
+    tenant_ctx: crate::middleware::TenantContext,
+) -> ApiResult<Json<BudgetInfo>> {
+    use tracing::{debug, warn};
+
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        "Getting budget status with tenant context"
+    );
+
+    // SECURITY: Enforce strict tenant context requirement
+    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
+        warn!(
+            tenant_id = ?tenant_ctx.tenant_id,
+            workspace_id = ?tenant_ctx.workspace_id,
+            "Tenant context missing - returning default budget for security"
+        );
+    }
+
     // Return default budget info (no budget configured by default)
+    // TODO: In production, fetch tenant-specific budget from database
     Ok(Json(BudgetInfo {
         monthly_budget_usd: 100.0,
         spent_usd: 0.0,
@@ -242,9 +303,30 @@ pub async fn get_budget_status(State(_state): State<AppState>) -> ApiResult<Json
 )]
 pub async fn update_budget(
     State(_state): State<AppState>,
+    tenant_ctx: crate::middleware::TenantContext,
     Json(budget): Json<BudgetInfo>,
 ) -> ApiResult<Json<BudgetInfo>> {
-    // In production, this would persist budget settings
+    use tracing::{debug, warn};
+
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        "Updating budget with tenant context"
+    );
+
+    // SECURITY: Enforce strict tenant context requirement
+    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
+        warn!(
+            tenant_id = ?tenant_ctx.tenant_id,
+            workspace_id = ?tenant_ctx.workspace_id,
+            "Tenant context missing - rejecting budget update"
+        );
+        return Err(crate::error::ApiError::BadRequest(
+            "Tenant context required for budget updates".to_string()
+        ));
+    }
+
+    // In production, this would persist budget settings per tenant/workspace
     Ok(Json(budget))
 }
 
@@ -268,10 +350,28 @@ pub async fn update_budget(
 )]
 pub async fn get_cost_history(
     State(state): State<AppState>,
+    tenant_ctx: crate::middleware::TenantContext,
     Query(params): Query<CostHistoryQuery>,
 ) -> ApiResult<Json<Vec<CostHistoryPoint>>> {
     use chrono::{DateTime, Datelike, Duration, Utc};
     use std::collections::BTreeMap;
+    use tracing::{debug, warn};
+
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        "Getting cost history with tenant context"
+    );
+
+    // SECURITY: Enforce strict tenant context requirement
+    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
+        warn!(
+            tenant_id = ?tenant_ctx.tenant_id,
+            workspace_id = ?tenant_ctx.workspace_id,
+            "Tenant context missing - returning empty cost history for security"
+        );
+        return Ok(Json(vec![]));
+    }
 
     let granularity = params.granularity.as_deref().unwrap_or("day");
 
@@ -291,6 +391,18 @@ pub async fn get_cost_history(
 
         for value in values {
             if let Some(obj) = value.as_object() {
+                // SECURITY: Filter by tenant context
+                let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
+                let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
+
+                // Only process documents matching BOTH tenant_id AND workspace_id
+                if tenant_ctx.tenant_id.as_deref() != doc_tenant_id {
+                    continue; // Skip document from other tenant
+                }
+                if tenant_ctx.workspace_id.as_deref() != doc_workspace_id {
+                    continue; // Skip document from other workspace
+                }
+
                 // Only count completed documents
                 let status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
                 if status != "completed" && status != "indexed" {

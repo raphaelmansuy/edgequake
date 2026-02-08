@@ -1238,6 +1238,32 @@ pub async fn list_documents(
         "Listing documents with tenant context"
     );
 
+    // SECURITY: Enforce strict tenant context requirement - NO EXCEPTIONS
+    // This matches the strict filtering in entities.rs and relationships.rs (commit d11edba8)
+    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
+        warn!(
+            tenant_id = ?tenant_ctx.tenant_id,
+            workspace_id = ?tenant_ctx.workspace_id,
+            "Tenant context missing - returning empty document list for security"
+        );
+        return Ok(Json(ListDocumentsResponse {
+            documents: vec![],
+            total: 0,
+            page: 1,
+            page_size: 100,
+            total_pages: 0,
+            has_more: false,
+            status_counts: StatusCounts {
+                pending: 0,
+                processing: 0,
+                completed: 0,
+                partial_failure: 0,
+                failed: 0,
+                cancelled: 0,
+            },
+        }));
+    }
+
     let keys = state.kv_storage.keys().await?;
     debug!(key_count = keys.len(), "Total keys in KV storage");
     debug!(keys = ?keys, "All keys in KV storage");
@@ -1461,21 +1487,12 @@ pub async fn list_documents(
     let filter_workspace_id = tenant_ctx.workspace_id.clone();
     let filter_tenant_id = tenant_ctx.tenant_id.clone();
 
-    // Helper function to check if document matches tenant context
+    // SECURITY: STRICT tenant filtering - both tenant_id AND workspace_id must match
+    // This matches the strict filtering in entities.rs and relationships.rs (commit d11edba8)
     let matches_tenant_context = |meta: &DocMetadata| -> bool {
-        // If filter_workspace_id is set, document must match
-        if let Some(ref filter_ws) = filter_workspace_id {
-            if meta.workspace_id.as_ref() != Some(filter_ws) {
-                return false;
-            }
-        }
-        // If filter_tenant_id is set, document must match
-        if let Some(ref filter_tid) = filter_tenant_id {
-            if meta.tenant_id.as_ref() != Some(filter_tid) {
-                return false;
-            }
-        }
-        true
+        // Both must match exactly (None is already handled by early return above)
+        meta.workspace_id.as_ref() == filter_workspace_id.as_ref()
+            && meta.tenant_id.as_ref() == filter_tenant_id.as_ref()
     };
 
     // Build document list from BOTH:
