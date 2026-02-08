@@ -53,7 +53,12 @@ export function EnhancedStatusBadge({
     const baseStatus = getDocumentDisplayStatus(document);
     
     // Priority 0: If document has error_message, show as failed
-    if (document.error_message && document.error_message.trim() !== '') {
+    // WHY: Type guard prevents TypeError when backend sends {} instead of string
+    if (
+      document.error_message && 
+      typeof document.error_message === 'string' && 
+      document.error_message.trim() !== ''
+    ) {
       console.error('[EnhancedStatusBadge] Document has error:', {
         id: document.id,
         title: document.title,
@@ -97,7 +102,12 @@ export function EnhancedStatusBadge({
   // Determine best progress message to display
   const progressMessage = useMemo(() => {
     // Priority 0: Error message (highest priority)
-    if (document.error_message && document.error_message.trim() !== '') {
+    // WHY: Type guard prevents TypeError when backend sends {} instead of string
+    if (
+      document.error_message && 
+      typeof document.error_message === 'string' && 
+      document.error_message.trim() !== ''
+    ) {
       return `Error: ${document.error_message}`;
     }
     
