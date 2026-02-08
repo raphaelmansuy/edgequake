@@ -81,7 +81,7 @@ impl PdfUploadOptions {
             .clone()
             .unwrap_or_else(|| match self.vision_provider.as_str() {
                 "ollama" => "gemma3:latest".to_string(),
-                _ => "gpt-5-nano".to_string(),
+                _ => "gpt-4.1-nano".to_string(),
             })
     }
 }
@@ -1517,8 +1517,8 @@ mod tests {
     fn test_pdf_upload_options_vision_model() {
         let mut opts = PdfUploadOptions::default();
         opts.vision_provider = "openai".to_string();
-        // OODA-04: Updated from gpt-4o-mini to gpt-5-nano per mission directive
-        assert_eq!(opts.vision_model(), "gpt-5-nano");
+        // OODA-04: Updated from gpt-4o-mini to gpt-4.1-nano per mission directive
+        assert_eq!(opts.vision_model(), "gpt-4.1-nano");
 
         opts.vision_provider = "ollama".to_string();
         assert_eq!(opts.vision_model(), "gemma3:latest");

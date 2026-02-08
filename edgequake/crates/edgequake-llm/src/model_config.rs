@@ -28,13 +28,13 @@
 //! ## Pricing Note (2026-02)
 //!
 //! OpenAI's cheapest models for document ingestion:
-//! - LLM: `gpt-5-nano` - $0.05/1M input tokens (3x cheaper than gpt-4o-mini)
+//! - LLM: `gpt-4.1-nano` - $0.05/1M input tokens (3x cheaper than gpt-4o-mini)
 //! - Embedding: `text-embedding-3-small` - $0.02/1M tokens (5x cheaper than ada-002)
 //!
 //! ```toml
 //! [defaults]
 //! llm_provider = "openai"
-//! llm_model = "gpt-5-nano"  # Cheapest: $0.05/1M input, $0.40/1M output
+//! llm_model = "gpt-4.1-nano"  # Cheapest: $0.05/1M input, $0.40/1M output
 //! embedding_provider = "openai"
 //! embedding_model = "text-embedding-3-small"  # Cheapest: $0.02/1M tokens
 //!
@@ -410,10 +410,10 @@ fn default_llm_provider() -> String {
 }
 
 fn default_llm_model() -> String {
-    // WHY: gpt-5-nano is the recommended default (2025-02).
+    // WHY: gpt-4.1-nano is the recommended default (2025-02).
     // gpt-4o-mini has quota issues and is being phased out.
     // See: OODA-06 in specs/001-reliable-ingestion-mission/
-    "gpt-5-nano".to_string()
+    "gpt-4.1-nano".to_string()
 }
 
 fn default_embedding_provider() -> String {
@@ -521,8 +521,8 @@ impl ModelsConfig {
                     api_key_env: Some("OPENAI_API_KEY".to_string()),
                     base_url: Some("https://api.openai.com/v1".to_string()),
                     base_url_env: Some("OPENAI_API_BASE".to_string()),
-                    // WHY: gpt-5-nano is the recommended default. gpt-4o-mini deprecated.
-                    default_llm_model: Some("gpt-5-nano".to_string()),
+                    // WHY: gpt-4.1-nano is the recommended default. gpt-4o-mini deprecated.
+                    default_llm_model: Some("gpt-4.1-nano".to_string()),
                     default_embedding_model: Some("text-embedding-3-small".to_string()),
                     priority: 10,
                     models: vec![
@@ -568,10 +568,10 @@ impl ModelsConfig {
                             description: "Cost-effective GPT-4 variant".to_string(),
                             ..Default::default()
                         },
-                        // WHY: gpt-5-nano is the recommended default (2025-02).
+                        // WHY: gpt-4.1-nano is the recommended default (2025-02).
                         // It replaces gpt-4o-mini which has quota issues.
                         ModelCard {
-                            name: "gpt-5-nano".to_string(),
+                            name: "gpt-4.1-nano".to_string(),
                             display_name: "GPT-5 Nano".to_string(),
                             model_type: ModelType::Llm,
                             capabilities: ModelCapabilities {

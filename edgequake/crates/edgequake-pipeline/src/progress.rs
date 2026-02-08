@@ -601,13 +601,13 @@ impl CostTracker {
         }
     }
 
-    /// Create with default gpt-5-nano pricing (recommended cost-effective model).
+    /// Create with default gpt-4.1-nano pricing (recommended cost-effective model).
     pub fn new_gpt5_nano(job_id: impl Into<String>) -> Self {
-        let pricing = ModelPricing::new("gpt-5-nano", 0.00015, 0.0006);
-        Self::new(job_id, "gpt-5-nano", pricing)
+        let pricing = ModelPricing::new("gpt-4.1-nano", 0.00015, 0.0006);
+        Self::new(job_id, "gpt-4.1-nano", pricing)
     }
 
-    /// Create with gpt-4o-mini pricing (legacy, prefer gpt-5-nano).
+    /// Create with gpt-4o-mini pricing (legacy, prefer gpt-4.1-nano).
     ///
     /// # Deprecation Notice
     /// This function is deprecated. Use `new_gpt5_nano()` instead for better
@@ -660,8 +660,8 @@ pub fn default_model_pricing() -> HashMap<String, ModelPricing> {
 
     // OpenAI models
     pricing.insert(
-        "gpt-5-nano".to_string(),
-        ModelPricing::new("gpt-5-nano", 0.00015, 0.0006),
+        "gpt-4.1-nano".to_string(),
+        ModelPricing::new("gpt-4.1-nano", 0.00015, 0.0006),
     );
     pricing.insert(
         "gpt-4o-mini".to_string(),

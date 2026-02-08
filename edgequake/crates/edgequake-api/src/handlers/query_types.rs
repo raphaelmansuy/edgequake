@@ -71,6 +71,19 @@ pub struct QueryRequest {
     /// Top K chunks to keep after reranking.
     #[serde(default)]
     pub rerank_top_k: Option<usize>,
+
+    /// LLM provider to use for this query (e.g., "openai", "ollama", "lmstudio").
+    /// If not provided, uses the workspace or server default.
+    /// @implements SPEC-032: Provider selection in query interface
+    #[serde(default)]
+    pub llm_provider: Option<String>,
+
+    /// Specific model name within the provider (e.g., "gpt-4o-mini", "gemma3:12b").
+    /// When combined with provider, allows full model selection from models.toml.
+    /// If not provided, uses the provider's default chat model.
+    /// @implements SPEC-032: Full model selection in query interface
+    #[serde(default)]
+    pub llm_model: Option<String>,
 }
 
 /// Streaming query request.

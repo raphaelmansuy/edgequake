@@ -163,6 +163,17 @@ pub async fn execute_query(
         engine_request = engine_request.with_rerank_top_k(top_k);
     }
 
+    // SPEC-032: Add LLM provider/model overrides if provided in request
+    // This allows query-time override of the LLM provider and model
+    if let Some(ref provider) = request.llm_provider {
+        debug!(provider = %provider, "Using LLM provider override from request");
+        engine_request = engine_request.with_llm_provider(provider);
+    }
+    if let Some(ref model) = request.llm_model {
+        debug!(model = %model, "Using LLM model override from request");
+        engine_request = engine_request.with_llm_model(model);
+    }
+
     // Add conversation history if provided
     if let Some(history) = &request.conversation_history {
         let engine_history: Vec<edgequake_query::ConversationMessage> = history
@@ -182,16 +193,36 @@ pub async fn execute_query(
         let embedding_result = get_workspace_embedding_provider(&state, workspace_id).await;
         let vector_result = get_workspace_vector_storage(&state, workspace_id).await;
 
+        // Check if LLM provider override is requested
+        let llm_override = if let (Some(ref provider), Some(ref model)) =
+            (&request.llm_provider, &request.llm_model)
+        {
+            debug!(provider = %provider, model = %model, "Creating LLM provider override from request");
+            Some(
+                edgequake_llm::ProviderFactory::create_llm_provider(provider, model).map_err(
+                    |e| ApiError::Internal(format!("Failed to create LLM provider: {}", e)),
+                )?,
+            )
+        } else {
+            None
+        };
+
         match (embedding_result, vector_result) {
             (Ok(Some(embedding_provider)), Ok(Some(vector_storage))) => {
                 // Full workspace isolation: use both workspace-specific embedding and vector storage
                 debug!(
                     workspace_id = %workspace_id,
+                    has_llm_override = llm_override.is_some(),
                     "Using workspace-specific embedding provider AND vector storage for query"
                 );
                 state
                     .sota_engine
-                    .query_with_workspace_config(engine_request, embedding_provider, vector_storage)
+                    .query_with_full_config(
+                        engine_request,
+                        embedding_provider,
+                        vector_storage,
+                        llm_override,
+                    )
                     .await
                     .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
             }
