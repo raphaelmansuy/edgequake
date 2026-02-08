@@ -30,7 +30,6 @@ import { Input } from '@/components/ui/input';
 import {
     Table,
     TableBody,
-    TableCell,
     TableHead,
     TableHeader,
     TableRow,
@@ -41,19 +40,14 @@ import {
     getPipelineStatus,
     reprocessDocument,
 } from '@/lib/api/edgequake';
-import { cn } from '@/lib/utils';
+
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
+
 import {
     AlertCircle,
-    File,
-    FileCode,
-    FileImage,
-    FileSpreadsheet,
     FileText,
-    FileType,
     Loader2,
     RefreshCw,
     Search,
@@ -68,16 +62,15 @@ import { ClearDocumentsDialog } from './clear-documents-dialog';
 import { BatchActionsBar } from './batch-actions-bar';
 import { ConnectionBanner } from './connection-banner';
 import { ConnectionStatus } from './connection-status';
-import { CostCell } from './cost-cell';
-import { DocumentActionsMenu } from './document-actions-menu';
+
 import { DocumentDropzone } from './document-dropzone';
 import { DocumentTableStates } from './document-table-states';
-import { QuickActionButtons } from './quick-action-buttons';
+
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
+import { DocumentTableRow } from './document-table-row';
 import { DocumentViewerDialog } from './document-viewer-dialog';
-import { EnhancedStatusBadge } from './enhanced-status-badge';
-import { ErrorMessagePopover } from './error-message-popover';
+
 import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ProcessingStatusSummary } from './processing-status-summary';
@@ -87,63 +80,6 @@ import { useStuckDetection } from '@/hooks/use-stuck-detection';
 import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
 import { useFileUpload } from '@/hooks/use-file-upload';
 import { useDocumentMutations } from '@/hooks/use-document-mutations';
-
-/**
- * OODA-30: File type icon helper
- * WHY: Visual distinction helps users quickly identify document types
- */
-function getFileTypeIcon(fileName: string | undefined | null) {
-  if (!fileName) return { icon: File, color: 'text-muted-foreground' };
-  const ext = fileName.split('.').pop()?.toLowerCase();
-  switch (ext) {
-    case 'pdf':
-      return { icon: FileText, color: 'text-red-500' };
-    case 'doc':
-    case 'docx':
-      return { icon: FileType, color: 'text-blue-500' };
-    case 'xls':
-    case 'xlsx':
-    case 'csv':
-      return { icon: FileSpreadsheet, color: 'text-green-500' };
-    case 'md':
-    case 'markdown':
-      return { icon: FileCode, color: 'text-purple-500' };
-    case 'txt':
-      return { icon: FileText, color: 'text-gray-500' };
-    case 'html':
-    case 'htm':
-    case 'json':
-    case 'xml':
-      return { icon: FileCode, color: 'text-orange-500' };
-    case 'jpg':
-    case 'jpeg':
-    case 'png':
-    case 'gif':
-    case 'webp':
-      return { icon: FileImage, color: 'text-pink-500' };
-    default:
-      return { icon: File, color: 'text-muted-foreground' };
-  }
-}
-
-/**
- * OODA-32: Highlight search matches in text
- * WHY: Visual feedback shows which part of title matched the search
- */
-function highlightMatches(text: string, query: string): React.ReactNode {
-  if (!query.trim()) return text;
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  const parts = text.split(regex);
-  return parts.map((part, i) =>
-    regex.test(part) ? (
-      <mark key={i} className="bg-yellow-200 dark:bg-yellow-700 px-0.5 rounded">
-        {part}
-      </mark>
-    ) : (
-      part
-    )
-  );
-}
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -808,110 +744,27 @@ export function DocumentManager() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {/* OODA-15: Table rows extracted to DocumentTableRow component */}
                   {documents.map((doc, index) => (
-                    <TableRow 
+                    <DocumentTableRow
                       key={doc.id}
-                      className={cn(
-                        "cursor-pointer transition-colors duration-150",
-                        "hover:bg-primary/5 dark:hover:bg-primary/10",
-                        selectedDocument?.id === doc.id && "bg-primary/10 dark:bg-primary/15 ring-1 ring-primary/20",
-                        index % 2 === 0 ? "bg-background" : "bg-muted/20",
-                        // OODA-25: Failed documents highlight
-                        doc.status === 'failed' && "bg-red-50/50 dark:bg-red-950/20 border-l-4 border-l-red-500",
-                        doc.status === 'partial_failure' && "bg-orange-50/50 dark:bg-orange-950/20 border-l-4 border-l-orange-500"
-                      )}
-                      onClick={() => handleDocumentClick(doc)}
-                      onDoubleClick={() => handleDocumentDoubleClick(doc)}
-                    >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selectedIds.has(doc.id)}
-                          onCheckedChange={(checked) => handleSelectOne(doc.id, !!checked)}
-                          aria-label={t('documents.bulk.select', 'Select')}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex flex-col gap-0.5">
-                          {/* OODA-30: File type icon for visual identification */}
-                          <div className="flex items-center gap-2">
-                            {(() => {
-                              const { icon: FileIcon, color } = getFileTypeIcon(doc.file_name);
-                              return <FileIcon className={cn("h-4 w-4 shrink-0", color)} />;
-                            })()}
-                            {/* OODA-32: Highlight search matches */}
-                            <span className="truncate">
-                              {highlightMatches(
-                                doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`,
-                                searchQuery
-                              )}
-                            </span>
-                          </div>
-                          {/* OODA-05: Enhanced error display with copy and retry */}
-                          {(doc.status === 'failed' || doc.status === 'partial_failure') && doc.error_message && (
-                            <ErrorMessagePopover
-                              message={doc.error_message}
-                              documentId={doc.id}
-                              onRetry={() => reprocessMutation.mutate(doc.id)}
-                              isRetrying={reprocessMutation.isPending}
-                            />
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <EnhancedStatusBadge document={doc} />
-                          {/* Show stage_message below badge for better visibility during PDF conversion */}
-                          {doc.stage_message && doc.current_stage === 'converting' && (
-                            <span className="text-xs text-muted-foreground truncate">
-                              {doc.stage_message}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">{doc.entity_count ?? doc.chunk_count ?? '-'}</TableCell>
-                      <TableCell className="text-center">
-                        <CostCell 
-                          document={doc}
-                          size="sm" 
-                        />
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {doc.created_at 
-                          ? (
-                            <div className="flex items-center gap-1.5">
-                              {/* OODA-34: "New" indicator for documents created within 1 hour */}
-                              {new Date().getTime() - new Date(doc.created_at).getTime() < 3600000 && (
-                                <span className="text-xs font-medium text-green-600 dark:text-green-400 animate-pulse">
-                                  NEW
-                                </span>
-                              )}
-                              <span>{formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}</span>
-                            </div>
-                          )
-                          : '-'}
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {/* OODA-10: Quick action buttons - Extracted to QuickActionButtons */}
-                        <QuickActionButtons
-                          doc={doc}
-                          onViewDetails={handleViewDetails}
-                          onPreview={handleDocumentClick}
-                          onViewInGraph={handleViewInGraph}
-                          onRetry={(id) => reprocessMutation.mutate(id)}
-                          isRetrying={reprocessMutation.isPending}
-                        >
-                          {/* OODA-09: Actions dropdown - Extracted to DocumentActionsMenu */}
-                          <DocumentActionsMenu
-                            doc={doc}
-                            onViewPdf={handleViewPdf}
-                            onCancel={(trackId) => cancelMutation.mutate(trackId)}
-                            onReprocess={(id) => reprocessMutation.mutate(id)}
-                            onDelete={(id) => deleteMutation.mutate(id)}
-                            isCancelling={cancelMutation.isPending}
-                          />
-                        </QuickActionButtons>
-                      </TableCell>
-                    </TableRow>
+                      doc={doc}
+                      index={index}
+                      isSelected={selectedIds.has(doc.id)}
+                      isActive={selectedDocument?.id === doc.id}
+                      searchQuery={searchQuery}
+                      onSelect={handleSelectOne}
+                      onClick={handleDocumentClick}
+                      onDoubleClick={handleDocumentDoubleClick}
+                      onViewDetails={handleViewDetails}
+                      onViewInGraph={handleViewInGraph}
+                      onViewPdf={handleViewPdf}
+                      onRetry={(id) => reprocessMutation.mutate(id)}
+                      onCancel={(trackId) => cancelMutation.mutate(trackId)}
+                      onDelete={(id) => deleteMutation.mutate(id)}
+                      isRetrying={reprocessMutation.isPending}
+                      isCancelling={cancelMutation.isPending}
+                    />
                   ))}
                 </TableBody>
               </Table>
