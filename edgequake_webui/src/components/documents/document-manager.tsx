@@ -25,7 +25,6 @@ import { RightPanel } from '@/components/layout/right-panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import {
     Table,
     TableBody,
@@ -45,8 +44,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     AlertCircle,
     FileText,
-    Search,
-    X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -59,6 +56,7 @@ import { DocumentTableStates } from './document-table-states';
 
 import { DocumentFilters } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
+import { DocumentSearchBar } from './document-search-bar';
 import { DocumentTableRow } from './document-table-row';
 import { DocumentViewerDialog } from './document-viewer-dialog';
 
@@ -315,26 +313,10 @@ export function DocumentManager() {
       
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 pb-3 border-b">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={t('documents.search.placeholder', 'Search documents...')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-8 h-9"
-          />
-          {/* OODA-36: Clear search button */}
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-colors"
-              aria-label="Clear search"
-            >
-              <X className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-          )}
-        </div>
+        <DocumentSearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+        />
         <DocumentFilters
           status={statusFilter}
           onStatusChange={setStatusFilter}
