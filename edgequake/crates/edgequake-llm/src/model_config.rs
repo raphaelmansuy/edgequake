@@ -404,7 +404,10 @@ fn default_llm_provider() -> String {
 }
 
 fn default_llm_model() -> String {
-    "gpt-4o-mini".to_string()
+    // WHY: gpt-5-nano is the recommended default (2025-02).
+    // gpt-4o-mini has quota issues and is being phased out.
+    // See: OODA-06 in specs/001-reliable-ingestion-mission/
+    "gpt-5-nano".to_string()
 }
 
 fn default_embedding_provider() -> String {
@@ -512,7 +515,8 @@ impl ModelsConfig {
                     api_key_env: Some("OPENAI_API_KEY".to_string()),
                     base_url: Some("https://api.openai.com/v1".to_string()),
                     base_url_env: Some("OPENAI_API_BASE".to_string()),
-                    default_llm_model: Some("gpt-4o-mini".to_string()),
+                    // WHY: gpt-5-nano is the recommended default. gpt-4o-mini deprecated.
+                    default_llm_model: Some("gpt-5-nano".to_string()),
                     default_embedding_model: Some("text-embedding-3-small".to_string()),
                     priority: 10,
                     models: vec![
@@ -556,6 +560,29 @@ impl ModelsConfig {
                                 ..Default::default()
                             },
                             description: "Cost-effective GPT-4 variant".to_string(),
+                            ..Default::default()
+                        },
+                        // WHY: gpt-5-nano is the recommended default (2025-02).
+                        // It replaces gpt-4o-mini which has quota issues.
+                        ModelCard {
+                            name: "gpt-5-nano".to_string(),
+                            display_name: "GPT-5 Nano".to_string(),
+                            model_type: ModelType::Llm,
+                            capabilities: ModelCapabilities {
+                                context_length: 128000,
+                                max_output_tokens: 16384,
+                                supports_vision: true,
+                                supports_function_calling: true,
+                                supports_json_mode: true,
+                                supports_streaming: true,
+                                ..Default::default()
+                            },
+                            cost: ModelCost {
+                                input_per_1k: 0.00015, // Similar to gpt-4o-mini
+                                output_per_1k: 0.0006,
+                                ..Default::default()
+                            },
+                            description: "Recommended cost-effective model for entity extraction".to_string(),
                             ..Default::default()
                         },
                         ModelCard {

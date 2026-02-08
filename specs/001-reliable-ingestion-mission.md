@@ -10,6 +10,9 @@ FULLY READ THIS MISSION FILE AT THE START OF EVERY OODA ITERATION TO AVOID ALIGN
 
 Fully execute 50 OODA iterations minimum, producing the required 4 files per iteration.
 
+
+Fully test using playwrigtht use e2e ingestion with several document with using gpt-5-nano, to prove the ingestion pipeline works end to end. Ensure all edge cases are handled, including large files, corrupted files, timeouts, and partial failures.
+
 ### Key Objectives:
 
 1. **Test Document Upload**: Use Playwright browser automation to upload test PDF documents and verify the complete ingestion pipeline works
