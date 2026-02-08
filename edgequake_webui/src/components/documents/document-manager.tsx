@@ -256,7 +256,10 @@ export function DocumentManager() {
       page_size: pageSize,
       status: statusFilter === 'all' ? undefined : statusFilter,
     }),
-    refetchInterval: 5000, // Poll for status updates
+    // OODA-42 ENHANCED: Reduce polling to 1s for smooth status updates
+    // WHY: Users want to see document status evolve in real-time (pending → processing → completed)
+    // FUTURE: Integrate WebSocket subscription (like useIngestionProgress) for true real-time updates
+    refetchInterval: 1000, // 1 second for smooth updates (was 5000ms)
   });
   
   // Pipeline status query
@@ -397,6 +400,38 @@ export function DocumentManager() {
             });
             
             response = textResponse;
+            
+            // OODA-42 EXTENDED: Optimistic update for text/markdown files (same as PDF)
+            // WHY: Text files must also appear immediately in documents panel
+            // The backend creates the document record, add it to cache now for instant visibility
+            if (textResponse.document_id && !textResponse.duplicate_of) {
+              const optimisticDoc: Document = {
+                id: textResponse.document_id,
+                title: file.name,
+                file_name: file.name,
+                file_size: file.size,
+                source_type: 'text',
+                status: 'processing',
+                mime_type: file.type || 'text/plain',
+                created_at: new Date().toISOString(),
+                track_id: textResponse.track_id,
+              };
+              
+              // Add to all document query caches for instant visibility
+              queryClient.setQueriesData<{ documents: Document[]; total: number }>(
+                { queryKey: ['documents'] },
+                (old) => {
+                  if (!old || !old.documents || !Array.isArray(old.documents)) return old;
+                  // Check if document already exists (by document_id)
+                  const exists = old.documents.some(d => d.id === textResponse.document_id);
+                  if (exists) return old;
+                  return {
+                    documents: [optimisticDoc, ...old.documents],
+                    total: (old.total ?? 0) + 1,
+                  };
+                }
+              );
+            }
           }
           
           // Check for duplicate (Phase 4)
