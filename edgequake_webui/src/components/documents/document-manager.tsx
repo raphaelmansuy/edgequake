@@ -35,10 +35,8 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import {
-    deleteDocument,
     getDocuments,
     getPipelineStatus,
-    reprocessDocument,
 } from '@/lib/api/edgequake';
 
 import { useTenantStore } from '@/stores/use-tenant-store';
@@ -80,6 +78,7 @@ import { useStuckDetection } from '@/hooks/use-stuck-detection';
 import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
 import { useFileUpload } from '@/hooks/use-file-upload';
 import { useDocumentMutations } from '@/hooks/use-document-mutations';
+import { useBulkSelection } from '@/hooks/use-bulk-selection';
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -97,9 +96,6 @@ export function DocumentManager() {
       timestamp: new Date().toISOString(),
     });
   }, [selectedTenantId, selectedWorkspaceId]);
-  
-  // Bulk selection state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   // Selected document for preview panel
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
@@ -340,87 +336,17 @@ export function DocumentManager() {
     cancelled: allDocuments.filter((d) => d.status === 'cancelled').length,
   };
 
-  // Bulk selection handlers
-  const handleSelectAll = useCallback((checked: boolean) => {
-    if (checked) {
-      setSelectedIds(new Set(documents.map(d => d.id)));
-    } else {
-      setSelectedIds(new Set());
-    }
-  }, [documents]);
-
-  const handleSelectOne = useCallback((docId: string, checked: boolean) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(docId);
-      } else {
-        next.delete(docId);
-      }
-      return next;
-    });
-  }, []);
-
-  // OODA-07: Clear selection callback for BatchActionsBar
-  const handleClearSelection = useCallback(() => {
-    setSelectedIds(new Set());
-  }, []);
-
-  const handleBulkDelete = useCallback(async () => {
-    const idsToDelete = Array.from(selectedIds);
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const id of idsToDelete) {
-      try {
-        await deleteDocument(id);
-        successCount++;
-      } catch {
-        errorCount++;
-      }
-    }
-
-    if (successCount > 0) {
-      toast.success(t('documents.bulk.deleteSuccess', { count: successCount }) || `Deleted ${successCount} document(s)`);
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-    }
-    if (errorCount > 0) {
-      toast.error(t('documents.bulk.deleteFailed', { count: errorCount }) || `Failed to delete ${errorCount} document(s)`);
-    }
-    setSelectedIds(new Set());
-  }, [selectedIds, queryClient, t]);
-
-  const handleBulkReprocess = useCallback(async () => {
-    const idsToReprocess = Array.from(selectedIds);
-    let successCount = 0;
-    let errorCount = 0;
-
-    // Get documents to find their track_ids
-    const documents = data?.items || [];
-    
-    for (const id of idsToReprocess) {
-      try {
-        const doc = documents.find(d => d.id === id);
-        if (!doc?.track_id) {
-          errorCount++;
-          continue;
-        }
-        await reprocessDocument(doc.track_id);
-        successCount++;
-      } catch {
-        errorCount++;
-      }
-    }
-
-    if (successCount > 0) {
-      toast.success(t('documents.bulk.reprocessSuccess', { count: successCount }) || `Queued ${successCount} document(s) for reprocessing`);
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-    }
-    if (errorCount > 0) {
-      toast.error(t('documents.bulk.reprocessFailed', { count: errorCount }) || `Failed to queue ${errorCount} document(s)`);
-    }
-    setSelectedIds(new Set());
-  }, [selectedIds, data, queryClient, t]);
+  // OODA-16: Bulk selection extracted to useBulkSelection hook
+  const {
+    selectedIds,
+    selectedCount,
+    isAllSelected,
+    handleSelectAll,
+    handleSelectOne,
+    handleClearSelection,
+    handleBulkDelete,
+    handleBulkReprocess,
+  } = useBulkSelection({ documents });
 
   // Document selection for preview panel
   const handleDocumentClick = useCallback((doc: Document) => {
@@ -492,8 +418,8 @@ export function DocumentManager() {
       if (e.key === 'Escape') {
         if (previewPanelOpen) {
           handlePreviewClose();
-        } else if (selectedIds.size > 0) {
-          setSelectedIds(new Set());
+        } else if (selectedCount > 0) {
+          handleClearSelection();
         }
         return;
       }
@@ -515,7 +441,7 @@ export function DocumentManager() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [previewPanelOpen, selectedIds.size, handlePreviewClose, handleSelectAll, refetch, t]);
+  }, [previewPanelOpen, selectedCount, handlePreviewClose, handleSelectAll, handleClearSelection, refetch, t]);
 
   /**
    * OODA-24: Persist sort preferences to localStorage
@@ -690,7 +616,7 @@ export function DocumentManager() {
 
       {/* OODA-07: Bulk Actions Bar - Extracted to BatchActionsBar component */}
       <BatchActionsBar
-        selectedCount={selectedIds.size}
+        selectedCount={selectedCount}
         onReprocess={handleBulkReprocess}
         onDelete={handleBulkDelete}
         onClear={handleClearSelection}
@@ -730,7 +656,7 @@ export function DocumentManager() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="w-[40px]">
                       <Checkbox
-                        checked={selectedIds.size === documents.length && documents.length > 0}
+                        checked={isAllSelected}
                         onCheckedChange={(checked) => handleSelectAll(!!checked)}
                         aria-label={t('documents.bulk.selectAll', 'Select all')}
                       />
