@@ -23,6 +23,7 @@
 **File**: `edgequake_webui/src/components/documents/document-manager.tsx`
 
 **Before** (1s polling):
+
 ```typescript
 const { data } = useQuery({
   queryKey: ['documents', ...],
@@ -32,6 +33,7 @@ const { data } = useQuery({
 ```
 
 **After** (WebSocket):
+
 ```typescript
 const { data } = useQuery({
   queryKey: ['documents', ...],
@@ -47,7 +49,7 @@ useEffect(() => {
 
   // Filter processing documents
   const processingDocs = data.items.filter(
-    (doc) => doc.track_id && doc.status && 
+    (doc) => doc.track_id && doc.status &&
     ['processing', 'chunking', 'extracting', 'embedding', 'indexing'].includes(doc.status)
   );
 
@@ -67,19 +69,20 @@ useEffect(() => {
 ### 2. Added WebSocket Event Listener
 
 **Invalidate Query on Progress Updates**:
+
 ```typescript
 useEffect(() => {
   if (!connected) return;
 
   const wsClient = getWebSocketClient();
-  
+
   // Invalidate documents query whenever we receive a progress update
   const handleProgressUpdate = () => {
-    queryClient.invalidateQueries({ queryKey: ['documents'] });
+    queryClient.invalidateQueries({ queryKey: ["documents"] });
   };
 
-  const unsubProgress = wsClient.on('progress', handleProgressUpdate);
-  
+  const unsubProgress = wsClient.on("progress", handleProgressUpdate);
+
   return () => unsubProgress();
 }, [connected, queryClient]);
 ```
@@ -89,6 +92,7 @@ useEffect(() => {
 **File**: `edgequake_webui/e2e/websocket-document-upload.spec.ts`
 
 **Test Features**:
+
 - ✅ Uses OpenAI tenant (tenant_id: `00000000-0000-0000-0000-000000000002`)
 - ✅ Uploads PDF and verifies immediate appearance (optimistic update)
 - ✅ Monitors WebSocket messages (captures WS frames)
@@ -98,20 +102,21 @@ useEffect(() => {
 - ✅ Tests concurrent uploads (multiple docs in parallel)
 
 **Key Test Steps**:
+
 ```typescript
 // 1. Inject tenant headers via route interception
-await page.route('http://localhost:8080/api/**', async (route) => {
+await page.route("http://localhost:8080/api/**", async (route) => {
   const headers = {
     ...route.request().headers(),
-    'X-Tenant-ID': OPENAI_TENANT_ID,
-    'X-Workspace-ID': OPENAI_WORKSPACE_ID,
+    "X-Tenant-ID": OPENAI_TENANT_ID,
+    "X-Workspace-ID": OPENAI_WORKSPACE_ID,
   };
   await route.continue({ headers });
 });
 
 // 2. Monitor WebSocket
-page.on('websocket', ws => {
-  ws.on('frameReceived', frame => {
+page.on("websocket", (ws) => {
+  ws.on("frameReceived", (frame) => {
     const message = JSON.parse(frame.payload.toString());
     wsMessages.push(message);
   });
@@ -122,7 +127,7 @@ await expect(statusBadge).toContainText(/Processing|Chunking|Extracting/);
 // ... track all status changes via WebSocket
 
 // 4. Verify completion
-await expect(statusBadge).toContainText('Completed', { timeout: 120000 });
+await expect(statusBadge).toContainText("Completed", { timeout: 120000 });
 ```
 
 ## Architecture Overview
@@ -205,23 +210,24 @@ await expect(statusBadge).toContainText('Completed', { timeout: 120000 });
 
 ### Before (Polling)
 
-| Metric                | Value     | Impact                          |
-|-----------------------|-----------|---------------------------------|
-| **Query Interval**    | 1000ms    | Server receives request every 1s |
-| **Requests/minute**   | 60        | High server load                 |
-| **Update Latency**    | 0-1s      | Average 500ms delay              |
-| **Network Traffic**   | High      | Continuous polling               |
+| Metric              | Value  | Impact                           |
+| ------------------- | ------ | -------------------------------- |
+| **Query Interval**  | 1000ms | Server receives request every 1s |
+| **Requests/minute** | 60     | High server load                 |
+| **Update Latency**  | 0-1s   | Average 500ms delay              |
+| **Network Traffic** | High   | Continuous polling               |
 
 ### After (WebSocket)
 
-| Metric                | Value     | Impact                          |
-|-----------------------|-----------|---------------------------------|
-| **Query Interval**    | false     | NO polling                       |
-| **Requests/minute**   | 0         | Zero polling requests            |
-| **Update Latency**    | <100ms    | Instant via WebSocket            |
-| **Network Traffic**   | Minimal   | Only event-driven updates        |
+| Metric              | Value   | Impact                    |
+| ------------------- | ------- | ------------------------- |
+| **Query Interval**  | false   | NO polling                |
+| **Requests/minute** | 0       | Zero polling requests     |
+| **Update Latency**  | <100ms  | Instant via WebSocket     |
+| **Network Traffic** | Minimal | Only event-driven updates |
 
 **Improvements**:
+
 - ✅ **60x fewer requests** - Eliminated 60 requests/minute per user
 - ✅ **5-10x faster updates** - 100ms vs 500ms average latency
 - ✅ **Zero server load** - No polling overhead
@@ -363,23 +369,27 @@ pnpm exec playwright show-report
 ## Summary
 
 **Actions**:
+
 - Removed 1s polling interval from document query
 - Added WebSocket subscription for processing documents
 - Invalidate queries on WebSocket progress events
 - Created comprehensive E2E test with Playwright
 
 **Decisions**:
+
 - Use same WebSocket pattern as `useIngestionProgress`
 - Subscribe only to processing documents (not all)
 - Invalidate entire documents query on any progress update
 - Test with OpenAI tenant for real-world scenario
 
 **Next Steps**:
+
 - Run E2E test to verify WebSocket flow
 - Monitor server load reduction (no more polling)
 - Consider extending WebSocket to other views
 
 **Insights**:
+
 - **60x fewer requests** - Eliminated polling completely
 - **5-10x faster updates** - Real-time via WebSocket
 - **Better UX** - Instant feedback on status changes

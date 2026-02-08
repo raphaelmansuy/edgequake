@@ -219,7 +219,9 @@ pub async fn get_cost_summary(
     };
 
     Ok(Json(WorkspaceCostSummaryResponse {
-        workspace_id: tenant_ctx.workspace_id.unwrap_or_else(|| "default".to_string()),
+        workspace_id: tenant_ctx
+            .workspace_id
+            .unwrap_or_else(|| "default".to_string()),
         total_cost,
         document_count,
         total_tokens,
@@ -322,7 +324,7 @@ pub async fn update_budget(
             "Tenant context missing - rejecting budget update"
         );
         return Err(crate::error::ApiError::BadRequest(
-            "Tenant context required for budget updates".to_string()
+            "Tenant context required for budget updates".to_string(),
         ));
     }
 

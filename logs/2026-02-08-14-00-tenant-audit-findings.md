@@ -21,6 +21,7 @@ Found **5 critical multi-tenant data leakage vulnerabilities** across cost track
 **Issue**: NO tenant context parameter - returns costs for ALL tenants.
 
 **Code**:
+
 ```rust
 pub async fn get_cost_summary(
     State(state): State<AppState>,
@@ -38,11 +39,13 @@ pub async fn get_cost_summary(
 ```
 
 **Impact**:
+
 - ✅ **TenantA request**: Shows costs for ALL tenants combined
 - ✅ **TenantB request**: Shows same costs (ALL tenants)
 - ❌ **Result**: Financial data leakage across tenants
 
 **Sensitive Data Exposed**:
+
 - Total costs across all tenants
 - Document counts
 - Token usage
@@ -60,6 +63,7 @@ pub async fn get_cost_summary(
 **Issue**: NO tenant context parameter - returns historical costs for ALL tenants.
 
 **Code**:
+
 ```rust
 pub async fn get_cost_history(
     State(state): State<AppState>,
@@ -73,11 +77,13 @@ pub async fn get_cost_history(
 ```
 
 **Impact**:
+
 - Historical cost trends exposed across tenants
 - Time-series data leakage (hourly, daily, weekly, monthly)
 - Pattern analysis of other tenants' usage
 
 **Sensitive Data Exposed**:
+
 - Cost trends over time
 - Usage patterns
 - Document processing timestamps
@@ -89,13 +95,15 @@ pub async fn get_cost_history(
 
 **File**: `edgequake/crates/edgequake-api/src/handlers/costs.rs`  
 **Functions**: `get_budget_status()`, `update_budget()` (line 228-254)  
-**Endpoints**: 
+**Endpoints**:
+
 - `GET /api/v1/costs/budget`
 - `PATCH /api/v1/costs/budget`
 
 **Issue**: Returns dummy data currently, but NO tenant isolation when implemented.
 
 **Code**:
+
 ```rust
 pub async fn get_budget_status(
     State(_state): State<AppState>
@@ -110,6 +118,7 @@ pub async fn get_budget_status(
 ```
 
 **Impact**:
+
 - Currently low (dummy data)
 - **HIGH** when implemented - budget settings leakage
 
@@ -124,6 +133,7 @@ pub async fn get_budget_status(
 **Issue**: Uses OLD permissive tenant filtering logic (allows None).
 
 **Code**:
+
 ```rust
 let matches_tenant_context =
     |properties: &std::collections::HashMap<String, serde_json::Value>| {
@@ -137,6 +147,7 @@ let matches_tenant_context =
 ```
 
 **Impact**:
+
 - Admin/system requests without headers see ALL nodes (426 nodes currently)
 - Inconsistent with strict filtering in entities.rs
 - Legacy nodes (NULL tenant_id) visible to all
@@ -154,6 +165,7 @@ let matches_tenant_context =
 **Issue**: Uses permissive filtering - allows documents when tenant context is None.
 
 **Code**:
+
 ```rust
 let matches_tenant_context = |meta: &DocMetadata| -> bool {
     // If filter_workspace_id is set, document must match
@@ -163,7 +175,7 @@ let matches_tenant_context = |meta: &DocMetadata| -> bool {
         }
     }
     // ❌ If filter_workspace_id is None, no filtering happens!
-    
+
     // If filter_tenant_id is set, document must match
     if let Some(ref filter_tid) = filter_tenant_id {
         if meta.tenant_id.as_ref() != Some(filter_tid) {
@@ -171,12 +183,13 @@ let matches_tenant_context = |meta: &DocMetadata| -> bool {
         }
     }
     // ❌ If filter_tenant_id is None, no filtering happens!
-    
+
     true
 };
 ```
 
 **Impact**:
+
 - Admin/system requests without headers see ALL documents
 - Inconsistent with strict filtering in entities/relationships
 - Document metadata leakage across tenants
@@ -191,6 +204,7 @@ let matches_tenant_context = |meta: &DocMetadata| -> bool {
 **Status**: **SECURE** - Tenant context properly added to engine request.
 
 **Code**:
+
 ```rust
 if let Some(ref tenant_id) = data_tenant_id {
     engine_request = engine_request.with_tenant_id(tenant_id.clone());
@@ -208,6 +222,7 @@ if let Some(ref workspace_id) = tenant_ctx.workspace_id {
 **Status**: **SECURE** - Strict workspace isolation enforced.
 
 **Code**:
+
 ```rust
 // OODA-223: NO fallback to default storage in production
 // Fails loudly if workspace not found (prevent data isolation bugs)
@@ -219,6 +234,7 @@ if let Some(ref workspace_id) = tenant_ctx.workspace_id {
 **Status**: **SECURE** - Zero-exception filtering enforced (commit d11edba8).
 
 **Code**:
+
 ```rust
 // SECURITY: STRICT TENANT CONTEXT REQUIRED - NO EXCEPTIONS
 if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
@@ -231,17 +247,17 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
 
 ## Security Model Comparison
 
-| Endpoint | Tenant Context | Filtering Logic | Status |
-|----------|----------------|-----------------|--------|
-| `/api/v1/graph/entities` | ✅ Required | **Strict (OR)** - Both tenant & workspace required | ✅ Secure |
-| `/api/v1/graph/relationships` | ✅ Required | **Strict (OR)** - Both tenant & workspace required | ✅ Secure |
-| `/api/v1/query` | ✅ Required | **Strict** - Workspace-based data tenant ID | ✅ Secure |
-| `/api/v1/documents` (upload) | ✅ Required | **Strict** - Workspace vector storage isolation | ✅ Secure |
-| `/api/v1/documents` (list) | ✅ Present | **Permissive (AND)** - Allows None context | ⚠️ Inconsistent |
-| `/api/v1/graph` | ✅ Present | **Permissive** - Allows None context | ⚠️ Inconsistent |
-| `/api/v1/costs/summary` | ❌ **MISSING** | **None** - No filtering | 🚨 **CRITICAL** |
-| `/api/v1/costs/history` | ❌ **MISSING** | **None** - No filtering | 🚨 **CRITICAL** |
-| `/api/v1/costs/budget` | ❌ **MISSING** | **None** - Dummy data | ⚠️ **Future Risk** |
+| Endpoint                      | Tenant Context | Filtering Logic                                    | Status             |
+| ----------------------------- | -------------- | -------------------------------------------------- | ------------------ |
+| `/api/v1/graph/entities`      | ✅ Required    | **Strict (OR)** - Both tenant & workspace required | ✅ Secure          |
+| `/api/v1/graph/relationships` | ✅ Required    | **Strict (OR)** - Both tenant & workspace required | ✅ Secure          |
+| `/api/v1/query`               | ✅ Required    | **Strict** - Workspace-based data tenant ID        | ✅ Secure          |
+| `/api/v1/documents` (upload)  | ✅ Required    | **Strict** - Workspace vector storage isolation    | ✅ Secure          |
+| `/api/v1/documents` (list)    | ✅ Present     | **Permissive (AND)** - Allows None context         | ⚠️ Inconsistent    |
+| `/api/v1/graph`               | ✅ Present     | **Permissive** - Allows None context               | ⚠️ Inconsistent    |
+| `/api/v1/costs/summary`       | ❌ **MISSING** | **None** - No filtering                            | 🚨 **CRITICAL**    |
+| `/api/v1/costs/history`       | ❌ **MISSING** | **None** - No filtering                            | 🚨 **CRITICAL**    |
+| `/api/v1/costs/budget`        | ❌ **MISSING** | **None** - Dummy data                              | ⚠️ **Future Risk** |
 
 ---
 
@@ -250,6 +266,7 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
 ### Priority 1: Cost Endpoints (P0 - CRITICAL)
 
 **Required Changes**:
+
 1. Add `tenant_ctx: TenantContext` parameter to:
    - `get_cost_summary()`
    - `get_cost_history()`
@@ -257,12 +274,13 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
    - `update_budget()`
 
 2. Filter metadata by tenant context:
+
    ```rust
    // Only process documents matching tenant context
    if let Some(obj) = value.as_object() {
        let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
        let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
-       
+
        // STRICT: Require both tenant_id AND workspace_id to match
        if tenant_ctx.tenant_id.as_deref() != doc_tenant_id {
            continue; // Skip document from other tenant
@@ -270,7 +288,7 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
        if tenant_ctx.workspace_id.as_deref() != doc_workspace_id {
            continue; // Skip document from other workspace
        }
-       
+
        // ... process document
    }
    ```
@@ -280,7 +298,9 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
 ### Priority 2: Graph Visualization (P0 - CRITICAL)
 
 **Required Changes**:
+
 1. Update `get_graph()` filtering logic to match `entities.rs`:
+
    ```rust
    let matches_tenant_context = |properties: &HashMap<String, Value>| {
        // STRICT: Reject if EITHER tenant_id OR workspace_id is missing
@@ -288,11 +308,11 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
            tracing::warn!("Tenant context missing - returning empty for security");
            return false;
        }
-       
+
        // Both must match
        let node_tenant_id = properties.get("tenant_id").and_then(|v| v.as_str());
        let node_workspace_id = properties.get("workspace_id").and_then(|v| v.as_str());
-       
+
        tenant_ctx.tenant_id.as_deref() == node_tenant_id
            && tenant_ctx.workspace_id.as_deref() == node_workspace_id
    };
@@ -303,7 +323,9 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
 ### Priority 3: Document Listing (P1 - HIGH)
 
 **Required Changes**:
+
 1. Update `list_documents()` filtering to strict mode:
+
    ```rust
    let matches_tenant_context = |meta: &DocMetadata| -> bool {
        // STRICT: Both must be present
@@ -311,7 +333,7 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
            tracing::warn!("Tenant context missing - skipping document");
            return false;
        }
-       
+
        // Both must match
        meta.workspace_id.as_ref() == filter_workspace_id.as_ref()
            && meta.tenant_id.as_ref() == filter_tenant_id.as_ref()
@@ -336,36 +358,39 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
 ### E2E Verification Tests
 
 1. **Cost Leakage Test**:
+
    ```bash
    # TenantA uploads document with $0.05 cost
    curl -X POST http://localhost:8080/api/v1/documents \
      -H "X-Tenant-ID: TenantA-UUID" \
      -H "X-Workspace-ID: WorkspaceA-UUID" \
      -d '{"text": "test"}'
-   
+
    # TenantB checks cost summary
    curl http://localhost:8080/api/v1/costs/summary \
      -H "X-Tenant-ID: TenantB-UUID" \
      -H "X-Workspace-ID: WorkspaceB-UUID"
-   
+
    # EXPECTED: 0 documents, $0.00 cost (isolated)
    # ACTUAL (broken): 1 document, $0.05 cost (LEAKAGE)
    ```
 
 2. **Graph Leakage Test**:
+
    ```bash
    # Admin (no headers) requests graph
    curl http://localhost:8080/api/v1/graph
-   
+
    # EXPECTED: 0 nodes (strict enforcement)
    # ACTUAL (broken): 426 nodes (LEAKAGE)
    ```
 
 3. **Document Listing Test**:
+
    ```bash
    # Admin (no headers) lists documents
    curl http://localhost:8080/api/v1/documents
-   
+
    # EXPECTED: 0 documents (strict enforcement)
    # ACTUAL (broken): ALL documents (LEAKAGE)
    ```
@@ -393,6 +418,7 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
 ## Impact Assessment
 
 **Without Fixes**:
+
 - ❌ TenantA can see TenantB's financial costs
 - ❌ TenantA can see TenantB's documents
 - ❌ TenantA can see TenantB's knowledge graph
@@ -400,6 +426,7 @@ if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
 - ❌ Multi-tenant SaaS deployment is **NOT PRODUCTION READY**
 
 **With Fixes**:
+
 - ✅ Perfect tenant isolation across ALL endpoints
 - ✅ Consistent strict filtering everywhere
 - ✅ Zero data leakage between tenants
