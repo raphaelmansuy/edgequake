@@ -27,19 +27,20 @@ pub trait LLMProvider: Send + Sync {
 ```
 
 The trait abstraction means:
+
 - Query engine doesn't care which provider is active
 - Context is built identically for both providers
 - Only the LLM call differs (network endpoint)
 
 ## Test Results Summary
 
-| Mode | Ollama | Expected OpenAI |
-|------|--------|-----------------|
-| local | ✅ Good answer | ✅ Same (uses entities) |
-| global | ❌ No info | ❌ Same (no chunks) |
-| hybrid | ✅ Good answer | ✅ Same |
-| mix | ✅ Good answer | ✅ Same |
-| naive | ❌ No info | ❌ Same (no chunks) |
+| Mode   | Ollama         | Expected OpenAI         |
+| ------ | -------------- | ----------------------- |
+| local  | ✅ Good answer | ✅ Same (uses entities) |
+| global | ❌ No info     | ❌ Same (no chunks)     |
+| hybrid | ✅ Good answer | ✅ Same                 |
+| mix    | ✅ Good answer | ✅ Same                 |
+| naive  | ❌ No info     | ❌ Same (no chunks)     |
 
 **Note**: Global/naive modes returned "no info" because the test document has only 1 chunk and entity-based context is more relevant for the query.
 
@@ -53,12 +54,12 @@ Cannot directly test OpenAI due to "quota exceeded" error. However:
 
 ## Risk Assessment
 
-| Risk | Likelihood | Mitigation |
-|------|------------|------------|
-| OpenAI rate limits | Medium | Retry logic exists in provider |
-| Model capability differences | Low | Both support chat completion |
-| Context length overflow | Low | Chunking handles this |
-| Network timeouts | Medium | Timeout config exists |
+| Risk                         | Likelihood | Mitigation                     |
+| ---------------------------- | ---------- | ------------------------------ |
+| OpenAI rate limits           | Medium     | Retry logic exists in provider |
+| Model capability differences | Low        | Both support chat completion   |
+| Context length overflow      | Low        | Chunking handles this          |
+| Network timeouts             | Medium     | Timeout config exists          |
 
 ## Confidence Level
 

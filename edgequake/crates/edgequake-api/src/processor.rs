@@ -33,7 +33,8 @@ use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::{ChunkProgressCallback, ChunkProgressUpdate, LLMExtractor, Pipeline};
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{
-    PipelinePhase, PipelineState, Task, TaskProcessor, TaskResult, TaskType, TextInsertData,
+    PipelinePhase, PipelineState, Task, TaskError, TaskProcessor, TaskResult, TaskType,
+    TextInsertData,
 };
 use serde_json::json;
 use tracing::{error, info, warn};
@@ -375,6 +376,113 @@ impl DocumentTaskProcessor {
         Arc::clone(&self.pipeline)
     }
 
+    /// OODA-16: Strict variant that returns error instead of falling back.
+    ///
+    /// WHY: In production, silent fallback to default pipeline causes data to be
+    /// processed with wrong providers (e.g., Ollama 768-dim instead of OpenAI 1536-dim).
+    /// This strict method ensures tasks fail clearly when workspace providers can't be created.
+    async fn get_workspace_pipeline_strict(
+        &self,
+        workspace_id: Option<&str>,
+    ) -> Result<Arc<Pipeline>, String> {
+        use edgequake_llm::ProviderFactory;
+
+        info!(
+            workspace_id = ?workspace_id,
+            has_workspace_service = self.workspace_service.is_some(),
+            has_models_config = self.models_config.is_some(),
+            "OODA-16: Getting pipeline for workspace (STRICT mode)"
+        );
+
+        // If no workspace support configured, fail explicitly
+        let (workspace_service, _models_config): (&SharedWorkspaceService, &Arc<ModelsConfig>) =
+            match (&self.workspace_service, &self.models_config) {
+                (Some(ws), Some(mc)) => (ws, mc),
+                _ => {
+                    return Err("OODA-16: No workspace support configured on processor".to_string());
+                }
+            };
+
+        // If no workspace_id provided, fail explicitly
+        let workspace_id = match workspace_id {
+            Some(id) if !id.is_empty() && id != "default" => id,
+            _ => {
+                return Err(format!(
+                    "OODA-16: Invalid workspace_id '{:?}' - must provide valid workspace ID in strict mode",
+                    workspace_id
+                ));
+            }
+        };
+
+        // Parse workspace_id to UUID
+        let workspace_uuid = uuid::Uuid::parse_str(workspace_id).map_err(|e| {
+            format!(
+                "OODA-16: Invalid workspace ID format '{}': {}",
+                workspace_id, e
+            )
+        })?;
+
+        // Look up workspace configuration
+        let ws = workspace_service
+            .get_workspace(workspace_uuid)
+            .await
+            .map_err(|e| {
+                format!(
+                    "OODA-16: Failed to lookup workspace '{}': {}",
+                    workspace_id, e
+                )
+            })?
+            .ok_or_else(|| {
+                format!(
+                    "OODA-16: Workspace '{}' not found in database",
+                    workspace_id
+                )
+            })?;
+
+        // Create workspace-specific LLM provider - FAIL on error
+        let llm_provider =
+            ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model).map_err(
+                |e| {
+                    format!(
+                        "OODA-16: Failed to create LLM provider '{}' with model '{}': {}. \
+                     Check if OPENAI_API_KEY is set for OpenAI providers.",
+                        ws.llm_provider, ws.llm_model, e
+                    )
+                },
+            )?;
+
+        // Create workspace-specific embedding provider - FAIL on error
+        let embedding_provider = ProviderFactory::create_safe_embedding_provider(
+            &ws.embedding_provider,
+            &ws.embedding_model,
+            ws.embedding_dimension,
+        )
+        .map_err(|e| {
+            format!(
+                "OODA-16: Failed to create embedding provider '{}' with model '{}': {}. \
+                 Check if OPENAI_API_KEY is set for OpenAI providers.",
+                ws.embedding_provider, ws.embedding_model, e
+            )
+        })?;
+
+        // SUCCESS: Both providers created
+        info!(
+            workspace_id = workspace_id,
+            llm_provider = %ws.llm_provider,
+            llm_model = %ws.llm_model,
+            embedding_provider = %ws.embedding_provider,
+            embedding_model = %ws.embedding_model,
+            "OODA-16: Successfully created workspace-specific providers (STRICT mode)"
+        );
+
+        let extractor = Arc::new(LLMExtractor::new(Arc::clone(&llm_provider)));
+        Ok(Arc::new(
+            Pipeline::default_pipeline()
+                .with_extractor(extractor)
+                .with_embedding_provider(Arc::clone(&embedding_provider)),
+        ))
+    }
+
     /// Get workspace-specific vector storage using the registry.
     ///
     /// WHY: Different workspaces can have different embedding dimensions (e.g.,
@@ -669,8 +777,37 @@ impl DocumentTaskProcessor {
                 .and_then(|v| v.as_str())
         };
 
-        // Get workspace-specific pipeline (or default if not available)
-        let pipeline = self.get_workspace_pipeline(workspace_id).await;
+        // OODA-16: Get workspace-specific pipeline with strict mode support
+        // WHY: In strict mode, fail the task if workspace providers can't be created
+        // instead of silently falling back to default (wrong dimensions, wrong provider)
+        let pipeline = if self.strict_workspace_mode {
+            match self.get_workspace_pipeline_strict(workspace_id).await {
+                Ok(p) => p,
+                Err(e) => {
+                    error!(
+                        document_id = %document_id,
+                        workspace_id = ?workspace_id,
+                        error = %e,
+                        "OODA-16: Failed to create workspace pipeline in strict mode"
+                    );
+                    // Update document status to Failed with clear error message
+                    let _ = self
+                        .update_document_status(
+                            &document_id,
+                            "failed",
+                            Some(&format!("Workspace provider error: {}", e)),
+                        )
+                        .await;
+                    return Err(TaskError::Process(format!(
+                        "Workspace pipeline error: {}",
+                        e
+                    )));
+                }
+            }
+        } else {
+            // Non-strict mode: fallback to default pipeline (legacy behavior)
+            self.get_workspace_pipeline(workspace_id).await
+        };
 
         // SPEC-032/OODA-198: Capture provider lineage for tracking
         let provider_lineage = self.get_workspace_provider_lineage(workspace_id).await;
@@ -738,8 +875,8 @@ impl DocumentTaskProcessor {
 
                 // OODA-PERF-01: Update document metadata every 3 chunks for UI polling
                 // WHY: Reduce KV writes while maintaining visibility (update ~every 3-5 seconds)
-                let should_update_metadata =
-                    update.chunk_index.is_multiple_of(3) || update.chunk_index == update.total_chunks - 1;
+                let should_update_metadata = update.chunk_index.is_multiple_of(3)
+                    || update.chunk_index == update.total_chunks - 1;
                 if should_update_metadata {
                     let doc_id_clone = doc_id_for_metadata.clone();
                     let kv_clone = Arc::clone(&kv_storage_for_callback);

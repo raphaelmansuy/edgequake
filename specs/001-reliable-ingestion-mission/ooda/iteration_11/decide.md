@@ -6,13 +6,13 @@ Implement enhanced Health API with full provider configuration visibility.
 
 ## Prioritized Changes
 
-| Priority | Change | File | Impact |
-|----------|--------|------|--------|
-| 1 | Add provider health structs | `health_types.rs` | Enable type-safe serialization |
-| 2 | Add fields to HealthResponse | `health_types.rs` | Extend response schema |
-| 3 | Populate fields in handler | `health.rs` | Wire up state to response |
-| 4 | Add unit tests | `health_types.rs` | Verify serialization works |
-| 5 | Verify via curl | N/A | Integration test |
+| Priority | Change                       | File              | Impact                         |
+| -------- | ---------------------------- | ----------------- | ------------------------------ |
+| 1        | Add provider health structs  | `health_types.rs` | Enable type-safe serialization |
+| 2        | Add fields to HealthResponse | `health_types.rs` | Extend response schema         |
+| 3        | Populate fields in handler   | `health.rs`       | Wire up state to response      |
+| 4        | Add unit tests               | `health_types.rs` | Verify serialization works     |
+| 5        | Verify via curl              | N/A               | Integration test               |
 
 ## Specific Changes
 
@@ -54,12 +54,12 @@ pub struct ProvidersHealth {
 ```rust
 pub struct HealthResponse {
     // ... existing fields ...
-    
+
     /// Provider configuration details (LLM and embedding).
     /// WHY: Mission requirement - "know all parts of the applied configuration"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub providers: Option<ProvidersHealth>,
-    
+
     /// Whether PDF storage is enabled.
     /// WHY: Operators need to verify PDF processing is available.
     #[serde(skip_serializing_if = "Option::is_none")]

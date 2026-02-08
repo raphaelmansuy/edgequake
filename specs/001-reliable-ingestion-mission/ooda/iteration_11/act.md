@@ -38,11 +38,11 @@ Added two new optional fields:
 ```rust
 pub struct HealthResponse {
     // ... existing fields ...
-    
+
     /// Provider configuration details (OODA-11)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub providers: Option<ProvidersHealth>,
-    
+
     /// PDF storage enabled status (OODA-11)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_storage_enabled: Option<bool>,
@@ -89,7 +89,7 @@ let pdf_storage_enabled: Option<bool> = None;
 
 ```rust
 pub use crate::handlers::health_types::{
-    ComponentHealth, EmbeddingProviderHealth, HealthResponse, 
+    ComponentHealth, EmbeddingProviderHealth, HealthResponse,
     LlmProviderHealth, ProvidersHealth, SchemaHealth,
 };
 ```
@@ -141,6 +141,7 @@ test result: ok. 8 passed; 0 failed
 ✅ **"Ensure health API make it easy to know all parts of the applied configuration (llm provider, embedding provider, models used, database connection status, pdf storage status, etc.)"**
 
 All fields now exposed:
+
 - LLM provider name and model ✅
 - Embedding provider name, model, and dimension ✅
 - PDF storage enabled status ✅

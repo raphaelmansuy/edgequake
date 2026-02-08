@@ -10,11 +10,11 @@
 
 ### Impact Assessment
 
-| Impact | Severity | Description |
-|--------|----------|-------------|
-| Delete blocked | High | Users cannot delete documents in "default" workspace |
-| Cleanup stuck | High | Cancelled documents accumulate |
-| Data orphans | Medium | Cannot clean up stale data |
+| Impact         | Severity | Description                                          |
+| -------------- | -------- | ---------------------------------------------------- |
+| Delete blocked | High     | Users cannot delete documents in "default" workspace |
+| Cleanup stuck  | High     | Cancelled documents accumulate                       |
+| Data orphans   | Medium   | Cannot clean up stale data                           |
 
 ## Proposed Fix
 
@@ -43,10 +43,10 @@ let effective_workspace_id = if workspace_id == "default" || workspace_id.is_emp
 
 ## Risk Assessment
 
-| Change | Risk | Mitigation |
-|--------|------|------------|
-| Mapping "default" | Low | Well-defined default UUID, same as processor.rs |
-| Adding "cancelled" | Low | Cancelled is a terminal state, safe to delete |
+| Change             | Risk | Mitigation                                      |
+| ------------------ | ---- | ----------------------------------------------- |
+| Mapping "default"  | Low  | Well-defined default UUID, same as processor.rs |
+| Adding "cancelled" | Low  | Cancelled is a terminal state, safe to delete   |
 
 ## Alternatives Considered
 

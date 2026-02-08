@@ -662,20 +662,21 @@ make backend-bg
 
 ### Environment Variables Reference
 
-| Variable                      | Required | Purpose                         | Example                                              |
-| ----------------------------- | -------- | ------------------------------- | ---------------------------------------------------- |
-| `DATABASE_URL`                | ✅ Yes   | PostgreSQL connection           | `postgres://edgequake:edgequake@localhost/edgequake` |
-| `OPENAI_API_KEY`              | Optional | Enable OpenAI provider          | `sk-proj-...`                                        |
-| `EDGEQUAKE_LLM_PROVIDER`      | Optional | Override LLM provider           | `openai`, `ollama`, `lmstudio`, `mock`               |
-| `EDGEQUAKE_EMBEDDING_PROVIDER`| Optional | Hybrid mode: separate embedding | `ollama` (use with `EDGEQUAKE_LLM_PROVIDER=openai`)  |
-| `OLLAMA_HOST`                 | Optional | Ollama server URL               | `http://localhost:11434`                             |
-| `OLLAMA_EMBEDDING_MODEL`      | Optional | Ollama embedding model          | `embeddinggemma:latest`                              |
-| `PDFIUM_DYNAMIC_LIB_PATH`     | Auto-set | PDF extraction library          | Set by Makefile                                      |
-| `RUST_LOG`                    | Optional | Logging level                   | `debug`, `info`, `warn`                              |
+| Variable                       | Required | Purpose                         | Example                                              |
+| ------------------------------ | -------- | ------------------------------- | ---------------------------------------------------- |
+| `DATABASE_URL`                 | ✅ Yes   | PostgreSQL connection           | `postgres://edgequake:edgequake@localhost/edgequake` |
+| `OPENAI_API_KEY`               | Optional | Enable OpenAI provider          | `sk-proj-...`                                        |
+| `EDGEQUAKE_LLM_PROVIDER`       | Optional | Override LLM provider           | `openai`, `ollama`, `lmstudio`, `mock`               |
+| `EDGEQUAKE_EMBEDDING_PROVIDER` | Optional | Hybrid mode: separate embedding | `ollama` (use with `EDGEQUAKE_LLM_PROVIDER=openai`)  |
+| `OLLAMA_HOST`                  | Optional | Ollama server URL               | `http://localhost:11434`                             |
+| `OLLAMA_EMBEDDING_MODEL`       | Optional | Ollama embedding model          | `embeddinggemma:latest`                              |
+| `PDFIUM_DYNAMIC_LIB_PATH`      | Auto-set | PDF extraction library          | Set by Makefile                                      |
+| `RUST_LOG`                     | Optional | Logging level                   | `debug`, `info`, `warn`                              |
 
 ### Hybrid Provider Mode (SPEC-033)
 
 Use different providers for LLM and embeddings. Useful when:
+
 - OpenAI has LLM quota but not embedding quota
 - Cost savings (free local embeddings with cloud LLM)
 - Privacy (local embeddings, cloud LLM quality)
@@ -690,14 +691,14 @@ export OLLAMA_HOST=http://localhost:11434
 
 ### Troubleshooting Quick Reference
 
-| Problem                      | Quick Fix                                         |
-| ---------------------------- | ------------------------------------------------- |
-| "DATABASE_URL not set"       | Run `make dev` instead of `cargo run`             |
-| "Connection refused on 8080" | Check PostgreSQL: `make postgres-start`           |
-| "Entity extraction failed"   | Start Ollama: `ollama serve &`                    |
-| "Model not found"            | Pull model: `ollama pull gemma3:latest`           |
-| "Port 3000 in use"           | Kill stale process: `lsof -ti:3000 \| xargs kill` |
-| Tests failing                | Run `cargo test -p <crate> --lib` for details     |
+| Problem                      | Quick Fix                                              |
+| ---------------------------- | ------------------------------------------------------ |
+| "DATABASE_URL not set"       | Run `make dev` instead of `cargo run`                  |
+| "Connection refused on 8080" | Check PostgreSQL: `make postgres-start`                |
+| "Entity extraction failed"   | Start Ollama: `ollama serve &`                         |
+| "Model not found"            | Pull model: `ollama pull gemma3:latest`                |
+| "Port 3000 in use"           | Kill stale process: `lsof -ti:3000 \| xargs kill`      |
+| Tests failing                | Run `cargo test -p <crate> --lib` for details          |
 | "Embedding quota exceeded"   | Use hybrid mode: `EDGEQUAKE_EMBEDDING_PROVIDER=ollama` |
 
 ### Best Practices (Mission Learnings)

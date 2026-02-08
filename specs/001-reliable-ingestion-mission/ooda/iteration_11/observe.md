@@ -1,6 +1,7 @@
 # OODA-11: Observe - Health API Enhancement
 
 ## Mission Criterion
+
 > "Ensure health API make it easy to know all parts of the applied configuration (llm provider, embedding provider, models used, database connection status, pdf storage status, etc.)"
 
 ## Current Health API Response
@@ -28,19 +29,20 @@
 
 ## Gap Analysis
 
-| Field | Present | Source | Notes |
-|-------|---------|--------|-------|
-| LLM provider name | ✅ | `state.llm_provider.name()` | Shows "ollama" or "openai" |
-| LLM model | ❌ | `state.llm_provider.model()` | **MISSING** - Critical for debugging |
-| Embedding provider name | ❌ | `state.embedding_provider.name()` | **MISSING** |
-| Embedding model | ❌ | `state.embedding_provider.model()` | **MISSING** |
-| Embedding dimension | ❌ | `state.embedding_provider.dimension()` | **MISSING** - Important for vector ops |
-| PDF storage status | ❌ | `state.pdf_storage.is_some()` | **MISSING** |
-| Database URL (sanitized) | ❌ | N/A | Optional, low priority |
+| Field                    | Present | Source                                 | Notes                                  |
+| ------------------------ | ------- | -------------------------------------- | -------------------------------------- |
+| LLM provider name        | ✅      | `state.llm_provider.name()`            | Shows "ollama" or "openai"             |
+| LLM model                | ❌      | `state.llm_provider.model()`           | **MISSING** - Critical for debugging   |
+| Embedding provider name  | ❌      | `state.embedding_provider.name()`      | **MISSING**                            |
+| Embedding model          | ❌      | `state.embedding_provider.model()`     | **MISSING**                            |
+| Embedding dimension      | ❌      | `state.embedding_provider.dimension()` | **MISSING** - Important for vector ops |
+| PDF storage status       | ❌      | `state.pdf_storage.is_some()`          | **MISSING**                            |
+| Database URL (sanitized) | ❌      | N/A                                    | Optional, low priority                 |
 
 ## Code Locations
 
 ### HealthResponse struct
+
 **File**: `edgequake/crates/edgequake-api/src/handlers/health_types.rs:14`
 
 ```rust
@@ -56,6 +58,7 @@ pub struct HealthResponse {
 ```
 
 ### Health handler implementation
+
 **File**: `edgequake/crates/edgequake-api/src/handlers/health.rs:67`
 
 ```rust
@@ -65,6 +68,7 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
 ```
 
 ### AppState storage of providers
+
 **File**: `edgequake/crates/edgequake-api/src/state.rs:175-181`
 
 ```rust
@@ -76,11 +80,13 @@ pub embedding_provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
 ## Trait Methods Available
 
 ### LLMProvider trait (`edgequake-llm/src/traits.rs:137`)
+
 - `fn name(&self) -> &str` ✅
 - `fn model(&self) -> &str` ✅
 - `fn max_context_length(&self) -> usize` ✅
 
 ### EmbeddingProvider trait (`edgequake-llm/src/traits.rs:329`)
+
 - `fn name(&self) -> &str` ✅
 - `fn model(&self) -> &str` ✅
 - `fn dimension(&self) -> usize` ✅

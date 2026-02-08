@@ -10,7 +10,6 @@ FULLY READ THIS MISSION FILE AT THE START OF EVERY OODA ITERATION TO AVOID ALIGN
 
 Fully execute 50 OODA iterations minimum, producing the required 4 files per iteration.
 
-
 Fully test using playwrigtht use e2e ingestion with several document with using gpt-5-nano, to prove the ingestion pipeline works end to end. Ensure all edge cases are handled, including large files, corrupted files, timeouts, and partial failures.
 
 ### Key Objectives:
@@ -146,10 +145,11 @@ Failure to re-read causes alignment drift → catastrophic safety issues → use
 - [ ] Audit pipeline processing code to ensure all errors are properly handled and propagated using Result<T, Error> types. No panics allowed.
 - [ ] Ensure comprehensive logging is in place for debugging ingestion issues.
 - [ ] Ensure it is impossible to have silent failures in the ingestion pipeline. All errors must be logged and propagated.
-- [ ] Ensure it always possible to cancel the status of document stuck in processing state via the API or UI. 
+- [ ] Ensure it always possible to cancel the status of document stuck in processing state via the API or UI.
 - [ ] Ensure no code duplication exists for the ingestion pipeline and query pipeline. Shared logic must be refactored into common modules. SRP and DRY principles must be followed.
+- [ ] Ensure the queuing system used for document processing is robust and can handle retries, backoffs, and failures gracefully and is managed using database persistence.
 
---> The OpenAI API quota is exceeded demonstrate an issue, switch to the latest embedding and llm models available on  openai. Use the cheapest possible models that work well for document ingestion. It is vital to ensure the ingestion pipeline works end to end with openai models as well as ollama models.
+--> The OpenAI API quota is exceeded demonstrate an issue, switch to the latest embedding and llm models available on openai. Use the cheapest possible models that work well for document ingestion. It is vital to ensure the ingestion pipeline works end to end with openai models as well as ollama models.
 
 ---
 
@@ -157,17 +157,17 @@ Failure to re-read causes alignment drift → catastrophic safety issues → use
 
 ### OpenAI Cheapest Models (2026-02)
 
-| Type | Model | Price | Notes |
-|------|-------|-------|-------|
-| **LLM** | `gpt-5-nano` | $0.05/1M input, $0.40/1M output | 3x cheaper than gpt-4o-mini ✅ |
-| **Embedding** | `text-embedding-3-small` | $0.02/1M tokens | 5x cheaper than ada-002, 1536 dims ✅ |
+| Type          | Model                    | Price                           | Notes                                 |
+| ------------- | ------------------------ | ------------------------------- | ------------------------------------- |
+| **LLM**       | `gpt-5-nano`             | $0.05/1M input, $0.40/1M output | 3x cheaper than gpt-4o-mini ✅        |
+| **Embedding** | `text-embedding-3-small` | $0.02/1M tokens                 | 5x cheaper than ada-002, 1536 dims ✅ |
 
 ### Ollama Default Models (No API costs)
 
-| Type | Model | Dimension | Notes |
-|------|-------|-----------|-------|
-| **LLM** | `gemma3:12b` | N/A | 128K context, vision support |
-| **Embedding** | `embeddinggemma` | 768 | Good for local development |
+| Type          | Model            | Dimension | Notes                        |
+| ------------- | ---------------- | --------- | ---------------------------- |
+| **LLM**       | `gemma3:12b`     | N/A       | 128K context, vision support |
+| **Embedding** | `embeddinggemma` | 768       | Good for local development   |
 
 ### Troubleshooting Quota Exceeded
 
@@ -177,15 +177,14 @@ If you see "You exceeded your current quota":
 2. **Verify billing status**: https://platform.openai.com/account/billing
 3. **Use Ollama for development**: No API costs, works locally
 4. **Switch provider via env var**:
+
    ```bash
    # Use Ollama (default)
    EDGEQUAKE_DEFAULT_LLM_PROVIDER=ollama
-   
+
    # Use OpenAI (requires OPENAI_API_KEY)
    EDGEQUAKE_DEFAULT_LLM_PROVIDER=openai
    ```
-
-
 
 Test with this cURL command to confirm OpenAI works:
 
@@ -201,3 +200,11 @@ curl https://api.openai.com/v1/responses \
     "input": "write a haiku about ai",
     "store": true
   }'
+
+
+  ENSURE TO TEST WITH OPENAI TO PROVE IT WORKS END TO END. THIS IS CRITICAL !!!!
+
+
+
+Update to use gpt-4.1-nano instead of gpt-5-nano
+```

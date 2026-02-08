@@ -10,6 +10,7 @@
 **Lines**: 26-38
 
 **Change**:
+
 - Updated example configuration from deprecated `gpt-4o-mini` to `gpt-5-nano`
 - Added pricing note with cost comparison
 
@@ -34,12 +35,14 @@
 ### 2. Tested OpenAI Provider
 
 **Backend started with OpenAI default**:
+
 ```bash
 make backend-bg
 # Output: → OPENAI_API_KEY detected - using OpenAI as default provider
 ```
 
 **Health check confirmed OpenAI**:
+
 ```json
 {
   "llm_provider_name": "openai",
@@ -48,6 +51,7 @@ make backend-bg
 ```
 
 **Upload test result**:
+
 ```json
 {
   "code": "PIPELINE_ERROR",
@@ -63,6 +67,7 @@ Our code correctly uses `gpt-5-nano` and `text-embedding-3-small` (cheapest mode
 ### 3. Tested Ollama Provider ✅ SUCCESS
 
 **Backend started with Ollama**:
+
 ```bash
 EDGEQUAKE_DEFAULT_LLM_PROVIDER="ollama"
 EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER="ollama"
@@ -71,19 +76,21 @@ EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="nomic-embed-text"
 ```
 
 **Health check confirmed Ollama**:
+
 ```json
 {
   "llm_provider_name": "ollama",
-  "components": { 
+  "components": {
     "kv_storage": true,
     "vector_storage": true,
     "graph_storage": true,
-    "llm_provider": true 
+    "llm_provider": true
   }
 }
 ```
 
 **Upload test result**:
+
 ```json
 {
   "document_id": "771aa051-fb52-4c21-891e-6809608b5708",
@@ -97,6 +104,7 @@ EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="nomic-embed-text"
 ```
 
 **Document lineage**:
+
 ```json
 {
   "llm_model": "gemma3:12b",
@@ -112,31 +120,34 @@ EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="nomic-embed-text"
 
 ### 4. Summary of Findings
 
-| Test | Result | Notes |
-|------|--------|-------|
-| OpenAI model defaults | ✅ Optimal | gpt-5-nano, text-embedding-3-small |
-| Ollama model defaults | ✅ Correct | gemma3:12b, embeddinggemma |
-| OpenAI E2E ingestion | ⚠️ Quota err | User account limit, not code issue |
-| Ollama E2E ingestion | ✅ SUCCESS | 3 entities, 2 relationships extracted |
-| Storage components | ✅ Working | All PostgreSQL storage healthy |
+| Test                  | Result       | Notes                                 |
+| --------------------- | ------------ | ------------------------------------- |
+| OpenAI model defaults | ✅ Optimal   | gpt-5-nano, text-embedding-3-small    |
+| Ollama model defaults | ✅ Correct   | gemma3:12b, embeddinggemma            |
+| OpenAI E2E ingestion  | ⚠️ Quota err | User account limit, not code issue    |
+| Ollama E2E ingestion  | ✅ SUCCESS   | 3 entities, 2 relationships extracted |
+| Storage components    | ✅ Working   | All PostgreSQL storage healthy        |
 
 ---
 
 ## Evidence
 
 ### Build Output
+
 ```
    Compiling edgequake-llm v0.1.0
    Finished `release` profile [optimized] target(s) in 13.97s
 ```
 
 ### Ollama Health Check
+
 ```
 {"status":"healthy","version":"0.1.0","storage_mode":"postgresql",
  "llm_provider_name":"ollama",...}
 ```
 
 ### Successful Ingestion
+
 - Document ID: `771aa051-fb52-4c21-891e-6809608b5708`
 - Entities: EDGEQUAKE, RUST, OLLAMA
 - Relations: WRITTEN_IN, PROVIDES

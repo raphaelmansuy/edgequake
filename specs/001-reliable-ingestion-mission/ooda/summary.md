@@ -8,18 +8,18 @@ Continuing OODA iterations. 10 iterations completed. Focus areas: model pricing 
 
 ## Timeline
 
-| Iteration | Date       | Focus                     | Commit                 |
-| --------- | ---------- | ------------------------- | ---------------------- |
-| OODA-01   | -          | E2E Verification          | (verification only)    |
-| OODA-02   | -          | Deprecate gpt-4o-mini     | `04622bff`, `647dec5e` |
-| OODA-03   | -          | Require DATABASE_URL      | `7aba026e`, `ceaf7e9e` |
-| OODA-04   | -          | Fix test assertions       | `0b3df663`, `b9550692` |
-| OODA-05   | -          | Developer Workflow docs   | `5ad3630c`             |
-| OODA-06   | -          | gpt-5-nano defaults       | `cd963e42`             |
-| OODA-07   | -          | Clippy fixes              | `ec988956`             |
-| OODA-08   | -          | Error handling review     | (this commit)          |
-| OODA-09   | -          | (incomplete)              | -                      |
-| OODA-10   | 2026-02-08 | Model pricing verification| `7a0460f9`             |
+| Iteration | Date       | Focus                      | Commit                 |
+| --------- | ---------- | -------------------------- | ---------------------- |
+| OODA-01   | -          | E2E Verification           | (verification only)    |
+| OODA-02   | -          | Deprecate gpt-4o-mini      | `04622bff`, `647dec5e` |
+| OODA-03   | -          | Require DATABASE_URL       | `7aba026e`, `ceaf7e9e` |
+| OODA-04   | -          | Fix test assertions        | `0b3df663`, `b9550692` |
+| OODA-05   | -          | Developer Workflow docs    | `5ad3630c`             |
+| OODA-06   | -          | gpt-5-nano defaults        | `cd963e42`             |
+| OODA-07   | -          | Clippy fixes               | `ec988956`             |
+| OODA-08   | -          | Error handling review      | (this commit)          |
+| OODA-09   | -          | (incomplete)               | -                      |
+| OODA-10   | 2026-02-08 | Model pricing verification | `7a0460f9`             |
 
 ## Success Criteria Final Status
 
