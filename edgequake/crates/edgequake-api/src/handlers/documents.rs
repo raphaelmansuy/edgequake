@@ -107,8 +107,18 @@ async fn get_workspace_vector_storage_strict(
     // This prevents silent data loss in production while maintaining test compatibility
     let allow_fallback = state.storage_mode.is_memory();
 
+    // OODA-13: Handle "default" workspace by mapping to the well-known UUID
+    // WHY: Documents created via default workspace are stored with workspace_id="default"
+    // but deletion/operations need a valid UUID for vector storage lookup.
+    // Default workspace UUID: 00000000-0000-0000-0000-000000000003
+    let effective_workspace_id = if workspace_id == "default" || workspace_id.is_empty() {
+        "00000000-0000-0000-0000-000000000003"
+    } else {
+        workspace_id
+    };
+
     // Parse workspace ID - FAIL in production, WARN in test mode
-    let workspace_uuid = match Uuid::parse_str(workspace_id) {
+    let workspace_uuid = match Uuid::parse_str(effective_workspace_id) {
         Ok(uuid) => uuid,
         Err(e) => {
             if allow_fallback {
@@ -2048,8 +2058,9 @@ pub async fn delete_document(
                 document_id
             )));
         }
-        "completed" | "processed" | "partial_failure" | "failed" | "unknown" => {
+        "completed" | "processed" | "partial_failure" | "failed" | "cancelled" | "unknown" => {
             // OK to delete
+            // OODA-13: Added "cancelled" status to explicitly allow deletion after task cancellation
             tracing::debug!(
                 document_id = %document_id,
                 status = %document_status,
