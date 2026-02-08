@@ -612,7 +612,10 @@ impl CostTracker {
     /// # Deprecation Notice
     /// This function is deprecated. Use `new_gpt5_nano()` instead for better
     /// cost efficiency and availability. gpt-4o-mini quotas may be exceeded.
-    #[deprecated(since = "0.1.0", note = "Use new_gpt5_nano() for better cost efficiency")]
+    #[deprecated(
+        since = "0.1.0",
+        note = "Use new_gpt5_nano() for better cost efficiency"
+    )]
     pub fn new_gpt4o_mini(job_id: impl Into<String>) -> Self {
         let pricing = ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006);
         Self::new(job_id, "gpt-4o-mini", pricing)

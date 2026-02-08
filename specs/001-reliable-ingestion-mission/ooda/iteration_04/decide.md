@@ -1,11 +1,13 @@
 # OODA Iteration 04 - Decide
 
 ## Mission Re-Read Checkpoint
+
 ✅ Mission file re-read: `./specs/001-reliable-ingestion-mission.md`
 
 ## Decision: Test Fix + Code Cleanup
 
 This iteration focuses on:
+
 1. Verifying the test fix from observe phase
 2. Fixing unused code warnings in production code
 3. Quick E2E verification
@@ -27,6 +29,7 @@ assert_eq!(opts.vision_model(), "gpt-5-nano");
 **File:** `edgequake-api/src/handlers/documents.rs:55`
 
 **Current:**
+
 ```rust
 use edgequake_storage::ListPdfFilter;
 ```
@@ -38,11 +41,13 @@ use edgequake_storage::ListPdfFilter;
 **File:** `edgequake-api/src/handlers/documents.rs:2527`
 
 **Current:**
+
 ```rust
 let mut total_pdfs_deleted = 0usize;
 ```
 
 **New:**
+
 ```rust
 let total_pdfs_deleted = 0usize;
 ```
@@ -50,11 +55,13 @@ let total_pdfs_deleted = 0usize;
 ### Change 4: Quick E2E Check
 
 **Steps:**
+
 1. Check test documents exist in `zz-explore/EMILE_FREY/`
 2. Restart backend with DATABASE_URL
 3. Upload PDF via API/curl
 
 **Not In Scope (This Iteration):**
+
 - Playwright browser automation
 - Full dead code cleanup in test files
 - Comprehensive E2E testing
@@ -70,11 +77,11 @@ let total_pdfs_deleted = 0usize;
 
 ## Risk Assessment
 
-| Change | Risk | Impact |
-|--------|------|--------|
-| Remove unused import | None | Cleaner code |
-| Remove `mut` | None | Cleaner code |
-| Test fix | Low | May need adjustment |
+| Change               | Risk | Impact              |
+| -------------------- | ---- | ------------------- |
+| Remove unused import | None | Cleaner code        |
+| Remove `mut`         | None | Cleaner code        |
+| Test fix             | Low  | May need adjustment |
 
 ## Success Criteria
 

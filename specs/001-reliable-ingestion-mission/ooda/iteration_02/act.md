@@ -1,11 +1,13 @@
 # OODA Iteration 02 - Act
 
 ## Mission Re-Read Checkpoint
+
 ✅ Mission file re-read: `./specs/001-reliable-ingestion-mission.md`
 
 ## Summary
 
 Successfully implemented safety hardening for production mode:
+
 1. Deprecated `new_gpt4o_mini()` with explicit deprecation warning
 2. Enhanced memory mode warning in main.rs to be more explicit
 3. Added prominent warning box to Makefile `backend-memory` target
@@ -17,6 +19,7 @@ Successfully implemented safety hardening for production mode:
 **File:** [edgequake-pipeline/src/progress.rs](../../edgequake/crates/edgequake-pipeline/src/progress.rs#L611-L619)
 
 **Change:**
+
 ```rust
 /// Create with gpt-4o-mini pricing (legacy, prefer gpt-5-nano).
 ///
@@ -30,7 +33,8 @@ pub fn new_gpt4o_mini(job_id: impl Into<String>) -> Self {
 }
 ```
 
-**Rationale:** 
+**Rationale:**
+
 - Function still works for backward compatibility but warns developers
 - gpt-5-nano is recommended as the cost-effective alternative
 - Follows Rust best practices for deprecation
@@ -40,6 +44,7 @@ pub fn new_gpt4o_mini(job_id: impl Into<String>) -> Self {
 **File:** [edgequake/src/main.rs](../../edgequake/src/main.rs#L254-L256)
 
 **Change:**
+
 ```rust
 // OODA-02: Enhanced warning for memory mode - NOT FOR PRODUCTION
 warn!("⚠️ WARNING: No DATABASE_URL set - using IN-MEMORY storage.");
@@ -48,6 +53,7 @@ warn!("   Set DATABASE_URL to use PostgreSQL for production.");
 ```
 
 **Rationale:**
+
 - Changed from `info!` to `warn!` for higher visibility
 - Explicit "NOT FOR PRODUCTION USE" message
 - Actionable guidance: "Set DATABASE_URL to use PostgreSQL"
@@ -57,6 +63,7 @@ warn!("   Set DATABASE_URL to use PostgreSQL for production.");
 **File:** [Makefile](../../Makefile#L377-L388)
 
 **Change:**
+
 ```makefile
 # OODA-02: WARNING - In-memory mode is for LOCAL TESTING ONLY
 # DO NOT use in production. Data does not persist across restarts.
@@ -71,6 +78,7 @@ backend-memory: ## Run backend with in-memory storage (for testing only - NOT FO
 ```
 
 **Rationale:**
+
 - Prominent visual warning box with ASCII borders
 - Red color for maximum visibility
 - Clear guidance to use `backend-dev` instead
@@ -78,15 +86,19 @@ backend-memory: ## Run backend with in-memory storage (for testing only - NOT FO
 ## Build & Test Results
 
 ### Build
+
 ```
 Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.54s
 ```
+
 ✅ Build successful - no compilation errors
 
 ### Deprecation Warning (Expected)
+
 Users of `new_gpt4o_mini()` will now see:
+
 ```
-warning: use of deprecated function `edgequake_pipeline::progress::CostTracker::new_gpt4o_mini`: 
+warning: use of deprecated function `edgequake_pipeline::progress::CostTracker::new_gpt4o_mini`:
 Use new_gpt5_nano() for better cost efficiency
 ```
 
@@ -106,21 +118,21 @@ Use new_gpt5_nano() for better cost efficiency
 
 ## Updated Success Criteria
 
-| Criterion | Status | Notes |
-|-----------|--------|-------|
-| Document upload via UI works | ✅ | Tested in iteration 01 |
-| Document processing completes | ✅ | Verified |
-| KG populated with entities | ✅ | 200 entities |
-| No in-memory providers in prod | ⚠️ | Now with explicit warnings |
-| gpt-5-nano is default OpenAI model | ⚠️ | gpt-4o-mini deprecated |
-| All tests pass | ❓ | Need full suite verification |
-| No dead code/duplicates | ❓ | Partial audit |
-| SRP/DRY followed | ✅ | Changes are modular |
-| No hardcoded models | ⚠️ | Legacy in tests |
-| Pipeline recovers from errors | ❓ | To verify |
-| Edge cases handled | ❓ | To verify |
-| Memory mode documented | ✅ | Warnings added |
-| Makefile dev fails without DB | ❓ | Next iteration |
+| Criterion                          | Status | Notes                        |
+| ---------------------------------- | ------ | ---------------------------- |
+| Document upload via UI works       | ✅     | Tested in iteration 01       |
+| Document processing completes      | ✅     | Verified                     |
+| KG populated with entities         | ✅     | 200 entities                 |
+| No in-memory providers in prod     | ⚠️     | Now with explicit warnings   |
+| gpt-5-nano is default OpenAI model | ⚠️     | gpt-4o-mini deprecated       |
+| All tests pass                     | ❓     | Need full suite verification |
+| No dead code/duplicates            | ❓     | Partial audit                |
+| SRP/DRY followed                   | ✅     | Changes are modular          |
+| No hardcoded models                | ⚠️     | Legacy in tests              |
+| Pipeline recovers from errors      | ❓     | To verify                    |
+| Edge cases handled                 | ❓     | To verify                    |
+| Memory mode documented             | ✅     | Warnings added               |
+| Makefile dev fails without DB      | ❓     | Next iteration               |
 
 ## Next Steps (Iteration 03)
 

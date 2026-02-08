@@ -1,6 +1,7 @@
 # OODA Iteration 03 - Act
 
 ## Mission Re-Read Checkpoint
+
 ✅ Mission file re-read: `./specs/001-reliable-ingestion-mission.md`
 
 ## Summary
@@ -43,6 +44,7 @@ let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
 **File:** [edgequake/src/main.rs](../../edgequake/src/main.rs#L280-L305)
 
 **Changes:**
+
 - Removed `else` branch that called `AppState::new_memory()`
 - Removed conditional `if state.storage_mode.is_postgresql()` check
 - Always use strict workspace isolation mode
@@ -82,6 +84,7 @@ backend-memory: ## DEPRECATED - In-memory storage removed, use backend-dev with 
 ## Test Results
 
 ### Test 1: Server Without DATABASE_URL
+
 ```
 $ unset DATABASE_URL && cargo run
 ERROR edgequake: ═══════════════════════════════════════════════════════════════════════
@@ -89,17 +92,19 @@ ERROR edgequake:  FATAL: DATABASE_URL environment variable is REQUIRED
 ERROR edgequake: ═══════════════════════════════════════════════════════════════════════
 ERROR edgequake:  In-memory storage has been removed for production consistency.
 ERROR edgequake:  Please set DATABASE_URL to a PostgreSQL connection string:
-ERROR edgequake: 
+ERROR edgequake:
 ERROR edgequake:    export DATABASE_URL="postgresql://user:pass@localhost:5432/edgequake"
-ERROR edgequake: 
+ERROR edgequake:
 ERROR edgequake:  Or use the Makefile:
 ERROR edgequake:    make dev          # Starts with PostgreSQL (recommended)
 ERROR edgequake:    make backend-dev  # Backend only with PostgreSQL
 ERROR edgequake: ═══════════════════════════════════════════════════════════════════════
 ```
+
 ✅ Server exits with clear error message
 
 ### Test 2: Makefile backend-memory
+
 ```
 $ make backend-memory
 ╔══════════════════════════════════════════════════════════════════╗
@@ -114,12 +119,15 @@ $ make backend-memory
 ╚══════════════════════════════════════════════════════════════════╝
 make: *** [backend-memory] Error 1
 ```
+
 ✅ Target fails with helpful guidance
 
 ### Test 3: Build Verification
+
 ```
 Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.30s
 ```
+
 ✅ Compiles without errors
 
 ## Commit
@@ -129,21 +137,21 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.30s
 
 ## Updated Success Criteria
 
-| Criterion | Status | Notes |
-|-----------|--------|-------|
-| Document upload via UI works | ✅ | (from iteration 01) |
-| Document processing completes | ✅ | (from iteration 01) |
-| KG populated with entities | ✅ | (from iteration 01) |
-| No in-memory providers in prod | ✅ | **DATABASE_URL required; memory fallback removed** |
-| gpt-5-nano is default OpenAI model | ⚠️ | gpt-4o-mini deprecated, gpt-5-nano available |
-| All tests pass | ❓ | Need full suite verification |
-| No dead code/duplicates | ⚠️ | Memory adapter code still exists |
-| SRP/DRY followed | ✅ | Simplified single code path |
-| No hardcoded models | ⚠️ | Some legacy in tests |
-| Pipeline recovers from errors | ❓ | To verify |
-| Edge cases handled | ❓ | To verify |
-| Memory mode documented | ✅ | Explicit requirement |
-| Makefile dev fails without DB | ✅ | **Implemented** |
+| Criterion                          | Status | Notes                                              |
+| ---------------------------------- | ------ | -------------------------------------------------- |
+| Document upload via UI works       | ✅     | (from iteration 01)                                |
+| Document processing completes      | ✅     | (from iteration 01)                                |
+| KG populated with entities         | ✅     | (from iteration 01)                                |
+| No in-memory providers in prod     | ✅     | **DATABASE_URL required; memory fallback removed** |
+| gpt-5-nano is default OpenAI model | ⚠️     | gpt-4o-mini deprecated, gpt-5-nano available       |
+| All tests pass                     | ❓     | Need full suite verification                       |
+| No dead code/duplicates            | ⚠️     | Memory adapter code still exists                   |
+| SRP/DRY followed                   | ✅     | Simplified single code path                        |
+| No hardcoded models                | ⚠️     | Some legacy in tests                               |
+| Pipeline recovers from errors      | ❓     | To verify                                          |
+| Edge cases handled                 | ❓     | To verify                                          |
+| Memory mode documented             | ✅     | Explicit requirement                               |
+| Makefile dev fails without DB      | ✅     | **Implemented**                                    |
 
 ## Next Steps (Iteration 04)
 
@@ -156,6 +164,7 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.30s
 ## Code Cleanup Remaining
 
 The following memory-related code still exists but is no longer used at runtime:
+
 - `edgequake-storage/src/adapters/memory/` (~1400 lines)
 - `AppState::new_memory()` in state.rs
 

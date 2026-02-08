@@ -1,6 +1,7 @@
 # OODA Iteration 02 - Decide
 
 ## Mission Re-Read Checkpoint
+
 ✅ Mission file re-read: `./specs/001-reliable-ingestion-mission.md`
 
 ## Decision: Focused Safety Hardening
@@ -12,6 +13,7 @@ Based on the orientation analysis, this iteration will focus on **safety hardeni
 **Decision:** Quick test run to check baseline before changes.
 
 **Acceptance Criteria:**
+
 - [ ] `cargo test -p edgequake-pipeline` completes
 - [ ] Document any failures for fixing
 
@@ -20,11 +22,13 @@ Based on the orientation analysis, this iteration will focus on **safety hardeni
 **Decision:** Mark the `new_gpt4o_mini()` function as deprecated, encourage gpt-5-nano.
 
 **Files to Modify:**
+
 - `edgequake/crates/edgequake-pipeline/src/progress.rs`
   - Line ~610: Add `#[deprecated]` attribute to `new_gpt4o_mini()`
   - Update doc comment to recommend `new_gpt5_nano()`
 
 **NOT Changing:**
+
 - HashMap pricing entries (valid for tracking legacy costs)
 - Test assertions that verify map contains models
 
@@ -33,10 +37,12 @@ Based on the orientation analysis, this iteration will focus on **safety hardeni
 **Decision:** Make the in-memory warning more explicit about production use.
 
 **Files to Modify:**
+
 - `edgequake/src/main.rs`
   - Line ~254: Update warning message
 
 **New Message:**
+
 ```
 ⚠️ WARNING: No DATABASE_URL set - using IN-MEMORY storage.
    Data WILL NOT PERSIST across restarts. NOT FOR PRODUCTION USE.
@@ -48,6 +54,7 @@ Based on the orientation analysis, this iteration will focus on **safety hardeni
 **Decision:** Add WARNING comments to `backend-memory` target.
 
 **Files to Modify:**
+
 - `Makefile`
   - `backend-memory` target: Add explicit NOT FOR PRODUCTION warning
 
@@ -69,6 +76,7 @@ Based on the orientation analysis, this iteration will focus on **safety hardeni
 ## Rationale
 
 **First Principles:**
+
 - Small, focused changes are safer than large refactors
 - Deprecation warnings guide users without breaking existing code
 - Explicit warnings prevent silent failures
@@ -76,11 +84,11 @@ Based on the orientation analysis, this iteration will focus on **safety hardeni
 
 ## Risk Assessment
 
-| Change | Risk | Mitigation |
-|--------|------|------------|
-| Deprecate function | Low | Function still works, just warns |
-| Update warning msg | None | Informational only |
-| Makefile comment | None | Documentation only |
+| Change             | Risk | Mitigation                       |
+| ------------------ | ---- | -------------------------------- |
+| Deprecate function | Low  | Function still works, just warns |
+| Update warning msg | None | Informational only               |
+| Makefile comment   | None | Documentation only               |
 
 ## Success Criteria for This Iteration
 

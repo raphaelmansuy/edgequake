@@ -190,9 +190,8 @@ make stop
 **Alternative commands:**
 
 - `make backend-bg`: Start backend only in background with PostgreSQL
-- `make backend-memory`: Start backend with ephemeral in-memory storage (testing only)
 
-Storage mode is automatically selected: PostgreSQL if `DATABASE_URL` is set, Memory otherwise.
+> **Note:** In-memory storage mode has been removed. `DATABASE_URL` is now **required** for all server modes. Running without a database will cause the server to exit with error code 1.
 
 ## Service Management & E2E Testing
 
@@ -541,13 +540,164 @@ This service management guide was created during **OODA Iteration 02** of the PD
 
 **Mission Status**: ✅ PDF extraction and side-by-side display verified working (2026-02-06)
 
+## Developer Workflow Guide
+
+> **Mission-Tested Workflow**: This guide is based on learnings from the Reliable Ingestion Mission (OODA iterations 01-05). Follow these steps for a smooth development experience.
+
+### Prerequisites Checklist
+
+Before starting development, ensure you have:
+
+- [ ] **Docker** installed and running (for PostgreSQL)
+- [ ] **Rust toolchain** (run `rustup update` to ensure latest)
+- [ ] **Ollama** installed for local LLM (`brew install ollama` on macOS)
+- [ ] **Node.js & pnpm** for frontend development
+- [ ] **PostgreSQL knowledge**: EdgeQuake uses pgvector + Apache AGE
+
+### Step-by-Step Startup
+
+```bash
+# 1. Clone and navigate to repository
+cd edgequake
+
+# 2. Start PostgreSQL database (required - no memory fallback)
+make postgres-start
+
+# 3. Start Ollama (required for entity extraction)
+ollama serve &
+
+# 4. Pull required model (first time only)
+ollama pull gemma3:latest
+
+# 5. Start full stack
+make dev
+
+# 6. Verify all services are healthy
+make status
+```
+
+### Service Verification Commands
+
+| Check | Command | Expected Result |
+|-------|---------|-----------------|
+| Backend API | `curl http://localhost:8080/health` | `{"status":"healthy","storage_mode":"postgresql"}` |
+| Frontend UI | `curl -I http://localhost:3000` | HTTP 200 OK |
+| PostgreSQL | `docker ps \| grep postgres` | Container running |
+| Ollama | `curl http://localhost:11434/api/tags` | List of models |
+
+### LLM Provider Selection
+
+EdgeQuake supports two LLM providers at runtime:
+
+| Provider | When to Use | Setup |
+|----------|-------------|-------|
+| **Ollama** (default) | Development, local testing, no API costs | `ollama serve &` |
+| **OpenAI** | Production, higher quality extraction | `export OPENAI_API_KEY="sk-..."` |
+
+**Important:** If using OpenAI, prefer `gpt-5-nano` over deprecated `gpt-4o-mini`.
+
+### Testing After Code Changes
+
+```bash
+# Quick test for specific crate
+cargo test -p edgequake-api --lib
+
+# Full test suite (641+ tests)
+cargo test --workspace --lib
+
+# Linting (must pass before commit)
+cargo clippy --all-targets
+
+# Format check
+cargo fmt --check
+```
+
+### Common Development Scenarios
+
+#### Scenario 1: Testing PDF Upload
+
+```bash
+# 1. Ensure services are running
+make status
+
+# 2. Open browser to documents page
+open http://localhost:3000/documents
+
+# 3. Upload a test PDF from:
+#    - zz_test_docs/lighrag_2410.05779v3.pdf
+#    - zz-explore/EMILE_FREY/*.pdf
+
+# 4. Watch status change: Uploading → Processing → Completed
+```
+
+#### Scenario 2: Debugging Entity Extraction
+
+```bash
+# Check Ollama is responding
+curl http://localhost:11434/api/tags
+
+# View backend logs for extraction details
+tail -f /tmp/edgequake-backend.log | grep -i entity
+
+# If extraction fails, check pipeline errors:
+grep -i "error\|failed" /tmp/edgequake-backend.log
+```
+
+#### Scenario 3: Database Issues
+
+```bash
+# Check if PostgreSQL is running
+docker ps | grep edgequake-postgres
+
+# Restart database if needed
+make postgres-stop
+make postgres-start
+
+# Wait for database to be ready
+sleep 5
+
+# Restart backend
+make backend-bg
+```
+
+### Environment Variables Reference
+
+| Variable | Required | Purpose | Example |
+|----------|----------|---------|---------|
+| `DATABASE_URL` | ✅ Yes | PostgreSQL connection | `postgres://edgequake:edgequake@localhost/edgequake` |
+| `OPENAI_API_KEY` | Optional | Enable OpenAI provider | `sk-proj-...` |
+| `PDFIUM_DYNAMIC_LIB_PATH` | Auto-set | PDF extraction library | Set by Makefile |
+| `RUST_LOG` | Optional | Logging level | `debug`, `info`, `warn` |
+
+### Troubleshooting Quick Reference
+
+| Problem | Quick Fix |
+|---------|-----------|
+| "DATABASE_URL not set" | Run `make dev` instead of `cargo run` |
+| "Connection refused on 8080" | Check PostgreSQL: `make postgres-start` |
+| "Entity extraction failed" | Start Ollama: `ollama serve &` |
+| "Model not found" | Pull model: `ollama pull gemma3:latest` |
+| "Port 3000 in use" | Kill stale process: `lsof -ti:3000 \| xargs kill` |
+| Tests failing | Run `cargo test -p <crate> --lib` for details |
+
+### Best Practices (Mission Learnings)
+
+1. **Always use Makefile commands** - They set required environment variables
+2. **Check `make status` before debugging** - Verify all services are healthy
+3. **DATABASE_URL is mandatory** - In-memory mode is removed for reliability
+4. **Ollama must be running** - Entity extraction depends on it
+5. **Use `gpt-5-nano`** - If using OpenAI, avoid deprecated `gpt-4o-mini`
+6. **Run tests after changes** - `cargo test -p <crate> --lib` for quick feedback
+7. **Commit frequently** - Small, tested changes are easier to debug
+
 ## LLM Provider Configuration
 
 EdgeQuake supports multiple LLM providers with automatic environment-based selection:
 
 - **Mock Provider**: Used by default for testing (free, fast, no API key required)
 - **OpenAI Provider**: Automatically used when `OPENAI_API_KEY` is set
-  - Recommended model: `gpt-4o-mini` (cost-effective: $0.0014 per document)
+  - Recommended model: `gpt-5-nano` (cost-effective, excellent for entity extraction)
+  - Alternative: `gpt-4o-mini` is deprecated; migrate to `gpt-5-nano`
   - Recommended embedding: `text-embedding-3-small` (1536 dimensions)
 - **Ollama/LM Studio**: Use OpenAI-compatible API mode
 

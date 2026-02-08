@@ -1,6 +1,7 @@
 # OODA Iteration 03 - Decide
 
 ## Mission Re-Read Checkpoint
+
 ✅ Mission file re-read: `./specs/001-reliable-ingestion-mission.md`
 
 ## Decision: Require DATABASE_URL for Server Startup
@@ -17,6 +18,7 @@ Based on the mission directive to "eliminate all in-memory storage providers," t
 **Lines:** ~248-265
 
 **Current Code:**
+
 ```rust
 let state = if let Ok(database_url) = std::env::var("DATABASE_URL") {
     info!("🐘 DATABASE_URL detected - using PostgreSQL storage");
@@ -36,6 +38,7 @@ let state = if let Ok(database_url) = std::env::var("DATABASE_URL") {
 ```
 
 **New Code:**
+
 ```rust
 // OODA-03: DATABASE_URL is now REQUIRED - in-memory storage removed for production consistency
 // WHY: Mission directive requires eliminating in-memory providers to ensure:
@@ -67,6 +70,7 @@ let state = AppState::new_postgres(&database_url, &api_key)
 ### Change 2: Remove Unused Memory Mode Logic
 
 **Files to Update:**
+
 - Remove the `else` branch that calls `new_memory()`
 - Remove non-strict workspace mode logic (lines ~298-301)
 
@@ -75,12 +79,14 @@ let state = AppState::new_postgres(&database_url, &api_key)
 **File:** `Makefile`
 
 **Option A (Remove):**
+
 ```makefile
 # REMOVED: backend-memory target - in-memory storage no longer supported
 # Use: make backend-dev (requires PostgreSQL)
 ```
 
 **Option B (Make it fail with helpful message):**
+
 ```makefile
 backend-memory: ## DEPRECATED - use backend-dev with PostgreSQL
 	@echo "$(RED)ERROR: In-memory storage has been removed$(RESET)"
@@ -110,11 +116,11 @@ backend-memory: ## DEPRECATED - use backend-dev with PostgreSQL
 
 ## Risk Assessment
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Tests may fail | Medium | Tests should use DATABASE_URL too |
-| Developer friction | Low | Clear error message with fix |
-| CI breaks | Medium | CI should have DATABASE_URL |
+| Risk               | Impact | Mitigation                        |
+| ------------------ | ------ | --------------------------------- |
+| Tests may fail     | Medium | Tests should use DATABASE_URL too |
+| Developer friction | Low    | Clear error message with fix      |
+| CI breaks          | Medium | CI should have DATABASE_URL       |
 
 ## Success Criteria
 
