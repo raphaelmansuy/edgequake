@@ -21,7 +21,6 @@
  */
 'use client';
 
-import { RightPanel } from '@/components/layout/right-panel';
 import {
     getDocuments,
     getPipelineStatus,
@@ -30,10 +29,6 @@ import {
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-
-import {
-    FileText,
-} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -44,10 +39,9 @@ import { DocumentErrorAlert } from './document-error-alert';
 import { DocumentHeader } from './document-header';
 
 import { DocumentFilters } from './document-filters';
-import { DocumentPreviewPanel } from './document-preview-panel';
+import { DocumentPreviewRightPanel } from './document-preview-right-panel';
 import { DocumentSearchBar } from './document-search-bar';
 import { DocumentTableSection } from './document-table-section';
-import { DocumentViewerDialog } from './document-viewer-dialog';
 
 import { ProcessingStatusSummary } from './processing-status-summary';
 import { UploadProgressList } from './upload-progress-list';
@@ -369,41 +363,21 @@ export function DocumentManager() {
       />
       </div>
 
-      {/* Right Panel - Document Preview */}
-      <RightPanel
+      {/* OODA-27: Right panel extracted to DocumentPreviewRightPanel */}
+      <DocumentPreviewRightPanel
         isOpen={previewPanelOpen}
         onToggle={() => setPreviewPanelOpen(!previewPanelOpen)}
         onClose={handlePreviewClose}
-        title={selectedDocument ? (selectedDocument.title || selectedDocument.file_name || `Document ${selectedDocument.id.slice(0, 8)}`) : t('documents.preview.title', 'Document Preview')}
-        subtitle={selectedDocument?.id ? `ID: ${selectedDocument.id.slice(0, 12)}...` : undefined}
-        width="wide"
-        showCollapsedBar={true}
-        collapsedLabel={t('documents.preview.panelLabel', 'Preview')}
-        headerIcon={<FileText className="h-4 w-4" />}
-      >
-        <DocumentPreviewPanel
-          document={selectedDocument}
-          onDelete={(id) => {
-            deleteMutation.mutate(id);
-            handlePreviewClose();
-          }}
-          onReprocess={(id) => reprocessMutation.mutate(id)}
-          onViewFull={(doc) => {
-            // OODA-41: Always navigate to document detail page
-            // WHY: Per SPEC-002, use dedicated page instead of dialog
-            router.push(`/documents/${doc.id}`);
-          }}
-          onViewInGraph={handleViewInGraph}
-          isDeleting={deleteMutation.isPending}
-          isReprocessing={reprocessMutation.isPending}
-        />
-      </RightPanel>
-
-      {/* SPEC-002: PDF/Markdown Viewer Dialog */}
-      <DocumentViewerDialog
-        open={viewerDialogOpen}
-        onOpenChange={setViewerDialogOpen}
-        pdfId={viewerPdfId}
+        selectedDocument={selectedDocument}
+        onDelete={(id) => deleteMutation.mutate(id)}
+        onReprocess={(id) => reprocessMutation.mutate(id)}
+        onViewInGraph={handleViewInGraph}
+        onViewFull={(doc) => router.push(`/documents/${doc.id}`)}
+        isDeleting={deleteMutation.isPending}
+        isReprocessing={reprocessMutation.isPending}
+        viewerDialogOpen={viewerDialogOpen}
+        onViewerDialogChange={setViewerDialogOpen}
+        viewerPdfId={viewerPdfId}
       />
     </div>
   );
