@@ -74,7 +74,7 @@ fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) ->
         ctx.tenant_id,
         ctx.workspace_id
     );
-    
+
     // SECURITY: STRICT TENANT CONTEXT REQUIRED - NO EXCEPTIONS
     // WHY: Multi-tenant isolation must be enforced at every layer
     // Even admin/system requests MUST provide tenant_id and workspace_id

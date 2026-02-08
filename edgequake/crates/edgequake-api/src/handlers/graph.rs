@@ -98,36 +98,32 @@ pub async fn get_graph(
     let total_nodes = state.graph_storage.node_count().await?;
     let total_edges = state.graph_storage.edge_count().await?;
 
+    // SECURITY: Enforce strict tenant context requirement - NO EXCEPTIONS
+    // This matches the strict filtering in entities.rs and relationships.rs (commit d11edba8)
+    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
+        warn!(
+            tenant_id = ?tenant_ctx.tenant_id,
+            workspace_id = ?tenant_ctx.workspace_id,
+            "Tenant context missing - returning empty graph for security"
+        );
+        return Ok(Json(KnowledgeGraphResponse {
+            nodes: vec![],
+            edges: vec![],
+            is_truncated: false,
+            total_nodes: 0,
+            total_edges: 0,
+        }));
+    }
+
     // Helper closure to check if a node matches the tenant context
     let matches_tenant_context =
         |properties: &std::collections::HashMap<String, serde_json::Value>| {
-            // If no tenant context is set, allow all nodes
-            if tenant_ctx.tenant_id.is_none() {
-                return true;
-            }
+            // SECURITY: STRICT tenant filtering - both tenant_id AND workspace_id must match
+            let node_tenant_id = properties.get("tenant_id").and_then(|v| v.as_str());
+            let node_workspace_id = properties.get("workspace_id").and_then(|v| v.as_str());
 
-            // Check if node has matching tenant_id
-            if let Some(ref ctx_tenant_id) = tenant_ctx.tenant_id {
-                if let Some(node_tenant_id) = properties.get("tenant_id").and_then(|v| v.as_str()) {
-                    if node_tenant_id != ctx_tenant_id {
-                        return false;
-                    }
-                }
-                // If node has no tenant_id but context has one, still include it for backward compatibility
-            }
-
-            // Check workspace_id if set
-            if let Some(ref ctx_workspace_id) = tenant_ctx.workspace_id {
-                if let Some(node_workspace_id) =
-                    properties.get("workspace_id").and_then(|v| v.as_str())
-                {
-                    if node_workspace_id != ctx_workspace_id {
-                        return false;
-                    }
-                }
-            }
-
-            true
+            tenant_ctx.tenant_id.as_deref() == node_tenant_id
+                && tenant_ctx.workspace_id.as_deref() == node_workspace_id
         };
 
     let (nodes, edges, is_truncated) = if let Some(start) = &params.start_node {
