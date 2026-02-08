@@ -93,6 +93,7 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ClearDocumentsDialog } from './clear-documents-dialog';
+import { BatchActionsBar } from './batch-actions-bar';
 import { ConnectionBanner } from './connection-banner';
 import { ConnectionStatus } from './connection-status';
 import { CostCell } from './cost-cell';
@@ -829,6 +830,11 @@ export function DocumentManager() {
     });
   }, []);
 
+  // OODA-07: Clear selection callback for BatchActionsBar
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
   const handleBulkDelete = useCallback(async () => {
     const idsToDelete = Array.from(selectedIds);
     let successCount = 0;
@@ -1219,34 +1225,13 @@ export function DocumentManager() {
         </div>
       </div>
 
-      {/* Bulk Actions Bar - Fixed below dropzone */}
-      {selectedIds.size > 0 && (
-        <div className="shrink-0 px-4 py-2 bg-muted/50 border-b flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium">
-              {t('documents.bulk.selected', { count: selectedIds.size }) || `${selectedIds.size} document(s) selected`}
-            </span>
-            {/* OODA-19: Keyboard hint */}
-            <span className="text-xs text-muted-foreground hidden sm:inline">
-              Press <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Esc</kbd> to clear
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleBulkReprocess}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {t('documents.bulk.reprocess', 'Reprocess')}
-            </Button>
-            <Button variant="outline" size="sm" className="text-destructive" onClick={handleBulkDelete}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              {t('documents.bulk.delete', 'Delete')}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-              <X className="h-4 w-4 mr-2" />
-              {t('documents.bulk.clear', 'Clear')}
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* OODA-07: Bulk Actions Bar - Extracted to BatchActionsBar component */}
+      <BatchActionsBar
+        selectedCount={selectedIds.size}
+        onReprocess={handleBulkReprocess}
+        onDelete={handleBulkDelete}
+        onClear={handleClearSelection}
+      />
 
       {/* OODA-06: Upload Progress - Extracted to UploadProgressList component */}
       <UploadProgressList
