@@ -50,7 +50,6 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useWebSocket } from '@/hooks/use-websocket';
 import {
     cancelTask,
     deleteAllDocuments,
@@ -63,7 +62,6 @@ import {
     type DocumentsListResult,
 } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
-import { getWebSocketClient } from '@/lib/websocket';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -115,6 +113,7 @@ import { ResetDocumentStatusButton } from './reset-document-status-button';
 import { isProcessingStatus } from './status-badge';
 import type { UploadingFile } from './types';
 import { useStuckDetection } from '@/hooks/use-stuck-detection';
+import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
 
 /**
  * OODA-30: File type icon helper
@@ -274,58 +273,9 @@ export function DocumentManager() {
     refetchInterval: 2000,
   });
 
-  // OODA-42 COMPLETE: WebSocket subscription for real-time document status updates
-  // WHY: Replace polling with instant status updates for all processing documents
-  const { connected, subscribe, unsubscribe } = useWebSocket();
-  
-  // Subscribe to WebSocket updates for all processing documents
-  useEffect(() => {
-    if (!connected || !data?.items) return;
-
-    // Filter documents that are currently processing (have track_id)
-    const processingDocs = data.items.filter(
-      (doc: Document) => doc.track_id && doc.status && ['processing', 'chunking', 'extracting', 'embedding', 'indexing'].includes(doc.status)
-    );
-
-    if (processingDocs.length === 0) return;
-
-    const trackIds = processingDocs
-      .map((doc: Document) => doc.track_id)
-      .filter((id): id is string => Boolean(id));
-    
-    if (trackIds.length === 0) return;
-    
-    // Subscribe to WebSocket updates for these track_ids
-    subscribe(trackIds);
-    
-    console.log('[DocumentManager] Subscribed to WebSocket for', trackIds.length, 'processing documents');
-
-    // Unsubscribe when component unmounts or dependencies change
-    return () => {
-      unsubscribe(trackIds);
-      console.log('[DocumentManager] Unsubscribed from WebSocket for', trackIds.length, 'documents');
-    };
-  }, [connected, data?.items, subscribe, unsubscribe]);
-
-  // Listen for WebSocket progress events and invalidate documents query
-  useEffect(() => {
-    if (!connected) return;
-
-    const wsClient = getWebSocketClient();
-    
-    // Invalidate documents query whenever we receive a progress update
-    const handleProgressUpdate = () => {
-      // Invalidate to trigger refetch - this updates the status in real-time
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-    };
-
-    // Listen for all progress event types
-    const unsubProgress = wsClient.on('progress', handleProgressUpdate);
-    
-    return () => {
-      unsubProgress();
-    };
-  }, [connected, queryClient]);
+  // OODA-05: WebSocket subscription for real-time document status updates
+  // WHY: Extracted to useDocumentWebSocket hook for SRP compliance
+  useDocumentWebSocket(data?.items, queryClient);
 
   // OODA-04: Detect stuck documents using extracted hook
   useStuckDetection(data?.items, {
