@@ -97,6 +97,7 @@ import { BatchActionsBar } from './batch-actions-bar';
 import { ConnectionBanner } from './connection-banner';
 import { ConnectionStatus } from './connection-status';
 import { CostCell } from './cost-cell';
+import { DocumentDropzone } from './document-dropzone';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
 import { DocumentViewerDialog } from './document-viewer-dialog';
@@ -1193,37 +1194,12 @@ export function DocumentManager() {
         </div>
       )}
 
-      {/* Compact Upload Zone - Inline dropzone, no card wrapper */}
-      <div
-        {...getRootProps()}
-        className={cn(
-          "border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200",
-          "flex items-center gap-4 px-4 py-3",
-          isDragActive
-            ? 'border-primary bg-primary/5 ring-2 ring-primary/20 animate-pulse'
-            : 'border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/30'
-        )}
-      >
-        <input {...getInputProps()} />
-        <div className={cn(
-          "p-2 rounded-lg transition-all",
-          isDragActive ? "bg-primary/10" : "bg-muted/50"
-        )}>
-          <Upload className={cn(
-            "h-5 w-5 transition-all duration-200",
-            isDragActive ? "text-primary scale-110" : "text-muted-foreground"
-          )} />
-        </div>
-        <div className="flex-1 min-w-0">
-          {isDragActive ? (
-            <p className="text-sm font-medium text-primary">Drop files here</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Drag & drop or <span className="text-primary font-medium">click to upload</span> • TXT, MD, JSON, PDF (max 10MB)
-            </p>
-          )}
-        </div>
-      </div>
+      {/* OODA-08: Compact Upload Zone - Extracted to DocumentDropzone component */}
+      <DocumentDropzone
+        getRootProps={getRootProps}
+        getInputProps={getInputProps}
+        isDragActive={isDragActive}
+      />
 
       {/* OODA-07: Bulk Actions Bar - Extracted to BatchActionsBar component */}
       <BatchActionsBar
