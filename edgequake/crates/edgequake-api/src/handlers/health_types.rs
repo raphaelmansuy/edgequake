@@ -100,7 +100,7 @@ pub struct LlmProviderHealth {
     /// Provider name (e.g., "openai", "ollama", "mock").
     pub name: String,
 
-    /// Model being used (e.g., "gpt-5-nano", "gemma3:latest").
+    /// Model being used (e.g., "gpt-4.1-nano", "gemma3:latest").
     pub model: String,
 }
 
@@ -306,7 +306,7 @@ mod tests {
             providers: Some(ProvidersHealth {
                 llm: LlmProviderHealth {
                     name: "openai".to_string(),
-                    model: "gpt-5-nano".to_string(),
+                    model: "gpt-4.1-nano".to_string(),
                 },
                 embedding: EmbeddingProviderHealth {
                     name: "openai".to_string(),
@@ -318,7 +318,7 @@ mod tests {
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"providers\""));
-        assert!(json.contains("\"model\":\"gpt-5-nano\""));
+        assert!(json.contains("\"model\":\"gpt-4.1-nano\""));
         assert!(json.contains("\"model\":\"text-embedding-3-small\""));
         assert!(json.contains("\"dimension\":1536"));
         assert!(json.contains("\"pdf_storage_enabled\":true"));

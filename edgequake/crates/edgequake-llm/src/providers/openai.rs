@@ -41,7 +41,7 @@ impl OpenAIProvider {
     pub fn with_config(config: OpenAIConfig) -> Self {
         Self {
             client: Client::with_config(config),
-            model: "gpt-5-nano".to_string(), // ✅ Default to gpt-5-nano (replacing deprecated gpt-4o-mini)
+            model: "gpt-4.1-nano".to_string(), // ✅ Default to gpt-4.1-nano (cost-effective, high-quality)
             embedding_model: "text-embedding-3-small".to_string(),
             max_context_length: 128000,
             embedding_dimension: 1536,
@@ -87,7 +87,7 @@ impl OpenAIProvider {
     /// Get the context length for a model.
     fn context_length_for_model(model: &str) -> usize {
         match model {
-            m if m.contains("gpt-5-nano") || m.contains("gpt-5") => 128000, // ✅ gpt-5-nano support
+            m if m.contains("gpt-4.1") => 128000, // ✅ gpt-4.1-nano/mini/full support
             m if m.contains("gpt-4o") => 128000,
             m if m.contains("gpt-4-turbo") => 128000,
             m if m.contains("gpt-4-32k") => 32768,

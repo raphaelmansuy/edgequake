@@ -48,7 +48,7 @@ impl Default for LlmEnhanceConfig {
             convert_math: true,
             describe_images: true,
             improve_text: false,
-            model: "gpt-5-nano".to_string(),
+            model: "gpt-4.1-nano".to_string(),
             temperature: 0.1,
             max_tokens: 4096,
         }

@@ -225,7 +225,7 @@ impl Default for EdgeQuakeConfig {
             namespace: "default".to_string(),
             tenant_id: None,
             workspace_id: None,
-            llm_model_name: "gpt-5-nano".to_string(),
+            llm_model_name: "gpt-4.1-nano".to_string(),
             response_model_name: None,
             embedding_model_name: "text-embedding-3-small".to_string(),
             embedding_dim: 1536,

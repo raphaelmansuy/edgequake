@@ -172,7 +172,7 @@ impl AvailableProvidersResponse {
                     satisfied: std::env::var("OPENAI_API_KEY").is_ok(),
                 }],
                 default_models: DefaultModels {
-                    chat_model: "gpt-5-nano".to_string(),
+                    chat_model: "gpt-4.1-nano".to_string(),
                     embedding_model: "text-embedding-3-small".to_string(),
                     embedding_dimension: 1536,
                 },
