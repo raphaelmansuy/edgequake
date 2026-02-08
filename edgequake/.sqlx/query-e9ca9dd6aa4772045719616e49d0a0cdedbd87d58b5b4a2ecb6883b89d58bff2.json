@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO pdf_documents (\n                pdf_id,\n                workspace_id,\n                filename,\n                content_type,\n                file_size_bytes,\n                sha256_checksum,\n                page_count,\n                pdf_data,\n                processing_status,\n                vision_model\n            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Int8",
+        "Varchar",
+        "Int4",
+        "Bytea",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e9ca9dd6aa4772045719616e49d0a0cdedbd87d58b5b4a2ecb6883b89d58bff2"
+}

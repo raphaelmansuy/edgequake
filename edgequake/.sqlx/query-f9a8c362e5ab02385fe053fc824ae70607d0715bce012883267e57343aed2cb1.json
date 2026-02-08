@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE pdf_documents\n            SET processing_status = $1,\n                processed_at = COALESCE($2, processed_at)\n            WHERE pdf_id = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f9a8c362e5ab02385fe053fc824ae70607d0715bce012883267e57343aed2cb1"
+}

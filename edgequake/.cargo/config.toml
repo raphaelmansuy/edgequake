@@ -17,3 +17,5 @@ xtask = "run --package xtask --"
 
 [env]
 RUST_BACKTRACE = "1"
+# Enable SQLx offline mode for builds without database connection
+SQLX_OFFLINE = "true"

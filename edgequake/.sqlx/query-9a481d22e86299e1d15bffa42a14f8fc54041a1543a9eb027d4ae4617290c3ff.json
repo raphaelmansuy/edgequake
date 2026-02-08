@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE pdf_documents\n            SET document_id = $1\n            WHERE pdf_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9a481d22e86299e1d15bffa42a14f8fc54041a1543a9eb027d4ae4617290c3ff"
+}

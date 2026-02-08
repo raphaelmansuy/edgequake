@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM pdf_documents\n            WHERE pdf_id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2f0fc224634d066bb2b66a088fa8d39511bd1c36e794861c8d829f7436a9972d"
+}
