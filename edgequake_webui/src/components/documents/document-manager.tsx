@@ -22,8 +22,6 @@
 'use client';
 
 import { RightPanel } from '@/components/layout/right-panel';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Table,
@@ -42,7 +40,6 @@ import type { Document } from '@/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
-    AlertCircle,
     FileText,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -51,6 +48,7 @@ import { useTranslation } from 'react-i18next';
 import { BatchActionsBar } from './batch-actions-bar';
 
 import { DocumentDropzone } from './document-dropzone';
+import { DocumentErrorAlert } from './document-error-alert';
 import { DocumentHeader } from './document-header';
 import { DocumentTableStates } from './document-table-states';
 
@@ -278,20 +276,7 @@ export function DocumentManager() {
   });
 
   if (isError) {
-    return (
-      <div className="p-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error loading documents</AlertTitle>
-          <AlertDescription>
-            {error instanceof Error ? error.message : 'Failed to load documents'}
-            <Button variant="link" className="ml-2 p-0" onClick={() => refetch()}>
-              Try again
-            </Button>
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
+    return <DocumentErrorAlert error={error} onRetry={refetch} />;
   }
 
   return (
