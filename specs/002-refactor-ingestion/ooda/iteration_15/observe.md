@@ -1,6 +1,7 @@
 # OODA-15 Observe: DocumentTableRow Component Extraction
 
 ## Mission Brief Re-Read
+
 - Target: DocumentManager < 300 lines
 - Current: 988 lines (45.8% reduction achieved)
 - Remaining: ~688 lines to reduce
@@ -8,7 +9,9 @@
 ## Code Analysis
 
 ### Target: Table Row Rendering (Lines ~813-914)
+
 The table row inside `documents.map()` renders:
+
 1. Checkbox cell for selection
 2. Title cell with:
    - File type icon
@@ -23,6 +26,7 @@ The table row inside `documents.map()` renders:
 Total: ~100 lines
 
 ### Dependencies
+
 - `doc`, `index` from map
 - `selectedIds`, `selectedDocument` for selection state
 - `searchQuery` for highlighting
@@ -33,6 +37,7 @@ Total: ~100 lines
 - Translation: `t`
 
 ### Props Interface
+
 ```typescript
 interface DocumentTableRowProps {
   doc: Document;
@@ -55,6 +60,7 @@ interface DocumentTableRowProps {
 ```
 
 ## Line Count Estimation
+
 - Lines removed from DocumentManager: ~95
 - New component file: ~200 lines (includes docs, helpers, types)
 - Net reduction: ~95 lines

@@ -50,10 +50,10 @@ async fn transition_if_status(
 
 ```sql
 -- Atomic update with JSON path check
-UPDATE eq_kv 
+UPDATE eq_kv
 SET value = jsonb_set(value, '{status}', $new_status::jsonb),
     updated_at = NOW()
-WHERE key = $key 
+WHERE key = $key
   AND value->>'status' = $expected_status;
 ```
 
@@ -82,6 +82,7 @@ async fn transition_if_status(&self, key: &str, expected: &str, new: &str) -> Re
 **Lines**: 489-555
 
 **Before** (race condition):
+
 ```rust
 let status = get_status().await;
 if status == "pending" || status == "processing" {
@@ -92,6 +93,7 @@ delete_data().await;
 ```
 
 **After** (atomic):
+
 ```rust
 // Try to claim the document for deletion
 let transitioned = state.kv_storage
@@ -103,7 +105,7 @@ if !transitioned {
     let transitioned = state.kv_storage
         .transition_if_status(&metadata_key, "completed", "deleting")
         .await?;
-        
+
     if !transitioned {
         return Err(ApiError::Conflict(
             "Document is currently processing or status changed. Try again later.".to_string()
@@ -124,7 +126,7 @@ delete_data().await;
 #[derive(Debug, Serialize)]
 pub enum ApiError {
     // ... existing variants
-    
+
     /// HTTP 409 Conflict - Resource state changed
     #[error("Conflict: {0}")]
     Conflict(String),
@@ -156,14 +158,14 @@ mod tests {
         // Action: transition_if_status("failed", "deleting")
         // Assert: returns true, status is now "deleting"
     }
-    
+
     #[tokio::test]
     async fn test_transition_if_status_wrong_status() {
         // Setup: document with status "processing"
         // Action: transition_if_status("failed", "deleting")
         // Assert: returns false, status still "processing"
     }
-    
+
     #[tokio::test]
     async fn test_concurrent_transitions_only_one_succeeds() {
         // Setup: document with status "failed"
@@ -177,21 +179,22 @@ mod tests {
 
 ## Change Summary
 
-| File | Change Type | Lines Added | Lines Removed |
-|------|-------------|-------------|---------------|
-| `traits/kv.rs` | New method | +30 | 0 |
-| `adapters/postgres/kv.rs` | Implementation | +20 | 0 |
-| `adapters/memory/kv.rs` | Implementation | +20 | 0 |
-| `handlers/documents.rs` | Refactor | +25 | -15 |
-| `error.rs` | New variant | +15 | 0 |
-| Tests | New tests | +50 | 0 |
-| **Total** | | **+160** | **-15** |
+| File                      | Change Type    | Lines Added | Lines Removed |
+| ------------------------- | -------------- | ----------- | ------------- |
+| `traits/kv.rs`            | New method     | +30         | 0             |
+| `adapters/postgres/kv.rs` | Implementation | +20         | 0             |
+| `adapters/memory/kv.rs`   | Implementation | +20         | 0             |
+| `handlers/documents.rs`   | Refactor       | +25         | -15           |
+| `error.rs`                | New variant    | +15         | 0             |
+| Tests                     | New tests      | +50         | 0             |
+| **Total**                 |                | **+160**    | **-15**       |
 
 ---
 
 ## Rollback Plan
 
 If issues discovered:
+
 1. Remove `transition_if_status` method calls
 2. Revert to non-atomic check (accept temporary race risk)
 3. Investigate issue, fix in next iteration

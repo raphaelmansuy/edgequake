@@ -3,12 +3,14 @@
 ## Gap Analysis
 
 ### Current State
+
 - Row rendering is inline in map callback
 - Multiple responsibilities: selection, display, actions
 - Helper functions defined at module level (good)
 - Complex className logic for row highlighting
 
 ### Target State
+
 - Self-contained row component
 - Props for all callbacks (function-as-prop pattern)
 - Component handles its own styling logic
@@ -17,14 +19,17 @@
 ## Design Decision: Helper Functions
 
 **Option A: Move helpers into component**
+
 - `getFileTypeIcon` - Move to component
 - `highlightMatches` - Move to component
 - ❌ Breaks DRY if used elsewhere
 
 **Option B: Keep helpers in parent, pass results**
+
 - ❌ Clutters props
 
 **Option C: Import from utils module**
+
 - ✅ Clean separation
 - ✅ Reusable
 - Currently at top of document-manager.tsx
@@ -38,7 +43,7 @@ interface DocumentTableRowProps {
   doc: Document;
   index: number;
   isSelected: boolean;
-  isActive: boolean;      // selectedDocument?.id === doc.id
+  isActive: boolean; // selectedDocument?.id === doc.id
   searchQuery: string;
   onSelect: (docId: string, checked: boolean) => void;
   onClick: (doc: Document) => void;
@@ -56,10 +61,10 @@ interface DocumentTableRowProps {
 
 ## Risk Assessment
 
-| Risk | Mitigation |
-|------|------------|
-| Too many props | Group related callbacks |
-| Translation context | useTranslation in component |
-| Re-render performance | React.memo wrap |
+| Risk                  | Mitigation                  |
+| --------------------- | --------------------------- |
+| Too many props        | Group related callbacks     |
+| Translation context   | useTranslation in component |
+| Re-render performance | React.memo wrap             |
 
 ## Next: Decide

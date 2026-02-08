@@ -187,10 +187,7 @@ impl KVStorage for MemoryKVStorage {
             if current_status == Some(expected_status) {
                 // Status matches - update it
                 if let Some(obj) = value.as_object_mut() {
-                    obj.insert(
-                        "status".to_string(),
-                        serde_json::json!(new_status),
-                    );
+                    obj.insert("status".to_string(), serde_json::json!(new_status));
                     return Ok(true);
                 }
             }
@@ -318,7 +315,11 @@ mod tests {
         assert!(result, "Transition should succeed when status matches");
 
         // Verify: status is now "deleting"
-        let updated = storage.get_by_id("doc-123-metadata").await.unwrap().unwrap();
+        let updated = storage
+            .get_by_id("doc-123-metadata")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(updated.get("status").unwrap(), "deleting");
     }
 
@@ -349,7 +350,11 @@ mod tests {
         assert!(!result, "Transition should fail when status doesn't match");
 
         // Verify: status is still "processing"
-        let unchanged = storage.get_by_id("doc-123-metadata").await.unwrap().unwrap();
+        let unchanged = storage
+            .get_by_id("doc-123-metadata")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(unchanged.get("status").unwrap(), "processing");
     }
 

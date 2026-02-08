@@ -30,27 +30,27 @@ setWsMaxReconnectsReached: (reached) => set({ wsMaxReconnectsReached: reached })
 
 ```typescript
 // In 'disconnected' handler:
-const unsubDisconnected = client.on('disconnected', () => {
+const unsubDisconnected = client.on("disconnected", () => {
   connectedRef.current = false;
   setWsConnected(false);
   // NEW: Notify user
-  toast.warning('Connection lost', {
-    description: 'Attempting to reconnect...',
+  toast.warning("Connection lost", {
+    description: "Attempting to reconnect...",
     duration: 5000,
   });
 });
 
 // In 'max_reconnects_reached' handler:
-const unsubMaxReconnects = client.on('max_reconnects_reached', () => {
+const unsubMaxReconnects = client.on("max_reconnects_reached", () => {
   reconnectingRef.current = false;
   setWsReconnecting(false);
   setWsMaxReconnectsReached(true); // NEW
   // NEW: Notify user
-  toast.error('Unable to reconnect', {
-    description: 'Real-time updates unavailable. Click to retry.',
+  toast.error("Unable to reconnect", {
+    description: "Real-time updates unavailable. Click to retry.",
     duration: Infinity, // Persistent until dismissed
     action: {
-      label: 'Retry',
+      label: "Retry",
       onClick: () => {
         setWsMaxReconnectsReached(false);
         clientRef.current?.connect();
@@ -60,15 +60,15 @@ const unsubMaxReconnects = client.on('max_reconnects_reached', () => {
 });
 
 // In 'connected' handler:
-const unsubConnected = client.on('connected', () => {
+const unsubConnected = client.on("connected", () => {
   connectedRef.current = true;
   reconnectingRef.current = false;
   setWsConnected(true);
   // NEW: Only show if we were disconnected
   if (wsMaxReconnectsReached) {
     setWsMaxReconnectsReached(false);
-    toast.success('Connection restored', {
-      description: 'Real-time updates are back online.',
+    toast.success("Connection restored", {
+      description: "Real-time updates are back online.",
       duration: 3000,
     });
   }
@@ -82,22 +82,27 @@ const unsubConnected = client.on('connected', () => {
 **Purpose**: Persistent banner shown when connection is lost.
 
 ```tsx
-'use client';
+"use client";
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { useIngestionStore } from '@/stores/use-ingestion-store';
-import { useWebSocket } from '@/hooks/use-websocket';
-import { AlertCircle, RefreshCw, X } from 'lucide-react';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { useIngestionStore } from "@/stores/use-ingestion-store";
+import { useWebSocket } from "@/hooks/use-websocket";
+import { AlertCircle, RefreshCw, X } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export function ConnectionBanner() {
   const { t } = useTranslation();
   const { connect } = useWebSocket();
-  const { wsConnected, wsReconnecting, wsMaxReconnectsReached, setWsMaxReconnectsReached } = useIngestionStore();
+  const {
+    wsConnected,
+    wsReconnecting,
+    wsMaxReconnectsReached,
+    setWsMaxReconnectsReached,
+  } = useIngestionStore();
   const [dismissed, setDismissed] = useState(false);
-  
+
   // Only show if max reconnects reached and not dismissed
   if (!wsMaxReconnectsReached || dismissed) {
     return null;
@@ -115,17 +120,25 @@ export function ConnectionBanner() {
   return (
     <Alert variant="destructive" className="mb-4">
       <AlertCircle className="h-4 w-4" />
-      <AlertTitle>{t('connection.banner.title', 'Connection Lost')}</AlertTitle>
+      <AlertTitle>{t("connection.banner.title", "Connection Lost")}</AlertTitle>
       <AlertDescription className="flex items-center justify-between">
         <span>
-          {t('connection.banner.description', 'Real-time updates are unavailable. Document progress may be delayed.')}
+          {t(
+            "connection.banner.description",
+            "Real-time updates are unavailable. Document progress may be delayed.",
+          )}
         </span>
         <div className="flex items-center gap-2 ml-4">
           <Button variant="outline" size="sm" onClick={handleRetry}>
             <RefreshCw className="h-4 w-4 mr-1" />
-            {t('connection.banner.retry', 'Retry')}
+            {t("connection.banner.retry", "Retry")}
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleDismiss}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={handleDismiss}
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -149,7 +162,7 @@ import { ConnectionBanner } from './connection-banner';
 <div className="shrink-0 px-4 pt-4 space-y-3 bg-background">
   {/* Connection status banner */}
   <ConnectionBanner />
-  
+
   {/* Header - Compact */}
   <header className="flex items-center justify-between gap-3 flex-wrap">
 ```
@@ -168,6 +181,7 @@ import { ConnectionBanner } from './connection-banner';
 ### Rollback Plan
 
 If issues found:
+
 1. Revert toast notifications in websocket-provider.tsx
 2. Keep ConnectionBanner component but don't import in DocumentManager
 3. Feature flag: `NEXT_PUBLIC_SHOW_CONNECTION_BANNER=false`

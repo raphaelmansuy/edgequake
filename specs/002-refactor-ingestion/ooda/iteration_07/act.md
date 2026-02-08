@@ -13,10 +13,10 @@
 
 ## Metrics
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| document-manager.tsx lines | 1618 | 1603 | -15 |
-| Extracted components | 1 | 2 | +1 |
+| Metric                     | Before | After | Change |
+| -------------------------- | ------ | ----- | ------ |
+| document-manager.tsx lines | 1618   | 1603  | -15    |
+| Extracted components       | 1      | 2     | +1     |
 
 ## Commit
 
@@ -30,17 +30,18 @@
 
 ## Progress Summary
 
-| Iteration | Description | Lines Saved |
-|-----------|-------------|-------------|
-| OODA-04 | useStuckDetection hook | -33 |
-| OODA-05 | useDocumentWebSocket hook | -50 |
-| OODA-06 | UploadProgressList component | -126 |
-| OODA-07 | BatchActionsBar component | -15 |
-| **Total** | | **-224** |
+| Iteration | Description                  | Lines Saved |
+| --------- | ---------------------------- | ----------- |
+| OODA-04   | useStuckDetection hook       | -33         |
+| OODA-05   | useDocumentWebSocket hook    | -50         |
+| OODA-06   | UploadProgressList component | -126        |
+| OODA-07   | BatchActionsBar component    | -15         |
+| **Total** |                              | **-224**    |
 
 ## Remaining in Issue #4
 
 DocManager is now at 1603 lines (target: <300). Need to extract:
+
 - DocumentTable component (the main table)
 - DocumentRow component (individual row rendering)
 - DocumentDropzone component (file drop area)

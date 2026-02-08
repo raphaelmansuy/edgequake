@@ -5,6 +5,7 @@
 ### Problem Statement
 
 DocumentManager is 1826 lines with 15+ state variables. This violates SRP:
+
 - Hard to test individual features
 - High cognitive load for developers
 - Difficult to reuse functionality elsewhere
@@ -16,6 +17,7 @@ Given the complexity, I'll use an **incremental approach** - one extraction per 
 **This iteration**: Extract `useStuckDetection` hook
 
 **Why start here**:
+
 1. **Completely isolated** - no dependencies on other document-manager logic
 2. **Clear interface** - takes documents, returns nothing (side effect only)
 3. **Test motivation** - creates example for future hook extractions
@@ -24,6 +26,7 @@ Given the complexity, I'll use an **incremental approach** - one extraction per 
 ### Hook Design
 
 **Current implementation** (embedded in document-manager.tsx):
+
 - Checks every 30 seconds for documents without updates
 - Logs warning to console
 - No return value (pure side effect)
@@ -51,11 +54,12 @@ interface UseStuckDetectionResult {
 
 function useStuckDetection(
   documents: Document[] | undefined,
-  options?: UseStuckDetectionOptions
+  options?: UseStuckDetectionOptions,
 ): UseStuckDetectionResult;
 ```
 
 **Enhancements over current**:
+
 1. Return stuck documents (for UI display if needed)
 2. Configurable timeout/interval
 3. Optional callback instead of just console.warn
@@ -66,6 +70,7 @@ function useStuckDetection(
 **Extract useStuckDetection with enhanced interface**
 
 **Rationale**:
+
 1. Follows React hook conventions
 2. Can be unit tested in isolation
 3. Reusable across different document list components
@@ -73,7 +78,7 @@ function useStuckDetection(
 
 ### Files to Create/Modify
 
-| File | Action |
-|------|--------|
-| `hooks/use-stuck-detection.ts` | **Create** - new hook |
-| `document-manager.tsx` | **Modify** - import and use hook |
+| File                           | Action                           |
+| ------------------------------ | -------------------------------- |
+| `hooks/use-stuck-detection.ts` | **Create** - new hook            |
+| `document-manager.tsx`         | **Modify** - import and use hook |

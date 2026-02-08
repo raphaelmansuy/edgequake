@@ -1,6 +1,7 @@
 # OODA-17 Observe: useDocumentPreferences Hook Extraction
 
 ## Mission Brief Re-Read
+
 - Target: DocumentManager < 300 lines
 - Current: 767 lines (57.9% reduction achieved)
 - Remaining: ~467 lines to reduce
@@ -8,6 +9,7 @@
 ## Code Analysis
 
 ### Target: localStorage Preferences (Lines ~113-150, ~451-462)
+
 The preferences logic includes:
 
 1. **State initialization** (4 states with localStorage fallback):
@@ -22,10 +24,12 @@ The preferences logic includes:
 Total: ~50 lines
 
 ### Dependencies
+
 - `localStorage` browser API
 - DocStatus, SortField, SortDirection types
 
 ### Hook Interface
+
 ```typescript
 interface UseDocumentPreferencesReturn {
   pageSize: number;
@@ -40,6 +44,7 @@ interface UseDocumentPreferencesReturn {
 ```
 
 ## Line Count Estimation
+
 - Lines removed from DocumentManager: ~50
 - New hook: ~100 lines
 - Net reduction: ~50 lines

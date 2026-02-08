@@ -33,7 +33,7 @@ async fn delete_document_for_reingestion(
     }
 
     // ⚠️ RACE WINDOW: Another request can change status here!
-    
+
     // STEP 3: Delete data (lines 520-550)
     cleanup_document_graph_data(...).await?;
     state.kv_storage.delete(&keys_to_delete).await?;
@@ -46,17 +46,18 @@ async fn delete_document_for_reingestion(
 
 Found 3 code paths that modify document status:
 
-| Code Path | File:Line | Status Transitions |
-|-----------|-----------|-------------------|
-| `spawn_ingestion_task` | documents.rs:2100 | pending → processing |
-| `complete_ingestion` | documents.rs:2300 | processing → completed |
-| `fail_ingestion` | documents.rs:2400 | processing → failed |
+| Code Path              | File:Line         | Status Transitions     |
+| ---------------------- | ----------------- | ---------------------- |
+| `spawn_ingestion_task` | documents.rs:2100 | pending → processing   |
+| `complete_ingestion`   | documents.rs:2300 | processing → completed |
+| `fail_ingestion`       | documents.rs:2400 | processing → failed    |
 
 ### 3. Existing Locking Mechanisms
 
 **Found**: `tokio::sync::RwLock` used in `progress.rs:359` for in-memory progress state.
 
 **NOT Found**:
+
 - No PostgreSQL advisory locks (`pg_advisory_lock`)
 - No distributed lock service (Redis, etcd)
 - No optimistic locking (version columns)
@@ -92,13 +93,13 @@ Timeline:
 ─────────────────────────────────────────────────────────────────────────
 Process A (Re-ingest)                  Process B (Ingestion Pipeline)
 ─────────────────────────────────────────────────────────────────────────
-T1: Read status = "failed" ←────────── 
+T1: Read status = "failed" ←──────────
                                        T2: Start processing, status → "processing"
-T3: Check status (stale!) 
+T3: Check status (stale!)
     status == "failed" ✓
                                        T4: Extract entities, write graph data
 T5: DELETE graph data ←─────────────── 💥 CORRUPTED!
-                                       T6: Write more entities 
+                                       T6: Write more entities
                                            (some orphaned, some re-created)
 ─────────────────────────────────────────────────────────────────────────
 Result: Graph has a mix of old and new data, inconsistent state
@@ -106,12 +107,12 @@ Result: Graph has a mix of old and new data, inconsistent state
 
 ### 6. Potential Solutions (For Orient Phase)
 
-| Solution | Pros | Cons | Complexity |
-|----------|------|------|------------|
-| **PostgreSQL Advisory Locks** | Built-in, reliable | Single-node PostgreSQL only | Medium |
-| **Optimistic Locking (version)** | Portable, standard | Retry logic needed | Medium |
-| **KV Storage Lock Service** | Abstracted, testable | New code, tests | High |
-| **Redis distributed lock** | Proven pattern | New dependency | High |
+| Solution                         | Pros                 | Cons                        | Complexity |
+| -------------------------------- | -------------------- | --------------------------- | ---------- |
+| **PostgreSQL Advisory Locks**    | Built-in, reliable   | Single-node PostgreSQL only | Medium     |
+| **Optimistic Locking (version)** | Portable, standard   | Retry logic needed          | Medium     |
+| **KV Storage Lock Service**      | Abstracted, testable | New code, tests             | High       |
+| **Redis distributed lock**       | Proven pattern       | New dependency              | High       |
 
 ### 7. Test Coverage Check
 
@@ -126,19 +127,20 @@ grep -r "race\|concurrent\|parallel" edgequake/crates/edgequake-api/tests/
 
 ## Data Inventory
 
-| Item | Location | Observation |
-|------|----------|-------------|
-| Race condition code | `documents.rs:489-555` | TOCTOU vulnerability confirmed |
-| Status transitions | 3 code paths | `pending → processing → completed/failed` |
-| Existing locks | `progress.rs:359` | In-memory only, not for documents |
-| KV storage | `adapters/postgres/kv.rs` | No atomic CAS operations |
-| Concurrency tests | None | Missing coverage |
+| Item                | Location                  | Observation                               |
+| ------------------- | ------------------------- | ----------------------------------------- |
+| Race condition code | `documents.rs:489-555`    | TOCTOU vulnerability confirmed            |
+| Status transitions  | 3 code paths              | `pending → processing → completed/failed` |
+| Existing locks      | `progress.rs:359`         | In-memory only, not for documents         |
+| KV storage          | `adapters/postgres/kv.rs` | No atomic CAS operations                  |
+| Concurrency tests   | None                      | Missing coverage                          |
 
 ---
 
 ## Next: Orient Phase
 
 Analyze solutions using First Principles:
+
 1. What is the simplest atomic operation that prevents races?
 2. Can PostgreSQL features be leveraged without new dependencies?
 3. How to maintain backward compatibility with memory storage?

@@ -8,6 +8,7 @@
 **Lines**: 1187-1210
 
 **Before**:
+
 ```rust
 let doc_metadata = serde_json::json!({
     "id": document_id,
@@ -18,6 +19,7 @@ let doc_metadata = serde_json::json!({
 ```
 
 **After**:
+
 ```rust
 // OODA-03: Determine final status based on chunk extraction results
 let final_status = if result.stats.failed_chunks > 0 {
@@ -45,6 +47,7 @@ let doc_metadata = serde_json::json!({
 **File**: `edgequake_webui/src/components/documents/enhanced-status-badge.tsx`
 
 **Add variant**:
+
 ```typescript
 partial_success: {
   variant: 'warning',
@@ -59,6 +62,7 @@ partial_success: {
 **File**: `edgequake_webui/src/components/documents/enhanced-status-badge.tsx`
 
 **Add props**:
+
 ```typescript
 interface EnhancedStatusBadgeProps {
   status: DocumentStatus;
@@ -69,6 +73,7 @@ interface EnhancedStatusBadgeProps {
 ```
 
 **Display**:
+
 ```typescript
 {status === 'partial_success' && failedChunks && totalChunks && (
   <span className="text-xs text-muted-foreground ml-1">
@@ -82,6 +87,7 @@ interface EnhancedStatusBadgeProps {
 **File**: `edgequake_webui/src/components/documents/document-manager.tsx`
 
 **Update StatusBadge usage** (where document list is rendered):
+
 ```tsx
 <EnhancedStatusBadge
   status={doc.status}
@@ -107,7 +113,7 @@ interface EnhancedStatusBadgeProps {
 ### Verification Plan
 
 1. **Backend Test**: Upload document, mock one chunk to fail, verify status is "partial_success"
-2. **Frontend Test**: 
+2. **Frontend Test**:
    - Verify EnhancedStatusBadge renders correctly for partial_success
    - Verify chunk counts display
 3. **E2E Test**: Full flow with simulated partial failure
@@ -115,6 +121,7 @@ interface EnhancedStatusBadgeProps {
 ### Rollback Plan
 
 If issues found:
+
 1. Backend can return to always using "completed" status
 2. Frontend can hide partial_success badge (treat as completed)
 3. No breaking changes to API contract

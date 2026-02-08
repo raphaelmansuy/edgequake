@@ -15,10 +15,10 @@
 
 ## Metrics
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| document-manager.tsx lines | 1744 | 1618 | -126 |
-| Extracted components | 0 | 1 | +1 |
+| Metric                     | Before | After | Change |
+| -------------------------- | ------ | ----- | ------ |
+| document-manager.tsx lines | 1744   | 1618  | -126   |
+| Extracted components       | 0      | 1     | +1     |
 
 ## Commit
 
@@ -32,15 +32,16 @@ f9063622 OODA-06: Extract UploadProgressList component
 
 ## Progress Summary
 
-| Iteration | Description | Lines Saved |
-|-----------|-------------|-------------|
-| OODA-04 | useStuckDetection hook | -33 |
-| OODA-05 | useDocumentWebSocket hook | -50 |
-| OODA-06 | UploadProgressList component | -126 |
-| **Total** | | **-209** |
+| Iteration | Description                  | Lines Saved |
+| --------- | ---------------------------- | ----------- |
+| OODA-04   | useStuckDetection hook       | -33         |
+| OODA-05   | useDocumentWebSocket hook    | -50         |
+| OODA-06   | UploadProgressList component | -126        |
+| **Total** |                              | **-209**    |
 
 ## Next Iteration
 
 Continue extracting from DocumentManager:
+
 - DocumentFilters component (search, status filter)
 - DocumentBatchActions component (select all, bulk actions)

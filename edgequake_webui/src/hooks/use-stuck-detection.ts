@@ -1,21 +1,21 @@
 /**
  * @module useStuckDetection
  * @description Hook to detect documents stuck in processing state.
- * 
+ *
  * Periodically checks processing documents and warns when they haven't
  * received updates within the timeout period. Useful for detecting
  * backend issues or network problems during document ingestion.
- * 
+ *
  * @implements OODA-04: Extract useStuckDetection from DocumentManager
  * @implements UC0007: User monitors document processing progress
- * 
+ *
  * @enforces BR0321: User visibility into processing issues
  */
-'use client';
+"use client";
 
-import type { Document } from '@/types';
-import { isProcessingStatus } from '@/components/documents/status-badge';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { isProcessingStatus } from "@/components/documents/status-badge";
+import type { Document } from "@/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 // ============================================================================
 // Types
@@ -52,14 +52,14 @@ const DEFAULT_INTERVAL = 30000; // 30 seconds
 
 /**
  * Hook to detect documents stuck in processing state.
- * 
+ *
  * @example
  * ```tsx
  * const { stuckDocuments } = useStuckDetection(documents, {
  *   timeout: 60000, // Consider stuck after 1 minute
  *   onStuck: (doc) => toast.warning(`Document ${doc.title} may be stuck`),
  * });
- * 
+ *
  * if (stuckDocuments.length > 0) {
  *   // Show warning UI
  * }
@@ -67,7 +67,7 @@ const DEFAULT_INTERVAL = 30000; // 30 seconds
  */
 export function useStuckDetection(
   documents: Document[] | undefined,
-  options: UseStuckDetectionOptions = {}
+  options: UseStuckDetectionOptions = {},
 ): UseStuckDetectionResult {
   const {
     timeout = DEFAULT_TIMEOUT,
@@ -82,7 +82,7 @@ export function useStuckDetection(
   const processingDocs = useMemo(() => {
     if (!documents) return [];
     return documents.filter(
-      (doc) => doc.track_id && isProcessingStatus(doc.status as any)
+      (doc) => doc.track_id && isProcessingStatus(doc.status as any),
     );
   }, [documents]);
 
@@ -97,9 +97,9 @@ export function useStuckDetection(
 
       if (timeSinceUpdate > timeout) {
         stuck.push(doc);
-        
+
         // Log warning with diagnostic info
-        console.warn('[useStuckDetection] Document may be stuck:', {
+        console.warn("[useStuckDetection] Document may be stuck:", {
           id: doc.id,
           title: doc.title,
           status: doc.status,
@@ -109,7 +109,7 @@ export function useStuckDetection(
           track_id: doc.track_id,
           seconds_since_update: Math.floor(timeSinceUpdate / 1000),
         });
-        
+
         // Call optional callback
         onStuck?.(doc);
       }

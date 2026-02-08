@@ -16,6 +16,7 @@
    - Verify visibility condition works
 
 ## Expected Outcome
+
 - **Lines saved**: ~40 lines from DocumentManager
 - **New component**: ~70 lines (reusable)
 - **Target**: DocumentManager 1444 → ~1405 lines

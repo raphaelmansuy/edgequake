@@ -8,11 +8,10 @@
  */
 'use client';
 
-import * as React from 'react';
-import { Loader2, Clock, CheckCircle } from 'lucide-react';
 import type { Document, PipelineStatus } from '@/types';
-import { isProcessingStatus } from './status-badge';
+import { CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { isProcessingStatus } from './status-badge';
 
 export interface ProcessingStatusSummaryProps {
   /** Pipeline status from API query */

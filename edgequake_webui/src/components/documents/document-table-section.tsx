@@ -17,11 +17,11 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from '@/components/ui/table';
 import type { Document } from '@/types';
 import { FileText } from 'lucide-react';

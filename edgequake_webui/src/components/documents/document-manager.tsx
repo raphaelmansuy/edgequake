@@ -28,23 +28,23 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useBulkSelection } from '@/hooks/use-bulk-selection';
+import { useDocumentDropzone } from '@/hooks/use-document-dropzone';
+import { useDocumentFiltering } from '@/hooks/use-document-filtering';
+import { useDocumentHandlers } from '@/hooks/use-document-handlers';
+import { useDocumentKeyboard } from '@/hooks/use-document-keyboard';
+import { useDocumentMutations } from '@/hooks/use-document-mutations';
+import { useDocumentPreferences } from '@/hooks/use-document-preferences';
+import { useDocumentQueries } from '@/hooks/use-document-queries';
+import { useDocumentTitle } from '@/hooks/use-document-title';
+import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
+import { useFileUpload } from '@/hooks/use-file-upload';
+import { useStuckDetection } from '@/hooks/use-stuck-detection';
 import { DocumentErrorAlert } from './document-error-alert';
 import { DocumentHeader } from './document-header';
 import { DocumentPreviewRightPanel } from './document-preview-right-panel';
 import { DocumentTableSection } from './document-table-section';
 import { DocumentToolbarSection } from './document-toolbar-section';
-import { useStuckDetection } from '@/hooks/use-stuck-detection';
-import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
-import { useFileUpload } from '@/hooks/use-file-upload';
-import { useDocumentMutations } from '@/hooks/use-document-mutations';
-import { useBulkSelection } from '@/hooks/use-bulk-selection';
-import { useDocumentPreferences } from '@/hooks/use-document-preferences';
-import { useDocumentKeyboard } from '@/hooks/use-document-keyboard';
-import { useDocumentFiltering } from '@/hooks/use-document-filtering';
-import { useDocumentDropzone } from '@/hooks/use-document-dropzone';
-import { useDocumentHandlers } from '@/hooks/use-document-handlers';
-import { useDocumentQueries } from '@/hooks/use-document-queries';
-import { useDocumentTitle } from '@/hooks/use-document-title';
 
 export function DocumentManager() {
   const { t } = useTranslation();

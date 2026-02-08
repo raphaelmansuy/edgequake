@@ -16,6 +16,7 @@
    - Both states render correctly
 
 ## Expected Outcome
+
 - **Lines saved**: ~25 lines from DocumentManager
 - **New component**: ~55 lines
 - **Target**: DocumentManager 1399 → ~1375 lines

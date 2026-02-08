@@ -6,20 +6,20 @@
  *
  * @module edgequake_webui/hooks/use-file-upload
  */
-'use client';
+"use client";
 
-import { useCallback, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
-import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import type { UploadingFile } from "@/components/documents/types";
 import {
   uploadDocument,
   uploadPdfDocument,
   type DocumentsListResult,
-} from '@/lib/api/edgequake';
-import type { Document } from '@/types';
-import type { UploadingFile } from '@/components/documents/types';
+} from "@/lib/api/edgequake";
+import type { Document } from "@/types";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 export interface UseFileUploadOptions {
   /** Tenant ID for multi-tenancy */
@@ -55,12 +55,14 @@ export interface UseFileUploadReturn {
  * - Duplicate detection
  * - Success/error toast notifications
  */
-export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUploadReturn {
+export function useFileUpload(
+  options: UseFileUploadOptions = {},
+): UseFileUploadReturn {
   const { tenantId, workspaceId, onUploadStart } = options;
-  
+
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  
+
   const queryClient = useQueryClient();
   const router = useRouter();
   const { t } = useTranslation();
@@ -85,16 +87,16 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
       const initialFiles: UploadingFile[] = files.map((file) => ({
         file,
         progress: 0,
-        status: 'pending' as const,
-        phase: 'Waiting...',
+        status: "pending" as const,
+        phase: "Waiting...",
       }));
       setUploadingFiles(initialFiles);
 
       // Show loading toast
       const toastId = toast.loading(
-        t('documents.upload.inProgress', { count: files.length }) ||
+        t("documents.upload.inProgress", { count: files.length }) ||
           `Uploading ${files.length} file(s)...`,
-        { duration: Infinity }
+        { duration: Infinity },
       );
 
       let successCount = 0;
@@ -110,12 +112,12 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
             idx === i
               ? {
                   ...f,
-                  status: 'reading' as const,
+                  status: "reading" as const,
                   progress: 10,
-                  phase: t('documents.upload.reading', 'Reading file...'),
+                  phase: t("documents.upload.reading", "Reading file..."),
                 }
-              : f
-          )
+              : f,
+          ),
         );
 
         try {
@@ -125,12 +127,15 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
               idx === i
                 ? {
                     ...f,
-                    status: 'uploading' as const,
+                    status: "uploading" as const,
                     progress: 40,
-                    phase: t('documents.upload.uploading', 'Uploading to server...'),
+                    phase: t(
+                      "documents.upload.uploading",
+                      "Uploading to server...",
+                    ),
                   }
-                : f
-            )
+                : f,
+            ),
           );
 
           let response: {
@@ -142,7 +147,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
           };
 
           // Check if file is PDF - route to PDF upload endpoint
-          const isPdfFile = file.type === 'application/pdf';
+          const isPdfFile = file.type === "application/pdf";
 
           if (isPdfFile) {
             // Upload PDF file directly (multipart/form-data)
@@ -162,15 +167,16 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
 
             // Optimistic update for PDF upload
             // WHY: PDFs must appear immediately in documents panel
+            // FIX: Use predicate-based filter for reliable query matching
             if (pdfResponse.pdf_id && !pdfResponse.duplicate_of) {
               const optimisticDoc: Document = {
                 id: pdfResponse.pdf_id,
                 title: file.name,
                 file_name: file.name,
                 file_size: file.size,
-                source_type: 'pdf',
-                status: 'processing',
-                mime_type: 'application/pdf',
+                source_type: "pdf",
+                status: "processing",
+                mime_type: "application/pdf",
                 created_at: new Date().toISOString(),
                 pdf_id: pdfResponse.pdf_id,
                 track_id: pdfResponse.track_id,
@@ -179,12 +185,16 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
               };
 
               // Add to query cache for instant visibility
+              // Use predicate to match ANY documents query regardless of pagination params
               queryClient.setQueriesData<DocumentsListResult>(
-                { queryKey: ['documents', tenantId, workspaceId] },
+                { predicate: (query) => query.queryKey[0] === "documents" },
                 (old) => {
-                  if (!old || !old.items || !Array.isArray(old.items)) return old;
+                  if (!old || !old.items || !Array.isArray(old.items))
+                    return old;
                   const exists = old.items.some(
-                    (d) => d.pdf_id === pdfResponse.pdf_id || d.id === pdfResponse.pdf_id
+                    (d) =>
+                      d.pdf_id === pdfResponse.pdf_id ||
+                      d.id === pdfResponse.pdf_id,
                   );
                   if (exists) return old;
                   return {
@@ -192,7 +202,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
                     items: [optimisticDoc, ...old.items],
                     total: (old.total ?? 0) + 1,
                   };
-                }
+                },
               );
             }
 
@@ -205,8 +215,8 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
                       trackId: pdfResponse.track_id,
                       isPdf: true,
                     }
-                  : f
-              )
+                  : f,
+              ),
             );
           } else {
             // Read text file content
@@ -215,7 +225,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
             // Upload text document with async processing
             const textResponse = await uploadDocument({
               content: text,
-              source_type: 'text',
+              source_type: "text",
               title: file.name,
               async_processing: true,
               track_id: trackId,
@@ -224,15 +234,16 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
             response = textResponse;
 
             // Optimistic update for text/markdown files
+            // FIX: Use predicate-based filter for reliable query matching
             if (textResponse.document_id && !textResponse.duplicate_of) {
               const optimisticDoc: Document = {
                 id: textResponse.document_id,
                 title: file.name,
                 file_name: file.name,
                 file_size: file.size,
-                source_type: 'text',
-                status: 'processing',
-                mime_type: file.type || 'text/plain',
+                source_type: "text",
+                status: "processing",
+                mime_type: file.type || "text/plain",
                 created_at: new Date().toISOString(),
                 track_id: textResponse.track_id,
                 tenant_id: tenantId ?? undefined,
@@ -240,17 +251,20 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
               };
 
               queryClient.setQueriesData<DocumentsListResult>(
-                { queryKey: ['documents', tenantId, workspaceId] },
+                { predicate: (query) => query.queryKey[0] === "documents" },
                 (old) => {
-                  if (!old || !old.items || !Array.isArray(old.items)) return old;
-                  const exists = old.items.some((d) => d.id === textResponse.document_id);
+                  if (!old || !old.items || !Array.isArray(old.items))
+                    return old;
+                  const exists = old.items.some(
+                    (d) => d.id === textResponse.document_id,
+                  );
                   if (exists) return old;
                   return {
                     ...old,
                     items: [optimisticDoc, ...old.items],
                     total: (old.total ?? 0) + 1,
                   };
-                }
+                },
               );
             }
           }
@@ -258,11 +272,15 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
           // Check for duplicate
           if (response.duplicate_of) {
             toast.warning(
-              t('documents.upload.duplicate', '{{name}} is a duplicate (existing: {{id}})', {
-                name: file.name,
-                id: response.duplicate_of.slice(0, 8),
-              }),
-              { duration: 4000 }
+              t(
+                "documents.upload.duplicate",
+                "{{name}} is a duplicate (existing: {{id}})",
+                {
+                  name: file.name,
+                  id: response.duplicate_of.slice(0, 8),
+                },
+              ),
+              { duration: 4000 },
             );
 
             // Mark as duplicate (treat as success with warning)
@@ -271,12 +289,15 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
                 idx === i
                   ? {
                       ...f,
-                      status: 'success' as const,
+                      status: "success" as const,
                       progress: 100,
-                      phase: t('documents.upload.duplicateSkipped', 'Duplicate (skipped)'),
+                      phase: t(
+                        "documents.upload.duplicateSkipped",
+                        "Duplicate (skipped)",
+                      ),
                     }
-                  : f
-              )
+                  : f,
+              ),
             );
             successCount++;
             continue;
@@ -288,16 +309,20 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
               idx === i
                 ? {
                     ...f,
-                    status: 'extracting' as const,
+                    status: "extracting" as const,
                     progress: 80,
                     phase: response.task_id
-                      ? t('documents.upload.queued', 'Queued for extraction (Task: {{taskId}})', {
-                          taskId: response.task_id.slice(0, 8),
-                        })
-                      : t('documents.upload.extracting', 'Processing...'),
+                      ? t(
+                          "documents.upload.queued",
+                          "Queued for extraction (Task: {{taskId}})",
+                          {
+                            taskId: response.task_id.slice(0, 8),
+                          },
+                        )
+                      : t("documents.upload.extracting", "Processing..."),
                   }
-                : f
-            )
+                : f,
+            ),
           );
 
           // Brief delay to show extraction phase
@@ -309,29 +334,30 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
               idx === i
                 ? {
                     ...f,
-                    status: 'success' as const,
+                    status: "success" as const,
                     progress: 100,
-                    phase: t('documents.upload.complete', 'Complete!'),
+                    phase: t("documents.upload.complete", "Complete!"),
                   }
-                : f
-            )
+                : f,
+            ),
           );
 
           successCount++;
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+          const errorMessage =
+            error instanceof Error ? error.message : "Upload failed";
           setUploadingFiles((prev) =>
             prev.map((f, idx) =>
               idx === i
                 ? {
                     ...f,
-                    status: 'error' as const,
+                    status: "error" as const,
                     progress: 100,
                     error: errorMessage,
-                    phase: t('common.failed', 'Failed'),
+                    phase: t("common.failed", "Failed"),
                   }
-                : f
-            )
+                : f,
+            ),
           );
 
           errorCount++;
@@ -341,49 +367,59 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
       // Update toast with final result
       if (errorCount === 0) {
         toast.success(
-          t('documents.upload.success', { count: successCount }) ||
+          t("documents.upload.success", { count: successCount }) ||
             `Successfully uploaded ${successCount} file(s)`,
           {
             id: toastId,
             duration: 5000,
             action: {
-              label: t('documents.upload.viewInGraph', 'View in Graph'),
-              onClick: () => router.push('/graph'),
+              label: t("documents.upload.viewInGraph", "View in Graph"),
+              onClick: () => router.push("/graph"),
             },
-          }
+          },
         );
       } else if (successCount === 0) {
         toast.error(
-          t('documents.upload.allFailed', { count: errorCount }) ||
+          t("documents.upload.allFailed", { count: errorCount }) ||
             `All ${errorCount} file(s) failed to upload`,
           {
             id: toastId,
             duration: 5000,
             action: {
-              label: t('common.retry', 'Retry'),
+              label: t("common.retry", "Retry"),
               onClick: () => {
                 setUploadingFiles([]);
               },
             },
-          }
+          },
         );
       } else {
         toast.warning(
-          t('documents.upload.partial', { success: successCount, failed: errorCount }) ||
-            `Uploaded ${successCount} file(s), ${errorCount} failed`,
+          t("documents.upload.partial", {
+            success: successCount,
+            failed: errorCount,
+          }) || `Uploaded ${successCount} file(s), ${errorCount} failed`,
           {
             id: toastId,
             duration: 5000,
             action: {
-              label: t('documents.upload.viewInGraph', 'View in Graph'),
-              onClick: () => router.push('/graph'),
+              label: t("documents.upload.viewInGraph", "View in Graph"),
+              onClick: () => router.push("/graph"),
             },
-          }
+          },
         );
       }
 
-      // Refresh documents list
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      // Refresh documents list - invalidate AND refetch immediately
+      // WHY: Ensures the document panel shows newly uploaded files immediately
+      // even if WebSocket updates are delayed or miss the initial document
+      await queryClient.invalidateQueries({ queryKey: ["documents"] });
+      // Force immediate refetch of all documents queries
+      queryClient.refetchQueries({ 
+        queryKey: ["documents"],
+        type: "active",
+      });
+      
       setIsUploading(false);
 
       // Clear upload list after delay
@@ -391,7 +427,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
         setUploadingFiles([]);
       }, 3000);
     },
-    [queryClient, t, router, tenantId, workspaceId, onUploadStart]
+    [queryClient, t, router, tenantId, workspaceId, onUploadStart],
   );
 
   /**
@@ -407,8 +443,8 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
   const handleUploadComplete = useCallback((index: number) => {
     setUploadingFiles((prev) =>
       prev.map((f, idx) =>
-        idx === index ? { ...f, status: 'success' as const, progress: 100 } : f
-      )
+        idx === index ? { ...f, status: "success" as const, progress: 100 } : f,
+      ),
     );
   }, []);
 
@@ -417,7 +453,9 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
    */
   const handleUploadFailed = useCallback((index: number, error: string) => {
     setUploadingFiles((prev) =>
-      prev.map((f, idx) => (idx === index ? { ...f, status: 'error' as const, error } : f))
+      prev.map((f, idx) =>
+        idx === index ? { ...f, status: "error" as const, error } : f,
+      ),
     );
   }, []);
 

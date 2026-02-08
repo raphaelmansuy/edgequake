@@ -4,14 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  CheckCircle,
-  Clock,
-  FileSearch,
-  Loader2,
-  Sparkles,
-  Upload,
-  X,
-  XCircle,
+    CheckCircle,
+    Clock,
+    FileSearch,
+    Loader2,
+    Sparkles,
+    Upload,
+    X,
+    XCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { PdfUploadProgress } from './pdf-upload-progress';

@@ -11,6 +11,7 @@
 **File**: [use-ingestion-store.ts](../../../../edgequake_webui/src/stores/use-ingestion-store.ts#L52-L55)
 
 Added new state field and setter:
+
 - `wsMaxReconnectsReached: boolean` - tracks when reconnection has failed
 - `setWsMaxReconnectsReached(reached: boolean)` - setter function
 
@@ -22,11 +23,11 @@ Added new state field and setter:
 
 Added toast notifications for connection events:
 
-| Event | Toast Type | Duration | Action |
-|-------|------------|----------|--------|
-| `disconnected` | warning | 5s | None |
-| `max_reconnects_reached` | error | Infinite | Retry button |
-| `connected` (after failure) | success | 3s | None |
+| Event                       | Toast Type | Duration | Action       |
+| --------------------------- | ---------- | -------- | ------------ |
+| `disconnected`              | warning    | 5s       | None         |
+| `max_reconnects_reached`    | error      | Infinite | Retry button |
+| `connected` (after failure) | success    | 3s       | None         |
 
 **WHY**: Users need immediate feedback when real-time updates become unavailable, and an actionable way to retry.
 
@@ -35,6 +36,7 @@ Added toast notifications for connection events:
 **File**: [connection-banner.tsx](../../../../edgequake_webui/src/components/documents/connection-banner.tsx) (NEW)
 
 Created persistent banner component:
+
 - Shows only when `wsMaxReconnectsReached` is true
 - Displays "Connection Lost" message with description
 - Includes "Retry" button to trigger reconnection
@@ -89,15 +91,16 @@ ESLint: ⚠️ 269 pre-existing issues (unrelated to this change)
 
 ## Impact
 
-| Metric | Before | After |
-|--------|--------|-------|
-| User notified of disconnect | ❌ No | ✅ Toast |
-| User notified of failure | ❌ No | ✅ Toast + Banner |
-| Retry available | ❌ No | ✅ Button in toast & banner |
-| Connection state visible | ⚠️ Subtle dot | ✅ Clear banner |
+| Metric                      | Before        | After                       |
+| --------------------------- | ------------- | --------------------------- |
+| User notified of disconnect | ❌ No         | ✅ Toast                    |
+| User notified of failure    | ❌ No         | ✅ Toast + Banner           |
+| Retry available             | ❌ No         | ✅ Button in toast & banner |
+| Connection state visible    | ⚠️ Subtle dot | ✅ Clear banner             |
 
 ## Next Iteration
 
 **Issue #3**: Partial Extraction Failures Hidden (`pipeline.rs:800-850`)
+
 - 8/10 chunks succeed → "Completed" status, but 2 chunks failed silently
 - Add `partial_success` status with chunk failure visibility

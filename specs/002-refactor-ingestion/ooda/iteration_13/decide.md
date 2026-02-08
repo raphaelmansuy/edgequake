@@ -18,10 +18,12 @@
    - Upload functionality works properly
 
 ## Expected Outcome
+
 - **Lines saved**: ~320 lines from DocumentManager
 - **New hook**: ~360 lines (complete upload logic)
 - **Target**: DocumentManager 1373 → ~1050 lines
 
 ## Implementation Notes
+
 - Hook returns: `{ uploadingFiles, isUploading, handleFilesUpload, removeUploadingFile, handleUploadComplete, handleUploadFailed }`
 - Dependencies passed via options object

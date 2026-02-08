@@ -2,55 +2,60 @@
  * @module useDocumentPreferences
  * @description Manages document list preferences with localStorage persistence.
  * Extracted from DocumentManager for SRP compliance (OODA-17).
- * 
+ *
  * WHY: Preferences state and localStorage logic were inline in DocumentManager.
  * This hook:
  * - Initializes state from localStorage
  * - Persists changes to localStorage
  * - Handles SSR safely (typeof window check)
  * - Silently handles localStorage errors (incognito mode)
- * 
+ *
  * @implements FEAT0004 - User preference persistence
  */
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 /**
  * Document status filter values.
  */
 export type DocStatus =
-  | 'all'
-  | 'pending'
-  | 'processing'
-  | 'completed'
-  | 'failed'
-  | 'partial_failure'
-  | 'cancelled';
+  | "all"
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "partial_failure"
+  | "cancelled";
 
 /**
  * Sort field options.
  */
-export type SortField = 'created_at' | 'updated_at' | 'title' | 'status' | 'entity_count';
+export type SortField =
+  | "created_at"
+  | "updated_at"
+  | "title"
+  | "status"
+  | "entity_count";
 
 /**
  * Sort direction options.
  */
-export type SortDirection = 'asc' | 'desc';
+export type SortDirection = "asc" | "desc";
 
 /**
  * localStorage key for document preferences.
  */
-const STORAGE_KEY = 'edgequake:documents:prefs';
+const STORAGE_KEY = "edgequake:documents:prefs";
 
 /**
  * Default values for preferences.
  */
 const DEFAULTS = {
   pageSize: 20,
-  statusFilter: 'all' as DocStatus,
-  sortField: 'created_at' as SortField,
-  sortDirection: 'desc' as SortDirection,
+  statusFilter: "all" as DocStatus,
+  sortField: "created_at" as SortField,
+  sortDirection: "desc" as SortDirection,
 };
 
 /**
@@ -65,15 +70,15 @@ export interface UseDocumentPreferencesReturn {
   /** Number of items per page */
   pageSize: number;
   setPageSize: (size: number) => void;
-  
+
   /** Status filter value */
   statusFilter: DocStatus;
   setStatusFilter: (status: DocStatus) => void;
-  
+
   /** Sort field */
   sortField: SortField;
   setSortField: (field: SortField) => void;
-  
+
   /** Sort direction */
   sortDirection: SortDirection;
   setSortDirection: (direction: SortDirection) => void;
@@ -89,8 +94,8 @@ function readPreferences(): Partial<{
   sortField: SortField;
   sortDirection: SortDirection;
 }> {
-  if (typeof window === 'undefined') return {};
-  
+  if (typeof window === "undefined") return {};
+
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return {};
@@ -102,7 +107,7 @@ function readPreferences(): Partial<{
 
 /**
  * Hook for managing document list preferences with persistence.
- * 
+ *
  * @example
  * ```tsx
  * const {
@@ -111,7 +116,7 @@ function readPreferences(): Partial<{
  *   sortField, setSortField,
  *   sortDirection, setSortDirection,
  * } = useDocumentPreferences();
- * 
+ *
  * // Use in DocumentFilters
  * <DocumentFilters
  *   status={statusFilter}
@@ -155,7 +160,7 @@ export function useDocumentPreferences(): UseDocumentPreferencesReturn {
           statusFilter,
           sortField,
           sortDirection,
-        })
+        }),
       );
     } catch {
       // Ignore localStorage errors (e.g., in incognito mode)
