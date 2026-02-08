@@ -12,6 +12,7 @@ curl -X DELETE http://localhost:8080/api/v1/documents/d578ab1e-9651-4a5d-904e-f9
 ```
 
 **Error Response**:
+
 ```json
 {
   "code": "BAD_REQUEST",
@@ -40,6 +41,7 @@ documents.rs:get_workspace_vector_storage_strict()
 ### Code Discrepancy
 
 **processor.rs** (correctly handles "default"):
+
 ```rust
 // processor.rs:404
 if workspace_id.is_empty() || workspace_id == "default" {
@@ -48,6 +50,7 @@ if workspace_id.is_empty() || workspace_id == "default" {
 ```
 
 **documents.rs** (was missing this check):
+
 ```rust
 // documents.rs:111
 let workspace_uuid = match Uuid::parse_str(workspace_id) {
@@ -58,6 +61,7 @@ let workspace_uuid = match Uuid::parse_str(workspace_id) {
 ## Default Workspace Mapping
 
 From `workspace_service_impl.rs:77`:
+
 ```rust
 let default_workspace_id = Uuid::parse_str("00000000-0000-0000-0000-000000000003")
 ```

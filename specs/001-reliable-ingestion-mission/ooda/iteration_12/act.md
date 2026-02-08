@@ -43,13 +43,13 @@ Answer: "EdgeQuake is a software product. It utilizes LLMs provided by OLLAMA...
 
 ## Query Mode Support Matrix
 
-| Mode | Works | Notes |
-|------|-------|-------|
-| local | ✅ | Entity-based context |
-| global | ⚠️ | No chunks in test doc |
-| hybrid | ✅ | Combined context |
-| mix | ✅ | Weighted combination |
-| naive | ⚠️ | Vector search only |
+| Mode   | Works | Notes                 |
+| ------ | ----- | --------------------- |
+| local  | ✅    | Entity-based context  |
+| global | ⚠️    | No chunks in test doc |
+| hybrid | ✅    | Combined context      |
+| mix    | ✅    | Weighted combination  |
+| naive  | ⚠️    | Vector search only    |
 
 ## Architecture Verification
 
@@ -84,6 +84,7 @@ Answer: "EdgeQuake is a software product. It utilizes LLMs provided by OLLAMA...
 ## No Code Changes Required
 
 Query functionality is working correctly with:
+
 - Multiple query modes
 - Both provider types (via trait abstraction)
 - Documents processed through standard pipeline

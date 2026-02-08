@@ -25,7 +25,7 @@ curl -s http://localhost:8080/api/v1/query \
   -d '{"query": "What is EdgeQuake written in?", "mode": "hybrid"}'
 ```
 
-**Response**: 
+**Response**:
 
 > EdgeQuake is written in the RUST programming language.
 
@@ -61,13 +61,13 @@ Completed Document:
 
 The query API supports multiple modes:
 
-| Mode | Description |
-|------|-------------|
-| `local` | Entity-only search |
-| `global` | Document-wide search |
+| Mode     | Description                       |
+| -------- | --------------------------------- |
+| `local`  | Entity-only search                |
+| `global` | Document-wide search              |
 | `hybrid` | Combined entity + document search |
-| `mix` | Weighted combination |
-| `naive` | Basic vector search |
+| `mix`    | Weighted combination              |
+| `naive`  | Basic vector search               |
 
 ## OpenAI Query Path
 
@@ -83,12 +83,15 @@ The only difference is which provider implements `LLMProvider` trait.
 ## Code Locations
 
 ### Query Handler
+
 **File**: `edgequake/crates/edgequake-api/src/handlers/query.rs`
 
 ### Query Engine
+
 **File**: `edgequake/crates/edgequake-query/src/engine.rs`
 
 ### LLMProvider Trait
+
 **File**: `edgequake/crates/edgequake-llm/src/traits.rs:137`
 
 ```rust

@@ -14,7 +14,7 @@ curl http://localhost:8080/api/v1/query \
   -d '{"query": "What is EdgeQuake written in?", "mode": "hybrid"}'
 # → "EdgeQuake is written in the RUST programming language"
 
-# Local mode - ✅ Success  
+# Local mode - ✅ Success
 curl http://localhost:8080/api/v1/query \
   -d '{"query": "What is EdgeQuake?", "mode": "local"}'
 # → Uses entities (EDGEQUAKE, OLLAMA, RUST) to generate answer
@@ -41,6 +41,7 @@ No code changes needed - the system already supports both providers correctly.
 ## Documentation Action
 
 Update mission summary to reflect:
+
 - Query verified with Ollama (direct test)
 - Query expected to work with OpenAI (same code path)
 - All query modes functional

@@ -838,7 +838,7 @@ mod tests {
         std::env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "mock");
 
         let (llm, embedding) = ProviderFactory::from_env().unwrap();
-        
+
         // Both should be mock providers in test mode
         assert_eq!(llm.name(), "mock");
         assert_eq!(embedding.name(), "mock");

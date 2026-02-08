@@ -19,11 +19,11 @@
 
 ## Risk Assessment
 
-| Approach | Risk | Benefit |
-|----------|------|---------|
-| Add fields to existing HealthResponse | Low - backwards compatible | Full visibility, easy to understand |
-| Create separate `/config` endpoint | Medium - extra endpoint to maintain | Cleaner separation of concerns |
-| Add nested `providers` object | Low - clean structure | Groups related fields logically |
+| Approach                              | Risk                                | Benefit                             |
+| ------------------------------------- | ----------------------------------- | ----------------------------------- |
+| Add fields to existing HealthResponse | Low - backwards compatible          | Full visibility, easy to understand |
+| Create separate `/config` endpoint    | Medium - extra endpoint to maintain | Cleaner separation of concerns      |
+| Add nested `providers` object         | Low - clean structure               | Groups related fields logically     |
 
 ## Recommended Solution
 
