@@ -67,9 +67,17 @@ pub use crate::handlers::entities_types::*;
 /// 1. If tenant context is set, ONLY return nodes that have matching tenant_id
 /// 2. Nodes without tenant_id property are EXCLUDED when tenant context is set
 /// 3. This prevents data leakage between tenants
-fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) -> Vec<GraphNode> {
+fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) - > Vec<GraphNode> {
+    tracing::debug!(
+        "filter_nodes_by_tenant_context called: input_count={}, tenant_id={:?}, workspace_id={:?}",
+        nodes.len(),
+        ctx.tenant_id,
+        ctx.workspace_id
+    );
+    
     // If no tenant context is set, return all nodes (admin/system view)
     if ctx.tenant_id.is_none() && ctx.workspace_id.is_none() {
+        tracing::debug!("No tenant context; returning all {} nodes", nodes.len());
         return nodes;
     }
 
@@ -82,11 +90,18 @@ fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) ->
                     Some(node_tenant_id) => {
                         // Node has tenant_id - must match exactly
                         if node_tenant_id != ctx_tenant_id {
+                            tracing::trace!(
+                                "Filtering out node {}: tenant_id mismatch ({} != {})",
+                                node.id,
+                                node_tenant_id,
+                                ctx_tenant_id
+                            );
                             return false;
                         }
                     }
                     None => {
                         // Node has no tenant_id - EXCLUDE (strict multi-tenancy)
+                        tracing::trace!("Filtering out node {}: no tenant_id property", node.id);
                         return false;
                     }
                 }
@@ -98,16 +113,24 @@ fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) ->
                     Some(node_workspace_id) => {
                         // Node has workspace_id - must match exactly
                         if node_workspace_id != ctx_workspace_id {
+                            tracing::trace!(
+                                "Filtering out node {}: workspace_id mismatch ({} != {})",
+                                node.id,
+                                node_workspace_id,
+                                ctx_workspace_id
+                            );
                             return false;
                         }
                     }
                     None => {
                         // Node has no workspace_id - EXCLUDE (strict multi-tenancy)
+                        tracing::trace!("Filtering out node {}: no workspace_id property", node.id);
                         return false;
                     }
                 }
             }
 
+            tracing::trace!("Node {} passed tenant filter", node.id);
             true
         })
         .collect()

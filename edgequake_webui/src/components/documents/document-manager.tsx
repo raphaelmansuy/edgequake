@@ -1341,6 +1341,7 @@ export function DocumentManager() {
           />
         </div>
       )}
+      </div>
 
       {/* Scrollable Documents Table Zone */}
       <div className="flex-1 min-h-0 overflow-auto">
