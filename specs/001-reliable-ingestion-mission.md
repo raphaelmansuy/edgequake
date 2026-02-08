@@ -185,6 +185,19 @@ If you see "You exceeded your current quota":
    EDGEQUAKE_DEFAULT_LLM_PROVIDER=openai
    ```
 
-**Note**: The code already uses the cheapest OpenAI models. Quota exceeded is typically a user account limit, not a configuration issue.
 
 
+Test with this cURL command to confirm OpenAI works:
+
+```bash
+
+Account to use for openai:
+
+curl https://api.openai.com/v1/responses \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer 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" \
+  -d '{
+    "model": "gpt-5-nano",
+    "input": "write a haiku about ai",
+    "store": true
+  }'

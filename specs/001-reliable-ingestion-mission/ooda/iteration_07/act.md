@@ -19,16 +19,17 @@
 
 ### Files Modified
 
-| File | Change | Lines |
-|------|--------|-------|
-| `lmstudio.rs` | Added allow attribute + WHY | 610-617 |
-| `progress.rs` (tasks) | Derived impl | Auto-fix |
-| `multitenancy.rs` (core) | Derived impl | Auto-fix |
-| `documents.rs` (api) | Restored `mut` keyword | 2529 |
+| File                     | Change                      | Lines    |
+| ------------------------ | --------------------------- | -------- |
+| `lmstudio.rs`            | Added allow attribute + WHY | 610-617  |
+| `progress.rs` (tasks)    | Derived impl                | Auto-fix |
+| `multitenancy.rs` (core) | Derived impl                | Auto-fix |
+| `documents.rs` (api)     | Restored `mut` keyword      | 2529     |
 
 ### Code Changes
 
 **lmstudio.rs (line 616):**
+
 ```rust
 // WHY: Clippy false positive - EmbeddingProvider::model() should return
 // embedding_model (not self.model which is the LLM model).
@@ -40,15 +41,16 @@ fn model(&self) -> &str {
 ```
 
 **documents.rs (line 2529):**
+
 ```rust
 let mut total_pdfs_deleted = 0usize;  // Restored `mut`
 ```
 
 ### Clippy Warning Reduction
 
-| Before | After | Reduction |
-|--------|-------|-----------|
-| 23 warnings | 16 warnings | 30% |
+| Before      | After       | Reduction |
+| ----------- | ----------- | --------- |
+| 23 warnings | 16 warnings | 30%       |
 
 Remaining warnings are mostly `from_str` naming (style preference) and a few minor issues that require more invasive changes.
 
@@ -65,11 +67,11 @@ Total: 1668+ tests
 
 ### Success Criteria Addressed
 
-| Criterion | Status | Evidence |
-|-----------|--------|----------|
-| No dead code | ✅ | No dead_code warnings |
-| No duplicate code | ✅ | DRY patterns followed |
-| All tests pass | ✅ | 1668+ passing |
+| Criterion         | Status | Evidence              |
+| ----------------- | ------ | --------------------- |
+| No dead code      | ✅     | No dead_code warnings |
+| No duplicate code | ✅     | DRY patterns followed |
+| All tests pass    | ✅     | 1668+ passing         |
 
 ## Commit
 
@@ -90,6 +92,7 @@ and EmbeddingProvider::model() correctly returns the embedding model name."
 ## Notes
 
 The clippy `from_str` naming warnings remain because:
+
 1. They are style suggestions, not correctness issues
 2. Implementing `FromStr` trait would change error handling semantics
 3. The current `from_str` methods return `Result<Self>` or `Option<Self>` which differs from the trait

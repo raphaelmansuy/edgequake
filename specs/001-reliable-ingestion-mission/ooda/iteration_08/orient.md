@@ -40,24 +40,26 @@
 
 ### 2. Risk Assessment
 
-| Risk | Mitigation In Place | Sufficient? |
-|------|---------------------|-------------|
-| Large document OOM | Chunking | ✅ Yes |
-| LLM parsing failure | Dual fallback | ✅ Yes |
-| Partial extraction | Recovery mechanisms | ✅ Yes |
-| Duplicate upload | Checksum detection | ✅ Yes |
-| Database failure | Transaction rollback | ✅ Yes |
-| LLM timeout | ⚠️ Needs explicit limit | Acceptable |
+| Risk                | Mitigation In Place     | Sufficient? |
+| ------------------- | ----------------------- | ----------- |
+| Large document OOM  | Chunking                | ✅ Yes      |
+| LLM parsing failure | Dual fallback           | ✅ Yes      |
+| Partial extraction  | Recovery mechanisms     | ✅ Yes      |
+| Duplicate upload    | Checksum detection      | ✅ Yes      |
+| Database failure    | Transaction rollback    | ✅ Yes      |
+| LLM timeout         | ⚠️ Needs explicit limit | Acceptable  |
 
 ### 3. First Principles Analysis
 
 **Question:** Is the current error handling sufficient for the mission?
 
 **Success Criteria:**
+
 > "The ingestion pipeline is robust and recovers from errors"
 > "Edge case handling is implemented for large files, timeouts, and partial failures"
 
 **Analysis:**
+
 1. **Large files**: Chunking handles this ✅
 2. **Timeouts**: HTTP client has default timeouts, acceptable
 3. **Partial failures**: Fallback parsing exists ✅
@@ -67,17 +69,18 @@
 
 ### 4. Gap Prioritization
 
-| Gap | Impact | Effort | Priority |
-|-----|--------|--------|----------|
-| Explicit timeout test | Low | High | P3 (future) |
-| Large file stress test | Low | Medium | P3 (future) |
-| LLM retry test | Medium | Medium | P2 (future) |
+| Gap                    | Impact | Effort | Priority    |
+| ---------------------- | ------ | ------ | ----------- |
+| Explicit timeout test  | Low    | High   | P3 (future) |
+| Large file stress test | Low    | Medium | P3 (future) |
+| LLM retry test         | Medium | Medium | P2 (future) |
 
 These are enhancements, not blockers for mission completion.
 
 ### 5. Strategic Recommendation
 
 **Accept current error handling as sufficient because:**
+
 1. Core mechanisms exist and are tested
 2. Architecture is sound
 3. Further testing is diminishing returns for mission scope

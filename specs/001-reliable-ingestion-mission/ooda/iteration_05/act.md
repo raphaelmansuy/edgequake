@@ -22,11 +22,11 @@
 
 ### Files Modified
 
-| File | Change | Lines Affected |
-|------|--------|----------------|
-| AGENTS.md | Updated backend-memory section | ~190-196 |
-| AGENTS.md | Updated OpenAI model recommendation | ~539-543 |
-| AGENTS.md | Added Developer Workflow Guide | ~529-630 (new) |
+| File      | Change                              | Lines Affected |
+| --------- | ----------------------------------- | -------------- |
+| AGENTS.md | Updated backend-memory section      | ~190-196       |
+| AGENTS.md | Updated OpenAI model recommendation | ~539-543       |
+| AGENTS.md | Added Developer Workflow Guide      | ~529-630 (new) |
 
 ### Documentation Added (~100 lines)
 
@@ -48,12 +48,12 @@
 
 ### Success Criteria Addressed
 
-| Criterion | Status | Evidence |
-|-----------|--------|----------|
-| Document dev mode best practices | ✅ | Developer Workflow Guide added |
-| No dead code/duplicates | ✅ | Removed outdated backend-memory ref |
-| gpt-5-nano is recommended | ✅ | Updated LLM Provider section |
-| DATABASE_URL required | ✅ | Documented, note added |
+| Criterion                        | Status | Evidence                            |
+| -------------------------------- | ------ | ----------------------------------- |
+| Document dev mode best practices | ✅     | Developer Workflow Guide added      |
+| No dead code/duplicates          | ✅     | Removed outdated backend-memory ref |
+| gpt-5-nano is recommended        | ✅     | Updated LLM Provider section        |
+| DATABASE_URL required            | ✅     | Documented, note added              |
 
 ### Verification
 
@@ -88,6 +88,7 @@ in dev mode during testing session'"
 ## Next Iteration Focus
 
 With documentation complete, iteration 06 should focus on:
+
 1. E2E testing of document upload pipeline
 2. Edge case testing (large PDFs, corrupted files)
 3. Pipeline error recovery testing

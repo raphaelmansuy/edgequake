@@ -8,10 +8,10 @@ Update hardcoded `gpt-4o-mini` defaults to `gpt-5-nano` in model_config.rs.
 
 ### 2. Changes to Make
 
-| Line | Before | After |
-|------|--------|-------|
-| 407 | `"gpt-4o-mini".to_string()` | `"gpt-5-nano".to_string()` |
-| 515 | `Some("gpt-4o-mini".to_string())` | `Some("gpt-5-nano".to_string())` |
+| Line | Before                            | After                            |
+| ---- | --------------------------------- | -------------------------------- |
+| 407  | `"gpt-4o-mini".to_string()`       | `"gpt-5-nano".to_string()`       |
+| 515  | `Some("gpt-4o-mini".to_string())` | `Some("gpt-5-nano".to_string())` |
 
 ### 3. WHY Comments to Add
 
@@ -52,6 +52,7 @@ cargo clippy -p edgequake-llm
 ### 6. Rollback Plan
 
 If tests fail:
+
 1. Revert changes
 2. Investigate test failures
 3. Add gpt-5-nano as alongside gpt-4o-mini if needed
