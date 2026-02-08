@@ -26,12 +26,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -68,7 +62,6 @@ import {
     AlertCircle,
     CheckCircle,
     Clock,
-    Copy,
     ExternalLink,
     Eye,
     File,
@@ -78,12 +71,9 @@ import {
     FileText,
     FileType,
     Loader2,
-    MoreVertical,
     RefreshCw,
     Search,
     Sparkles,
-    StopCircle,
-    Trash2,
     Upload,
     X,
 } from 'lucide-react';
@@ -97,6 +87,7 @@ import { BatchActionsBar } from './batch-actions-bar';
 import { ConnectionBanner } from './connection-banner';
 import { ConnectionStatus } from './connection-status';
 import { CostCell } from './cost-cell';
+import { DocumentActionsMenu } from './document-actions-menu';
 import { DocumentDropzone } from './document-dropzone';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
@@ -106,7 +97,6 @@ import { ErrorMessagePopover } from './error-message-popover';
 import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
-import { ResetDocumentStatusButton } from './reset-document-status-button';
 import { UploadProgressList } from './upload-progress-list';
 import { isProcessingStatus } from './status-badge';
 import type { UploadingFile } from './types';
@@ -1440,66 +1430,15 @@ export function DocumentManager() {
                             </TooltipProvider>
                           )}
                           
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {/* OODA-31: Copy document ID */}
-                              <DropdownMenuItem 
-                                onClick={() => {
-                                  navigator.clipboard.writeText(doc.id);
-                                  toast.success(t('documents.actions.idCopied', 'Document ID copied'));
-                                }}
-                              >
-                                <Copy className="h-4 w-4 mr-2" />
-                                {t('documents.actions.copyId', 'Copy ID')}
-                              </DropdownMenuItem>
-                              {/* SPEC-002: View PDF/Markdown for PDF documents */}
-                              {(doc.source_type === 'pdf' || doc.pdf_id) && (
-                                <DropdownMenuItem onClick={() => handleViewPdf(doc)}>
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  {t('documents.actions.viewPdf', 'View PDF')}
-                                </DropdownMenuItem>
-                              )}
-                              {(doc.status === 'failed' || doc.status === 'partial_failure') && (
-                                <DropdownMenuItem asChild>
-                                  <div className="p-0">
-                                    <ResetDocumentStatusButton document={doc} iconOnly={false} size="sm" />
-                                  </div>
-                                </DropdownMenuItem>
-                              )}
-                              {/* Cancel option for pending/processing documents */}
-                              {/* WHY: Check both status and current_stage for active processing states */}
-                              {/* OODA-FIX: Users couldn't cancel PDF extraction stuck in 'converting' stage */}
-                              {/* Bug: doc.status may be 'processing' but doc.current_stage shows the actual stage like 'converting' */}
-                              {((['pending', 'processing'].includes(doc.status || '')) || 
-                                (['converting', 'uploading', 'preprocessing', 'chunking', 
-                                 'extracting', 'gleaning', 'merging', 'summarizing', 'embedding', 'storing'].includes(doc.current_stage || ''))) 
-                                 && doc.track_id && (
-                                <DropdownMenuItem 
-                                  onClick={() => cancelMutation.mutate(doc.track_id!)}
-                                  className="text-orange-600"
-                                >
-                                  <StopCircle className="h-4 w-4 mr-2" />
-                                  {t('documents.actions.cancel', 'Cancel Extraction')}
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem onClick={() => reprocessMutation.mutate(doc.id)}>
-                                <RefreshCw className="h-4 w-4 mr-2" />
-                                {t('documents.actions.reprocess')}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => deleteMutation.mutate(doc.id)}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                {t('documents.actions.delete')}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {/* OODA-09: Actions dropdown - Extracted to DocumentActionsMenu */}
+                          <DocumentActionsMenu
+                            doc={doc}
+                            onViewPdf={handleViewPdf}
+                            onCancel={(trackId) => cancelMutation.mutate(trackId)}
+                            onReprocess={(id) => reprocessMutation.mutate(id)}
+                            onDelete={(id) => deleteMutation.mutate(id)}
+                            isCancelling={cancelMutation.isPending}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>
