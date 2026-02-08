@@ -67,7 +67,7 @@ pub use crate::handlers::entities_types::*;
 /// 1. If tenant context is set, ONLY return nodes that have matching tenant_id
 /// 2. Nodes without tenant_id property are EXCLUDED when tenant context is set
 /// 3. This prevents data leakage between tenants
-fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) - > Vec<GraphNode> {
+fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) -> Vec<GraphNode> {
     tracing::debug!(
         "filter_nodes_by_tenant_context called: input_count={}, tenant_id={:?}, workspace_id={:?}",
         nodes.len(),
@@ -75,10 +75,16 @@ fn filter_nodes_by_tenant_context(nodes: Vec<GraphNode>, ctx: &TenantContext) - 
         ctx.workspace_id
     );
     
-    // If no tenant context is set, return all nodes (admin/system view)
-    if ctx.tenant_id.is_none() && ctx.workspace_id.is_none() {
-        tracing::debug!("No tenant context; returning all {} nodes", nodes.len());
-        return nodes;
+    // SECURITY: STRICT TENANT CONTEXT REQUIRED - NO EXCEPTIONS
+    // WHY: Multi-tenant isolation must be enforced at every layer
+    // Even admin/system requests MUST provide tenant_id and workspace_id
+    if ctx.tenant_id.is_none() || ctx.workspace_id.is_none() {
+        tracing::warn!(
+            "Tenant context missing (tenant_id={:?}, workspace_id={:?}) - returning empty results for security",
+            ctx.tenant_id,
+            ctx.workspace_id
+        );
+        return Vec::new();
     }
 
     nodes
