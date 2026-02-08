@@ -74,8 +74,8 @@ embedding_per_1k = 0.0
 image_per_unit = 0.0
 
 [[providers.models]]
-name = "gpt-4o-mini"
-display_name = "GPT-4o Mini"
+name = "gpt-5-nano"
+display_name = "GPT-5 Nano"
 model_type = "llm"
 description = "Cost-effective model with excellent performance, ideal for high-volume tasks"
 deprecated = false

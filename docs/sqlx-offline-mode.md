@@ -20,6 +20,7 @@ We use **SQLx offline mode**, which pre-generates query metadata when the databa
 ### Configuration
 
 1. **`.cargo/config.toml`** - Sets SQLx offline mode by default:
+
    ```toml
    [env]
    SQLX_OFFLINE = "true"
@@ -72,10 +73,10 @@ make backend-sqlx-prepare
 
 ### Available Make Targets
 
-| Command | Description |
-|---------|-------------|
-| `make backend-build` | Build backend in offline mode (DEFAULT) |
-| `make backend-build-online` | Build with live database verification |
+| Command                     | Description                               |
+| --------------------------- | ----------------------------------------- |
+| `make backend-build`        | Build backend in offline mode (DEFAULT)   |
+| `make backend-build-online` | Build with live database verification     |
 | `make backend-sqlx-prepare` | Generate SQLx metadata for offline builds |
 
 ## How It Works
@@ -95,7 +96,7 @@ make backend-sqlx-prepare
 ✅ **Faster CI/CD**: No need to spin up PostgreSQL in build pipelines  
 ✅ **Offline Development**: Build without database access  
 ✅ **Consistent Builds**: Same query verification across all environments  
-✅ **Reduced Dependencies**: Build stage doesn't need database credentials  
+✅ **Reduced Dependencies**: Build stage doesn't need database credentials
 
 ## Troubleshooting
 
@@ -104,6 +105,7 @@ make backend-sqlx-prepare
 **Cause**: Query was added/modified but metadata not regenerated
 
 **Fix**:
+
 ```bash
 make backend-sqlx-prepare
 ```
@@ -113,6 +115,7 @@ make backend-sqlx-prepare
 **Cause**: Using a query that hasn't been prepared yet
 
 **Fix**:
+
 ```bash
 # Ensure database is running
 make db-start
@@ -126,6 +129,7 @@ make backend-sqlx-prepare
 **Cause**: Environment variable not set or `.sqlx/` directory missing
 
 **Fix**:
+
 ```bash
 # Check config
 cat edgequake/.cargo/config.toml | grep SQLX_OFFLINE

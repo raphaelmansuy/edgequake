@@ -81,8 +81,8 @@ pub async fn estimate_cost(
     let pricing = edgequake_pipeline::default_model_pricing();
 
     let model_pricing = pricing.get(&request.model).cloned().unwrap_or_else(|| {
-        // Default to gpt-4o-mini pricing if unknown
-        edgequake_pipeline::ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006)
+        // Default to gpt-5-nano pricing if unknown
+        edgequake_pipeline::ModelPricing::new("gpt-5-nano", 0.00015, 0.0006)
     });
 
     let cost = model_pricing.calculate_cost(request.input_tokens, request.output_tokens);

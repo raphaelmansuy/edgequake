@@ -163,7 +163,7 @@ impl AvailableProvidersResponse {
             ProviderInfo {
                 id: "openai".to_string(),
                 name: "OpenAI".to_string(),
-                description: "OpenAI API (GPT-4o, GPT-4o-mini)".to_string(),
+                description: "OpenAI API (GPT-4o, GPT-5 Nano)".to_string(),
                 available: std::env::var("OPENAI_API_KEY").is_ok(),
                 config_requirements: vec![ConfigRequirement {
                     env_var: "OPENAI_API_KEY".to_string(),
@@ -172,7 +172,7 @@ impl AvailableProvidersResponse {
                     satisfied: std::env::var("OPENAI_API_KEY").is_ok(),
                 }],
                 default_models: DefaultModels {
-                    chat_model: "gpt-4o-mini".to_string(),
+                    chat_model: "gpt-5-nano".to_string(),
                     embedding_model: "text-embedding-3-small".to_string(),
                     embedding_dimension: 1536,
                 },

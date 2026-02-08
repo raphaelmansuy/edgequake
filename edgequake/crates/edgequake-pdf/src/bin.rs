@@ -87,8 +87,8 @@ enum Commands {
         #[arg(long)]
         vision: bool,
 
-        /// LLM model to use for vision OCR (default: gpt-4o-mini)
-        #[arg(long, default_value = "gpt-4o-mini")]
+        /// LLM model to use for vision OCR (default: gpt-5-nano)
+        #[arg(long, default_value = "gpt-5-nano")]
         vision_model: String,
 
         /// Include page numbers in output as comments
@@ -185,7 +185,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             input,
             output: cli.output,
             vision: false,
-            vision_model: "gpt-4o-mini".to_string(),
+            vision_model: "gpt-5-nano".to_string(),
             page_numbers: false,
             max_pages: None,
             format: OutputFormat::Markdown,
