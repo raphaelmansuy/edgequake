@@ -167,9 +167,12 @@ export function useGraphStream(
   const [error, setError] = useState<Error | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
 
-  // Refs for cleanup
+  // Refs for cleanup and request deduplication
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamStartTimeRef = useRef<number>(0);
+  // WHY: Prevent duplicate concurrent requests when effects re-trigger rapidly
+  const pendingRequestRef = useRef<Promise<void> | null>(null);
+  const lastRequestKeyRef = useRef<string>("");
 
   // Cancel any ongoing stream
   const cancel = useCallback(() => {
@@ -265,8 +268,22 @@ export function useGraphStream(
 
   // Start streaming
   const startStream = useCallback(async () => {
+    // WHY: Create unique key for this request to detect duplicates
+    const requestKey = `${maxNodes}-${batchSize}-${startNode || ""}`;
+    
+    // WHY: Skip if we're already streaming with the same parameters
+    if (isStreaming && lastRequestKeyRef.current === requestKey) {
+      return;
+    }
+    
+    // WHY: If there's a pending request with same key, return the existing promise
+    if (pendingRequestRef.current && lastRequestKeyRef.current === requestKey) {
+      return pendingRequestRef.current;
+    }
+    
     // Cancel any existing stream
     cancel();
+    lastRequestKeyRef.current = requestKey;
 
     // Reset state
     setNodes([]);
@@ -283,37 +300,45 @@ export function useGraphStream(
       phase: "connecting",
     });
 
-    try {
-      for await (const event of graphStream({
-        maxNodes,
-        batchSize,
-        startNode,
-      })) {
-        // Check if cancelled
-        if (abortControllerRef.current?.signal.aborted) {
-          break;
+    // WHY: Store the promise so concurrent calls can await the same request
+    const streamPromise = (async () => {
+      try {
+        for await (const event of graphStream({
+          maxNodes,
+          batchSize,
+          startNode,
+        })) {
+          // Check if cancelled
+          if (abortControllerRef.current?.signal.aborted) {
+            break;
+          }
+
+          processEvent(event);
+        }
+      } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
         }
 
-        processEvent(event);
+        const error = err instanceof Error ? err : new Error("Stream failed");
+        setError(error);
+        setProgress((p) => ({
+          ...p,
+          phase: "error",
+          errorMessage: error.message,
+          durationMs: Date.now() - streamStartTimeRef.current,
+        }));
+        setIsStreaming(false);
+        onError?.(error);
+      } finally {
+        pendingRequestRef.current = null;
       }
-    } catch (err) {
-      // Ignore abort errors
-      if (err instanceof Error && err.name === "AbortError") {
-        return;
-      }
-
-      const error = err instanceof Error ? err : new Error("Stream failed");
-      setError(error);
-      setProgress((p) => ({
-        ...p,
-        phase: "error",
-        errorMessage: error.message,
-        durationMs: Date.now() - streamStartTimeRef.current,
-      }));
-      setIsStreaming(false);
-      onError?.(error);
-    }
-  }, [cancel, maxNodes, batchSize, startNode, processEvent, onError]);
+    })();
+    
+    pendingRequestRef.current = streamPromise;
+    await streamPromise;
+  }, [cancel, maxNodes, batchSize, startNode, processEvent, onError, isStreaming]);
 
   // Auto-start on mount if enabled
   useEffect(() => {

@@ -41,7 +41,7 @@ import { useTenantStore } from '@/stores/use-tenant-store';
 import type { GraphNode } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ChevronLeft, ChevronRight, Filter, Loader2, Maximize2, Menu, Network, PanelRightClose, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { GraphEmptyIllustration } from '../illustrations/graph-empty-illustration';
 import { BookmarksPanel } from './bookmarks-panel';
@@ -241,17 +241,35 @@ export function GraphViewer() {
   // Combined loading state
   const isLoading = useStreaming ? isStreaming : isQueryLoading;
   
+  // WHY: Ref to prevent React StrictMode double-render from causing duplicate stream starts
+  const streamingInitializedRef = useRef(false);
+  const lastStreamParamsRef = useRef<string>("");
+  
   // Start streaming when in streaming mode
   useEffect(() => {
-    if (useStreaming) {
-      resetStreamingProgress();
-      startStream();
+    if (!useStreaming) {
+      streamingInitializedRef.current = false;
+      return;
     }
+    
+    // WHY: Create param key to detect if we need to restart stream
+    const paramKey = `${selectedTenantId}-${selectedWorkspaceId}-${maxNodes}-${startNode || ""}`;
+    
+    // WHY: Skip if already initialized with same params (prevents duplicate calls)
+    if (streamingInitializedRef.current && lastStreamParamsRef.current === paramKey) {
+      return;
+    }
+    
+    streamingInitializedRef.current = true;
+    lastStreamParamsRef.current = paramKey;
+    resetStreamingProgress();
+    startStream();
     
     // Cleanup: cancel stream on unmount or when switching modes
     return () => {
       if (useStreaming) {
         cancelStream();
+        streamingInitializedRef.current = false;
       }
     };
     // Only re-run when these key params change
