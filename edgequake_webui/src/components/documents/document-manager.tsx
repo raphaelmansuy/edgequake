@@ -114,6 +114,7 @@ import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
 import { isProcessingStatus } from './status-badge';
 import type { UploadingFile } from './types';
+import { useStuckDetection } from '@/hooks/use-stuck-detection';
 
 /**
  * OODA-30: File type icon helper
@@ -326,44 +327,11 @@ export function DocumentManager() {
     };
   }, [connected, queryClient]);
 
-  // Detect stuck documents (processing but no updates in 30 seconds)
-  useEffect(() => {
-    if (!data?.items) return;
-
-    const checkStuckDocuments = () => {
-      const processingDocs = data.items.filter(
-        (doc: Document) => doc.track_id && isProcessingStatus(doc.status as any)
-      );
-
-      processingDocs.forEach((doc: Document) => {
-        const updatedAt = doc.updated_at ? new Date(doc.updated_at).getTime() : 0;
-        const now = Date.now();
-        const timeSinceUpdate = now - updatedAt;
-        
-        // If no update in 30 seconds, log warning
-        if (timeSinceUpdate > 30000) {
-          console.warn('[DocumentManager] Document may be stuck:', {
-            id: doc.id,
-            title: doc.title,
-            status: doc.status,
-            current_stage: doc.current_stage,
-            stage_message: doc.stage_message,
-            error_message: doc.error_message,
-            track_id: doc.track_id,
-            seconds_since_update: Math.floor(timeSinceUpdate / 1000),
-          });
-        }
-      });
-    };
-
-    // Check immediately
-    checkStuckDocuments();
-    
-    // Check every 30 seconds
-    const interval = setInterval(checkStuckDocuments, 30000);
-    
-    return () => clearInterval(interval);
-  }, [data?.items]);
+  // OODA-04: Detect stuck documents using extracted hook
+  useStuckDetection(data?.items, {
+    timeout: 30000,
+    checkInterval: 30000,
+  });
 
   // Enhanced upload handler with progress tracking
   const handleFilesUpload = useCallback(
