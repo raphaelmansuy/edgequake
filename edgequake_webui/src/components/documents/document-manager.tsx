@@ -95,6 +95,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { useWebSocket } from '@/hooks/use-websocket';
+import { getWebSocketClient } from '@/lib/websocket';
 import { BatchProgressCard } from './batch-progress-card';
 import { ClearDocumentsDialog } from './clear-documents-dialog';
 import { ConnectionStatus } from './connection-status';
@@ -249,6 +251,9 @@ export function DocumentManager() {
   // Track ID for batch progress (Phase 2) - async processing enabled
   const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
 
+  // OODA-42 COMPLETE: WebSocket-based real-time updates (NO POLLING)
+  // WHY: Users want instant document status updates without polling overhead
+  // HOW: Subscribe to WebSocket events for all processing documents
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['documents', selectedTenantId, selectedWorkspaceId, currentPage, pageSize, statusFilter],
     queryFn: () => getDocuments({ 
@@ -256,10 +261,8 @@ export function DocumentManager() {
       page_size: pageSize,
       status: statusFilter === 'all' ? undefined : statusFilter,
     }),
-    // OODA-42 ENHANCED: Reduce polling to 1s for smooth status updates
-    // WHY: Users want to see document status evolve in real-time (pending → processing → completed)
-    // FUTURE: Integrate WebSocket subscription (like useIngestionProgress) for true real-time updates
-    refetchInterval: 1000, // 1 second for smooth updates (was 5000ms)
+    // NO polling - WebSocket provides real-time updates
+    refetchInterval: false,
   });
   
   // Pipeline status query
@@ -270,6 +273,59 @@ export function DocumentManager() {
     queryFn: () => getPipelineStatus(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined),
     refetchInterval: 2000,
   });
+
+  // OODA-42 COMPLETE: WebSocket subscription for real-time document status updates
+  // WHY: Replace polling with instant status updates for all processing documents
+  const { connected, subscribe, unsubscribe } = useWebSocket();
+  
+  // Subscribe to WebSocket updates for all processing documents
+  useEffect(() => {
+    if (!connected || !data?.items) return;
+
+    // Filter documents that are currently processing (have track_id)
+    const processingDocs = data.items.filter(
+      (doc: Document) => doc.track_id && doc.status && ['processing', 'chunking', 'extracting', 'embedding', 'indexing'].includes(doc.status)
+    );
+
+    if (processingDocs.length === 0) return;
+
+    const trackIds = processingDocs
+      .map((doc: Document) => doc.track_id)
+      .filter((id): id is string => Boolean(id));
+    
+    if (trackIds.length === 0) return;
+    
+    // Subscribe to WebSocket updates for these track_ids
+    subscribe(trackIds);
+    
+    console.log('[DocumentManager] Subscribed to WebSocket for', trackIds.length, 'processing documents');
+
+    // Unsubscribe when component unmounts or dependencies change
+    return () => {
+      unsubscribe(trackIds);
+      console.log('[DocumentManager] Unsubscribed from WebSocket for', trackIds.length, 'documents');
+    };
+  }, [connected, data?.items, subscribe, unsubscribe]);
+
+  // Listen for WebSocket progress events and invalidate documents query
+  useEffect(() => {
+    if (!connected) return;
+
+    const wsClient = getWebSocketClient();
+    
+    // Invalidate documents query whenever we receive a progress update
+    const handleProgressUpdate = () => {
+      // Invalidate to trigger refetch - this updates the status in real-time
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    };
+
+    // Listen for all progress event types
+    const unsubProgress = wsClient.on('progress', handleProgressUpdate);
+    
+    return () => {
+      unsubProgress();
+    };
+  }, [connected, queryClient]);
 
   // Enhanced upload handler with progress tracking
   const handleFilesUpload = useCallback(
