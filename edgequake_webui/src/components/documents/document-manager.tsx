@@ -81,6 +81,7 @@ import { useDocumentPreferences } from '@/hooks/use-document-preferences';
 import { useDocumentKeyboard } from '@/hooks/use-document-keyboard';
 import { useDocumentFiltering } from '@/hooks/use-document-filtering';
 import { useDocumentDropzone } from '@/hooks/use-document-dropzone';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -279,25 +280,11 @@ export function DocumentManager() {
     t,
   });
 
-  /**
-   * OODA-26: Update page title with document count
-   * WHY: Users can see document count without switching tabs
-   */
-  useEffect(() => {
-    const baseTitle = 'Documents - EdgeQuake';
-    const count = totalCount || 0;
-    const processing = pipelineStatus?.running_tasks || 0;
-    
-    if (processing > 0) {
-      document.title = `⏳ Processing (${processing}) | Documents (${count}) - EdgeQuake`;
-    } else if (count > 0) {
-      document.title = `Documents (${count}) - EdgeQuake`;
-    } else {
-      document.title = baseTitle;
-    }
-    
-    return () => { document.title = baseTitle; };
-  }, [totalCount, pipelineStatus?.running_tasks]);
+  // OODA-22: Dynamic page title with document count
+  useDocumentTitle({
+    totalCount,
+    processingCount: pipelineStatus?.running_tasks || 0,
+  });
 
   if (isError) {
     return (
