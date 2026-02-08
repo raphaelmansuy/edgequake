@@ -52,6 +52,8 @@ use crate::services::ContentHasher;
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 use edgequake_storage::traits::VectorStorage;
+// OODA-04: ListPdfFilter is used in feature-gated code below (postgres feature)
+#[cfg(feature = "postgres")]
 use edgequake_storage::ListPdfFilter;
 
 // Re-export DTOs from documents_types module
