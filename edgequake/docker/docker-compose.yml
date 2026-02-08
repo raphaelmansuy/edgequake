@@ -11,8 +11,10 @@ services:
     environment:
       - EDGEQUAKE_HOST=0.0.0.0
       - EDGEQUAKE_PORT=8080
+      - DATABASE_URL=postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
       - EDGEQUAKE_DATABASE_URL=postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EDGEQUAKE_MODELS_CONFIG=/app/models.toml
       - RUST_LOG=info,edgequake=debug
     depends_on:
       postgres:

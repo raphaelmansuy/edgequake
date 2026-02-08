@@ -4,7 +4,7 @@
 # ============================================
 # Stage 1: Build
 # ============================================
-FROM rust:1.78-bookworm AS builder
+FROM rust:1.88-bookworm AS builder
 
 WORKDIR /app
 
@@ -15,12 +15,20 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy workspace files
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
+COPY Cargo.lock* ./
+COPY .sqlx/ .sqlx/
 COPY crates/ crates/
 COPY src/ src/
+COPY benches/ benches/
+COPY examples/ examples/
+COPY migrations/ migrations/
+
+# Enable SQLx offline mode
+ENV SQLX_OFFLINE=true
 
 # Build release binary
-RUN cargo build --release --locked
+RUN cargo build --release
 
 # ============================================
 # Stage 2: Runtime
@@ -39,8 +47,12 @@ RUN apt-get update && apt-get install -y \
 # Copy binary from builder
 COPY --from=builder /app/target/release/edgequake /usr/local/bin/
 
+# Copy models.toml configuration
+COPY models.toml /app/models.toml
+
 # Set ownership
-RUN chown edgequake:edgequake /usr/local/bin/edgequake
+RUN chown edgequake:edgequake /usr/local/bin/edgequake && \
+    chown edgequake:edgequake /app/models.toml
 
 # Switch to non-root user
 USER edgequake
