@@ -59,13 +59,7 @@ export function EnhancedStatusBadge({
       typeof document.error_message === 'string' && 
       document.error_message.trim() !== ''
     ) {
-      console.error('[EnhancedStatusBadge] Document has error:', {
-        id: document.id,
-        title: document.title,
-        error: document.error_message,
-        status: document.status,
-        stage: document.current_stage,
-      });
+      // Note: Error message is displayed in UI via progressMessage, no need to log
       return 'failed';
     }
     
@@ -76,7 +70,6 @@ export function EnhancedStatusBadge({
       
       // PDF conversion complete → should show next stage (Chunking)
       if (baseStatus === 'converting' && (msg.includes('complete') || msg.includes('extracted'))) {
-        console.log('[EnhancedStatusBadge] PDF complete, transitioning to chunking:', document.id);
         return 'chunking'; // Transition to next stage
       }
       
