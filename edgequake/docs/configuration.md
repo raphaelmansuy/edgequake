@@ -88,7 +88,7 @@ Configuration for the language model and embedding providers.
 | --------------------------- | --------------------- | ------- | ------------------------ | -------------------------- |
 | `OPENAI_API_KEY`            | `llm.api_key`         | string? | `null`                   | OpenAI API key             |
 | `EDGEQUAKE_LLM_PROVIDER`    | `llm.provider`        | string  | `openai`                 | LLM provider name          |
-| `EDGEQUAKE_LLM_MODEL`       | `llm.model`           | string  | `gpt-4o-mini`            | Model for completions      |
+| `EDGEQUAKE_LLM_MODEL`       | `llm.model`           | string  | `gpt-5-nano`             | Model for completions      |
 | `EDGEQUAKE_EMBEDDING_MODEL` | `llm.embedding_model` | string  | `text-embedding-3-small` | Model for embeddings       |
 | `EDGEQUAKE_LLM_BASE_URL`    | `llm.base_url`        | string? | `null`                   | Custom API base URL        |
 | -                           | `llm.embedding_dim`   | usize   | `1536`                   | Embedding vector dimension |
@@ -109,7 +109,7 @@ Configuration for the language model and embedding providers.
 
 | Use Case           | Completion Model | Embedding Model           |
 | ------------------ | ---------------- | ------------------------- |
-| **Cost-effective** | `gpt-4o-mini`    | `text-embedding-3-small`  |
+| **Cost-effective** | `gpt-5-nano`     | `text-embedding-3-small`  |
 | **High quality**   | `gpt-4o`         | `text-embedding-3-large`  |
 | **Local/Private**  | Ollama `llama3`  | Ollama `nomic-embed-text` |
 

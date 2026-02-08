@@ -14,7 +14,7 @@
 //! | `AuthError` | Invalid/expired API key | Check `OPENAI_API_KEY` env var |
 //! | `RateLimited` | Too many requests | Wait for `retry_after` seconds |
 //! | `TokenLimitExceeded` | Input too long | Reduce chunk size or context |
-//! | `ModelNotFound` | Invalid model name | Use `gpt-4o-mini` or `gpt-3.5-turbo` |
+//! | `ModelNotFound` | Invalid model name | Use `gpt-5-nano` or `gpt-4o` |
 //! | `Timeout` | Network slow | Increase timeout or retry |
 
 use thiserror::Error;

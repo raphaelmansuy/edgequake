@@ -21,7 +21,7 @@
 # These are used when no explicit provider/model is specified in API calls.
 #
 # Supported default configurations:
-#   - OpenAI: gpt-4o-mini (LLM), text-embedding-3-small (embedding)
+#   - OpenAI: gpt-5-nano (LLM), text-embedding-3-small (embedding)
 #   - Ollama: gemma3:12b (LLM), embeddinggemma (embedding)
 #   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
 
