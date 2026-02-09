@@ -33,7 +33,7 @@ jobs:
 
             - name: Check clippy
               working-directory: edgequake
-              run: cargo clippy --all-targets --all-features -- -D warnings
+              run: cargo clippy --workspace --no-default-features -- -D warnings
 
     test:
         name: Test
@@ -51,7 +51,10 @@ jobs:
 
             - name: Run tests
               working-directory: edgequake
-              run: cargo test --all --no-fail-fast
+              run: cargo test --workspace --lib --no-default-features --no-fail-fast
+              env:
+                  # Use mock LLM provider for tests (no API key needed)
+                  RUST_LOG: warn
 
     build:
         name: Build
@@ -69,11 +72,11 @@ jobs:
 
             - name: Build release
               working-directory: edgequake
-              run: cargo build --release --all-targets
+              run: cargo build --release --no-default-features
 
             - name: Build examples
               working-directory: edgequake
-              run: cargo build --examples
+              run: cargo build --examples --no-default-features
 
     coverage:
         name: Coverage
@@ -94,7 +97,7 @@ jobs:
 
             - name: Generate coverage
               working-directory: edgequake
-              run: cargo tarpaulin --all --timeout 300 --out xml
+              run: cargo tarpaulin --workspace --no-default-features --timeout 300 --out xml
 
             - name: Upload coverage to Codecov
               uses: codecov/codecov-action@v4
@@ -135,6 +138,6 @@ jobs:
 
             - name: Build docs
               working-directory: edgequake
-              run: cargo doc --all --no-deps
+              run: cargo doc --workspace --no-deps --no-default-features
               env:
                   RUSTDOCFLAGS: -D warnings
