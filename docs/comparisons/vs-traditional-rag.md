@@ -33,24 +33,24 @@ Consider this document:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   TRADITIONAL RAG PROBLEM                        │
+│                   TRADITIONAL RAG PROBLEM                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Document chunks:                                                │
+│                                                                 │
+│  Document chunks:                                               │
 │  ┌────────────────────────────────────────┐                     │
 │  │ Chunk 1: "Sarah Chen works at MIT..."  │ → embedding_1       │
 │  └────────────────────────────────────────┘                     │
 │  ┌────────────────────────────────────────┐                     │
 │  │ Chunk 2: "She authored the climate..." │ → embedding_2       │
 │  └────────────────────────────────────────┘                     │
-│                                                                   │
+│                                                                 │
 │  Query: "connection between Sarah and James"                    │
-│                                                                   │
+│                                                                 │
 │  Vector search: May find Chunk 1 (Sarah mentioned)              │
-│                 May miss Chunk 2 (if "connection" not similar)   │
-│                                                                   │
+│                 May miss Chunk 2 (if "connection" not similar)  │
+│                                                                 │
 │  PROBLEM: No explicit link between Sarah and James!             │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,36 +80,36 @@ EdgeQuake constructs a knowledge graph during indexing:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   GRAPH-ENHANCED RAG                             │
+│                   GRAPH-ENHANCED RAG                            │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Document → LLM Extraction → Knowledge Graph                    │
-│                                                                   │
-│         ┌───────────────┐                                        │
-│         │  SARAH_CHEN   │                                        │
-│         │  (PERSON)     │                                        │
-│         └───────┬───────┘                                        │
-│                 │                                                │
+│                                                                 │
+│         ┌───────────────┐                                       │
+│         │  SARAH_CHEN   │                                       │
+│         │  (PERSON)     │                                       │
+│         └───────┬───────┘                                       │
+│                 │                                               │
 │    ┌───────────┼───────────┐                                    │
 │    │ WORKS_AT  │ CO_AUTHORED                                    │
-│    ▼           ▼                                                 │
+│    ▼           ▼                                                │
 │  ┌─────┐    ┌──────────────┐                                    │
 │  │ MIT │    │ CLIMATE_PAPER│                                    │
 │  └─────┘    └──────┬───────┘                                    │
-│                    │ AUTHORED_BY                                 │
-│                    ▼                                             │
+│                    │ AUTHORED_BY                                │
+│                    ▼                                            │
 │             ┌──────────────┐                                    │
 │             │ JAMES_WILSON │                                    │
 │             │  (PERSON)    │                                    │
 │             └──────────────┘                                    │
-│                                                                   │
+│                                                                 │
 │  Query: "connection between Sarah and James"                    │
-│                                                                   │
-│  Graph traversal: SARAH_CHEN → CLIMATE_PAPER → JAMES_WILSON    │
-│                   Relationship: CO_AUTHORED                      │
-│                                                                   │
+│                                                                 │
+│  Graph traversal: SARAH_CHEN → CLIMATE_PAPER → JAMES_WILSON     │
+│                   Relationship: CO_AUTHORED                     │
+│                                                                 │
 │  ANSWER: "Sarah and James co-authored the climate paper"        │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -152,37 +152,37 @@ Graph-enhanced RAG requires more processing at index time:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   INDEXING COMPARISON                            │
+│                   INDEXING COMPARISON                           │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Traditional RAG:                                                │
+│                                                                 │
+│  Traditional RAG:                                               │
 │  ┌────────┐    ┌───────────┐    ┌─────────────┐                 │
-│  │ Doc    │ ─▶ │ Chunk     │ ─▶ │ Embed       │ ─▶ Done        │
+│  │ Doc    │ ─▶ │ Chunk     │ ─▶ │ Embed       │ ─▶ Done         │
 │  │        │    │ (~10ms)   │    │ (~100ms)    │                 │
 │  └────────┘    └───────────┘    └─────────────┘                 │
-│                                                                   │
+│                                                                 │
 │  Total: ~200ms per document                                     │
-│                                                                   │
+│                                                                 │
 │  ────────────────────────────────────────────────────────────── │
-│                                                                   │
-│  EdgeQuake:                                                      │
+│                                                                 │
+│  EdgeQuake:                                                     │
 │  ┌────────┐    ┌───────────┐    ┌─────────────┐                 │
 │  │ Doc    │ ─▶ │ Chunk     │ ─▶ │ LLM Extract │ ─▶ ─┐           │
-│  │        │    │ (~10ms)   │    │ (~2-10s)    │    │           │
-│  └────────┘    └───────────┘    └─────────────┘    │           │
-│                                                      ▼           │
-│                                            ┌─────────────┐       │
-│                                            │ Graph Merge │       │
-│                                            │ (~100ms)    │       │
-│                                            └──────┬──────┘       │
-│                                                   ▼              │
-│                                            ┌─────────────┐       │
-│                                            │ Embed       │       │
-│                                            │ (~200ms)    │       │
-│                                            └─────────────┘       │
-│                                                                   │
-│  Total: ~5-30s per document                                      │
-│                                                                   │
+│  │        │    │ (~10ms)   │    │ (~2-10s)    │    │            │
+│  └────────┘    └───────────┘    └─────────────┘    │            │
+│                                                      ▼          │
+│                                            ┌─────────────┐      │
+│                                            │ Graph Merge │      │
+│                                            │ (~100ms)    │      │
+│                                            └──────┬──────┘      │
+│                                                   ▼             │
+│                                            ┌─────────────┐      │
+│                                            │ Embed       │      │
+│                                            │ (~200ms)    │      │
+│                                            └─────────────┘      │
+│                                                                 │
+│  Total: ~5-30s per document                                     │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -252,20 +252,20 @@ This means you get the best of both worlds:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    DECISION MATRIX                               │
+│                    DECISION MATRIX                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Question Type              │ Traditional │ EdgeQuake            │
+│                                                                 │
+│  Question Type              │ Traditional │ EdgeQuake           │
 │  ─────────────────────────────────────────────────────────────  │
-│  "What is X?"               │    ⭐⭐⭐     │    ⭐⭐⭐              │
-│  "How does X work?"         │    ⭐⭐      │    ⭐⭐⭐              │
-│  "What connects X and Y?"   │    ⭐       │    ⭐⭐⭐⭐             │
-│  "Main themes in doc?"      │    ⭐       │    ⭐⭐⭐⭐             │
-│  "X's collaborators' orgs?" │    ❌       │    ⭐⭐⭐⭐             │
-│                                                                   │
+│  "What is X?"               │    ⭐⭐⭐         ⭐⭐⭐           
+│  "How does X work?"         │    ⭐⭐           ⭐⭐⭐             
+│  "What connects X and Y?"   │    ⭐           ⭐⭐⭐⭐             
+│  "Main themes in doc?"      │    ⭐           ⭐⭐⭐⭐             
+│  "X's collaborators' orgs?" │    ❌           ⭐⭐⭐⭐             
+│                                                                  
 │  If most queries are multi-hop or relationship-based,           │
-│  EdgeQuake provides significantly better results.                │
-│                                                                   │
+│  EdgeQuake provides significantly better results.               │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
