@@ -2,6 +2,10 @@
 
 This directory contains Docker configuration for deploying EdgeQuake.
 
+## ⚠️ Disclaimer
+
+**PDF to Markdown Integration Status**: The PDF-to-Markdown feature is currently integrated in an **early prototype** stage. For testing and evaluating EdgeQuake's core functionality, please use **markdown documents** rather than PDFs. This ensures you can fully leverage the stable features of the system while we continue to refine the PDF extraction pipeline.
+
 ## Quick Start
 
 ```bash
