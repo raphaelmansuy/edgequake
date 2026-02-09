@@ -7,6 +7,8 @@
  * @enforces BR0009 - Performant rendering for 1000+ nodes
  */
 
+import { MAX_DISPLAY_NODES } from "@/stores/use-graph-store";
+
 /**
  * Device performance tier based on available memory and cores
  */
@@ -68,11 +70,11 @@ export function calculateOptimalMaxNodes(
 ): OptimizedSettings {
   const tier = deviceTier || detectDeviceTier();
 
-  // WHY: Base limits per device tier
+  // WHY: Base limits per device tier - all capped at MAX_DISPLAY_NODES for performance
   const maxLimits = {
     low: { maxNodes: 200, batchSize: 25, layoutIterations: 30 },
-    medium: { maxNodes: 500, batchSize: 50, layoutIterations: 50 },
-    high: { maxNodes: 1000, batchSize: 100, layoutIterations: 80 },
+    medium: { maxNodes: Math.min(400, MAX_DISPLAY_NODES), batchSize: 50, layoutIterations: 50 },
+    high: { maxNodes: MAX_DISPLAY_NODES, batchSize: 100, layoutIterations: 80 },
   };
 
   const limits = maxLimits[tier];

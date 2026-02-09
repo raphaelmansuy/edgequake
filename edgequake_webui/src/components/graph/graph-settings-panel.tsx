@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { useDebounce } from '@/hooks/use-debounce';
 import { searchLabels } from '@/lib/api/edgequake';
 import { calculateOptimalMaxNodes, detectDeviceTier, formatNodeCount, type DeviceTier, type OptimizedSettings } from '@/lib/graph/auto-optimize';
-import { useGraphStore } from '@/stores/use-graph-store';
+import { useGraphStore, MAX_DISPLAY_NODES } from '@/stores/use-graph-store';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Settings2, Sparkles, X, Zap } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -90,7 +90,8 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
       
       if (storedMaxNodes) {
         const parsed = parseInt(storedMaxNodes, 10);
-        if (!isNaN(parsed) && parsed >= 100 && parsed <= 10000) {
+        // WHY: Cap at MAX_DISPLAY_NODES to enforce performance limit
+        if (!isNaN(parsed) && parsed >= 100 && parsed <= MAX_DISPLAY_NODES) {
           setMaxNodes(parsed);
         }
       }
@@ -279,8 +280,8 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
               onValueChange={([v]) => setLocalMaxNodes(v)}
               onValueCommit={handleMaxNodesCommit}
               min={100}
-              max={10000}
-              step={100}
+              max={MAX_DISPLAY_NODES}
+              step={50}
               className="w-full"
             />
             <p className="text-[10px] text-muted-foreground">
@@ -346,9 +347,9 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
                 size="sm"
                 className="flex-1 h-7 text-xs"
                 onClick={() => {
-                  setLocalMaxNodes(2000);
+                  setLocalMaxNodes(400);
                   setLocalDepth(3);
-                  setMaxNodes(2000);
+                  setMaxNodes(400);
                   setDepth(3);
                   onSettingsChange?.();
                 }}
@@ -360,9 +361,9 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
                 size="sm"
                 className="flex-1 h-7 text-xs"
                 onClick={() => {
-                  setLocalMaxNodes(10000);
+                  setLocalMaxNodes(MAX_DISPLAY_NODES);
                   setLocalDepth(4);
-                  setMaxNodes(10000);
+                  setMaxNodes(MAX_DISPLAY_NODES);
                   setDepth(4);
                   onSettingsChange?.();
                 }}

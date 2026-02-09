@@ -743,6 +743,8 @@ mod tests {
             enable_rerank: true,
             rerank_model: None,
             rerank_top_k: None,
+            llm_provider: None,
+            llm_model: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -765,6 +767,8 @@ mod tests {
             enable_rerank: true,
             rerank_model: None,
             rerank_top_k: None,
+            llm_provider: None,
+            llm_model: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -803,6 +807,8 @@ mod tests {
                 enable_rerank: false,
                 rerank_model: None,
                 rerank_top_k: None,
+                llm_provider: None,
+                llm_model: None,
             };
 
             let result = execute_query(State(state.clone()), tenant_ctx, Json(request)).await;
@@ -826,6 +832,8 @@ mod tests {
             enable_rerank: false,
             rerank_model: None,
             rerank_top_k: None,
+            llm_provider: None,
+            llm_model: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -848,6 +856,8 @@ mod tests {
             enable_rerank: true,
             rerank_model: None,
             rerank_top_k: None,
+            llm_provider: None,
+            llm_model: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
