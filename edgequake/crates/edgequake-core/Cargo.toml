@@ -26,7 +26,7 @@ edgequake-llm.workspace = true
 edgequake-storage.workspace = true
 edgequake-pipeline.workspace = true
 async-trait.workspace = true
-lru = "0.12"
+lru = "0.13"
 sqlx = { workspace = true, optional = true }
 
 [dev-dependencies]

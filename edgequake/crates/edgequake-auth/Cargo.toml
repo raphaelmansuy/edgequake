@@ -36,7 +36,7 @@ uuid = { workspace = true }
 argon2 = { version = "0.5", features = ["std"] }
 
 # JWT
-jsonwebtoken = "9.3"
+jsonwebtoken = { version = "10.3", features = ["aws_lc_rs"] }
 
 # Random generation (for API key generation)
 rand = { version = "0.8", features = ["std"] }

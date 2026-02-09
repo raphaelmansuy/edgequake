@@ -20,7 +20,9 @@
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
+use jsonwebtoken::{
+    dangerous, decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -222,13 +224,8 @@ impl JwtService {
     /// Extract claims from token without verification (for debugging).
     /// WARNING: This should only be used for logging/debugging, never for authentication.
     pub fn decode_unverified(&self, token: &str) -> Result<Claims, AuthError> {
-        let mut validation = Validation::default();
-        validation.insecure_disable_signature_validation();
-        validation.validate_exp = false;
-        validation.validate_nbf = false;
-
-        let token_data: TokenData<Claims> = decode(token, &self.decoding_key, &validation)
-            .map_err(|e| AuthError::InvalidToken {
+        let token_data =
+            dangerous::insecure_decode::<Claims>(token).map_err(|e| AuthError::InvalidToken {
                 reason: e.to_string(),
             })?;
 
