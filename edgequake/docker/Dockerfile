@@ -4,7 +4,7 @@
 # ============================================
 # Stage 1: Build
 # ============================================
-FROM rust:nightly AS builder
+FROM rust:latest AS builder
 
 WORKDIR /app
 
@@ -19,8 +19,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
 COPY src/ src/
 
-# Build release binary
-RUN cargo build --release --locked
+# Build release binary (without --locked to allow dependency resolution)
+RUN cargo build --release
 
 # ============================================
 # Stage 2: Runtime
