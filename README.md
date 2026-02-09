@@ -217,12 +217,12 @@ curl -X POST http://localhost:8080/api/v1/query \
 │                    ┌───────────────┴───────────────┐                        │
 │                    ▼                               ▼                        │
 │  ┌─────────────────────────────┐   ┌──────────────────────────────────┐     │
-│  │   LLM Providers              │   │   Storage Backends              │     │
-│  │  • OpenAI (gpt-4.1-nano)     │   │  • PostgreSQL 15+ (AGE + vector)│     │
-│  │  • Ollama (gemma3:12b)       │   │  • In-Memory (dev/testing)      │     │
-│  │  • LM Studio (local models)  │   │  • Graph: Property graph model  │     │
-│  │  • Mock (testing, free)      │   │  • Vector: pgvector embeddings  │     │
-│  │  Auto-detection via env      │   │                                 │     │
+│  │   LLM Providers             │   │   Storage Backends               │     │
+│  │  • OpenAI (gpt-4.1-nano)    │   │  • PostgreSQL 15+ (AGE + vector) │     │
+│  │  • Ollama (gemma3:12b)      │   │  • In-Memory (dev/testing)       │     │
+│  │  • LM Studio (local models) │   │  • Graph: Property graph model   │     │
+│  │  • Mock (testing, free)     │   │  • Vector: pgvector embeddings   │     │
+│  │  Auto-detection via env     │   │                                  │     │
 │  └─────────────────────────────┘   └──────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
