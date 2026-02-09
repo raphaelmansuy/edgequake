@@ -158,7 +158,7 @@ num_cpus = "1.16"
 # Authentication
 argon2 = "0.5"
 password-hash = "0.5"
-jsonwebtoken = "9.3"
+jsonwebtoken = "10.3"
 rand = "0.9"
 
 [profile.release]
