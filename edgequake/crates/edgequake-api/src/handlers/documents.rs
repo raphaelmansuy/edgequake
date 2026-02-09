@@ -2636,6 +2636,7 @@ pub async fn delete_all_documents(
     // Clean up PDF documents table
     // WHY: PDF documents have their own table separate from KV storage
     // The duplicate detection uses checksum from pdf_documents table, so we must clear it
+    #[allow(unused_mut)] // mut only used when postgres feature is enabled
     let mut total_pdfs_deleted = 0usize;
     #[cfg(feature = "postgres")]
     if let Some(ref pdf_storage) = state.pdf_storage {

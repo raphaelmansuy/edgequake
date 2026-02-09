@@ -138,4 +138,5 @@ jobs:
         working-directory: edgequake
         run: cargo doc --workspace --no-deps --no-default-features
         env:
-          RUSTDOCFLAGS: -D warnings
+          # Allow unresolved links (FEAT/BR/UC references) but error on other doc warnings
+          RUSTDOCFLAGS: -A rustdoc::broken_intra_doc_links -D warnings
