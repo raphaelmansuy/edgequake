@@ -13,18 +13,14 @@
 **File**: `edgequake_webui/src/components/graph/graph-accessibility-announcer.tsx`
 
 **Features**:
+
 - aria-live="polite" region for screen reader announcements
 - Watches `selectedNodeId` from store
 - Announces: node label, type, and connection count
 - Uses `sr-only` class (visually hidden, screen reader accessible)
 
 ```tsx
-<div 
-  role="status" 
-  aria-live="polite" 
-  aria-atomic="true"
-  className="sr-only"
->
+<div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
   {announcement}
 </div>
 ```
@@ -32,11 +28,13 @@
 ### 2. Updated `graph-viewer.tsx`
 
 **Import added**: Line 48
+
 ```typescript
-import { GraphAccessibilityAnnouncer } from './graph-accessibility-announcer';
+import { GraphAccessibilityAnnouncer } from "./graph-accessibility-announcer";
 ```
 
 **Container updated**: Lines 493-503
+
 - Added `role="application"` for screen reader app mode
 - Added `aria-label` with keyboard instructions
 - Included `<GraphAccessibilityAnnouncer />` component
@@ -45,17 +43,18 @@ import { GraphAccessibilityAnnouncer } from './graph-accessibility-announcer';
 
 ## WCAG Compliance
 
-| Criterion | Status | Implementation |
-|-----------|--------|----------------|
-| 2.1.1 Keyboard | ✅ | Full navigation via keyboard |
-| 4.1.2 Name, Role, Value | ✅ | role="application", aria-live |
-| 4.1.3 Status Messages | ✅ | Node selection announced |
+| Criterion               | Status | Implementation                |
+| ----------------------- | ------ | ----------------------------- |
+| 2.1.1 Keyboard          | ✅     | Full navigation via keyboard  |
+| 4.1.2 Name, Role, Value | ✅     | role="application", aria-live |
+| 4.1.3 Status Messages   | ✅     | Node selection announced      |
 
 ---
 
 ## Verification
 
 ### TypeScript Compilation ✅
+
 ```
 pnpm exec tsc --noEmit  # No errors
 ```
@@ -77,6 +76,7 @@ pnpm exec tsc --noEmit  # No errors
 ## Testing Notes
 
 To test screen reader announcements:
+
 1. Enable VoiceOver (macOS) or NVDA (Windows)
 2. Navigate to graph page
 3. Press Tab to select nodes
@@ -96,4 +96,3 @@ git commit -m "OODA-04: Add screen reader accessibility for graph"
 ## Next Iteration
 
 Iteration 05: Backend node limit enforcement (defense in depth)
-

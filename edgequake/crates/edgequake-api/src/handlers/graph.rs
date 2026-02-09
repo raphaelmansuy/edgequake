@@ -91,7 +91,7 @@ pub async fn get_graph(
 ) -> ApiResult<Json<KnowledgeGraphResponse>> {
     // WHY: Defense in depth - clamp params to safe ranges even if client sends invalid values
     let params = params.validated();
-    
+
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,
@@ -728,7 +728,7 @@ pub async fn stream_graph(
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, ApiError> {
     // WHY: Defense in depth - clamp params to safe ranges even if client sends invalid values
     let params = params.validated();
-    
+
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,

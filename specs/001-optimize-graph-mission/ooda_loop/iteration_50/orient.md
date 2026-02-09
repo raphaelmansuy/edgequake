@@ -1,4 +1,5 @@
 # OODA Loop - Iteration 50
+
 ## Orient Phase: Mission Completion Analysis
 
 ### Analysis

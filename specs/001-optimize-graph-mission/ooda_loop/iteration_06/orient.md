@@ -24,8 +24,8 @@ Need to verify loading time < 2 seconds for 500 nodes.
 ### Performance Test Strategy
 
 Use browser DevTools Network and Performance tabs:
+
 1. Clear cache
 2. Navigate to /graph
 3. Measure Time to Interactive (TTI)
 4. Track API response time
-

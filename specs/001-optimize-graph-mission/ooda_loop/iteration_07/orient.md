@@ -1,4 +1,5 @@
 # OODA Loop - Iteration 07
+
 ## Orient Phase: Performance Benchmarking Analysis
 
 ### Analysis
@@ -28,4 +29,5 @@
    - Option C: Add dedicated benchmark mode with automated runs
 
 ### Recommendation
+
 Use Performance API for frontend, tracing for backend. Create benchmark mode that can be triggered for automated testing.

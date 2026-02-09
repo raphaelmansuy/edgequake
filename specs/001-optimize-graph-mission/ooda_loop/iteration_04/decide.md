@@ -21,6 +21,7 @@ Screen reader support is a WCAG requirement and makes the graph usable for visua
 **Purpose**: Announce node selection changes to screen readers
 
 **Features**:
+
 - aria-live="polite" region
 - Announces node label, type, and degree
 - Visually hidden (sr-only)
@@ -43,30 +44,30 @@ export function GraphAccessibilityAnnouncer() {
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
-  const [announcement, setAnnouncement] = useState('');
-  
+  const [announcement, setAnnouncement] = useState("");
+
   useEffect(() => {
     if (!selectedNodeId) {
-      setAnnouncement('No node selected');
+      setAnnouncement("No node selected");
       return;
     }
-    
-    const node = nodes.find(n => n.id === selectedNodeId);
+
+    const node = nodes.find((n) => n.id === selectedNodeId);
     if (!node) return;
-    
+
     const degree = edges.filter(
-      e => e.source === selectedNodeId || e.target === selectedNodeId
+      (e) => e.source === selectedNodeId || e.target === selectedNodeId,
     ).length;
-    
+
     setAnnouncement(
-      `Selected: ${node.label}, type ${node.node_type}, ${degree} connections`
+      `Selected: ${node.label}, type ${node.node_type}, ${degree} connections`,
     );
   }, [selectedNodeId, nodes, edges]);
-  
+
   return (
-    <div 
-      role="status" 
-      aria-live="polite" 
+    <div
+      role="status"
+      aria-live="polite"
       aria-atomic="true"
       className="sr-only"
     >
@@ -97,4 +98,3 @@ export function GraphAccessibilityAnnouncer() {
 - Edge descriptions
 - Full graph description
 - Color contrast validation (next iteration)
-

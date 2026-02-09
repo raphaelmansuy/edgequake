@@ -9,6 +9,7 @@
 ## Mission Re-read
 
 From mission.md:
+
 > Ensure WCAG accessibility standards are met for graph interactions (keyboard navigation, screen reader support, color contrast).
 
 ---
@@ -24,24 +25,28 @@ From mission.md:
 ```typescript
 useGraphKeyboardNavigation({
   enabled: true,
-  onNodeFocus: (nodeId) => { /* ... */ },
-  onDeselect: () => { /* ... */ },
+  onNodeFocus: (nodeId) => {
+    /* ... */
+  },
+  onDeselect: () => {
+    /* ... */
+  },
 });
 ```
 
 ### Supported Shortcuts
 
-| Key | Action | Status |
-|-----|--------|--------|
-| Tab | Next node | ✅ |
-| Shift+Tab | Previous node | ✅ |
-| ↑/↓/←/→ | Navigate nodes | ✅ |
-| Enter | Focus on selected | ✅ |
-| Escape | Deselect | ✅ |
-| +/= | Zoom in | ✅ |
-| -/_ | Zoom out | ✅ |
-| 0 | Reset zoom | ✅ |
-| F | Fullscreen | ✅ |
+| Key       | Action            | Status |
+| --------- | ----------------- | ------ |
+| Tab       | Next node         | ✅     |
+| Shift+Tab | Previous node     | ✅     |
+| ↑/↓/←/→   | Navigate nodes    | ✅     |
+| Enter     | Focus on selected | ✅     |
+| Escape    | Deselect          | ✅     |
+| +/=       | Zoom in           | ✅     |
+| -/\_      | Zoom out          | ✅     |
+| 0         | Reset zoom        | ✅     |
+| F         | Fullscreen        | ✅     |
 
 ### Help Dialog
 
@@ -58,12 +63,12 @@ useGraphKeyboardNavigation({
 
 Searched `edgequake_webui/src/components/graph/**` for aria-:
 
-| File | Element | Status |
-|------|---------|--------|
-| zoom-controls.tsx | Buttons | ✅ aria-label |
-| time-filter.tsx | Buttons | ✅ aria-label |
-| graph-export.tsx | Button | ✅ aria-label |
-| graph-search.tsx | Dialog, Input | ✅ aria-label |
+| File              | Element       | Status        |
+| ----------------- | ------------- | ------------- |
+| zoom-controls.tsx | Buttons       | ✅ aria-label |
+| time-filter.tsx   | Buttons       | ✅ aria-label |
+| graph-export.tsx  | Button        | ✅ aria-label |
+| graph-search.tsx  | Dialog, Input | ✅ aria-label |
 
 ### Missing ARIA Features
 
@@ -82,13 +87,13 @@ From `graph-renderer.tsx`:
 
 ```typescript
 const TYPE_COLORS: Record<string, string> = {
-  PERSON: '#3b82f6',      // Blue-500
-  ORGANIZATION: '#10b981', // Emerald-500
-  LOCATION: '#f59e0b',    // Amber-500
-  EVENT: '#ef4444',       // Red-500
-  CONCEPT: '#8b5cf6',     // Violet-500
-  DOCUMENT: '#6366f1',    // Indigo-500
-  DEFAULT: '#64748b',     // Slate-500
+  PERSON: "#3b82f6", // Blue-500
+  ORGANIZATION: "#10b981", // Emerald-500
+  LOCATION: "#f59e0b", // Amber-500
+  EVENT: "#ef4444", // Red-500
+  CONCEPT: "#8b5cf6", // Violet-500
+  DOCUMENT: "#6366f1", // Indigo-500
+  DEFAULT: "#64748b", // Slate-500
 };
 ```
 
@@ -140,4 +145,3 @@ const TYPE_COLORS: Record<string, string> = {
 1. Add aria-live region for node selection announcements
 2. Add role="application" to graph container
 3. Validate color contrast with WCAG tool
-

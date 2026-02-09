@@ -25,8 +25,9 @@
 ### Prerequisites
 
 Need to start services:
+
 1. PostgreSQL database
-2. Backend API server  
+2. Backend API server
 3. Frontend dev server
 
 ---
@@ -36,4 +37,3 @@ Need to start services:
 1. Start services with `make dev-bg`
 2. Verify health with `make status`
 3. Run interactive tests
-

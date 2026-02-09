@@ -11,6 +11,7 @@
 ### Defense in Depth
 
 The frontend already enforces MAX_DISPLAY_NODES = 500, but:
+
 1. Malicious clients could bypass frontend
 2. Direct API access could request unlimited nodes
 3. Server should be robust regardless of client
@@ -18,6 +19,7 @@ The frontend already enforces MAX_DISPLAY_NODES = 500, but:
 ### Implementation Strategy
 
 Add `validated()` method to query params that:
+
 1. Clamps max_nodes to [1, 500]
 2. Clamps depth to [1, 5]
 3. Clamps batch_size to [10, 100]
@@ -32,9 +34,8 @@ Add `validated()` method to query params that:
 
 ## Risk Assessment
 
-| Risk | Mitigation |
-|------|------------|
+| Risk            | Mitigation                              |
+| --------------- | --------------------------------------- |
 | Breaking change | No - values already bounded by frontend |
-| Test failures | Tests use reasonable values |
-| Performance | Clamping is O(1) |
-
+| Test failures   | Tests use reasonable values             |
+| Performance     | Clamping is O(1)                        |

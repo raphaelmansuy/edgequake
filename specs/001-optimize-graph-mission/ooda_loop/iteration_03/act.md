@@ -15,8 +15,9 @@
 **Problem**: Tests missing `llm_provider` and `llm_model` fields added in SPEC-032.
 
 **Fix**: Added missing fields to 5 QueryRequest test initializations:
+
 - Line 739-752: test_query_validation
-- Line 759-772: test_query_success  
+- Line 759-772: test_query_success
 - Line 797-810: test_query_modes
 - Line 821-834: test_query_with_context_only
 - Line 843-856: test_query_whitespace_only_fails
@@ -49,14 +50,14 @@ test result: ok. 446 passed; 0 failed; 0 ignored
 
 ## Success Criteria Progress
 
-| Criterion | Status | Evidence |
-|-----------|--------|----------|
-| Graph loads ≤500 nodes | ✅ Code verified | MAX_DISPLAY_NODES=500 constant |
-| Expand neighbors works | ⚠️ Needs E2E test | Entity lookup fallback added |
-| Node labels visible | ✅ Code verified | labelDensity=0.6+ |
-| Search centers view | ✅ Code verified | focusCameraOnNode() |
-| Loading time <2s | ❓ Needs benchmark | - |
-| All tests passing | ✅ | 507 frontend + 446 backend |
+| Criterion              | Status             | Evidence                       |
+| ---------------------- | ------------------ | ------------------------------ |
+| Graph loads ≤500 nodes | ✅ Code verified   | MAX_DISPLAY_NODES=500 constant |
+| Expand neighbors works | ⚠️ Needs E2E test  | Entity lookup fallback added   |
+| Node labels visible    | ✅ Code verified   | labelDensity=0.6+              |
+| Search centers view    | ✅ Code verified   | focusCameraOnNode()            |
+| Loading time <2s       | ❓ Needs benchmark | -                              |
+| All tests passing      | ✅                 | 507 frontend + 446 backend     |
 
 ---
 
@@ -95,4 +96,3 @@ git commit -m "OODA-03: Fix QueryRequest test fields, verify 500 node limit"
 ## Next Iteration
 
 Iteration 04: Add keyboard navigation for graph accessibility
-

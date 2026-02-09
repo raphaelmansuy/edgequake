@@ -14,7 +14,6 @@ Based on the Orient analysis, prioritize actions by signal value:
 
 1. **Run E2E tests to verify all fixes work** - HIGH signal
    - This validates iterations 01 & 02 actually fixed the issues
-   
 2. **Benchmark loading time** - HIGH signal
    - Need data to confirm <2s target met
 
@@ -31,7 +30,6 @@ Based on the Orient analysis, prioritize actions by signal value:
 
 5. **Backend 500 cap** - LOW signal
    - Frontend already enforces; defense in depth
-   
 6. **Color contrast validation** - LOW signal
    - Type colors are standard palette, likely OK
 
@@ -40,15 +38,18 @@ Based on the Orient analysis, prioritize actions by signal value:
 ## Specific Changes Decided
 
 ### Change 1: Run TypeScript Tests
+
 **Command**: `pnpm test`
 **Verify**: Graph components have passing tests
 
 ### Change 2: Benchmark Graph Loading
+
 **Tool**: Browser DevTools Performance tab
 **Metric**: Time from fetch start to render complete
 **Target**: <2000ms for 500 nodes
 
 ### Change 3: Run Backend Tests
+
 **Command**: `cargo test -p edgequake-api`
 **Verify**: Entity neighborhood handler tests pass
 
@@ -85,6 +86,7 @@ Test Suite Dependencies:
 ## Next Iteration Plan
 
 After this iteration:
+
 - Iteration 04: Add keyboard navigation
 - Iteration 05: Add aria-live regions
 - Iteration 06-10: Systematic WCAG compliance

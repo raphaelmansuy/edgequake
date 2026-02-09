@@ -11,6 +11,7 @@
 ### Keyboard Navigation: COMPLETE ✅
 
 The `useGraphKeyboardNavigation` hook is well-implemented with:
+
 - Full keyboard shortcuts coverage
 - Tab-based node cycling
 - Arrow key navigation
@@ -24,12 +25,14 @@ The `useGraphKeyboardNavigation` hook is well-implemented with:
 #### Gap 1: No Live Region for Node Selection
 
 When a user selects a node via keyboard:
+
 - Visual feedback: Node highlighted ✅
 - Audio feedback: Nothing ❌
 
 **Impact**: Screen reader users don't know which node is selected.
 
 **Solution**: Add `aria-live="polite"` region that announces:
+
 - Node label
 - Node type
 - Degree (connection count)
@@ -37,6 +40,7 @@ When a user selects a node via keyboard:
 #### Gap 2: Graph Container Missing Role
 
 **Current**:
+
 ```tsx
 <div className="relative h-full w-full">
   <GraphRenderer ... />
@@ -44,8 +48,9 @@ When a user selects a node via keyboard:
 ```
 
 **Should be**:
+
 ```tsx
-<div 
+<div
   className="relative h-full w-full"
   role="application"
   aria-label="Knowledge Graph Visualization"
@@ -62,11 +67,11 @@ Using Tailwind palette colors (Blue-500, Emerald-500, etc.) which are designed f
 
 ## Risk Assessment
 
-| Change | Risk | Mitigation |
-|--------|------|------------|
-| Add aria-live region | Low | Standard WCAG pattern |
-| Add role="application" | Low | Correct semantic |
-| Announce node focus | Low | Use polite mode |
+| Change                 | Risk | Mitigation            |
+| ---------------------- | ---- | --------------------- |
+| Add aria-live region   | Low  | Standard WCAG pattern |
+| Add role="application" | Low  | Correct semantic      |
+| Announce node focus    | Low  | Use polite mode       |
 
 ---
 
@@ -75,6 +80,7 @@ Using Tailwind palette colors (Blue-500, Emerald-500, etc.) which are designed f
 ### Component: GraphAccessibilityAnnouncer
 
 Create new component that:
+
 1. Subscribes to `selectedNodeId` from store
 2. When changed, updates aria-live region
 3. Announces: `"{label}, {type}, {degree} connections"`
@@ -105,4 +111,3 @@ Add to `graph-viewer.tsx` inside the graph container:
 1. **Progressive enhancement** - Works without JS, enhanced with
 2. **Semantic HTML** - Use correct ARIA roles
 3. **Non-intrusive** - Polite announcements don't interrupt
-

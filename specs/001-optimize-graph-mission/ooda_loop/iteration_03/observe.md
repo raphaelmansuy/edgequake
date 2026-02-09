@@ -70,9 +70,13 @@ const maxLimits = {
 **Location**: `edgequake_webui/src/components/graph/graph-renderer.tsx:465-468`
 
 ```typescript
-const adaptiveLabelGridCellSize = isVeryLargeGraph ? 150 : (isLargeGraph ? 100 : 80);
-const adaptiveLabelDensity = isVeryLargeGraph ? 0.6 : (isLargeGraph ? 0.7 : 0.8);
-const adaptiveLabelThreshold = isVeryLargeGraph ? 4 : (isLargeGraph ? 3 : 2);
+const adaptiveLabelGridCellSize = isVeryLargeGraph
+  ? 150
+  : isLargeGraph
+    ? 100
+    : 80;
+const adaptiveLabelDensity = isVeryLargeGraph ? 0.6 : isLargeGraph ? 0.7 : 0.8;
+const adaptiveLabelThreshold = isVeryLargeGraph ? 4 : isLargeGraph ? 3 : 2;
 ```
 
 **Status**: Improved settings for better label visibility.
@@ -82,6 +86,7 @@ const adaptiveLabelThreshold = isVeryLargeGraph ? 4 : (isLargeGraph ? 3 : 2);
 **Location**: `edgequake/crates/edgequake-api/src/handlers/entities.rs:796-820`
 
 Multi-level lookup strategy:
+
 1. Try normalized name
 2. Try original name (special chars)
 3. Fallback to search_nodes
@@ -93,16 +98,19 @@ Multi-level lookup strategy:
 **Location**: `edgequake_webui/src/components/graph/graph-search.tsx:309-319`
 
 ```typescript
-const handleSelect = useCallback((nodeId: string) => {
-  selectNode(nodeId);
-  if (sigmaInstance) {
-    focusCameraOnNode(sigmaInstance, nodeId, {
-      ratio: 0.5,
-      duration: 500,
-      highlight: false,
-    });
-  }
-}, [sigmaInstance, selectNode, onSelect]);
+const handleSelect = useCallback(
+  (nodeId: string) => {
+    selectNode(nodeId);
+    if (sigmaInstance) {
+      focusCameraOnNode(sigmaInstance, nodeId, {
+        ratio: 0.5,
+        duration: 500,
+        highlight: false,
+      });
+    }
+  },
+  [sigmaInstance, selectNode, onSelect],
+);
 ```
 
 **Status**: Camera focus on search result implemented.
@@ -132,6 +140,7 @@ Need to verify slider max is capped at 500.
 ### Issue D: Accessibility Compliance
 
 Mission requires WCAG compliance for:
+
 - Keyboard navigation
 - Screen reader support
 - Color contrast
@@ -169,6 +178,3 @@ Mission requires WCAG compliance for:
 3. Check slider max value in settings panel
 4. Assess accessibility compliance
 5. Run E2E tests
-
-
-

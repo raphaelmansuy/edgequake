@@ -31,18 +31,20 @@ pub fn default_max_nodes() -> usize {
 ```
 
 **Documentation** (line 73):
+
 > Maximum nodes to return (default: 100, max: 1000)
 
 ### Enforcement Points
 
-| Endpoint | Handler | Limit | Status |
-|----------|---------|-------|--------|
-| GET /api/v1/graph | get_graph | No clamp | ❌ |
-| GET /api/v1/graph/stream | stream_graph | No clamp | ❌ |
+| Endpoint                 | Handler      | Limit    | Status |
+| ------------------------ | ------------ | -------- | ------ |
+| GET /api/v1/graph        | get_graph    | No clamp | ❌     |
+| GET /api/v1/graph/stream | stream_graph | No clamp | ❌     |
 
 ### Risk
 
 Server accepts any max_nodes value from client:
+
 - Malicious client could request 100,000 nodes
 - Could cause performance issues
 - Not a security vulnerability (just performance)
@@ -76,4 +78,3 @@ Use serde deserialize_with for automatic validation.
 
 1. `graph_types.rs` - Add MAX_GRAPH_NODES const
 2. `graph.rs` - Clamp in handlers
-

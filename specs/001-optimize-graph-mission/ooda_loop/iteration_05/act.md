@@ -11,12 +11,14 @@
 ### 1. graph_types.rs
 
 **Added constants** (line 88-91):
+
 ```rust
 pub const MAX_GRAPH_NODES: usize = 500;
 pub const MAX_GRAPH_DEPTH: usize = 5;
 ```
 
 **Added GraphQueryParams::validated()** (line 107-113):
+
 ```rust
 impl GraphQueryParams {
     pub fn validated(mut self) -> Self {
@@ -28,6 +30,7 @@ impl GraphQueryParams {
 ```
 
 **Added GraphStreamQueryParams::validated()** (line 303-309):
+
 ```rust
 impl GraphStreamQueryParams {
     pub fn validated(mut self) -> Self {
@@ -41,6 +44,7 @@ impl GraphStreamQueryParams {
 ### 2. graph.rs
 
 **Updated get_graph()** (line 90-92):
+
 ```rust
 pub async fn get_graph(...) {
     let params = params.validated();
@@ -49,6 +53,7 @@ pub async fn get_graph(...) {
 ```
 
 **Updated stream_graph()** (line 727-729):
+
 ```rust
 pub async fn stream_graph(...) {
     let params = params.validated();
@@ -79,4 +84,3 @@ Frontend tests already use ≤500 nodes.
 git add -A
 git commit -m "OODA-05: Backend defense-in-depth for max_nodes limit"
 ```
-

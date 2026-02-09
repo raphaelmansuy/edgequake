@@ -1,4 +1,5 @@
 # OODA Loop - Iteration 09
+
 ## Decide Phase: Layout Parameter Changes
 
 ### Decision
@@ -27,5 +28,6 @@
    - Prevents oscillation in late layout
 
 ### Risk Assessment
+
 - Low: Parameters can be reverted easily
 - Visual testing required post-change

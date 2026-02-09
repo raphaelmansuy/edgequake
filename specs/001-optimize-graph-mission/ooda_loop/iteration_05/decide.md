@@ -16,12 +16,13 @@
 ### Specific Code Changes
 
 **graph_types.rs**:
+
 - Add `MAX_GRAPH_NODES = 500`
 - Add `MAX_GRAPH_DEPTH = 5`
 - Add `GraphQueryParams::validated()`
 - Add `GraphStreamQueryParams::validated()`
 
 **graph.rs**:
+
 - Call `params.validated()` in `get_graph()`
 - Call `params.validated()` in `stream_graph()`
-

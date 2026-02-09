@@ -1,7 +1,9 @@
 # OODA Loop - Iteration 07
+
 ## Observe Phase: Performance Benchmarking Setup
 
 ### Date: 2025-02-09
+
 ### Focus: Establish baseline performance metrics
 
 ### Observations
@@ -28,6 +30,7 @@
    - Search-to-focus latency
 
 ### Evidence
+
 - Frontend uses `measuring: true` option in Sigma settings
 - Backend logs request duration in middleware
 - No formal benchmark suite exists

@@ -83,7 +83,7 @@ ITERATIONS = {
    - Parameters recorded for reference
 
 ### Next Iteration
-Iteration 11: Label rendering optimization"""
+Iteration 11: Label rendering optimization""",
     },
     11: {
         "theme": "Label Rendering Optimization",
@@ -163,7 +163,7 @@ Iteration 11: Label rendering optimization"""
    - No changes required
 
 ### Next Iteration
-Iteration 12: Error handling improvements"""
+Iteration 12: Error handling improvements""",
     },
     12: {
         "theme": "Error Handling Review",
@@ -243,7 +243,7 @@ Iteration 12: Error handling improvements"""
    - No improvements needed
 
 ### Next Iteration
-Iteration 13: Edge case testing"""
+Iteration 13: Edge case testing""",
     },
     13: {
         "theme": "Edge Case Testing",
@@ -328,7 +328,7 @@ Iteration 13: Edge case testing"""
    - Test coverage confirmed
 
 ### Next Iteration
-Iteration 14: Search functionality review"""
+Iteration 14: Search functionality review""",
     },
     14: {
         "theme": "Search Functionality",
@@ -410,7 +410,7 @@ Iteration 14: Search functionality review"""
    - All features working
 
 ### Next Iteration
-Iteration 15: Keyboard navigation review"""
+Iteration 15: Keyboard navigation review""",
     },
     15: {
         "theme": "Keyboard Navigation",
@@ -492,14 +492,15 @@ Iteration 15: Keyboard navigation review"""
    - Accessibility features listed
 
 ### Next Iteration
-Iteration 16: Color contrast review"""
+Iteration 16: Color contrast review""",
     },
 }
+
 
 # Generate remaining iterations with templated content
 def generate_iteration_content(num, theme):
     """Generate content for iterations 16-50 based on themes."""
-    
+
     themes = [
         (16, 20, "UI Polish", "Visual consistency and polish"),
         (21, 25, "Performance Validation", "Verifying performance targets"),
@@ -509,13 +510,13 @@ def generate_iteration_content(num, theme):
         (41, 45, "Final Validation", "Complete feature verification"),
         (46, 50, "Mission Summary", "Documenting mission completion"),
     ]
-    
+
     current_theme = "General Review"
     for start, end, t, desc in themes:
         if start <= num <= end:
             current_theme = t
             break
-    
+
     observe = f"""# OODA Loop - Iteration {num:02d}
 ## Observe Phase: {current_theme}
 
@@ -596,11 +597,12 @@ Iteration {num + 1:02d}: Continued validation"""
 
     return observe, orient, decide, act
 
+
 # Create files
 for num in range(10, 51):
     iter_dir = os.path.join(BASE_DIR, f"iteration_{num:02d}")
     os.makedirs(iter_dir, exist_ok=True)
-    
+
     if num in ITERATIONS:
         content = ITERATIONS[num]
         files = {
@@ -617,12 +619,12 @@ for num in range(10, 51):
             "decide.md": dec,
             "act.md": act,
         }
-    
+
     for filename, content in files.items():
         filepath = os.path.join(iter_dir, filename)
         with open(filepath, "w") as f:
             f.write(content.strip() + "\n")
-    
+
     print(f"Created iteration_{num:02d}")
 
 print("\nAll iterations created successfully!")
