@@ -4,7 +4,7 @@
 # ============================================
 # Stage 1: Build
 # ============================================
-FROM rust:nightly-bookworm AS builder
+FROM rust:nightly AS builder
 
 WORKDIR /app
 
