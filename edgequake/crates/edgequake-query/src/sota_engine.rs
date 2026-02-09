@@ -1133,17 +1133,23 @@ impl SOTAQueryEngine {
         let mut stats = crate::engine::QueryStats::default();
 
         // Step 1: Extract keywords (with caching)
+        // WHY: Use extract_with_llm_override when user selected a specific LLM provider.
+        // This ensures keyword extraction uses the SAME LLM as answer generation.
+        // Without this, keyword extraction would use the server default (often Ollama)
+        // while answer generation uses the user's choice (e.g., OpenAI GPT-4).
+        // This bug caused inconsistent behavior and unexpected costs.
         let raw_keywords = if self.config.use_keyword_extraction {
             let kw_start = std::time::Instant::now();
             let kw = self
                 .keyword_extractor
-                .extract_extended(&request.query)
+                .extract_with_llm_override(&request.query, llm_provider.clone())
                 .await?;
             tracing::debug!(
                 query = %request.query,
                 high_level = ?kw.high_level,
                 low_level = ?kw.low_level,
                 intent = %kw.query_intent,
+                has_llm_override = llm_provider.is_some(),
                 "Extracted keywords (full config)"
             );
             stats.embedding_time_ms += kw_start.elapsed().as_millis() as u64;
@@ -1320,9 +1326,13 @@ impl SOTAQueryEngine {
         use futures::StreamExt;
 
         // Step 1: Extract keywords (with caching)
+        // WHY: Use extract_with_llm_override when user selected a specific LLM provider.
+        // This ensures keyword extraction uses the SAME LLM as answer generation.
+        // Without this, keyword extraction would use the server default (often Ollama)
+        // while answer generation uses the user's choice (e.g., OpenAI GPT-4).
         let raw_keywords = if self.config.use_keyword_extraction {
             self.keyword_extractor
-                .extract_extended(&request.query)
+                .extract_with_llm_override(&request.query, llm_provider.clone())
                 .await?
         } else {
             ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
@@ -1676,9 +1686,13 @@ impl SOTAQueryEngine {
         use futures::StreamExt;
 
         // Step 1: Extract keywords (with caching)
+        // WHY: These methods (query, query_stream) don't have an LLM override parameter.
+        // They always use the engine's default LLM provider (self.llm_provider).
+        // Pass None to extract_with_llm_override to use the default LLM.
+        // For workspace-specific LLM selection, use query_with_full_config or query_stream_with_full_config.
         let raw_keywords = if self.config.use_keyword_extraction {
             self.keyword_extractor
-                .extract_extended(&request.query)
+                .extract_with_llm_override(&request.query, None)
                 .await?
         } else {
             ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
@@ -1823,10 +1837,6 @@ impl SOTAQueryEngine {
     /// - QueryContext: The retrieved entities, relationships, and chunks
     /// - QueryMode: The mode used for retrieval
     /// - BoxStream: The LLM response stream
-    /// Execute a streaming query and return both context and stream.
-    ///
-    /// This is the preferred method for UI scenarios where sources need to be
-    /// displayed alongside the streaming response.
     ///
     /// # Streaming Fallback
     ///
@@ -1988,9 +1998,13 @@ impl SOTAQueryEngine {
         request: &crate::engine::QueryRequest,
     ) -> Result<(QueryContext, QueryMode)> {
         // Step 1: Extract keywords (with caching)
+        // WHY: These methods (query, query_stream) don't have an LLM override parameter.
+        // They always use the engine's default LLM provider (self.llm_provider).
+        // Pass None to extract_with_llm_override to use the default LLM.
+        // For workspace-specific LLM selection, use query_with_full_config or query_stream_with_full_config.
         let raw_keywords = if self.config.use_keyword_extraction {
             self.keyword_extractor
-                .extract_extended(&request.query)
+                .extract_with_llm_override(&request.query, None)
                 .await?
         } else {
             ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)

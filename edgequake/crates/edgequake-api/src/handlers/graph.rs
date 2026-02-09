@@ -452,13 +452,14 @@ pub async fn search_labels(
 )]
 pub async fn search_nodes(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Query(params): Query<SearchNodesQuery>,
 ) -> ApiResult<Json<SearchNodesResponse>> {
     use std::collections::HashSet;
 
-    // Get tenant/workspace context from middleware (if available)
-    let tenant_id: Option<String> = None; // Extracted by middleware if multi-tenant
-    let workspace_id: Option<String> = None;
+    // Get tenant/workspace context from middleware
+    let tenant_id = tenant_ctx.tenant_id.clone();
+    let workspace_id = tenant_ctx.workspace_id.clone();
 
     // Search for matching nodes
     let matching_nodes = state

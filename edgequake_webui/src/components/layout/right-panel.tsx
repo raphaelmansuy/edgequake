@@ -2,19 +2,21 @@
  * @module RightPanel
  * @description Reusable collapsible right panel for detail views.
  * Used for entity details, document preview, and settings panels.
- * 
+ *
  * @implements FEAT0614 - Collapsible detail panels
  * @implements FEAT0615 - Configurable panel widths
  * @implements FEAT0616 - Scroll area for long content
- * 
+ * @implements FEAT0617 - Resizable panels with localStorage persistence
+ *
  * @enforces BR0201 - Panel syncs with main view selection
  * @enforces BR0610 - Panel state persists during session
- * 
- * @see {@link docs/features.md} FEAT0614-0616
+ *
+ * @see {@link docs/features.md} FEAT0614-0617
  */
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { ResizablePanel } from '@/components/ui/resizable-panel';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -31,7 +33,7 @@ interface RightPanelProps {
   title?: string;
   /** Panel subtitle/description */
   subtitle?: string;
-  /** Panel width when expanded - 'narrow' (320px) or 'wide' (400px) */
+  /** Panel width when expanded - 'narrow' (320px) or 'wide' (400px) - only used if not resizable */
   width?: 'narrow' | 'wide';
   /** Content to render inside the panel */
   children: ReactNode;
@@ -43,15 +45,28 @@ interface RightPanelProps {
   collapsedLabel?: string;
   /** Icon to show in the header */
   headerIcon?: ReactNode;
+
+  // Resizable panel props
+  /** Whether the panel can be resized */
+  resizable?: boolean;
+  /** Default width for resizable panel in pixels */
+  defaultWidth?: number;
+  /** Minimum width for resizable panel in pixels */
+  minWidth?: number;
+  /** Maximum width for resizable panel in pixels */
+  maxWidth?: number;
+  /** Storage key for persisting panel width */
+  storageKey?: string;
 }
 
 /**
  * Reusable right panel component for consistent panel behavior across the application.
  * Features:
  * - Collapsible with smooth animation
- * - Configurable width (narrow: 320px, wide: 400px)
+ * - Configurable width (narrow: 320px, wide: 400px) or fully resizable
  * - Optional collapsed indicator bar
  * - Scroll area for content
+ * - Optional resize with localStorage persistence
  */
 export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
   function RightPanel(
@@ -67,11 +82,16 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
       showCollapsedBar = true,
       collapsedLabel,
       headerIcon,
+      resizable = false,
+      defaultWidth = 400,
+      minWidth = 320,
+      maxWidth = 800,
+      storageKey,
     },
     ref
   ) {
     const panelWidth = width === 'narrow' ? 'w-80' : 'w-[400px]';
-    
+
     // When collapsed, show a thin bar that can be clicked to expand
     if (!isOpen && showCollapsedBar) {
       return (
@@ -109,11 +129,11 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
       return null;
     }
 
-    return (
+    const panelContent = (
       <aside
         ref={ref}
         className={cn(
-          panelWidth,
+          resizable ? 'w-full' : panelWidth,
           "border-l bg-card flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
           className
         )}
@@ -168,6 +188,24 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
         </ScrollArea>
       </aside>
     );
+
+    // If resizable, wrap with ResizablePanel
+    if (resizable) {
+      return (
+        <ResizablePanel
+          side="right"
+          defaultWidth={defaultWidth}
+          minWidth={minWidth}
+          maxWidth={maxWidth}
+          storageKey={storageKey}
+          ariaLabel={`Resize ${title || 'panel'}`}
+        >
+          {panelContent}
+        </ResizablePanel>
+      );
+    }
+
+    return panelContent;
   }
 );
 

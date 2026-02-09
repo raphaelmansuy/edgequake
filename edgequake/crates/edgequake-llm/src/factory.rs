@@ -89,11 +89,11 @@ impl ProviderType {
     /// ```
     /// use edgequake_llm::ProviderType;
     ///
-    /// assert_eq!(ProviderType::from_str("openai"), Some(ProviderType::OpenAI));
-    /// assert_eq!(ProviderType::from_str("OLLAMA"), Some(ProviderType::Ollama));
-    /// assert_eq!(ProviderType::from_str("lm-studio"), Some(ProviderType::LMStudio));
+    /// assert_eq!(ProviderType::parse("openai"), Some(ProviderType::OpenAI));
+    /// assert_eq!(ProviderType::parse("OLLAMA"), Some(ProviderType::Ollama));
+    /// assert_eq!(ProviderType::parse("lm-studio"), Some(ProviderType::LMStudio));
     /// ```
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "openai" => Some(Self::OpenAI),
             "ollama" => Some(Self::Ollama),
@@ -139,7 +139,7 @@ impl ProviderFactory {
 
         // Determine LLM provider type
         let llm_provider_type = if let Ok(provider_str) = std::env::var("EDGEQUAKE_LLM_PROVIDER") {
-            ProviderType::from_str(&provider_str).ok_or_else(|| {
+            ProviderType::parse(&provider_str).ok_or_else(|| {
                 LlmError::ConfigError(format!(
                     "Unknown LLM provider type: {}. Valid options: openai, ollama, lmstudio, mock",
                     provider_str
@@ -166,7 +166,7 @@ impl ProviderFactory {
 
         // SPEC-033: If embedding provider override specified, create hybrid configuration
         if let Some(embedding_str) = embedding_provider_override {
-            let embedding_type = ProviderType::from_str(&embedding_str).ok_or_else(|| {
+            let embedding_type = ProviderType::parse(&embedding_str).ok_or_else(|| {
                 LlmError::ConfigError(format!(
                     "Unknown embedding provider type: {}. Valid options: openai, ollama, lmstudio, mock",
                     embedding_str
@@ -362,7 +362,7 @@ impl ProviderFactory {
         model: &str,
         dimension: usize,
     ) -> Result<Arc<dyn EmbeddingProvider>> {
-        let provider_type = ProviderType::from_str(provider_name).ok_or_else(|| {
+        let provider_type = ProviderType::parse(provider_name).ok_or_else(|| {
             LlmError::ConfigError(format!(
                 "Unknown embedding provider: {}. Valid: openai, ollama, lmstudio, mock",
                 provider_name
@@ -453,7 +453,7 @@ impl ProviderFactory {
     /// assert_eq!(provider.model(), "gemma3:12b");
     /// ```
     pub fn create_llm_provider(provider_name: &str, model: &str) -> Result<Arc<dyn LLMProvider>> {
-        let provider_type = ProviderType::from_str(provider_name).ok_or_else(|| {
+        let provider_type = ProviderType::parse(provider_name).ok_or_else(|| {
             LlmError::ConfigError(format!(
                 "Unknown LLM provider: {}. Valid: openai, ollama, lmstudio, mock",
                 provider_name
@@ -632,23 +632,23 @@ mod tests {
 
     #[test]
     fn test_provider_type_parsing() {
-        assert_eq!(ProviderType::from_str("openai"), Some(ProviderType::OpenAI));
-        assert_eq!(ProviderType::from_str("OLLAMA"), Some(ProviderType::Ollama));
+        assert_eq!(ProviderType::parse("openai"), Some(ProviderType::OpenAI));
+        assert_eq!(ProviderType::parse("OLLAMA"), Some(ProviderType::Ollama));
         assert_eq!(
-            ProviderType::from_str("lmstudio"),
+            ProviderType::parse("lmstudio"),
             Some(ProviderType::LMStudio)
         );
         assert_eq!(
-            ProviderType::from_str("lm-studio"),
+            ProviderType::parse("lm-studio"),
             Some(ProviderType::LMStudio)
         );
         assert_eq!(
-            ProviderType::from_str("lm_studio"),
+            ProviderType::parse("lm_studio"),
             Some(ProviderType::LMStudio)
         );
-        assert_eq!(ProviderType::from_str("mock"), Some(ProviderType::Mock));
-        assert_eq!(ProviderType::from_str("invalid"), None);
-        assert_eq!(ProviderType::from_str(""), None);
+        assert_eq!(ProviderType::parse("mock"), Some(ProviderType::Mock));
+        assert_eq!(ProviderType::parse("invalid"), None);
+        assert_eq!(ProviderType::parse(""), None);
     }
 
     #[test]

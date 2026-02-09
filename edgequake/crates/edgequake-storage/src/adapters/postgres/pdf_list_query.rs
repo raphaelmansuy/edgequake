@@ -1,7 +1,7 @@
 //! Helper for building PDF list queries dynamically
 
 use crate::{
-    pdf_storage::{ExtractionMethod, ListPdfFilter, PdfDocument, PdfProcessingStatus},
+    pdf_storage::{ListPdfFilter, PdfDocument},
     StorageError,
 };
 use sqlx::{PgPool, Row};
@@ -89,11 +89,11 @@ pub async fn list_pdfs_dynamic(
                 pdf_data: r.try_get("pdf_data")?,
                 processing_status: {
                     let status_str: String = r.try_get("processing_status")?;
-                    PdfProcessingStatus::from_str(&status_str).unwrap()
+                    status_str.parse().unwrap()
                 },
                 extraction_method: {
                     let method_opt: Option<String> = r.try_get("extraction_method")?;
-                    method_opt.and_then(|m| ExtractionMethod::from_str(&m).ok())
+                    method_opt.and_then(|m| m.parse().ok())
                 },
                 vision_model: r.try_get("vision_model")?,
                 markdown_content: r.try_get("markdown_content")?,

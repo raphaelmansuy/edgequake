@@ -718,7 +718,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
             id: row.id,
             workspace_id,
             recorded_at: row.recorded_at,
-            trigger_type: MetricsTriggerType::from_str(&row.trigger_type)
+            trigger_type: MetricsTriggerType::parse(&row.trigger_type)
                 .unwrap_or(MetricsTriggerType::Event),
             document_count: row.document_count,
             chunk_count: row.chunk_count,
@@ -776,7 +776,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
                 id: row.id,
                 workspace_id,
                 recorded_at: row.recorded_at,
-                trigger_type: MetricsTriggerType::from_str(&row.trigger_type)
+                trigger_type: MetricsTriggerType::parse(&row.trigger_type)
                     .unwrap_or(MetricsTriggerType::Event),
                 document_count: row.document_count,
                 chunk_count: row.chunk_count,

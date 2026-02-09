@@ -718,7 +718,7 @@ pub async fn list_pdfs(
     let status = query
         .status
         .as_ref()
-        .and_then(|s| PdfProcessingStatus::from_str(s).ok());
+        .and_then(|s| s.parse().ok());
 
     let list = pdf_storage
         .list_pdfs(ListPdfFilter {

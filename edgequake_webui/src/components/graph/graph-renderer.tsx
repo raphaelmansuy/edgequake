@@ -52,6 +52,17 @@ const NODE_SIZES: Record<string, number> = {
   large: 14,
 };
 
+// WHY: Dynamic node sizing based on degree (connections)
+// More connected nodes are larger → easier to spot important entities
+function calculateNodeSize(degree: number, baseSize: number): number {
+  if (degree === 0) return baseSize;
+
+  // Scale size logarithmically: size = baseSize + log2(degree + 1) * 2
+  // Examples: 0 connections = baseSize, 1 = baseSize+2, 3 = baseSize+4, 7 = baseSize+6
+  const scaleFactor = Math.log2(degree + 1) * 2;
+  return Math.min(baseSize + scaleFactor, baseSize * 3); // Cap at 3x base size
+}
+
 // Theme-aware label colors
 const LABEL_COLORS = {
   light: '#374151', // gray-700
@@ -76,7 +87,9 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
   const sigmaRef = useRef<Sigma | null>(null);
   const graphRef = useRef<Graph | null>(null);
   const previousLayoutRef = useRef<string | null>(null);
+  const previousSelectedNodeRef = useRef<string | null>(null);
   const setSigmaInstance = useGraphStore((s) => s.setSigmaInstance);
+  const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
   const colorMode = useGraphStore((s) => s.colorMode);
   const streamingProgress = useGraphStore((s) => s.streamingProgress);
   const useStreaming = useGraphStore((s) => s.useStreaming);
@@ -115,24 +128,30 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
   const addNodesToGraph = useCallback((graph: Graph, newNodes: GraphNode[]) => {
     const borderColor = isDark ? '#374151' : '#ffffff';
     const existingNodeCount = graph.order;
-    
+
     newNodes.forEach((node, index) => {
       if (graph.hasNode(node.id)) return; // Skip existing nodes
-      
+
       // Position new nodes in a spiral pattern from existing nodes
       const angle = (2 * Math.PI * (existingNodeCount + index)) / Math.max(existingNodeCount + newNodes.length, 1);
       const radius = 100 + (existingNodeCount * 2);
-      
+
+      // WHY: Dynamic node sizing based on degree (connections)
+      const nodeDegree = node.degree || 0;
+      const dynamicSize = calculateNodeSize(nodeDegree, nodeSize);
+
       graph.addNode(node.id, {
         label: node.label,
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
-        size: nodeSize,
+        size: dynamicSize, // Use dynamic size based on connections
         color: getNodeColor(node.node_type),
         borderColor: borderColor,
         borderSize: 0.15,
+        type: 'border', // Explicitly set node type for NodeBorderProgram
         entityType: node.node_type,
         description: node.description,
+        degree: nodeDegree, // Store degree for later reference
       });
     });
   }, [isDark, nodeSize]);
@@ -285,18 +304,24 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       
       const angle = (2 * Math.PI * index) / nodes.length;
       const radius = 100;
-      
+
+      // WHY: Dynamic node sizing based on degree (connections)
+      const nodeDegree = node.degree || 0;
+      const dynamicSize = calculateNodeSize(nodeDegree, nodeSize);
+
       try {
         graph.addNode(node.id, {
           label: node.label,
           x: Math.cos(angle) * radius,
           y: Math.sin(angle) * radius,
-          size: nodeSize,
+          size: dynamicSize, // Use dynamic size based on connections
           color: nodeColor(node.node_type),
           borderColor: borderColor,
-          borderSize: 0.15, // Border width as ratio of node size
+          borderSize: 0.2, // Slightly larger border for better visibility
+          type: 'border', // Explicitly set node type for NodeBorderProgram
           entityType: node.node_type,
           description: node.description,
+          degree: nodeDegree, // Store degree for later reference
         });
         addedNodeCount++;
       } catch (error) {
@@ -480,7 +505,8 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
     const sigma = new Sigma(graph, containerRef.current, {
       renderLabels: showLabels,
       renderEdgeLabels: showEdgeLabels && !isVeryLargeGraph, // WHY: Disable edge labels for very large graphs
-      labelSize: 12,
+      labelSize: 13, // Slightly larger for better readability
+      labelWeight: '500', // Medium weight for better readability
       labelColor: { color: isDark ? LABEL_COLORS.dark : LABEL_COLORS.light },
       labelFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
       labelGridCellSize: adaptiveLabelGridCellSize,    // WHY: Larger cells for large graphs
@@ -500,8 +526,9 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       minCameraRatio: 0.1,
       maxCameraRatio: 10,
       enableEdgeEvents: !isVeryLargeGraph, // WHY: Disable edge events for very large graphs (perf)
-      // WHY: Performance optimization - reduce zIndex checking for large graphs
-      zIndex: !isLargeGraph,
+      stagePadding: 50, // Add padding around graph for better visibility
+      // WHY: Always enable zIndex so selected nodes can render on top
+      zIndex: true,
     });
     
     // WHY: Log performance info for debugging
@@ -812,6 +839,91 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       }
     };
   }, []);
+
+  // Handle selected node visual highlighting
+  // WHY: Make selected nodes EXTREMELY visible with size increase, pulsing border, and strong glow
+  useEffect(() => {
+    const graph = graphRef.current;
+    const sigma = sigmaRef.current;
+
+    if (!graph || !sigma) return;
+
+    // Clear previous selection highlight and stop pulse animation
+    if (previousSelectedNodeRef.current && graph.hasNode(previousSelectedNodeRef.current)) {
+      const prevNodeId = previousSelectedNodeRef.current;
+      // Restore original size
+      const degree = graph.getNodeAttribute(prevNodeId, 'degree') || 0;
+      const originalSize = calculateNodeSize(degree, nodeSize);
+      graph.setNodeAttribute(prevNodeId, 'size', originalSize);
+      // Restore original border
+      graph.setNodeAttribute(prevNodeId, 'borderSize', 0.2);
+      graph.setNodeAttribute(prevNodeId, 'borderColor', isDark ? '#374151' : '#ffffff');
+      // Restore normal z-index
+      graph.setNodeAttribute(prevNodeId, 'zIndex', 0);
+      // Remove selected flag
+      graph.removeNodeAttribute(prevNodeId, 'selected');
+    }
+
+    // Highlight new selection with dramatic emphasis
+    if (selectedNodeId && graph.hasNode(selectedNodeId)) {
+      const currentSize = graph.getNodeAttribute(selectedNodeId, 'size') || nodeSize;
+
+      // DRAMATIC size increase (2x) for maximum visibility
+      graph.setNodeAttribute(selectedNodeId, 'size', currentSize * 2);
+
+      // Strong border with vibrant theme-aware color
+      const glowColor = isDark ? '#60a5fa' : '#2563eb'; // Brighter blue
+      graph.setNodeAttribute(selectedNodeId, 'borderSize', 4); // Thicker border
+      graph.setNodeAttribute(selectedNodeId, 'borderColor', glowColor);
+
+      // Force max z-index to render on top of all other nodes
+      graph.setNodeAttribute(selectedNodeId, 'zIndex', 999);
+
+      // Mark as selected
+      graph.setNodeAttribute(selectedNodeId, 'selected', true);
+
+      // Update previous selected node ref
+      previousSelectedNodeRef.current = selectedNodeId;
+
+      // Pulsing animation for extra attention
+      let pulsePhase = 0;
+      const pulseInterval = setInterval(() => {
+        if (!graph.hasNode(selectedNodeId)) {
+          clearInterval(pulseInterval);
+          return;
+        }
+
+        // Pulse between 3.5 and 4.5 border size
+        pulsePhase = (pulsePhase + 0.15) % (Math.PI * 2);
+        const pulseBorder = 4 + Math.sin(pulsePhase) * 0.5;
+
+        graph.setNodeAttribute(selectedNodeId, 'borderSize', pulseBorder);
+        sigma.refresh();
+      }, 50); // 20fps pulsing animation
+
+      // Store interval for cleanup
+      (sigma as any)._selectionPulseInterval = pulseInterval;
+
+      // Initial refresh
+      sigma.refresh();
+    } else {
+      previousSelectedNodeRef.current = null;
+
+      // Clear any existing pulse interval
+      if ((sigma as any)._selectionPulseInterval) {
+        clearInterval((sigma as any)._selectionPulseInterval);
+        (sigma as any)._selectionPulseInterval = null;
+      }
+    }
+
+    // Cleanup function
+    return () => {
+      if (sigma && (sigma as any)._selectionPulseInterval) {
+        clearInterval((sigma as any)._selectionPulseInterval);
+        (sigma as any)._selectionPulseInterval = null;
+      }
+    };
+  }, [selectedNodeId, isDark, nodeSize]);
 
   useEffect(() => {
     const cleanup = initializeGraph();

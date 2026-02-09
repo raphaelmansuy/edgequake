@@ -89,6 +89,11 @@ export function DocumentPreviewRightPanel({
         showCollapsedBar={true}
         collapsedLabel={t('documents.preview.panelLabel', 'Preview')}
         headerIcon={<FileText className="h-4 w-4" />}
+        resizable={true}
+        defaultWidth={480}
+        minWidth={400}
+        maxWidth={900}
+        storageKey="document-preview-panel-width"
       >
         <DocumentPreviewPanel
           document={selectedDocument}

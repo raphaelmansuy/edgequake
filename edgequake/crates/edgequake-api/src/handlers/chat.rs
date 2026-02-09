@@ -814,15 +814,27 @@ pub async fn chat_completion_stream(
             request_model.clone(),
         );
 
+        // OODA-260: Add detailed logging for LLM provider selection debugging
+        debug!(
+            request_provider = ?request_provider,
+            request_model = ?request_model,
+            workspace_id = ?workspace_clone.as_ref().map(|w| &w.workspace_id),
+            workspace_llm_provider = ?workspace_clone.as_ref().map(|w| &w.llm_provider),
+            workspace_llm_model = ?workspace_clone.as_ref().map(|w| &w.llm_model),
+            "LLM provider resolution inputs (streaming)"
+        );
+
         let (llm_override, used_provider, used_model) = match resolver
             .resolve_llm_provider_with_workspace(workspace_clone.as_ref(), &llm_request)
         {
             Ok(Some(resolved)) => {
-                debug!(
+                info!(
                     provider = %resolved.provider_name,
                     model = %resolved.model_name,
                     source = ?resolved.source,
-                    "Resolved LLM provider (streaming)"
+                    request_provider = ?request_provider,
+                    request_model = ?request_model,
+                    "✅ Resolved LLM provider (streaming) - using user selection or workspace override"
                 );
                 (
                     Some(resolved.provider),
@@ -832,7 +844,12 @@ pub async fn chat_completion_stream(
             }
             Ok(None) => {
                 // No provider resolved - will use server default
-                debug!("Using server default LLM provider (streaming)");
+                info!(
+                    request_provider = ?request_provider,
+                    request_model = ?request_model,
+                    workspace_llm_provider = ?workspace_clone.as_ref().map(|w| &w.llm_provider),
+                    "⚠️ Using server default LLM provider (streaming) - neither request nor workspace specified a provider"
+                );
                 (None, None, None)
             }
             Err(e) => {

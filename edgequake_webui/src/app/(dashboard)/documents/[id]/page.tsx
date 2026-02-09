@@ -6,6 +6,7 @@ import { PDFViewer } from '@/components/documents/pdf-viewer';
 import { SideBySideViewer } from '@/components/documents/side-by-side-viewer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ResizablePanel } from '@/components/ui/resizable-panel';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getDocument, getPdfContent, getPdfDownloadUrl } from '@/lib/api/edgequake';
@@ -262,11 +263,18 @@ export default function DocumentViewPage() {
             )}
           </div>
 
-          {/* Metadata Sidebar - 35% (hidden for PDF side-by-side to maximize content) */}
+          {/* Metadata Sidebar - Resizable (hidden for PDF side-by-side to maximize content) */}
           {!isPdfDocument && (
-            <div className="w-[35%] shrink-0 overflow-hidden">
+            <ResizablePanel
+              side="right"
+              defaultWidth={520}
+              minWidth={400}
+              maxWidth={900}
+              storageKey="document-detail-sidebar-width"
+              ariaLabel="Resize metadata sidebar"
+            >
               <MetadataSidebar document={document} />
-            </div>
+            </ResizablePanel>
           )}
         </div>
 

@@ -237,18 +237,15 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
     setServerResults([]);
     setServerSearchError(null);
 
-    // Only trigger server search if:
-    // 1. Graph is truncated (more data on server)
-    // 2. Local search yields no results
-    // 3. Query is at least 2 chars
-    // 4. Not already server searching
-    const shouldServerSearch = 
-      isTruncated && 
-      results.length === 0 && 
-      debouncedQuery.trim().length >= 2 &&
-      !isServerSearching;
+    // FEAT0405: Always trigger server search for comprehensive results
+    // WHY: Users expect search to cover the entire knowledge base,
+    // not just currently visible nodes. Removed isTruncated restriction.
+    const shouldServerSearch = debouncedQuery.trim().length >= 2;
 
-    if (!shouldServerSearch) return;
+    if (!shouldServerSearch) {
+      setIsServerSearching(false);
+      return;
+    }
 
     let cancelled = false;
     setIsServerSearching(true);
@@ -293,7 +290,7 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, results.length, isTruncated, isServerSearching, addNodesToGraph]);
+  }, [debouncedQuery, addNodesToGraph]);
 
   // Combine local and server results
   const combinedResults = useMemo(() => {
@@ -314,12 +311,41 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
       selectNode(nodeId);
 
       // Focus camera on node using normalized coordinates
+      // WHY: Wait for Sigma to render the node before focusing
+      // Server search results are added to graph asynchronously
       if (sigmaInstance) {
-        focusCameraOnNode(sigmaInstance, nodeId, {
-          ratio: 0.5,
-          duration: 500,
-          highlight: false, // selectNode already handles highlighting
-        });
+        const graph = sigmaInstance.getGraph();
+
+        // Check if node exists in Sigma graph
+        if (graph.hasNode(nodeId)) {
+          // Node already rendered, focus immediately
+          focusCameraOnNode(sigmaInstance, nodeId, {
+            ratio: 0.5,
+            duration: 500,
+            highlight: false, // selectNode already handles highlighting
+          });
+        } else {
+          // Node not yet rendered, wait for next frame
+          // WHY: requestAnimationFrame ensures React has re-rendered and Sigma has updated
+          requestAnimationFrame(() => {
+            if (graph.hasNode(nodeId)) {
+              focusCameraOnNode(sigmaInstance, nodeId, {
+                ratio: 0.5,
+                duration: 500,
+                highlight: false,
+              });
+            } else {
+              // Still not ready, try one more time after a short delay
+              setTimeout(() => {
+                focusCameraOnNode(sigmaInstance, nodeId, {
+                  ratio: 0.5,
+                  duration: 500,
+                  highlight: false,
+                });
+              }, 100);
+            }
+          });
+        }
       }
 
       onSelect?.(nodeId);

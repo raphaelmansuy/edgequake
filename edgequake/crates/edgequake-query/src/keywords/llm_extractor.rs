@@ -30,6 +30,50 @@ impl LLMKeywordExtractor {
         Self { llm_provider }
     }
 
+    /// Extract keywords using a specific LLM provider override.
+    ///
+    /// WHY: This method exists to support user-selected LLM providers.
+    /// When a user explicitly chooses an LLM (e.g., OpenAI GPT-4) for their query,
+    /// ALL LLM operations in the query pipeline must use that same provider,
+    /// not the server's default. This includes keyword extraction.
+    ///
+    /// CRITICAL: Without this method, keyword extraction would always use
+    /// the server's default LLM (often Ollama), even when the user selected
+    /// a different provider. This leads to inconsistent behavior and unexpected costs.
+    ///
+    /// # Arguments
+    /// * `query` - The query text to extract keywords from
+    /// * `llm_override` - The user-selected LLM provider to use for extraction
+    ///
+    /// # Returns
+    /// Extracted keywords with high-level concepts, low-level entities, and query intent
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// // User selected OpenAI GPT-4 in the UI
+    /// let user_llm = openai_provider.clone();
+    /// let keywords = extractor.extract_with_provider(query, user_llm).await?;
+    /// // Now keyword extraction uses OpenAI, not the default Ollama
+    /// ```
+    pub async fn extract_with_provider(
+        &self,
+        query: &str,
+        llm_override: Arc<dyn LLMProvider>,
+    ) -> Result<ExtractedKeywords> {
+        let prompt = self.build_prompt(query);
+
+        // Use the provided LLM override instead of self.llm_provider
+        let response = llm_override
+            .complete(&prompt)
+            .await
+            .map_err(QueryError::from)?;
+
+        let mut extracted = self.parse_response(&response.content)?;
+        extracted.cache_key = self.cache_key(query);
+
+        Ok(extracted)
+    }
+
     /// Build the keyword extraction prompt.
     ///
     /// This prompt is designed to match LightRAG's extraction quality.
@@ -244,6 +288,41 @@ impl KeywordExtractor for LLMKeywordExtractor {
 
         Ok(extracted)
     }
+
+    /// Override to use the provided LLM when available.
+    ///
+    /// WHY: When a user selects an LLM provider (e.g., OpenAI GPT-4), this ensures
+    /// that keyword extraction uses the SAME provider as the rest of the query pipeline.
+    /// Without this, keyword extraction would always use the server default LLM,
+    /// creating inconsistent behavior and unexpected costs.
+    ///
+    /// CRITICAL: This method is the fix for the bug where user-selected LLM was
+    /// ignored during keyword extraction. Always call this method when an LLM
+    /// override is provided, not `extract_extended()`.
+    async fn extract_with_llm_override(
+        &self,
+        query: &str,
+        llm_override: Option<std::sync::Arc<dyn crate::LLMProvider>>,
+    ) -> Result<ExtractedKeywords> {
+        match llm_override {
+            Some(llm) => {
+                // Use the provided LLM (user's selection)
+                tracing::debug!(
+                    query = %query,
+                    "Using LLM override for keyword extraction (user-selected provider)"
+                );
+                self.extract_with_provider(query, llm).await
+            }
+            None => {
+                // Fall back to default LLM (server's default)
+                tracing::debug!(
+                    query = %query,
+                    "Using default LLM for keyword extraction (no user selection)"
+                );
+                self.extract_extended(query).await
+            }
+        }
+    }
 }
 
 /// Cached keyword extractor that wraps another extractor.
@@ -294,6 +373,45 @@ impl KeywordExtractor for CachedKeywordExtractor {
 
         // Extract keywords
         let mut extracted = self.inner.extract_extended(query).await?;
+        extracted.cache_key = cache_key.clone();
+
+        // Cache the result
+        if let Err(e) = self.cache.set(&cache_key, &extracted, Some(self.ttl)).await {
+            tracing::warn!(error = %e, "Failed to cache keywords");
+        }
+
+        Ok(extracted)
+    }
+
+    /// Delegate to inner extractor with LLM override.
+    ///
+    /// WHY: Caching layer is transparent - it should pass through LLM overrides
+    /// to the underlying extractor (typically LLMKeywordExtractor) which will
+    /// use the user-selected LLM provider for keyword extraction.
+    ///
+    /// NOTE: We don't cache based on LLM provider - cache key is query-only.
+    /// This is intentional: keyword quality should be similar across providers,
+    /// and per-provider caching would fragment the cache unnecessarily.
+    async fn extract_with_llm_override(
+        &self,
+        query: &str,
+        llm_override: Option<std::sync::Arc<dyn crate::LLMProvider>>,
+    ) -> Result<ExtractedKeywords> {
+        let cache_key = self.cache_key(query);
+
+        // Check cache first (independent of LLM provider)
+        if let Ok(Some(cached)) = self.cache.get(&cache_key).await {
+            tracing::debug!(query = %query, "Keyword cache hit (with LLM override)");
+            return Ok(cached);
+        }
+
+        tracing::debug!(query = %query, "Keyword cache miss (with LLM override), extracting...");
+
+        // Extract keywords with LLM override
+        let mut extracted = self
+            .inner
+            .extract_with_llm_override(query, llm_override)
+            .await?;
         extracted.cache_key = cache_key.clone();
 
         // Cache the result

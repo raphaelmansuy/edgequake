@@ -172,6 +172,50 @@ pub trait KeywordExtractor: Send + Sync {
         ))
     }
 
+    /// Extract keywords with optional LLM provider override.
+    ///
+    /// ## WHY THIS METHOD EXISTS
+    ///
+    /// When a user explicitly selects an LLM provider (e.g., OpenAI GPT-4) in the UI,
+    /// ALL LLM operations in the query pipeline MUST use that same provider, including
+    /// keyword extraction. Without this, keyword extraction would use the server's
+    /// default LLM (often Ollama), while answer generation uses the user's choice.
+    ///
+    /// This creates:
+    /// 1. **Inconsistent behavior**: User selects OpenAI but sees Ollama logs
+    /// 2. **Unexpected costs**: User may be charged for the wrong provider
+    /// 3. **Quality issues**: Different LLMs have different keyword extraction quality
+    ///
+    /// ## IMPLEMENTATION
+    ///
+    /// - **Default**: Delegates to `extract_extended()` (ignores LLM override)
+    /// - **LLM-based extractors**: Should override to use the provided LLM
+    /// - **Non-LLM extractors**: Can keep the default (no LLM needed)
+    ///
+    /// ## WHEN TO USE
+    ///
+    /// Always provide the LLM override when available from user selection:
+    /// ```rust,no_run
+    /// let llm_override = user_selected_llm.clone();
+    /// let keywords = extractor.extract_with_llm_override("query", Some(llm_override)).await?;
+    /// ```
+    ///
+    /// # Arguments
+    /// * `query` - The query text to extract keywords from
+    /// * `llm_override` - Optional user-selected LLM provider
+    ///
+    /// # Returns
+    /// Extracted keywords with high-level concepts, low-level entities, and query intent
+    async fn extract_with_llm_override(
+        &self,
+        query: &str,
+        _llm_override: Option<std::sync::Arc<dyn crate::LLMProvider>>,
+    ) -> Result<ExtractedKeywords> {
+        // Default implementation: ignore LLM override and use extract_extended
+        // LLM-based extractors should override this method
+        self.extract_extended(query).await
+    }
+
     /// Extract keywords with caching hint.
     ///
     /// Implementations that support caching can use this to compute

@@ -617,6 +617,7 @@ impl EmbeddingProvider for LMStudioProvider {
     // embedding_model (not self.model which is the LLM model).
     // The struct has separate fields for LLM (model) and embedding (embedding_model).
     #[allow(clippy::wrong_self_convention)]
+    #[allow(clippy::misnamed_getters)]
     fn model(&self) -> &str {
         &self.embedding_model
     }

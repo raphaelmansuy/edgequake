@@ -18,6 +18,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     useConversation,
@@ -584,13 +585,22 @@ export function ConversationHistoryPanelV2({ className }: ConversationHistoryPan
   }
 
   return (
-    <aside
-      className={cn(
-        "hidden md:flex flex-col w-64 border-l bg-card/50 backdrop-blur-sm shrink-0 transition-all duration-200",
-        className
-      )}
-      aria-label={t("query.history.title", "Conversation history")}
+    <ResizablePanel
+      side="right"
+      defaultWidth={280}
+      minWidth={240}
+      maxWidth={500}
+      storageKey="conversation-history-panel-width"
+      ariaLabel="Resize history panel"
+      className="hidden md:flex"
     >
+      <aside
+        className={cn(
+          "flex flex-col w-full border-l bg-card/50 backdrop-blur-sm transition-all duration-200",
+          className
+        )}
+        aria-label={t("query.history.title", "Conversation history")}
+      >
       {/* Migration Banner */}
       <MigrationBanner />
 
@@ -838,6 +848,7 @@ export function ConversationHistoryPanelV2({ className }: ConversationHistoryPan
         }}
       />
     </aside>
+    </ResizablePanel>
   );
 }
 

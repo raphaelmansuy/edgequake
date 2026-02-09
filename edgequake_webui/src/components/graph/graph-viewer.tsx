@@ -55,7 +55,6 @@ import { GraphMinimap } from './graph-minimap';
 import { GraphRenderer } from './graph-renderer';
 import { GraphSearch } from './graph-search';
 import { GraphSettingsPanel } from './graph-settings-panel';
-import { GraphTourTrigger } from './graph-tour-wrapper';
 import { KeyboardShortcutsHelp } from './keyboard-shortcuts-help';
 import { LayoutControl } from './layout-control';
 import { LayoutController } from './layout-controller';
@@ -469,7 +468,6 @@ export function GraphViewer() {
               <GraphSettingsPanel onSettingsChange={handleSettingsChange} />
             )}
             {!isMobile && <div data-tour="keyboard-help"><KeyboardShortcutsHelp /></div>}
-            {!isMobile && <GraphTourTrigger />}
             {!isMobile && <div className="w-px h-5 bg-border mx-1" />}
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefetch} title="Refresh">
               <RefreshCw className="h-3.5 w-3.5" />
@@ -600,32 +598,32 @@ export function GraphViewer() {
             isExpanded={contextMenuNode ? expandedNodes.has(contextMenuNode.id) : false}
           />
 
-          {/* Graph Controls Overlay - Bottom Left */}
-          <div className="absolute bottom-4 left-4 flex flex-col gap-2">
+          {/* Graph Controls Overlay - Top Left */}
+          <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
             <GraphControls />
           </div>
-          
-          {/* Minimap Overlay - Above controls on left side */}
+
+          {/* Minimap Overlay - Below controls on left side */}
           {!isMobile && filteredNodes.length > 0 && (
-            <div className="absolute bottom-16 left-4 z-10">
+            <div className="absolute top-20 left-4 z-10">
               <GraphMinimap width={140} height={100} />
             </div>
           )}
-          
-          {/* Time Filter Overlay - Above Minimap on Left */}
+
+          {/* Time Filter Overlay - Below Minimap on Left */}
           {!isMobile && filteredNodes.length > 0 && (
-            <div className="absolute bottom-40 left-4 z-10">
+            <div className="absolute top-44 left-4 z-10">
               <TimeFilter collapsed />
             </div>
           )}
-          
-          {/* Bookmarks Panel - Above Time Filter on Left */}
+
+          {/* Bookmarks Panel - Below Time Filter on Left */}
           {!isMobile && filteredNodes.length > 0 && (
-            <div className="absolute bottom-52 left-4 z-10">
+            <div className="absolute top-56 left-4 z-10">
               <BookmarksPanel collapsed />
             </div>
           )}
-          
+
           {/* Zoom Controls Overlay - Right Side */}
           <div className="absolute top-4 right-4 flex flex-col gap-2">
             <ZoomControls />
@@ -684,7 +682,7 @@ export function GraphViewer() {
         ) : (
           <ResizablePanel
             side="right"
-            defaultWidth={320}
+            defaultWidth={400}
             minWidth={280}
             maxWidth={480}
             className="border-l bg-card/95 backdrop-blur-sm"
@@ -693,7 +691,7 @@ export function GraphViewer() {
           >
             <div className="flex flex-col h-full overflow-hidden" data-tour="details-panel">
               {/* Panel Header */}
-              <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-muted/30">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b shrink-0 bg-muted/30">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Details & Filters</h3>
                 <Button
                   variant="ghost"
@@ -705,15 +703,15 @@ export function GraphViewer() {
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              
+
               {/* Panel Content - Full height scroll */}
               <ScrollArea className="flex-1 min-h-0" showShadows>
-                <div className="p-3 space-y-4">
+                <div className="px-4 py-4 space-y-5">
                   {/* Node Details - Primary content when selected */}
                   {selectedNode && showNodeDetails && (
                     <NodeDetails node={selectedNode} />
                   )}
-                  
+
                   {/* Show details button when panel is hidden but node is selected */}
                   {selectedNode && !showNodeDetails && (
                     <Button
@@ -725,10 +723,10 @@ export function GraphViewer() {
                       Show Node Details
                     </Button>
                   )}
-                  
+
                   {/* Empty state when no node selected */}
                   {!selectedNode && (
-                    <div className="py-6 text-center">
+                    <div className="py-8 text-center">
                       <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-muted/50 flex items-center justify-center">
                         <Network className="h-5 w-5 text-muted-foreground/50" />
                       </div>
@@ -737,9 +735,9 @@ export function GraphViewer() {
                       </p>
                     </div>
                   )}
-                  
+
                   {/* Filters Section */}
-                  <div className="pt-2 border-t">
+                  <div className="pt-4 border-t">
                     <GraphFilters />
                   </div>
                 </div>
@@ -793,9 +791,9 @@ export function GraphViewer() {
                   </p>
                 </div>
               )}
-              
+
               {/* Filters Section */}
-              <div className="pt-2 border-t">
+              <div className="pt-3 border-t">
                 <GraphFilters />
               </div>
             </div>

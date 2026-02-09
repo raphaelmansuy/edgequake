@@ -125,16 +125,13 @@ impl PdfDocumentStorage for PostgresPdfStorage {
             sha256_checksum: r.sha256_checksum,
             page_count: r.page_count,
             pdf_data: r.pdf_data,
-            processing_status: PdfProcessingStatus::from_str(&r.processing_status).unwrap(),
-            extraction_method: r
-                .extraction_method
-                .as_ref()
-                .and_then(|m| ExtractionMethod::from_str(m).ok()),
+            processing_status: r.processing_status.parse().unwrap(),
+            extraction_method: r.extraction_method.as_ref().and_then(|m| m.parse().ok()),
             vision_model: r.vision_model,
             markdown_content: r.markdown_content,
             extraction_errors: r.extraction_errors,
             created_at: r.created_at,
-            processed_at: r.processed_at.map(|t| t),
+            processed_at: r.processed_at,
             updated_at: r.updated_at,
         }))
     }
@@ -185,16 +182,13 @@ impl PdfDocumentStorage for PostgresPdfStorage {
             sha256_checksum: r.sha256_checksum,
             page_count: r.page_count,
             pdf_data: r.pdf_data,
-            processing_status: PdfProcessingStatus::from_str(&r.processing_status).unwrap(),
-            extraction_method: r
-                .extraction_method
-                .as_ref()
-                .and_then(|m| ExtractionMethod::from_str(m).ok()),
+            processing_status: r.processing_status.parse().unwrap(),
+            extraction_method: r.extraction_method.as_ref().and_then(|m| m.parse().ok()),
             vision_model: r.vision_model,
             markdown_content: r.markdown_content,
             extraction_errors: r.extraction_errors,
             created_at: r.created_at,
-            processed_at: r.processed_at.map(|t| t),
+            processed_at: r.processed_at,
             updated_at: r.updated_at,
         }))
     }
@@ -328,28 +322,26 @@ impl PdfDocumentStorage for PostgresPdfStorage {
                 .fetch_one(&self.pool)
                 .await?
             }
+        } else if let Some(status) = &status_filter {
+            sqlx::query_scalar!(
+                r#"
+                SELECT COUNT(*) as "count!"
+                FROM pdf_documents
+                WHERE processing_status = $1
+                "#,
+                status
+            )
+            .fetch_one(&self.pool)
+            .await?
         } else {
-            if let Some(status) = &status_filter {
-                sqlx::query_scalar!(
-                    r#"
-                    SELECT COUNT(*) as "count!"
-                    FROM pdf_documents
-                    WHERE processing_status = $1
-                    "#,
-                    status
-                )
-                .fetch_one(&self.pool)
-                .await?
-            } else {
-                sqlx::query_scalar!(
-                    r#"
-                    SELECT COUNT(*) as "count!"
-                    FROM pdf_documents
-                    "#
-                )
-                .fetch_one(&self.pool)
-                .await?
-            }
+            sqlx::query_scalar!(
+                r#"
+                SELECT COUNT(*) as "count!"
+                FROM pdf_documents
+                "#
+            )
+            .fetch_one(&self.pool)
+            .await?
         };
 
         // Get paginated items using helper

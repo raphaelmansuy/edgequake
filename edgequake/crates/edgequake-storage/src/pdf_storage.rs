@@ -117,9 +117,13 @@ impl PdfProcessingStatus {
             Self::Failed => "failed",
         }
     }
+}
+
+impl std::str::FromStr for PdfProcessingStatus {
+    type Err = StorageError;
 
     /// Parse from database string.
-    pub fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "pending" => Ok(Self::Pending),
             "processing" => Ok(Self::Processing),
@@ -160,9 +164,13 @@ impl ExtractionMethod {
             Self::Hybrid => "hybrid",
         }
     }
+}
+
+impl std::str::FromStr for ExtractionMethod {
+    type Err = StorageError;
 
     /// Parse from database string.
-    pub fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "text" => Ok(Self::Text),
             "vision" => Ok(Self::Vision),

@@ -27,6 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { searchNodes } from "@/lib/api/edgequake";
+import { focusCameraOnNode } from "@/lib/graph/camera-utils";
 import { cn } from "@/lib/utils";
 import { useGraphStore } from "@/stores/use-graph-store";
 import { useUIPreferencesStore } from "@/stores/use-ui-preferences-store";
@@ -387,19 +388,21 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
     );
   }, [nodes, searchQuery]);
 
-  // Server-side search when graph is truncated and local yields no/few results
+  // Server-side search: always query server for comprehensive results
+  // WHY: Users expect search to find all entities in the knowledge base,
+  // not just what's currently visible in the graph
   useEffect(() => {
     // Reset server results when query changes
     setServerSearchNodes([]);
 
-    // Skip if no query or local has results
-    const shouldServerSearch = 
-      isTruncated && 
-      searchQuery.trim().length >= 2 &&
-      localFilteredNodes.length < 3 &&
-      !isServerSearching;
+    // FEAT0405: Enable server search for any query >= 2 chars
+    // Removed isTruncated check to always search the full knowledge base
+    const shouldServerSearch = searchQuery.trim().length >= 2;
 
-    if (!shouldServerSearch) return;
+    if (!shouldServerSearch) {
+      setIsServerSearching(false);
+      return;
+    }
 
     let cancelled = false;
     setIsServerSearching(true);
@@ -433,7 +436,7 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [searchQuery, localFilteredNodes.length, isTruncated, isServerSearching, addNodesToGraph]);
+  }, [searchQuery, addNodesToGraph]);
 
   // Combine local and server results
   const filteredNodes = useMemo(() => {
@@ -484,15 +487,42 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
   const handleNodeClick = useCallback(
     (nodeId: string) => {
       selectNode(nodeId);
+
       // Focus camera on selected node
+      // WHY: Wait for Sigma to render the node before focusing
+      // Server search results are added to graph asynchronously
       if (sigmaInstance) {
-        const camera = sigmaInstance.getCamera();
-        const nodePosition = sigmaInstance.getNodeDisplayData(nodeId);
-        if (nodePosition) {
-          camera.animate(
-            { x: nodePosition.x, y: nodePosition.y, ratio: 0.3 },
-            { duration: 500 }
-          );
+        const graph = sigmaInstance.getGraph();
+
+        // Check if node exists in Sigma graph
+        if (graph.hasNode(nodeId)) {
+          // Node already rendered, focus immediately
+          focusCameraOnNode(sigmaInstance, nodeId, {
+            ratio: 0.3,
+            duration: 500,
+            highlight: false, // selectNode already handles highlighting
+          });
+        } else {
+          // Node not yet rendered, wait for next frame
+          // WHY: requestAnimationFrame ensures React has re-rendered and Sigma has updated
+          requestAnimationFrame(() => {
+            if (graph.hasNode(nodeId)) {
+              focusCameraOnNode(sigmaInstance, nodeId, {
+                ratio: 0.3,
+                duration: 500,
+                highlight: false,
+              });
+            } else {
+              // Still not ready, try one more time after a short delay
+              setTimeout(() => {
+                focusCameraOnNode(sigmaInstance, nodeId, {
+                  ratio: 0.3,
+                  duration: 500,
+                  highlight: false,
+                });
+              }, 100);
+            }
+          });
         }
       }
     },

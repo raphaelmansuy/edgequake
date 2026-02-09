@@ -64,8 +64,8 @@ impl TaskStorage for PostgresTaskStorage {
             "#,
         )
         .bind(&task.track_id)
-        .bind(&task.tenant_id)
-        .bind(&task.workspace_id)
+        .bind(task.tenant_id)
+        .bind(task.workspace_id)
         .bind(task.task_type.to_string())
         .bind(task.status.to_string())
         .bind(task.created_at)
@@ -460,12 +460,12 @@ impl TaskStorage for PostgresTaskStorage {
             SELECT
                 COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
                 COUNT(*) FILTER (WHERE status = 'processing') as processing_count,
-                COALESCE(AVG(EXTRACT(EPOCH FROM (started_at - created_at))) 
-                    FILTER (WHERE started_at IS NOT NULL), 0) as avg_wait_seconds,
-                COALESCE(MAX(EXTRACT(EPOCH FROM (NOW() - created_at))) 
-                    FILTER (WHERE status = 'pending'), 0) as max_wait_seconds,
+                CAST(COALESCE(AVG(EXTRACT(EPOCH FROM (started_at - created_at)))
+                    FILTER (WHERE started_at IS NOT NULL), 0) AS DOUBLE PRECISION) as avg_wait_seconds,
+                CAST(COALESCE(MAX(EXTRACT(EPOCH FROM (NOW() - created_at)))
+                    FILTER (WHERE status = 'pending'), 0) AS DOUBLE PRECISION) as max_wait_seconds,
                 COUNT(*) FILTER (
-                    WHERE status = 'indexed' 
+                    WHERE status = 'indexed'
                     AND completed_at > NOW() - INTERVAL '5 minutes'
                 ) as recent_completed
             FROM tasks

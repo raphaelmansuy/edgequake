@@ -50,56 +50,59 @@ export function GraphFilters() {
   }, {} as Record<string, number>);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3.5">
       {/* Header */}
       <div className="flex items-center gap-1.5">
-        <Filter className="h-3 w-3 text-muted-foreground" />
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
         <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Filters
         </h4>
       </div>
-      
+
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
         <Input
-          placeholder="Filter entities..."
+          placeholder="Search entities..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="h-7 pl-7 text-xs bg-muted/30 border-muted focus:bg-background transition-colors"
+          className="h-8 pl-8 pr-3 text-xs bg-muted/30 border-muted focus:bg-background transition-colors"
         />
       </div>
 
       {/* Entity Types */}
       <div>
-        <h5 className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+        <h5 className="text-[10px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
           Entity Types
         </h5>
-        <ScrollArea className="h-40">
-          <div className="space-y-1">
+        <ScrollArea className="h-40 border border-border/40 rounded-md" showShadows>
+          <div className="space-y-0.5 p-1.5">
             {entityTypes.map((type) => {
               const color = TYPE_COLORS[type.toUpperCase()] || TYPE_COLORS.DEFAULT;
               const count = typeCounts[type] || 0;
               const isVisible = visibleEntityTypes.has(type);
 
               return (
-                <div key={type} className="flex items-center gap-2 py-0.5">
+                <div
+                  key={type}
+                  className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors"
+                >
                   <Checkbox
                     id={`type-${type}`}
                     checked={isVisible}
                     onCheckedChange={() => toggleEntityType(type)}
-                    className="h-3.5 w-3.5"
+                    className="h-3.5 w-3.5 shrink-0"
                   />
                   <label
                     htmlFor={`type-${type}`}
-                    className="flex-1 flex items-center gap-1.5 text-xs cursor-pointer"
+                    className="flex-1 flex items-center gap-2 text-xs cursor-pointer min-w-0"
                   >
                     <div
-                      className="w-2 h-2 rounded-full shrink-0"
+                      className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10"
                       style={{ backgroundColor: color }}
                     />
-                    <span className="flex-1 truncate">{type}</span>
-                    <Badge variant="secondary" className="text-[9px] h-4 px-1.5 shrink-0">
+                    <span className="flex-1 truncate font-medium">{type}</span>
+                    <Badge variant="secondary" className="text-[9px] h-4 px-1.5 shrink-0 tabular-nums">
                       {count}
                     </Badge>
                   </label>

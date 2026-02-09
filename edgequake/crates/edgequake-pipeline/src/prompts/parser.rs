@@ -202,15 +202,19 @@ impl JsonExtractionParser {
         let sanitized_json = sanitize_json(&json_str);
 
         let parsed: serde_json::Value = serde_json::from_str(&sanitized_json).map_err(|e| {
+            // WHY: Truncate for logging using char boundaries to avoid UTF-8 panics
+            // Direct byte slicing like &str[..300] can panic if byte 300 falls inside a multi-byte char
+            let json_preview = sanitized_json.chars().take(300).collect::<String>();
+            let json_short = sanitized_json.chars().take(200).collect::<String>();
+
             tracing::warn!(
                 error = %e,
-                json_preview = %&sanitized_json[..sanitized_json.len().min(300)],
+                json_preview = %json_preview,
                 "JSON parsing failed - LLM returned malformed JSON"
             );
             PipelineError::ExtractionError(format!(
                 "Invalid JSON: {} - First 200 chars: {}",
-                e,
-                &sanitized_json[..sanitized_json.len().min(200)]
+                e, json_short
             ))
         })?;
 

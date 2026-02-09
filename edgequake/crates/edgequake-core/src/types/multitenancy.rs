@@ -840,8 +840,7 @@ impl TenantContext {
 /// Models can be specified as:
 /// - Simple name: "gemma3:12b" (provider auto-detected)
 /// - Full ID: "ollama/gemma3:12b" (provider parsed from full ID)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CreateWorkspaceRequest {
     /// Human-readable name.
     pub name: String,
@@ -876,7 +875,6 @@ pub struct CreateWorkspaceRequest {
     /// If None, auto-detected from embedding_model.
     pub embedding_dimension: Option<usize>,
 }
-
 
 impl CreateWorkspaceRequest {
     /// Create a new request with just a name.
@@ -1097,7 +1095,7 @@ impl MetricsTriggerType {
     }
 
     /// Parse from database string representation.
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "event" => Some(Self::Event),
             "scheduled" => Some(Self::Scheduled),

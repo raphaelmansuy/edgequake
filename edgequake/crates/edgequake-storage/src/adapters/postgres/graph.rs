@@ -895,7 +895,13 @@ impl GraphStorage for PostgresAGEGraphStorage {
             self.graph_name
         );
 
-        tracing::debug!(target: "edgequake_storage", "Batch degree SQL: {}", &sql[..sql.len().min(500)]);
+        // WHY: Truncate SQL for logging, but respect UTF-8 char boundaries.
+        // Direct byte slicing (&sql[..500]) can panic if it falls inside a multi-byte character.
+        // Instead, take chars up to a safe byte limit.
+        let sql_preview = sql.chars()
+            .take(500)
+            .collect::<String>();
+        tracing::debug!(target: "edgequake_storage", "Batch degree SQL: {}", sql_preview);
 
         let rows = sqlx::query(&sql)
             .fetch_all(&mut *conn)
@@ -1509,7 +1515,6 @@ impl GraphStorage for PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        let escaped_query = Self::escape_sql_string(query);
         let query_lower = query.to_lowercase();
         tracing::debug!(query = %query, "search_nodes starting");
 
