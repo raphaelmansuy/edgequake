@@ -4,26 +4,26 @@ on:
   push:
     branches: [main, edgequake-main]
     paths:
-      - 'edgequake/crates/edgequake-storage/**'
-      - 'edgequake/crates/edgequake-api/**'
-      - 'edgequake/crates/edgequake-tasks/**'
-      - 'edgequake/migrations/**'
-      - '.github/workflows/postgres-integration.yml'
+      - "edgequake/crates/edgequake-storage/**"
+      - "edgequake/crates/edgequake-api/**"
+      - "edgequake/crates/edgequake-tasks/**"
+      - "edgequake/migrations/**"
+      - ".github/workflows/postgres-integration.yml"
   pull_request:
     branches: [main, edgequake-main]
     paths:
-      - 'edgequake/crates/edgequake-storage/**'
-      - 'edgequake/crates/edgequake-api/**'
-      - 'edgequake/crates/edgequake-tasks/**'
-      - 'edgequake/migrations/**'
-      - '.github/workflows/postgres-integration.yml'
+      - "edgequake/crates/edgequake-storage/**"
+      - "edgequake/crates/edgequake-api/**"
+      - "edgequake/crates/edgequake-tasks/**"
+      - "edgequake/migrations/**"
+      - ".github/workflows/postgres-integration.yml"
   # Allow manual trigger for full integration test suite
   workflow_dispatch:
     inputs:
       run_all_tests:
-        description: 'Run all integration tests (not just changed modules)'
+        description: "Run all integration tests (not just changed modules)"
         required: false
-        default: 'false'
+        default: "false"
         type: boolean
 
 env:
@@ -41,14 +41,14 @@ env:
 
 jobs:
   postgres-tests:
-    if: false  # TEMPORARILY DISABLED: Failing due to missing AGE extension. Remove to re-enable.
+    if: false # TEMPORARILY DISABLED: Failing due to missing AGE extension. Remove to re-enable.
     name: PostgreSQL Integration Tests
     runs-on: ubuntu-latest
     # WHY: continue-on-error - This job requires both pgvector AND Apache AGE extensions,
     # but no single Docker image has both. The AGE-specific tests are covered in postgres-age-tests job.
     # The pgvector-only tests pass, AGE-dependent tests fail expectedly.
     continue-on-error: true
-    
+
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -99,10 +99,10 @@ jobs:
       - name: Setup database schema and extensions
         run: |
           echo "Setting up test database..."
-          
+
           # Install pgvector extension
           PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
-          
+
           # Create app_user for RLS testing (non-superuser)
           PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'
             -- Create application user (non-superuser) for RLS testing
@@ -118,20 +118,20 @@ jobs:
             GRANT USAGE ON SCHEMA public TO app_user;
             ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;
           EOSQL
-          
+
           echo "Database setup complete!"
 
       - name: Run database migrations
         working-directory: edgequake
         run: |
           echo "Running database migrations..."
-          
+
           # Run all SQL migration files in order
           for file in migrations/*.sql; do
             echo "Applying migration: $file"
             PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -f "$file" || true
           done
-          
+
           echo "Migrations complete!"
 
       - name: Grant permissions to app_user
@@ -147,7 +147,7 @@ jobs:
         run: |
           echo "Running PostgreSQL storage integration tests..."
           cargo test --package edgequake-storage --test postgres_integration --features postgres -- --test-threads=1
-        # WHY: continue-on-error - Tests require both pgvector AND Apache AGE, but pgvector/pgvector:pg16 
+        # WHY: continue-on-error - Tests require both pgvector AND Apache AGE, but pgvector/pgvector:pg16
         # only has pgvector. AGE-specific tests are covered in postgres-age-tests job.
         continue-on-error: true
 
@@ -163,7 +163,7 @@ jobs:
         run: |
           echo "Running PostgreSQL RLS E2E tests..."
           cargo test --package edgequake-api --test e2e_postgres_rls --features postgres -- --ignored --test-threads=1
-        continue-on-error: true  # RLS tests may need additional setup
+        continue-on-error: true # RLS tests may need additional setup
 
       - name: Run PostgreSQL Workspace Service Tests
         working-directory: edgequake
@@ -189,7 +189,7 @@ jobs:
   postgres-age-tests:
     name: PostgreSQL AGE Graph Tests
     runs-on: ubuntu-latest
-    
+
     services:
       postgres-age:
         image: apache/age:latest
@@ -246,12 +246,12 @@ jobs:
         run: |
           echo "Running PostgreSQL AGE graph integration tests..."
           cargo test --package edgequake-storage --test postgres_integration --features postgres -- test_postgres_age --test-threads=1
-        continue-on-error: true  # AGE tests may fail if extension setup differs
+        continue-on-error: true # AGE tests may fail if extension setup differs
 
   coverage-postgres:
     name: PostgreSQL Integration Coverage
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -288,7 +288,7 @@ jobs:
       - name: Setup database
         run: |
           PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -c "CREATE EXTENSION IF NOT EXISTS vector;" || true
-          
+
           # Run migrations
           for file in edgequake/migrations/*.sql; do
             PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -f "$file" || true

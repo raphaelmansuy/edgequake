@@ -22,21 +22,8 @@ Until now.
 
 **EdgeQuake** is a high-performance Graph-RAG framework built from the ground up in Rust. It transforms your documents into a queryable knowledge graph—and it does it fast.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                       EDGEQUAKE                                  │
-│                                                                   │
-│   "Graph-Enhanced RAG for Production"                            │
-│                                                                   │
-│   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
-│   │Document │───▶│Pipeline │───▶│Knowledge│───▶│ Query   │      │
-│   │ Upload  │    │Processing│    │  Graph  │    │ Engine  │      │
-│   └─────────┘    └─────────┘    └─────────┘    └─────────┘      │
-│                                                                   │
-│   Built with:  Rust • PostgreSQL • Apache AGE • React 19        │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![EdgeQuake}](assets/01-image.png)
+
 
 ---
 
@@ -48,35 +35,8 @@ Every document in EdgeQuake flows through a battle-tested pipeline:
 
 Documents enter the system and are prepared for extraction:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        STAGE 1: INGEST                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│   Document (PDF, TXT, MD)                                        │
-│        │                                                         │
-│        ▼                                                         │
-│   ┌─────────────────┐                                            │
-│   │   Preprocessing │  • Text extraction (PDF: text + vision)   │
-│   │                 │  • Encoding normalization (UTF-8)          │
-│   └────────┬────────┘                                            │
-│            │                                                     │
-│            ▼                                                     │
-│   ┌─────────────────┐                                            │
-│   │    Chunking     │  • Adaptive sizing (600-1200 tokens)      │
-│   │                 │  • 100-token overlap                       │
-│   │                 │  • Line number tracking                    │
-│   └────────┬────────┘                                            │
-│            │                                                     │
-│            ▼                                                     │
-│   ┌─────────────────┐                                            │
-│   │   LLM Extract   │  • Entity identification                  │
-│   │                 │  • Relationship mapping                    │
-│   │                 │  • Tuple-delimited output (not JSON)       │
-│   └─────────────────┘                                            │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Stage 1: Ingest](assets/02-stage1.png)
+
 
 **Why tuple-delimited output?**
 
@@ -97,40 +57,8 @@ Line-by-line parsing. Partial recovery. No escaping nightmares.
 
 Extracted entities and relationships flow into a hybrid storage layer:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        STAGE 2: STORE                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│   Extracted Data                                                 │
-│        │                                                         │
-│        ├───────────────────────────────────────┐                 │
-│        │                                       │                 │
-│        ▼                                       ▼                 │
-│   ┌─────────────────┐                   ┌─────────────────┐     │
-│   │   Graph Store   │                   │  Vector Store   │     │
-│   │  (Apache AGE)   │                   │   (pgvector)    │     │
-│   │                 │                   │                 │     │
-│   │  • Nodes        │                   │  • Chunk embeds │     │
-│   │  • Edges        │                   │  • Entity embeds│     │
-│   │  • Properties   │                   │  • Rel embeds   │     │
-│   └────────┬────────┘                   └────────┬────────┘     │
-│            │                                     │               │
-│            └─────────────┬───────────────────────┘               │
-│                          │                                       │
-│                          ▼                                       │
-│                  ┌───────────────┐                               │
-│                  │  PostgreSQL   │                               │
-│                  │   (Single DB) │                               │
-│                  └───────────────┘                               │
-│                                                                   │
-│   Why PostgreSQL?                                                │
-│   • Apache AGE: Full graph database in Postgres                  │
-│   • pgvector: Native vector similarity search                    │
-│   • One database: No sync issues, ACID guarantees                │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Stage 2: Store](assets/03-stage2.png)
+
 
 **The key insight**: By using PostgreSQL with AGE and pgvector, we get graph traversal AND vector search in a single, battle-tested database. No Elasticsearch + Neo4j + Pinecone stack to maintain.
 
@@ -140,43 +68,12 @@ Extracted entities and relationships flow into a hybrid storage layer:
 
 The query engine is where EdgeQuake shines. **5 distinct modes** for different use cases:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      STAGE 3: QUERY                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│   User Query: "What are Sarah's main research contributions?"   │
-│        │                                                         │
-│        ▼                                                         │
-│   ┌─────────────────┐                                            │
-│   │ Mode Selection  │  Choose based on query complexity         │
-│   └────────┬────────┘                                            │
-│            │                                                     │
-│   ┌────────┴────────────────────────────────────────────────┐   │
-│   │                                                          │   │
-│   ▼              ▼              ▼            ▼          ▼   │   │
-│ ┌──────┐    ┌───────┐    ┌────────┐   ┌───────┐   ┌─────┐   │   │
-│ │Naive │    │ Local │    │ Global │   │Hybrid │   │ Mix │   │   │
-│ │~50ms │    │~150ms │    │ ~200ms │   │~250ms │   │~300ms│   │   │
-│ └──────┘    └───────┘    └────────┘   └───────┘   └─────┘   │   │
-│    │            │            │            │           │      │   │
-│    │            │            │            │           │      │   │
-│   Vector    Entity +      Community    Local +     Weighted  │   │
-│   Only      Graph          Summaries   Global      Fusion   │   │
-│             Context                                          │   │
-│                                                               │   │
-└───────────────────────────────────────────────────────────────┘
-```
+![Stage 3: Query](assets/04-stage3.png)
+
 
 ### Query Mode Breakdown
 
-| Mode       | Best For          | Latency | How It Works                              |
-| ---------- | ----------------- | ------- | ----------------------------------------- |
-| **Naive**  | Simple lookups    | ~50ms   | Pure vector similarity                    |
-| **Local**  | Entity questions  | ~150ms  | Find entity → traverse neighbors          |
-| **Global** | Theme questions   | ~200ms  | Community summaries + high-level keywords |
-| **Hybrid** | Complex questions | ~250ms  | Combine local + global context            |
-| **Mix**    | Custom balance    | ~300ms  | Weighted fusion of all modes              |
+![Query Modes](assets/05-modes.png)
 
 **Example**: "What are the main AI research trends?"
 
@@ -191,39 +88,8 @@ The query engine is where EdgeQuake shines. **5 distinct modes** for different u
 
 EdgeQuake isn't a research prototype. It's designed for real-world deployment:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   EDGEQUAKE ARCHITECTURE                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                      RUST BACKEND                            ││
-│  │  ┌─────────────────────────────────────────────────────────┐││
-│  │  │  edgequake-api   │ REST API (Axum, OpenAPI 3.0, SSE)   │││
-│  │  ├─────────────────────────────────────────────────────────┤││
-│  │  │  edgequake-core  │ Orchestration, Pipeline Management  │││
-│  │  ├─────────────────────────────────────────────────────────┤││
-│  │  │  edgequake-pipeline │ Chunking, Extraction, Merging    │││
-│  │  ├─────────────────────────────────────────────────────────┤││
-│  │  │  edgequake-query │ 5 Query Modes, Dual-Level Retrieval │││
-│  │  ├─────────────────────────────────────────────────────────┤││
-│  │  │  edgequake-llm   │ OpenAI, Ollama, Mock Providers      │││
-│  │  ├─────────────────────────────────────────────────────────┤││
-│  │  │  edgequake-storage │ Graph (AGE) + Vector (pgvector)   │││
-│  │  └─────────────────────────────────────────────────────────┘││
-│  └─────────────────────────────────────────────────────────────┘│
-│                              │                                   │
-│                              ▼                                   │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │  PostgreSQL 15+ with Apache AGE + pgvector                  ││
-│  │  ┌───────────┐  ┌───────────┐  ┌───────────┐               ││
-│  │  │   Graph   │  │  Vectors  │  │  Metadata │               ││
-│  │  │  (AGE)    │  │ (pgvector)│  │  (Tables) │               ││
-│  │  └───────────┘  └───────────┘  └───────────┘               ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Architecture Diagram](assets/06-architecture.png)
+
 
 ### Why This Architecture?
 
@@ -237,6 +103,8 @@ EdgeQuake isn't a research prototype. It's designed for real-world deployment:
 ## Performance: The Numbers
 
 Built in Rust for a reason:
+
+![Performance Metrics](assets/07-performance.png)
 
 | Metric                 | EdgeQuake     | Traditional RAG | Python Graph-RAG |
 | ---------------------- | ------------- | --------------- | ---------------- |
