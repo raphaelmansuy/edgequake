@@ -3,7 +3,7 @@
  * @description Workspace configuration page accessible via /w/[slug]/workspace deeplink.
  *
  * @implements SPEC-032: Workspace configuration via deeplink
- * @implements FEAT0801: Workspace detail view with LLM/embedding configuration
+ * @implements FEAT0802: Workspace detail view with LLM/embedding configuration (deeplink route)
  * @implements UC0305: User views workspace configuration
  *
  * @enforces BR0305: Workspace config is visible and editable
