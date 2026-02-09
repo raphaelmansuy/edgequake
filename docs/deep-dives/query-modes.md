@@ -2,7 +2,7 @@
 
 > **Understanding EdgeQuake's Multi-Strategy Retrieval System**
 
-EdgeQuake provides 5 distinct query modes, each optimized for different types of questions. This guide explains when and why to use each mode, with practical examples and tuning recommendations.
+EdgeQuake provides 6 distinct query modes, each optimized for different types of questions. This guide explains when and why to use each mode, with practical examples and tuning recommendations.
 
 ---
 
@@ -197,7 +197,7 @@ Naive mode performs pure vector similarity search on document chunks, without gr
 ### Example
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is the greenhouse effect?",
@@ -285,7 +285,7 @@ Local mode combines vector search with graph traversal from identified entities.
 ### Example
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is Sarah Chen'\''s research focus?",
@@ -367,7 +367,7 @@ Global mode focuses on high-level topic clusters identified during indexing. It'
 ### Example
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What topics does this document cover?",
@@ -448,7 +448,7 @@ Hybrid mode uses both vector search and full graph traversal, combining the prec
 ### Example
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Explain the relationship between ML and climate research",
@@ -505,7 +505,7 @@ Bypass mode skips RAG entirely and sends the query directly to the LLM. Useful f
 ### Example
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is 2 + 2?",
@@ -606,7 +606,7 @@ QueryEngineConfig {
 ### Basic Query with Mode
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -H "X-Workspace-ID: your-workspace" \
   -d '{
@@ -618,7 +618,7 @@ curl -X POST http://localhost:3100/api/v1/query \
 ### Query with Reranking
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Explain the climate research methodology",
@@ -631,7 +631,7 @@ curl -X POST http://localhost:3100/api/v1/query \
 ### Context-Only Mode (Debug)
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Your question",
@@ -645,7 +645,7 @@ This returns only the retrieved context without LLM generation, useful for debug
 ### Prompt-Only Mode (Debug)
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Your question",

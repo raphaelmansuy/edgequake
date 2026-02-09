@@ -591,6 +591,7 @@ pub enum QueryMode {
     Global,  // FEAT0103: Community summaries
     Hybrid,  // FEAT0104: Local + Global (DEFAULT)
     Mix,     // FEAT0105: Weighted combination
+    Bypass,  // FEAT0106: No RAG, direct LLM
 }
 ```
 

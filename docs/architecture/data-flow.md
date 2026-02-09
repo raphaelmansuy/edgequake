@@ -128,7 +128,7 @@ EdgeQuake has two main data flows:
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │  LLM Prompt:                                                          │   │
 │  │  "Extract entities from the following text. Entity types:             │   │
-│  │   PERSON, ORGANIZATION, LOCATION, CONCEPT, EVENT                      │   │
+│  │   PERSON, ORGANIZATION, LOCATION, EVENT, CONCEPT, TECHNOLOGY, PRODUCT │   │
 │  │                                                                       │   │
 │  │   Text: 'Marie Curie was a Polish-French physicist...'               │   │
 │  │                                                                       │   │

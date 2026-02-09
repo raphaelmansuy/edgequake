@@ -1,7 +1,7 @@
 # EdgeQuake REST API Reference
 
 > **Version**: 0.1.0  
-> **Base URL**: `http://localhost:3100/api/v1`  
+> **Base URL**: `http://localhost:8080/api/v1`  
 > **OpenAPI**: Available at `/api-docs/openapi.json`
 
 This reference documents all EdgeQuake REST API endpoints for document ingestion, knowledge graph queries, and chat interactions.
@@ -34,7 +34,7 @@ Include your API key in the `X-API-Key` header:
 
 ```bash
 curl -H "X-API-Key: your-api-key" \
-     http://localhost:3100/api/v1/documents
+     http://localhost:8080/api/v1/documents
 ```
 
 ### Bearer Token Authentication
@@ -43,7 +43,7 @@ Use `Authorization: Bearer` header:
 
 ```bash
 curl -H "Authorization: Bearer your-api-key" \
-     http://localhost:3100/api/v1/documents
+     http://localhost:8080/api/v1/documents
 ```
 
 ### Multi-Tenant Headers
@@ -59,7 +59,7 @@ For multi-tenant deployments, include workspace context:
 curl -H "X-API-Key: your-key" \
      -H "X-Tenant-ID: tenant-uuid" \
      -H "X-Workspace-ID: workspace-uuid" \
-     http://localhost:3100/api/v1/documents
+     http://localhost:8080/api/v1/documents
 ```
 
 ### Public Endpoints (No Auth Required)
@@ -106,7 +106,7 @@ Deep health check with component status for monitoring dashboards.
 Kubernetes readiness probe. Returns 200 if service can accept traffic.
 
 ```bash
-curl http://localhost:3100/ready
+curl http://localhost:8080/ready
 # Response: 200 OK
 ```
 
@@ -115,7 +115,7 @@ curl http://localhost:3100/ready
 Kubernetes liveness probe. Returns 200 if process is alive.
 
 ```bash
-curl http://localhost:3100/live
+curl http://localhost:8080/live
 # Response: 200 OK
 ```
 
@@ -132,7 +132,7 @@ Upload a document for processing. Supports both text and file uploads.
 **Text Upload (JSON)**:
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents \
   -H "Content-Type: application/json" \
   -H "X-Workspace-ID: workspace-uuid" \
   -d '{
@@ -145,7 +145,7 @@ curl -X POST http://localhost:3100/api/v1/documents \
 **File Upload (Multipart)**:
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents \
   -H "X-Workspace-ID: workspace-uuid" \
   -F "file=@document.pdf" \
   -F "title=My PDF Document"
@@ -201,7 +201,7 @@ List all documents in the workspace.
 | `status`  | string  | all     | Filter by status (processing, completed, failed) |
 
 ```bash
-curl http://localhost:3100/api/v1/documents?limit=10&status=completed \
+curl http://localhost:8080/api/v1/documents?limit=10&status=completed \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -229,7 +229,7 @@ curl http://localhost:3100/api/v1/documents?limit=10&status=completed \
 Get document details by ID.
 
 ```bash
-curl http://localhost:3100/api/v1/documents/doc-uuid \
+curl http://localhost:8080/api/v1/documents/doc-uuid \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -256,7 +256,7 @@ curl http://localhost:3100/api/v1/documents/doc-uuid \
 Delete a document and all associated data (chunks, entities, relationships).
 
 ```bash
-curl -X DELETE http://localhost:3100/api/v1/documents/doc-uuid \
+curl -X DELETE http://localhost:8080/api/v1/documents/doc-uuid \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -275,7 +275,7 @@ Execute a query with configurable retrieval mode.
 **Request**:
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -H "X-Workspace-ID: workspace-uuid" \
   -d '{
@@ -361,7 +361,7 @@ Stream query response using Server-Sent Events (SSE).
 **Request**:
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/query/stream \
+curl -X POST http://localhost:8080/api/v1/query/stream \
   -H "Content-Type: application/json" \
   -H "Accept: text/event-stream" \
   -d '{"query": "Explain the key findings", "mode": "hybrid"}'
@@ -402,7 +402,7 @@ Execute a chat completion with automatic conversation management.
 **Request**:
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/chat/completions \
+curl -X POST http://localhost:8080/api/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "X-Workspace-ID: workspace-uuid" \
   -d '{
@@ -439,7 +439,7 @@ curl -X POST http://localhost:3100/api/v1/chat/completions \
 **Streaming Response**:
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/chat/completions \
+curl -X POST http://localhost:8080/api/v1/chat/completions \
   -H "Accept: text/event-stream" \
   -d '{"message": "...", "stream": true}'
 ```
@@ -480,7 +480,7 @@ Get the knowledge graph with optional traversal.
 | `max_nodes`  | integer | 100     | Max nodes to return (max: 1000) |
 
 ```bash
-curl "http://localhost:3100/api/v1/graph?start_node=ENTITY_NAME&depth=2&max_nodes=50" \
+curl "http://localhost:8080/api/v1/graph?start_node=ENTITY_NAME&depth=2&max_nodes=50" \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -518,7 +518,7 @@ curl "http://localhost:3100/api/v1/graph?start_node=ENTITY_NAME&depth=2&max_node
 Get graph statistics.
 
 ```bash
-curl http://localhost:3100/api/v1/graph/stats \
+curl http://localhost:8080/api/v1/graph/stats \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -551,7 +551,7 @@ curl http://localhost:3100/api/v1/graph/stats \
 List entities with pagination.
 
 ```bash
-curl "http://localhost:3100/api/v1/graph/entities?limit=20&type=PERSON" \
+curl "http://localhost:8080/api/v1/graph/entities?limit=20&type=PERSON" \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -560,7 +560,7 @@ curl "http://localhost:3100/api/v1/graph/entities?limit=20&type=PERSON" \
 Get entity details by ID.
 
 ```bash
-curl http://localhost:3100/api/v1/graph/entities/ENTITY_NAME \
+curl http://localhost:8080/api/v1/graph/entities/ENTITY_NAME \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -569,7 +569,7 @@ curl http://localhost:3100/api/v1/graph/entities/ENTITY_NAME \
 List relationships with pagination.
 
 ```bash
-curl "http://localhost:3100/api/v1/graph/relationships?limit=20&type=WORKS_WITH" \
+curl "http://localhost:8080/api/v1/graph/relationships?limit=20&type=WORKS_WITH" \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -578,7 +578,7 @@ curl "http://localhost:3100/api/v1/graph/relationships?limit=20&type=WORKS_WITH"
 Stream graph updates via SSE (for real-time visualization).
 
 ```bash
-curl http://localhost:3100/api/v1/graph/stream \
+curl http://localhost:8080/api/v1/graph/stream \
   -H "Accept: text/event-stream" \
   -H "X-Workspace-ID: workspace-uuid"
 ```
@@ -594,7 +594,7 @@ Manage workspaces for multi-tenant isolation.
 Create a new workspace.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/workspaces \
+curl -X POST http://localhost:8080/api/v1/workspaces \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Research Project",
@@ -656,7 +656,7 @@ Get messages in a conversation.
 List available LLM models.
 
 ```bash
-curl http://localhost:3100/api/v1/models
+curl http://localhost:8080/api/v1/models
 ```
 
 **Response**:
@@ -758,7 +758,7 @@ EdgeQuake provides Ollama-compatible endpoints for tool integration.
 Generate embeddings (Ollama format).
 
 ```bash
-curl -X POST http://localhost:3100/v1/embeddings \
+curl -X POST http://localhost:8080/v1/embeddings \
   -H "Content-Type: application/json" \
   -d '{"model": "nomic-embed-text", "input": "Hello world"}'
 ```
@@ -768,7 +768,7 @@ curl -X POST http://localhost:3100/v1/embeddings \
 Chat completions (OpenAI format, Ollama compatible).
 
 ```bash
-curl -X POST http://localhost:3100/v1/chat/completions \
+curl -X POST http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gemma3:12b",

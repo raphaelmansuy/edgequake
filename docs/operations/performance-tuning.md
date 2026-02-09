@@ -114,7 +114,7 @@ export WORKER_THREADS=8  # For 4-core machine
 │  ❌ Less precise retrieval                                       │
 │  ❌ Higher token cost per extraction                             │
 │                                                                   │
-│  Recommendation: 512 tokens (balanced)                           │
+│  Recommendation: 1200 tokens (default, balanced)                │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
 ```

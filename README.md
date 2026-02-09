@@ -12,17 +12,18 @@
 
 ## Why EdgeQuake?
 
-**EdgeQuake** is a next-generation Retrieval-Augmented Generation (RAG) framework that combines the power of knowledge graphs with vector similarity search. Built from the ground up in Rust for maximum performance and reliability.
+Traditional RAG systems retrieve document chunks using vector similarity alone. This works for simple lookups but fails on multi-hop reasoning ("How does X relate to Y through Z?"), thematic questions ("What are the major themes?"), and relationship queries. The core problem: **vectors capture semantic similarity but lose structural relationships between concepts**.
+
+**EdgeQuake** solves this by implementing the [LightRAG algorithm](https://arxiv.org/abs/2410.05779) in Rust: documents are not just chunked and embedded — they are decomposed into a **knowledge graph** of entities and relationships. At query time, the system traverses both the vector space and the graph structure, combining the speed of vector search with the reasoning power of graph traversal.
 
 ### What Sets EdgeQuake Apart
 
-- 🚀 **Blazing Fast**: Rust-powered async architecture handles thousands of concurrent requests
-- 🕸️ **Knowledge Graphs**: Entity extraction and relationship mapping for contextually rich retrieval
-- 📄 **Advanced PDF Processing**: Best-in-class table detection, OCR, and metadata extraction
-- 🔍 **5 Query Modes**: From simple vector search to sophisticated graph traversal
-- 🌐 **Production Ready**: OpenAPI 3.0 REST API with streaming support
-- 🎯 **Modern Frontend**: React 19 with interactive graph visualizations
-- 🔒 **Multi-Tenant**: Built-in workspace isolation and authentication
+- **Knowledge Graphs**: LLM-powered entity extraction and relationship mapping create a structured understanding of your documents — not just keyword matching
+- **6 Query Modes**: From fast naive vector search to graph-traversing hybrid queries, each mode optimizes for different question types
+- **Rust Performance**: Async-first Tokio architecture with zero-copy operations — handles thousands of concurrent requests
+- **Advanced PDF Processing**: Table detection, multi-column layout, OCR with quality-based mode fallback
+- **Production Ready**: OpenAPI 3.0 REST API, SSE streaming, health checks, multi-tenant workspace isolation
+- **Modern Frontend**: React 19 with interactive Sigma.js graph visualizations
 
 ### Performance Benchmarks
 
@@ -45,12 +46,13 @@
 - **Parallel Processing**: Multi-threaded entity extraction and embeddings
 - **Fast Storage**: PostgreSQL AGE for graph + pgvector for embeddings
 
-### 🕸️ Knowledge Graph
+### Knowledge Graph
 
-- **Entity Extraction**: Automatic detection of people, organizations, locations, concepts
-- **Relationship Mapping**: LLM-powered relationship identification
-- **Community Detection**: Graph clustering for hierarchical knowledge
-- **Graph Visualization**: Interactive Sigma.js-powered frontend
+- **Entity Extraction**: Automatic detection of people, organizations, locations, concepts, events, technologies, and products (7 configurable types)
+- **Relationship Mapping**: LLM-powered relationship identification with keyword tagging
+- **Gleaning**: Multi-pass extraction catches 15-25% more entities than single-pass
+- **Community Detection**: Louvain modularity optimization clusters related entities for thematic queries
+- **Graph Visualization**: Interactive Sigma.js-powered frontend with zoom/pan
 
 ### 📄 Advanced PDF Processing
 
@@ -60,13 +62,14 @@
 - **Table Detection**: Enhanced detection for complex tables
 - **Multi-Column Layout**: Accurate reading order detection
 
-### 🔍 5 Query Modes
+### 🔍 6 Query Modes
 
-1. **Naive**: Simple vector similarity (fastest, ~50ms)
-2. **Local**: Entity-centric with local graph context (~150ms)
-3. **Global**: Community-based semantic search (~200ms)
-4. **Hybrid**: Combines local + global for balanced results (~250ms)
-5. **Mix**: Weighted combination with configurable ratios (~300ms)
+1. **Naive**: Simple vector similarity — fastest for keyword-like lookups (~100-300ms)
+2. **Local**: Entity-centric with local graph neighborhood — best for specific relationships (~200-500ms)
+3. **Global**: Community-based semantic search — best for thematic/high-level questions (~300-800ms)
+4. **Hybrid** _(default)_: Combines local + global for balanced, comprehensive results (~400-1000ms)
+5. **Mix**: Weighted combination of naive + graph results with configurable ratios
+6. **Bypass**: Direct LLM query without RAG retrieval — useful for general questions
 
 ### 🌐 REST API
 
@@ -199,11 +202,11 @@ curl -X POST http://localhost:8080/api/v1/query \
 │  Backend (Rust - 11 Crates)                                                 │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │  edgequake-core          │  Orchestration & Pipeline                 │   │
-│  │  edgequake-llm           │  OpenAI, Ollama, Mock providers           │   │
+│  │  edgequake-llm           │  OpenAI, Ollama, LM Studio, Mock          │   │
 │  │  edgequake-storage       │  PostgreSQL AGE, Memory adapters          │   │
 │  │  edgequake-api           │  REST API server                          │   │
 │  │  edgequake-pipeline      │  Document ingestion pipeline              │   │
-│  │  edgequake-query         │  Query engine (5 modes)                   │   │
+│  │  edgequake-query         │  Query engine (6 modes)                   │   │
 │  │  edgequake-pdf           │  PDF extraction (text/vision/hybrid)      │   │
 │  │  edgequake-auth          │  Authentication & authorization           │   │
 │  │  edgequake-audit         │  Compliance & audit logging               │   │
@@ -215,16 +218,39 @@ curl -X POST http://localhost:8080/api/v1/query \
 │                    ▼                               ▼                        │
 │  ┌─────────────────────────────┐   ┌──────────────────────────────────┐     │
 │  │   LLM Providers              │   │   Storage Backends              │     │
-│  │  • OpenAI (gpt-4o-mini)      │   │  • PostgreSQL 15+ (AGE + vector)│     │
-│  │  • Ollama (gemma3, llama3)   │   │  • In-Memory (dev/testing)      │     │
-│  │  • Mock (testing, free)      │   │  • Graph: Property graph model  │     │
-│  │  Auto-detection via env      │   │  • Vector: 1536-dim embeddings  │     │
+│  │  • OpenAI (gpt-4.1-nano)     │   │  • PostgreSQL 15+ (AGE + vector)│     │
+│  │  • Ollama (gemma3:12b)       │   │  • In-Memory (dev/testing)      │     │
+│  │  • LM Studio (local models)  │   │  • Graph: Property graph model  │     │
+│  │  • Mock (testing, free)      │   │  • Vector: pgvector embeddings  │     │
+│  │  Auto-detection via env      │   │                                 │     │
 │  └─────────────────────────────┘   └──────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                     Data Flow: Document → Chunks → Entities → Graph
                     Query Flow: Question → Graph Traversal → LLM → Answer
 ```
+
+### How the Algorithm Works
+
+EdgeQuake implements the [LightRAG algorithm](https://arxiv.org/abs/2410.05779) in Rust. The core insight: **extract a knowledge graph during indexing, then traverse it during querying**.
+
+**Indexing Pipeline** (per document):
+1. **Chunk** — Split document into ~1200-token segments with 100-token overlap
+2. **Extract** — LLM parses each chunk into `(entity, type, description)` and `(source, target, keywords, description)` tuples
+3. **Glean** — Optional second pass catches missed entities (improves recall by ~18%)
+4. **Normalize** — Deduplicate entities via case normalization and description merging (reduces duplicates by ~36-40%)
+5. **Embed** — Generate vector embeddings for chunks and entities
+6. **Store** — Write to PostgreSQL: chunks to pgvector, entities/relationships to Apache AGE graph
+
+**Query Flow** (6 modes):
+- **Naive** — Vector similarity on chunks only (fast, no graph)
+- **Local** — Find relevant entities via vector search, then traverse their local graph neighborhood
+- **Global** — Use Louvain community detection to find thematic clusters, retrieve community summaries
+- **Hybrid** _(default)_ — Combine local entity context + global community context
+- **Mix** — Weighted blend of naive vector results and graph-enhanced results
+- **Bypass** — Skip retrieval entirely, pass question directly to LLM
+
+See [LightRAG Algorithm Deep Dive](docs/deep-dives/lightrag-algorithm.md) for the complete technical explanation.
 
 ---
 
@@ -244,12 +270,13 @@ Explore the full documentation at [docs/README.md](docs/README.md)
 
 ### 📖 Tutorials (Hands-On)
 
-| Tutorial                                                       | Description                     | Time   |
-| -------------------------------------------------------------- | ------------------------------- | ------ |
-| [Building Your First RAG App](docs/tutorials/first-rag-app.md) | End-to-end tutorial             | 30 min |
-| [PDF Ingestion](docs/tutorials/pdf-ingestion.md)               | PDF upload and configuration    | 20 min |
-| [Multi-Tenant Setup](docs/tutorials/multi-tenant-setup.md)     | Workspace isolation             | 25 min |
-| [Document Ingestion](docs/tutorials/document-ingestion.md)     | Upload and processing workflows | 20 min |
+| Tutorial                                                               | Description                     |
+| ---------------------------------------------------------------------- | ------------------------------- |
+| [Building Your First RAG App](docs/tutorials/first-rag-app.md)         | End-to-end tutorial             |
+| [PDF Ingestion](docs/tutorials/pdf-ingestion.md)                       | PDF upload and configuration    |
+| [Multi-Tenant Setup](docs/tutorials/multi-tenant.md)                   | Workspace isolation             |
+| [Document Ingestion](docs/tutorials/document-ingestion.md)             | Upload and processing workflows |
+| [Migration from LightRAG](docs/tutorials/migration-from-lightrag.md)   | Python to Rust migration guide  |
 
 ### 🏗️ Architecture (How It Works)
 
@@ -268,17 +295,22 @@ Explore the full documentation at [docs/README.md](docs/README.md)
 | [Knowledge Graph](docs/concepts/knowledge-graph.md)     | Nodes, edges, and communities     |
 | [Hybrid Retrieval](docs/concepts/hybrid-retrieval.md)   | Combining vector and graph search |
 
-### 🔬 Deep Dives (Advanced)
+### Deep Dives (Advanced)
 
-| Article                                                         | Description                           |
-| --------------------------------------------------------------- | ------------------------------------- |
-| [LightRAG Algorithm](docs/deep-dives/lightrag-algorithm.md)     | The algorithm that powers EdgeQuake   |
-| [PDF Processing](docs/deep-dives/pdf-processing.md)             | Text/Vision/Hybrid extraction         |
-| [Entity Normalization](docs/deep-dives/entity-normalization.md) | Deduplication and merging             |
-| [Query Modes](docs/deep-dives/query-modes.md)                   | 6 modes explained (naive to mix)      |
-| [Gleaning](docs/deep-dives/gleaning.md)                         | Iterative extraction for completeness |
-| [Graph Storage](docs/deep-dives/graph-storage.md)               | Property graph model and backends     |
-| [Community Detection](docs/deep-dives/community-detection.md)   | Graph clustering algorithms           |
+| Article                                                         | Description                                  |
+| --------------------------------------------------------------- | -------------------------------------------- |
+| [LightRAG Algorithm](docs/deep-dives/lightrag-algorithm.md)     | Core algorithm: extraction, graph, retrieval |
+| [Query Modes](docs/deep-dives/query-modes.md)                   | 6 modes explained with trade-offs            |
+| [Entity Normalization](docs/deep-dives/entity-normalization.md) | Deduplication and description merging        |
+| [Gleaning](docs/deep-dives/gleaning.md)                         | Multi-pass extraction for completeness       |
+| [Community Detection](docs/deep-dives/community-detection.md)   | Louvain clustering for global queries        |
+| [Chunking Strategies](docs/deep-dives/chunking-strategies.md)   | Token-based segmentation with overlap        |
+| [Embedding Models](docs/deep-dives/embedding-models.md)         | Model selection and dimension trade-offs     |
+| [Graph Storage](docs/deep-dives/graph-storage.md)               | Apache AGE property graph backend            |
+| [Vector Storage](docs/deep-dives/vector-storage.md)             | pgvector HNSW indexing and search            |
+| [PDF Processing](docs/deep-dives/pdf-processing.md)             | Text/Vision/Hybrid extraction pipeline       |
+| [Cost Tracking](docs/deep-dives/cost-tracking.md)               | LLM cost monitoring per operation            |
+| [Pipeline Progress](docs/deep-dives/pipeline-progress.md)       | Real-time progress tracking                  |
 
 ### 📊 Comparisons
 
@@ -288,20 +320,21 @@ Explore the full documentation at [docs/README.md](docs/README.md)
 | [vs GraphRAG](docs/comparisons/vs-graphrag.md)                 | Microsoft's approach comparison    |
 | [vs Traditional RAG](docs/comparisons/vs-traditional-rag.md)   | Why graphs matter                  |
 
-### 🔌 API Reference
+### API Reference
 
-| API                                        | Description             |
-| ------------------------------------------ | ----------------------- |
-| [REST API](docs/api-reference/rest-api.md) | HTTP endpoints          |
-| [Rust SDK](docs/api-reference/rust-sdk.md) | Native Rust integration |
+| API                                                    | Description              |
+| ------------------------------------------------------ | ------------------------ |
+| [REST API](docs/api-reference/rest-api.md)             | HTTP endpoints           |
+| [Extended API](docs/api-reference/extended-api.md)     | Advanced API features    |
 
-### 🛠️ Operations (Production)
+### Operations (Production)
 
-| Guide                                             | Description           |
-| ------------------------------------------------- | --------------------- |
-| [Deployment](docs/operations/deployment.md)       | Production deployment |
-| [Configuration](docs/operations/configuration.md) | All config options    |
-| [Monitoring](docs/operations/monitoring.md)       | Observability setup   |
+| Guide                                                           | Description            |
+| --------------------------------------------------------------- | ---------------------- |
+| [Deployment](docs/operations/deployment.md)                     | Production deployment  |
+| [Configuration](docs/operations/configuration.md)               | All config options     |
+| [Monitoring](docs/operations/monitoring.md)                     | Observability setup    |
+| [Performance Tuning](docs/operations/performance-tuning.md)     | Optimization guide     |
 
 ### 🐛 Troubleshooting
 
@@ -453,7 +486,7 @@ EdgeQuake is inspired by and builds upon the excellent work of:
   - [Tu Ao](https://arxiv.org/search/cs?searchtype=author&query=Ao,+T)
   - [Chao Huang](https://arxiv.org/search/cs?searchtype=author&query=Huang,+C)
 
-- **GraphRAG** ([arxiv.org/abs/2308.03281](https://arxiv.org/abs/2308.03281)): Microsoft's knowledge graph approach and research contributions to the RAG field. See the paper by:
+- **GraphRAG** ([arxiv.org/abs/2404.16130](https://arxiv.org/abs/2404.16130)): Microsoft's "From Local to Global" knowledge graph approach to query-focused summarization.
   - [Shuai Wang](https://www.microsoft.com/en-us/research/people/shuaiw/)
   - [Yingqiang Ge](https://www.microsoft.com/en-us/research/people/yinge/)
   - [Ying Shen](https://www.microsoft.com/en-us/research/people/yingshen/)

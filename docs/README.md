@@ -6,17 +6,17 @@ Welcome to EdgeQuake — an advanced Retrieval-Augmented Generation (RAG) framew
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                         EdgeQuake                                   │
+│                         EdgeQuake                                  │
 │                                                                    │
-│    Document ──▶ [Pipeline] ──▶ Knowledge Graph ──▶ Query Engine   │
+│    Document ──▶ [Pipeline] ──▶ Knowledge Graph ──▶ Query Engine    │
 │                     │              │                    │          │
 │                     ▼              ▼                    ▼          │
-│               ┌─────────┐    ┌─────────┐         ┌─────────┐      │
-│               │ Chunks  │    │ Entities│         │ Hybrid  │      │
-│               │ + Embed │    │ + Rels  │         │ Results │      │
-│               └─────────┘    └─────────┘         └─────────┘      │
+│               ┌─────────┐    ┌─────────┐         ┌─────────┐       │
+│               │ Chunks  │    │ Entities│         │ Hybrid  │       │
+│               │ + Embed │    │ + Rels  │         │ Results │       │
+│               └─────────┘    └─────────┘         └─────────┘       │
 │                                                                    │
-│    [REST API]  [Next.js WebUI]  [Rust SDK]  [PostgreSQL/Memory]   │
+│    [REST API]  [Next.js WebUI]  [Rust SDK]  [PostgreSQL/Memory]    │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,19 +51,21 @@ Welcome to EdgeQuake — an advanced Retrieval-Augmented Generation (RAG) framew
 
 ### 🔬 Deep Dives
 
-| Article                                                    | Description                           |
-| ---------------------------------------------------------- | ------------------------------------- |
-| [LightRAG Algorithm](deep-dives/lightrag-algorithm.md)     | The algorithm that powers EdgeQuake   |
-| [Entity Normalization](deep-dives/entity-normalization.md) | Deduplication and merging             |
-| [Query Modes](deep-dives/query-modes.md)                   | 6 modes explained                     |
-| [Gleaning](deep-dives/gleaning.md)                         | Iterative extraction for completeness |
-| [Entity Extraction](deep-dives/entity-extraction.md)       | LLM-based extraction pipeline         |
-| [Graph Storage](deep-dives/graph-storage.md)               | Property graph model and backends     |
-| [Vector Storage](deep-dives/vector-storage.md)             | Embeddings and similarity search      |
-| [Community Detection](deep-dives/community-detection.md)   | Graph clustering algorithms           |
-| [Cost Tracking](deep-dives/cost-tracking.md)               | LLM cost monitoring                   |
-| [Pipeline Progress](deep-dives/pipeline-progress.md)       | Real-time progress tracking           |
-| [Chunking Strategies](deep-dives/chunking-strategies.md)   | Document segmentation                 |
+| Article                                                    | Description                                  |
+| ---------------------------------------------------------- | -------------------------------------------- |
+| [LightRAG Algorithm](deep-dives/lightrag-algorithm.md)     | Core algorithm: extraction, graph, retrieval |
+| [Query Modes](deep-dives/query-modes.md)                   | 6 modes with trade-offs explained            |
+| [Entity Normalization](deep-dives/entity-normalization.md) | Deduplication and description merging        |
+| [Gleaning](deep-dives/gleaning.md)                         | Multi-pass extraction for completeness       |
+| [Entity Extraction](deep-dives/entity-extraction.md)       | LLM-based extraction pipeline                |
+| [Community Detection](deep-dives/community-detection.md)   | Louvain clustering for global queries        |
+| [Chunking Strategies](deep-dives/chunking-strategies.md)   | Token-based segmentation with overlap        |
+| [Embedding Models](deep-dives/embedding-models.md)         | Model selection and dimension trade-offs     |
+| [Graph Storage](deep-dives/graph-storage.md)               | Apache AGE property graph backend            |
+| [Vector Storage](deep-dives/vector-storage.md)             | pgvector HNSW indexing and search            |
+| [PDF Processing](deep-dives/pdf-processing.md)             | Text/Vision/Hybrid extraction pipeline       |
+| [Cost Tracking](deep-dives/cost-tracking.md)               | LLM cost monitoring per operation            |
+| [Pipeline Progress](deep-dives/pipeline-progress.md)       | Real-time progress tracking                  |
 
 ### 📊 Comparisons
 
@@ -72,6 +74,16 @@ Welcome to EdgeQuake — an advanced Retrieval-Augmented Generation (RAG) framew
 | [vs LightRAG (Python)](comparisons/vs-lightrag-python.md) | Performance and design differences |
 | [vs GraphRAG](comparisons/vs-graphrag.md)                 | Microsoft's approach comparison    |
 | [vs Traditional RAG](comparisons/vs-traditional-rag.md)   | Why graphs matter                  |
+
+### 📖 Tutorials
+
+| Tutorial                                                       | Description                     |
+| -------------------------------------------------------------- | ------------------------------- |
+| [Building Your First RAG App](tutorials/first-rag-app.md)      | End-to-end tutorial             |
+| [PDF Ingestion](tutorials/pdf-ingestion.md)                    | PDF upload and configuration    |
+| [Multi-Tenant Setup](tutorials/multi-tenant.md)                | Workspace isolation             |
+| [Document Ingestion](tutorials/document-ingestion.md)          | Upload and processing workflows |
+| [Migration from LightRAG](tutorials/migration-from-lightrag.md)| Python to Rust migration guide  |
 
 ### 🔌 Integrations
 
@@ -83,24 +95,33 @@ Welcome to EdgeQuake — an advanced Retrieval-Augmented Generation (RAG) framew
 
 ### 📖 API Reference
 
-| API                                   | Description             |
-| ------------------------------------- | ----------------------- |
-| [REST API](api-reference/rest-api.md) | HTTP endpoints          |
-| [Rust SDK](api-reference/rust-sdk.md) | Native Rust integration |
+| API                                              | Description           |
+| ------------------------------------------------ | --------------------- |
+| [REST API](api-reference/rest-api.md)            | HTTP endpoints        |
+| [Extended API](api-reference/extended-api.md)    | Advanced API features |
 
-### 📓 Cookbook
+### 📓 Reference
 
-| Resource                | Description                        |
-| ----------------------- | ---------------------------------- |
-| [Cookbook](cookbook.md) | Practical recipes for common tasks |
+| Resource                                             | Description                        |
+| ---------------------------------------------------- | ---------------------------------- |
+| [Cookbook](cookbook.md)                                | Practical recipes for common tasks |
+| [FAQ](faq.md)                                        | Frequently asked questions         |
 
 ### 🛠️ Operations
 
-| Guide                                        | Description           |
-| -------------------------------------------- | --------------------- |
-| [Deployment](operations/deployment.md)       | Production deployment |
-| [Configuration](operations/configuration.md) | All config options    |
-| [Monitoring](operations/monitoring.md)       | Observability setup   |
+| Guide                                                      | Description            |
+| ---------------------------------------------------------- | ---------------------- |
+| [Deployment](operations/deployment.md)                     | Production deployment  |
+| [Configuration](operations/configuration.md)               | All config options     |
+| [Monitoring](operations/monitoring.md)                     | Observability setup    |
+| [Performance Tuning](operations/performance-tuning.md)     | Optimization guide     |
+
+### 🔒 Security & Troubleshooting
+
+| Guide                                                    | Description                  |
+| -------------------------------------------------------- | ---------------------------- |
+| [Security Best Practices](security/best-practices.md)   | Security guidelines          |
+| [Common Issues](troubleshooting/common-issues.md)       | Debugging guide              |
 
 ---
 
@@ -128,13 +149,13 @@ Welcome to EdgeQuake — an advanced Retrieval-Augmented Generation (RAG) framew
 │  │  (async)  │  │  (HTTP)   │  │ (database)│  │ openai    │ │
 │  └───────────┘  └───────────┘  └───────────┘  └───────────┘ │
 ├─────────────────────────────────────────────────────────────┤
-│                       Frontend (TypeScript)                  │
+│                       Frontend (TypeScript)                 │
 │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐ │
 │  │ Next.js   │  │  React 19 │  │ Sigma.js  │  │  Zustand  │ │
 │  │  16.1.0   │  │   19.2.3  │  │  (graph)  │  │  (state)  │ │
 │  └───────────┘  └───────────┘  └───────────┘  └───────────┘ │
 ├─────────────────────────────────────────────────────────────┤
-│                         Storage                              │
+│                         Storage                             │
 │  ┌───────────────────────┐  ┌───────────────────────────┐   │
 │  │    PostgreSQL 15+     │  │      In-Memory (dev)      │   │
 │  │ + pgvector + Apache AGE│  │   Fast prototyping       │   │
@@ -150,8 +171,8 @@ Welcome to EdgeQuake — an advanced Retrieval-Augmented Generation (RAG) framew
 | ------------------ | ------------ | ------------------------------------------------------- |
 | **Lines of Rust**  | ~130,000     | Across 11 crates                                        |
 | **Query Modes**    | 6            | naive, local, global, hybrid, mix, bypass               |
-| **Entity Types**   | Configurable | Default: PERSON, ORGANIZATION, LOCATION, CONCEPT, EVENT |
-| **Embedding Dims** | 1536         | OpenAI text-embedding-3-small                           |
+| **Entity Types**   | 7 default    | PERSON, ORGANIZATION, LOCATION, CONCEPT, EVENT, TECHNOLOGY, PRODUCT |
+| **Embedding Dims** | Configurable | 1536 (OpenAI), 768 (Ollama/LM Studio)                              |
 
 ---
 
@@ -166,7 +187,7 @@ git clone https://github.com/raphaelmansuy/edgequake.git && cd edgequake && make
 
 ## 📄 License
 
-MIT OR Apache-2.0
+Apache-2.0
 
 ---
 

@@ -237,7 +237,7 @@ Need custom control? ───▶ Use MIX with weights
 
 ```bash
 # Query with specific mode
-curl -X POST http://localhost:3000/api/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Who is Sarah Chen?",
@@ -245,7 +245,7 @@ curl -X POST http://localhost:3000/api/query \
   }'
 
 # Query with hybrid (default)
-curl -X POST http://localhost:3000/api/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -d '{"query": "Tell me about the research"}'
 ```
 

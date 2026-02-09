@@ -55,7 +55,7 @@ curl -X POST \
   -H "Content-Type: multipart/form-data" \
   -F "file=@/path/to/paper.pdf" \
   -F "title=Research Paper" \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **What Happens**:
@@ -87,7 +87,7 @@ Upload → Parse PDF → Extract text → Detect tables → Build chunks → Ind
 - `chunk_count`: Number of text chunks created (paragraphs, tables)
 - `processing_time_ms`: Extraction took ~2.3 seconds
 
-**Note**: Base URL is `http://localhost:3100` by default. If your server uses a different port, adjust accordingly.
+**Note**: Base URL is `http://localhost:8080` by default. If your server uses a different port, adjust accordingly.
 
 ---
 
@@ -95,7 +95,7 @@ Upload → Parse PDF → Extract text → Detect tables → Build chunks → Ind
 
 ```bash
 # Check document status
-curl http://localhost:3100/api/v1/documents/doc-uuid-1234
+curl http://localhost:8080/api/v1/documents/doc-uuid-1234
 ```
 
 **Response**:
@@ -134,7 +134,7 @@ curl -X POST \
     "query": "What are the key findings?",
     "mode": "hybrid"
   }' \
-  http://localhost:3100/api/v1/query
+  http://localhost:8080/api/v1/query
 ```
 
 **Response**:
@@ -255,7 +255,7 @@ curl -X POST \
   -H "Content-Type: multipart/form-data" \
   -F "file=@report.pdf" \
   -F "title=Annual Report" \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Use for**: 80% of digital PDFs  
@@ -275,7 +275,7 @@ curl -X POST \
   -F "file=@scanned_book.pdf" \
   -F "title=Scanned Book" \
   -F 'config={"mode": "Vision", "vision_dpi": 150}' \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Configuration Fields**:
@@ -302,7 +302,7 @@ curl -X POST \
   -F "file=@mixed_quality.pdf" \
   -F "title=Mixed Quality Document" \
   -F 'config={"mode": "Hybrid", "quality_threshold": 0.7}' \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Configuration Fields**:
@@ -327,7 +327,7 @@ curl -X POST \
   -F "file=@financial_report.pdf" \
   -F "title=Financial Report" \
   -F 'config={"enhance_tables": true, "mode": "Text"}' \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Configuration Fields**:
@@ -354,7 +354,7 @@ curl -X POST \
   -F "file=@research_paper.pdf" \
   -F "title=Research Paper" \
   -F 'config={"layout": {"detect_columns": true, "column_gap_threshold": 20.0}}' \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Configuration Fields**:
@@ -385,7 +385,7 @@ curl -X POST \
     "enhance_readability": true,
     "vision_dpi": 200
   }' \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Use for**: Legal documents, critical reports, archival  
@@ -468,7 +468,7 @@ Get detailed metadata about the document:
 
 ```bash
 # Get document details
-curl http://localhost:3100/api/v1/documents/doc-uuid-1234
+curl http://localhost:8080/api/v1/documents/doc-uuid-1234
 ```
 
 **Response**:
@@ -523,13 +523,13 @@ curl http://localhost:3100/api/v1/documents/doc-uuid-1234
 
 ```bash
 # First try: Default text mode
-curl -F "file=@doc.pdf" http://localhost:3100/api/v1/documents
+curl -F "file=@doc.pdf" http://localhost:8080/api/v1/documents
 # Result: chunk_count = 5 (expected 50+) ❌
 
 # Second try: Enable vision mode
 curl -F "file=@doc.pdf" \
      -F 'config={"mode": "Vision"}' \
-     http://localhost:3100/api/v1/documents
+     http://localhost:8080/api/v1/documents
 # Result: chunk_count = 52 ✅
 ```
 
@@ -548,7 +548,7 @@ curl -F "file=@doc.pdf" \
 curl -X POST \
   -F "file=@annual_report.pdf" \
   -F "title=Annual Report 2024" \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Check results**:
@@ -561,7 +561,7 @@ curl -X POST \
 ```bash
 curl -F "file=@report.pdf" \
      -F 'config={"max_pages": 10}' \
-     http://localhost:3100/api/v1/documents
+     http://localhost:8080/api/v1/documents
 ```
 
 ---
@@ -581,7 +581,7 @@ curl -X POST \
     "layout": {"detect_columns": true},
     "extract_figure_captions": true
   }' \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Tips**:
@@ -608,7 +608,7 @@ curl -X POST \
     "vision_dpi": 150,
     "enhance_readability": true
   }' \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Cost Estimate**: 200 pages × $0.005/page = $1.00 total
@@ -634,7 +634,7 @@ curl -X POST \
     "enhance_tables": true,
     "ai_temperature": 0.1
   }' \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **Expected Results**:
@@ -657,7 +657,7 @@ curl -X POST \
   -F "file=@spanish_doc.pdf" \
   -F "title=Documento en Español" \
   -F 'config={"mode": "Vision"}' \
-  http://localhost:3100/api/v1/documents
+  http://localhost:8080/api/v1/documents
 ```
 
 **LLM Language Support**:

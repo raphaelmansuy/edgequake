@@ -12,9 +12,9 @@ Both EdgeQuake and Microsoft GraphRAG use knowledge graphs to enhance retrieval 
 | ----------------------- | ------------------------------------ | --------------------------------------------- |
 | **Language**            | Python                               | Rust                                          |
 | **GitHub Stars**        | 30.6k+                               | ~1k                                           |
-| **License**             | MIT                                  | MIT                                           |
+| **License**             | MIT                                  | Apache-2.0                                    |
 | **Algorithm Origin**    | Original research (arxiv:2404.16130) | LightRAG paper (arxiv:2410.05779)             |
-| **Community Detection** | Leiden (hierarchical)                | Leiden (flat)                                 |
+| **Community Detection** | Leiden (hierarchical)                | Louvain (flat)                                |
 | **Query Modes**         | 4 (Global, Local, DRIFT, Basic)      | 6 (naive, local, global, hybrid, mix, bypass) |
 | **Multi-tenant**        | ❌                                   | ✅ Built-in                                   |
 | **Async Runtime**       | asyncio                              | Tokio                                         |
@@ -76,7 +76,7 @@ Both EdgeQuake and Microsoft GraphRAG use knowledge graphs to enhance retrieval 
 
 | Aspect       | GraphRAG              | EdgeQuake              |
 | ------------ | --------------------- | ---------------------- |
-| Algorithm    | Leiden                | Leiden                 |
+| Algorithm    | Leiden                | Louvain                |
 | Hierarchy    | ✅ Multi-level        | ⚠️ Flat (single level) |
 | Summaries    | Per-level reports     | Community summaries    |
 | Use at Query | Level-based selection | All communities        |

@@ -361,7 +361,7 @@ impl IngestionProgress {
 
 ```bash
 # Subscribe to progress updates
-curl -N "http://localhost:3100/api/v1/rag/progress/job-123/stream"
+curl -N "http://localhost:8080/api/v1/rag/progress/job-123/stream"
 
 # Receives events:
 data: {"job_id":"job-123","status":"Running","completion_percentage":25.5}
@@ -375,7 +375,7 @@ data: {"job_id":"job-123","status":"Completed","completion_percentage":100.0}
 
 ```bash
 # Get current progress
-curl "http://localhost:3100/api/v1/rag/progress/job-123"
+curl "http://localhost:8080/api/v1/rag/progress/job-123"
 
 {
   "job_id": "job-123",

@@ -151,12 +151,12 @@ result = await rag.aquery(
 
 ```bash
 # Insert document
-curl -X POST http://localhost:3100/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents \
   -H "Content-Type: application/json" \
   -d '{"content": "Your document text", "title": "My Document"}'
 
 # Query
-curl -X POST http://localhost:3100/api/v1/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{"query": "What is the main topic?", "mode": "hybrid"}'
 ```
@@ -216,7 +216,7 @@ let response = edgequake.query(
 await rag.export_knowledge(output_path="./export.json")
 
 # Import to EdgeQuake (via API)
-curl -X POST http://localhost:3100/api/v1/documents/import \
+curl -X POST http://localhost:8080/api/v1/documents/import \
   -F "file=@export.json"
 ```
 
@@ -268,7 +268,7 @@ curl -X POST http://localhost:3100/api/v1/documents/import \
 | **Contributors**  | Active        | 216+                                    |
 | **Discord**       | TBD           | [Active](https://discord.gg/yF2MmDJyGJ) |
 | **Documentation** | Comprehensive | Comprehensive                           |
-| **License**       | MIT           | MIT                                     |
+| **License**       | Apache-2.0    | MIT                                     |
 
 ---
 

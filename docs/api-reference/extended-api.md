@@ -29,7 +29,7 @@ EdgeQuake emulates the Ollama API, enabling compatibility with tools like OpenWe
 Get Ollama-compatible version.
 
 ```bash
-curl http://localhost:3100/api/version
+curl http://localhost:8080/api/version
 ```
 
 **Response**:
@@ -45,7 +45,7 @@ curl http://localhost:3100/api/version
 List available models (Ollama format).
 
 ```bash
-curl http://localhost:3100/api/tags
+curl http://localhost:8080/api/tags
 ```
 
 **Response**:
@@ -75,7 +75,7 @@ curl http://localhost:3100/api/tags
 List running model processes.
 
 ```bash
-curl http://localhost:3100/api/ps
+curl http://localhost:8080/api/ps
 ```
 
 **Response**:
@@ -99,7 +99,7 @@ curl http://localhost:3100/api/ps
 Generate text completion (Ollama format).
 
 ```bash
-curl -X POST http://localhost:3100/api/generate \
+curl -X POST http://localhost:8080/api/generate \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gemma3:12b",
@@ -131,7 +131,7 @@ curl -X POST http://localhost:3100/api/generate \
 Chat completion (Ollama format).
 
 ```bash
-curl -X POST http://localhost:3100/api/chat \
+curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gemma3:12b",
@@ -185,7 +185,7 @@ List all tasks.
 - `cancelled` - User cancelled
 
 ```bash
-curl http://localhost:3100/api/v1/tasks?status=running \
+curl http://localhost:8080/api/v1/tasks?status=running \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -213,7 +213,7 @@ curl http://localhost:3100/api/v1/tasks?status=running \
 Get task details.
 
 ```bash
-curl http://localhost:3100/api/v1/tasks/task-uuid
+curl http://localhost:8080/api/v1/tasks/task-uuid
 ```
 
 **Response**:
@@ -247,7 +247,7 @@ curl http://localhost:3100/api/v1/tasks/task-uuid
 Cancel a running task.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/tasks/task-uuid/cancel
+curl -X POST http://localhost:8080/api/v1/tasks/task-uuid/cancel
 ```
 
 **Response**:
@@ -265,7 +265,7 @@ curl -X POST http://localhost:3100/api/v1/tasks/task-uuid/cancel
 Retry a failed task.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/tasks/task-uuid/retry
+curl -X POST http://localhost:8080/api/v1/tasks/task-uuid/retry
 ```
 
 **Response**:
@@ -283,7 +283,7 @@ curl -X POST http://localhost:3100/api/v1/tasks/task-uuid/retry
 Track document processing status (alias for task status).
 
 ```bash
-curl http://localhost:3100/api/v1/documents/track/task-uuid
+curl http://localhost:8080/api/v1/documents/track/task-uuid
 ```
 
 ---
@@ -297,7 +297,7 @@ Pipeline management and queue monitoring.
 Get current pipeline status.
 
 ```bash
-curl http://localhost:3100/api/v1/pipeline/status \
+curl http://localhost:8080/api/v1/pipeline/status \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -326,7 +326,7 @@ curl http://localhost:3100/api/v1/pipeline/status \
 Cancel all pending tasks in the workspace.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/pipeline/cancel \
+curl -X POST http://localhost:8080/api/v1/pipeline/cancel \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -344,7 +344,7 @@ curl -X POST http://localhost:3100/api/v1/pipeline/cancel \
 Get queue metrics (for monitoring dashboards).
 
 ```bash
-curl http://localhost:3100/api/v1/pipeline/queue-metrics \
+curl http://localhost:8080/api/v1/pipeline/queue-metrics \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -381,7 +381,7 @@ Track LLM usage and costs.
 Get current model pricing.
 
 ```bash
-curl http://localhost:3100/api/v1/pipeline/costs/pricing
+curl http://localhost:8080/api/v1/pipeline/costs/pricing
 ```
 
 **Response**:
@@ -415,7 +415,7 @@ curl http://localhost:3100/api/v1/pipeline/costs/pricing
 Estimate processing cost for a document.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/pipeline/costs/estimate \
+curl -X POST http://localhost:8080/api/v1/pipeline/costs/estimate \
   -H "Content-Type: application/json" \
   -d '{
     "content_length": 50000,
@@ -447,7 +447,7 @@ curl -X POST http://localhost:3100/api/v1/pipeline/costs/estimate \
 Get cost summary for workspace.
 
 ```bash
-curl http://localhost:3100/api/v1/costs/summary \
+curl http://localhost:8080/api/v1/costs/summary \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -483,7 +483,7 @@ Get cost history.
 | `granularity` | string | day     | Aggregation (hour, day, week) |
 
 ```bash
-curl "http://localhost:3100/api/v1/costs/history?granularity=day" \
+curl "http://localhost:8080/api/v1/costs/history?granularity=day" \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -492,7 +492,7 @@ curl "http://localhost:3100/api/v1/costs/history?granularity=day" \
 Get budget status.
 
 ```bash
-curl http://localhost:3100/api/v1/costs/budget \
+curl http://localhost:8080/api/v1/costs/budget \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -515,7 +515,7 @@ curl http://localhost:3100/api/v1/costs/budget \
 Update budget settings.
 
 ```bash
-curl -X PATCH http://localhost:3100/api/v1/costs/budget \
+curl -X PATCH http://localhost:8080/api/v1/costs/budget \
   -H "Content-Type: application/json" \
   -d '{
     "budget_usd": 150.00,
@@ -534,7 +534,7 @@ Track data provenance through the pipeline.
 Get entity lineage showing origin documents and chunks.
 
 ```bash
-curl http://localhost:3100/api/v1/lineage/entities/ENTITY_NAME \
+curl http://localhost:8080/api/v1/lineage/entities/ENTITY_NAME \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -580,7 +580,7 @@ curl http://localhost:3100/api/v1/lineage/entities/ENTITY_NAME \
 Get document lineage showing extracted entities and relationships.
 
 ```bash
-curl http://localhost:3100/api/v1/lineage/documents/doc-uuid \
+curl http://localhost:8080/api/v1/lineage/documents/doc-uuid \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -629,7 +629,7 @@ Multi-tenant management.
 Create a new tenant.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/tenants \
+curl -X POST http://localhost:8080/api/v1/tenants \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Acme Corp",
@@ -659,7 +659,7 @@ Delete tenant and all data.
 Create workspace within tenant.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/tenants/tenant-uuid/workspaces \
+curl -X POST http://localhost:8080/api/v1/tenants/tenant-uuid/workspaces \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Research Project",
@@ -682,7 +682,7 @@ List workspaces in tenant.
 File upload via multipart form.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/documents/upload \
+curl -X POST http://localhost:8080/api/v1/documents/upload \
   -H "X-Workspace-ID: workspace-uuid" \
   -F "file=@document.pdf" \
   -F "title=My Document" \
@@ -694,7 +694,7 @@ curl -X POST http://localhost:3100/api/v1/documents/upload \
 Batch file upload.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/documents/upload/batch \
+curl -X POST http://localhost:8080/api/v1/documents/upload/batch \
   -H "X-Workspace-ID: workspace-uuid" \
   -F "files=@doc1.pdf" \
   -F "files=@doc2.pdf" \
@@ -706,7 +706,7 @@ curl -X POST http://localhost:3100/api/v1/documents/upload/batch \
 Scan a directory for documents.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/documents/scan \
+curl -X POST http://localhost:8080/api/v1/documents/scan \
   -H "Content-Type: application/json" \
   -d '{
     "path": "/data/documents",
@@ -720,7 +720,7 @@ curl -X POST http://localhost:3100/api/v1/documents/scan \
 Reprocess all failed documents.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/documents/reprocess \
+curl -X POST http://localhost:8080/api/v1/documents/reprocess \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -729,7 +729,7 @@ curl -X POST http://localhost:3100/api/v1/documents/reprocess \
 Recover documents stuck in processing state.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/documents/recover-stuck \
+curl -X POST http://localhost:8080/api/v1/documents/recover-stuck \
   -H "X-Workspace-ID: workspace-uuid"
 ```
 
@@ -738,7 +738,7 @@ curl -X POST http://localhost:3100/api/v1/documents/recover-stuck \
 Analyze impact of deleting a document.
 
 ```bash
-curl http://localhost:3100/api/v1/documents/doc-uuid/deletion-impact
+curl http://localhost:8080/api/v1/documents/doc-uuid/deletion-impact
 ```
 
 **Response**:
@@ -760,7 +760,7 @@ curl http://localhost:3100/api/v1/documents/doc-uuid/deletion-impact
 Retry failed chunks for a document.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/documents/doc-uuid/retry-chunks
+curl -X POST http://localhost:8080/api/v1/documents/doc-uuid/retry-chunks
 ```
 
 ### GET /api/v1/documents/:id/failed-chunks
@@ -768,7 +768,7 @@ curl -X POST http://localhost:3100/api/v1/documents/doc-uuid/retry-chunks
 List failed chunks for a document.
 
 ```bash
-curl http://localhost:3100/api/v1/documents/doc-uuid/failed-chunks
+curl http://localhost:8080/api/v1/documents/doc-uuid/failed-chunks
 ```
 
 ---
@@ -780,7 +780,7 @@ curl http://localhost:3100/api/v1/documents/doc-uuid/failed-chunks
 Get detailed workspace statistics.
 
 ```bash
-curl http://localhost:3100/api/v1/workspaces/workspace-uuid/stats
+curl http://localhost:8080/api/v1/workspaces/workspace-uuid/stats
 ```
 
 **Response**:
@@ -822,7 +822,7 @@ curl http://localhost:3100/api/v1/workspaces/workspace-uuid/stats
 Get historical metrics.
 
 ```bash
-curl "http://localhost:3100/api/v1/workspaces/workspace-uuid/metrics-history?days=7"
+curl "http://localhost:8080/api/v1/workspaces/workspace-uuid/metrics-history?days=7"
 ```
 
 ### POST /api/v1/workspaces/:id/metrics-snapshot
@@ -830,7 +830,7 @@ curl "http://localhost:3100/api/v1/workspaces/workspace-uuid/metrics-history?day
 Trigger a metrics snapshot.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/workspaces/workspace-uuid/metrics-snapshot
+curl -X POST http://localhost:8080/api/v1/workspaces/workspace-uuid/metrics-snapshot
 ```
 
 ### POST /api/v1/workspaces/:id/rebuild-embeddings
@@ -838,7 +838,7 @@ curl -X POST http://localhost:3100/api/v1/workspaces/workspace-uuid/metrics-snap
 Rebuild all embeddings (e.g., after model change).
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/workspaces/workspace-uuid/rebuild-embeddings \
+curl -X POST http://localhost:8080/api/v1/workspaces/workspace-uuid/rebuild-embeddings \
   -H "Content-Type: application/json" \
   -d '{
     "embedding_model": "text-embedding-3-large",
@@ -851,7 +851,7 @@ curl -X POST http://localhost:3100/api/v1/workspaces/workspace-uuid/rebuild-embe
 Rebuild knowledge graph (re-extract entities).
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/workspaces/workspace-uuid/rebuild-knowledge-graph \
+curl -X POST http://localhost:8080/api/v1/workspaces/workspace-uuid/rebuild-knowledge-graph \
   -H "Content-Type: application/json" \
   -d '{
     "llm_model": "gpt-4o"
@@ -863,7 +863,7 @@ curl -X POST http://localhost:3100/api/v1/workspaces/workspace-uuid/rebuild-know
 Reprocess all documents.
 
 ```bash
-curl -X POST http://localhost:3100/api/v1/workspaces/workspace-uuid/reprocess-documents
+curl -X POST http://localhost:8080/api/v1/workspaces/workspace-uuid/reprocess-documents
 ```
 
 ---
@@ -887,7 +887,7 @@ List embedding models only.
 Check provider health.
 
 ```bash
-curl http://localhost:3100/api/v1/models/health
+curl http://localhost:8080/api/v1/models/health
 ```
 
 **Response**:

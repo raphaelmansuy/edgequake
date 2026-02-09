@@ -26,7 +26,7 @@ This tutorial explores EdgeQuake's document processing pipeline in depth, coveri
 │         │                                                        │
 │         ▼                                                        │
 │  ┌─────────────┐                                                 │
-│  │  2. Chunk   │ Split into semantic units (512 tokens default) │
+│  │  2. Chunk   │ Split into semantic units (1200 tokens default)│
 │  └──────┬──────┘                                                 │
 │         │                                                        │
 │         ▼                                                        │
@@ -358,8 +358,8 @@ Chunks are the atomic units of retrieval. Too small = missing context. Too large
 
 EdgeQuake uses sliding window chunking by default:
 
-- **Chunk size**: 512 tokens
-- **Overlap**: 50 tokens (10%)
+- **Chunk size**: 1200 tokens (default)
+- **Overlap**: 100 tokens (~8%)
 - **Strategy**: Semantic boundaries (sentences, paragraphs)
 
 ### Inspect Chunk Output
@@ -404,7 +404,7 @@ Different document types benefit from different chunking approaches:
 
 | Strategy      | Best For             | Chunk Size    |
 | ------------- | -------------------- | ------------- |
-| **Fixed**     | General text         | 512 tokens    |
+| **Fixed**     | General text         | 1200 tokens (default) |
 | **Semantic**  | Well-structured docs | Variable      |
 | **Paragraph** | Articles, blogs      | 1 paragraph   |
 | **Sentence**  | Q&A, definitions     | 1-3 sentences |
@@ -441,9 +441,10 @@ EdgeQuake extracts these entity types by default:
 - **PERSON** - Named individuals
 - **ORGANIZATION** - Companies, institutions, teams
 - **LOCATION** - Places, cities, countries
-- **CONCEPT** - Abstract ideas, technologies
 - **EVENT** - Meetings, launches, milestones
-- **PRODUCT** - Products, services, tools
+- **CONCEPT** - Abstract ideas, theories
+- **TECHNOLOGY** - Technical tools, frameworks, protocols
+- **PRODUCT** - Products, services, commercial offerings
 
 ### View Extracted Entities
 
@@ -735,9 +736,9 @@ curl "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/metrics"
 
 | Document Type    | Recommended Size |
 | ---------------- | ---------------- |
-| General articles | 512 tokens       |
-| Technical docs   | 1024 tokens      |
-| Short Q&A        | 256 tokens       |
+| General articles | 1200 tokens (default) |
+| Technical docs   | 1200 tokens      |
+| Short Q&A        | 512 tokens       |
 | Legal contracts  | Paragraph-based  |
 
 ### Entity Extraction Tips

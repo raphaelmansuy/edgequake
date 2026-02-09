@@ -329,7 +329,7 @@ Typical costs with `gpt-4o-mini`:
 
 ```bash
 # Get current pricing configuration
-curl http://localhost:3100/api/v1/pipeline/costs/pricing
+curl http://localhost:8080/api/v1/pipeline/costs/pricing
 
 # Response
 {
@@ -350,7 +350,7 @@ curl http://localhost:3100/api/v1/pipeline/costs/pricing
 
 ```bash
 # Upload document
-curl -X POST "http://localhost:3100/api/v1/rag/upload" \
+curl -X POST "http://localhost:8080/api/v1/rag/upload" \
   -F "files=@document.pdf"
 
 # Response includes cost
