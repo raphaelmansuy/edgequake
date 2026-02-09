@@ -2535,12 +2535,20 @@ pub async fn delete_all_documents(
         }
 
         // Delete metadata key
-        if let Err(e) = state.kv_storage.delete(std::slice::from_ref(metadata_key)).await {
+        if let Err(e) = state
+            .kv_storage
+            .delete(std::slice::from_ref(metadata_key))
+            .await
+        {
             tracing::warn!(key = %metadata_key, error = %e, "Failed to delete metadata");
         }
 
         // Delete content key
-        if let Err(e) = state.kv_storage.delete(std::slice::from_ref(&content_key)).await {
+        if let Err(e) = state
+            .kv_storage
+            .delete(std::slice::from_ref(&content_key))
+            .await
+        {
             tracing::warn!(key = %content_key, error = %e, "Failed to delete content");
         }
 

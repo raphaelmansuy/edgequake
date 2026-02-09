@@ -75,10 +75,18 @@ fn measure_quality(
 
     eprintln!(
         "  {:35} CLF={:.3} SPS={:.3} ROA={:.3} NR={:.3} [{:.1}s] w:{}/{}  p:{}/{}",
-        display_name, clf, sps, roa, nr, elapsed,
+        display_name,
+        clf,
+        sps,
+        roa,
+        nr,
+        elapsed,
         extracted.split_whitespace().count(),
         gold.split_whitespace().count(),
-        extracted.split("\n\n").filter(|p| p.trim().len() >= 5).count(),
+        extracted
+            .split("\n\n")
+            .filter(|p| p.trim().len() >= 5)
+            .count(),
         gold.split("\n\n").filter(|p| p.trim().len() >= 5).count(),
     );
 

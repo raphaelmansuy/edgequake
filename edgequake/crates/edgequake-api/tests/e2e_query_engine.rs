@@ -16,9 +16,7 @@
 mod common;
 
 use axum::http::StatusCode;
-use common::{
-    create_test_app, get_with_tenant, post_json, post_json_with_tenant, with_timeout,
-};
+use common::{create_test_app, get_with_tenant, post_json, post_json_with_tenant, with_timeout};
 use serde_json::json;
 use std::time::Duration;
 
@@ -181,7 +179,12 @@ async fn test_prompt_only_query() {
             "prompt_only": true
         });
         let (status, body) = post_json(&app, "/api/v1/query", &query).await;
-        assert_eq!(status, StatusCode::OK, "Prompt-only query should work: {}", body);
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "Prompt-only query should work: {}",
+            body
+        );
         assert!(body["answer"].is_string(), "Should have answer: {}", body);
 
         body
@@ -205,8 +208,15 @@ async fn test_create_conversation() {
             "title": "Test Conversation"
         });
         // WHY: Conversation endpoints require X-Tenant-ID and X-User-ID headers
-        let (status, body) =
-            post_json_with_tenant(&app, "/api/v1/conversations", &payload, TENANT_ID, USER_ID, WORKSPACE_ID).await;
+        let (status, body) = post_json_with_tenant(
+            &app,
+            "/api/v1/conversations",
+            &payload,
+            TENANT_ID,
+            USER_ID,
+            WORKSPACE_ID,
+        )
+        .await;
 
         assert_eq!(
             status,
@@ -263,13 +273,32 @@ async fn test_list_conversations() {
 
         // Create a conversation first
         let payload = json!({ "title": "List Test Conv" });
-        let (status, _) =
-            post_json_with_tenant(&app, "/api/v1/conversations", &payload, TENANT_ID, USER_ID, WORKSPACE_ID).await;
+        let (status, _) = post_json_with_tenant(
+            &app,
+            "/api/v1/conversations",
+            &payload,
+            TENANT_ID,
+            USER_ID,
+            WORKSPACE_ID,
+        )
+        .await;
         assert_eq!(status, StatusCode::CREATED);
 
         // List conversations
-        let (status, body) = get_with_tenant(&app, "/api/v1/conversations", TENANT_ID, USER_ID, WORKSPACE_ID).await;
-        assert_eq!(status, StatusCode::OK, "List conversations should return 200: {}", body);
+        let (status, body) = get_with_tenant(
+            &app,
+            "/api/v1/conversations",
+            TENANT_ID,
+            USER_ID,
+            WORKSPACE_ID,
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "List conversations should return 200: {}",
+            body
+        );
 
         // WHY: PaginatedConversationsResponse has items + pagination fields
         assert!(

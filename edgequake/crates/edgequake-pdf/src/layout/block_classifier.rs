@@ -532,23 +532,44 @@ pub fn is_numeric_sub_subsection_header(text: &str) -> bool {
     // First number (section)
     let mut has_first = false;
     while let Some(&c) = chars.peek() {
-        if c.is_ascii_digit() { has_first = true; chars.next(); } else { break; }
+        if c.is_ascii_digit() {
+            has_first = true;
+            chars.next();
+        } else {
+            break;
+        }
     }
-    if !has_first || chars.next() != Some('.') { return false; }
+    if !has_first || chars.next() != Some('.') {
+        return false;
+    }
 
     // Second number (subsection)
     let mut has_second = false;
     while let Some(&c) = chars.peek() {
-        if c.is_ascii_digit() { has_second = true; chars.next(); } else { break; }
+        if c.is_ascii_digit() {
+            has_second = true;
+            chars.next();
+        } else {
+            break;
+        }
     }
-    if !has_second || chars.next() != Some('.') { return false; }
+    if !has_second || chars.next() != Some('.') {
+        return false;
+    }
 
     // Third number (sub-subsection)
     let mut has_third = false;
     while let Some(&c) = chars.peek() {
-        if c.is_ascii_digit() { has_third = true; chars.next(); } else { break; }
+        if c.is_ascii_digit() {
+            has_third = true;
+            chars.next();
+        } else {
+            break;
+        }
     }
-    if !has_third { return false; }
+    if !has_third {
+        return false;
+    }
 
     // Must be followed by ". " or " "
     match chars.next() {
@@ -601,8 +622,8 @@ pub fn is_caption(text: &str) -> bool {
     let lower = trimmed.to_lowercase();
     // Full prefix patterns
     let prefixes = [
-        "figure ", "fig. ", "fig ", "table ", "tab. ", "tab ",
-        "scheme ", "chart ", "graph ", "plate ", "listing ",
+        "figure ", "fig. ", "fig ", "table ", "tab. ", "tab ", "scheme ", "chart ", "graph ",
+        "plate ", "listing ",
     ];
     for prefix in &prefixes {
         if lower.starts_with(prefix) {
@@ -1058,12 +1079,14 @@ mod tests {
     #[test]
     fn test_sub_subsection_header() {
         assert!(is_numeric_sub_subsection_header("2.1.1 Training Details"));
-        assert!(is_numeric_sub_subsection_header("3.2.3. Evaluation Metrics"));
+        assert!(is_numeric_sub_subsection_header(
+            "3.2.3. Evaluation Metrics"
+        ));
         assert!(is_numeric_sub_subsection_header("1.1.1. Background"));
 
         assert!(!is_numeric_sub_subsection_header("2.1 Subsection")); // Only two levels
-        assert!(!is_numeric_sub_subsection_header("1. Section"));     // Only one level
-        assert!(!is_numeric_sub_subsection_header("short"));          // Too short
+        assert!(!is_numeric_sub_subsection_header("1. Section")); // Only one level
+        assert!(!is_numeric_sub_subsection_header("short")); // Too short
     }
 
     /// OODA-31: Test caption detection

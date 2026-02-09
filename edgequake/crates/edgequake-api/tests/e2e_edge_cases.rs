@@ -374,18 +374,12 @@ async fn test_rapid_sequential_uploads() {
             });
 
             let (status, body) = upload_json(&app, &payload).await;
-            assert_eq!(
-                status,
-                StatusCode::CREATED,
-                "Upload {} should succeed",
-                i
-            );
+            assert_eq!(status, StatusCode::CREATED, "Upload {} should succeed", i);
             doc_ids.push(body["document_id"].as_str().unwrap().to_string());
         }
 
         // All IDs should be unique
-        let unique: std::collections::HashSet<&str> =
-            doc_ids.iter().map(|s| s.as_str()).collect();
+        let unique: std::collections::HashSet<&str> = doc_ids.iter().map(|s| s.as_str()).collect();
         assert_eq!(doc_ids.len(), unique.len(), "All doc IDs should be unique");
 
         // List documents should show them all

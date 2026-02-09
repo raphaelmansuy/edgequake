@@ -70,7 +70,7 @@ fn contains_url(text: &str) -> bool {
         || text.contains("doi.org")
         || text.contains("arxiv.org")
         || text.contains("doi:")
-        || text.contains("10.") && text.contains('/')  // DOI pattern: 10.xxxx/yyyy
+        || text.contains("10.") && text.contains('/') // DOI pattern: 10.xxxx/yyyy
 }
 
 /// Try to resolve a hyphenated word break between two lines.
@@ -244,10 +244,7 @@ mod tests {
     fn test_double_hyphen_preserved() {
         let lines = vec!["hello--".to_string(), "world".to_string()];
         let resolved = resolve_hyphenation(&lines);
-        assert_eq!(
-            resolved,
-            vec!["hello--".to_string(), "world".to_string()]
-        );
+        assert_eq!(resolved, vec!["hello--".to_string(), "world".to_string()]);
     }
 
     /// OODA-26: Short compound prefixes should not be resolved
@@ -256,10 +253,7 @@ mod tests {
         // "e-" + "mail" = compound word, don't resolve
         let lines = vec!["e-".to_string(), "mail systems".to_string()];
         let resolved = resolve_hyphenation(&lines);
-        assert_eq!(
-            resolved,
-            vec!["e-".to_string(), "mail systems".to_string()]
-        );
+        assert_eq!(resolved, vec!["e-".to_string(), "mail systems".to_string()]);
     }
 
     /// OODA-36: URLs should not have hyphens resolved
@@ -283,17 +277,11 @@ mod tests {
     /// OODA-46: DOI patterns should not have hyphens resolved
     #[test]
     fn test_doi_hyphen_preserved() {
-        let lines = vec![
-            "doi: 10.1145/1234-".to_string(),
-            "5678.2024".to_string(),
-        ];
+        let lines = vec!["doi: 10.1145/1234-".to_string(), "5678.2024".to_string()];
         let resolved = resolve_hyphenation(&lines);
         assert_eq!(
             resolved,
-            vec![
-                "doi: 10.1145/1234-".to_string(),
-                "5678.2024".to_string()
-            ]
+            vec!["doi: 10.1145/1234-".to_string(), "5678.2024".to_string()]
         );
     }
 }

@@ -205,8 +205,7 @@ async fn test_cost_estimation() {
             "output_tokens": 500
         });
 
-        let (status, body) =
-            post_json(&app, "/api/v1/pipeline/costs/estimate", &payload).await;
+        let (status, body) = post_json(&app, "/api/v1/pipeline/costs/estimate", &payload).await;
 
         assert_eq!(
             status,
@@ -246,7 +245,11 @@ async fn test_model_pricing() {
         assert_eq!(status, StatusCode::OK, "Pricing should return 200");
 
         // Should have pricing data structure
-        assert!(body.is_object() || body.is_array(), "Should have pricing data: {}", body);
+        assert!(
+            body.is_object() || body.is_array(),
+            "Should have pricing data: {}",
+            body
+        );
 
         body
     })
@@ -284,7 +287,11 @@ async fn test_cost_history() {
 
         let (status, body) = get_endpoint(&app, "/api/v1/costs/history").await;
         assert_eq!(status, StatusCode::OK, "Cost history should return 200");
-        assert!(body.is_object() || body.is_array(), "Should return data: {}", body);
+        assert!(
+            body.is_object() || body.is_array(),
+            "Should return data: {}",
+            body
+        );
 
         body
     })
@@ -320,13 +327,8 @@ async fn test_provider_status() {
     let result = with_timeout(Duration::from_secs(5), async {
         let app = create_test_app();
 
-        let (status, body) =
-            get_endpoint(&app, "/api/v1/settings/provider/status").await;
-        assert_eq!(
-            status,
-            StatusCode::OK,
-            "Provider status should return 200"
-        );
+        let (status, body) = get_endpoint(&app, "/api/v1/settings/provider/status").await;
+        assert_eq!(status, StatusCode::OK, "Provider status should return 200");
 
         // Should have provider info
         assert!(body.is_object(), "Should be an object: {}", body);
@@ -403,7 +405,11 @@ async fn test_list_shows_upload_status() {
         assert_eq!(status, StatusCode::OK);
 
         let total = list["total"].as_u64().unwrap_or(0);
-        assert!(total >= 3, "Should have at least 3 documents, got {}", total);
+        assert!(
+            total >= 3,
+            "Should have at least 3 documents, got {}",
+            total
+        );
 
         // Status counts should exist
         let status_counts = &list["status_counts"];

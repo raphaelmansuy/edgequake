@@ -102,8 +102,8 @@ impl MarkdownRenderer {
                 let next_block = &blocks[i + 1];
                 let is_list_continuation = block.block_type == BlockType::ListItem
                     && next_block.block_type == BlockType::ListItem;
-                let is_code_continuation = block.block_type == BlockType::Code
-                    && next_block.block_type == BlockType::Code;
+                let is_code_continuation =
+                    block.block_type == BlockType::Code && next_block.block_type == BlockType::Code;
                 if is_list_continuation || is_code_continuation {
                     output.push('\n');
                 } else {
@@ -224,7 +224,11 @@ impl MarkdownRenderer {
         // matches the gold standard's paragraph granularity, improving ROA.
         // OODA-66: Tried smart sentence-ending heuristic but it was worse overall
         // because single-column golds have \n\n between non-sentence-ending lines too.
-        let rendered: Vec<String> = block.lines.iter().map(|l| self.render_line_styled(l)).collect();
+        let rendered: Vec<String> = block
+            .lines
+            .iter()
+            .map(|l| self.render_line_styled(l))
+            .collect();
         let resolved = resolve_hyphenation(&rendered);
         resolved.join("\n\n")
     }
@@ -312,8 +316,18 @@ impl MarkdownRenderer {
                     && prev.font_is_bold == span.font_is_bold
                     && prev.font_is_italic == span.font_is_italic;
 
-                let prev_ends_alpha = prev.text.chars().last().map(|c| c.is_alphabetic()).unwrap_or(false);
-                let cur_starts_alpha = span.text.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false);
+                let prev_ends_alpha = prev
+                    .text
+                    .chars()
+                    .last()
+                    .map(|c| c.is_alphabetic())
+                    .unwrap_or(false);
+                let cur_starts_alpha = span
+                    .text
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphabetic())
+                    .unwrap_or(false);
 
                 let space_threshold = if same_style {
                     // Same font/style: break was from a space char or gap
@@ -389,8 +403,18 @@ impl MarkdownRenderer {
                 let same_style = prev.font_name == span.font_name
                     && prev.font_is_bold == span.font_is_bold
                     && prev.font_is_italic == span.font_is_italic;
-                let prev_ends_alpha = prev.text.chars().last().map(|c| c.is_alphabetic()).unwrap_or(false);
-                let cur_starts_alpha = span.text.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false);
+                let prev_ends_alpha = prev
+                    .text
+                    .chars()
+                    .last()
+                    .map(|c| c.is_alphabetic())
+                    .unwrap_or(false);
+                let cur_starts_alpha = span
+                    .text
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphabetic())
+                    .unwrap_or(false);
 
                 let space_threshold = if same_style {
                     avg_size * 0.10
@@ -520,7 +544,11 @@ fn is_continuation(current_text: &str, next_block: &Block) -> bool {
         .trim_end_matches('~')
         .trim_end_matches(']');
 
-    let effective_end = if stripped.is_empty() { trimmed } else { stripped };
+    let effective_end = if stripped.is_empty() {
+        trimmed
+    } else {
+        stripped
+    };
 
     // Check current text doesn't end with sentence-terminal punctuation
     let last_char = effective_end.chars().last().unwrap_or('.');
@@ -769,7 +797,9 @@ fn detect_code_language(code: &str) -> &'static str {
     }
 
     // OODA-45: TypeScript patterns (BEFORE JavaScript to distinguish typed code)
-    if trimmed.contains(": string") || trimmed.contains(": number") || trimmed.contains(": boolean")
+    if trimmed.contains(": string")
+        || trimmed.contains(": number")
+        || trimmed.contains(": boolean")
         || trimmed.contains("interface ") && trimmed.contains('{')
         || trimmed.contains("type ") && trimmed.contains(" = {")
     {
@@ -786,8 +816,7 @@ fn detect_code_language(code: &str) -> &'static str {
     }
 
     // Java/C# patterns
-    if (trimmed.contains("public static") || trimmed.contains("private "))
-        && trimmed.contains('{')
+    if (trimmed.contains("public static") || trimmed.contains("private ")) && trimmed.contains('{')
     {
         return "java";
     }
@@ -841,7 +870,10 @@ fn detect_code_language(code: &str) -> &'static str {
     }
 
     // XML/HTML patterns
-    if trimmed.starts_with("<?xml") || trimmed.starts_with("<!DOCTYPE") || trimmed.starts_with("<html") {
+    if trimmed.starts_with("<?xml")
+        || trimmed.starts_with("<!DOCTYPE")
+        || trimmed.starts_with("<html")
+    {
         return "xml";
     }
 
@@ -1164,7 +1196,7 @@ mod tests {
             x0: 10.0,
             y0: 4.0,
             x1: 15.0,
-            y1: 12.0, // y1 at bottom of line (subscript sits at baseline)
+            y1: 12.0,       // y1 at bottom of line (subscript sits at baseline)
             font_size: 7.0, // Much smaller than 12.0 (< 70%)
             font_name: Some("Arial".to_string()),
             page_num: 0,
@@ -1203,11 +1235,7 @@ mod tests {
             "Subscript should render as ~2~, got: {}",
             md
         );
-        assert!(
-            md.contains("H"),
-            "Normal text should be preserved: {}",
-            md
-        );
+        assert!(md.contains("H"), "Normal text should be preserved: {}", md);
     }
 
     /// OODA-08: Test footnote rendering as blockquote
@@ -1341,12 +1369,19 @@ mod tests {
         // Isolated CJK between ASCII should be removed
         let mut text = "g\u{4F60}ra\u{7684}cef\u{843D}ul".to_string();
         filter_isolated_cjk(&mut text);
-        assert_eq!(text, "graceful", "Should remove isolated CJK chars: {}", text);
+        assert_eq!(
+            text, "graceful",
+            "Should remove isolated CJK chars: {}",
+            text
+        );
 
         // Pure CJK text should be preserved
         let mut chinese = "\u{4F60}\u{597D}\u{4E16}\u{754C}".to_string();
         filter_isolated_cjk(&mut chinese);
-        assert_eq!(chinese, "\u{4F60}\u{597D}\u{4E16}\u{754C}", "Should preserve CJK runs");
+        assert_eq!(
+            chinese, "\u{4F60}\u{597D}\u{4E16}\u{754C}",
+            "Should preserve CJK runs"
+        );
 
         // CJK at start/end of line should be preserved
         let mut edge = "\u{4F60}hello".to_string();
@@ -1363,7 +1398,10 @@ mod tests {
     /// OODA-22: Test code language detection
     #[test]
     fn test_detect_code_language() {
-        assert_eq!(detect_code_language("def hello():\n    print('hi')"), "python");
+        assert_eq!(
+            detect_code_language("def hello():\n    print('hi')"),
+            "python"
+        );
         assert_eq!(detect_code_language("$ pip install torch"), "bash");
         assert_eq!(detect_code_language("fn main() -> Result<()> {\n}"), "rust");
         assert_eq!(detect_code_language("console.log('hello')"), "javascript");
@@ -1371,7 +1409,10 @@ mod tests {
         assert_eq!(detect_code_language("SELECT * FROM users"), "sql");
         assert_eq!(detect_code_language("some random text"), "");
         // OODA-39: New language detections
-        assert_eq!(detect_code_language("func main() {\n  fmt.Println(\"hi\")\n}"), "go");
+        assert_eq!(
+            detect_code_language("func main() {\n  fmt.Println(\"hi\")\n}"),
+            "go"
+        );
         assert_eq!(detect_code_language("x := 42"), "go");
         assert_eq!(detect_code_language("[package]\nname = \"foo\""), "toml");
         assert_eq!(detect_code_language("\\documentclass{article}"), "latex");
@@ -1379,7 +1420,10 @@ mod tests {
         // OODA-45: R and TypeScript detection
         assert_eq!(detect_code_language("x <- function(a) { a + 1 }"), "r");
         assert_eq!(detect_code_language("library(ggplot2)"), "r");
-        assert_eq!(detect_code_language("interface User {\n  name: string\n}"), "typescript");
+        assert_eq!(
+            detect_code_language("interface User {\n  name: string\n}"),
+            "typescript"
+        );
         assert_eq!(detect_code_language("const x: number = 42"), "typescript");
     }
 }

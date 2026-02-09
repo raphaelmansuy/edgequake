@@ -184,7 +184,6 @@ pub enum PhaseStatus {
     Skipped,
 }
 
-
 /// Error information for a failed phase.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhaseError {

@@ -715,10 +715,7 @@ pub async fn list_pdfs(
 
     let workspace_id = context.workspace_id_uuid();
 
-    let status = query
-        .status
-        .as_ref()
-        .and_then(|s| s.parse().ok());
+    let status = query.status.as_ref().and_then(|s| s.parse().ok());
 
     let list = pdf_storage
         .list_pdfs(ListPdfFilter {

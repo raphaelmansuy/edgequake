@@ -82,7 +82,9 @@ async fn test_get_nonexistent_document() {
         let body = extract_json(response).await;
         // Error response should have structured fields
         assert!(
-            body.get("code").is_some() || body.get("error").is_some() || body.get("message").is_some(),
+            body.get("code").is_some()
+                || body.get("error").is_some()
+                || body.get("message").is_some(),
             "Error should have a code/error/message field: {}",
             body
         );

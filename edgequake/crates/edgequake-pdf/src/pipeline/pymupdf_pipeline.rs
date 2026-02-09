@@ -407,6 +407,9 @@ mod tests {
         ];
 
         let body_size = detect_body_font_size(&blocks);
-        assert_eq!(body_size, 9.5, "Should detect 9.5pt body with half-point binning");
+        assert_eq!(
+            body_size, 9.5,
+            "Should detect 9.5pt body with half-point binning"
+        );
     }
 }

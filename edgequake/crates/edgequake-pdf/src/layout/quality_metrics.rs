@@ -182,7 +182,9 @@ fn strip_markdown(text: &str) -> String {
         // OODA-62: Skip pipe-table separator rows like |---|---|---|
         if trimmed.starts_with('|')
             && trimmed.ends_with('|')
-            && trimmed.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
+            && trimmed
+                .chars()
+                .all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
         {
             result.push('\n');
             continue;
@@ -278,9 +280,7 @@ fn word_levenshtein_distance(a: &[&str], b: &[&str]) -> usize {
             } else {
                 1
             };
-            curr[j] = (prev[j] + 1)
-                .min(curr[j - 1] + 1)
-                .min(prev[j - 1] + cost);
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -460,7 +460,10 @@ fn is_noise_line(line: &str) -> bool {
     }
 
     // "Page N" or "page N" patterns
-    if let Some(rest) = trimmed.strip_prefix("Page ").or_else(|| trimmed.strip_prefix("page ")) {
+    if let Some(rest) = trimmed
+        .strip_prefix("Page ")
+        .or_else(|| trimmed.strip_prefix("page "))
+    {
         if rest.chars().all(|c| c.is_ascii_digit()) && !rest.is_empty() {
             return true;
         }
@@ -499,7 +502,11 @@ mod tests {
 
         // Case insensitive word matching
         let clf = character_level_fidelity("Hello World", "hello world");
-        assert!((clf - 1.0).abs() < 0.001, "Case insensitive should match, got {}", clf);
+        assert!(
+            (clf - 1.0).abs() < 0.001,
+            "Case insensitive should match, got {}",
+            clf
+        );
 
         // OODA-49: Word-level distance test
         let clf = character_level_fidelity(
@@ -507,7 +514,11 @@ mod tests {
             "the quick brown fox jumps over the lazy cat",
         );
         // 1 word differs out of 9 → CLF = 1 - 1/9 ≈ 0.889
-        assert!(clf > 0.85, "One word diff should give high CLF, got {}", clf);
+        assert!(
+            clf > 0.85,
+            "One word diff should give high CLF, got {}",
+            clf
+        );
     }
 
     #[test]
@@ -620,11 +631,19 @@ mod tests {
         let with_separators = "Content paragraph one here.\n\n-----\n\nPage 2\n\nContent paragraph two here.\n\n-----\n\nPage 3\n\nContent paragraph three here.\n";
         let nr = noise_ratio(with_separators);
         // 3 content + 2 "-----" + 2 "Page N" = 7 non-blank, 4 noise → NR ≈ 0.571
-        assert!(nr > 0.4, "Should detect page separators as noise, got {}", nr);
+        assert!(
+            nr > 0.4,
+            "Should detect page separators as noise, got {}",
+            nr
+        );
 
         let without_separators = "Content paragraph one here.\n\nContent paragraph two here.\n\nContent paragraph three here.\n";
         let nr_clean = noise_ratio(without_separators);
-        assert!(nr_clean < 0.01, "Clean text should have no noise, got {}", nr_clean);
+        assert!(
+            nr_clean < 0.01,
+            "Clean text should have no noise, got {}",
+            nr_clean
+        );
     }
 
     /// OODA-51: Test markdown stripping for CLF comparison
@@ -662,6 +681,10 @@ mod tests {
         let text_a = "# Title\n\n**bold** and _italic_ text here";
         let text_b = "## Title\n\nbold and italic text here";
         let clf = character_level_fidelity(text_a, text_b);
-        assert!(clf > 0.9, "Formatting differences should not hurt CLF much, got {}", clf);
+        assert!(
+            clf > 0.9,
+            "Formatting differences should not hurt CLF much, got {}",
+            clf
+        );
     }
 }

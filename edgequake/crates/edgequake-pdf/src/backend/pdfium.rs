@@ -417,7 +417,7 @@ impl PdfiumExtractor {
                         || lower.contains("sfti")  // Computer Modern Text Italic
                         || lower.contains("sfsi")  // Computer Modern Sans Italic
                         || lower.contains("cmti")  // CM Text Italic
-                        || lower.contains("ecti")  // EC Text Italic
+                        || lower.contains("ecti") // EC Text Italic
                 }
             };
             // OODA-58: Combine font weight with font name fallback for bold detection.
@@ -445,7 +445,7 @@ impl PdfiumExtractor {
                         || lower.contains("sfbx")  // Computer Modern Bold Extended
                         || lower.contains("cmbx")  // CM Bold Extended
                         || lower.contains("ecbx")  // EC Bold Extended
-                        || lower.contains("lmbx")  // Latin Modern Bold Extended
+                        || lower.contains("lmbx") // Latin Modern Bold Extended
                 }
             };
             // OODA-03: Monospace detection from font descriptor

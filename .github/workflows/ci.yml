@@ -72,7 +72,7 @@ jobs:
 
       - name: Build release
         working-directory: edgequake
-        run: cargo build --release --lib --no-default-features
+        run: cargo build --workspace --release --lib --no-default-features
 
       # Note: Examples and binaries require postgres feature, tested in postgres-integration.yml
 

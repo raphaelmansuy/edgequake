@@ -898,9 +898,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         // WHY: Truncate SQL for logging, but respect UTF-8 char boundaries.
         // Direct byte slicing (&sql[..500]) can panic if it falls inside a multi-byte character.
         // Instead, take chars up to a safe byte limit.
-        let sql_preview = sql.chars()
-            .take(500)
-            .collect::<String>();
+        let sql_preview = sql.chars().take(500).collect::<String>();
         tracing::debug!(target: "edgequake_storage", "Batch degree SQL: {}", sql_preview);
 
         let rows = sqlx::query(&sql)
@@ -1599,15 +1597,15 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .filter_map(|row| {
                 let props: serde_json::Value = row.get("props");
                 let degree: i64 = row.get("degree");
-                
+
                 // Extract node_id from properties
                 let node_id = props.get("node_id")?.as_str()?.to_string();
-                
+
                 let node = GraphNode {
                     id: node_id,
                     properties: props.as_object()?.clone().into_iter().collect(),
                 };
-                
+
                 Some((node, degree as usize))
             })
             .collect();

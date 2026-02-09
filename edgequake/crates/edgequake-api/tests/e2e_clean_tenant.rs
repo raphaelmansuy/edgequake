@@ -118,10 +118,7 @@ impl TestContext {
 
         // WHY: WorkspaceListResponse has "items" array, each with "id" field
         let ws_list = extract_json(response).await;
-        let workspace_id = ws_list["items"][0]["id"]
-            .as_str()
-            .unwrap()
-            .to_string();
+        let workspace_id = ws_list["items"][0]["id"].as_str().unwrap().to_string();
 
         Self {
             app,
@@ -294,9 +291,7 @@ async fn test_document_upload_clean_tenant() {
     let ctx = TestContext::new_isolated().await;
 
     // Upload document
-    let result = ctx
-        .upload_text(SIMPLE_DOCUMENT, "Clean Tenant Test")
-        .await;
+    let result = ctx.upload_text(SIMPLE_DOCUMENT, "Clean Tenant Test").await;
 
     // Verify document created
     assert!(
@@ -320,9 +315,7 @@ async fn test_entity_extraction_clean_tenant() {
     let ctx = TestContext::new_isolated().await;
 
     // Upload entity-rich document
-    let result = ctx
-        .upload_text(ENTITY_DOCUMENT, "Entity Test")
-        .await;
+    let result = ctx.upload_text(ENTITY_DOCUMENT, "Entity Test").await;
 
     assert!(result["document_id"].is_string());
     assert_eq!(result["status"], "processed");
@@ -351,7 +344,8 @@ async fn test_query_clean_tenant() {
     let ctx = TestContext::new_isolated().await;
 
     // Upload document first
-    ctx.upload_text(ENTITY_DOCUMENT, "Query Test Document").await;
+    ctx.upload_text(ENTITY_DOCUMENT, "Query Test Document")
+        .await;
 
     // Query - mock provider returns deterministic results
     let result = ctx.query_rag("What is EdgeQuake Corporation?").await;

@@ -400,7 +400,9 @@ impl Span {
         let ratio = self.font_size / reference_font_size;
         // Small font, short text, AND positioned near/below the baseline of reference
         // Subscripts have y1 close to or below the ref_y1 (bottom of reference text)
-        ratio < 0.7 && self.text.chars().count() < 5 && self.y1 >= ref_y1 - reference_font_size * 0.1
+        ratio < 0.7
+            && self.text.chars().count() < 5
+            && self.y1 >= ref_y1 - reference_font_size * 0.1
     }
 }
 
