@@ -15,28 +15,7 @@ Built in Rust. Production-ready. Open source.
 
 The 3-Stage Pipeline:
 
-```
-STAGE 1: INGEST
-Document → Chunks → LLM Extract
-           │
-           ├─ Adaptive chunking (600-1200 tokens)
-           └─ Tuple-delimited extraction (not JSON!)
-
-STAGE 2: STORE
-Entities + Relations → PostgreSQL
-                        │
-                        ├─ Apache AGE (graph)
-                        └─ pgvector (embeddings)
-
-STAGE 3: QUERY
-Question → 5 Query Modes → Answer
-           │
-           ├─ Naive    (~50ms)
-           ├─ Local    (~150ms)
-           ├─ Global   (~200ms)
-           ├─ Hybrid   (~250ms)
-           └─ Mix      (~300ms)
-```
+![Pipeline Overview](assets/00-edgequake.png)
 
 Why 5 query modes?
 
