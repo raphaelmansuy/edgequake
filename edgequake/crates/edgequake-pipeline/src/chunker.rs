@@ -299,7 +299,7 @@ impl ChunkingStrategy for TokenBasedChunking {
 ///
 /// Splits text on a specific character (like newline) for pre-split content.
 ///
-/// @implements FEAT0303 (Character-Based Chunking - CharacterBasedChunking struct)
+/// @implements FEAT0301 (Character-Based Chunking - CharacterBasedChunking struct)
 pub struct CharacterBasedChunking {
     /// Character to split on.
     pub split_character: String,
