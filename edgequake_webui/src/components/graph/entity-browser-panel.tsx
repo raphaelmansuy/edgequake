@@ -104,7 +104,7 @@ const EntityItem = memo(function EntityItem({
             : "ring-white dark:ring-gray-800"
         )}
         style={{
-          backgroundColor: getEntityTypeColor(node.node_type),
+          backgroundColor: getEntityTypeColor(node.node_type ?? "unknown"),
         }}
       />
       <div className="flex-1 min-w-0">
@@ -112,14 +112,14 @@ const EntityItem = memo(function EntityItem({
           "text-xs font-medium truncate leading-tight",
           isSelected && "font-semibold"
         )}>
-          {node.label}
+          {node.label ?? node.id ?? "Unknown"}
         </p>
         <div className="flex items-center gap-1.5 mt-0.5">
           <span className={cn(
             "text-[9px] uppercase tracking-wider",
             isSelected ? "text-primary-foreground/70" : "text-muted-foreground"
           )}>
-            {node.node_type}
+            {node.node_type ?? "unknown"}
           </span>
           {node.degree && node.degree > 0 && (
             <>
@@ -381,8 +381,8 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
     const query = searchQuery.toLowerCase();
     return nodes.filter(
       (node) =>
-        node.label.toLowerCase().includes(query) ||
-        node.node_type.toLowerCase().includes(query) ||
+        node.label?.toLowerCase().includes(query) ||
+        node.node_type?.toLowerCase().includes(query) ||
         node.description?.toLowerCase().includes(query)
     );
   }, [nodes, searchQuery]);
@@ -452,13 +452,13 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
       let comparison = 0;
       switch (sortBy) {
         case "name":
-          comparison = a.label.localeCompare(b.label);
+          comparison = (a.label ?? "").localeCompare(b.label ?? "");
           break;
         case "degree":
           comparison = (b.degree ?? 0) - (a.degree ?? 0);
           break;
         case "type":
-          comparison = a.node_type.localeCompare(b.node_type);
+          comparison = (a.node_type ?? "").localeCompare(b.node_type ?? "");
           break;
       }
       return sortDirection === "asc" ? comparison : -comparison;
