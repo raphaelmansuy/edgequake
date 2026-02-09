@@ -859,7 +859,7 @@ pub struct RecoverStuckResponse {
 
 /// Request to retry failed chunks for a document.
 ///
-/// @implements FEAT0406 (Chunk retry types)
+/// @implements FEAT0411 (Chunk retry types)
 ///
 /// # OODA-03: Chunk-Level Retry Queue
 ///

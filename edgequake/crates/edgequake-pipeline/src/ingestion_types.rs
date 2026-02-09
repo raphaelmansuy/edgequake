@@ -1,7 +1,7 @@
 //! Unified ingestion types for PDF and Markdown processing.
 //!
 //! @implements SPEC-002: Unified Ingestion Pipeline
-//! @implements FEAT0002: Unified Ingestion Types
+//! @implements FEAT0001: Document Ingestion Pipeline
 //!
 //! # Purpose
 //!

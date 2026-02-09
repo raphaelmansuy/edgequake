@@ -1,7 +1,7 @@
 //! LLM provider factory for environment-based selection.
 //!
 //! @implements SPEC-032: Ollama/LM Studio provider support
-//! @implements FEAT0017: Multi-provider LLM support
+//! @implements FEAT0018: Multi-provider LLM factory implementation
 //! @implements SPEC-033: Hybrid provider mode (separate LLM and embedding providers)
 //!
 //! # WHY This Factory Exists (Two Separate Provider Paths)

@@ -162,7 +162,7 @@ impl AuthState {
 ///
 /// Checks for a valid API key in the `Authorization` header or `X-API-Key` header.
 /// Format: `Bearer <api-key>` or just the key in `X-API-Key`.
-/// @implements FEAT0803
+/// @implements FEAT0808
 pub async fn api_key_auth(
     axum::extract::State(auth_state): axum::extract::State<AuthState>,
     request: Request,
