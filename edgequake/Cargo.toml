@@ -42,22 +42,6 @@ path = "examples/graph_exploration.rs"
 name = "multi_tenant"
 path = "examples/multi_tenant.rs"
 
-[[bench]]
-name = "chunking_bench"
-harness = false
-
-[[bench]]
-name = "query_bench"
-harness = false
-
-[[bench]]
-name = "storage_bench"
-harness = false
-
-[[bench]]
-name = "graph_performance"
-harness = false
-
 [features]
 default = ["postgres"]
 postgres = ["edgequake-api/postgres", "edgequake-storage/postgres"]
