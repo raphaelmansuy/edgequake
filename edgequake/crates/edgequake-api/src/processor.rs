@@ -343,7 +343,7 @@ impl DocumentTaskProcessor {
             Ok(Some(ws)) => {
                 // Try to create workspace-specific LLM provider with safety limits
                 // @implements OODA-189: Explicit error logging for provider failures
-                // @implements FEAT0777: Safety limits for LLM calls
+                // @implements FEAT0780: Safety limits for LLM calls (DocumentTaskProcessor)
                 let llm_provider_result =
                     ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
 
@@ -987,7 +987,7 @@ impl DocumentTaskProcessor {
         // SPEC-003: Process through pipeline with RESILIENT chunk-level extraction
         // WHY: Uses map-reduce pattern to continue processing even if some chunks fail
         // This enables partial results instead of complete document failure
-        // @implements FEAT0020: Chunk-level resilience and error isolation
+        // @implements FEAT0022: Chunk-level resilience and error isolation (processor)
         // @implements UC2305: System continues processing when individual chunks fail
         let result = match pipeline
             .process_with_resilience(&document_id, &data.text, Some(chunk_progress_callback))

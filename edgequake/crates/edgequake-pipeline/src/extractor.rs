@@ -1158,7 +1158,7 @@ impl Default for GleaningConfig {
 /// - Cost: Each iteration = 1 additional LLM call
 ///
 /// This implements GAP-018: Max Gleaning from LightRAG.
-/// @implements FEAT0304
+/// @implements FEAT0305 (GleaningExtractor)
 pub struct GleaningExtractor {
     /// The underlying LLM provider.
     llm_provider: std::sync::Arc<dyn edgequake_llm::LLMProvider>,

@@ -1016,7 +1016,7 @@ impl AppState {
         match workspace_result {
             Ok(Some(ws)) => {
                 // Try to create workspace-specific LLM provider with safety limits
-                // @implements FEAT0777: Safety limits for LLM calls
+                // @implements FEAT0779: Safety limits for LLM calls (AppState)
                 // @implements BR0777: Hard max_tokens limit enforcement
                 // @implements BR0778: Request timeout enforcement
                 let llm_provider =

@@ -26,7 +26,7 @@
 //! | INV-009 | Pipeline is resumable after crash | ✅ |
 //! | INV-010 | Query timeout is configurable and honored | ✅ |
 //!
-//! @implements FEAT0901: Inviolable Security Test Layer
+//! @implements FEAT0902: Inviolable Security Tests (Core)
 //! @implements BR0901: All invariants must have explicit tests
 
 use std::collections::HashSet;

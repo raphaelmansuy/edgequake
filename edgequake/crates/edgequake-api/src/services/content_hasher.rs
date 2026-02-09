@@ -1,6 +1,6 @@
 //! Content hashing service for document deduplication.
 //!
-//! @implements FEAT0801 - Content hash computation
+//! @implements FEAT0804 - Content hash computation
 //! @implements SPEC-002 - Unified Ingestion Pipeline
 //!
 //! # WHY-OODA83: DRY Principle

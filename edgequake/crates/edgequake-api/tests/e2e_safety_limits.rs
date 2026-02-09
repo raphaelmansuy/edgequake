@@ -5,7 +5,7 @@
 //! - Provider switching actually uses the correct provider during extraction
 //! - Workspace-specific providers are correctly configured
 //!
-//! @implements FEAT0777: Safety limits for LLM calls
+//! @implements FEAT0778: Safety limits for LLM calls (E2E tests)
 //! @implements BR0777: Hard max_tokens limit enforcement
 //! @implements BR0778: Request timeout enforcement
 

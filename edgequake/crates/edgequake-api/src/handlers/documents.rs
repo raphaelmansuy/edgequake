@@ -1,6 +1,6 @@
-//! Document ingestion handlers.
+///! Document ingestion handlers.
 //!
-//! @implements FEAT0401
+//! @implements FEAT0407 (Document REST API Handlers)
 //! @implements FEAT0402
 //!
 //! # Implements
@@ -4312,7 +4312,7 @@ pub async fn recover_stuck(
 
 /// Retry failed chunks for a specific document.
 ///
-/// @implements FEAT0401
+/// @implements FEAT0408 (Chunk retry handler)
 ///
 /// # OODA-03: Chunk-Level Retry Queue
 ///
@@ -4394,7 +4394,7 @@ pub async fn retry_failed_chunks(
 
 /// List failed chunks for a document.
 ///
-/// @implements FEAT0401
+/// @implements FEAT0409
 ///
 /// Returns information about chunks that failed during extraction,
 /// allowing the user to decide which to retry.

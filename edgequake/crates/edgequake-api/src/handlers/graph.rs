@@ -7,7 +7,7 @@
 //! @implements FEAT0202 (Graph Traversal)
 //! @implements FEAT0204 (Graph Analytics)
 //! @implements FEAT0601 (Knowledge Graph Visualization)
-//! @implements FEAT0401 (REST API Service)
+//! @implements FEAT0410 (REST API Service)
 //!
 //! - **UC0101**: Explore Entity Neighborhood
 //! - **UC0104**: View Graph Statistics

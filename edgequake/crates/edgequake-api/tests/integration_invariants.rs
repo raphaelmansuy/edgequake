@@ -11,7 +11,7 @@
 //! 3. Run fast (<100ms each)
 //! 4. Be deterministic
 //!
-//! @implements FEAT0901: Inviolable Security Test Layer
+//! @implements FEAT0904: Integration invariant test layer
 //! @implements BR0901: Integration invariants must be tested
 
 use std::collections::HashMap;

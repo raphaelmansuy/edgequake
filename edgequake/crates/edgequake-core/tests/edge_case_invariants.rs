@@ -12,7 +12,7 @@
 //! 5. Concurrent access
 //! 6. Timeout boundaries
 //!
-//! @implements FEAT0901: Inviolable Security Test Layer
+//! @implements FEAT0903: Edge Case Invariant Tests (Core)
 
 use std::collections::HashSet;
 
