@@ -410,8 +410,6 @@ impl PdfDocumentStorage for PostgresPdfStorage {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // Note: Integration tests would require a test database
     // These are placeholder unit tests
 

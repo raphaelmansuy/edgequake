@@ -788,7 +788,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cost_tracker() {
-        let tracker = CostTracker::new_gpt4o_mini("job-1");
+        let tracker = CostTracker::new_gpt5_nano("job-1");
 
         tracker.record("extract", 1000, 500).await;
         tracker.record("extract", 2000, 1000).await;

@@ -450,6 +450,7 @@ pub fn validate_pdf_data(data: &[u8]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_pdf_processing_status_conversions() {

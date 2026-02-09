@@ -2682,7 +2682,7 @@ mod tests {
 
     #[test]
     fn test_minimal_tokenizer_no_stemming() {
-        let reranker = BM25Reranker::new();
+        let _reranker = BM25Reranker::new();
         // Minimal tokenizer should NOT stem
         let tokens = BM25Reranker::tokenize("running jumps played");
         assert!(tokens.contains(&"running".to_string()));

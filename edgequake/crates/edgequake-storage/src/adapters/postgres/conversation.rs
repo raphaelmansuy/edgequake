@@ -895,8 +895,6 @@ impl PostgresConversationStorage {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // Note: Integration tests require a real database connection
     // and are located in tests/postgres_conversation_integration.rs
 }

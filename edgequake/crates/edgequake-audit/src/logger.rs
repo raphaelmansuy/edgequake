@@ -209,7 +209,6 @@ pub async fn query_audit_logs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::{AuditEventType, AuditResult, AuditSeverity};
 
     #[tokio::test]
     async fn test_audit_logger_creation() {

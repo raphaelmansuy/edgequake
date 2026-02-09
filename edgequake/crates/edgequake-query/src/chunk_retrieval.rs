@@ -294,8 +294,8 @@ mod tests {
         .await
         .unwrap();
 
-        // Should return empty or found chunks
-        assert!(chunks.len() >= 0);
+        // Should return empty or found chunks (no panic expected)
+        assert!(chunks.len() <= 100); // Sanity check for reasonable result size
     }
 
     #[test]
