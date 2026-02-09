@@ -85,6 +85,13 @@ pub struct GraphQueryParams {
     pub max_nodes: usize,
 }
 
+/// WHY: Maximum allowed nodes per graph request - prevents performance issues
+/// even if frontend validation is bypassed. Matches frontend MAX_DISPLAY_NODES.
+pub const MAX_GRAPH_NODES: usize = 500;
+
+/// Maximum traversal depth to prevent exponential explosion.
+pub const MAX_GRAPH_DEPTH: usize = 5;
+
 /// Default traversal depth.
 pub fn default_depth() -> usize {
     2
@@ -93,6 +100,16 @@ pub fn default_depth() -> usize {
 /// Default max nodes.
 pub fn default_max_nodes() -> usize {
     100
+}
+
+impl GraphQueryParams {
+    /// WHY: Defense in depth - clamp parameters to safe ranges even if client sends invalid values
+    /// This ensures server stability regardless of frontend validation.
+    pub fn validated(mut self) -> Self {
+        self.max_nodes = self.max_nodes.clamp(1, MAX_GRAPH_NODES);
+        self.depth = self.depth.clamp(1, MAX_GRAPH_DEPTH);
+        self
+    }
 }
 
 // ============================================================================
@@ -273,6 +290,15 @@ pub struct GraphStreamQueryParams {
     /// Batch size for streaming (how many nodes per chunk).
     #[serde(default = "default_stream_batch_size")]
     pub batch_size: usize,
+}
+
+impl GraphStreamQueryParams {
+    /// WHY: Defense in depth - clamp streaming params to safe ranges
+    pub fn validated(mut self) -> Self {
+        self.max_nodes = self.max_nodes.clamp(1, MAX_GRAPH_NODES);
+        self.batch_size = self.batch_size.clamp(10, 100);
+        self
+    }
 }
 
 /// Default streaming depth.
