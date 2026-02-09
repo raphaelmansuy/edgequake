@@ -35,6 +35,8 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 | Concurrent Users       | 1000+            | ~100            | 10x         |
 | Memory Usage (per doc) | 2MB              | ~8MB            | 4x better   |
 
+⚠️ **Experimental Feature — PDF Ingestion**: PDF-to-Markdown extraction is currently in **experimental/early prototype** stage. For comprehensive testing and evaluation of EdgeQuake's core functionality (entity extraction, knowledge graphs, query modes, etc.), we recommend using **Markdown documents** in your initial setup. This ensures you can fully explore the stable features while we continue to refine the PDF processing pipeline.
+
 ---
 
 ## Features
