@@ -12,33 +12,33 @@ Embeddings are **dense vector representations** of text that capture semantic me
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 EMBEDDING VISUALIZATION                          │
+│                 EMBEDDING VISUALIZATIO                          │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Text: "The cat sat on the mat"                                 │
-│                    ↓                                              │
+│                    ↓                                            │
 │          ┌─────────────────┐                                    │
 │          │ Embedding Model │                                    │
 │          └────────┬────────┘                                    │
-│                   ↓                                              │
-│  Vector: [0.23, -0.15, 0.87, 0.42, ..., -0.31]  (1536 dims)    │
-│                                                                   │
+│                   ↓                                             │
+│  Vector: [0.23, -0.15, 0.87, 0.42, ..., -0.31]  (1536 dims)     │
+│                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Semantic Space (2D projection)                            │   │
-│  │                                                            │   │
-│  │     cat●                  ●dog                            │   │
-│  │       ↖                  ↗                                │   │
+│  │ Semantic Space (2D projection)                           │   │
+│  │                                                          │   │
+│  │     cat●                  ●dog                           │   │
+│  │       ↖                  ↗                               │   │
 │  │  kitten●   ← similar →   ●puppy                          │   │
-│  │                                                            │   │
-│  │                                                            │   │
-│  │         car●          ●truck                              │   │
-│  │               ↖    ↗                                      │   │
-│  │             vehicle●                                       │   │
-│  │                                                            │   │
+│  │                                                          │   │
+│  │                                                          │   │
+│  │         car●          ●truck                             │   │
+│  │               ↖    ↗                                     │   │
+│  │             vehicle●                                     │   │
+│  │                                                          │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  Similar concepts cluster together in vector space              │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,28 +50,28 @@ EdgeQuake uses embeddings at multiple stages:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 EMBEDDING USAGE                                  │
+│                 EMBEDDING USAGE                                 │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  1. DOCUMENT PROCESSING                                         │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Document → Chunks → [Embed] → Store in pgvector          │   │
-│  │                                                            │   │
+│  │                                                          │   │
 │  │ Entities → [Embed] → Store in pgvector                   │   │
-│  │                                                            │   │
+│  │                                                          │   │
 │  │ Relationships → [Embed] → Store in pgvector              │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  2. QUERY PROCESSING                                            │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Query → [Embed] → Vector Search → Top-K results          │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  3. ENTITY MATCHING                                             │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ New Entity → [Embed] → Similar Entity Search → Merge?    │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -116,34 +116,34 @@ export EDGEQUAKE_EMBEDDING_MODEL="nomic-embed-text"
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 DIMENSION TRADEOFFS                              │
+│                 DIMENSION TRADEOFFS                             │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Lower Dimensions (384-768):                                    │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ✅ Faster similarity search                               │   │
-│  │ ✅ Less storage space                                     │   │
-│  │ ✅ Lower memory usage                                     │   │
-│  │ ❌ Less semantic precision                                │   │
-│  │ ❌ May miss subtle distinctions                           │   │
+│  │ ✅ Faster similarity search                               
+│  │ ✅ Less storage space                                    
+│  │ ✅ Lower memory usage                                    
+│  │ ❌ Less semantic precision                               
+│  │ ❌ May miss subtle distinctions                          
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  Higher Dimensions (1536-3072):                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ✅ Better semantic precision                              │   │
-│  │ ✅ Captures subtle nuances                                │   │
-│  │ ✅ Better for specialized domains                         │   │
-│  │ ❌ Slower similarity search                               │   │
-│  │ ❌ More storage required                                  │   │
-│  │ ❌ Higher memory usage                                    │   │
+│  │ ✅ Better semantic precision                             
+│  │ ✅ Captures subtle nuances                               
+│  │ ✅ Better for specialized domains                        
+│  │ ❌ Slower similarity search                              
+│  │ ❌ More storage required                                 
+│  │ ❌ Higher memory usage                                   
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  Storage Impact (100K embeddings):                              │
 │  • 384 dims:  153 MB                                            │
 │  • 768 dims:  307 MB                                            │
 │  • 1536 dims: 614 MB                                            │
 │  • 3072 dims: 1.2 GB                                            │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -213,43 +213,43 @@ LIMIT 10;
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 EMBEDDING PIPELINE                               │
+│                 EMBEDDING PIPELINE                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Input: "Artificial intelligence is transforming..."            │
-│                            ↓                                     │
+│                            ↓                                    │
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ 1. TOKENIZATION                                            │ │
 │  │    Split text into tokens: ["Artificial", "intelligence",  │ │
-│  │                             "is", "transforming", ...]      │ │
+│  │                             "is", "transforming", ...]     │ │
 │  │    Check: tokens < max_tokens (8191 for OpenAI)            │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│                            ↓                                     │
+│                            ↓                                    │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 2. BATCHING                                                 │ │
+│  │ 2. BATCHING                                                │ │
 │  │    Group texts for efficient API calls                     │ │
 │  │    OpenAI: up to 2048 texts per batch                      │ │
 │  │    Ollama: 1 text per call (no batching)                   │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│                            ↓                                     │
+│                            ↓                                    │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 3. API CALL                                                 │ │
+│  │ 3. API CALL                                                │ │
 │  │    POST /v1/embeddings                                     │ │
 │  │    {"input": texts, "model": "text-embedding-3-small"}     │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│                            ↓                                     │
+│                            ↓                                    │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 4. NORMALIZATION                                            │ │
+│  │ 4. NORMALIZATION                                           │ │
 │  │    Ensure unit length: ||v|| = 1                           │ │
 │  │    (OpenAI returns pre-normalized, Ollama may not)         │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│                            ↓                                     │
+│                            ↓                                    │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 5. STORAGE                                                  │ │
+│  │ 5. STORAGE                                                 │ │
 │  │    INSERT INTO embeddings (id, embedding, ...)             │ │
 │  │    VALUES ($1, $2::vector, ...)                            │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -355,25 +355,25 @@ curl http://localhost:8080/api/v1/tasks?status=running
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 BATCH VS SEQUENTIAL                              │
+│                 BATCH VS SEQUENTIAL                             │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Sequential (slow):                                              │
+│                                                                 │
+│  Sequential (slow):                                             │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Text 1 → API → Wait → Text 2 → API → Wait → ...          │   │
-│  │                                                            │   │
-│  │ 100 texts × 100ms = 10 seconds                            │   │
+│  │                                                          │   │
+│  │ 100 texts × 100ms = 10 seconds                           │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
-│  Batched (fast):                                                 │
+│                                                                 │
+│  Batched (fast):                                                │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ [Text 1, Text 2, ..., Text 100] → API → All embeddings   │   │
-│  │                                                            │   │
-│  │ 1 API call = 150ms                                        │   │
+│  │                                                          │   │
+│  │ 1 API call = 150ms                                       │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  Speedup: 67x faster with batching                              │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

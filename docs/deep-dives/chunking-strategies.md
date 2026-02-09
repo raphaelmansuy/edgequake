@@ -10,32 +10,32 @@ This guide explains document chunking in EdgeQuake, including strategies, config
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 THE CHUNKING PROBLEM                             │
+│                 THE CHUNKING PROBLEM                            │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Documents are too large for:                                    │
+│                                                                 │
+│  Documents are too large for:                                   │
 │  • LLM context windows (limited tokens)                         │
 │  • Embedding models (max ~8K tokens)                            │
 │  • Precise retrieval (large docs = low relevance)               │
-│                                                                   │
+│                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ 50-page PDF (25,000 tokens)                               │   │
-│  │                                                            │   │
-│  │ ❌ Can't embed whole document                              │   │
-│  │ ❌ LLM can't process all at once                          │   │
-│  │ ❌ If query matches page 3, all 50 pages retrieved        │   │
+│  │ 50-page PDF (25,000 tokens)                              │   │
+│  │                                                            
+│  │ ❌ Can't embed whole document                              
+│  │ ❌ LLM can't process all at once                          
+│  │ ❌ If query matches page 3, all 50 pages retrieved        │
 │  └──────────────────────────────────────────────────────────┘   │
-│                            ↓                                     │
+│                            ↓                                    │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Solution: Split into chunks                               │   │
-│  │                                                            │   │
+│  │ Solution: Split into chunks                              │   │
+│  │                                                          │   │
 │  │ [Chunk 1: 500 tokens] [Chunk 2: 500 tokens] ...          │   │
-│  │                                                            │   │
-│  │ ✅ Each chunk embeddable                                   │   │
-│  │ ✅ Precise retrieval (only relevant chunks)               │   │
-│  │ ✅ LLM can process multiple chunks in context             │   │
+│  │                                                          │   │
+│  │ ✅ Each chunk embeddable                                   
+│  │ ✅ Precise retrieval (only relevant chunks)               
+│  │ ✅ LLM can process multiple chunks in context             
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -76,31 +76,31 @@ ChunkerConfig {
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 OVERLAP PREVENTS INFORMATION LOSS                │
+│                 OVERLAP PREVENTS INFORMATION LOSS               │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  WITHOUT OVERLAP (Bad):                                          │
+│                                                                 │
+│  WITHOUT OVERLAP (Bad):                                         │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ "Dr. Smith works at Microsoft. He developed the Azure"   │   │
-│  │                              ↑                            │   │
-│  │                          CUT HERE                         │   │
+│  │                              ↑                           │   │
+│  │                          CUT HERE                        │   │
 │  │ "platform with his team at the Seattle campus."          │   │
-│  │                                                            │   │
+│  │                                                          │   │
 │  │ Problem: "He" in chunk 2 has no context                  │   │
 │  │ Problem: "Azure platform" split across chunks            │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
-│  WITH OVERLAP (Good):                                            │
+│                                                                 │
+│  WITH OVERLAP (Good):                                           │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Chunk 1: "Dr. Smith works at Microsoft. He developed"    │   │
 │  │ Chunk 2: "He developed the Azure platform with his team" │   │
-│  │                                                            │   │
-│  │ ✅ "He" has context from overlap                          │   │
-│  │ ✅ "Azure platform" appears complete in chunk 2          │   │
+│  │                                                          │   │
+│  │ ✅ "He" has context from overlap                         
+│  │ ✅ "Azure platform" appears complete in chunk 2          
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  Recommended: 8-15% overlap (100-180 tokens for 1200 chunk)     │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -116,20 +116,20 @@ Splits text by token count, respecting separator hierarchy.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 TOKEN-BASED CHUNKING                             │
+│                 TOKEN-BASED CHUNKING                            │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Input: "Paragraph 1...\n\nParagraph 2...\n\nParagraph 3..."    │
-│                                                                   │
-│  Algorithm:                                                      │
+│                                                                 │
+│  Algorithm:                                                     │
 │  1. Try to split on "\n\n" (paragraph)                          │
 │  2. If chunk too large, try "\n" (line)                         │
 │  3. If still too large, try ". " (sentence)                     │
-│  4. Continue down separator list                                 │
+│  4. Continue down separator list                                │
 │  5. Last resort: split on " " (word)                            │
-│                                                                   │
+│                                                                 │
 │  Result: Clean chunks at natural boundaries                     │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -141,22 +141,22 @@ Never splits mid-sentence, accumulates complete sentences.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 SENTENCE BOUNDARY CHUNKING                       │
+│                 SENTENCE BOUNDARY CHUNKING                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Input: "Sentence 1. Sentence 2. Sentence 3. Sentence 4."       │
-│                                                                   │
-│  Algorithm:                                                      │
+│                                                                 │
+│  Algorithm:                                                     │
 │  1. Split text into sentences                                   │
 │  2. Accumulate sentences until target size                      │
-│  3. Create chunk                                                 │
+│  3. Create chunk                                                │
 │  4. Overlap: Carry last N sentences to next chunk               │
-│                                                                   │
-│  Guarantees:                                                     │
+│                                                                 │
+│  Guarantees:                                                    │
 │  • Every sentence is complete                                   │
 │  • No orphaned pronouns                                         │
 │  • Better entity extraction context                             │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -168,20 +168,20 @@ Splits on a specific character (e.g., newline).
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 CHARACTER-BASED CHUNKING                         │
+│                 CHARACTER-BASED CHUNKING                        │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Use Cases:                                                      │
+│                                                                 │
+│  Use Cases:                                                     │
 │  • Pre-split content (CSV, TSV)                                 │
 │  • Log files (one entry per line)                               │
 │  • Markdown headers (split on "## ")                            │
-│                                                                   │
-│  Configuration:                                                  │
-│  {                                                               │
+│                                                                 │
+│  Configuration:                                                 │
+│  {                                                              │
 │    "split_by_character": "\n",                                  │
 │    "split_by_character_only": true                              │
-│  }                                                               │
-│                                                                   │
+│  }                                                              │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -251,31 +251,31 @@ impl ChunkingStrategy for MarkdownChunking {
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 CHUNK SIZE TRADEOFFS                             │
+│                 CHUNK SIZE TRADEOFFS                            │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  SMALL CHUNKS (256-512 tokens):                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ✅ More precise retrieval                                 │   │
-│  │ ✅ Lower per-chunk embedding cost                         │   │
-│  │ ✅ Faster embedding generation                            │   │
-│  │ ❌ More LLM extraction calls                              │   │
-│  │ ❌ Less context per chunk                                 │   │
-│  │ ❌ Entity relationships may span chunks                   │   │
+│  │ ✅ More precise retrieval                                 
+│  │ ✅ Lower per-chunk embedding cost                         
+│  │ ✅ Faster embedding generation                            
+│  │ ❌ More LLM extraction calls                              
+│  │ ❌ Less context per chunk                                 
+│  │ ❌ Entity relationships may span chunks                   
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  LARGE CHUNKS (1024-2048 tokens):                               │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ✅ Better context for entity extraction                   │   │
-│  │ ✅ Fewer LLM calls                                        │   │
-│  │ ✅ Relationships captured within chunk                    │   │
-│  │ ❌ Lower retrieval precision                              │   │
-│  │ ❌ Higher per-chunk embedding cost                        │   │
-│  │ ❌ May hit embedding model limits                         │   │
+│  │ ✅ Better context for entity extraction                 
+│  │ ✅ Fewer LLM calls                                        
+│  │ ✅ Relationships captured within chunk                    
+│  │ ❌ Lower retrieval precision                              
+│  │ ❌ Higher per-chunk embedding cost                        
+│  │ ❌ May hit embedding model limits                         
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  Recommendation: Start with 1200 tokens (default)               │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -387,47 +387,47 @@ let config = PipelineConfig {
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 CHUNKING PIPELINE                                │
+│                 CHUNKING PIPELINE                               │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Document Text                                                   │
-│       ↓                                                          │
+│                                                                 │
+│  Document Text                                                  │
+│       ↓                                                         │
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ 1. PREPROCESSING                                           │ │
 │  │    • Remove excessive whitespace                           │ │
 │  │    • Normalize line endings                                │ │
 │  │    • Handle Unicode normalization                          │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                          │
+│       ↓                                                         │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 2. SEPARATOR DETECTION                                      │ │
+│  │ 2. SEPARATOR DETECTION                                     │ │
 │  │    • Find paragraph breaks ("\n\n")                        │ │
 │  │    • Find line breaks ("\n")                               │ │
 │  │    • Find sentence endings (". ", "! ", "? ")              │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                          │
+│       ↓                                                         │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 3. SPLIT ON BEST SEPARATOR                                  │ │
+│  │ 3. SPLIT ON BEST SEPARATOR                                 │ │
 │  │    • Try highest priority separator first                  │ │
 │  │    • If chunks too large, try next separator               │ │
 │  │    • Continue until target size reached                    │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                          │
+│       ↓                                                         │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 4. OVERLAP CREATION                                         │ │
+│  │ 4. OVERLAP CREATION                                        │ │
 │  │    • Copy end of chunk N to start of chunk N+1             │ │
 │  │    • Ensure overlap respects sentence boundaries           │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                          │
+│       ↓                                                         │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 5. METADATA ENRICHMENT                                      │ │
+│  │ 5. METADATA ENRICHMENT                                     │ │
 │  │    • Calculate line numbers                                │ │
 │  │    • Assign chunk indices                                  │ │
 │  │    • Generate chunk IDs                                    │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                          │
-│  Vec<TextChunk>                                                  │
-│                                                                   │
+│       ↓                                                         │
+│  Vec<TextChunk>                                                 │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

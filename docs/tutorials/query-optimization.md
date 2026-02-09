@@ -16,27 +16,27 @@ EdgeQuake provides 6 query modes, each with different strengths:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   QUERY MODE DECISION TREE                       │
+│                   QUERY MODE DECISION TREE                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  "What are the main themes?"  ──────────▶  GLOBAL                │
-│  (overview, summary)                                              │
-│                                                                   │
-│  "Who is Sarah Chen?"  ─────────────────▶  LOCAL                 │
-│  (specific entity)                                                │
-│                                                                   │
-│  "How does X work?"  ───────────────────▶  HYBRID                │
-│  (general questions)                                              │
-│                                                                   │
-│  "Find documents about..."  ────────────▶  NAIVE                 │
-│  (keyword search)                                                 │
-│                                                                   │
-│  "Complex multi-part question"  ────────▶  MIX                   │
-│  (needs weighted combination)                                     │
-│                                                                   │
-│  "Just chat, no retrieval"  ────────────▶  BYPASS                │
-│  (direct LLM)                                                     │
-│                                                                   │
+│                                                                 │
+│  "What are the main themes?"  ──────────▶  GLOBAL               │
+│  (overview, summary)                                            │
+│                                                                 │
+│  "Who is Sarah Chen?"  ─────────────────▶  LOCAL                │
+│  (specific entity)                                              │
+│                                                                 │
+│  "How does X work?"  ───────────────────▶  HYBRID               │
+│  (general questions)                                            │
+│                                                                 │
+│  "Find documents about..."  ────────────▶  NAIVE                │
+│  (keyword search)                                               │
+│                                                                 │
+│  "Complex multi-part question"  ────────▶  MIX                  │
+│  (needs weighted combination)                                   │
+│                                                                 │
+│  "Just chat, no retrieval"  ────────────▶  BYPASS               │
+│  (direct LLM)                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -65,7 +65,7 @@ curl -X POST "http://localhost:8080/api/v1/query?workspace_id=$WORKSPACE_ID" \
 
 ### When to Use
 
-| ✅ Good For           | ❌ Avoid For           |
+| ✅ Good For           | ❌ Avoid For            |
 | --------------------- | ---------------------- |
 | Keyword search        | Multi-hop reasoning    |
 | Finding similar docs  | Relationship questions |
@@ -114,7 +114,7 @@ curl -X POST "http://localhost:8080/api/v1/query?workspace_id=$WORKSPACE_ID" \
 
 ### When to Use
 
-| ✅ Good For          | ❌ Avoid For        |
+| ✅ Good For          | ❌ Avoid For         |
 | -------------------- | ------------------- |
 | "Who is X?"          | Overview questions  |
 | "What does X do?"    | Theme analysis      |

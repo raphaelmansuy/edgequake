@@ -12,34 +12,34 @@ EdgeQuake implements graph clustering algorithms to discover communities:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    COMMUNITY DETECTION PIPELINE                  │
+│                    COMMUNITY DETECTION PIPELINE                 │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Input Graph:                                                     │
-│                                                                   │
-│     A──────B              E──────F                               │
-│     │ ╲    │              │ ╲    │                               │
-│     │  ╲   │              │  ╲   │                               │
-│     C──────D  . . . . . . G──────H                               │
-│                weak                                               │
-│              connection                                           │
-│                                                                   │
-│  ═══════════════════════════════════════════════════════════════ │
-│                                                                   │
-│  After Detection (Louvain):                                       │
-│                                                                   │
+│                                                                 │
+│  Input Graph:                                                   │
+│                                                                 │
+│     A──────B              E──────F                              │
+│     │ ╲    │              │ ╲    │                              │
+│     │  ╲   │              │  ╲   │                              │
+│     C──────D  . . . . . . G──────H                              │
+│                weak                                             │
+│              connection                                         │
+│                                                                 │
+│  ══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  After Detection (Louvain):                                     │
+│                                                                 │
 │  ┌─────────────────┐      ┌─────────────────┐                   │
-│  │  Community 0     │      │  Community 1     │                   │
-│  │                  │      │                  │                   │
-│  │   A──────B       │      │   E──────F       │                   │
-│  │   │ ╲    │       │      │   │ ╲    │       │                   │
-│  │   │  ╲   │       │      │   │  ╲   │       │                   │
-│  │   C──────D       │      │   G──────H       │                   │
-│  │                  │      │                  │                   │
+│  │  Community 0    │      │  Community 1    │                   │
+│  │                 │      │                 │                   │
+│  │   A──────B      │      │   E──────F      │                   │
+│  │   │ ╲    │      │      │   │ ╲    │      │                   │
+│  │   │  ╲   │      │      │   │  ╲   │      │                   │
+│  │   C──────D      │      │   G──────H      │                   │
+│  │                 │      │                 │                   │
 │  └─────────────────┘      └─────────────────┘                   │
-│                                                                   │
-│  Modularity Score: 0.42 (good partition quality)                 │
-│                                                                   │
+│                                                                 │
+│  Modularity Score: 0.42 (good partition quality)                │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,32 +123,32 @@ Greedy modularity optimization in two phases:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    LOUVAIN ALGORITHM                             │
+│                    LOUVAIN ALGORITHM                            │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  PHASE 1: Local Optimization                                     │
-│  ───────────────────────────                                     │
-│                                                                   │
-│  for each node n:                                                │
-│    current_community = community(n)                              │
-│    for each neighbor_community c:                                │
+│                                                                 │
+│  PHASE 1: Local Optimization                                    │
+│  ───────────────────────────                                    │
+│                                                                 │
+│  for each node n:                                               │
+│    current_community = community(n)                             │
+│    for each neighbor_community c:                               │
 │      gain = modularity_gain(move n to c)                        │
-│      if gain > best_gain:                                        │
-│        best_gain = gain                                          │
-│        best_community = c                                        │
-│    if best_gain > 0:                                             │
-│      move n to best_community                                    │
-│                                                                   │
-│  Repeat until no improvement                                     │
-│                                                                   │
-│  ═══════════════════════════════════════════════════════════════ │
-│                                                                   │
+│      if gain > best_gain:                                       │
+│        best_gain = gain                                         │
+│        best_community = c                                       │
+│    if best_gain > 0:                                            │
+│      move n to best_community                                   │
+│                                                                 │
+│  Repeat until no improvement                                    │
+│                                                                 │
+│  ══════════════════════════════════════════════════════════════ │
+│                                                                 │
 │  PHASE 2: Aggregation (simplified in EdgeQuake)                 │
-│  ──────────────────────────────────────────────                  │
-│                                                                   │
-│  Collapse communities into super-nodes                           │
+│  ──────────────────────────────────────────────                 │
+│                                                                 │
+│  Collapse communities into super-nodes                          │
 │  Repeat Phase 1 on aggregated graph                             │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -182,19 +182,19 @@ Fast propagation of community labels:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    LABEL PROPAGATION                             │
+│                    LABEL PROPAGATION                            │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Iteration 0:   A₀  B₁  C₂  D₃  E₄  (each node unique label)   │
-│                 │   │   │   │                                    │
-│                 └───┴───┴───┘                                    │
-│                                                                   │
-│  Iteration 1:   A₀  B₀  C₀  D₀  E₄  (majority voting)          │
-│                                                                   │
-│  Iteration 2:   A₀  B₀  C₀  D₀  E₀  (converged)                │
-│                                                                   │
-│  Result: Community {A, B, C, D, E}                               │
-│                                                                   │
+│                                                                 │
+│  Iteration 0:   A₀  B₁  C₂  D₃  E₄  (each node unique label)    │
+│                 │   │   │   │                                   │
+│                 └───┴───┴───┘                                   │
+│                                                                 │
+│  Iteration 1:   A₀  B₀  C₀  D₀  E₄  (majority voting)           │
+│                                                                 │
+│  Iteration 2:   A₀  B₀  C₀  D₀  E₀  (converged)                 │
+│                                                                 │
+│  Result: Community {A, B, C, D, E}                              │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -215,19 +215,19 @@ Baseline algorithm finding disconnected subgraphs:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    CONNECTED COMPONENTS                          │
+│                    CONNECTED COMPONENTS                         │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Graph:        A───B       E───F                                 │
-│                │   │                                              │
-│                C───D       G                                      │
-│                                                                   │
+│                                                                 │
+│  Graph:        A───B       E───F                                │
+│                │   │                                            │
+│                C───D       G                                    │
+│                                                                 │
 │  Components:   ┌─────────┐ ┌─────┐ ┌───┐                        │
 │                │ A,B,C,D │ │ E,F │ │ G │                        │
 │                └─────────┘ └─────┘ └───┘                        │
-│                                                                   │
-│  Simple BFS/DFS traversal                                        │
-│                                                                   │
+│                                                                 │
+│  Simple BFS/DFS traversal                                       │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -338,33 +338,33 @@ The Global Query strategy uses communities to generate high-level summaries:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    GLOBAL QUERY PIPELINE                         │
+│                    GLOBAL QUERY PIPELINE                        │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  1. Detect Communities                                           │
-│     ┌──────────────┐                                             │
+│                                                                 │
+│  1. Detect Communities                                          │
+│     ┌──────────────┐                                            │
 │     │ Louvain      │──▶ Communities with members                │
-│     └──────────────┘                                             │
-│                                                                   │
-│  2. Generate Community Summaries (LLM)                           │
-│     ┌──────────────┐                                             │
-│     │ For each     │                                             │
-│     │ community:   │──▶ "This cluster contains AI researchers..." │
-│     │ summarize    │                                             │
-│     └──────────────┘                                             │
-│                                                                   │
-│  3. Query Against Summaries                                       │
-│     ┌──────────────┐                                             │
+│     └──────────────┘                                            │
+│                                                                 │
+│  2. Generate Community Summaries (LLM)                          │
+│     ┌──────────────┐                                            │
+│     │ For each     │                                            │
+│     │ community:   │──▶ "This cluster contains AI researchers..." 
+│     │ summarize    │                                            │
+│     └──────────────┘                                            │
+│                                                                 │
+│  3. Query Against Summaries                                     │
+│     ┌──────────────┐                                            │
 │     │ Vector       │──▶ Top-k relevant communities              │
-│     │ similarity   │                                             │
-│     └──────────────┘                                             │
-│                                                                   │
-│  4. Synthesize Answer                                             │
-│     ┌──────────────┐                                             │
+│     │ similarity   │                                            │
+│     └──────────────┘                                            │
+│                                                                 │
+│  4. Synthesize Answer                                           │
+│     ┌──────────────┐                                            │
 │     │ LLM answer   │──▶ "The major themes in the corpus are..." │
-│     │ from themes  │                                             │
-│     └──────────────┘                                             │
-│                                                                   │
+│     │ from themes  │                                            │
+│     └──────────────┘                                            │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

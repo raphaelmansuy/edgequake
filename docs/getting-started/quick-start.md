@@ -15,8 +15,8 @@ By the end of this guide, you will have:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Your First Flow                         │
-│                                                              │
+│                      Your First Flow                        │
+│                                                             │
 │   Document ───▶ [EdgeQuake] ───▶ Knowledge Graph            │
 │   "Marie Curie       │          ┌───────────────┐           │
 │    discovered        │          │ MARIE_CURIE   │           │
@@ -94,28 +94,28 @@ curl http://localhost:8080/api/v1/entities | jq '.entities[:5]'
 
 ```
 ┌─────────────────────────────────────────────────┐
-│ Extracted Knowledge Graph                        │
+│ Extracted Knowledge Graph                       │
 ├─────────────────────────────────────────────────┤
-│                                                  │
+│                                                 │
 │   ┌─────────────┐       ┌─────────────┐         │
 │   │MARIE_CURIE  │──────▶│NOBEL_PRIZE  │         │
 │   │  (PERSON)   │       │  (EVENT)    │         │
 │   └──────┬──────┘       └─────────────┘         │
-│          │                                       │
-│          │ married_to                            │
-│          ▼                                       │
+│          │                                      │
+│          │ married_to                           │
+│          ▼                                      │
 │   ┌─────────────┐       ┌─────────────┐         │
 │   │PIERRE_CURIE │       │  POLAND     │         │
 │   │  (PERSON)   │       │ (LOCATION)  │         │
 │   └─────────────┘       └─────────────┘         │
-│          │                    ▲                  │
-│          │                    │ named_after      │
-│          ▼                    │                  │
+│          │                    ▲                 │
+│          │                    │ named_after     │
+│          ▼                    │                 │
 │   ┌─────────────┐       ┌─────────────┐         │
 │   │UNIV_PARIS   │       │  POLONIUM   │         │
 │   │(ORGANIZATION│       │ (CONCEPT)   │         │
 │   └─────────────┘       └─────────────┘         │
-│                                                  │
+│                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -210,16 +210,16 @@ curl -X POST http://localhost:8080/api/v1/query \
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    WebUI Graph View                          │
+│                    WebUI Graph View                         │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │                     ○ NOBEL_PRIZE                      │  │
-│  │                    ╱                                   │  │
+│  │                     ○ NOBEL_PRIZE                     │  │
+│  │                    ╱                                  │  │
 │  │         ○ MARIE_CURIE ──────○ RADIUM                  │  │
-│  │        ╱│╲                                             │  │
-│  │       ╱ │ ╲                                            │  │
-│  │      ○  ○  ○                                           │  │
-│  │   PIERRE POLAND POLONIUM                               │  │
-│  │                                                        │  │
+│  │        ╱│╲                                            │  │
+│  │       ╱ │ ╲                                           │  │
+│  │      ○  ○  ○                                          │  │
+│  │   PIERRE POLAND POLONIUM                              │  │
+│  │                                                       │  │
 │  │  [Zoom] [Pan] [Reset] [Filter: PERSON ▼]              │  │
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
@@ -265,26 +265,26 @@ curl -X POST http://localhost:8080/api/v1/query \
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Processing Pipeline                       │
-│                                                              │
-│  1. CHUNKING                                                 │
+│                    Processing Pipeline                      │
+│                                                             │
+│  1. CHUNKING                                                │
 │     └─ Document split into 1200-token chunks                │
-│                                                              │
-│  2. ENTITY EXTRACTION                                        │
+│                                                             │
+│  2. ENTITY EXTRACTION                                       │
 │     └─ LLM identifies: MARIE_CURIE, PIERRE_CURIE, etc.      │
-│                                                              │
-│  3. RELATIONSHIP EXTRACTION                                  │
+│                                                             │
+│  3. RELATIONSHIP EXTRACTION                                 │
 │     └─ LLM finds: "married_to", "discovered", etc.          │
-│                                                              │
-│  4. EMBEDDING                                                │
+│                                                             │
+│  4. EMBEDDING                                               │
 │     └─ Vector embeddings for chunks, entities, relations    │
-│                                                              │
-│  5. GRAPH CONSTRUCTION                                       │
+│                                                             │
+│  5. GRAPH CONSTRUCTION                                      │
 │     └─ Nodes + Edges stored in knowledge graph              │
-│                                                              │
-│  6. DEDUPLICATION                                            │
+│                                                             │
+│  6. DEDUPLICATION                                           │
 │     └─ Similar entities merged (MARIE_CURIE = Curie)        │
-│                                                              │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 

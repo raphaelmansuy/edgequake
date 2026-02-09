@@ -25,39 +25,39 @@ EdgeQuake is a **production-grade Rust implementation** of the LightRAG algorith
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│               LIGHTRAG PYTHON ARCHITECTURE                       │
+│               LIGHTRAG PYTHON ARCHITECTURE                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  lightrag = LightRAG(                                           │
 │      working_dir="./rag_storage",                               │
 │      llm_model=gpt_4o_mini_complete,                            │
-│      embedding_func=openai_embedding                             │
-│  )                                                               │
-│                                                                   │
+│      embedding_func=openai_embedding                            │
+│  )                                                              │
+│                                                                 │
 │  lightrag.insert(document_text)  # Blocking                     │
 │  result = lightrag.query(question, mode="hybrid")               │
-│                                                                   │
+│                                                                 │
 │  Storage: JSON files in working_dir                             │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 
                               ↓ Migration ↓
 
 ┌─────────────────────────────────────────────────────────────────┐
-│               EDGEQUAKE RUST ARCHITECTURE                        │
+│               EDGEQUAKE RUST ARCHITECTURE                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  # Start server                                                  │
+│                                                                 │
+│  # Start server                                                 │
 │  DATABASE_URL="postgresql://..." \                              │
 │  OPENAI_API_KEY="sk-..." \                                      │
-│  edgequake                                                       │
-│                                                                   │
-│  # API calls                                                     │
+│  edgequake                                                      │
+│                                                                 │
+│  # API calls                                                    │
 │  POST /api/v1/documents  # Async processing                     │
 │  POST /api/v1/query      # {"mode": "hybrid"}                   │
-│                                                                   │
+│                                                                 │
 │  Storage: PostgreSQL with pgvector + Apache AGE                 │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

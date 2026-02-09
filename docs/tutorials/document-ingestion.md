@@ -14,42 +14,42 @@ This tutorial explores EdgeQuake's document processing pipeline in depth, coveri
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   DOCUMENT INGESTION PIPELINE                    │
+│                   DOCUMENT INGESTION PIPELINE                   │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Document ─────────────────────────────────────────────────────▶ │
-│      │                                                            │
-│      ▼                                                            │
-│  ┌─────────────┐                                                 │
+│                                                                 │
+│  Document ─────────────────────────────────────────────────────▶ 
+│      │                                                          │
+│      ▼                                                          │
+│  ┌─────────────┐                                                │
 │  │  1. Parse   │ Extract text from PDF, DOCX, TXT, HTML         │
-│  └──────┬──────┘                                                 │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌─────────────┐                                                 │
+│  └──────┬──────┘                                                │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐                                                │
 │  │  2. Chunk   │ Split into semantic units (1200 tokens default)│
-│  └──────┬──────┘                                                 │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌─────────────┐                                                 │
+│  └──────┬──────┘                                                │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐                                                │
 │  │ 3. Extract  │ LLM extracts entities + relationships          │
-│  │   (per chunk)│ Runs in parallel                               │
-│  └──────┬──────┘                                                 │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌─────────────┐                                                 │
+│  │   (per chunk)│ Runs in parallel                              │
+│  └──────┬──────┘                                                │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐                                                │
 │  │ 4. Normalize│ Deduplicate entities, merge descriptions       │
-│  └──────┬──────┘                                                 │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌─────────────┐                                                 │
+│  └──────┬──────┘                                                │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐                                                │
 │  │  5. Embed   │ Generate embeddings for chunks + entities      │
-│  └──────┬──────┘                                                 │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌─────────────┐                                                 │
+│  └──────┬──────┘                                                │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐                                                │
 │  │  6. Store   │ Save to PostgreSQL (pgvector + AGE)            │
-│  └─────────────┘                                                 │
-│                                                                   │
+│  └─────────────┘                                                │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -550,21 +550,21 @@ curl -X POST "http://localhost:8080/api/v1/documents?workspace_id=$WORKSPACE_ID"
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   GLEANING PROCESS                               │
+│                   GLEANING PROCESS                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Pass 1: Initial Extraction                                     │
 │  ─────────────────────────                                      │
 │  LLM extracts: [SARAH_CHEN, TECHCORP, NEURALSEARCH]             │
-│                                                                   │
+│                                                                 │
 │  Pass 2: Glean (review for missed entities)                     │
 │  ───────────────────────────────────────────                    │
 │  Prompt: "Review text for entities you may have missed"         │
 │  LLM extracts: [GOOGLE_DEEPMIND, VENTURE_PARTNERS_CAPITAL]      │
-│                                                                   │
+│                                                                 │
 │  Combined: 5 entities (vs 3 from single pass)                   │
-│  Improvement: +67% recall                                        │
-│                                                                   │
+│  Improvement: +67% recall                                       │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

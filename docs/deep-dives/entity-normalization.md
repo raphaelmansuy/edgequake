@@ -29,40 +29,40 @@ Consider a document mentioning "Sarah Chen" in different ways:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│            WITHOUT NORMALIZATION (Fragmented Graph)              │
+│            WITHOUT NORMALIZATION (Fragmented Graph)             │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│    ┌────────────────┐                                            │
-│    │   Sarah Chen   │ ← From chunk 1                             │
-│    └───────┬────────┘                                            │
-│            │ WORKS_AT                                            │
-│            ▼                                                     │
-│    ┌────────────────┐                                            │
-│    │      MIT       │                                            │
-│    └────────────────┘                                            │
-│                                                                   │
-│    ┌────────────────┐                                            │
+│                                                                 │
+│    ┌────────────────┐                                           │
+│    │   Sarah Chen   │ ← From chunk 1                            │
+│    └───────┬────────┘                                           │
+│            │ WORKS_AT                                           │
+│            ▼                                                    │
+│    ┌────────────────┐                                           │
+│    │      MIT       │                                           │
+│    └────────────────┘                                           │
+│                                                                 │
+│    ┌────────────────┐                                           │
 │    │   sarah chen   │ ← From chunk 2 (different node!)          │
-│    └───────┬────────┘                                            │
-│            │ AUTHORED                                            │
-│            ▼                                                     │
-│    ┌────────────────┐                                            │
-│    │  Climate Paper │                                            │
-│    └────────────────┘                                            │
-│                                                                   │
-│    ┌────────────────┐                                            │
+│    └───────┬────────┘                                           │
+│            │ AUTHORED                                           │
+│            ▼                                                    │
+│    ┌────────────────┐                                           │
+│    │  Climate Paper │                                           │
+│    └────────────────┘                                           │
+│                                                                 │
+│    ┌────────────────┐                                           │
 │    │  Dr. S. Chen   │ ← From chunk 3 (yet another node!)        │
-│    └───────┬────────┘                                            │
-│            │ RESEARCHES                                          │
-│            ▼                                                     │
-│    ┌────────────────┐                                            │
-│    │  Machine Learning │                                         │
-│    └────────────────┘                                            │
-│                                                                   │
-│    PROBLEM: 3 nodes for the same person!                         │
-│             Relationships are disconnected.                      │
-│             Query "Sarah Chen at MIT" misses paper authorship.   │
-│                                                                   │
+│    └───────┬────────┘                                           │
+│            │ RESEARCHES                                         │
+│            ▼                                                    │
+│    ┌────────────────┐                                           │
+│    │  Machine Learning │                                        │
+│    └────────────────┘                                           │
+│                                                                 │
+│    PROBLEM: 3 nodes for the same person!                        │
+│             Relationships are disconnected.                     │
+│             Query "Sarah Chen at MIT" misses paper authorship.  │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -85,21 +85,21 @@ EdgeQuake normalizes all entity names to a canonical format before storage.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│              WITH NORMALIZATION (Unified Graph)                  │
+│              WITH NORMALIZATION (Unified Graph)                 │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│                    ┌────────────────┐                            │
+│                                                                 │
+│                    ┌────────────────┐                           │
 │          ┌─────── │   SARAH_CHEN   │ ───────┐                   │
-│          │        └───────┬────────┘        │                    │
-│          │ WORKS_AT       │ AUTHORED        │ RESEARCHES         │
-│          ▼                ▼                 ▼                    │
+│          │        └───────┬────────┘        │                   │
+│          │ WORKS_AT       │ AUTHORED        │ RESEARCHES        │
+│          ▼                ▼                 ▼                   │
 │    ┌──────────┐    ┌──────────────┐   ┌─────────────────┐       │
 │    │   MIT    │    │CLIMATE_PAPER │   │MACHINE_LEARNING │       │
 │    └──────────┘    └──────────────┘   └─────────────────┘       │
-│                                                                   │
-│    RESULT: Single node with all relationships!                   │
-│            "Sarah Chen at MIT" now finds paper AND ML research   │
-│                                                                   │
+│                                                                 │
+│    RESULT: Single node with all relationships!                  │
+│            "Sarah Chen at MIT" now finds paper AND ML research  │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -121,66 +121,66 @@ The `normalize_entity_name()` function applies these transformations in order:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                  NORMALIZATION PIPELINE                          │
+│                  NORMALIZATION PIPELINE                         │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Input: "  The John Doe's Company  "                            │
-│         │                                                        │
-│         ▼                                                        │
+│         │                                                       │
+│         ▼                                                       │
 │  ┌─────────────────────────────────────┐                        │
 │  │ Step 1: TRIM WHITESPACE             │                        │
 │  │ "  The John Doe's Company  "        │                        │
 │  │  → "The John Doe's Company"         │                        │
 │  └─────────────────┬───────────────────┘                        │
-│                    │                                             │
-│                    ▼                                             │
+│                    │                                            │
+│                    ▼                                            │
 │  ┌─────────────────────────────────────┐                        │
 │  │ Step 2: REMOVE PREFIXES             │                        │
 │  │ Removes: "The ", "A ", "An "        │                        │
 │  │ "The John Doe's Company"            │                        │
 │  │  → "John Doe's Company"             │                        │
 │  └─────────────────┬───────────────────┘                        │
-│                    │                                             │
-│                    ▼                                             │
+│                    │                                            │
+│                    ▼                                            │
 │  ┌─────────────────────────────────────┐                        │
 │  │ Step 3: SPLIT BY WHITESPACE         │                        │
 │  │ "John Doe's Company"                │                        │
 │  │  → ["John", "Doe's", "Company"]     │                        │
 │  └─────────────────┬───────────────────┘                        │
-│                    │                                             │
-│                    ▼                                             │
+│                    │                                            │
+│                    ▼                                            │
 │  ┌─────────────────────────────────────┐                        │
 │  │ Step 4: REMOVE POSSESSIVES          │                        │
 │  │ Each word: strip "'s" suffix        │                        │
 │  │ ["John", "Doe's", "Company"]        │                        │
 │  │  → ["John", "Doe", "Company"]       │                        │
 │  └─────────────────┬───────────────────┘                        │
-│                    │                                             │
-│                    ▼                                             │
+│                    │                                            │
+│                    ▼                                            │
 │  ┌─────────────────────────────────────┐                        │
 │  │ Step 5: TITLE CASE EACH WORD        │                        │
 │  │ First letter upper, rest lower      │                        │
 │  │ ["John", "Doe", "Company"]          │                        │
 │  │  → ["John", "Doe", "Company"]       │                        │
 │  └─────────────────┬───────────────────┘                        │
-│                    │                                             │
-│                    ▼                                             │
+│                    │                                            │
+│                    ▼                                            │
 │  ┌─────────────────────────────────────┐                        │
 │  │ Step 6: JOIN WITH UNDERSCORES       │                        │
 │  │ ["John", "Doe", "Company"]          │                        │
 │  │  → "John_Doe_Company"               │                        │
 │  └─────────────────┬───────────────────┘                        │
-│                    │                                             │
-│                    ▼                                             │
+│                    │                                            │
+│                    ▼                                            │
 │  ┌─────────────────────────────────────┐                        │
 │  │ Step 7: UPPERCASE                   │                        │
 │  │ "John_Doe_Company"                  │                        │
 │  │  → "JOHN_DOE_COMPANY"               │                        │
 │  └─────────────────────────────────────┘                        │
-│                    │                                             │
-│                    ▼                                             │
+│                    │                                            │
+│                    ▼                                            │
 │  Output: "JOHN_DOE_COMPANY"                                     │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

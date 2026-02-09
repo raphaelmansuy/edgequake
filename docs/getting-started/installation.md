@@ -181,9 +181,9 @@ curl http://localhost:8080/api/v1/config | jq .llm_provider
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Storage Options                          │
+│                     Storage Options                         │
 ├─────────────────────────────────────────────────────────────┤
-│                                                              │
+│                                                             │
 │  ┌──────────────────┐          ┌──────────────────┐         │
 │  │   PostgreSQL     │          │    In-Memory     │         │
 │  │  + pgvector      │          │                  │         │
@@ -191,7 +191,7 @@ curl http://localhost:8080/api/v1/config | jq .llm_provider
 │  │                  │          │   (No persist)   │         │
 │  │  [Production]    │          │   [Development]  │         │
 │  └──────────────────┘          └──────────────────┘         │
-│                                                              │
+│                                                             │
 │  DATABASE_URL set?  ────▶ Yes: Use PostgreSQL               │
 │                     ────▶ No:  Use In-Memory                │
 └─────────────────────────────────────────────────────────────┘

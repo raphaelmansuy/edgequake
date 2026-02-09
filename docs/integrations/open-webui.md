@@ -12,31 +12,31 @@ Open WebUI is a popular ChatGPT-style interface that connects to Ollama. EdgeQua
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 OPEN WEBUI + EDGEQUAKE                           │
+│                 OPEN WEBUI + EDGEQUAKE                          │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐    │
-│  │                    Open WebUI                            │    │
+│  │                    Open WebUI                           │    │
 │  │  ┌─────────────────────────────────────────────────┐    │    │
-│  │  │ User: "What is the relationship between X and Y?"│    │    │
-│  │  │                                                   │    │    │
+│  │  │ User: "What is the relationship between X and Y?"    │    │
+│  │  │                                                      │    │
 │  │  │ Assistant: Based on the documents, X and Y...   │    │    │
 │  │  └─────────────────────────────────────────────────┘    │    │
 │  └────────────────────────┬────────────────────────────────┘    │
-│                           │                                       │
-│                     Ollama API                                    │
-│                    (POST /api/chat)                              │
-│                           │                                       │
-│                           ↓                                       │
+│                           │                                     │
+│                     Ollama API                                  │
+│                    (POST /api/chat)                             │
+│                           │                                     │
+│                           ↓                                     │
 │  ┌─────────────────────────────────────────────────────────┐    │
-│  │                    EdgeQuake                             │    │
-│  │                                                          │    │
+│  │                    EdgeQuake                            │    │
+│  │                                                         │    │
 │  │  • Ollama API Emulation                                 │    │
 │  │  • Graph-RAG Query Processing                           │    │
 │  │  • Knowledge Graph Retrieval                            │    │
 │  │  • LLM Response Generation                              │    │
 │  └─────────────────────────────────────────────────────────┘    │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -223,20 +223,20 @@ EdgeQuake supports real-time streaming responses:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 STREAMING FLOW                                   │
+│                 STREAMING FLOW                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Open WebUI → POST /api/chat {"stream": true}                   │
-│                                                                   │
+│                                                                 │
 │  EdgeQuake Response (newline-delimited JSON):                   │
-│                                                                   │
+│                                                                 │
 │  {"message":{"content":"Based"},"done":false}                   │
 │  {"message":{"content":" on"},"done":false}                     │
 │  {"message":{"content":" the"},"done":false}                    │
 │  {"message":{"content":" documents"},"done":false}              │
-│  ...                                                             │
+│  ...                                                            │
 │  {"message":{"content":""},"done":true,"total_duration":1234}   │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -360,8 +360,8 @@ curl http://localhost:8080/api/v1/documents?workspace_id=default
 
 ## Limitations
 
-| Feature                        | Status                  |
-| ------------------------------ | ----------------------- |
+| Feature                        | Status                  
+| ------------------------------ | ----------------------- 
 | Chat completions               | ✅ Full support         |
 | Streaming                      | ✅ Full support         |
 | Query modes                    | ✅ Via prefixes         |

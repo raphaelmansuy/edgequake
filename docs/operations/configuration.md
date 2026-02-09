@@ -10,19 +10,19 @@ EdgeQuake is configured through environment variables and a `models.toml` file. 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   CONFIGURATION PRIORITY                         │
+│                   CONFIGURATION PRIORITY                        │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  1. Environment Variables (highest priority)                    │
-│     │                                                            │
+│     │                                                           │
 │  2. models.toml (for LLM/embedding configuration)               │
 │     │   - EDGEQUAKE_MODELS_CONFIG env var path                  │
 │     │   - ./models.toml (current directory)                     │
 │     │   - ~/.edgequake/models.toml                              │
 │     │   - Built-in defaults                                     │
-│     │                                                            │
+│     │                                                           │
 │  3. Compile-time defaults (lowest priority)                     │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -424,11 +424,11 @@ EdgeQuake validates configuration at startup:
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║   ⚡ EdgeQuake v0.1.0                                        ║
+║   ⚡ EdgeQuake v0.1.0                                         ║
 ║                                                              ║
-║   🐘 Storage: POSTGRESQL (persistent)                        ║
-║   🌐 Server:  http://0.0.0.0:8080                            ║
-║   📚 Swagger: http://0.0.0.0:8080/swagger-ui/                ║
+║   🐘 Storage: POSTGRESQL (persistent)                         
+║   🌐 Server:  http://0.0.0.0:8080                             
+║   📚 Swagger: http://0.0.0.0:8080/swagger-ui/                
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 ```

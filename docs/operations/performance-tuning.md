@@ -99,23 +99,23 @@ export WORKER_THREADS=8  # For 4-core machine
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 CHUNK SIZE TRADEOFFS                             │
+│                 CHUNK SIZE TRADEOFFS                             
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Small chunks (256 tokens):                                      │
-│  ✅ More precise retrieval                                       │
-│  ✅ Lower token cost per extraction                              │
-│  ❌ More LLM calls (slower processing)                          │
-│  ❌ Less context per chunk                                       │
-│                                                                   │
-│  Large chunks (1024 tokens):                                     │
-│  ✅ Fewer LLM calls (faster processing)                         │
-│  ✅ Better context preservation                                  │
-│  ❌ Less precise retrieval                                       │
-│  ❌ Higher token cost per extraction                             │
-│                                                                   │
-│  Recommendation: 1200 tokens (default, balanced)                │
-│                                                                   │
+│                                                                  
+│  Small chunks (256 tokens):                                      
+│  ✅ More precise retrieval                                       
+│  ✅ Lower token cost per extraction                              
+│  ❌ More LLM calls (slower processing)                          
+│  ❌ Less context per chunk                                       
+│                                                                   
+│  Large chunks (1024 tokens):                                     
+│  ✅ Fewer LLM calls (faster processing)                         
+│  ✅ Better context preservation                                  
+│  ❌ Less precise retrieval                                       
+│  ❌ Higher token cost per extraction                             
+│                                                                   
+│  Recommendation: 1200 tokens (default, balanced)                
+│                                                                 
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -236,16 +236,16 @@ EdgeQuake caches embeddings for repeated queries:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 QUERY CACHING                                    │
+│                 QUERY CACHING                                   │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Query "What is X?" ──→ [Embedding Cache] ──→ Vector Search     │
-│                              │                                    │
-│                    Cache Hit: 0ms                                │
-│                    Cache Miss: 50ms                              │
-│                                                                   │
+│                              │                                  │
+│                    Cache Hit: 0ms                               │
+│                    Cache Miss: 50ms                             │
+│                                                                 │
 │  Cache is in-memory, cleared on restart                         │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -333,16 +333,16 @@ ollama pull gemma3:12b-q4_K_M
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 LATENCY COMPARISON                               │
+│                 LATENCY COMPARISON                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Local Ollama (RTX 4090):                                       │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Time to First Token: 50ms                                │   │
 │  │ Token Generation: 100 tokens/sec                         │   │
 │  │ Total (500 tokens): 5.05s                                │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  OpenAI gpt-4o-mini:                                            │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Time to First Token: 200ms                               │   │
@@ -350,9 +350,9 @@ ollama pull gemma3:12b-q4_K_M
 │  │ Network overhead: 50ms                                   │   │
 │  │ Total (500 tokens): 6.5s                                 │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
-│  Verdict: Local GPU is faster for inference-heavy workloads    │
-│                                                                   │
+│                                                                 │
+│  Verdict: Local GPU is faster for inference-heavy workloads     │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -364,25 +364,25 @@ ollama pull gemma3:12b-q4_K_M
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 HORIZONTAL ARCHITECTURE                          │
+│                 HORIZONTAL ARCHITECTURE                         │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│                      Load Balancer                               │
-│                           │                                       │
+│                                                                 │
+│                      Load Balancer                              │
+│                           │                                     │
 │         ┌─────────────────┼─────────────────┐                   │
 │         ↓                 ↓                 ↓                   │
-│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐           │
-│  │ EdgeQuake 1 │   │ EdgeQuake 2 │   │ EdgeQuake 3 │           │
-│  │  (Queries)  │   │  (Queries)  │   │ (Processing)│           │
-│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘           │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐            │
+│  │ EdgeQuake 1 │   │ EdgeQuake 2 │   │ EdgeQuake 3 │            │
+│  │  (Queries)  │   │  (Queries)  │   │ (Processing)│            │
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘            │
 │         │                 │                 │                   │
 │         └─────────────────┼─────────────────┘                   │
-│                           ↓                                       │
-│                    ┌─────────────┐                               │
-│                    │ PostgreSQL  │                               │
-│                    │  + Replicas │                               │
-│                    └─────────────┘                               │
-│                                                                   │
+│                           ↓                                     │
+│                    ┌─────────────┐                              │
+│                    │ PostgreSQL  │                              │
+│                    │  + Replicas │                              │
+│                    └─────────────┘                              │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

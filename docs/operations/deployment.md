@@ -167,21 +167,21 @@ docker compose up -d
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   DOCKER COMPOSE STACK                           │
+│                   DOCKER COMPOSE STACK                          │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  ┌─────────────────┐         ┌─────────────────┐                │
 │  │   edgequake     │ ──────▶ │   postgres      │                │
 │  │   (API Server)  │         │   (pgvector+AGE)│                │
 │  │   :8080         │         │   :5432         │                │
 │  └─────────────────┘         └─────────────────┘                │
-│          │                                                       │
-│          ▼                                                       │
+│          │                                                      │
+│          ▼                                                      │
 │  ┌─────────────────┐                                            │
 │  │  External LLM   │                                            │
 │  │  (OpenAI/Ollama)│                                            │
 │  └─────────────────┘                                            │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -360,22 +360,22 @@ EdgeQuake automatically selects storage based on `DATABASE_URL`:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   STORAGE MODE SELECTION                         │
+│                   STORAGE MODE SELECTION                        │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  DATABASE_URL set?                                               │
-│       │                                                          │
+│                                                                 │
+│  DATABASE_URL set?                                              │
+│       │                                                         │
 │       ├── YES ─────▶ PostgreSQL Mode                            │
-│       │              • Persistent storage                        │
-│       │              • pgvector for embeddings                   │
-│       │              • Apache AGE for graph                      │
-│       │              • Full multi-tenant support                 │
-│       │                                                          │
+│       │              • Persistent storage                       │
+│       │              • pgvector for embeddings                  │
+│       │              • Apache AGE for graph                     │
+│       │              • Full multi-tenant support                │
+│       │                                                         │
 │       └── NO ──────▶ Memory Mode                                │
-│                      • Ephemeral (data lost on restart)          │
-│                      • For development/testing only              │
-│                      • No external dependencies                  │
-│                                                                   │
+│                      • Ephemeral (data lost on restart)         │
+│                      • For development/testing only             │
+│                      • No external dependencies                 │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

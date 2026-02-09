@@ -10,32 +10,32 @@ This guide covers security considerations for production EdgeQuake deployments.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SECURITY LAYERS                               │
+│                    SECURITY LAYERS                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ NETWORK LAYER                                             │   │
+│  │ NETWORK LAYER                                            │   │
 │  │ • TLS termination (reverse proxy)                        │   │
-│  │ • IP allowlisting                                         │   │
-│  │ • DDoS protection                                         │   │
+│  │ • IP allowlisting                                        │   │
+│  │ • DDoS protection                                        │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                            ↓                                     │
+│                            ↓                                    │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ APPLICATION LAYER                                         │   │
-│  │ • API key authentication                                  │   │
-│  │ • JWT token validation                                    │   │
-│  │ • Rate limiting                                           │   │
-│  │ • Request validation                                      │   │
+│  │ APPLICATION LAYER                                        │   │
+│  │ • API key authentication                                 │   │
+│  │ • JWT token validation                                   │   │
+│  │ • Rate limiting                                          │   │
+│  │ • Request validation                                     │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                            ↓                                     │
+│                            ↓                                    │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ DATA LAYER                                                │   │
-│  │ • Tenant isolation                                        │   │
-│  │ • Workspace boundaries                                    │   │
-│  │ • Database encryption                                     │   │
-│  │ • Secret management                                       │   │
+│  │ DATA LAYER                                               │   │
+│  │ • Tenant isolation                                       │   │
+│  │ • Workspace boundaries                                   │   │
+│  │ • Database encryption                                    │   │
+│  │ • Secret management                                      │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -170,9 +170,9 @@ EdgeQuake enforces strict tenant boundaries:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    TENANT ISOLATION                              │
+│                    TENANT ISOLATION                             │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  ┌───────────────────┐       ┌───────────────────┐              │
 │  │    Tenant A       │       │    Tenant B       │              │
 │  │ ┌───────────────┐ │       │ ┌───────────────┐ │              │
@@ -188,10 +188,10 @@ EdgeQuake enforces strict tenant boundaries:
 │  │ │ - Embeddings  │ │       │ │ - Embeddings  │ │              │
 │  │ └───────────────┘ │       │ └───────────────┘ │              │
 │  └───────────────────┘       └───────────────────┘              │
-│           ╲                           ╱                          │
-│            ╲   NO DATA SHARING       ╱                           │
-│             ╲─────────────────────────                           │
-│                                                                   │
+│           ╲                           ╱                         │
+│            ╲   NO DATA SHARING       ╱                          │
+│             ╲─────────────────────────                          │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -342,15 +342,15 @@ EdgeQuake includes built-in rate limiting:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    RATE LIMITING                                 │
+│                    RATE LIMITING                                │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Request → [Per-IP Limiter] → [Per-Key Limiter] → Handler       │
-│                  │                    │                          │
-│              429 if                429 if                        │
-│              exceeded              exceeded                      │
-│                                                                   │
-│  Default Limits:                                                 │
+│                  │                    │                         │
+│              429 if                429 if                       │
+│              exceeded              exceeded                     │
+│                                                                 │
+│  Default Limits:                                                │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │ Endpoint Category  │ Requests │ Window │ Burst          │    │
 │  ├─────────────────────────────────────────────────────────┤    │
@@ -359,7 +359,7 @@ EdgeQuake includes built-in rate limiting:
 │  │ Graph traversal    │ 100      │ 1 min  │ 20             │    │
 │  │ Health checks      │ No limit │ -      │ -              │    │
 │  └─────────────────────────────────────────────────────────┘    │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -457,19 +457,19 @@ User question: {user_query}
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 DATA FLOW TO LLM                                 │
+│                 DATA FLOW TO LLM                                │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Document Upload → Chunking → [PII Detection] → LLM             │
-│                                      │                           │
-│                               Redact if                          │
-│                               configured                         │
-│                                                                   │
-│  Sensitive Data Handling:                                        │
+│                                      │                          │
+│                               Redact if                         │
+│                               configured                        │
+│                                                                 │
+│  Sensitive Data Handling:                                       │
 │  • Never send passwords to LLM                                  │
 │  • Optionally redact PII before processing                      │
 │  • Use local LLM (Ollama) for sensitive data                    │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

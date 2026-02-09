@@ -14,20 +14,20 @@ In this tutorial, you'll build a complete RAG application that can answer questi
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   YOUR RAG APPLICATION                           │
+│                   YOUR RAG APPLICATION                          │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
-│  │   Upload    │───▶│   Index     │───▶│   Query     │         │
-│  │  Documents  │    │  & Extract  │    │  & Answer   │         │
-│  └─────────────┘    └─────────────┘    └─────────────┘         │
-│                                                                   │
-│  Features:                                                       │
-│  • Multi-document ingestion                                      │
-│  • Knowledge graph extraction                                    │
-│  • Multiple query modes                                          │
-│  • Source citations                                              │
-│                                                                   │
+│                                                                 │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐          │
+│  │   Upload    │───▶│   Index     │───▶│   Query     │          │
+│  │  Documents  │    │  & Extract  │    │  & Answer   │          │
+│  └─────────────┘    └─────────────┘    └─────────────┘          │
+│                                                                 │
+│  Features:                                                      │
+│  • Multi-document ingestion                                     │
+│  • Knowledge graph extraction                                   │
+│  • Multiple query modes                                         │
+│  • Source citations                                             │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -415,20 +415,20 @@ Open the EdgeQuake Web UI for a visual experience:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   EDGEQUAKE WEB UI                               │
+│                   EDGEQUAKE WEB UI                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐            │
-│  │Documents│  │  Graph  │  │  Query  │  │Settings │            │
-│  └────┬────┘  └────┬────┘  └────┬────┘  └─────────┘            │
+│                                                                 │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐             │
+│  │Documents│  │  Graph  │  │  Query  │  │Settings │             │
+│  └────┬────┘  └────┬────┘  └────┬────┘  └─────────┘             │
 │       │            │            │                               │
 │       ▼            ▼            ▼                               │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐                         │
-│  │ Upload  │  │ Visual  │  │ Chat    │                         │
-│  │ List    │  │ Graph   │  │ Interface│                        │
-│  │ Status  │  │ Explorer│  │ Modes   │                         │
-│  └─────────┘  └─────────┘  └─────────┘                         │
-│                                                                   │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐                          │
+│  │ Upload  │  │ Visual  │  │ Chat    │                          │
+│  │ List    │  │ Graph   │  │ Interface│                         │
+│  │ Status  │  │ Explorer│  │ Modes   │                          │
+│  └─────────┘  └─────────┘  └─────────┘                          │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

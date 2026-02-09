@@ -12,9 +12,9 @@ EdgeQuake provides multiple integration patterns for custom applications:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 CLIENT INTEGRATION OPTIONS                       │
+│                 CLIENT INTEGRATION OPTIONS                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  ┌────────────┐   ┌────────────┐   ┌────────────┐               │
 │  │   REST     │   │    SSE     │   │ Ollama API │               │
 │  │   API      │   │ Streaming  │   │ Emulation  │               │
@@ -24,15 +24,15 @@ EdgeQuake provides multiple integration patterns for custom applications:
 │  │ • Manage   │   │   time     │   │ • /api/    │               │
 │  │            │   │            │   │   generate │               │
 │  └─────┬──────┘   └─────┬──────┘   └─────┬──────┘               │
-│        │                │                │                       │
-│        └────────────────┼────────────────┘                       │
-│                         │                                        │
-│                         ▼                                        │
+│        │                │                │                      │
+│        └────────────────┼────────────────┘                      │
+│                         │                                       │
+│                         ▼                                       │
 │           ┌─────────────────────────────┐                       │
 │           │        EdgeQuake            │                       │
 │           │     http://localhost:8080   │                       │
 │           └─────────────────────────────┘                       │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

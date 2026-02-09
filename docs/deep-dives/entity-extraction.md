@@ -12,42 +12,42 @@ Entity extraction transforms unstructured text into structured knowledge graph n
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 ENTITY EXTRACTION PIPELINE                       │
+│                 ENTITY EXTRACTION PIPELINE                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  ┌────────────────────────────────────────────────────────┐     │
 │  │ Input: Text Chunk (1200 tokens)                        │     │
-│  │                                                         │     │
-│  │ "Dr. Sarah Chen at MIT developed a novel approach     │     │
-│  │  to neural network optimization using gradient        │     │
-│  │  descent with adaptive learning rates..."             │     │
+│  │                                                        │     │
+│  │ "Dr. Sarah Chen at MIT developed a novel approach      │     │
+│  │  to neural network optimization using gradient         │     │
+│  │  descent with adaptive learning rates..."              │     │
 │  └────────────────────────────────────────────────────────┘     │
-│                             │                                    │
-│                             ▼                                    │
+│                             │                                   │
+│                             ▼                                   │
 │  ┌────────────────────────────────────────────────────────┐     │
 │  │ Entity Extractor (LLM-based)                           │     │
-│  │                                                         │     │
-│  │ • SOTAExtractor: Tuple-based parsing (production)     │     │
-│  │ • LLMExtractor: JSON-based parsing (simple)           │     │
-│  │ • GleaningExtractor: Multi-pass extraction            │     │
+│  │                                                        │     │
+│  │ • SOTAExtractor: Tuple-based parsing (production)      │     │
+│  │ • LLMExtractor: JSON-based parsing (simple)            │     │
+│  │ • GleaningExtractor: Multi-pass extraction             │     │
 │  └────────────────────────────────────────────────────────┘     │
-│                             │                                    │
-│                             ▼                                    │
+│                             │                                   │
+│                             ▼                                   │
 │  ┌────────────────────────────────────────────────────────┐     │
 │  │ Output: ExtractionResult                               │     │
-│  │                                                         │     │
+│  │                                                        │     │
 │  │ entities:                                              │     │
-│  │   - SARAH_CHEN (PERSON): "Researcher at MIT..."       │     │
-│  │   - MIT (ORGANIZATION): "Academic institution..."     │     │
-│  │   - NEURAL_NETWORK (CONCEPT): "Machine learning..."   │     │
-│  │   - GRADIENT_DESCENT (METHOD): "Optimization..."      │     │
-│  │                                                         │     │
+│  │   - SARAH_CHEN (PERSON): "Researcher at MIT..."        │     │
+│  │   - MIT (ORGANIZATION): "Academic institution..."      │     │
+│  │   - NEURAL_NETWORK (CONCEPT): "Machine learning..."    │     │
+│  │   - GRADIENT_DESCENT (METHOD): "Optimization..."       │     │
+│  │                                                        │     │
 │  │ relationships:                                         │     │
-│  │   - SARAH_CHEN → works_at → MIT                       │     │
-│  │   - SARAH_CHEN → developed → NEURAL_NETWORK           │     │
-│  │   - NEURAL_NETWORK → uses → GRADIENT_DESCENT          │     │
+│  │   - SARAH_CHEN → works_at → MIT                        │     │
+│  │   - SARAH_CHEN → developed → NEURAL_NETWORK            │     │
+│  │   - NEURAL_NETWORK → uses → GRADIENT_DESCENT           │     │
 │  └────────────────────────────────────────────────────────┘     │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,22 +69,22 @@ Traditional Named Entity Recognition (NER) systems use trained models with fixed
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 EXTRACTION APPROACH COMPARISON                   │
+│                 EXTRACTION APPROACH COMPARISON                  │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Traditional NER (SpaCy, BERT)        LLM Extraction (GPT-4o)   │
 │  ─────────────────────────────        ───────────────────────   │
 │  Speed: ~1000 docs/sec                Speed: ~10 docs/sec       │
 │  Cost: Free (local)                   Cost: $0.001/doc          │
-│  Quality: Fixed patterns              Quality: Semantic understanding│
+│  Quality: Fixed patterns              Quality: Semantic understanding
 │  Recall: 60-80%                       Recall: 85-95%            │
 │  Relationships: None                  Relationships: Inferred   │
-│                                                                   │
-│  USE WHEN:                            USE WHEN:                   │
-│  • High volume, low budget            • Quality matters most     │
-│  • Standard entity types              • Domain-specific entities │
-│  • Speed is critical                  • Need relationships       │
-│                                                                   │
+│                                                                 │
+│  USE WHEN:                            USE WHEN:                 │
+│  • High volume, low budget            • Quality matters most    │
+│  • Standard entity types              • Domain-specific entities│
+│  • Speed is critical                  • Need relationships      │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -251,27 +251,27 @@ Entities are normalized for consistent graph structure:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 ENTITY NORMALIZATION                             │
+│                 ENTITY NORMALIZATION                            │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Raw Text              Normalized Entity                         │
-│  ────────              ─────────────────                         │
+│                                                                 │
+│  Raw Text              Normalized Entity                        │
+│  ────────              ─────────────────                        │
 │  "Dr. Sarah Chen"   →  SARAH_CHEN                               │
 │  "Sarah Chen, PhD"  →  SARAH_CHEN                               │
 │  "Chen, Sarah"      →  SARAH_CHEN                               │
-│                                                                   │
-│  "MIT"              →  MIT                                       │
-│  "M.I.T."           →  MIT                                       │
-│  "Massachusetts     →  MIT                                       │
-│   Institute of                                                   │
-│   Technology"                                                    │
-│                                                                   │
-│  Normalization Rules (BR0008):                                   │
-│  1. UPPERCASE all characters                                     │
+│                                                                 │
+│  "MIT"              →  MIT                                      │
+│  "M.I.T."           →  MIT                                      │
+│  "Massachusetts     →  MIT                                      │
+│   Institute of                                                  │
+│   Technology"                                                   │
+│                                                                 │
+│  Normalization Rules (BR0008):                                  │
+│  1. UPPERCASE all characters                                    │
 │  2. Replace spaces with underscores                             │
 │  3. Remove special characters                                   │
 │  4. Merge common variants                                       │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -323,37 +323,37 @@ Single-pass extraction often misses entities. Gleaning performs multiple extract
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   GLEANING PROCESS                               │
+│                   GLEANING PROCESS                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Pass 1 (Base Extraction)                                        │
-│  ─────────────────────────                                       │
+│                                                                 │
+│  Pass 1 (Base Extraction)                                       │
+│  ─────────────────────────                                      │
 │  Input: "Dr. Sarah Chen at MIT developed..."                    │
-│                                                                   │
+│                                                                 │
 │  Found: SARAH_CHEN, MIT, NEURAL_NETWORK                         │
-│                                                                   │
-│                           │                                       │
-│                           ▼                                       │
-│                                                                   │
-│  Pass 2 (Gleaning Iteration 1)                                   │
-│  ─────────────────────────────                                   │
-│  Prompt: "What entities did you miss? Already found:             │
-│           SARAH_CHEN, MIT, NEURAL_NETWORK"                       │
-│                                                                   │
+│                                                                 │
+│                           │                                     │
+│                           ▼                                     │
+│                                                                 │
+│  Pass 2 (Gleaning Iteration 1)                                  │
+│  ─────────────────────────────                                  │
+│  Prompt: "What entities did you miss? Already found:            │
+│           SARAH_CHEN, MIT, NEURAL_NETWORK"                      │
+│                                                                 │
 │  Found: GRADIENT_DESCENT, LEARNING_RATE, OPTIMIZATION           │
-│                                                                   │
-│                           │                                       │
-│                           ▼                                       │
-│                                                                   │
-│  Pass 3 (Gleaning Iteration 2) - Optional                        │
-│  ─────────────────────────────                                   │
-│  Found: AI_LAB, BACKPROPAGATION                                  │
-│                                                                   │
-│                           │                                       │
-│                           ▼                                       │
-│                                                                   │
+│                                                                 │
+│                           │                                     │
+│                           ▼                                     │
+│                                                                 │
+│  Pass 3 (Gleaning Iteration 2) - Optional                       │
+│  ─────────────────────────────                                  │
+│  Found: AI_LAB, BACKPROPAGATION                                 │
+│                                                                 │
+│                           │                                     │
+│                           ▼                                     │
+│                                                                 │
 │  Final Result: 8 entities merged (vs 3 without gleaning)        │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -376,26 +376,26 @@ The SOTA extractor adapts to chunk complexity:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 ADAPTIVE TOKEN MANAGEMENT                        │
+│                 ADAPTIVE TOKEN MANAGEMENT                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Chunk Size              Base max_tokens         Strategy         │
-│  ──────────              ─────────────           ────────         │
-│  <25KB (~6K tokens)      4,096                   Small doc        │
-│  25-75KB                 8,192                   Medium doc       │
-│  75-125KB                12,288                  Large doc        │
-│  >125KB                  16,384                  Very large       │
-│                                                                   │
-│  Retry Strategy (on truncation):                                 │
-│  ─────────────────────────────────                               │
+│                                                                 │
+│  Chunk Size              Base max_tokens         Strategy       │
+│  ──────────              ─────────────           ────────       │
+│  <25KB (~6K tokens)      4,096                   Small doc      │
+│  25-75KB                 8,192                   Medium doc     │
+│  75-125KB                12,288                  Large doc      │
+│  >125KB                  16,384                  Very large     │
+│                                                                 │
+│  Retry Strategy (on truncation):                                │
+│  ─────────────────────────────────                              │
 │  Attempt 1: base_max_tokens (e.g., 8,192)                       │
 │  Attempt 2: 2x tokens (16,384) + 100ms backoff                  │
 │  Attempt 3: 4x tokens (32,768 max) + 200ms backoff              │
-│                                                                   │
-│  Truncation Detection:                                           │
-│  • finish_reason="length" → Hit token limit                      │
+│                                                                 │
+│  Truncation Detection:                                          │
+│  • finish_reason="length" → Hit token limit                     │
 │  • JSON parse errors ("EOF", "unclosed") → Response cut off     │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

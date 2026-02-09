@@ -168,9 +168,9 @@ curl -X POST \
 
   User                EdgeQuake Server                  Knowledge Graph
    │                          │                                 │
-   │  POST /api/v1/documents │                                 │
-   │  (file + metadata)      │                                 │
-   ├────────────────────────>│                                 │
+   │  POST /api/v1/documents  │                                 │
+   │  (file + metadata)       │                                 │
+   ├────────────────────────> │                                 │
    │                          │                                 │
    │                          │ 1. Parse PDF                    │
    │                          │    (extract pages)              │
@@ -184,23 +184,23 @@ curl -X POST \
    │                          │ 4. Build Chunks                 │
    │                          │    (semantic units)             │
    │                          │                                 │
-   │                          │ 5. Extract Entities            │
+   │                          │ 5. Extract Entities             │
    │                          ├────────────────────────────────>│
-   │                          │    (people, orgs, concepts)    │
+   │                          │    (people, orgs, concept s)    │
    │                          │                                 │
-   │                          │ 6. Index for Search            │
+   │                          │ 6. Index for Search             │
    │                          │<────────────────────────────────┤
-   │  Response:              │                                 │
-   │  {id, status, chunks}   │                                 │
-   │<────────────────────────┤                                 │
+   │  Response:               │                                 │
+   │  {id, status, chunks}    │                                 │
+   │<──────────────────────── ┤                                 │
    │                          │                                 │
-   │  Query request          │                                 │
-   ├────────────────────────>│ 7. Query Graph                  │
+   │  Query request           │                                 │
+   ├────────────────────────> │ 7. Query Graph                  │
    │                          ├────────────────────────────────>│
    │                          │    (find relevant chunks)       │
-   │  Response:              │<────────────────────────────────┤
-   │  {answer, sources}      │                                 │
-   │<────────────────────────┤                                 │
+   │  Response:               │<────────────────────────────────┤
+   │  {answer, sources}       │                                 │
+   │<──────────────────────── ┤                                 │
 
 Total time: 2-5 seconds (text mode) | 20-50 seconds (vision mode)
 ```

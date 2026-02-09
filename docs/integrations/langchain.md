@@ -16,9 +16,9 @@ EdgeQuake provides a REST API that can be wrapped as a LangChain `BaseRetriever`
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 LANGCHAIN + EDGEQUAKE                            │
+│                 LANGCHAIN + EDGEQUAKE                           │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────┐  │
 │  │   LangChain     │    │ EdgeQuakeRet.   │    │ EdgeQuake   │  │
 │  │   Application   │───▶│  (Custom)       │───▶│   API       │  │
@@ -27,7 +27,7 @@ EdgeQuake provides a REST API that can be wrapped as a LangChain `BaseRetriever`
 │  │ • Agents        │◀───│   _documents()  │◀───│ • /chat     │  │
 │  │ • Tools         │    │                 │    │             │  │
 │  └─────────────────┘    └─────────────────┘    └─────────────┘  │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
