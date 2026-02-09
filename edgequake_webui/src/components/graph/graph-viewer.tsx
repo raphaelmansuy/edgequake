@@ -545,9 +545,9 @@ export function GraphViewer() {
               {/* Truncation Banner - Shows when graph is truncated */}
               <TruncationBanner 
                 onLoadMore={() => {
-                  // Increase max nodes and refetch
+                  // WHY: Enforce max 500 nodes for performance
                   const currentMax = useGraphStore.getState().maxNodes;
-                  useGraphStore.getState().setMaxNodes(Math.min(currentMax * 1.5, 10000));
+                  useGraphStore.getState().setMaxNodes(Math.min(currentMax * 1.5, 500));
                 }}
                 isLoading={isLoading}
               />

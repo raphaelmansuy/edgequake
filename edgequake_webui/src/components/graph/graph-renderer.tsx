@@ -159,7 +159,17 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
     });
   }, [isDark]);
   
-  // Debounced layout update for streaming
+  // WHY: Track layout performance for adaptive iteration count
+  const layoutMetricsRef = useRef({
+    lastDurationMs: 0,
+    avgDurationMs: 0,
+    updateCount: 0,
+  });
+  
+  // WHY: RAF-id for cancellation on cleanup 
+  const rafIdRef = useRef<number | null>(null);
+  
+  // Debounced layout update for streaming - uses requestAnimationFrame for non-blocking execution
   const scheduleLayoutUpdate = useCallback(() => {
     if (layoutUpdateTimerRef.current) {
       clearTimeout(layoutUpdateTimerRef.current);
@@ -174,25 +184,64 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       
       if (!graph || !sigma || graph.order === 0) return;
       
-      // Apply incremental force layout for new nodes only
-      try {
-        forceAtlas2.assign(graph, {
-          iterations: 50, // Fewer iterations for streaming updates
-          settings: {
-            gravity: 1,
-            scalingRatio: 2,
-            strongGravityMode: true,
-            barnesHutOptimize: graph.order > 100,
-            slowDown: 2, // Slower convergence for smoother animation
-          },
-        });
-        
-        sigma.refresh();
-      } catch (e) {
-        console.warn('Layout update failed:', e);
+      // WHY: Use requestAnimationFrame to avoid blocking main thread during layout
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
       }
       
-      pendingLayoutUpdateRef.current = false;
+      rafIdRef.current = requestAnimationFrame(() => {
+        const startTime = performance.now();
+        
+        // WHY: Adaptive iteration count based on graph size and previous performance
+        // Small graphs (<100 nodes): 50 iterations for quality
+        // Medium graphs (100-500 nodes): 30 iterations for balance
+        // Large graphs (>500 nodes): 15 iterations for speed
+        const nodeCount = graph.order;
+        let iterations = 50;
+        if (nodeCount > 500) {
+          iterations = 15;
+        } else if (nodeCount > 100) {
+          iterations = 30;
+        }
+        
+        // WHY: Further reduce iterations if previous layout was slow (>100ms)
+        if (layoutMetricsRef.current.avgDurationMs > 100) {
+          iterations = Math.max(10, Math.floor(iterations * 0.7));
+        }
+        
+        try {
+          forceAtlas2.assign(graph, {
+            iterations,
+            settings: {
+              gravity: 1,
+              scalingRatio: 2,
+              strongGravityMode: true,
+              barnesHutOptimize: nodeCount > 50, // Enable Barnes-Hut earlier for better perf
+              barnesHutTheta: 0.6, // WHY: Higher theta = faster but less accurate
+              slowDown: 2,
+              edgeWeightInfluence: 0.5, // WHY: Reduce edge weight influence for faster convergence
+            },
+          });
+          
+          sigma.refresh();
+        } catch (e) {
+          console.warn('Layout update failed:', e);
+        }
+        
+        // WHY: Track performance metrics for adaptive iteration count
+        const duration = performance.now() - startTime;
+        const metrics = layoutMetricsRef.current;
+        metrics.lastDurationMs = duration;
+        metrics.updateCount++;
+        metrics.avgDurationMs = (metrics.avgDurationMs * (metrics.updateCount - 1) + duration) / metrics.updateCount;
+        
+        if (duration > 100) {
+          console.warn(`[GraphRenderer] Layout took ${duration.toFixed(1)}ms (${nodeCount} nodes, ${iterations} iterations)`);
+        }
+        
+        pendingLayoutUpdateRef.current = false;
+        rafIdRef.current = null;
+      });
     }, 100); // 100ms debounce
   }, []);
 
@@ -415,16 +464,28 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       });
     }
 
+    // WHY: Calculate adaptive settings based on graph size for LOD optimization
+    const nodeCount = graph.order;
+    const edgeCount = graph.size;
+    const isLargeGraph = nodeCount > 200 || edgeCount > 400;
+    const isVeryLargeGraph = nodeCount > 500 || edgeCount > 1000;
+    
+    // WHY: Adaptive label settings - balance visibility vs performance
+    // With 500 node max, we can be more generous with labels
+    const adaptiveLabelGridCellSize = isVeryLargeGraph ? 150 : (isLargeGraph ? 100 : 80);
+    const adaptiveLabelDensity = isVeryLargeGraph ? 0.6 : (isLargeGraph ? 0.7 : 0.8);
+    const adaptiveLabelThreshold = isVeryLargeGraph ? 4 : (isLargeGraph ? 3 : 2);
+    
     // Create Sigma instance with visual quality settings and LOD optimizations
     const sigma = new Sigma(graph, containerRef.current, {
       renderLabels: showLabels,
-      renderEdgeLabels: showEdgeLabels,
+      renderEdgeLabels: showEdgeLabels && !isVeryLargeGraph, // WHY: Disable edge labels for very large graphs
       labelSize: 12,
       labelColor: { color: isDark ? LABEL_COLORS.dark : LABEL_COLORS.light },
       labelFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
-      labelGridCellSize: 120,           // Larger cells = fewer labels, 120 is balanced
-      labelRenderedSizeThreshold: 6,     // Show labels for smaller nodes (was 12)
-      labelDensity: 0.7,                 // Higher density = more labels visible (was 0.1)
+      labelGridCellSize: adaptiveLabelGridCellSize,    // WHY: Larger cells for large graphs
+      labelRenderedSizeThreshold: adaptiveLabelThreshold,
+      labelDensity: adaptiveLabelDensity,              // WHY: Reduce label density for large graphs
       defaultNodeColor: '#64748b',
       defaultEdgeColor: isDark ? '#4b5563' : '#94a3b8',
       defaultNodeType: 'border',
@@ -438,8 +499,18 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       },
       minCameraRatio: 0.1,
       maxCameraRatio: 10,
-      enableEdgeEvents: true,
+      enableEdgeEvents: !isVeryLargeGraph, // WHY: Disable edge events for very large graphs (perf)
+      // WHY: Performance optimization - reduce zIndex checking for large graphs
+      zIndex: !isLargeGraph,
     });
+    
+    // WHY: Log performance info for debugging
+    if (isLargeGraph) {
+      console.info(
+        `[GraphRenderer] Large graph detected: ${nodeCount} nodes, ${edgeCount} edges. ` +
+        `Applied LOD optimizations: labelDensity=${adaptiveLabelDensity}, gridCellSize=${adaptiveLabelGridCellSize}`
+      );
+    }
 
     // Event handlers
     let draggedNode: string | null = null;
@@ -729,11 +800,15 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
     prevEdgesCountRef.current = currentEdgeCount;
   }, [nodes, edges, isActivelyStreaming, addNodesToGraph, addEdgesToGraph, scheduleLayoutUpdate]);
   
-  // Cleanup layout update timer on unmount
+  // Cleanup layout update timer and RAF on unmount
   useEffect(() => {
     return () => {
       if (layoutUpdateTimerRef.current) {
         clearTimeout(layoutUpdateTimerRef.current);
+      }
+      // WHY: Cancel any pending RAF to prevent memory leaks
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
       }
     };
   }, []);

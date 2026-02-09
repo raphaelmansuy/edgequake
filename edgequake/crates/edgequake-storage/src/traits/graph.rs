@@ -373,6 +373,31 @@ pub trait GraphStorage: Send + Sync {
     /// Search for nodes by label prefix.
     async fn search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>>;
 
+    /// Search for nodes with full text matching on label and description.
+    ///
+    /// Returns nodes with their degree, optionally filtered by entity type.
+    /// Searches both label and description fields.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - Search text (matches label or description)
+    /// * `limit` - Maximum nodes to return
+    /// * `entity_type` - Optional filter by entity type
+    /// * `tenant_id` - Tenant context for multi-tenancy (optional)
+    /// * `workspace_id` - Workspace context (optional)
+    ///
+    /// # Returns
+    ///
+    /// Vector of (GraphNode, degree) tuples matching the search
+    async fn search_nodes(
+        &self,
+        query: &str,
+        limit: usize,
+        entity_type: Option<&str>,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<(GraphNode, usize)>>;
+
     /// Get neighbors of a node at a specific depth.
     async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>>;
 

@@ -793,23 +793,45 @@ pub async fn get_entity_neighborhood(
     Path(entity_name): Path<String>,
     Query(query): Query<EntityNeighborhoodQuery>,
 ) -> ApiResult<Json<EntityNeighborhoodResponse>> {
-    let entity_name = normalize_entity_name(&entity_name);
+    // Try normalized name first
+    let normalized_name = normalize_entity_name(&entity_name);
 
-    // Verify the entity exists
-    if state.graph_storage.get_node(&entity_name).await?.is_none() {
-        return Err(ApiError::NotFound(format!(
-            "Entity '{}' not found",
-            entity_name
-        )));
-    }
+    // WHY: Handle special characters (accents, etc.) that may differ between frontend and storage
+    // Try multiple lookup strategies:
+    // 1. Direct normalized lookup
+    // 2. URL-decoded original name
+    // 3. Search by label substring
+    let resolved_entity = if let Some(node) = state.graph_storage.get_node(&normalized_name).await?
+    {
+        node.id
+    } else if let Some(node) = state.graph_storage.get_node(&entity_name).await? {
+        // Try original name (might have special chars)
+        node.id
+    } else {
+        // Fallback: search for nodes with matching label
+        let search_results = state
+            .graph_storage
+            .search_nodes(&entity_name, 1, None, None, None)
+            .await
+            .unwrap_or_default();
+
+        if let Some((node, _)) = search_results.first() {
+            node.id.clone()
+        } else {
+            return Err(ApiError::NotFound(format!(
+                "Entity '{}' not found (tried: '{}', original: '{}')",
+                normalized_name, normalized_name, entity_name
+            )));
+        }
+    };
 
     // Clamp depth to range [1, 3]
     let depth = query.depth.clamp(1, 3);
 
     // Collect nodes and edges using BFS
     let mut visited_nodes = std::collections::HashSet::new();
-    let mut frontier = vec![entity_name.clone()];
-    visited_nodes.insert(entity_name.clone());
+    let mut frontier = vec![resolved_entity.clone()];
+    visited_nodes.insert(resolved_entity.clone());
 
     let mut all_edges = Vec::new();
 

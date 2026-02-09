@@ -11,11 +11,11 @@
 
 ### Critical Performance Issues (3)
 
-| Issue | Impact | Priority | Fix Time |
-|-------|--------|----------|----------|
-| **Duplicate API Requests** | +650ms load | 🔴 Critical | 15 min |
-| **UI Freeze @ 500+ nodes** | Blocks interactions | 🔴 Critical | 6 hrs |
-| **Massive DOM Tree** | 2,441 nodes (86% bloat) | 🔴 Critical | 3 hrs |
+| Issue                      | Impact                  | Priority    | Fix Time |
+| -------------------------- | ----------------------- | ----------- | -------- |
+| **Duplicate API Requests** | +650ms load             | 🔴 Critical | 15 min   |
+| **UI Freeze @ 500+ nodes** | Blocks interactions     | 🔴 Critical | 6 hrs    |
+| **Massive DOM Tree**       | 2,441 nodes (86% bloat) | 🔴 Critical | 3 hrs    |
 
 ### Performance Baseline
 
@@ -50,9 +50,11 @@ Implementation Effort: 10-12 hours (spread across 4 phases)
 ## 📋 Deliverables
 
 ### Document 1: Comprehensive Performance Analysis
+
 **File**: [PERFORMANCE_ANALYSIS_GRAPH_PAGE.md](./PERFORMANCE_ANALYSIS_GRAPH_PAGE.md)
 **Size**: ~8,500 words  
 **Contents**:
+
 - Executive summary with visual metrics
 - Detailed performance findings (network, rendering, memory, layout)
 - Root cause analysis for each issue
@@ -62,6 +64,7 @@ Implementation Effort: 10-12 hours (spread across 4 phases)
 - Monitoring & alerts setup
 
 **Key Sections**:
+
 - Network performance analysis (1.3s duplicates)
 - Rendering complexity breakdown (2,441 DOM nodes)
 - Memory profiling (32.89MB heap)
@@ -71,9 +74,11 @@ Implementation Effort: 10-12 hours (spread across 4 phases)
 ---
 
 ### Document 2: Implementation Quick Start Guide
+
 **File**: [GRAPH_OPTIMIZATION_GUIDE.md](./GRAPH_OPTIMIZATION_GUIDE.md)
 **Size**: ~5,000 words  
 **Contents**:
+
 - Step-by-step implementation guide for each optimization
 - Actual code snippets ready to copy/paste
 - Priority ranking with time estimates
@@ -82,6 +87,7 @@ Implementation Effort: 10-12 hours (spread across 4 phases)
 - Troubleshooting guide
 
 **Ready-to-Use Code**:
+
 ```
 ✅ Request deduplication (15 min)
 ✅ Entity list virtualization (3 hrs)
@@ -93,9 +99,11 @@ Implementation Effort: 10-12 hours (spread across 4 phases)
 ---
 
 ### Document 3: Visual Metrics & Analysis Dashboard
+
 **File**: [GRAPH_PERFORMANCE_METRICS.md](./GRAPH_PERFORMANCE_METRICS.md)
 **Size**: ~4,000 words  
 **Contents**:
+
 - Visual ASCII diagrams of performance metrics
 - DOM tree structure visualization
 - Network waterfall breakdown
@@ -106,6 +114,7 @@ Implementation Effort: 10-12 hours (spread across 4 phases)
 - Performance budget recommendations
 
 **Visual Analytics**:
+
 - 📊 Performance dashboard
 - 🌳 DOM tree breakdown
 - 📈 Memory growth curves
@@ -117,6 +126,7 @@ Implementation Effort: 10-12 hours (spread across 4 phases)
 ## 🚀 Implementation Roadmap
 
 ### Phase 1: Quick Wins (15 minutes)
+
 **Expected Gain**: -650ms page load
 
 ```typescript
@@ -135,9 +145,11 @@ Time: 15 minutes
 ---
 
 ### Phase 2: DOM Optimization (4 hours)
+
 **Expected Gain**: -85% DOM nodes, -8MB memory
 
 **2a. Virtualize Entity Sidebar (3 hours)**
+
 ```typescript
 // Render only visible entity items
 // Before: All 200 items (+2,441 DOM nodes)
@@ -153,6 +165,7 @@ Time: 3 hours
 ```
 
 **2b. Lazy-Load Graph Libraries (1 hour)**
+
 ```typescript
 // Code-split Sigma.js, Graphology from main bundle
 // Before: 600KB added to every page
@@ -170,6 +183,7 @@ Time: 1 hour
 ---
 
 ### Phase 3: Main Thread Optimization (6 hours)
+
 **Expected Gain**: Zero UI freeze, smooth 60fps @ 500+ nodes
 
 ```typescript
@@ -190,6 +204,7 @@ Time: 6 hours
 ---
 
 ### Phase 4: Caching & Monitoring (2 hours)
+
 **Expected Gain**: Instant back-navigation, performance tracking
 
 ```typescript
@@ -231,24 +246,28 @@ Duplicate Requests     2          0         -2        -100%
 ## 🎯 Recommended Action Plan
 
 ### Immediate Actions (This Week)
+
 - [ ] **Read** comprehensive analysis documents
 - [ ] **Review** code examples in implementation guide
 - [ ] **Schedule** Phase 1 (15 min) for sprint
 - [ ] **Set up** performance monitoring baseline
 
 ### Short-term (Week 1-2)
+
 - [ ] **Implement** Phase 1: Fix duplicate API calls
 - [ ] **Verify** with measurements: -650ms expected
 - [ ] **Implement** Phase 2a: Virtualize entity list
 - [ ] **Verify** scrolling performance: 60fps target
 
 ### Medium-term (Week 3)
+
 - [ ] **Implement** Phase 2b: Code-split graph libraries
 - [ ] **Implement** Phase 3: Web Worker layout
 - [ ] **Run** comprehensive benchmark suite
 - [ ] **Compare** before/after metrics
 
 ### Long-term (Week 4+)
+
 - [ ] **Add** performance monitoring dashboard
 - [ ] **Set up** CI/CD regression detection
 - [ ] **Document** learnings & best practices
@@ -282,6 +301,7 @@ Duplicate Requests     2          0         -2        -100%
 ## 🔍 Analysis Methodology
 
 ### Data Collection
+
 - ✅ Browser DevTools Performance API
 - ✅ Network timing analysis (Chrome Network tab)
 - ✅ Memory profiling (Chrome Memory tab)
@@ -289,6 +309,7 @@ Duplicate Requests     2          0         -2        -100%
 - ✅ Code analysis (Sigma.js, Graphology implementation)
 
 ### Performance Profiling
+
 - ✅ First Paint, First Contentful Paint metrics
 - ✅ Time to Interactive (TTI)
 - ✅ Long task detection (>50ms)
@@ -296,6 +317,7 @@ Duplicate Requests     2          0         -2        -100%
 - ✅ API response time measurement
 
 ### Validation
+
 - ✅ Metrics verified against W3C standards
 - ✅ Benchmarks against industry baselines
 - ✅ Code patterns verified against source
@@ -338,9 +360,10 @@ ROOT: edgequake/
 
 ## 🎓 Conclusion
 
-The `/graph` page visualization is **functionally complete** but has **clear performance bottlenecks** that prevent optimal user experience at scale (500+ nodes). 
+The `/graph` page visualization is **functionally complete** but has **clear performance bottlenecks** that prevent optimal user experience at scale (500+ nodes).
 
 The **5 recommended optimizations** are:
+
 1. **Fix duplicate API calls** (15 min, -650ms)
 2. **Virtualize entity list** (3 hrs, -85% DOM)
 3. **Enable Web Worker layout** (6 hrs, eliminate UI freeze)
@@ -362,4 +385,3 @@ The **5 recommended optimizations** are:
 **Status**: ✅ READY TO PROCEED
 
 For questions about any optimization, refer to the corresponding document section or implement guide code examples.
-

@@ -34,8 +34,8 @@ export function TruncationBanner({ onLoadMore, isLoading }: TruncationBannerProp
     if (onLoadMore) {
       onLoadMore();
     } else {
-      // Default behavior: increase max nodes by 50%
-      const newMax = Math.min(maxNodes * 1.5, 10000);
+      // WHY: Enforce max 500 nodes for performance - graphs become unreadable beyond this
+      const newMax = Math.min(maxNodes * 1.5, 500);
       setMaxNodes(Math.round(newMax));
     }
   }, [onLoadMore, maxNodes, setMaxNodes]);

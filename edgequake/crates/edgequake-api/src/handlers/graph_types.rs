@@ -123,6 +123,58 @@ pub struct SearchLabelsResponse {
 }
 
 // ============================================================================
+// Search Nodes DTOs (Full Node Search)
+// ============================================================================
+
+/// Search nodes query - returns full node data with degree.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct SearchNodesQuery {
+    /// Search query string (searches label and description).
+    pub q: String,
+
+    /// Maximum results to return.
+    #[serde(default = "default_search_nodes_limit")]
+    pub limit: usize,
+
+    /// Whether to include neighbors of matching nodes.
+    #[serde(default)]
+    pub include_neighbors: bool,
+
+    /// Neighbor depth when include_neighbors is true.
+    #[serde(default = "default_neighbor_depth")]
+    pub neighbor_depth: usize,
+
+    /// Filter by entity type (optional).
+    pub entity_type: Option<String>,
+}
+
+/// Default search nodes limit.
+pub fn default_search_nodes_limit() -> usize {
+    50
+}
+
+/// Default neighbor depth for search.
+pub fn default_neighbor_depth() -> usize {
+    1
+}
+
+/// Search nodes response - full node data for graph display.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SearchNodesResponse {
+    /// Matching nodes with full data.
+    pub nodes: Vec<GraphNodeResponse>,
+
+    /// Edges connecting the returned nodes.
+    pub edges: Vec<GraphEdgeResponse>,
+
+    /// Total matches in database (before limit).
+    pub total_matches: usize,
+
+    /// Whether results were truncated.
+    pub is_truncated: bool,
+}
+
+// ============================================================================
 // Popular Labels DTOs
 // ============================================================================
 

@@ -8,10 +8,11 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { useDebounce } from '@/hooks/use-debounce';
 import { searchLabels } from '@/lib/api/edgequake';
+import { calculateOptimalMaxNodes, detectDeviceTier, formatNodeCount, type DeviceTier, type OptimizedSettings } from '@/lib/graph/auto-optimize';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Settings2, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { Search, Settings2, Sparkles, X, Zap } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface GraphSettingsPanelProps {
   /** Callback when settings change that require a graph refetch */
@@ -34,6 +35,7 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
     maxNodes, 
     depth,
     startNode,
+    totalNodesInStorage,
     setMaxNodes,
     setDepth,
     setStartNode,
@@ -43,6 +45,20 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
   const [localMaxNodes, setLocalMaxNodes] = useState(maxNodes);
   const [localDepth, setLocalDepth] = useState(depth);
   const [includeOrphans, setIncludeOrphans] = useState(false);
+  const [autoOptimize, setAutoOptimize] = useState(false);
+  
+  // WHY: Detect device tier once on mount for consistent recommendations
+  const [deviceTier, setDeviceTier] = useState<DeviceTier>('medium');
+  
+  useEffect(() => {
+    setDeviceTier(detectDeviceTier());
+  }, []);
+  
+  // WHY: Calculate optimized settings based on workspace size and device
+  const optimizedSettings = useMemo<OptimizedSettings | null>(() => {
+    if (totalNodesInStorage === 0) return null;
+    return calculateOptimalMaxNodes(totalNodesInStorage, deviceTier);
+  }, [totalNodesInStorage, deviceTier]);
   
   // Focus entity search state
   const [focusQuery, setFocusQuery] = useState(startNode || '');
@@ -111,6 +127,27 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
     }
     onSettingsChange?.();
   }, [onSettingsChange]);
+
+  // WHY: Auto-optimize applies the calculated settings based on workspace size
+  const handleAutoOptimize = useCallback(() => {
+    if (!optimizedSettings) return;
+    
+    setLocalMaxNodes(optimizedSettings.maxNodes);
+    setLocalDepth(optimizedSettings.depth);
+    setMaxNodes(optimizedSettings.maxNodes);
+    setDepth(optimizedSettings.depth);
+    setAutoOptimize(true);
+    
+    try {
+      localStorage.setItem('graph-max-nodes', String(optimizedSettings.maxNodes));
+      localStorage.setItem('graph-depth', String(optimizedSettings.depth));
+      localStorage.setItem('graph-auto-optimize', 'true');
+    } catch (e) {
+      console.warn('Failed to save optimized settings:', e);
+    }
+    
+    onSettingsChange?.();
+  }, [optimizedSettings, setMaxNodes, setDepth, onSettingsChange]);
 
   // Handle focus entity selection
   const handleFocusSelect = useCallback((label: string) => {
@@ -201,6 +238,33 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
               {startNode ? `Focused on: ${startNode}` : 'Leave empty to show most connected nodes.'}
             </p>
           </div>
+
+          {/* Auto-Optimize Button */}
+          {totalNodesInStorage > 0 && optimizedSettings && (
+            <div className="space-y-2 pb-2 border-b">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  <Label className="text-xs font-medium">Auto-Optimize</Label>
+                </div>
+                <span className="text-[10px] text-muted-foreground capitalize">
+                  {deviceTier} perf device
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 text-xs gap-1.5"
+                onClick={handleAutoOptimize}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Apply Optimal Settings
+              </Button>
+              <p className="text-[10px] text-muted-foreground">
+                Workspace: {formatNodeCount(totalNodesInStorage)} nodes → Recommended: {formatNodeCount(optimizedSettings.maxNodes)} max
+              </p>
+            </div>
+          )}
 
           {/* Max Nodes Slider */}
           <div className="space-y-2">

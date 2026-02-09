@@ -2,7 +2,7 @@
 
 **Captured**: February 9, 2026  
 **Page**: `http://localhost:3000/graph?workspace=default-workspace`  
-**Graph Size**: 200 nodes, 293 connections, 15 entity types  
+**Graph Size**: 200 nodes, 293 connections, 15 entity types
 
 ---
 
@@ -107,6 +107,7 @@ TOTAL: 2,441 DOM NODES
 ```
 
 **Issues**:
+
 - ❌ Entity sidebar renders **ALL 200+ items** (even hidden ones)
 - ❌ 82 SVG elements in graph (re-render overhead)
 - ⚠️ 8 canvas elements (overlaps, poor layer management)
@@ -274,7 +275,7 @@ Algorithm: ForceAtlas2
 Nodes: 200
 Edges: 293
 Iterations: 100
-Settings: 
+Settings:
   - gravity: 1
   - scalingRatio: 2
   - strongGravityMode: true
@@ -380,6 +381,7 @@ AFTER (Web Worker):
 ## 🔴 Critical Issues Summary
 
 ### Issue #1: Duplicate API Calls
+
 ```
 Status: CRITICAL 🔴
 Effect: +650ms page load
@@ -389,6 +391,7 @@ Impact: -27% load time
 ```
 
 ### Issue #2: Unvirtualized Entity List
+
 ```
 Status: HIGH ⚠️
 Effect: 200+ DOM nodes rendering, slow scrolling
@@ -398,6 +401,7 @@ Impact: -85% DOM nodes, +150% scroll FPS
 ```
 
 ### Issue #3: Synchronous Layout Calculation
+
 ```
 Status: HIGH ⚠️
 Effect: 400-500ms UI freeze at 200+ nodes, severe at 500+
@@ -407,6 +411,7 @@ Impact: Eliminates UI freeze, smooth 60fps
 ```
 
 ### Issue #4: Large Bundle Size
+
 ```
 Status: MEDIUM ⚠️
 Effect: +600KB added to every page (even non-graph pages)
@@ -416,6 +421,7 @@ Impact: -52% initial load for non-graph routes
 ```
 
 ### Issue #5: No Response Caching
+
 ```
 Status: LOW ⚠️
 Effect: Re-fetch on navigation back/forward
@@ -489,18 +495,21 @@ Ongoing: CI/CD regression detection
 ## 🎓 Lessons & Learnings
 
 ### What's Working Well ✅
+
 - WebGL rendering (Sigma.js) is efficient
 - Node data structure performant (Map-based lookup)
 - Paint timing acceptable (FCP @ 248ms)
 - No obvious memory leaks
 
 ### What Needs Improvement ⚠️
+
 - Duplicate API requests (architectural issue)
 - Unvirtualized lists (rendering bloat)
 - Synchronous layout calculation (blocking)
 - Eager code loading (bundle issue)
 
 ### Key Takeaways 💡
+
 1. **Duplicate requests are expensive** - Implement deduplication early
 2. **Virtualization saves massive overhead** - Consider for all scrollable lists
 3. **Main thread is precious** - Offload expensive work to Web Workers
@@ -512,10 +521,10 @@ Ongoing: CI/CD regression detection
 ## 📞 Support & Questions
 
 For questions about this analysis:
+
 1. Review detailed docs:
    - `PERFORMANCE_ANALYSIS_GRAPH_PAGE.md` (comprehensive analysis)
    - `GRAPH_OPTIMIZATION_GUIDE.md` (implementation guide)
 2. Run benchmark script to validate metrics
 3. Check browser DevTools Performance tab
 4. Profile with Chrome Lighthouse
-

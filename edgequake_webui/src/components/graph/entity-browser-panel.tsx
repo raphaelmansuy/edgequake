@@ -2,16 +2,18 @@
  * @module EntityBrowserPanel
  * @description Virtual-scrolling entity browser with sorting and grouping.
  * Lists all entities with efficient rendering for large datasets.
+ * Supports server-side search when graph is truncated.
  * 
  * @implements UC0109 - User browses all entities
  * @implements FEAT0628 - Virtual scrolling for 1000+ entities
  * @implements FEAT0629 - Sort by name, degree, or type
  * @implements FEAT0630 - Group entities by type
+ * @implements FEAT0631 - Server-side search for truncated graphs
  * 
  * @enforces BR0009 - Handle 1000+ entities performantly
  * @enforces BR0620 - Selection syncs with graph view
  * 
- * @see {@link docs/features.md} FEAT0628-0630
+ * @see {@link docs/features.md} FEAT0628-0631
  */
 "use client";
 
@@ -24,6 +26,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { searchNodes } from "@/lib/api/edgequake";
 import { cn } from "@/lib/utils";
 import { useGraphStore } from "@/stores/use-graph-store";
 import { useUIPreferencesStore } from "@/stores/use-ui-preferences-store";
@@ -33,7 +36,9 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    Cloud,
     Link2,
+    Loader2,
     Network,
     Search,
     SortAsc,
@@ -354,6 +359,8 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
   // Local state (not persisted)
   const [searchQuery, setSearchQuery] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [isServerSearching, setIsServerSearching] = useState(false);
+  const [serverSearchNodes, setServerSearchNodes] = useState<GraphNode[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   
   // Derived state from preferences
@@ -366,10 +373,10 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
   const sortDirection: SortDirection = entityBrowserSortAsc ? "asc" : "desc";
   const setSortDirection = (dir: SortDirection) => setEntityBrowserSortAsc(dir === "asc");
 
-  const { nodes, selectedNodeId, selectNode, sigmaInstance } = useGraphStore();
+  const { nodes, selectedNodeId, selectNode, sigmaInstance, isTruncated, addNodesToGraph } = useGraphStore();
 
-  // Filter nodes by search query
-  const filteredNodes = useMemo(() => {
+  // Filter nodes by search query (local/client-side)
+  const localFilteredNodes = useMemo(() => {
     if (!searchQuery.trim()) return nodes;
     const query = searchQuery.toLowerCase();
     return nodes.filter(
@@ -379,6 +386,65 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
         node.description?.toLowerCase().includes(query)
     );
   }, [nodes, searchQuery]);
+
+  // Server-side search when graph is truncated and local yields no/few results
+  useEffect(() => {
+    // Reset server results when query changes
+    setServerSearchNodes([]);
+
+    // Skip if no query or local has results
+    const shouldServerSearch = 
+      isTruncated && 
+      searchQuery.trim().length >= 2 &&
+      localFilteredNodes.length < 3 &&
+      !isServerSearching;
+
+    if (!shouldServerSearch) return;
+
+    let cancelled = false;
+    setIsServerSearching(true);
+
+    searchNodes({
+      q: searchQuery.trim(),
+      limit: 50,
+      includeNeighbors: true,
+      neighborDepth: 1,
+    })
+      .then((response) => {
+        if (cancelled) return;
+
+        // Add server nodes/edges to graph for visualization
+        if (response.nodes.length > 0) {
+          addNodesToGraph(response.nodes, response.edges);
+        }
+
+        setServerSearchNodes(response.nodes);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('[EntityBrowser] Server search failed:', error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsServerSearching(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchQuery, localFilteredNodes.length, isTruncated, isServerSearching, addNodesToGraph]);
+
+  // Combine local and server results
+  const filteredNodes = useMemo(() => {
+    if (serverSearchNodes.length > 0) {
+      // Merge: local results first, then add unique server results
+      const localIds = new Set(localFilteredNodes.map(n => n.id));
+      const uniqueServerNodes = serverSearchNodes.filter(n => !localIds.has(n.id));
+      return [...localFilteredNodes, ...uniqueServerNodes];
+    }
+    return localFilteredNodes;
+  }, [localFilteredNodes, serverSearchNodes]);
 
   // Sort nodes
   const sortedNodes = useMemo(() => {
@@ -556,19 +622,37 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
       {/* Search */}
       <div className="p-2 border-b shrink-0">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" aria-hidden="true" />
+          {isServerSearching ? (
+            <Loader2 className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground animate-spin" aria-hidden="true" />
+          ) : (
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" aria-hidden="true" />
+          )}
           <Input
             placeholder={t("graph.entityBrowser.search", "Search entities...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-7 pl-7 text-xs bg-muted/30 border-muted focus:bg-background transition-colors"
+            className="h-7 pl-7 pr-7 text-xs bg-muted/30 border-muted focus:bg-background transition-colors"
             aria-label={t("graph.entityBrowser.searchLabel", "Search entities by name, type, or description")}
             aria-describedby="entity-search-hint"
           />
+          {serverSearchNodes.length > 0 && (
+            <Cloud className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-blue-500" aria-label="Including server results" />
+          )}
           <span id="entity-search-hint" className="sr-only">
             {t("graph.entityBrowser.searchHint", "Type to filter the list of entities. Results update automatically.")}
           </span>
         </div>
+        {isTruncated && searchQuery.trim().length >= 2 && (
+          <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+            <Cloud className="h-2.5 w-2.5" />
+            {isServerSearching 
+              ? t("graph.entityBrowser.searchingServer", "Searching full database...")
+              : serverSearchNodes.length > 0 
+                ? t("graph.entityBrowser.serverResultsCount", "{{count}} from server", { count: serverSearchNodes.length })
+                : t("graph.entityBrowser.willSearchServer", "Will search server if needed")
+            }
+          </p>
+        )}
       </div>
 
       {/* Sort Controls */}

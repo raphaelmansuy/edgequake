@@ -1,11 +1,13 @@
 /**
  * @module GraphSearch
- * @description Full-text search for graph entities using MiniSearch.
- * Provides fuzzy search with type highlighting and camera focus.
+ * @description Full-text search for graph entities with hybrid client/server search.
+ * Uses MiniSearch for instant local results, automatically falls back to server
+ * when graph is truncated and local search yields no results.
  * 
  * @implements UC0108 - User searches entities by name
  * @implements FEAT0202 - Full-text entity search
  * @implements FEAT0626 - Camera focus on selected entity
+ * @implements FEAT0627 - Server-side search for full workspace
  * 
  * @enforces BR0616 - Search results sorted by relevance
  * @enforces BR0617 - Entity types color-coded in results
@@ -28,10 +30,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import { searchNodes } from '@/lib/api/edgequake';
 import { focusCameraOnNode } from '@/lib/graph/camera-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import type { GraphNode } from '@/types';
-import { Circle, Loader2, Search } from 'lucide-react';
+import { Circle, Cloud, Loader2, Search } from 'lucide-react';
 import MiniSearch from 'minisearch';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -77,6 +80,7 @@ interface SearchResult {
   entityType?: string;
   description?: string;
   score: number;
+  isServerResult?: boolean; // True if from server-side search
 }
 
 interface GraphSearchProps {
@@ -85,10 +89,13 @@ interface GraphSearchProps {
 
 export function GraphSearch({ onSelect }: GraphSearchProps) {
   const { t } = useTranslation();
-  const { nodes, sigmaInstance, selectNode } = useGraphStore();
+  const { nodes, sigmaInstance, selectNode, isTruncated, addNodesToGraph } = useGraphStore();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isServerSearching, setIsServerSearching] = useState(false);
+  const [serverResults, setServerResults] = useState<SearchResult[]>([]);
+  const [serverSearchError, setServerSearchError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Debounce search query for better performance
@@ -223,6 +230,80 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
     }
   }, [debouncedQuery, searchEngine, nodes]);
 
+  // Server-side search when graph is truncated and local search has no results
+  // This enables searching the full database when the displayed graph is limited
+  useEffect(() => {
+    // Reset server results when query changes
+    setServerResults([]);
+    setServerSearchError(null);
+
+    // Only trigger server search if:
+    // 1. Graph is truncated (more data on server)
+    // 2. Local search yields no results
+    // 3. Query is at least 2 chars
+    // 4. Not already server searching
+    const shouldServerSearch = 
+      isTruncated && 
+      results.length === 0 && 
+      debouncedQuery.trim().length >= 2 &&
+      !isServerSearching;
+
+    if (!shouldServerSearch) return;
+
+    let cancelled = false;
+    setIsServerSearching(true);
+
+    searchNodes({
+      q: debouncedQuery.trim(),
+      limit: 20,
+      includeNeighbors: true,
+      neighborDepth: 1,
+    })
+      .then((response) => {
+        if (cancelled) return;
+
+        // Add server nodes/edges to graph for visualization
+        if (response.nodes.length > 0) {
+          addNodesToGraph(response.nodes, response.edges);
+        }
+
+        // Convert to search results
+        const serverSearchResults: SearchResult[] = response.nodes.map((node) => ({
+          id: node.id,
+          label: node.label || node.id,
+          entityType: node.node_type,
+          description: node.description,
+          score: 1, // Server results ranked by relevance
+          isServerResult: true,
+        }));
+
+        setServerResults(serverSearchResults);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('[GraphSearch] Server search failed:', error);
+        setServerSearchError(error.message || 'Search failed');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsServerSearching(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, results.length, isTruncated, isServerSearching, addNodesToGraph]);
+
+  // Combine local and server results
+  const combinedResults = useMemo(() => {
+    if (serverResults.length > 0) {
+      // When we have server results, show them (they're from the full database)
+      return serverResults;
+    }
+    return results;
+  }, [results, serverResults]);
+
   // Handle node selection
   const handleSelect = useCallback(
     (nodeId: string) => {
@@ -311,14 +392,40 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
             />
           </div>
           <CommandList className="max-h-80">
-            {results.length === 0 && debouncedQuery.trim() && (
+            {/* Server search in progress */}
+            {isServerSearching && (
+              <div className="py-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>{t('graph.search.searchingServer', 'Searching full database...')}</span>
+              </div>
+            )}
+            
+            {/* Server search error */}
+            {serverSearchError && !isServerSearching && (
+              <div className="py-4 text-center text-sm text-destructive">
+                {serverSearchError}
+              </div>
+            )}
+
+            {/* No results - show only if not server searching */}
+            {combinedResults.length === 0 && debouncedQuery.trim() && !isServerSearching && (
               <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
-                {t('graph.search.noResults', 'No nodes found')}
+                {isTruncated 
+                  ? t('graph.search.noResultsSearchingServer', 'No local matches. Searching server...')
+                  : t('graph.search.noResults', 'No nodes found')
+                }
               </CommandEmpty>
             )}
-            {results.length > 0 && (
-              <CommandGroup heading={debouncedQuery.trim() ? t('graph.search.results', 'Results') : t('graph.search.recent', 'Nodes')}>
-                {results.map((result) => (
+            
+            {combinedResults.length > 0 && (
+              <CommandGroup heading={
+                serverResults.length > 0 
+                  ? t('graph.search.serverResults', 'Server Results')
+                  : debouncedQuery.trim() 
+                    ? t('graph.search.results', 'Results') 
+                    : t('graph.search.recent', 'Nodes')
+              }>
+                {combinedResults.map((result) => (
                   <CommandItem
                     key={result.id}
                     value={result.id}
@@ -341,6 +448,9 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
                           <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
                             {result.entityType}
                           </span>
+                        )}
+                        {result.isServerResult && (
+                          <Cloud className="h-3 w-3 text-blue-500 shrink-0" aria-label="Server result" />
                         )}
                       </div>
                       {result.description && (

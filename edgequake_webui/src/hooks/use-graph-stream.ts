@@ -145,7 +145,7 @@ const initialProgress: GraphStreamProgress = {
  * ```
  */
 export function useGraphStream(
-  options: UseGraphStreamOptions = {}
+  options: UseGraphStreamOptions = {},
 ): UseGraphStreamResult {
   const {
     maxNodes = 200,
@@ -263,24 +263,24 @@ export function useGraphStream(
           break;
       }
     },
-    [batchSize, onMetadata, onNodesBatch, onEdges, onComplete, onError]
+    [batchSize, onMetadata, onNodesBatch, onEdges, onComplete, onError],
   );
 
   // Start streaming
   const startStream = useCallback(async () => {
     // WHY: Create unique key for this request to detect duplicates
     const requestKey = `${maxNodes}-${batchSize}-${startNode || ""}`;
-    
+
     // WHY: Skip if we're already streaming with the same parameters
     if (isStreaming && lastRequestKeyRef.current === requestKey) {
       return;
     }
-    
+
     // WHY: If there's a pending request with same key, return the existing promise
     if (pendingRequestRef.current && lastRequestKeyRef.current === requestKey) {
       return pendingRequestRef.current;
     }
-    
+
     // Cancel any existing stream
     cancel();
     lastRequestKeyRef.current = requestKey;
@@ -335,10 +335,18 @@ export function useGraphStream(
         pendingRequestRef.current = null;
       }
     })();
-    
+
     pendingRequestRef.current = streamPromise;
     await streamPromise;
-  }, [cancel, maxNodes, batchSize, startNode, processEvent, onError, isStreaming]);
+  }, [
+    cancel,
+    maxNodes,
+    batchSize,
+    startNode,
+    processEvent,
+    onError,
+    isStreaming,
+  ]);
 
   // Auto-start on mount if enabled
   useEffect(() => {

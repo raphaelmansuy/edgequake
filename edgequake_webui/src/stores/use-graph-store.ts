@@ -29,6 +29,13 @@ import type { GraphEdge, GraphNode, KnowledgeGraph } from "@/types";
 import Sigma from "sigma";
 import { create } from "zustand";
 
+/**
+ * Maximum number of nodes to display in the graph visualization.
+ * WHY: Graphs with >500 nodes become cluttered and slow to render.
+ * @enforces BR0009 - Max nodes per visualization for performance
+ */
+export const MAX_DISPLAY_NODES = 500;
+
 /** Color mode for node coloring strategy */
 export type ColorMode = "entity-type" | "community";
 

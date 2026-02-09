@@ -492,6 +492,94 @@ impl GraphStorage for MemoryGraphStorage {
             .collect())
     }
 
+    async fn search_nodes(
+        &self,
+        query: &str,
+        limit: usize,
+        entity_type: Option<&str>,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<(GraphNode, usize)>> {
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+
+        let adjacency = self
+            .adjacency
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+
+        let query_lower = query.to_lowercase();
+
+        let mut results: Vec<(GraphNode, usize)> = nodes
+            .iter()
+            .filter(|(node_id, props)| {
+                // Text search on label (node_id) and description
+                let label_match = node_id.to_lowercase().contains(&query_lower);
+                let desc_match = props
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|d| d.to_lowercase().contains(&query_lower))
+                    .unwrap_or(false);
+
+                if !label_match && !desc_match {
+                    return false;
+                }
+
+                // Apply entity_type filter
+                if let Some(etype) = entity_type {
+                    let node_type = props
+                        .get("entity_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if node_type != etype {
+                        return false;
+                    }
+                }
+
+                // Apply tenant filter
+                if let Some(tid) = tenant_id {
+                    let node_tenant = props
+                        .get("tenant_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if node_tenant != tid {
+                        return false;
+                    }
+                }
+
+                // Apply workspace filter
+                if let Some(wid) = workspace_id {
+                    let node_workspace = props
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if node_workspace != wid {
+                        return false;
+                    }
+                }
+
+                true
+            })
+            .map(|(node_id, props)| {
+                // Calculate degree from adjacency list
+                let degree = adjacency.get(node_id).map(|n| n.len()).unwrap_or(0);
+                let node = GraphNode {
+                    id: node_id.clone(),
+                    properties: props.clone(),
+                };
+                (node, degree)
+            })
+            .collect();
+
+        // Sort by degree descending
+        results.sort_by(|a, b| b.1.cmp(&a.1));
+        results.truncate(limit);
+
+        Ok(results)
+    }
+
     async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>> {
         let kg = self.get_knowledge_graph(node_id, depth, 1000).await?;
         Ok(kg.nodes.into_iter().filter(|n| n.id != node_id).collect())

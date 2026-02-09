@@ -1492,6 +1492,125 @@ impl GraphStorage for PostgresAGEGraphStorage {
         Ok(labels)
     }
 
+    /// Search for nodes with full text matching on label and description.
+    ///
+    /// Returns nodes with their degree, filtered by tenant/workspace context.
+    /// Uses a combination of full-text search and ILIKE for best coverage.
+    async fn search_nodes(
+        &self,
+        query: &str,
+        limit: usize,
+        entity_type: Option<&str>,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<(GraphNode, usize)>> {
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+
+        let escaped_query = Self::escape_sql_string(query);
+        let query_lower = query.to_lowercase();
+        tracing::debug!(query = %query, "search_nodes starting");
+
+        // Build WHERE conditions for tenant/workspace filtering
+        let mut where_conditions = vec![format!(
+            "(LOWER(ag_catalog.agtype_to_json(v.properties)->>'node_id') LIKE '%{}%' \
+             OR LOWER(COALESCE(ag_catalog.agtype_to_json(v.properties)->>'description', '')) LIKE '%{}%')",
+            query_lower, query_lower
+        )];
+
+        if let Some(tid) = tenant_id {
+            let escaped_tid = Self::escape_sql_string(tid);
+            where_conditions.push(format!(
+                "ag_catalog.agtype_to_json(v.properties)->>'tenant_id' = '{}'",
+                escaped_tid
+            ));
+        }
+
+        if let Some(wid) = workspace_id {
+            let escaped_wid = Self::escape_sql_string(wid);
+            where_conditions.push(format!(
+                "ag_catalog.agtype_to_json(v.properties)->>'workspace_id' = '{}'",
+                escaped_wid
+            ));
+        }
+
+        if let Some(etype) = entity_type {
+            let escaped_etype = Self::escape_sql_string(etype);
+            where_conditions.push(format!(
+                "ag_catalog.agtype_to_json(v.properties)->>'entity_type' = '{}'",
+                escaped_etype
+            ));
+        }
+
+        let where_clause = where_conditions.join(" AND ");
+
+        // CTE query to get nodes with degree count in one query
+        let sql = format!(
+            "WITH node_props AS (
+                SELECT 
+                    v.id as vertex_id,
+                    ag_catalog.agtype_to_json(v.properties) as props
+                FROM {graph}.\"_ag_label_vertex\" v
+                WHERE {where_clause}
+            ),
+            edge_counts AS (
+                SELECT 
+                    e.start_id as node_id,
+                    COUNT(*) as out_degree
+                FROM {graph}.\"_ag_label_edge\" e
+                GROUP BY e.start_id
+            ),
+            in_edge_counts AS (
+                SELECT 
+                    e.end_id as node_id,
+                    COUNT(*) as in_degree
+                FROM {graph}.\"_ag_label_edge\" e
+                GROUP BY e.end_id
+            )
+            SELECT 
+                np.props,
+                COALESCE(ec.out_degree, 0) + COALESCE(ic.in_degree, 0) as degree
+            FROM node_props np
+            LEFT JOIN edge_counts ec ON np.vertex_id = ec.node_id
+            LEFT JOIN in_edge_counts ic ON np.vertex_id = ic.node_id
+            ORDER BY degree DESC
+            LIMIT {limit}",
+            graph = self.graph_name,
+            where_clause = where_clause,
+            limit = limit
+        );
+
+        tracing::debug!(sql = %sql, "search_nodes SQL");
+
+        let rows = sqlx::query(&sql)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("Search nodes query failed: {}", e)))?;
+
+        let results: Vec<(GraphNode, usize)> = rows
+            .iter()
+            .filter_map(|row| {
+                let props: serde_json::Value = row.get("props");
+                let degree: i64 = row.get("degree");
+                
+                // Extract node_id from properties
+                let node_id = props.get("node_id")?.as_str()?.to_string();
+                
+                let node = GraphNode {
+                    id: node_id,
+                    properties: props.as_object()?.clone().into_iter().collect(),
+                };
+                
+                Some((node, degree as usize))
+            })
+            .collect();
+
+        tracing::debug!(results_count = results.len(), "search_nodes completed");
+        Ok(results)
+    }
+
     async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>> {
         let escaped_id = Self::escape_cypher_string(node_id);
 

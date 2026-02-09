@@ -948,6 +948,47 @@ export async function searchLabels(
 }
 
 /**
+ * Parameters for full node search.
+ */
+export interface SearchNodesParams {
+  q: string;
+  limit?: number;
+  includeNeighbors?: boolean;
+  neighborDepth?: number;
+  entityType?: string;
+}
+
+/**
+ * Response from full node search.
+ */
+export interface SearchNodesResponse {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  total_matches: number;
+  is_truncated: boolean;
+}
+
+/**
+ * Search for nodes with full data (label and description search).
+ * Returns matching nodes with their degrees and connecting edges.
+ * Supports optional neighbor inclusion for graph visualization.
+ */
+export async function searchNodes(
+  params: SearchNodesParams,
+): Promise<SearchNodesResponse> {
+  const urlParams = new URLSearchParams();
+  urlParams.set("q", params.q);
+  if (params.limit) urlParams.set("limit", String(params.limit));
+  if (params.includeNeighbors !== undefined)
+    urlParams.set("include_neighbors", String(params.includeNeighbors));
+  if (params.neighborDepth !== undefined)
+    urlParams.set("neighbor_depth", String(params.neighborDepth));
+  if (params.entityType) urlParams.set("entity_type", params.entityType);
+
+  return api.get<SearchNodesResponse>(`/graph/nodes/search?${urlParams}`);
+}
+
+/**
  * Popular label with metadata.
  */
 export interface PopularLabel {
@@ -1624,6 +1665,7 @@ export const edgequakeApi = {
   getGraphLabels,
   getGraphStats,
   searchLabels,
+  searchNodes,
   getPopularLabels,
   graphStream,
 
