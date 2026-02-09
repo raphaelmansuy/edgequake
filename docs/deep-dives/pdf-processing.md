@@ -72,109 +72,109 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                    PDF PROCESSING PIPELINE                        │
+│                    PDF PROCESSING PIPELINE                       │
 ├──────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│  INPUT                                                             │
-│  ┌────────────┐                                                   │
-│  │ PDF File   │                                                   │
-│  │ (bytes)    │                                                   │
-│  └──────┬─────┘                                                   │
-│         │                                                          │
-│         ▼                                                          │
+│                                                                  │
+│  INPUT                                                           │
+│  ┌────────────┐                                                  │
+│  │ PDF File   │                                                  │
+│  │ (bytes)    │                                                  │
+│  └──────┬─────┘                                                  │
+│         │                                                        │
+│         ▼                                                        │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STAGE 1: Backend Extraction                               │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ Backend: lopdf (default) or Mock (testing)                │   │
-│  │ • Load PDF structure (pages, fonts, metadata)            │   │
-│  │ • Extract raw text blocks with bounding boxes            │   │
-│  │ • Parse content streams (Tj, TJ operators)               │   │
-│  │ • Track fonts, styles, positions                         │   │
-│  │                                                            │   │
+│  │ • Load PDF structure (pages, fonts, metadata)             │   │
+│  │ • Extract raw text blocks with bounding boxes             │   │
+│  │ • Parse content streams (Tj, TJ operators)                │   │
+│  │ • Track fonts, styles, positions                          │   │
+│  │                                                           │   │
 │  │ Output: Document { pages: [Page] }                        │   │
-│  └─────────────────────┬──────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│  └─────────────────────┬─────────────────────────────────────┘   │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STAGE 2: Layout Analysis                                  │   │
-│  │                                                            │   │
-│  │ ColumnDetector:                                            │   │
+│  │                                                           │   │
+│  │ ColumnDetector:                                           │   │
 │  │   • Detect multi-column layouts (XY-Cut algorithm)        │   │
 │  │   • Split text blocks by columns                          │   │
-│  │                                                            │   │
-│  │ ReadingOrderDetector:                                      │   │
+│  │                                                           │   │
+│  │ ReadingOrderDetector:                                     │   │
 │  │   • Establish top-to-bottom, left-to-right order          │   │
 │  │   • Handle zig-zag patterns in multi-column docs          │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ Output: Page { blocks: [Block], columns: [BBox] }         │   │
-│  └─────────────────────┬──────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│  └─────────────────────┬─────────────────────────────────────┘   │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STAGE 3: Structure Detection (Processor Chain)            │   │
-│  │                                                            │   │
-│  │ 1. MarginFilterProcessor                                   │   │
+│  │                                                           │   │
+│  │ 1. MarginFilterProcessor                                  │   │
 │  │    • Remove headers/footers (top/bottom 10% of page)      │   │
-│  │                                                            │   │
-│  │ 2. StyleDetectionProcessor                                 │   │
+│  │                                                           │   │
+│  │ 2. StyleDetectionProcessor                                │   │
 │  │    • Detect bold, italic, font sizes                      │   │
-│  │                                                            │   │
-│  │ 3. HeaderDetectionProcessor                                │   │
+│  │                                                           │   │
+│  │ 3. HeaderDetectionProcessor                               │   │
 │  │    • Identify section headers (font > avg + 2pt)          │   │
-│  │                                                            │   │
-│  │ 4. ListDetectionProcessor                                  │   │
+│  │                                                           │   │
+│  │ 4. ListDetectionProcessor                                 │   │
 │  │    • Detect bullets (•, -, *, numbers)                    │   │
-│  │                                                            │   │
-│  │ 5. TableDetectionProcessor                                 │   │
+│  │                                                           │   │
+│  │ 5. TableDetectionProcessor                                │   │
 │  │    • Group blocks by Y-coordinate (rows)                  │   │
 │  │    • Detect columnar structure (X-alignment)              │   │
 │  │    • Create Table blocks with TableCell children          │   │
-│  │                                                            │   │
-│  │ 6. CaptionDetectionProcessor                               │   │
+│  │                                                           │   │
+│  │ 6. CaptionDetectionProcessor                              │   │
 │  │    • Detect "Table 1.", "Figure 2." patterns              │   │
-│  │                                                            │   │
-│  │ 7. CodeBlockDetectionProcessor                             │   │
+│  │                                                           │   │
+│  │ 7. CodeBlockDetectionProcessor                            │   │
 │  │    • Identify monospace fonts                             │   │
-│  │                                                            │   │
-│  │ 8. BlockMergeProcessor                                     │   │
+│  │                                                           │   │
+│  │ 8. BlockMergeProcessor                                    │   │
 │  │    • Merge adjacent paragraphs                            │   │
-│  │                                                            │   │
-│  │ 9. GarbledTextFilterProcessor                              │   │
+│  │                                                           │   │
+│  │ 9. GarbledTextFilterProcessor                             │   │
 │  │    • Remove non-printable, control characters             │   │
-│  │                                                            │   │
-│  │ 10. HyphenContinuationProcessor                            │   │
+│  │                                                           │   │
+│  │ 10. HyphenContinuationProcessor                           │   │
 │  │     • Join hyphenated words across lines                  │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ Output: Document with structured BlockType annotations    │   │
-│  └─────────────────────┬──────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│  └─────────────────────┬─────────────────────────────────────┘   │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STAGE 4: LLM Enhancement (Optional)                        │   │
-│  │                                                            │   │
-│  │ LlmEnhanceProcessor:                                       │   │
+│  │ STAGE 4: LLM Enhancement (Optional)                       │   │
+│  │                                                           │   │
+│  │ LlmEnhanceProcessor:                                      │   │
 │  │   • Clean garbled text                                    │   │
 │  │   • Fix OCR errors                                        │   │
 │  │   • Normalize formatting                                  │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ Requires: LLM provider (OpenAI, Ollama, etc.)             │   │
-│  └─────────────────────┬──────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│  └─────────────────────┬─────────────────────────────────────┘   │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STAGE 5: Markdown Rendering                                │   │
-│  │                                                            │   │
-│  │ MarkdownRenderer:                                          │   │
+│  │ STAGE 5: Markdown Rendering                               │   │
+│  │                                                           │   │
+│  │ MarkdownRenderer:                                         │   │
 │  │   • Convert blocks to Markdown                            │   │
-│  │   • Format tables as | Col1 | Col2 |                     │   │
+│  │   • Format tables as | Col1 | Col2 |                      │   │
 │  │   • Add headings (#, ##, ###)                             │   │
 │  │   • Preserve lists and code blocks                        │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ Styles: Standard, GitHub, Custom                          │   │
-│  └─────────────────────┬──────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
-│  OUTPUT                                                            │
+│  └─────────────────────┬─────────────────────────────────────┘   │
+│                        │                                         │
+│                        ▼                                         │
+│  OUTPUT                                                          │
 │  ┌────────────────────────────────────────────────────────┐      │
 │  │ ExtractionResult {                                     │      │
 │  │   markdown: String,                                    │      │
@@ -182,9 +182,9 @@
 │  │   images: Vec<ExtractedImage>,                         │      │
 │  │   metadata: DocumentMetadata,                          │      │
 │  │   page_errors: Vec<(usize, String)>                    │      │
-│  │ }                                                       │      │
+│  │ }                                                      │      │
 │  └────────────────────────────────────────────────────────┘      │
-│                                                                    │
+│                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 
 WHY THIS DESIGN:
@@ -419,10 +419,10 @@ EdgeQuake uses **spatial clustering** to detect tables from text block positions
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                    TABLE DETECTION ALGORITHM                      │
+│                    TABLE DETECTION ALGORITHM                     │
 ├──────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│  INPUT: Text blocks with bounding boxes                           │
+│                                                                  │
+│  INPUT: Text blocks with bounding boxes                          │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ Block("Name",  bbox=(50, 100, 100, 110), font_size=10)    │   │
 │  │ Block("Age",   bbox=(200, 100, 240, 110), font_size=10)   │   │
@@ -431,96 +431,96 @@ EdgeQuake uses **spatial clustering** to detect tables from text block positions
 │  │ Block("25",    bbox=(200, 85, 220, 95), font_size=10)     │   │
 │  │ Block("NYC",   bbox=(350, 85, 380, 95), font_size=10)     │   │
 │  └───────────────────────────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STEP 1: Group Blocks by Y-Coordinate (ROWS)               │   │
-│  │                                                            │   │
-│  │ Algorithm:                                                 │   │
+│  │                                                           │   │
+│  │ Algorithm:                                                │   │
 │  │   for each block in sorted_by_y1(blocks):                 │   │
 │  │     for each existing row:                                │   │
-│  │       if vertical_overlap(block, row[0]) > 0.5 * min_height: │   │
-│  │         row.add(block)                                     │   │
-│  │         break                                              │   │
-│  │     if not added:                                          │   │
+│  │       if vertical_overlap(block, row[0]) > 0.5 * min_height: 
+│  │         row.add(block)                                    │   │
+│  │         break                                             │   │
+│  │     if not added:                                         │   │
 │  │       create new_row([block])                             │   │
-│  │                                                            │   │
-│  │ Result:                                                    │   │
+│  │                                                           │   │
+│  │ Result:                                                   │   │
 │  │   Row 0 (y≈100): [Name, Age, City]                        │   │
 │  │   Row 1 (y≈85):  [Alice, 25, NYC]                         │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ WHY 0.5 overlap: Blocks on same row have >50% vertical    │   │
 │  │ overlap. Handles slight misalignment from PDF extraction. │   │
 │  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STEP 2: Sort Each Row by X-Coordinate (LEFT-TO-RIGHT)     │   │
-│  │                                                            │   │
-│  │ for each row in rows:                                      │   │
-│  │   row.sort_by_x1()                                         │   │
-│  │                                                            │   │
-│  │ Result:                                                    │   │
-│  │   Row 0: [Name@x=50, Age@x=200, City@x=350]              │   │
-│  │   Row 1: [Alice@x=50, 25@x=200, NYC@x=350]               │   │
+│  │                                                           │   │
+│  │ for each row in rows:                                     │   │
+│  │   row.sort_by_x1()                                        │   │
+│  │                                                           │   │
+│  │ Result:                                                   │   │
+│  │   Row 0: [Name@x=50, Age@x=200, City@x=350]               │   │
+│  │   Row 1: [Alice@x=50, 25@x=200, NYC@x=350]                │   │
 │  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STEP 3: Find Table Extent (Consecutive Multi-Block Rows)  │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ Starting from first row with >1 blocks:                   │   │
-│  │   Extend table while:                                      │   │
-│  │     • Next row has >1 blocks, AND                          │   │
+│  │   Extend table while:                                     │   │
+│  │     • Next row has >1 blocks, AND                         │   │
 │  │     • Max gap between blocks < 150pt (not columns)        │   │
-│  │   OR:                                                      │   │
+│  │   OR:                                                     │   │
 │  │     • Next row is single block aligned with table columns │   │
 │  │       (merged cell or spanning header)                    │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ WHY 150pt threshold: Typical table cell gap is 10-50pt,   │   │
 │  │ multi-column layout gap is 150-300pt. This distinguishes  │   │
 │  │ tables from two-column text.                              │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ WHY 0.8 alignment: Single-block rows must have 80%        │   │
 │  │ X-overlap with existing columns to be part of table.      │   │
 │  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STEP 4: Validate Table Likelihood                         │   │
-│  │                                                            │   │
-│  │ Requirements (OODA fix 2026-01-04):                        │   │
+│  │                                                           │   │
+│  │ Requirements (OODA fix 2026-01-04):                       │   │
 │  │   • At least 3 rows total                                 │   │
 │  │   • At least one row with >1 blocks                       │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ WHY 3 rows minimum: Avoid false positives from short      │   │
 │  │ multi-line phrases. Real tables have multiple data rows.  │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ REJECTED: Prior threshold was 6 rows, missed small tables.│   │
 │  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STEP 5: Create Table Block                                │   │
-│  │                                                            │   │
-│  │ table_block = Block {                                      │   │
-│  │   block_type: Table,                                       │   │
+│  │                                                           │   │
+│  │ table_block = Block {                                     │   │
+│  │   block_type: Table,                                      │   │
 │  │   bbox: union_of_all_cells,                               │   │
-│  │   children: [                                              │   │
+│  │   children: [                                             │   │
 │  │     Cell("Name"), Cell("Age"), Cell("City"),              │   │
 │  │     Cell("Alice"), Cell("25"), Cell("NYC")                │   │
-│  │   ]                                                        │   │
-│  │ }                                                          │   │
+│  │   ]                                                       │   │
+│  │ }                                                         │   │
 │  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
-│  OUTPUT: Table Block                                              │
+│                        │                                         │
+│                        ▼                                         │
+│  OUTPUT: Table Block                                             │
 │  ┌────────────────────────────────────────────────────────┐      │
 │  │ | Name  | Age | City |                                 │      │
 │  │ |-------|-----|------|                                 │      │
 │  │ | Alice | 25  | NYC  |                                 │      │
 │  └────────────────────────────────────────────────────────┘      │
-│                                                                    │
+│                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 
 EDGE CASES HANDLED:
@@ -615,69 +615,69 @@ EdgeQuake uses the **XY-Cut algorithm** to detect columns:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                        XY-CUT ALGORITHM                           │
+│                        XY-CUT ALGORITHM                          │
 ├──────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│  PURPOSE: Recursively split page into columns/regions             │
-│                                                                    │
-│  INPUT: Page with text blocks                                     │
+│                                                                  │
+│  PURPOSE: Recursively split page into columns/regions            │
+│                                                                  │
+│  INPUT: Page with text blocks                                    │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │  Page (8.5" x 11")                                         │  │
-│  │  ┌─────────────────────┐  ┌─────────────────────┐         │  │
-│  │  │ Column 1            │  │ Column 2            │         │  │
-│  │  │ Text blocks here... │  │ Text blocks here... │         │  │
-│  │  └─────────────────────┘  └─────────────────────┘         │  │
+│  │  ┌─────────────────────┐  ┌─────────────────────┐          │  │
+│  │  │ Column 1            │  │ Column 2            │          │  │
+│  │  │ Text blocks here... │  │ Text blocks here... │          │  │
+│  │  └─────────────────────┘  └─────────────────────┘          │  │
 │  └────────────────────────────────────────────────────────────┘  │
-│                        │                                          │
-│                        ▼                                          │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STEP 1: Project Blocks onto X-Axis                        │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ Create histogram of horizontal positions:                 │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │   X-axis: 0     100    200    300    400    500    600    │   │
 │  │           │      │      │      │      │      │      │     │   │
-│  │   Density: ████ ____ ████ ____ ████ ██████ ████ ____ ████│   │
+│  │   Density: ████ ____ ████ ____ ████ ██████ ████ ____ ████ │   │
 │  │           (Col1)     (Gap)    (Col2)                      │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ WHY: Large gaps in X-projection indicate column boundaries│   │
 │  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STEP 2: Find Vertical Cut (Largest Gap)                   │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ Scan histogram for widest gap:                            │   │
 │  │   gap_threshold = page_width * 0.1  // 10% of page        │   │
 │  │   if max_gap_width > gap_threshold:                       │   │
 │  │     cut_x = gap_center                                    │   │
-│  │                                                            │   │
+│  │                                                           │   │
 │  │ WHY 10%: Column gap is typically 5-15% of page width.     │   │
 │  │ Smaller gaps are whitespace within paragraphs.            │   │
 │  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
+│                        │                                         │
+│                        ▼                                         │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STEP 3: Split Page at Cut                                 │   │
-│  │                                                            │   │
-│  │ Left region:  blocks where bbox.x2 < cut_x               │   │
-│  │ Right region: blocks where bbox.x1 > cut_x               │   │
-│  │                                                            │   │
+│  │                                                           │   │
+│  │ Left region:  blocks where bbox.x2 < cut_x                │   │
+│  │ Right region: blocks where bbox.x1 > cut_x                │   │
+│  │                                                           │   │
 │  │ Recursively apply XY-Cut to each region:                  │   │
 │  │   • Try vertical cuts first (columns)                     │   │
 │  │   • Try horizontal cuts (sections) if no vertical gap     │   │
 │  │   • Stop when no gaps > threshold                         │   │
 │  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                          │
-│                        ▼                                          │
-│  OUTPUT: Column Bounding Boxes                                    │
+│                        │                                         │
+│                        ▼                                         │
+│  OUTPUT: Column Bounding Boxes                                   │
 │  ┌────────────────────────────────────────────────────────┐      │
 │  │ columns = [                                            │      │
-│  │   BBox { x1: 50, x2: 280, y1: 50, y2: 750 },         │      │
-│  │   BBox { x1: 320, x2: 550, y1: 50, y2: 750 }         │      │
+│  │   BBox { x1: 50, x2: 280, y1: 50, y2: 750 },           │      │
+│  │   BBox { x1: 320, x2: 550, y1: 50, y2: 750 }           │      │
 │  │ ]                                                      │      │
 │  └────────────────────────────────────────────────────────┘      │
-│                                                                    │
+│                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 

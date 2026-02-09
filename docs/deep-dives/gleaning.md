@@ -12,26 +12,26 @@ Single-pass LLM extraction typically captures 65-80% of entities in a document. 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    GLEANING CONCEPT                              │
+│                    GLEANING CONCEPT                             │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Without Gleaning:                                               │
-│  ────────────────                                                │
+│                                                                 │
+│  Without Gleaning:                                              │
+│  ────────────────                                               │
 │  Document (100 entities) ──▶ Single Pass ──▶ 70 entities found  │
-│                                              (30 missed)         │
-│                                                                   │
-│  With Gleaning (2 iterations):                                   │
-│  ─────────────────────────────                                   │
+│                                              (30 missed)        │
+│                                                                 │
+│  With Gleaning (2 iterations):                                  │
+│  ─────────────────────────────                                  │
 │  Document (100 entities) ──┬─▶ Pass 1 ──▶ 70 entities           │
-│                            │                                      │
+│                            │                                    │
 │                            ├─▶ Pass 2 ──▶ +18 entities          │
-│                            │   "What did you miss?"              │
-│                            │                                      │
+│                            │   "What did you miss?"             │
+│                            │                                    │
 │                            └─▶ Pass 3 ──▶ +7 entities           │
-│                                "What else?"                       │
-│                                                                   │
-│                            Total: 95 entities (95% recall)       │
-│                                                                   │
+│                                "What else?"                     │
+│                                                                 │
+│                            Total: 95 entities (95% recall)      │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,40 +57,40 @@ LLMs miss entities due to several factors:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    GLEANING ALGORITHM                            │
+│                    GLEANING ALGORITHM                           │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  FUNCTION glean(chunk, max_iterations):                          │
-│                                                                   │
-│      1. all_entities = []                                        │
-│      2. all_relationships = []                                   │
-│                                                                   │
-│      3. // First pass: normal extraction                         │
-│         result = extract(chunk)                                  │
-│         all_entities.extend(result.entities)                     │
+│                                                                 │
+│  FUNCTION glean(chunk, max_iterations):                         │
+│                                                                 │
+│      1. all_entities = []                                       │
+│      2. all_relationships = []                                  │
+│                                                                 │
+│      3. // First pass: normal extraction                        │
+│         result = extract(chunk)                                 │
+│         all_entities.extend(result.entities)                    │
 │         all_relationships.extend(result.relationships)          │
-│                                                                   │
-│      4. FOR i IN 1..max_iterations:                              │
-│                                                                   │
-│         5. previous_names = all_entities.map(e => e.name)        │
-│                                                                   │
-│         6. // Gleaning prompt                                    │
-│            prompt = """                                          │
-│              MANY entities were missed in the last extraction.   │
-│              Already found: {previous_names}                     │
-│              Find ADDITIONAL entities and relationships.         │
-│            """                                                    │
-│                                                                   │
-│         7. new_result = extract_with_prompt(chunk, prompt)       │
-│                                                                   │
-│         8. IF new_result.entities.is_empty():                    │
-│               BREAK  // No more entities to find                 │
-│                                                                   │
-│         9. all_entities.extend(new_result.entities)              │
-│            all_relationships.extend(new_result.relationships)    │
-│                                                                   │
-│      10. RETURN deduplicate(all_entities, all_relationships)     │
-│                                                                   │
+│                                                                 │
+│      4. FOR i IN 1..max_iterations:                             │
+│                                                                 │
+│         5. previous_names = all_entities.map(e => e.name)       │
+│                                                                 │
+│         6. // Gleaning prompt                                   │
+│            prompt = """                                         │
+│              MANY entities were missed in the last extraction.  │
+│              Already found: {previous_names}                    │
+│              Find ADDITIONAL entities and relationships.        │
+│            """                                                  │
+│                                                                 │
+│         7. new_result = extract_with_prompt(chunk, prompt)      │
+│                                                                 │
+│         8. IF new_result.entities.is_empty():                   │
+│               BREAK  // No more entities to find                │
+│                                                                 │
+│         9. all_entities.extend(new_result.entities)             │
+│            all_relationships.extend(new_result.relationships)   │
+│                                                                 │
+│      10. RETURN deduplicate(all_entities, all_relationships)    │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -338,37 +338,37 @@ let extractor = GleaningExtractor::new(llm, base_extractor)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                  PIPELINE WITH GLEANING                          │
+│                  PIPELINE WITH GLEANING                         │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Document                                                        │
-│     │                                                            │
-│     ▼                                                            │
-│  ┌──────────┐                                                    │
+│                                                                 │
+│  Document                                                       │
+│     │                                                           │
+│     ▼                                                           │
+│  ┌──────────┐                                                   │
 │  │ Chunking │ ──▶ chunk_1, chunk_2, chunk_3, ...                │
-│  └──────────┘                                                    │
-│     │                                                            │
-│     ▼                                                            │
+│  └──────────┘                                                   │
+│     │                                                           │
+│     ▼                                                           │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ FOR each chunk:                                           │   │
-│  │                                                           │   │
+│  │ FOR each chunk:                                          │   │
+│  │                                                          │   │
 │  │   ┌─────────────────┐                                    │   │
-│  │   │ GleaningExtractor│                                    │   │
-│  │   │                  │                                    │   │
+│  │   │ GleaningExtractor│                                   │   │
+│  │   │                  │                                   │   │
 │  │   │ Pass 1 (base)   │──▶ entities_1                      │   │
 │  │   │ Pass 2 (glean)  │──▶ entities_2                      │   │
 │  │   │ Pass 3 (glean)  │──▶ entities_3                      │   │
-│  │   │                  │                                    │   │
+│  │   │                  │                                   │   │
 │  │   │ Merge & Dedupe  │──▶ final_entities                  │   │
 │  │   └─────────────────┘                                    │   │
-│  │                                                           │   │
+│  │                                                          │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│     │                                                            │
-│     ▼                                                            │
-│  ┌──────────────┐                                                │
+│     │                                                           │
+│     ▼                                                           │
+│  ┌──────────────┐                                               │
 │  │ Graph Storage │ ◀── All extracted entities & relationships   │
-│  └──────────────┘                                                │
-│                                                                   │
+│  └──────────────┘                                               │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

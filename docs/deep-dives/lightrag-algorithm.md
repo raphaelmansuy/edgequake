@@ -32,13 +32,13 @@ Traditional Retrieval-Augmented Generation (RAG) systems use a simple approach:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    TRADITIONAL RAG (Naive)                       │
+│                    TRADITIONAL RAG (Naive)                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Documents ──> Chunks ──> Embeddings ──> Vector DB               │
-│                                                                   │
-│  Query ──> Embedding ──> Top-K Similar Chunks ──> LLM Answer     │
-│                                                                   │
+│                                                                 │
+│  Documents ──> Chunks ──> Embeddings ──> Vector DB              │
+│                                                                 │
+│  Query ──> Embedding ──> Top-K Similar Chunks ──> LLM Answer    │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -65,27 +65,27 @@ Graphs are fundamentally about **relationships**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    KNOWLEDGE GRAPH STRUCTURE                     │
+│                    KNOWLEDGE GRAPH STRUCTURE                    │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│           ┌─────────────┐                                        │
-│           │ SARAH_CHEN  │                                        │
-│           │   (PERSON)  │                                        │
-│           └──────┬──────┘                                        │
-│                  │                                                │
-│      ┌───────────┼───────────┐                                   │
-│      │           │           │                                   │
-│      v           v           v                                   │
+│                                                                 │
+│           ┌─────────────┐                                       │
+│           │ SARAH_CHEN  │                                       │
+│           │   (PERSON)  │                                       │
+│           └──────┬──────┘                                       │
+│                  │                                              │
+│      ┌───────────┼───────────┐                                  │
+│      │           │           │                                  │
+│      v           v           v                                  │
 │  ┌───────┐  ┌─────────┐  ┌──────────────────┐                   │
-│  │WORKS_AT│  │RESEARCHES│  │COLLABORATES_WITH│                   │
+│  │WORKS_AT  │RESEARCHES  │COLLABORATES_WITH                     │
 │  └───┬───┘  └────┬────┘  └────────┬─────────┘                   │
-│      │           │               │                               │
-│      v           v               v                               │
+│      │           │               │                              │
+│      v           v               v                              │
 │ ┌─────────────┐ ┌──────────────┐ ┌─────────┐                    │
-│ │QUANTUM_LAB │ │NEURAL_NETWORK│ │BOB_SMITH│                     │
-│ │ (ORG)      │ │  (CONCEPT)   │ │ (PERSON)│                     │
+│ │QUANTUM_LAB  │ │NEURAL_NETWORK│ │BOB_SMITH│                    │
+│ │ (ORG)       │ │  (CONCEPT)   │ │ (PERSON)│                    │
 │ └─────────────┘ └──────────────┘ └─────────┘                    │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -104,25 +104,25 @@ With a graph, we can:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│              ENTITIES BRIDGE DOCUMENTS                           │
+│              ENTITIES BRIDGE DOCUMENTS                          │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Document 1          Document 2          Document 3              │
+│                                                                 │
+│  Document 1          Document 2          Document 3             │
 │  ┌─────────┐        ┌─────────┐        ┌─────────┐              │
 │  │"Sarah's │        │"Dr. Chen│        │"The lab │              │
-│  │ neural  │        │ published│        │ team... │              │
-│  │ network │        │ findings"│        │ Sarah"  │              │
+│  │ neural  │        │ published│       │ team... │              │
+│  │ network │        │ findings"│       │ Sarah"  │              │
 │  │ paper"  │        └────┬────┘        └────┬────┘              │
-│  └────┬────┘             │                  │                    │
-│       │                  │                  │                    │
-│       └──────────────────┼──────────────────┘                    │
-│                          │                                       │
-│                          v                                       │
-│                   ┌─────────────┐                                │
-│                   │ SARAH_CHEN  │ ← Single unified node          │
-│                   │   (PERSON)  │                                │
-│                   └─────────────┘                                │
-│                                                                   │
+│  └────┬────┘             │                  │                   │
+│       │                  │                  │                   │
+│       └──────────────────┼──────────────────┘                   │
+│                          │                                      │
+│                          v                                      │
+│                   ┌─────────────┐                               │
+│                   │ SARAH_CHEN  │ ← Single unified node         │
+│                   │   (PERSON)  │                               │
+│                   └─────────────┘                               │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -174,24 +174,24 @@ Unlike GraphRAG which requires rebuilding community structures:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 EDGEQUAKE GRAPH-RAG PIPELINE                     │
+│                 EDGEQUAKE GRAPH-RAG PIPELINE                    │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │                     INGESTION PHASE                       │   │
+│  │                     INGESTION PHASE                      │   │
 │  ├──────────────────────────────────────────────────────────┤   │
-│  │                                                           │   │
-│  │   Document ──┬──> Preprocess ──> Chunk ──> Extract        │   │
-│  │              │                      │                     │   │
-│  │              │                      v                     │   │
-│  │              │               ┌─────────────┐              │   │
-│  │              │               │ LLM Entity  │              │   │
-│  │              │               │ Extraction  │              │   │
-│  │              │               └──────┬──────┘              │   │
-│  │              │                      │                     │   │
-│  │              │        ┌─────────────┼─────────────┐       │   │
-│  │              │        │             │             │       │   │
-│  │              │        v             v             v       │   │
+│  │                                                          │   │
+│  │   Document ──┬──> Preprocess ──> Chunk ──> Extract       │   │
+│  │              │                      │                    │   │
+│  │              │                      v                    │   │
+│  │              │               ┌─────────────┐             │   │
+│  │              │               │ LLM Entity  │             │   │
+│  │              │               │ Extraction  │             │   │
+│  │              │               └──────┬──────┘             │   │
+│  │              │                      │                    │   │
+│  │              │        ┌─────────────┼─────────────┐      │   │
+│  │              │        │             │             │      │   │
+│  │              │        v             v             v      │   │
 │  │              │   ┌────────┐   ┌──────────┐   ┌────────┐  │   │
 │  │              │   │Entities│   │Relations │   │Chunks  │  │   │
 │  │              │   └───┬────┘   └────┬─────┘   └───┬────┘  │   │
@@ -201,36 +201,36 @@ Unlike GraphRAG which requires rebuilding community structures:
 │  │         │              KNOWLEDGE GRAPH               │   │   │
 │  │         │  (PostgreSQL + Apache AGE + pgvector)      │   │   │
 │  │         └────────────────────────────────────────────┘   │   │
-│  │                                                           │   │
+│  │                                                          │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │                      QUERY PHASE                          │   │
+│  │                      QUERY PHASE                         │   │
 │  ├──────────────────────────────────────────────────────────┤   │
-│  │                                                           │   │
-│  │   Query ──> Keywords ──> Dual-Level Retrieval             │   │
-│  │                               │                           │   │
-│  │               ┌───────────────┼───────────────┐           │   │
-│  │               │               │               │           │   │
-│  │               v               v               v           │   │
+│  │                                                          │   │
+│  │   Query ──> Keywords ──> Dual-Level Retrieval            │   │
+│  │                               │                          │   │
+│  │               ┌───────────────┼───────────────┐          │   │
+│  │               │               │               │          │   │
+│  │               v               v               v          │   │
 │  │         ┌──────────┐   ┌──────────┐   ┌──────────┐       │   │
 │  │         │ Entities │   │Relations │   │  Chunks  │       │   │
 │  │         └────┬─────┘   └────┬─────┘   └────┬─────┘       │   │
-│  │              │              │              │              │   │
-│  │              └──────────────┼──────────────┘              │   │
-│  │                             │                             │   │
-│  │                             v                             │   │
-│  │                    ┌────────────────┐                     │   │
-│  │                    │ Context Fusion │                     │   │
-│  │                    └───────┬────────┘                     │   │
-│  │                            │                              │   │
-│  │                            v                              │   │
-│  │                    ┌────────────────┐                     │   │
-│  │                    │  LLM Answer    │                     │   │
-│  │                    └────────────────┘                     │   │
-│  │                                                           │   │
+│  │              │              │              │             │   │
+│  │              └──────────────┼──────────────┘             │   │
+│  │                             │                            │   │
+│  │                             v                            │   │
+│  │                    ┌────────────────┐                    │   │
+│  │                    │ Context Fusion │                    │   │
+│  │                    └───────┬────────┘                    │   │
+│  │                            │                             │   │
+│  │                            v                             │   │
+│  │                    ┌────────────────┐                    │   │
+│  │                    │  LLM Answer    │                    │   │
+│  │                    └────────────────┘                    │   │
+│  │                                                          │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -359,18 +359,18 @@ entities and relationships from the input text.
            ┌─────────────────────────────────────────────────┐
            │                                                 │
            v                                                 │
-    ┌──────────────┐                                        │
+    ┌──────────────┐                                         │
     │ PREPARE_PROMPT│                                        │
     │ (System + User)│                                       │
-    └──────┬───────┘                                        │
+    └──────┬───────┘                                         │
            │                                                 │
            v                                                 │
-    ┌──────────────┐     finish_reason      ┌──────────────┐│
-    │  LLM_CALL    │────────────────────────│ RETRY_WITH   ││
-    │              │     = "length"         │ 2x TOKENS    ││
-    └──────┬───────┘                        └──────┬───────┘│
-           │                                       │        │
-           │ finish_reason = "stop"                └────────┘
+    ┌──────────────┐     finish_reason      ┌──────────────┐ │
+    │  LLM_CALL    │────────────────────────│ RETRY_WITH   │ │
+    │              │     = "length"         │ 2x TOKENS    │ │
+    └──────┬───────┘                        └──────┬───────┘ │
+           │                                       │         │
+           │ finish_reason = "stop"                └─────────┘
            │                                        (max 3x)
            v
     ┌──────────────┐
@@ -437,17 +437,17 @@ Low-Level Retrieval:
 │     │   (PERSON)    │                                        │
 │     └───────┬───────┘                                        │
 │             │                                                │
-│    ┌────────┼────────────┬─────────────────┐                │
+│    ┌────────┼────────────┬─────────────────┐                 │
 │    │        │            │                 │                 │
 │    v        v            v                 v                 │
-│ ┌──────┐ ┌────────┐ ┌─────────┐ ┌────────────────┐          │
-│ │WORKS │ │RESEARCHES│ │PUBLISHED│ │COLLABORATES_WITH│        │
-│ └──┬───┘ └───┬────┘ └────┬────┘ └───────┬────────┘          │
+│ ┌──────┐ ┌────────┐ ┌─────────┐ ┌────────────────┐           │
+│ │WORKS │ │RESEARCHES│ │PUBLISHED│ │COLLABORATES_WITH         │
+│ └──┬───┘ └───┬────┘ └────┬────┘ └───────┬────────┘           │
 │    │         │           │              │                    │
 │    v         v           v              v                    │
-│ ┌──────┐ ┌────────────┐ ┌──────┐ ┌──────────┐              │
-│ │ LAB  │ │NEURAL_NETS │ │PAPER │ │BOB_SMITH │              │
-│ └──────┘ └────────────┘ └──────┘ └──────────┘              │
+│ ┌──────┐ ┌────────────┐ ┌──────┐ ┌──────────┐                │
+│ │ LAB  │ │NEURAL_NETS │ │PAPER │ │BOB_SMITH │                │
+│ └──────┘ └────────────┘ └──────┘ └──────────┘                │
 │                                                              │
 │ Returns: Entity descriptions + 1-hop neighbors               │
 └──────────────────────────────────────────────────────────────┘
@@ -463,18 +463,18 @@ Query: "What are the main AI research trends?"
 High-Level Retrieval:
 ┌──────────────────────────────────────────────────────────────┐
 │                                                              │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │              TOPIC CLUSTER: "AI RESEARCH"                ││
-│  │                                                          ││
-│  │  Key themes:                                             ││
-│  │  • Neural network architectures                         ││
-│  │  • Machine learning optimization                        ││
-│  │  • Deep learning applications                           ││
-│  │                                                          ││
-│  │  Related entities: 45                                    ││
-│  │  Related relationships: 128                              ││
-│  │                                                          ││
-│  └─────────────────────────────────────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │              TOPIC CLUSTER: "AI RESEARCH"               │ │
+│  │                                                         │ │
+│  │  Key themes:                                            │ │
+│  │  • Neural network architectures                         │ │
+│  │  • Machine learning optimization                        │ │
+│  │  • Deep learning applications                           │ │
+│  │                                                         │ │
+│  │  Related entities: 45                                   │ │
+│  │  Related relationships: 128                             │ │
+│  │                                                         │ │
+│  └─────────────────────────────────────────────────────────┘ │
 │                                                              │
 │  Uses global keywords to match relationship clusters         │
 │  Returns: Aggregated summaries + theme keywords              │
@@ -490,31 +490,31 @@ High-Level Retrieval:
 │                                                              │
 │                      USER QUERY                              │
 │                          │                                   │
-│            ┌─────────────┴─────────────┐                    │
+│            ┌─────────────┴─────────────┐                     │
 │            │                           │                     │
 │            v                           v                     │
-│     ┌─────────────┐           ┌─────────────┐              │
-│     │  LOW-LEVEL  │           │ HIGH-LEVEL  │              │
-│     │  Entities   │           │  Summaries  │              │
-│     │  + 1-hop    │           │  + Topics   │              │
-│     └──────┬──────┘           └──────┬──────┘              │
-│            │                         │                      │
-│            └───────────┬─────────────┘                      │
-│                        │                                    │
-│                        v                                    │
-│              ┌─────────────────┐                           │
-│              │  CONTEXT FUSION │                           │
-│              │                 │                           │
-│              │ • Deduplicate   │                           │
-│              │ • Score & rank  │                           │
-│              │ • Truncate to   │                           │
-│              │   token limit   │                           │
-│              └────────┬────────┘                           │
-│                       │                                     │
-│                       v                                     │
-│              ┌─────────────────┐                           │
-│              │   LLM ANSWER    │                           │
-│              └─────────────────┘                           │
+│     ┌─────────────┐           ┌─────────────┐                │
+│     │  LOW-LEVEL  │           │ HIGH-LEVEL  │                │
+│     │  Entities   │           │  Summaries  │                │
+│     │  + 1-hop    │           │  + Topics   │                │
+│     └──────┬──────┘           └──────┬──────┘                │
+│            │                         │                       │
+│            └───────────┬─────────────┘                       │
+│                        │                                     │
+│                        v                                     │
+│              ┌─────────────────┐                             │
+│              │  CONTEXT FUSION │                             │
+│              │                 │                             │
+│              │ • Deduplicate   │                             │
+│              │ • Score & rank  │                             │
+│              │ • Truncate to   │                             │
+│              │   token limit   │                             │
+│              └────────┬────────┘                             │
+│                       │                                      │
+│                       v                                      │
+│              ┌─────────────────┐                             │
+│              │   LLM ANSWER    │                             │
+│              └─────────────────┘                             │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -611,26 +611,26 @@ LLMs often miss entities in a single pass due to:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    GLEANING (RE-EXTRACTION)                      │
+│                    GLEANING (RE-EXTRACTION)                     │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Pass 1: Initial Extraction                                      │
-│  ─────────────────────────                                       │
-│  Input: "Sarah Chen leads the team at Quantum Lab.               │
-│          The company recently expanded..."                       │
-│                                                                   │
-│  Extracted: SARAH_CHEN, QUANTUM_LAB                              │
-│  Missed: "The company" = QUANTUM_LAB (implicit reference)        │
-│                                                                   │
-│  ─────────────────────────────────────────────────────────────   │
-│                                                                   │
-│  Pass 2: Gleaning                                                │
-│  ─────────────────                                               │
-│  Prompt: "MANY entities were missed. Already found:              │
-│           SARAH_CHEN, QUANTUM_LAB. Look for implicit mentions."  │
-│                                                                   │
-│  Additional: TEAM (implicit), EXPANSION_EVENT (implicit)         │
-│                                                                   │
+│                                                                 │
+│  Pass 1: Initial Extraction                                     │
+│  ─────────────────────────                                      │
+│  Input: "Sarah Chen leads the team at Quantum Lab.              │
+│          The company recently expanded..."                      │
+│                                                                 │
+│  Extracted: SARAH_CHEN, QUANTUM_LAB                             │
+│  Missed: "The company" = QUANTUM_LAB (implicit reference)       │
+│                                                                 │
+│  ────────────────────────────────────────────────────────────   │
+│                                                                 │
+│  Pass 2: Gleaning                                               │
+│  ─────────────────                                              │
+│  Prompt: "MANY entities were missed. Already found:             │
+│           SARAH_CHEN, QUANTUM_LAB. Look for implicit mentions." │
+│                                                                 │
+│  Additional: TEAM (implicit), EXPANSION_EVENT (implicit)        │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -662,20 +662,20 @@ EdgeQuake extends the original LightRAG with:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                ADAPTIVE TOKEN MANAGEMENT                         │
+│                ADAPTIVE TOKEN MANAGEMENT                        │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Chunk Size (KB)     Base Tokens    Retry Tokens                 │
-│  ───────────────     ───────────    ────────────                 │
-│  < 25 KB             4,096          8,192 → 16,384               │
-│  25-75 KB            8,192          16,384 → 32,768              │
-│  75-125 KB           12,288         24,576 → 32,768              │
-│  > 125 KB            16,384         32,768 (max)                 │
-│                                                                   │
-│  Detection:                                                       │
-│  • finish_reason="length" → LLM hit token limit                  │
-│  • JSON parse error → Response truncated mid-output              │
-│                                                                   │
+│                                                                 │
+│  Chunk Size (KB)     Base Tokens    Retry Tokens                │
+│  ───────────────     ───────────    ────────────                │
+│  < 25 KB             4,096          8,192 → 16,384              │
+│  25-75 KB            8,192          16,384 → 32,768             │
+│  75-125 KB           12,288         24,576 → 32,768             │
+│  > 125 KB            16,384         32,768 (max)                │
+│                                                                 │
+│  Detection:                                                     │
+│  • finish_reason="length" → LLM hit token limit                 │
+│  • JSON parse error → Response truncated mid-output             │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

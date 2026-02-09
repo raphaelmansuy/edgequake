@@ -79,16 +79,16 @@ No mode is universally "best" - each makes different trade-offs.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    QUERY MODE QUICK GUIDE                        │
+│                    QUERY MODE QUICK GUIDE                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  "What is X?"                    → Naive   (fast, direct)        │
-│  "How does A relate to B?"       → Local   (entity graph)        │
-│  "What are the main themes?"     → Global  (topic clusters)      │
-│  "Tell me about X and its impact"→ Hybrid  (comprehensive)       │
-│  "I need custom weights"         → Mix     (tunable)             │
-│  "Skip RAG, just ask LLM"        → Bypass  (testing)             │
-│                                                                   │
+│                                                                 │
+│  "What is X?"                    → Naive   (fast, direct)       │
+│  "How does A relate to B?"       → Local   (entity graph)       │
+│  "What are the main themes?"     → Global  (topic clusters)     │
+│  "Tell me about X and its impact"→ Hybrid  (comprehensive)      │
+│  "I need custom weights"         → Mix     (tunable)            │
+│  "Skip RAG, just ask LLM"        → Bypass  (testing)            │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -146,36 +146,36 @@ Naive mode performs pure vector similarity search on document chunks, without gr
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      NAIVE MODE FLOW                             │
+│                      NAIVE MODE FLOW                            │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Query: "What is machine learning?"                              │
-│         │                                                        │
-│         ▼                                                        │
+│                                                                 │
+│  Query: "What is machine learning?"                             │
+│         │                                                       │
+│         ▼                                                       │
 │  ┌─────────────────┐                                            │
 │  │ Embed Query     │  → [0.23, -0.45, 0.87, ...]                │
 │  └────────┬────────┘                                            │
-│           │                                                      │
-│           ▼                                                      │
+│           │                                                     │
+│           ▼                                                     │
 │  ┌─────────────────────────────────────────┐                    │
-│  │  Vector Database (pgvector)              │                    │
+│  │  Vector Database (pgvector)              │                   │
 │  │  ┌────────┐ ┌────────┐ ┌────────┐       │                    │
 │  │  │chunk_1 │ │chunk_2 │ │chunk_3 │ ...   │                    │
 │  │  │sim:0.92│ │sim:0.85│ │sim:0.78│       │                    │
 │  │  └────────┘ └────────┘ └────────┘       │                    │
 │  └─────────────────────────────────────────┘                    │
-│           │                                                      │
-│           ▼                                                      │
+│           │                                                     │
+│           ▼                                                     │
 │  ┌─────────────────┐                                            │
 │  │ Top-K Chunks    │  → ["ML is a subset of AI...",             │
 │  │ (scored)        │      "Training neural networks..."]        │
 │  └────────┬────────┘                                            │
-│           │                                                      │
-│           ▼                                                      │
+│           │                                                     │
+│           ▼                                                     │
 │  ┌─────────────────┐                                            │
 │  │ LLM Generation  │  → "Machine learning is..."                │
 │  └─────────────────┘                                            │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -225,45 +225,45 @@ Local mode combines vector search with graph traversal from identified entities.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      LOCAL MODE FLOW                             │
+│                      LOCAL MODE FLOW                            │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Query: "How does Sarah Chen work with the IPCC?"                │
-│         │                                                        │
-│         ▼                                                        │
+│                                                                 │
+│  Query: "How does Sarah Chen work with the IPCC?"               │
+│         │                                                       │
+│         ▼                                                       │
 │  ┌─────────────────┐   ┌─────────────────┐                      │
 │  │ Embed Query     │   │ Extract Entities│                      │
 │  └────────┬────────┘   └────────┬────────┘                      │
-│           │                     │                                │
-│           ▼                     ▼                                │
+│           │                     │                               │
+│           ▼                     ▼                               │
 │  ┌─────────────────┐   ┌─────────────────────┐                  │
 │  │  Vector Search  │   │  Entity Lookup      │                  │
 │  │  (chunks)       │   │  SARAH_CHEN, IPCC   │                  │
 │  └────────┬────────┘   └────────┬────────────┘                  │
-│           │                     │                                │
-│           │                     ▼                                │
+│           │                     │                               │
+│           │                     ▼                               │
 │           │            ┌─────────────────────────┐              │
 │           │            │  Graph Traversal        │              │
 │           │            │                         │              │
-│           │            │  SARAH_CHEN ──WORKS_WITH──▶ IPCC      │
+│           │            │  SARAH_CHEN ──WORKS_WITH──▶ IPCC       │
 │           │            │       │                    │           │
 │           │            │       └──AUTHORED──▶ PAPER_1           │
 │           │            │                         │              │
 │           │            └─────────────────────────┘              │
-│           │                     │                                │
+│           │                     │                               │
 │           └──────────┬──────────┘                               │
-│                      ▼                                           │
+│                      ▼                                          │
 │             ┌─────────────────┐                                 │
 │             │ Merge Context   │                                 │
 │             │ (chunks +       │                                 │
 │             │  entities +     │                                 │
 │             │  relationships) │                                 │
 │             └────────┬────────┘                                 │
-│                      ▼                                           │
+│                      ▼                                          │
 │             ┌─────────────────┐                                 │
 │             │ LLM Generation  │                                 │
 │             └─────────────────┘                                 │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -313,39 +313,39 @@ Global mode focuses on high-level topic clusters identified during indexing. It'
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      GLOBAL MODE FLOW                            │
+│                      GLOBAL MODE FLOW                           │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Query: "What are the main themes in this document?"             │
-│         │                                                        │
-│         ▼                                                        │
+│                                                                 │
+│  Query: "What are the main themes in this document?"            │
+│         │                                                       │
+│         ▼                                                       │
 │  ┌─────────────────────────────────────────────────┐            │
-│  │  Community Detection (pre-computed during index) │            │
-│  │                                                   │            │
-│  │  ┌─────────────────┐  ┌─────────────────┐        │            │
-│  │  │   Community 1   │  │   Community 2   │        │            │
-│  │  │   "Climate"     │  │   "Technology"  │        │            │
-│  │  │                 │  │                 │        │            │
-│  │  │  • IPCC         │  │  • MACHINE_     │        │            │
-│  │  │  • SARAH_CHEN   │  │    LEARNING     │        │            │
-│  │  │  • CO2_LEVELS   │  │  • NEURAL_NET   │        │            │
-│  │  │  • WARMING      │  │  • PREDICTION   │        │            │
-│  │  └─────────────────┘  └─────────────────┘        │            │
-│  │           │                    │                  │            │
-│  │           ▼                    ▼                  │            │
+│  │  Community Detection (pre-computed during index)│            │
+│  │                                                 │            │
+│  │  ┌─────────────────┐  ┌─────────────────┐       │            │
+│  │  │   Community 1   │  │   Community 2   │       │            │
+│  │  │   "Climate"     │  │   "Technology"  │       │            │
+│  │  │                 │  │                 │       │            │
+│  │  │  • IPCC         │  │  • MACHINE_     │       │            │
+│  │  │  • SARAH_CHEN   │  │    LEARNING     │       │            │
+│  │  │  • CO2_LEVELS   │  │  • NEURAL_NET   │       │            │
+│  │  │  • WARMING      │  │  • PREDICTION   │       │            │
+│  │  └─────────────────┘  └─────────────────┘       │            │
+│  │           │                    │                │            │
+│  │           ▼                    ▼                │            │
 │  │  ┌─────────────────────────────────────┐        │            │
 │  │  │        Community Summaries          │        │            │
 │  │  │  "Climate: Research focuses on..."  │        │            │
 │  │  │  "Technology: ML applications..."   │        │            │
 │  │  └─────────────────────────────────────┘        │            │
 │  └─────────────────────────────────────────────────┘            │
-│                      │                                           │
-│                      ▼                                           │
+│                      │                                          │
+│                      ▼                                          │
 │             ┌─────────────────┐                                 │
 │             │ LLM Generation  │                                 │
 │             │ (theme synthesis)│                                │
 │             └─────────────────┘                                 │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -395,14 +395,14 @@ Hybrid mode uses both vector search and full graph traversal, combining the prec
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      HYBRID MODE FLOW                            │
+│                      HYBRID MODE FLOW                           │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Query: "Explain Sarah Chen's impact on climate modeling"        │
-│         │                                                        │
-│         ├─────────────────────────────────────┐                  │
-│         │                                     │                  │
-│         ▼                                     ▼                  │
+│                                                                 │
+│  Query: "Explain Sarah Chen's impact on climate modeling"       │
+│         │                                                       │
+│         ├─────────────────────────────────────┐                 │
+│         │                                     │                 │
+│         ▼                                     ▼                 │
 │  ┌─────────────────┐                 ┌─────────────────┐        │
 │  │  LOCAL PATH     │                 │  GLOBAL PATH    │        │
 │  │                 │                 │                 │        │
@@ -411,22 +411,22 @@ Hybrid mode uses both vector search and full graph traversal, combining the prec
 │  │  • Neighborhood │                 │  • Topic context│        │
 │  │    traversal    │                 │                 │        │
 │  └────────┬────────┘                 └────────┬────────┘        │
-│           │                                   │                  │
-│           │  ┌───────────────────────────┐   │                  │
-│           └─▶│    CONTEXT FUSION         │◀──┘                  │
-│              │                           │                       │
-│              │  1. Deduplicate entities  │                       │
-│              │  2. Merge relationships   │                       │
-│              │  3. Combine chunks        │                       │
-│              │  4. Apply token budget    │                       │
-│              └─────────────┬─────────────┘                       │
-│                            │                                     │
-│                            ▼                                     │
+│           │                                   │                 │
+│           │  ┌───────────────────────────┐    │                 │
+│           └─▶│    CONTEXT FUSION         │◀───┘                 │
+│              │                           │                      │
+│              │  1. Deduplicate entities  │                      │
+│              │  2. Merge relationships   │                      │
+│              │  3. Combine chunks        │                      │
+│              │  4. Apply token budget    │                      │
+│              └─────────────┬─────────────┘                      │
+│                            │                                    │
+│                            ▼                                    │
 │              ┌─────────────────────────┐                        │
 │              │    LLM Generation       │                        │
 │              │   (comprehensive answer)│                        │
 │              └─────────────────────────┘                        │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -530,22 +530,22 @@ curl -X POST http://localhost:8080/api/v1/query \
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    RESOURCE USAGE BY MODE                        │
+│                    RESOURCE USAGE BY MODE                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Naive   ████░░░░░░░░░░░░░░░░  (Vector only)                    │
-│                                                                   │
+│                                                                 │
 │  Local   ████████░░░░░░░░░░░░  (Vector + Graph node)            │
-│                                                                   │
+│                                                                 │
 │  Global  ██████████░░░░░░░░░░  (Graph communities)              │
-│                                                                   │
+│                                                                 │
 │  Hybrid  ████████████████░░░░  (All sources)                    │
-│                                                                   │
+│                                                                 │
 │  Mix     ████████████░░░░░░░░  (Weighted blend)                 │
-│                                                                   │
-│          ─────────────────────────────────────────►              │
-│          Low                                    High              │
-│                                                                   │
+│                                                                 │
+│          ─────────────────────────────────────────►             │
+│          Low                                    High            │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
