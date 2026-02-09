@@ -4,6 +4,28 @@
 //! providers based on workspace configuration, with proper fallback logic
 //! and error handling.
 //!
+//! # WHY: This Is the QUERY-TIME Provider Resolver
+//!
+//! This resolver is used ONLY for chat query requests — NOT for pipeline
+//! document extraction. The pipeline uses a completely different path
+//! (see processor.rs `get_workspace_pipeline_strict`).
+//!
+//! ```text
+//!  ┌──────────────────────────────────────────────────────────────────┐
+//!  │  QUERY-TIME RESOLUTION (this module)                            │
+//!  │                                                                  │
+//!  │  request.provider + request.model                                │
+//!  │       │                                                          │
+//!  │       ├── Both present? ──► Create provider → source=Request     │
+//!  │       │                                                          │
+//!  │       ├── Absent? Check workspace.llm_provider                   │
+//!  │       │   └── Present? ──► Create provider → source=Workspace    │
+//!  │       │                                                          │
+//!  │       └── Neither? ──► Return None → caller uses sota_engine      │
+//!  │                         default (from_env() at startup)           │
+//!  └──────────────────────────────────────────────────────────────────┘
+//! ```
+//!
 //! ## Design Principles
 //!
 //! 1. **Single Source of Truth**: All provider resolution logic goes through this module

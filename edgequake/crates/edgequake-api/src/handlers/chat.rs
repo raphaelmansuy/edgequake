@@ -4,6 +4,54 @@
 //! conversation creation, message persistence, and LLM streaming in a single
 //! atomic operation. This is the preferred API for client applications.
 //!
+//! # WHY: Query Provider Resolution vs Pipeline Provider Resolution
+//!
+//! The chat handler resolves providers PER-REQUEST. This is SEPARATE from the
+//! pipeline's document-extraction providers (see processor.rs). Users often see
+//! Ollama logs interleaved with their OpenAI chat query logs and assume their
+//! query used Ollama. In reality, Ollama logs come from background pipeline
+//! tasks running concurrently.
+//!
+//! ```text
+//!  ┌──────────────────────────────────────────────────────────────────────┐
+//!  │  QUERY PROVIDER RESOLUTION (this module)                            │
+//!  │                                                                      │
+//!  │  UI sends: { provider: "openai", model: "gpt-5-nano" }             │
+//!  │       │                                                              │
+//!  │       ▼                                                              │
+//!  │  WorkspaceProviderResolver::resolve_llm_provider_with_workspace      │
+//!  │       │                                                              │
+//!  │       ├── Has request.provider + request.model?                      │
+//!  │       │   └── YES ──► create_safe_llm_provider() → source=Request   │
+//!  │       │                                                              │
+//!  │       ├── Has workspace.llm_provider?                                │
+//!  │       │   └── YES ──► create_safe_llm_provider() → source=Workspace │
+//!  │       │                                                              │
+//!  │       └── Neither? ──► None → use sota_engine's default              │
+//!  │                                                                      │
+//!  │  Result: llm_override = Arc<dyn LLMProvider>                        │
+//!  │  Used for: answer generation + keyword extraction (query-time only)  │
+//!  └──────────────────────────────────────────────────────────────────────┘
+//!
+//!  ┌──────────────────────────────────────────────────────────────────────┐
+//!  │  PIPELINE PROVIDER (processor.rs - background task, NOT this module) │
+//!  │                                                                      │
+//!  │  Worker picks up document task with workspace_id                     │
+//!  │       │                                                              │
+//!  │       ▼                                                              │
+//!  │  get_workspace_pipeline_strict(workspace_id)                        │
+//!  │       │                                                              │
+//!  │       ├── Creates llm + embedding from workspace DB config           │
+//!  │       │   └── SUCCESS ──► workspace-specific Pipeline               │
+//!  │       │                                                              │
+//!  │       └── FAILURE ──► Task fails (strict mode) or falls back to     │
+//!  │                       server default pipeline (Ollama from env)      │
+//!  │                                                                      │
+//!  │  Result: Pipeline with LLMExtractor + EmbeddingProvider             │
+//!  │  Used for: entity extraction from documents (background ingestion)   │
+//!  └──────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
 //! ## Implements
 //!
 //! - **FEAT0501**: Unified chat endpoint with streaming SSE responses
@@ -394,7 +442,7 @@ pub async fn chat_completion(
                     provider = %resolved.provider_name,
                     model = %resolved.model_name,
                     source = ?resolved.source,
-                    "Resolved LLM provider (non-streaming)"
+                    "Resolved LLM provider (non-streaming) [QUERY]"
                 );
                 (
                     Some(resolved.provider),
@@ -495,12 +543,18 @@ pub async fn chat_completion(
                 .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
         }
         (Some(embed), None) => {
-            // Workspace embedding only (uses default vector storage)
-            // This should not happen in normal operation but handle gracefully
-            warn!("Workspace embedding available but no vector storage - using embedding provider only");
+            // WHY: Same fix as streaming path — use workspace embedding with server
+            // default vector storage instead of dropping to query_with_embedding_provider
+            // which may use a different vector storage dimension.
+            warn!("[QUERY] Workspace embedding available but no vector storage - using workspace embedding with server default vector storage");
             state
                 .sota_engine
-                .query_with_embedding_provider(engine_request, embed.clone())
+                .query_with_full_config(
+                    engine_request,
+                    embed.clone(),
+                    state.vector_storage.clone(),
+                    llm_override.clone(),
+                )
                 .await
                 .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
         }
@@ -834,7 +888,7 @@ pub async fn chat_completion_stream(
                     source = ?resolved.source,
                     request_provider = ?request_provider,
                     request_model = ?request_model,
-                    "✅ Resolved LLM provider (streaming) - using user selection or workspace override"
+                    "✅ [QUERY] Resolved LLM provider (streaming) - using user selection or workspace override"
                 );
                 (
                     Some(resolved.provider),
@@ -848,7 +902,7 @@ pub async fn chat_completion_stream(
                     request_provider = ?request_provider,
                     request_model = ?request_model,
                     workspace_llm_provider = ?workspace_clone.as_ref().map(|w| &w.llm_provider),
-                    "⚠️ Using server default LLM provider (streaming) - neither request nor workspace specified a provider"
+                    "⚠️ [QUERY] Using server default LLM provider (streaming) - neither request nor workspace specified a provider"
                 );
                 (None, None, None)
             }
@@ -924,7 +978,19 @@ pub async fn chat_completion_stream(
             (None, None)
         };
 
-        // SPEC-032: Use query_stream_with_full_config if we have workspace config, otherwise fall back
+        // WHY: Five dispatch paths exist because the SOTA engine needs different
+        // combinations of providers. The paths form a priority cascade:
+        //
+        //   (embed + vector + llm_override)  → full workspace isolation
+        //   (embed only + llm_override)      → uses DEFAULT vector storage (potential dimension bug)
+        //   (embed only, no llm)             → uses DEFAULT vector storage + DEFAULT LLM
+        //   (llm_override only)              → uses DEFAULT embedding + DEFAULT vector storage
+        //   (nothing)                        → all-default (server startup providers)
+        //
+        // The happy path for workspace queries is ALWAYS the first branch
+        // (embed + vector + llm_override). If you land in other branches, check
+        // whether get_workspace_embedding_provider or get_workspace_vector_storage
+        // returned None/Err — that usually means a missing API key or dimension mismatch.
         let stream_result = match (&ws_embedding_provider, &ws_vector_storage) {
             (Some(embed), Some(vector)) => {
                 // OODA-228: Use workspace embedding + storage + optional LLM override
@@ -939,23 +1005,27 @@ pub async fn chat_completion_stream(
                     )
                     .await
             }
-            (Some(_embed), None) => {
-                // Have embedding provider but not vector storage - use embedding override only
-                // WHY: _embed is unused because query_stream_with_embedding_provider isn't implemented yet
-                debug!("Using embedding provider override for streaming (no vector storage)");
-                // For streaming, we need to use get_context with embedding and then stream
-                // Since we don't have query_stream_with_embedding_provider, use the LLM override approach
-                if let Some(ref llm) = llm_override {
-                    state_clone
-                        .sota_engine
-                        .query_stream_with_context_and_llm(engine_request, llm.clone())
-                        .await
-                } else {
-                    state_clone
-                        .sota_engine
-                        .query_stream_with_context(engine_request)
-                        .await
-                }
+            (Some(embed), None) => {
+                // WHY: We have workspace embedding but no workspace-specific vector storage.
+                // This is unusual but can happen during workspace migration or misconfiguration.
+                // Use workspace embedding + server default vector storage + optional LLM override.
+                //
+                // Previously this dropped the embedding provider entirely and fell through to
+                // query_stream_with_context_and_llm, which used the DEFAULT embedding provider.
+                // That caused dimension mismatches when workspace embedding dimension != default.
+                //
+                // FIX: Use query_stream_with_full_config with the server's default vector storage.
+                // This preserves the workspace embedding while using the default vector table.
+                warn!("[QUERY] Workspace embedding available but no workspace-specific vector storage - using workspace embedding with server default vector storage");
+                state_clone
+                    .sota_engine
+                    .query_stream_with_full_config(
+                        engine_request,
+                        embed.clone(),
+                        state_clone.vector_storage.clone(),
+                        llm_override.clone(),
+                    )
+                    .await
             }
             _ => {
                 // No workspace config - use LLM override only

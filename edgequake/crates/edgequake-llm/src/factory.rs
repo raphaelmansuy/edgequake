@@ -4,6 +4,40 @@
 //! @implements FEAT0017: Multi-provider LLM support
 //! @implements SPEC-033: Hybrid provider mode (separate LLM and embedding providers)
 //!
+//! # WHY This Factory Exists (Two Separate Provider Paths)
+//!
+//! EdgeQuake uses LLM providers in TWO independent codepaths:
+//!
+//! ```text
+//!  ┌─────────────────────────────────────────────────────────────────┐
+//!  │                  Provider Selection Points                      │
+//!  ├─────────────────────────────────────────────────────────────────┤
+//!  │                                                                 │
+//!  │  1. SERVER DEFAULT PIPELINE (set once at startup)               │
+//!  │     ┌──────────┐    from_env()     ┌───────────────────┐       │
+//!  │     │  Server   │ ──────────────►  │  Default Pipeline │       │
+//!  │     │  Startup  │  auto-detect     │  (doc extraction) │       │
+//!  │     └──────────┘                   └───────────────────┘       │
+//!  │     Used for: background document ingestion when workspace     │
+//!  │     providers cannot be created (API key missing, etc.)        │
+//!  │                                                                 │
+//!  │  2. PER-REQUEST PROVIDER (resolved per chat query)             │
+//!  │     ┌──────────┐    resolver       ┌───────────────────┐       │
+//!  │     │  Chat     │ ──────────────►  │  Query LLM        │       │
+//!  │     │  Request  │  user selection  │  (answer gen)      │       │
+//!  │     └──────────┘                   └───────────────────┘       │
+//!  │     Priority: request param > workspace config > server default│
+//!  │                                                                 │
+//!  │  3. WORKSPACE PIPELINE (resolved per document task)            │
+//!  │     ┌──────────┐    create_safe*   ┌───────────────────┐       │
+//!  │     │  Worker   │ ──────────────►  │  Workspace Pipeline│      │
+//!  │     │  Task     │  ws config       │  (doc extraction)  │      │
+//!  │     └──────────┘                   └───────────────────┘       │
+//!  │     Uses workspace.llm_provider + workspace.llm_model          │
+//!  │     Falls back to (1) if creation fails                        │
+//!  └─────────────────────────────────────────────────────────────────┘
+//! ```
+//!
 //! # Environment Variables
 //!
 //! ## Provider Selection
@@ -36,10 +70,21 @@
 //!
 //! # Auto-Detection Priority
 //!
-//! When `EDGEQUAKE_LLM_PROVIDER` is not set:
-//! 1. Check for OLLAMA_HOST or OLLAMA_MODEL → Use Ollama
-//! 2. Check for OPENAI_API_KEY → Use OpenAI
-//! 3. Fallback → Use Mock provider
+//! WHY Ollama wins over OpenAI: EdgeQuake is designed for local-first development.
+//! The `make dev` workflow starts Ollama by default. If you want OpenAI as the
+//! server-level default, set `EDGEQUAKE_LLM_PROVIDER=openai` explicitly.
+//!
+//! ```text
+//!  EDGEQUAKE_LLM_PROVIDER set?
+//!       │
+//!       ├── YES ──► Use that provider (explicit override)
+//!       │
+//!       └── NO  ──► Auto-detect:
+//!                    ├── OLLAMA_HOST or OLLAMA_MODEL? ──► Ollama
+//!                    ├── LMSTUDIO_HOST or LMSTUDIO_MODEL? ──► LM Studio
+//!                    ├── OPENAI_API_KEY (non-empty)? ──► OpenAI
+//!                    └── Nothing? ──► Mock
+//! ```
 //!
 //! # Example
 //!
@@ -146,18 +191,40 @@ impl ProviderFactory {
                 ))
             })?
         } else {
-            // Auto-detect based on environment
-            // Priority: Ollama → LM Studio → OpenAI → Mock
-            if std::env::var("OLLAMA_HOST").is_ok() || std::env::var("OLLAMA_MODEL").is_ok() {
+            // Auto-detect based on environment.
+            // WHY Ollama first: EdgeQuake is local-first. `make dev` always starts Ollama.
+            // This means the SERVER DEFAULT is Ollama. Per-query and per-workspace providers
+            // are resolved separately (see WorkspaceProviderResolver and processor.rs).
+            //
+            //   Priority: Ollama → LM Studio → OpenAI → Mock
+            //
+            // If you see unexpected Ollama usage in logs while expecting OpenAI, either:
+            //   (a) Set EDGEQUAKE_LLM_PROVIDER=openai to override auto-detection, or
+            //   (b) The workspace pipeline fell back to server default (check CRITICAL logs)
+            let has_ollama =
+                std::env::var("OLLAMA_HOST").is_ok() || std::env::var("OLLAMA_MODEL").is_ok();
+            let has_openai = std::env::var("OPENAI_API_KEY")
+                .map(|k| !k.is_empty() && k != "test-key")
+                .unwrap_or(false);
+
+            if has_ollama {
+                // WHY warn: Users often have both Ollama running AND OPENAI_API_KEY set.
+                // When auto-detect picks Ollama, background pipeline tasks use Ollama
+                // even though the user expects OpenAI. This warning makes it visible.
+                if has_openai {
+                    tracing::warn!(
+                        "Auto-detect: Ollama selected as SERVER DEFAULT (OLLAMA_HOST/OLLAMA_MODEL found). \
+                         OPENAI_API_KEY is also set but unused for server default. \
+                         Workspace-specific pipelines and per-query overrides still use OpenAI when configured. \
+                         To force OpenAI as server default, set EDGEQUAKE_LLM_PROVIDER=openai"
+                    );
+                }
                 ProviderType::Ollama
             } else if std::env::var("LMSTUDIO_HOST").is_ok()
                 || std::env::var("LMSTUDIO_MODEL").is_ok()
             {
                 ProviderType::LMStudio
-            } else if std::env::var("OPENAI_API_KEY")
-                .map(|k| !k.is_empty() && k != "test-key")
-                .unwrap_or(false)
-            {
+            } else if has_openai {
                 ProviderType::OpenAI
             } else {
                 ProviderType::Mock

@@ -3,6 +3,58 @@
 //! This module implements the `TaskProcessor` trait to process document
 //! upload tasks through the pipeline and update storage accordingly.
 //!
+//! # WHY: Pipeline Provider vs Query Provider
+//!
+//! This is the #1 source of confusion in EdgeQuake. There are TWO independent
+//! LLM provider selection paths, and they produce interleaved log lines:
+//!
+//! ```text
+//!  ┌─────────────────────────────────────────────────────────────────────┐
+//!  │  CONCURRENT LOG INTERLEAVING (why users think query uses Ollama)    │
+//!  │                                                                     │
+//!  │  Time   Source      Log                                            │
+//!  │  ─────  ──────────  ──────────────────────────────────────────     │
+//!  │  03:38  QUERY       Resolved LLM provider=openai model=gpt-5-nano │
+//!  │  03:38  QUERY       Using full config for streaming ...            │
+//!  │  03:38  PIPELINE    Chunk extraction timed out, will retry ...     │
+//!  │  03:38  PIPELINE    Ollama chat request: gemma3:latest   ◄── HERE │
+//!  │  03:39  QUERY       Sent context event with 150 sources            │
+//!  │                                                                     │
+//!  │  The Ollama log is from a BACKGROUND pipeline task, not the query! │
+//!  └─────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! # Pipeline Provider Selection Flow
+//!
+//! ```text
+//!  Worker picks task from queue
+//!       │
+//!       ▼
+//!  process_text_insert(task)
+//!       │
+//!       ├── Extract workspace_id from task metadata
+//!       │
+//!       ▼
+//!  strict_workspace_mode?
+//!       │
+//!       ├── YES (production) ──► get_workspace_pipeline_strict()
+//!       │                             │
+//!       │                             ├── Lookup workspace in DB
+//!       │                             ├── create_safe_llm_provider(ws.llm_provider, ws.llm_model)
+//!       │                             ├── create_safe_embedding_provider(ws.embedding_*)
+//!       │                             │
+//!       │                             ├── Both OK? ──► Workspace Pipeline (correct provider)
+//!       │                             └── Either fails? ──► TaskError (task fails clearly)
+//!       │
+//!       └── NO (legacy/test) ──► get_workspace_pipeline()
+//!                                     │
+//!                                     ├── Same workspace lookup...
+//!                                     │
+//!                                     ├── Both OK? ──► Workspace Pipeline (correct)
+//!                                     └── Any failure? ──► DEFAULT pipeline (Ollama!)
+//!                                                          ^ THIS is the silent bug
+//! ```
+//!
 //! ## Implements
 //!
 //! - [`FEAT0470`]: Async document processing
@@ -228,6 +280,19 @@ impl DocumentTaskProcessor {
     /// - No workspace_id provided
     /// - Workspace not found
     /// - Failed to create workspace-specific providers
+    ///
+    /// # WHY: Silent Fallback is Dangerous
+    ///
+    /// When this method falls back to `self.pipeline` (the server default, typically
+    /// Ollama from auto-detection), documents get extracted with the WRONG provider.
+    /// This produces confusing logs where Ollama appears even though the workspace
+    /// is configured for OpenAI. Production code uses `get_workspace_pipeline_strict`
+    /// instead, which fails the task explicitly.
+    ///
+    /// # WHY: This Method Still Exists
+    ///
+    /// Kept for backward compatibility in test/memory mode where strict workspace
+    /// isolation isn't required. Production (PostgreSQL mode) always uses strict.
     async fn get_workspace_pipeline(&self, workspace_id: Option<&str>) -> Arc<Pipeline> {
         use edgequake_llm::ProviderFactory;
 
@@ -235,7 +300,7 @@ impl DocumentTaskProcessor {
             workspace_id = ?workspace_id,
             has_workspace_service = self.workspace_service.is_some(),
             has_models_config = self.models_config.is_some(),
-            "SPEC-032: Getting pipeline for workspace"
+            "[PIPELINE] SPEC-032: Getting pipeline for workspace"
         );
 
         // If no workspace support configured, use default pipeline
@@ -299,7 +364,7 @@ impl DocumentTaskProcessor {
                             llm_model = %ws.llm_model,
                             embedding_provider = %ws.embedding_provider,
                             embedding_model = %ws.embedding_model,
-                            "SPEC-032: Using workspace-specific providers for document processing"
+                            "[PIPELINE] SPEC-032: Using workspace-specific providers for document processing"
                         );
 
                         let extractor = Arc::new(LLMExtractor::new(Arc::clone(llm)));
@@ -355,7 +420,9 @@ impl DocumentTaskProcessor {
                     workspace_id = workspace_id,
                     llm_config = %ws.llm_full_id(),
                     embedding_config = %ws.embedding_full_id(),
-                    "Falling back to default pipeline due to provider creation failure"
+                    "Falling back to default pipeline due to provider creation failure. \
+                     WHY: This means document extraction will use the SERVER DEFAULT provider (likely Ollama) \
+                     instead of the workspace-configured provider. Check API keys and provider config."
                 );
             }
             Ok(None) => {
@@ -391,7 +458,7 @@ impl DocumentTaskProcessor {
             workspace_id = ?workspace_id,
             has_workspace_service = self.workspace_service.is_some(),
             has_models_config = self.models_config.is_some(),
-            "OODA-16: Getting pipeline for workspace (STRICT mode)"
+            "[PIPELINE] OODA-16: Getting pipeline for workspace (STRICT mode)"
         );
 
         // If no workspace support configured, fail explicitly
@@ -472,7 +539,7 @@ impl DocumentTaskProcessor {
             llm_model = %ws.llm_model,
             embedding_provider = %ws.embedding_provider,
             embedding_model = %ws.embedding_model,
-            "OODA-16: Successfully created workspace-specific providers (STRICT mode)"
+            "[PIPELINE] OODA-16: Successfully created workspace-specific providers (STRICT mode)"
         );
 
         let extractor = Arc::new(LLMExtractor::new(Arc::clone(&llm_provider)));
@@ -819,7 +886,7 @@ impl DocumentTaskProcessor {
             extraction_provider = %provider_lineage.extraction_provider,
             extraction_model = %provider_lineage.extraction_model,
             embedding_provider = %provider_lineage.embedding_provider,
-            "Processing document with workspace-specific pipeline"
+            "[PIPELINE] Processing document with workspace-specific pipeline"
         );
 
         // Update task progress - chunking
