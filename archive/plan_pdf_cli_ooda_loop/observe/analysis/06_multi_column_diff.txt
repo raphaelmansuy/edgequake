@@ -1,2 +1,0 @@
-=== Comparing 06_multi_column ===
-diff: output/06_multi_column_converted.md: No such file or directory

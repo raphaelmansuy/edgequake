@@ -1,2 +1,0 @@
-=== Comparing 01_basic_text ===
-diff: output/01_basic_text_converted.md: No such file or directory

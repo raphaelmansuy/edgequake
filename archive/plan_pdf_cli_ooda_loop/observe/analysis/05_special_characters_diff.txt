@@ -1,2 +1,0 @@
-=== Comparing 05_special_characters ===
-diff: output/05_special_characters_converted.md: No such file or directory
