@@ -1,141 +1,141 @@
 name: CI
 
 on:
-    push:
-        branches: [main, edgequake-main]
-    pull_request:
-        branches: [main, edgequake-main]
+  push:
+    branches: [main, edgequake-main]
+  pull_request:
+    branches: [main, edgequake-main]
 
 env:
-    CARGO_TERM_COLOR: always
-    RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-    check:
-        name: Check
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Install Rust
-              uses: dtolnay/rust-toolchain@stable
-              with:
-                  components: clippy, rustfmt
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
 
-            - name: Cache cargo
-              uses: Swatinem/rust-cache@v2
-              with:
-                  workspaces: edgequake
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
 
-            - name: Check formatting
-              working-directory: edgequake
-              run: cargo fmt --all -- --check
+      - name: Check formatting
+        working-directory: edgequake
+        run: cargo fmt --all -- --check
 
-            - name: Check clippy
-              working-directory: edgequake
-              run: cargo clippy --workspace --lib --no-default-features -- -D warnings
+      - name: Check clippy
+        working-directory: edgequake
+        run: cargo clippy --workspace --lib --no-default-features -- -D warnings
 
-    test:
-        name: Test
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Install Rust
-              uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-            - name: Cache cargo
-              uses: Swatinem/rust-cache@v2
-              with:
-                  workspaces: edgequake
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
 
-            - name: Run tests
-              working-directory: edgequake
-              run: cargo test --workspace --lib --no-default-features --no-fail-fast
-              env:
-                  # Use mock LLM provider for tests (no API key needed)
-                  RUST_LOG: warn
+      - name: Run tests
+        working-directory: edgequake
+        run: cargo test --workspace --lib --no-default-features --no-fail-fast
+        env:
+          # Use mock LLM provider for tests (no API key needed)
+          RUST_LOG: warn
 
-    build:
-        name: Build
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Install Rust
-              uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-            - name: Cache cargo
-              uses: Swatinem/rust-cache@v2
-              with:
-                  workspaces: edgequake
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
 
-            - name: Build release
-              working-directory: edgequake
-              run: cargo build --release --lib --no-default-features
-              
-            # Note: Examples and binaries require postgres feature, tested in postgres-integration.yml
+      - name: Build release
+        working-directory: edgequake
+        run: cargo build --release --lib --no-default-features
 
-    coverage:
-        name: Coverage
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+      # Note: Examples and binaries require postgres feature, tested in postgres-integration.yml
 
-            - name: Install Rust
-              uses: dtolnay/rust-toolchain@stable
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Install cargo-tarpaulin
-              run: cargo install cargo-tarpaulin
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-            - name: Cache cargo
-              uses: Swatinem/rust-cache@v2
-              with:
-                  workspaces: edgequake
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
 
-            - name: Generate coverage
-              working-directory: edgequake
-              run: cargo tarpaulin --workspace --no-default-features --timeout 300 --out xml
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
 
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v4
-              with:
-                  files: edgequake/cobertura.xml
-                  fail_ci_if_error: false
+      - name: Generate coverage
+        working-directory: edgequake
+        run: cargo tarpaulin --workspace --no-default-features --timeout 300 --out xml
 
-    security:
-        name: Security Audit
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: edgequake/cobertura.xml
+          fail_ci_if_error: false
 
-            - name: Install Rust
-              uses: dtolnay/rust-toolchain@stable
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Install cargo-audit
-              run: cargo install cargo-audit
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-            - name: Run security audit
-              working-directory: edgequake
-              run: cargo audit --ignore RUSTSEC-2023-0071 # Ignore rsa timing issue (no fix available)
-              continue-on-error: true # Don't fail on unmaintained warnings
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
 
-    docs:
-        name: Documentation
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+      - name: Run security audit
+        working-directory: edgequake
+        run: cargo audit --ignore RUSTSEC-2023-0071 # Ignore rsa timing issue (no fix available)
+        continue-on-error: true # Don't fail on unmaintained warnings
 
-            - name: Install Rust
-              uses: dtolnay/rust-toolchain@stable
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Cache cargo
-              uses: Swatinem/rust-cache@v2
-              with:
-                  workspaces: edgequake
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-            - name: Build docs
-              working-directory: edgequake
-              run: cargo doc --workspace --no-deps --no-default-features
-              env:
-                  RUSTDOCFLAGS: -D warnings
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+
+      - name: Build docs
+        working-directory: edgequake
+        run: cargo doc --workspace --no-deps --no-default-features
+        env:
+          RUSTDOCFLAGS: -D warnings

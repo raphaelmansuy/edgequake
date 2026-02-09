@@ -606,7 +606,7 @@ impl ProviderFactory {
     /// Create a safety-limited LLM provider from workspace configuration.
     ///
     /// This wraps the provider with safety limits (max_tokens, timeout) to prevent
-    /// excessive LLM usage and runaway generation. Used for background document 
+    /// excessive LLM usage and runaway generation. Used for background document
     /// ingestion when workspace providers could not be created (API key missing, etc.).
     ///
     /// @implements SPEC-032: Safe fallback provider for ingestion

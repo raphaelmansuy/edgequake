@@ -4,9 +4,9 @@ This file maintains traceability between code features and business requirements
 
 ## Index
 
-| Feature ID | Description                    | Status | BR/UC Links |
-| ---------- | ------------------------------ | ------ | ----------- |
-| -          | No features documented yet     | -      | -           |
+| Feature ID | Description                | Status | BR/UC Links |
+| ---------- | -------------------------- | ------ | ----------- |
+| -          | No features documented yet | -      | -           |
 
 ## Feature Definitions
 

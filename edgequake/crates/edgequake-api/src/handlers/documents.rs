@@ -1,4 +1,4 @@
-///! Document ingestion handlers.
+//! Document ingestion handlers.
 //!
 //! @implements FEAT0407 (Document REST API Handlers)
 //! @implements FEAT0402
