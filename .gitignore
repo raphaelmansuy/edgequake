@@ -23,6 +23,9 @@ Cargo.lock
 lightrag.log*
 /.playwright-mcp
 archive/
+logf/
+zz_test_docs/
+zz-explore/
 
 # Python artifacts (for LightRAG reference)
 __pycache__/
