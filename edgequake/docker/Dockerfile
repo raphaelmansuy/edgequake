@@ -4,7 +4,8 @@
 # ============================================
 # Stage 1: Build
 # ============================================
-FROM rust:latest AS builder
+# Use rust:bookworm to match runtime glibc version (debian:bookworm-slim)
+FROM rust:bookworm AS builder
 
 WORKDIR /app
 
