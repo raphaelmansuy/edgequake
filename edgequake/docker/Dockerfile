@@ -19,8 +19,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
 COPY src/ src/
 
-# Build release binary (without --locked to allow dependency resolution)
-RUN cargo build --release
+# Build release binary with locked dependencies
+RUN cargo build --release --locked
 
 # ============================================
 # Stage 2: Runtime
