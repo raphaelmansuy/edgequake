@@ -46,6 +46,7 @@ import { toast } from 'sonner';
 import { GraphEmptyIllustration } from '../illustrations/graph-empty-illustration';
 import { BookmarksPanel } from './bookmarks-panel';
 import { EntityBrowserPanel } from './entity-browser-panel';
+import { GraphAccessibilityAnnouncer } from './graph-accessibility-announcer';
 import { GraphControls } from './graph-controls';
 import { GraphExport } from './graph-export';
 import { GraphFilters } from './graph-filters';
@@ -490,11 +491,17 @@ export function GraphViewer() {
         </header>
 
         {/* Graph Canvas - bg-background ensures proper theme in fullscreen */}
+        {/* WHY: role="application" tells screen readers this is an interactive app */}
         <div 
           className="flex-1 relative overflow-hidden bg-background text-foreground" 
           data-graph-container
           data-tour="graph-canvas"
+          role="application"
+          aria-label="Knowledge Graph Visualization - use Tab to navigate nodes, Enter to focus, Escape to deselect"
         >
+          {/* Screen reader announcements for node selection */}
+          <GraphAccessibilityAnnouncer />
+          
           {isLoading && allNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">

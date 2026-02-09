@@ -1,5 +1,8 @@
 # Mission: Optimize Knowledge Graph Display & UX
 
+
+Fully Read the mission before starting. Re-read it at the start of every OODA iteration to prevent alignment drift.
+
 ## Task
 
 Your mission is to optimize the Knowledge Graph visualization for SOTA performance and UX:
@@ -21,7 +24,7 @@ Ensure WCAG accessibility standards are met for graph interactions (keyboard nav
 
 Use mcp playwright interractive tests to validate graph functionality and performance improvements. Don't take screenshots as it bloat the session, use the interactive mode to verify functionality.
 
-As part of the mission for other screens 
+As part of the mission for other screens query, documents, etc:
 
 Verify screen layout of each screen and panel to ensure no visual bugs or misalignments. Ensure all UI elements are visible and properly styled. Check for responsiveness on different screen sizes. Ensure scrollable areas are properly contained and don't cause layout issues. Verify zooming interactions work smoothly without visual glitches. Ensure Fixed Area and Scrollable Area are properly defined and don't overlap or cause usability issues.
 
