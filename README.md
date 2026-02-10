@@ -60,7 +60,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Community Detection**: Louvain modularity optimization clusters related entities for thematic queries
 - **Graph Visualization**: Interactive Sigma.js-powered frontend with zoom/pan
 
-### 📄 Advanced PDF Processing
+### 📄 Advanced PDF Processing (⚠️ Available Soon)
 
 - **Text Mode**: Fast extraction for text-based PDFs
 - **Vision Mode**: OCR for scanned documents and images
