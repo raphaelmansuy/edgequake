@@ -523,3 +523,8 @@ EdgeQuake is inspired by and builds upon the excellent work of:
 ---
 
 **Ready to build intelligent document retrieval?** [Get started now!](docs/getting-started/quick-start.md)
+
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=raphaelmansuy/edgequake&type=date&legend=top-left)](https://www.star-history.com/#raphaelmansuy/edgequake&type=date&legend=top-left)
