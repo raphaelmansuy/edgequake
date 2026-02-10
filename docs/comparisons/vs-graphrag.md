@@ -26,45 +26,45 @@ Both EdgeQuake and Microsoft GraphRAG use knowledge graphs to enhance retrieval 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   GRAPHRAG ARCHITECTURE                          │
+│                   GRAPHRAG ARCHITECTURE                         │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌─────────────┐                                                 │
+│                                                                 │
+│  ┌─────────────┐                                                │
 │  │   Python    │  Pandas DataFrames, asyncio                    │
 │  │ Data Pipes  │  Pipeline-based data transformation            │
-│  └──────┬──────┘                                                 │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
-│  │   Parquet   │    │  LanceDB    │    │   CosmosDB  │         │
-│  │   Files     │    │  (Vector)   │    │  (Optional) │         │
-│  └─────────────┘    └─────────────┘    └─────────────┘         │
-│                                                                   │
+│  └──────┬──────┘                                                │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐          │
+│  │   Parquet   │    │  LanceDB    │    │   CosmosDB  │          │
+│  │   Files     │    │  (Vector)   │    │  (Optional) │          │
+│  └─────────────┘    └─────────────┘    └─────────────┘          │
+│                                                                 │
 │  Focus: Research, Analysis, Batch Processing                    │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                   EDGEQUAKE ARCHITECTURE                         │
+│                   EDGEQUAKE ARCHITECTURE                        │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌─────────────┐                                                 │
+│                                                                 │
+│  ┌─────────────┐                                                │
 │  │    Rust     │  Tokio async, zero-copy, 11 crates             │
 │  │   Engine    │  Multi-tenant, streaming-first                 │
-│  └──────┬──────┘                                                 │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │              PostgreSQL (Unified Backend)                    │ │
+│  └──────┬──────┘                                                │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │              PostgreSQL (Unified Backend)                  │ │
 │  │  ┌─────────┐  ┌─────────┐  ┌─────────────────────────────┐ │ │
 │  │  │pgvector │  │ Apache  │  │   Standard Tables           │ │ │
 │  │  │(vectors)│  │  AGE    │  │   (docs, workspaces)        │ │ │
 │  │  │         │  │ (graph) │  │                             │ │ │
 │  │  └─────────┘  └─────────┘  └─────────────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-│                                                                   │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                 │
 │  Focus: Production Services, Multi-tenant SaaS                  │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -362,24 +362,24 @@ multi_tenant: Built-in via workspaces
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    DECISION MATRIX                               │
+│                    DECISION MATRIX                               
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Requirement                 │ GraphRAG  │ EdgeQuake             │
+│                                                                 │
+│  Requirement                 │ GraphRAG  │ EdgeQuake            │
 │  ─────────────────────────────────────────────────────────────  │
-│  Research/Analysis           │    ⭐⭐⭐⭐   │    ⭐⭐⭐               │
-│  Production Service          │    ⭐⭐     │    ⭐⭐⭐⭐              │
-│  Multi-tenant SaaS           │    ⭐      │    ⭐⭐⭐⭐              │
-│  Indexing Cost Efficiency    │    ⭐⭐     │    ⭐⭐⭐⭐              │
-│  Query Latency               │    ⭐⭐     │    ⭐⭐⭐⭐              │
-│  Hierarchical Understanding  │    ⭐⭐⭐⭐   │    ⭐⭐⭐               │
-│  Python Ecosystem            │    ⭐⭐⭐⭐   │    ⭐⭐                │
-│  Claims Extraction           │    ⭐⭐⭐⭐   │    ❌                 │
-│  REST API                    │    ⭐      │    ⭐⭐⭐⭐              │
-│                                                                   │
+│  Research/Analysis           │    ⭐⭐⭐⭐       ⭐⭐⭐               
+│  Production Service          │    ⭐⭐         ⭐⭐⭐⭐              
+│  Multi-tenant SaaS           │    ⭐          ⭐⭐⭐⭐              
+│  Indexing Cost Efficiency    │    ⭐⭐         ⭐⭐⭐⭐             
+│  Query Latency               │    ⭐⭐         ⭐⭐⭐⭐              
+│  Hierarchical Understanding  │    ⭐⭐⭐⭐       ⭐⭐⭐               
+│  Python Ecosystem            │    ⭐⭐⭐⭐       ⭐⭐                
+│  Claims Extraction           │    ⭐⭐⭐⭐       ❌                 
+│  REST API                    │    ⭐          ⭐⭐⭐⭐              
+│                                                                 
 │  GraphRAG: Best for research, analysis, deep document study     │
 │  EdgeQuake: Best for production services, SaaS, real-time apps  │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
