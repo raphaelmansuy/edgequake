@@ -10,6 +10,10 @@
 
 ---
 
+
+
+![Screenshot of EdgeQuake Frontend](docs/assets/01-screenshot.png)
+
 ## Why EdgeQuake?
 
 Traditional RAG systems retrieve document chunks using vector similarity alone. This works for simple lookups but fails on multi-hop reasoning ("How does X relate to Y through Z?"), thematic questions ("What are the major themes?"), and relationship queries. The core problem: **vectors capture semantic similarity but lose structural relationships between concepts**.
