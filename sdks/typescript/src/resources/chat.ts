@@ -5,12 +5,12 @@
  * @see edgequake/crates/edgequake-api/src/handlers/chat.rs
  */
 
-import { Resource } from "./base.js";
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   ChatStreamEvent,
 } from "../types/chat.js";
+import { Resource } from "./base.js";
 
 export class ChatResource extends Resource {
   /** Send a chat completion request and get a complete response. */

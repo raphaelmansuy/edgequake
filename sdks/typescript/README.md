@@ -58,17 +58,18 @@ for await (const event of client.chat.stream({
 
 ```typescript
 const client = new EdgeQuake({
-  baseUrl: "http://localhost:8080",  // Default
-  apiKey: "eq-key-xxx",              // API key auth
-  accessToken: "jwt-token",          // Or JWT auth
-  tenantId: "tenant-1",             // Multi-tenant
-  workspaceId: "workspace-1",       // Workspace scope
-  timeout: 30000,                   // 30s default
-  maxRetries: 3,                    // Retry on 429/503
+  baseUrl: "http://localhost:8080", // Default
+  apiKey: "eq-key-xxx", // API key auth
+  accessToken: "jwt-token", // Or JWT auth
+  tenantId: "tenant-1", // Multi-tenant
+  workspaceId: "workspace-1", // Workspace scope
+  timeout: 30000, // 30s default
+  maxRetries: 3, // Retry on 429/503
 });
 ```
 
 Environment variables are used as fallbacks:
+
 - `EDGEQUAKE_BASE_URL`
 - `EDGEQUAKE_API_KEY`
 - `EDGEQUAKE_TENANT_ID`
@@ -76,33 +77,33 @@ Environment variables are used as fallbacks:
 
 ## Resource Namespaces
 
-| Namespace | Description |
-|-----------|-------------|
-| `client.auth` | Login, refresh, logout, current user |
-| `client.users` | User management (admin) |
-| `client.apiKeys` | API key management |
-| `client.documents` | Document ingestion & management |
-| `client.documents.pdf` | PDF upload, extraction, download |
-| `client.query` | RAG query execution & streaming |
-| `client.chat` | Chat completions (unified API) |
-| `client.conversations` | Conversation history |
-| `client.conversations.messages` | Message CRUD |
-| `client.folders` | Conversation folders |
-| `client.shared` | Public shared conversations |
-| `client.graph` | Knowledge graph queries |
-| `client.graph.entities` | Entity CRUD & merge |
-| `client.graph.relationships` | Relationship CRUD |
-| `client.tenants` | Multi-tenant management |
-| `client.workspaces` | Workspace management |
-| `client.tasks` | Async task tracking |
-| `client.pipeline` | Pipeline status & control |
-| `client.costs` | Cost tracking & budgets |
-| `client.lineage` | Entity & document lineage |
-| `client.chunks` | Chunk-level details |
-| `client.provenance` | Entity provenance |
-| `client.settings` | Provider settings |
-| `client.models` | Model configuration |
-| `client.ollama` | Ollama-compatible API |
+| Namespace                       | Description                          |
+| ------------------------------- | ------------------------------------ |
+| `client.auth`                   | Login, refresh, logout, current user |
+| `client.users`                  | User management (admin)              |
+| `client.apiKeys`                | API key management                   |
+| `client.documents`              | Document ingestion & management      |
+| `client.documents.pdf`          | PDF upload, extraction, download     |
+| `client.query`                  | RAG query execution & streaming      |
+| `client.chat`                   | Chat completions (unified API)       |
+| `client.conversations`          | Conversation history                 |
+| `client.conversations.messages` | Message CRUD                         |
+| `client.folders`                | Conversation folders                 |
+| `client.shared`                 | Public shared conversations          |
+| `client.graph`                  | Knowledge graph queries              |
+| `client.graph.entities`         | Entity CRUD & merge                  |
+| `client.graph.relationships`    | Relationship CRUD                    |
+| `client.tenants`                | Multi-tenant management              |
+| `client.workspaces`             | Workspace management                 |
+| `client.tasks`                  | Async task tracking                  |
+| `client.pipeline`               | Pipeline status & control            |
+| `client.costs`                  | Cost tracking & budgets              |
+| `client.lineage`                | Entity & document lineage            |
+| `client.chunks`                 | Chunk-level details                  |
+| `client.provenance`             | Entity provenance                    |
+| `client.settings`               | Provider settings                    |
+| `client.models`                 | Model configuration                  |
+| `client.ollama`                 | Ollama-compatible API                |
 
 ## Pagination
 

@@ -5,14 +5,14 @@
  * @see edgequake/crates/edgequake-api/src/handlers/workspaces.rs
  */
 
-import { Resource } from "./base.js";
 import type {
-  WorkspaceInfo,
-  WorkspaceDetail,
-  WorkspaceStats,
-  UpdateWorkspaceRequest,
   MetricsHistory,
+  UpdateWorkspaceRequest,
+  WorkspaceDetail,
+  WorkspaceInfo,
+  WorkspaceStats,
 } from "../types/workspaces.js";
+import { Resource } from "./base.js";
 
 export class WorkspacesResource extends Resource {
   /** Get workspace details. */
@@ -62,8 +62,6 @@ export class WorkspacesResource extends Resource {
 
   /** Reprocess all documents in a workspace. */
   async reprocessDocuments(workspaceId: string): Promise<void> {
-    await this._post(
-      `/api/v1/workspaces/${workspaceId}/reprocess-documents`,
-    );
+    await this._post(`/api/v1/workspaces/${workspaceId}/reprocess-documents`);
   }
 }

@@ -5,8 +5,8 @@
  * @see edgequake/crates/edgequake-api/src/handlers/models.rs
  */
 
-import { Resource } from "./base.js";
 import type { ModelInfo, ProvidersHealth } from "../types/health.js";
+import { Resource } from "./base.js";
 
 export class ModelsResource extends Resource {
   /** List all available models. */

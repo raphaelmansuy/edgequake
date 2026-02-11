@@ -5,13 +5,13 @@
  * @see edgequake/crates/edgequake-api/src/handlers/query.rs
  */
 
-import { Resource } from "./base.js";
 import type {
   QueryRequest,
   QueryResponse,
-  StreamQueryRequest,
   QueryStreamEvent,
+  StreamQueryRequest,
 } from "../types/query.js";
+import { Resource } from "./base.js";
 
 export class QueryResource extends Resource {
   /** Execute a RAG query and get a complete response. */

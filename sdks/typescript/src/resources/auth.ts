@@ -5,7 +5,6 @@
  * @see edgequake/crates/edgequake-api/src/handlers/auth.rs
  */
 
-import { Resource } from "./base.js";
 import type {
   LoginRequest,
   LoginResponse,
@@ -13,6 +12,7 @@ import type {
   RefreshTokenResponse,
   UserInfo,
 } from "../types/auth.js";
+import { Resource } from "./base.js";
 
 export class AuthResource extends Resource {
   /** Login with username and password. Returns JWT tokens. */

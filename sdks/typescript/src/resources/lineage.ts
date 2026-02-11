@@ -5,8 +5,8 @@
  * @see edgequake/crates/edgequake-api/src/handlers/lineage.rs
  */
 
+import type { DocumentLineage, EntityLineage } from "../types/health.js";
 import { Resource } from "./base.js";
-import type { EntityLineage, DocumentLineage } from "../types/health.js";
 
 export class LineageResource extends Resource {
   /** Get entity lineage — which documents contributed to an entity. */

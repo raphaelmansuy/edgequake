@@ -20,10 +20,7 @@ export abstract class Resource {
   constructor(protected readonly transport: HttpTransport) {}
 
   /** GET request with optional query parameters. */
-  protected _get<T>(
-    path: string,
-    query?: Record<string, unknown>,
-  ): Promise<T> {
+  protected _get<T>(path: string, query?: Record<string, unknown>): Promise<T> {
     return this.transport.request<T>({
       method: "GET",
       path,

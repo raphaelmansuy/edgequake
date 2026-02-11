@@ -5,28 +5,28 @@
  * @see edgequake/crates/edgequake-api/src/handlers/graph.rs
  */
 
-import { Resource } from "./base.js";
+import type { HttpTransport } from "../transport/types.js";
 import type {
-  GraphQuery,
-  GraphResponse,
-  GraphNode,
-  GraphStreamEvent,
   CreateEntityRequest,
-  UpdateEntityRequest,
-  MergeEntitiesRequest,
-  EntityDetail,
-  EntityNeighborhood,
-  ListEntitiesQuery,
   CreateRelationshipRequest,
-  UpdateRelationshipRequest,
-  RelationshipDetail,
-  ListRelationshipsQuery,
   DegreeBatchRequest,
   DegreeBatchResponse,
-  SearchNodesQuery,
+  EntityDetail,
+  EntityNeighborhood,
+  GraphNode,
+  GraphQuery,
+  GraphResponse,
+  GraphStreamEvent,
+  ListEntitiesQuery,
+  ListRelationshipsQuery,
+  MergeEntitiesRequest,
+  RelationshipDetail,
   SearchLabelsQuery,
+  SearchNodesQuery,
+  UpdateEntityRequest,
+  UpdateRelationshipRequest,
 } from "../types/graph.js";
-import type { HttpTransport } from "../transport/types.js";
+import { Resource } from "./base.js";
 
 /** Entities sub-resource accessed via `client.graph.entities`. */
 export class EntitiesResource extends Resource {
@@ -36,11 +36,10 @@ export class EntitiesResource extends Resource {
     if (query?.label) params.set("label", query.label);
     if (query?.search) params.set("search", query.search);
     if (query?.page !== undefined) params.set("page", String(query.page));
-    if (query?.per_page !== undefined) params.set("per_page", String(query.per_page));
+    if (query?.per_page !== undefined)
+      params.set("per_page", String(query.per_page));
     const qs = params.toString();
-    const path = qs
-      ? `/api/v1/graph/entities?${qs}`
-      : "/api/v1/graph/entities";
+    const path = qs ? `/api/v1/graph/entities?${qs}` : "/api/v1/graph/entities";
     return this._get(path);
   }
 
@@ -51,7 +50,9 @@ export class EntitiesResource extends Resource {
 
   /** Get entity by name. */
   async get(entityName: string): Promise<EntityDetail> {
-    return this._get(`/api/v1/graph/entities/${encodeURIComponent(entityName)}`);
+    return this._get(
+      `/api/v1/graph/entities/${encodeURIComponent(entityName)}`,
+    );
   }
 
   /** Check if an entity exists. */
@@ -75,9 +76,7 @@ export class EntitiesResource extends Resource {
 
   /** Delete an entity. */
   async delete(entityName: string): Promise<void> {
-    await this._del(
-      `/api/v1/graph/entities/${encodeURIComponent(entityName)}`,
-    );
+    await this._del(`/api/v1/graph/entities/${encodeURIComponent(entityName)}`);
   }
 
   /** Merge two entities into one. */
@@ -102,7 +101,8 @@ export class RelationshipsResource extends Resource {
     if (query?.target) params.set("target", query.target);
     if (query?.label) params.set("label", query.label);
     if (query?.page !== undefined) params.set("page", String(query.page));
-    if (query?.per_page !== undefined) params.set("per_page", String(query.per_page));
+    if (query?.per_page !== undefined)
+      params.set("per_page", String(query.per_page));
     const qs = params.toString();
     const path = qs
       ? `/api/v1/graph/relationships?${qs}`
@@ -111,7 +111,9 @@ export class RelationshipsResource extends Resource {
   }
 
   /** Create a new relationship. */
-  async create(request: CreateRelationshipRequest): Promise<RelationshipDetail> {
+  async create(
+    request: CreateRelationshipRequest,
+  ): Promise<RelationshipDetail> {
     return this._post("/api/v1/graph/relationships", request);
   }
 
@@ -125,10 +127,7 @@ export class RelationshipsResource extends Resource {
     relationshipId: string,
     request: UpdateRelationshipRequest,
   ): Promise<RelationshipDetail> {
-    return this._put(
-      `/api/v1/graph/relationships/${relationshipId}`,
-      request,
-    );
+    return this._put(`/api/v1/graph/relationships/${relationshipId}`, request);
   }
 
   /** Delete a relationship. */
@@ -182,9 +181,7 @@ export class GraphResource extends Resource {
   }
 
   /** Search nodes by query. */
-  async searchNodes(
-    query: SearchNodesQuery,
-  ): Promise<GraphNode[]> {
+  async searchNodes(query: SearchNodesQuery): Promise<GraphNode[]> {
     const params = new URLSearchParams();
     if (query.q) params.set("q", query.q);
     if (query.limit !== undefined) params.set("limit", String(query.limit));
@@ -192,9 +189,7 @@ export class GraphResource extends Resource {
   }
 
   /** Search graph labels. */
-  async searchLabels(
-    query: SearchLabelsQuery,
-  ): Promise<string[]> {
+  async searchLabels(query: SearchLabelsQuery): Promise<string[]> {
     const params = new URLSearchParams();
     if (query.q) params.set("q", query.q);
     if (query.limit !== undefined) params.set("limit", String(query.limit));

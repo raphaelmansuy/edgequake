@@ -5,8 +5,8 @@
  * @see edgequake/crates/edgequake-api/src/handlers/conversations.rs
  */
 
-import { Resource } from "./base.js";
 import type { ConversationDetail } from "../types/conversations.js";
+import { Resource } from "./base.js";
 
 export class SharedResource extends Resource {
   /** Get a shared conversation by share ID (public, no auth). */

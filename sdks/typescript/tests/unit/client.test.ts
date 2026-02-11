@@ -4,7 +4,7 @@
  * @module tests/client.test
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { EdgeQuake } from "../../src/client.js";
 
 describe("EdgeQuake client", () => {

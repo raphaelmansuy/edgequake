@@ -4,12 +4,19 @@
  * @module tests/transport.test
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import {
+  BadRequestError,
+  InternalError,
+  NotFoundError,
+} from "../../src/errors.js";
 import { FetchTransport } from "../../src/transport/fetch.js";
-import type { TransportConfig, Middleware } from "../../src/transport/types.js";
-import { createAuthMiddleware, createTenantMiddleware } from "../../src/transport/middleware.js";
+import {
+  createAuthMiddleware,
+  createTenantMiddleware,
+} from "../../src/transport/middleware.js";
 import { createRetryMiddleware } from "../../src/transport/retry.js";
-import { BadRequestError, NotFoundError, InternalError } from "../../src/errors.js";
+import type { TransportConfig } from "../../src/transport/types.js";
 
 function createMockFetch(responseBody: unknown, status = 200): typeof fetch {
   return vi.fn().mockResolvedValue(
@@ -69,9 +76,9 @@ describe("FetchTransport", () => {
   });
 
   it("handles 204 No Content", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(null, { status: 204 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
     const transport = new FetchTransport(createTransportConfig(mockFetch));
 
     const result = await transport.request<void>({
@@ -249,9 +256,7 @@ describe("Retry middleware", () => {
       retryStatusCodes: [429, 503],
     });
 
-    const next = vi.fn().mockResolvedValue(
-      new Response(null, { status: 400 }),
-    );
+    const next = vi.fn().mockResolvedValue(new Response(null, { status: 400 }));
 
     const req = { method: "GET" as const, path: "/test" };
     const response = await middleware(req, next);

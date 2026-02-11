@@ -5,13 +5,13 @@
  * @see edgequake/crates/edgequake-api/src/handlers/costs.rs
  */
 
-import { Resource } from "./base.js";
 import type {
-  CostSummary,
-  CostHistory,
   BudgetStatus,
+  CostHistory,
+  CostSummary,
   UpdateBudgetRequest,
 } from "../types/costs.js";
+import { Resource } from "./base.js";
 
 export class CostsResource extends Resource {
   /** Get cost summary for the workspace. */

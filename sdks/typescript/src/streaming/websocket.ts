@@ -53,14 +53,20 @@ export class EdgeQuakeWebSocket implements AsyncIterable<WebSocketEvent> {
     this.wsInstance.onclose = () => {
       this.closed = true;
       if (this.resolve) {
-        this.resolve({ value: undefined as unknown as WebSocketEvent, done: true });
+        this.resolve({
+          value: undefined as unknown as WebSocketEvent,
+          done: true,
+        });
       }
     };
 
     this.wsInstance.onerror = () => {
       this.closed = true;
       if (this.resolve) {
-        this.resolve({ value: undefined as unknown as WebSocketEvent, done: true });
+        this.resolve({
+          value: undefined as unknown as WebSocketEvent,
+          done: true,
+        });
       }
     };
   }

@@ -5,15 +5,15 @@
  * @see edgequake/crates/edgequake-api/src/handlers/tenants.rs
  */
 
-import { Resource } from "./base.js";
 import type {
-  TenantInfo,
-  TenantDetail,
   CreateTenantRequest,
+  CreateWorkspaceRequest,
+  TenantDetail,
+  TenantInfo,
   UpdateTenantRequest,
   WorkspaceInfo,
-  CreateWorkspaceRequest,
 } from "../types/workspaces.js";
+import { Resource } from "./base.js";
 
 export class TenantsResource extends Resource {
   /** Create a new tenant. */
@@ -49,10 +49,7 @@ export class TenantsResource extends Resource {
     tenantId: string,
     request: CreateWorkspaceRequest,
   ): Promise<WorkspaceInfo> {
-    return this._post(
-      `/api/v1/tenants/${tenantId}/workspaces`,
-      request,
-    );
+    return this._post(`/api/v1/tenants/${tenantId}/workspaces`, request);
   }
 
   /** List workspaces within a tenant. */
@@ -65,8 +62,6 @@ export class TenantsResource extends Resource {
     tenantId: string,
     slug: string,
   ): Promise<WorkspaceInfo> {
-    return this._get(
-      `/api/v1/tenants/${tenantId}/workspaces/by-slug/${slug}`,
-    );
+    return this._get(`/api/v1/tenants/${tenantId}/workspaces/by-slug/${slug}`);
   }
 }

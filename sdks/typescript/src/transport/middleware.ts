@@ -7,7 +7,7 @@
  * @module transport/middleware
  */
 
-import type { RequestOptions, Middleware } from "./types.js";
+import type { Middleware, RequestOptions } from "./types.js";
 
 /** Auth configuration for middleware. */
 export interface AuthConfig {

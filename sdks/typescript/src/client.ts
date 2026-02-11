@@ -7,33 +7,37 @@
  * @module client
  */
 
-import { resolveConfig, type EdgeQuakeConfig, type ResolvedConfig } from "./config.js";
+import {
+  resolveConfig,
+  type EdgeQuakeConfig,
+  type ResolvedConfig,
+} from "./config.js";
 import { createTransport } from "./transport/index.js";
 import type { HttpTransport } from "./transport/types.js";
 import type { HealthResponse } from "./types/health.js";
 
 // Resource imports
-import { AuthResource } from "./resources/auth.js";
-import { UsersResource } from "./resources/users.js";
 import { ApiKeysResource } from "./resources/api-keys.js";
-import { DocumentsResource } from "./resources/documents.js";
-import { QueryResource } from "./resources/query.js";
+import { AuthResource } from "./resources/auth.js";
 import { ChatResource } from "./resources/chat.js";
-import { ConversationsResource } from "./resources/conversations.js";
-import { FoldersResource } from "./resources/folders.js";
-import { SharedResource } from "./resources/shared.js";
-import { GraphResource } from "./resources/graph.js";
-import { TenantsResource } from "./resources/tenants.js";
-import { WorkspacesResource } from "./resources/workspaces.js";
-import { TasksResource } from "./resources/tasks.js";
-import { PipelineResource } from "./resources/pipeline.js";
-import { CostsResource } from "./resources/costs.js";
-import { LineageResource } from "./resources/lineage.js";
 import { ChunksResource } from "./resources/chunks.js";
-import { ProvenanceResource } from "./resources/provenance.js";
-import { SettingsResource } from "./resources/settings.js";
+import { ConversationsResource } from "./resources/conversations.js";
+import { CostsResource } from "./resources/costs.js";
+import { DocumentsResource } from "./resources/documents.js";
+import { FoldersResource } from "./resources/folders.js";
+import { GraphResource } from "./resources/graph.js";
+import { LineageResource } from "./resources/lineage.js";
 import { ModelsResource } from "./resources/models.js";
 import { OllamaResource } from "./resources/ollama.js";
+import { PipelineResource } from "./resources/pipeline.js";
+import { ProvenanceResource } from "./resources/provenance.js";
+import { QueryResource } from "./resources/query.js";
+import { SettingsResource } from "./resources/settings.js";
+import { SharedResource } from "./resources/shared.js";
+import { TasksResource } from "./resources/tasks.js";
+import { TenantsResource } from "./resources/tenants.js";
+import { UsersResource } from "./resources/users.js";
+import { WorkspacesResource } from "./resources/workspaces.js";
 
 /**
  * EdgeQuake SDK client.
@@ -144,7 +148,8 @@ export class EdgeQuake {
 
   constructor(config?: EdgeQuakeConfig) {
     this._config = resolveConfig(config);
-    this._transport = createTransport(this._config);
+    // WHY: Allow test code to inject a mock transport via config._transport
+    this._transport = config?._transport ?? createTransport(this._config);
 
     // Initialize all resource namespaces
     this.auth = new AuthResource(this._transport);

@@ -5,8 +5,8 @@
  * @see edgequake/crates/edgequake-api/src/handlers/chunks.rs
  */
 
-import { Resource } from "./base.js";
 import type { ChunkDetail } from "../types/health.js";
+import { Resource } from "./base.js";
 
 export class ChunksResource extends Resource {
   /** Get chunk details by ID. */

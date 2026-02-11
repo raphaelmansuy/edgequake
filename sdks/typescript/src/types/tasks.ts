@@ -5,7 +5,7 @@
  * @see edgequake/crates/edgequake-api/src/handlers/tasks_types.rs
  */
 
-import type { Timestamp, TaskStatusValue } from "./common.js";
+import type { TaskStatusValue, Timestamp } from "./common.js";
 
 // ── Task ──────────────────────────────────────────────────────
 

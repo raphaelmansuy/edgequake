@@ -5,12 +5,12 @@
  * @see edgequake/crates/edgequake-api/src/handlers/auth.rs
  */
 
-import { Resource } from "./base.js";
 import type {
   CreateUserRequest,
   CreateUserResponse,
   UserInfo,
 } from "../types/auth.js";
+import { Resource } from "./base.js";
 
 export class UsersResource extends Resource {
   /** Create a new user. */

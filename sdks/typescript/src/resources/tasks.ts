@@ -5,8 +5,8 @@
  * @see edgequake/crates/edgequake-api/src/handlers/tasks.rs
  */
 
-import { Resource } from "./base.js";
 import type { TaskInfo } from "../types/tasks.js";
+import { Resource } from "./base.js";
 
 export class TasksResource extends Resource {
   /** Get task status by track ID. */

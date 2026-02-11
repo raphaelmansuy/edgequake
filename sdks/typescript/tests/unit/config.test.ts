@@ -4,7 +4,7 @@
  * @module tests/config.test
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveConfig } from "../../src/config.js";
 
 describe("resolveConfig", () => {
@@ -77,7 +77,10 @@ describe("resolveConfig", () => {
     const config = resolveConfig({
       credentials: { username: "admin", password: "secret" },
     });
-    expect(config.credentials).toEqual({ username: "admin", password: "secret" });
+    expect(config.credentials).toEqual({
+      username: "admin",
+      password: "secret",
+    });
   });
 
   it("accepts custom fetch function", () => {

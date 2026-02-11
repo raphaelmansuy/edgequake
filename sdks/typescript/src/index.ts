@@ -16,23 +16,27 @@
 export { EdgeQuake } from "./client.js";
 
 // Config
-export { resolveConfig, type EdgeQuakeConfig, type ResolvedConfig } from "./config.js";
+export {
+  resolveConfig,
+  type EdgeQuakeConfig,
+  type ResolvedConfig,
+} from "./config.js";
 
 // Errors
 export {
-  EdgeQuakeError,
   BadRequestError,
-  UnauthorizedError,
-  ForbiddenError,
-  NotFoundError,
   ConflictError,
-  PayloadTooLargeError,
-  ValidationError,
-  RateLimitError,
+  EdgeQuakeError,
+  ForbiddenError,
   InternalError,
+  NetworkError,
+  NotFoundError,
+  PayloadTooLargeError,
+  RateLimitError,
   ServiceUnavailableError,
   TimeoutError,
-  NetworkError,
+  UnauthorizedError,
+  ValidationError,
   parseErrorResponse,
 } from "./errors.js";
 
@@ -44,8 +48,13 @@ export { parseSSEStream } from "./streaming/sse.js";
 export { EdgeQuakeWebSocket } from "./streaming/websocket.js";
 
 // Transport (advanced usage)
-export { createTransport, FetchTransport } from "./transport/index.js";
-export type { HttpTransport, RequestOptions, TransportConfig, Middleware } from "./transport/types.js";
+export { FetchTransport, createTransport } from "./transport/index.js";
+export type {
+  HttpTransport,
+  Middleware,
+  RequestOptions,
+  TransportConfig,
+} from "./transport/types.js";
 
 // Types — re-export all types for consumers
 export type * from "./types/index.js";

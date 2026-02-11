@@ -7,18 +7,18 @@
  * @module transport/fetch
  */
 
-import type {
-  HttpTransport,
-  RequestOptions,
-  TransportConfig,
-  Middleware,
-} from "./types.js";
 import {
   NetworkError,
   TimeoutError,
   parseErrorResponse,
   type ErrorResponseBody,
 } from "../errors.js";
+import type {
+  HttpTransport,
+  Middleware,
+  RequestOptions,
+  TransportConfig,
+} from "./types.js";
 
 /**
  * HTTP transport implementation using native fetch.
@@ -237,10 +237,7 @@ export class FetchTransport implements HttpTransport {
         throw new TimeoutError(`Request timed out after ${timeout}ms`);
       }
       if (error instanceof TypeError) {
-        throw new NetworkError(
-          `Network error: ${error.message}`,
-          error,
-        );
+        throw new NetworkError(`Network error: ${error.message}`, error);
       }
       throw error;
     } finally {

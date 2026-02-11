@@ -7,16 +7,19 @@ Implemented the complete TypeScript SDK foundation for the EdgeQuake API, coveri
 ## Changes Made
 
 ### Project Scaffolding
+
 - `sdks/typescript/package.json` — Package config with ESM+CJS dual exports
 - `sdks/typescript/tsconfig.json` — TypeScript 5.7; strict mode, ES2022 target
 - `sdks/typescript/tsup.config.ts` — tsup v8.5 bundler config
 - `sdks/typescript/vitest.config.ts` — vitest v3.0 test config with 80% coverage thresholds
 
 ### Error Handling (12 classes)
+
 - `src/errors.ts` — Full error hierarchy: EdgeQuakeError → BadRequestError(400), UnauthorizedError(401), ForbiddenError(403), NotFoundError(404), ConflictError(409), PayloadTooLargeError(413), ValidationError(422), RateLimitError(429), InternalError(500), ServiceUnavailableError(503), TimeoutError(408), NetworkError(0)
 - `parseErrorResponse()` — Maps HTTP status codes to typed error instances
 
 ### Type Definitions (12 files)
+
 - `src/types/common.ts` — Page<T>, ListQuery, PageQuery, TaskStatusValue, BulkOperationResponse
 - `src/types/auth.ts` — Login, JWT refresh, user management, API key types
 - `src/types/documents.ts` — Upload, list, track, scan, reprocess, PDF types
@@ -31,6 +34,7 @@ Implemented the complete TypeScript SDK foundation for the EdgeQuake API, coveri
 - `src/types/index.ts` — Barrel re-export
 
 ### Transport Layer (5 files)
+
 - `src/transport/types.ts` — HttpTransport interface, RequestOptions, Middleware type
 - `src/transport/fetch.ts` — FetchTransport: JSON, SSE streaming, multipart upload, blob download, timeout, error parsing
 - `src/transport/middleware.ts` — Auth (X-API-Key / Bearer) + Tenant (X-Tenant-ID / X-Workspace-ID) middleware
@@ -38,7 +42,8 @@ Implemented the complete TypeScript SDK foundation for the EdgeQuake API, coveri
 - `src/transport/index.ts` — createTransport factory accepting ResolvedConfig
 
 ### Resources (21 files)
-- `src/resources/base.ts` — Abstract Resource class with _get, _post, _put, _patch, _del, _streamSSE
+
+- `src/resources/base.ts` — Abstract Resource class with \_get, \_post, \_put, \_patch, \_del, \_streamSSE
 - `src/resources/auth.ts` — Login, refresh, logout, me
 - `src/resources/users.ts` — CRUD user management
 - `src/resources/api-keys.ts` — Create, list, revoke API keys
@@ -62,18 +67,22 @@ Implemented the complete TypeScript SDK foundation for the EdgeQuake API, coveri
 - `src/resources/ollama.ts` — Ollama-compatible API
 
 ### Client & Config
+
 - `src/config.ts` — EdgeQuakeConfig + resolveConfig (env var + explicit)
 - `src/client.ts` — EdgeQuake class with 21 resource namespaces + health/ready/live
 
 ### Streaming & Pagination
+
 - `src/pagination.ts` — Paginator<T> implementing AsyncIterable
 - `src/streaming/sse.ts` — parseSSEStream<T> for SSE data parsing
 - `src/streaming/websocket.ts` — EdgeQuakeWebSocket implementing AsyncIterable<WebSocketEvent>
 
 ### Public API
+
 - `src/index.ts` — Re-exports: EdgeQuake, config, errors, pagination, streaming, transport, types
 
 ### Tests (59 passing)
+
 - `tests/unit/errors.test.ts` — 25 tests: error classes, status codes, parseErrorResponse
 - `tests/unit/client.test.ts` — 6 tests: construction, config, resource namespaces
 - `tests/unit/config.test.ts` — 6 tests: defaults, env vars, explicit config, overrides
@@ -81,12 +90,14 @@ Implemented the complete TypeScript SDK foundation for the EdgeQuake API, coveri
 - `tests/unit/transport.test.ts` — 16 tests: GET, POST, 204, errors (404/400/500), WebSocket URL, query params, auth/tenant/retry middleware
 
 ### Build Output
+
 - ESM: `dist/index.js` (43.89 KB)
 - CJS: `dist/index.cjs` (44.42 KB)
 - Types: `dist/index.d.ts` (62.53 KB)
 - Types (CJS): `dist/index.d.cts` (62.53 KB)
 
 ## Metrics
+
 - **Files created**: 42
 - **Type definitions**: 12 files covering all 131 API endpoints
 - **Resource classes**: 21 (with 4 sub-resource namespaces)
@@ -98,6 +109,7 @@ Implemented the complete TypeScript SDK foundation for the EdgeQuake API, coveri
 - **tsc --noEmit**: Clean
 
 ## Decisions
+
 - Used tsup over tsdown (tsdown still pre-1.0; tsup is battle-tested)
 - Zero runtime dependencies (native fetch only)
 - Dual ESM+CJS output for maximum compatibility

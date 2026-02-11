@@ -5,12 +5,12 @@
  * @see edgequake/crates/edgequake-api/src/handlers/ollama.rs
  */
 
-import { Resource } from "./base.js";
 import type {
-  OllamaVersion,
-  OllamaTag,
   OllamaProcess,
+  OllamaTag,
+  OllamaVersion,
 } from "../types/health.js";
+import { Resource } from "./base.js";
 
 export class OllamaResource extends Resource {
   /** Get Ollama version. */

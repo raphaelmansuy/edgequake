@@ -5,32 +5,32 @@
  * @see edgequake/crates/edgequake-api/src/handlers/documents.rs
  */
 
-import { Resource } from "./base.js";
 import { Paginator } from "../pagination.js";
+import type { HttpTransport } from "../transport/types.js";
 import type { Page } from "../types/common.js";
 import type {
-  UploadDocumentRequest,
-  UploadDocumentResponse,
-  DocumentInfo,
-  DocumentDetail,
-  ListDocumentsQuery,
-  TrackStatusResponse,
-  DeletionImpactResponse,
-  UploadFileResponse,
   BatchUploadResponse,
+  DeletionImpactResponse,
+  DocumentDetail,
+  DocumentInfo,
+  FailedChunkInfo,
+  ListDocumentsQuery,
+  PdfContentResponse,
+  PdfInfo,
+  PdfProgressResponse,
+  PdfStatusResponse,
+  PdfUploadResponse,
+  RecoverStuckResponse,
+  ReprocessResponse,
+  RetryChunksResponse,
   ScanDirectoryRequest,
   ScanDirectoryResponse,
-  ReprocessResponse,
-  RecoverStuckResponse,
-  FailedChunkInfo,
-  RetryChunksResponse,
-  PdfUploadResponse,
-  PdfInfo,
-  PdfStatusResponse,
-  PdfContentResponse,
-  PdfProgressResponse,
+  TrackStatusResponse,
+  UploadDocumentRequest,
+  UploadDocumentResponse,
+  UploadFileResponse,
 } from "../types/documents.js";
-import type { HttpTransport } from "../transport/types.js";
+import { Resource } from "./base.js";
 
 /** PDF sub-resource accessed via `client.documents.pdf`. */
 export class PdfResource extends Resource {
@@ -97,7 +97,9 @@ export class DocumentsResource extends Resource {
   }
 
   /** Upload a document (text/JSON body). */
-  async upload(request: UploadDocumentRequest): Promise<UploadDocumentResponse> {
+  async upload(
+    request: UploadDocumentRequest,
+  ): Promise<UploadDocumentResponse> {
     return this._post("/api/v1/documents", request);
   }
 
@@ -114,26 +116,20 @@ export class DocumentsResource extends Resource {
    * Returns individual status for each file.
    */
   async uploadBatch(files: (File | Blob)[]): Promise<BatchUploadResponse> {
-    return this.transport.uploadBatch(
-      "/api/v1/documents/upload/batch",
-      files,
-    );
+    return this.transport.uploadBatch("/api/v1/documents/upload/batch", files);
   }
 
   /** List documents with optional filters + pagination. */
   list(query?: ListDocumentsQuery): Paginator<DocumentInfo> {
-    return new Paginator(
-      async (page, perPage) => {
-        const params = new URLSearchParams();
-        params.set("page", String(page));
-        params.set("per_page", String(perPage));
-        if (query?.status) params.set("status", query.status);
-        if (query?.search) params.set("search", query.search);
-        const path = `/api/v1/documents?${params}`;
-        return this._get<Page<DocumentInfo>>(path);
-      },
-      query?.limit ?? 20,
-    );
+    return new Paginator(async (page, perPage) => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("per_page", String(perPage));
+      if (query?.status) params.set("status", query.status);
+      if (query?.search) params.set("search", query.search);
+      const path = `/api/v1/documents?${params}`;
+      return this._get<Page<DocumentInfo>>(path);
+    }, query?.limit ?? 20);
   }
 
   /** Get document details by ID. */

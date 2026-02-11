@@ -5,12 +5,12 @@
  * @see edgequake/crates/edgequake-api/src/handlers/auth.rs
  */
 
-import { Resource } from "./base.js";
 import type {
-  CreateApiKeyRequest,
-  ApiKeyResponse,
   ApiKeyInfo,
+  ApiKeyResponse,
+  CreateApiKeyRequest,
 } from "../types/auth.js";
+import { Resource } from "./base.js";
 
 export class ApiKeysResource extends Resource {
   /** Create a new API key. */

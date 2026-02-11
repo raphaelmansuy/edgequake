@@ -5,12 +5,12 @@
  * @see edgequake/crates/edgequake-api/src/handlers/conversations.rs
  */
 
-import { Resource } from "./base.js";
 import type {
-  FolderInfo,
   CreateFolderRequest,
+  FolderInfo,
   UpdateFolderRequest,
 } from "../types/conversations.js";
+import { Resource } from "./base.js";
 
 export class FoldersResource extends Resource {
   /** List all folders. */

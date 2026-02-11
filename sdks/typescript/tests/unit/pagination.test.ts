@@ -4,7 +4,7 @@
  * @module tests/pagination.test
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Paginator } from "../../src/pagination.js";
 import type { Page } from "../../src/types/common.js";
 
@@ -20,7 +20,8 @@ function createPage<T>(items: T[], page: number, hasMore: boolean): Page<T> {
 
 describe("Paginator", () => {
   it("iterates through all pages", async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockResolvedValueOnce(createPage([1, 2, 3], 1, true))
       .mockResolvedValueOnce(createPage([4, 5, 6], 2, true))
       .mockResolvedValueOnce(createPage([7], 3, false));
@@ -37,9 +38,9 @@ describe("Paginator", () => {
   });
 
   it("handles single page", async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(
-      createPage(["a", "b"], 1, false),
-    );
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(createPage(["a", "b"], 1, false));
 
     const paginator = new Paginator(fetcher, 10);
     const results: string[] = [];
@@ -53,9 +54,7 @@ describe("Paginator", () => {
   });
 
   it("handles empty results", async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(
-      createPage([], 1, false),
-    );
+    const fetcher = vi.fn().mockResolvedValueOnce(createPage([], 1, false));
 
     const paginator = new Paginator(fetcher, 10);
     const results: unknown[] = [];
@@ -68,9 +67,9 @@ describe("Paginator", () => {
   });
 
   it("getPage returns a specific page", async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(
-      createPage([10, 20], 5, true),
-    );
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(createPage([10, 20], 5, true));
 
     const paginator = new Paginator(fetcher, 2);
     const page = await paginator.getPage(5);
@@ -81,7 +80,8 @@ describe("Paginator", () => {
   });
 
   it("toArray collects all items", async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockResolvedValueOnce(createPage(["x", "y"], 1, true))
       .mockResolvedValueOnce(createPage(["z"], 2, false));
 
@@ -92,9 +92,9 @@ describe("Paginator", () => {
   });
 
   it("firstPage returns first page for quick access", async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(
-      createPage([1, 2, 3], 1, true),
-    );
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(createPage([1, 2, 3], 1, true));
 
     const paginator = new Paginator(fetcher, 3);
     const page = await paginator.firstPage();

@@ -5,26 +5,26 @@
  * @see edgequake/crates/edgequake-api/src/handlers/conversations.rs
  */
 
-import { Resource } from "./base.js";
 import { Paginator } from "../pagination.js";
-import type { Page, BulkOperationResponse } from "../types/common.js";
+import type { HttpTransport } from "../transport/types.js";
+import type { BulkOperationResponse, Page } from "../types/common.js";
 import type {
-  ConversationInfo,
+  BulkArchiveRequest,
+  BulkDeleteRequest,
+  BulkMoveRequest,
   ConversationDetail,
+  ConversationInfo,
   CreateConversationRequest,
-  UpdateConversationRequest,
-  ListConversationsQuery,
-  MessageInfo,
   CreateMessageRequest,
-  UpdateMessageRequest,
-  ShareResponse,
   ImportConversationsRequest,
   ImportConversationsResponse,
-  BulkDeleteRequest,
-  BulkArchiveRequest,
-  BulkMoveRequest,
+  ListConversationsQuery,
+  MessageInfo,
+  ShareResponse,
+  UpdateConversationRequest,
+  UpdateMessageRequest,
 } from "../types/conversations.js";
-import type { HttpTransport } from "../transport/types.js";
+import { Resource } from "./base.js";
 
 /** Messages sub-resource accessed via `client.conversations.messages`. */
 export class MessagesResource extends Resource {
@@ -70,20 +70,17 @@ export class ConversationsResource extends Resource {
 
   /** List conversations with optional filters + pagination. */
   list(query?: ListConversationsQuery): Paginator<ConversationInfo> {
-    return new Paginator(
-      async (page, perPage) => {
-        const params = new URLSearchParams();
-        params.set("page", String(page));
-        params.set("per_page", String(perPage));
-        if (query?.folder_id) params.set("folder_id", query.folder_id);
-        if (query?.search) params.set("search", query.search);
-        if (query?.archived !== undefined)
-          params.set("archived", String(query.archived));
-        const path = `/api/v1/conversations?${params}`;
-        return this._get<Page<ConversationInfo>>(path);
-      },
-      query?.limit ?? 20,
-    );
+    return new Paginator(async (page, perPage) => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("per_page", String(perPage));
+      if (query?.folder_id) params.set("folder_id", query.folder_id);
+      if (query?.search) params.set("search", query.search);
+      if (query?.archived !== undefined)
+        params.set("archived", String(query.archived));
+      const path = `/api/v1/conversations?${params}`;
+      return this._get<Page<ConversationInfo>>(path);
+    }, query?.limit ?? 20);
   }
 
   /** Get conversation details including messages. */
@@ -92,9 +89,7 @@ export class ConversationsResource extends Resource {
   }
 
   /** Create a new conversation. */
-  async create(
-    request: CreateConversationRequest,
-  ): Promise<ConversationInfo> {
+  async create(request: CreateConversationRequest): Promise<ConversationInfo> {
     return this._post("/api/v1/conversations", request);
   }
 
@@ -129,9 +124,7 @@ export class ConversationsResource extends Resource {
   }
 
   /** Bulk delete conversations. */
-  async bulkDelete(
-    request: BulkDeleteRequest,
-  ): Promise<BulkOperationResponse> {
+  async bulkDelete(request: BulkDeleteRequest): Promise<BulkOperationResponse> {
     return this._post("/api/v1/conversations/bulk/delete", request);
   }
 
@@ -143,9 +136,7 @@ export class ConversationsResource extends Resource {
   }
 
   /** Bulk move conversations to folder. */
-  async bulkMove(
-    request: BulkMoveRequest,
-  ): Promise<BulkOperationResponse> {
+  async bulkMove(request: BulkMoveRequest): Promise<BulkOperationResponse> {
     return this._post("/api/v1/conversations/bulk/move", request);
   }
 }

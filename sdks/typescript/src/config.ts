@@ -43,6 +43,15 @@ export interface EdgeQuakeConfig {
 
   /** Custom fetch implementation (for testing, polyfills, or proxying). */
   fetch?: typeof fetch;
+
+  /**
+   * Inject a custom transport (testing / advanced usage).
+   *
+   * WHY: Allows unit tests to inject a mock transport without HTTP I/O.
+   * When set, baseUrl/apiKey/fetch are ignored — the transport handles everything.
+   * @internal
+   */
+  _transport?: import("./transport/types.js").HttpTransport;
 }
 
 /** Fully resolved configuration with no optional fields. */
@@ -66,7 +75,10 @@ export interface ResolvedConfig {
  */
 export function resolveConfig(config?: EdgeQuakeConfig): ResolvedConfig {
   // WHY: Safe env access works in Node, Deno, Bun, and browser (undefined)
-  const env = typeof process !== "undefined" ? process.env : ({} as Record<string, string | undefined>);
+  const env =
+    typeof process !== "undefined"
+      ? process.env
+      : ({} as Record<string, string | undefined>);
 
   return {
     baseUrl:

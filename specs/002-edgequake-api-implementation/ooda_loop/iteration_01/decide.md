@@ -3,6 +3,7 @@
 ## Prioritized Tasks
 
 ### P0: Project Scaffolding
+
 - [ ] Create `sdks/typescript/` directory structure
 - [ ] Create `package.json` with @edgequake/sdk name
 - [ ] Create `tsconfig.json` for strict TypeScript
@@ -10,6 +11,7 @@
 - [ ] Create `vitest.config.ts` for unit testing
 
 ### P1: Foundation Layer
+
 - [ ] `src/errors.ts` — 12 error classes (EdgeQuakeError hierarchy)
 - [ ] `src/types/common.ts` — Page<T>, PaginatedResponse
 - [ ] `src/types/auth.ts` — Login, Token, User types
@@ -24,6 +26,7 @@
 - [ ] `src/types/index.ts` — Re-export all types
 
 ### P2: Transport Layer
+
 - [ ] `src/transport/types.ts` — TransportConfig, RequestOptions, HttpTransport
 - [ ] `src/transport/fetch.ts` — FetchTransport implementing HttpTransport
 - [ ] `src/transport/retry.ts` — Retry middleware with exponential backoff
@@ -31,10 +34,12 @@
 - [ ] `src/transport/index.ts` — createTransport factory
 
 ### P3: Resource Infrastructure
+
 - [ ] `src/resources/base.ts` — Resource base class
 - [ ] `src/pagination.ts` — Paginator<T> with AsyncIterable
 
 ### P4: Client & All Resources
+
 - [ ] `src/config.ts` — EdgeQuakeConfig + resolveConfig
 - [ ] `src/client.ts` — EdgeQuake class with all 21 resource namespaces
 - [ ] `src/resources/auth.ts` — AuthResource (4 methods)
@@ -63,15 +68,18 @@
 - [ ] `src/index.ts` — Public API exports
 
 ### P5: Unit Tests
+
 - [ ] `tests/unit/errors.test.ts` — Error class tests
 - [ ] `tests/unit/transport.test.ts` — Transport layer tests
 - [ ] `tests/unit/pagination.test.ts` — Paginator tests
 - [ ] `tests/unit/client.test.ts` — Client creation tests
 
 ### P6: Documentation
+
 - [ ] `README.md` — Getting started guide
 - [ ] `CHANGELOG.md` — v0.1.0 entry
 - [ ] `LICENSE` — MIT
 
 ## Commit Plan
+
 Single commit: `IMPL-01: TypeScript SDK foundation — project scaffolding, 131-endpoint client, transport layer, types, error handling, unit tests`

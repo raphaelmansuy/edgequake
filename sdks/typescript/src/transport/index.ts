@@ -7,19 +7,23 @@
  * @module transport
  */
 
-export type { HttpTransport, RequestOptions, TransportConfig, Middleware } from "./types.js";
 export { FetchTransport } from "./fetch.js";
 export { createAuthMiddleware, createTenantMiddleware } from "./middleware.js";
 export type { AuthConfig, TenantConfig } from "./middleware.js";
 export { createRetryMiddleware } from "./retry.js";
 export type { RetryConfig } from "./retry.js";
+export type {
+  HttpTransport,
+  Middleware,
+  RequestOptions,
+  TransportConfig,
+} from "./types.js";
 
-import type { TransportConfig, HttpTransport } from "./types.js";
-import { FetchTransport } from "./fetch.js";
-import { createAuthMiddleware } from "./middleware.js";
-import { createTenantMiddleware } from "./middleware.js";
-import { createRetryMiddleware } from "./retry.js";
 import type { ResolvedConfig } from "../config.js";
+import { FetchTransport } from "./fetch.js";
+import { createAuthMiddleware, createTenantMiddleware } from "./middleware.js";
+import { createRetryMiddleware } from "./retry.js";
+import type { HttpTransport, TransportConfig } from "./types.js";
 
 /**
  * Create a transport from a resolved SDK config.

@@ -5,8 +5,8 @@
  * @see edgequake/crates/edgequake-api/src/handlers/provenance.rs
  */
 
-import { Resource } from "./base.js";
 import type { EntityProvenance } from "../types/health.js";
+import { Resource } from "./base.js";
 
 export class ProvenanceResource extends Resource {
   /** Get provenance information for an entity. */

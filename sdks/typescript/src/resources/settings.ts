@@ -5,8 +5,8 @@
  * @see edgequake/crates/edgequake-api/src/handlers/settings.rs
  */
 
-import { Resource } from "./base.js";
 import type { ProvidersHealth } from "../types/health.js";
+import { Resource } from "./base.js";
 
 export class SettingsResource extends Resource {
   /** Get provider status information. */

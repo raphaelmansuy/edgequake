@@ -8,7 +8,7 @@
  * @module transport/retry
  */
 
-import type { RequestOptions, Middleware } from "./types.js";
+import type { Middleware, RequestOptions } from "./types.js";
 
 /** Retry configuration. */
 export interface RetryConfig {
