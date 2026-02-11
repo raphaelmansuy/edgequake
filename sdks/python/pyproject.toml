@@ -1,0 +1,81 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "edgequake-sdk"
+version = "0.1.0"
+description = "Official Python SDK for the EdgeQuake RAG API"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [{ name = "EdgeQuake Contributors" }]
+keywords = ["edgequake", "rag", "knowledge-graph", "sdk", "api-client"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = ["httpx>=0.27.0,<1.0.0", "pydantic>=2.0.0,<3.0.0"]
+
+[project.optional-dependencies]
+# WHY: websockets is optional — only needed for async pipeline progress tracking
+ws = ["websockets>=12.0,<14.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-httpx>=0.34",
+    "coverage>=7.0",
+    "ruff>=0.8",
+    "mypy>=1.10",
+    "respx>=0.22",
+]
+
+[project.urls]
+Homepage = "https://github.com/edgequake/edgequake"
+Documentation = "https://github.com/edgequake/edgequake/tree/main/sdks/python"
+Repository = "https://github.com/edgequake/edgequake"
+Issues = "https://github.com/edgequake/edgequake/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["edgequake"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["edgequake"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "integration: marks tests requiring live backend (deselect with '-m \"not integration\"')",
+    "e2e: marks end-to-end tests (deselect with '-m \"not e2e\"')",
+]
+
+[tool.coverage.run]
+source = ["edgequake"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
