@@ -1,0 +1,33 @@
+# frozen_string_literal: true
+
+module EdgeQuake
+  # Main client for the EdgeQuake API.
+  #
+  #   client = EdgeQuake::Client.new(config: EdgeQuake::Config.new)
+  #   health = client.health.check
+  #   puts health["status"]
+  #
+  class Client
+    attr_reader :health, :documents, :entities, :relationships, :graph,
+                :query, :chat, :tenants, :users, :api_keys, :tasks,
+                :pipeline, :models, :costs
+
+    def initialize(config: Config.new)
+      http = HttpHelper.new(config)
+      @health        = HealthService.new(http)
+      @documents     = DocumentService.new(http)
+      @entities      = EntityService.new(http)
+      @relationships = RelationshipService.new(http)
+      @graph         = GraphService.new(http)
+      @query         = QueryService.new(http)
+      @chat          = ChatService.new(http)
+      @tenants       = TenantService.new(http)
+      @users         = UserService.new(http)
+      @api_keys      = ApiKeyService.new(http)
+      @tasks         = TaskService.new(http)
+      @pipeline      = PipelineService.new(http)
+      @models        = ModelService.new(http)
+      @costs         = CostService.new(http)
+    end
+  end
+end
