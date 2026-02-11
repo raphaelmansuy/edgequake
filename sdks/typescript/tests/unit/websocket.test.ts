@@ -4,7 +4,7 @@
  * WHY: websocket.ts wraps native WebSocket as AsyncIterable<WebSocketEvent>.
  * We mock the global WebSocket to test connect, message, close, error flows.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EdgeQuakeWebSocket } from "../../src/streaming/websocket.js";
 
 // ─── Global WebSocket Mock ─────────────────────────────────────
@@ -44,7 +44,8 @@ const originalWebSocket = globalThis.WebSocket;
 describe("EdgeQuakeWebSocket", () => {
   beforeEach(() => {
     MockWebSocket.lastInstance = null;
-    (globalThis as Record<string, unknown>).WebSocket = MockWebSocket as unknown as typeof WebSocket;
+    (globalThis as Record<string, unknown>).WebSocket =
+      MockWebSocket as unknown as typeof WebSocket;
   });
 
   afterEach(() => {

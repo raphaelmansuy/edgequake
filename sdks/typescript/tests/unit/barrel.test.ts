@@ -4,27 +4,27 @@
  * WHY: v8 coverage counts barrel re-exports as uncovered unless imported
  * from the barrel path. This test imports from the barrel to cover it.
  */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   ApiKeysResource,
   AuthResource,
   ChatResource,
   ChunksResource,
   ConversationsResource,
-  MessagesResource,
   CostsResource,
   DocumentsResource,
-  PdfResource,
-  FoldersResource,
   EntitiesResource,
+  FoldersResource,
   GraphResource,
-  RelationshipsResource,
   LineageResource,
+  MessagesResource,
   ModelsResource,
   OllamaResource,
+  PdfResource,
   PipelineResource,
   ProvenanceResource,
   QueryResource,
+  RelationshipsResource,
   SettingsResource,
   SharedResource,
   TasksResource,

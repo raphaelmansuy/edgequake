@@ -1,0 +1,56 @@
+name: Test TypeScript SDK
+on:
+    push:
+        branches: [main, "feat/*"]
+        paths: ["sdks/typescript/**"]
+    pull_request:
+        branches: [main]
+        paths: ["sdks/typescript/**"]
+
+defaults:
+    run:
+        working-directory: sdks/typescript
+
+jobs:
+    test:
+        name: Test (Node ${{ matrix.node-version }})
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                node-version: [18, 20, 22]
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: npm
+                  cache-dependency-path: sdks/typescript/package-lock.json
+            - run: npm ci
+            - run: npm run lint
+            - run: npm run test:coverage
+            - name: Upload coverage
+              if: matrix.node-version == 22
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-report
+                  path: sdks/typescript/coverage/
+
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        needs: test
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+                  cache-dependency-path: sdks/typescript/package-lock.json
+            - run: npm ci
+            - run: npm run build
+            - name: Verify dist output
+              run: |
+                  test -f dist/index.js   || (echo "Missing ESM output" && exit 1)
+                  test -f dist/index.cjs  || (echo "Missing CJS output" && exit 1)
+                  test -f dist/index.d.ts || (echo "Missing .d.ts output" && exit 1)
+                  echo "Build output verified ✅"

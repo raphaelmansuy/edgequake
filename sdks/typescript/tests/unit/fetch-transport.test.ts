@@ -5,10 +5,10 @@
  * URL building, header handling, error mapping, streaming, upload, and
  * timeout all work correctly without hitting a real server.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { FetchTransport } from "../../src/transport/fetch.js";
-import type { TransportConfig, Middleware } from "../../src/transport/types.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NetworkError, TimeoutError } from "../../src/errors.js";
+import { FetchTransport } from "../../src/transport/fetch.js";
+import type { Middleware, TransportConfig } from "../../src/transport/types.js";
 
 /** Helper to build a minimal TransportConfig with a mock fetch. */
 function makeConfig(
@@ -28,7 +28,11 @@ function makeConfig(
 /** Helper to create a mock Response object. */
 function mockResponse(
   body: unknown,
-  init?: { status?: number; statusText?: string; headers?: Record<string, string> },
+  init?: {
+    status?: number;
+    statusText?: string;
+    headers?: Record<string, string>;
+  },
 ): Response {
   const status = init?.status ?? 200;
   const jsonBody = JSON.stringify(body);
@@ -133,7 +137,10 @@ describe("FetchTransport", () => {
 
     it("throws typed error on 4xx response", async () => {
       mockFetch.mockResolvedValue(
-        mockResponse({ code: "NOT_FOUND", message: "Not found" }, { status: 404 }),
+        mockResponse(
+          { code: "NOT_FOUND", message: "Not found" },
+          { status: 404 },
+        ),
       );
 
       await expect(
@@ -143,7 +150,10 @@ describe("FetchTransport", () => {
 
     it("throws typed error on 5xx response", async () => {
       mockFetch.mockResolvedValue(
-        mockResponse({ code: "INTERNAL", message: "Server error" }, { status: 500 }),
+        mockResponse(
+          { code: "INTERNAL", message: "Server error" },
+          { status: 500 },
+        ),
       );
 
       await expect(
@@ -181,7 +191,12 @@ describe("FetchTransport", () => {
               // Simulate slow response — just abort after controller fires
               if (init.signal) {
                 init.signal.addEventListener("abort", () => {
-                  _reject(new DOMException("The operation was aborted.", "AbortError"));
+                  _reject(
+                    new DOMException(
+                      "The operation was aborted.",
+                      "AbortError",
+                    ),
+                  );
                 });
               }
             });
@@ -209,12 +224,13 @@ describe("FetchTransport", () => {
   describe("stream()", () => {
     it("yields SSE data lines", async () => {
       const sseBody = `data: {"token":"Hello"}\n\ndata: {"token":" world"}\n\ndata: [DONE]\n\n`;
-      mockFetch.mockResolvedValue(
-        new Response(sseBody, { status: 200 }),
-      );
+      mockFetch.mockResolvedValue(new Response(sseBody, { status: 200 }));
 
       const chunks: string[] = [];
-      for await (const line of transport.stream({ method: "GET", path: "/stream" })) {
+      for await (const line of transport.stream({
+        method: "GET",
+        path: "/stream",
+      })) {
         chunks.push(line);
       }
 
@@ -237,7 +253,7 @@ describe("FetchTransport", () => {
       // Simulate data split across chunks (partial SSE event)
       const encoder = new TextEncoder();
       const chunks = [
-        encoder.encode("data: {\"a\":"),
+        encoder.encode('data: {"a":'),
         encoder.encode("1}\n\ndata: [DONE]\n\n"),
       ];
 
@@ -257,7 +273,10 @@ describe("FetchTransport", () => {
       );
 
       const lines: string[] = [];
-      for await (const line of transport.stream({ method: "POST", path: "/stream" })) {
+      for await (const line of transport.stream({
+        method: "POST",
+        path: "/stream",
+      })) {
         lines.push(line);
       }
 
@@ -396,7 +415,12 @@ describe("FetchTransport", () => {
 
       await mwTransport.request({ method: "GET", path: "/test" });
 
-      expect(order).toEqual(["mw1-before", "mw2-before", "mw2-after", "mw1-after"]);
+      expect(order).toEqual([
+        "mw1-before",
+        "mw2-before",
+        "mw2-after",
+        "mw1-after",
+      ]);
     });
   });
 
@@ -407,20 +431,22 @@ describe("FetchTransport", () => {
       const controller = new AbortController();
       controller.abort();
 
-      mockFetch.mockImplementation(
-        (_url: string, init: RequestInit) => {
-          if (init.signal?.aborted) {
-            return Promise.reject(
-              new DOMException("The operation was aborted.", "AbortError"),
-            );
-          }
-          return Promise.resolve(mockResponse({}));
-        },
-      );
+      mockFetch.mockImplementation((_url: string, init: RequestInit) => {
+        if (init.signal?.aborted) {
+          return Promise.reject(
+            new DOMException("The operation was aborted.", "AbortError"),
+          );
+        }
+        return Promise.resolve(mockResponse({}));
+      });
 
       // User signal is already aborted, so the request should fail
       await expect(
-        transport.request({ method: "GET", path: "/test", signal: controller.signal }),
+        transport.request({
+          method: "GET",
+          path: "/test",
+          signal: controller.signal,
+        }),
       ).rejects.toThrow();
     });
   });

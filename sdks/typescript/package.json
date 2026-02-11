@@ -32,7 +32,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run lint && npm run test && npm run build"
   },
   "keywords": [
     "edgequake",
@@ -43,7 +43,7 @@
     "typescript"
   ],
   "author": "EdgeQuake Team",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/raphaelmansuy/edgequake",

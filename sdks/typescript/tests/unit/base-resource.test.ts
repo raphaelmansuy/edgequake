@@ -2,10 +2,10 @@
  * Base resource tests — normalizeQuery, _streamSSE, HTTP helpers.
  */
 
-import { describe, it, expect } from "vitest";
-import { createMockTransport } from "../helpers/mock-transport.js";
-import type { HttpTransport } from "../../src/transport/types.js";
+import { describe, expect, it } from "vitest";
 import { Resource } from "../../src/resources/base.js";
+import type { HttpTransport } from "../../src/transport/types.js";
+import { createMockTransport } from "../helpers/mock-transport.js";
 
 // Concrete subclass for testing abstract Resource
 class TestResource extends Resource {
@@ -33,7 +33,9 @@ describe("Resource base class", () => {
   let mock: ReturnType<typeof createMockTransport>;
   let resource: TestResource;
 
-  function setup(routes: Record<string, { body?: unknown; chunks?: string[] }> = {}) {
+  function setup(
+    routes: Record<string, { body?: unknown; chunks?: string[] }> = {},
+  ) {
     mock = createMockTransport(routes);
     resource = new TestResource(mock as unknown as HttpTransport);
   }
@@ -50,7 +52,13 @@ describe("Resource base class", () => {
 
   it("_get with query params normalizes values", async () => {
     setup({ "GET /foo": { body: {} } });
-    await resource.get("/foo", { page: 1, active: true, name: "test", empty: null, undef: undefined });
+    await resource.get("/foo", {
+      page: 1,
+      active: true,
+      name: "test",
+      empty: null,
+      undef: undefined,
+    });
     expect(mock.lastRequest?.query).toEqual({
       page: "1",
       active: "true",

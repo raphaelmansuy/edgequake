@@ -1007,7 +1007,9 @@ describe("ProvenanceResource", () => {
 
   beforeEach(() => {
     mock = createMockTransport({
-      "GET /api/v1/entities/e1/provenance": { body: { entity: "e1", sources: [] } },
+      "GET /api/v1/entities/e1/provenance": {
+        body: { entity: "e1", sources: [] },
+      },
     });
     prov = new ProvenanceResource(mock as unknown as HttpTransport);
   });

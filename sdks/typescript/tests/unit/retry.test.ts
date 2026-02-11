@@ -2,7 +2,7 @@
  * Tests for retry middleware — exercises exponential backoff, status-based retry,
  * AbortError bypass, and network error retry.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createRetryMiddleware } from "../../src/transport/retry.js";
 import type { RequestOptions } from "../../src/transport/types.js";
 
@@ -100,7 +100,9 @@ describe("createRetryMiddleware", () => {
       throw new DOMException("The operation was aborted.", "AbortError");
     });
 
-    await expect(middleware(makeRequest(), next)).rejects.toThrow("The operation was aborted.");
+    await expect(middleware(makeRequest(), next)).rejects.toThrow(
+      "The operation was aborted.",
+    );
     expect(next).toHaveBeenCalledTimes(1);
   });
 
@@ -115,7 +117,9 @@ describe("createRetryMiddleware", () => {
       throw new TypeError("fetch failed");
     });
 
-    await expect(middleware(makeRequest(), next)).rejects.toThrow("fetch failed");
+    await expect(middleware(makeRequest(), next)).rejects.toThrow(
+      "fetch failed",
+    );
     expect(next).toHaveBeenCalledTimes(2);
   });
 

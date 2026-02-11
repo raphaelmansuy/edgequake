@@ -2,7 +2,7 @@
  * Streaming tests — SSE parser and WebSocket wrapper.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { parseSSEStream } from "../../src/streaming/sse.js";
 
 // Helper: create a mock Response with a ReadableStream body
@@ -21,13 +21,10 @@ function mockSSEResponse(text: string): Response {
 
 describe("parseSSEStream", () => {
   it("parses data: lines into typed events", async () => {
-    const response = mockSSEResponse(
-      'data: {"id":1}\n\ndata: {"id":2}\n\n',
-    );
+    const response = mockSSEResponse('data: {"id":1}\n\ndata: {"id":2}\n\n');
     const events: Array<{ id: number }> = [];
-    for await (const ev of parseSSEStream<{ id: number }>(
-      response,
-      (raw) => JSON.parse(raw),
+    for await (const ev of parseSSEStream<{ id: number }>(response, (raw) =>
+      JSON.parse(raw),
     )) {
       events.push(ev);
     }
@@ -39,9 +36,8 @@ describe("parseSSEStream", () => {
       'data: {"chunk":"Hello"}\n\ndata: [DONE]\n\ndata: {"chunk":"ignored"}\n\n',
     );
     const events: Array<{ chunk: string }> = [];
-    for await (const ev of parseSSEStream<{ chunk: string }>(
-      response,
-      (raw) => JSON.parse(raw),
+    for await (const ev of parseSSEStream<{ chunk: string }>(response, (raw) =>
+      JSON.parse(raw),
     )) {
       events.push(ev);
     }
@@ -53,9 +49,8 @@ describe("parseSSEStream", () => {
       ': this is a comment\ndata: {"ok":true}\n\n',
     );
     const events: Array<{ ok: boolean }> = [];
-    for await (const ev of parseSSEStream<{ ok: boolean }>(
-      response,
-      (raw) => JSON.parse(raw),
+    for await (const ev of parseSSEStream<{ ok: boolean }>(response, (raw) =>
+      JSON.parse(raw),
     )) {
       events.push(ev);
     }
@@ -63,9 +58,7 @@ describe("parseSSEStream", () => {
   });
 
   it("skips when parser returns null", async () => {
-    const response = mockSSEResponse(
-      'data: skip\n\ndata: {"keep":true}\n\n',
-    );
+    const response = mockSSEResponse('data: skip\n\ndata: {"keep":true}\n\n');
     const events: Array<{ keep: boolean }> = [];
     for await (const ev of parseSSEStream<{ keep: boolean }>(
       response,
@@ -93,10 +86,7 @@ describe("parseSSEStream", () => {
   it("handles empty data gracefully", async () => {
     const response = mockSSEResponse("\n\n");
     const events: string[] = [];
-    for await (const ev of parseSSEStream<string>(
-      response,
-      (raw) => raw,
-    )) {
+    for await (const ev of parseSSEStream<string>(response, (raw) => raw)) {
       events.push(ev);
     }
     expect(events).toEqual([]);
@@ -112,7 +102,7 @@ describe("parseSSEStream", () => {
           controller.enqueue(encoder.encode('data: {"part":'));
           enqueueCount++;
         } else if (enqueueCount === 1) {
-          controller.enqueue(encoder.encode('1}\n\n'));
+          controller.enqueue(encoder.encode("1}\n\n"));
           enqueueCount++;
         } else {
           controller.close();
@@ -121,9 +111,8 @@ describe("parseSSEStream", () => {
     });
     const response = new Response(stream);
     const events: Array<{ part: number }> = [];
-    for await (const ev of parseSSEStream<{ part: number }>(
-      response,
-      (raw) => JSON.parse(raw),
+    for await (const ev of parseSSEStream<{ part: number }>(response, (raw) =>
+      JSON.parse(raw),
     )) {
       events.push(ev);
     }
