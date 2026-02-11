@@ -1,0 +1,6 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.DotSettings.user

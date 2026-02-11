@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EdgeQuakeSDK/EdgeQuakeSDK.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EdgeQuakeSDK.Tests/EdgeQuakeSDK.Tests.csproj" />
+  </Folder>
+</Solution>
