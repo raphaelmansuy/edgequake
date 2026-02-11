@@ -38,7 +38,65 @@ curl http://localhost:11434/api/tags
 
 ## Common Issues
 
-### 1. Server Won't Start
+### 1. Document Upload Errors
+
+#### Symptom: "Expected request with `Content-Type: application/json`"
+
+**Cause**: Using multipart form data (`-F "file=@..."`) with the wrong endpoint.
+
+**Solution**: EdgeQuake has **two different endpoints** for document upload:
+
+**Option A - Upload Text as JSON** (`/api/v1/documents`):
+
+```bash
+curl -X POST http://localhost:8080/api/v1/documents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Your text content here...",
+    "title": "Document Title"
+  }'
+```
+
+**Option B - Upload Files (PDF, TXT, MD, etc.)** (`/api/v1/documents/upload`):
+
+```bash
+curl -X POST http://localhost:8080/api/v1/documents/upload \
+  -F "file=@your-document.pdf" \
+  -F "title=My Document"
+```
+
+#### Symptom: "Failed to parse the request body as JSON"
+
+**Cause**: Using `-F` flag (multipart) with a JSON endpoint, or mixing content types.
+
+**Solution**: Choose the correct endpoint and format:
+
+| Upload Type | Endpoint                        | Content-Type               | Format        |
+| ----------- | ------------------------------- | -------------------------- | ------------- |
+| Text/JSON   | `/api/v1/documents`             | `application/json`         | `-d '{...}'`  |
+| Files       | `/api/v1/documents/upload`      | `multipart/form-data`      | `-F "file=@"` |
+| Batch Files | `/api/v1/documents/upload/batch`| `multipart/form-data`      | `-F "files=@"`|
+
+**Examples**:
+
+```bash
+# ❌ WRONG - multipart to JSON endpoint
+curl -X POST http://localhost:8080/api/v1/documents \
+  -F "file=@doc.pdf"
+
+# ✅ CORRECT - multipart to upload endpoint
+curl -X POST http://localhost:8080/api/v1/documents/upload \
+  -F "file=@doc.pdf"
+
+# ✅ CORRECT - JSON to documents endpoint
+curl -X POST http://localhost:8080/api/v1/documents \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Text here", "title": "My Doc"}'
+```
+
+---
+
+### 2. Server Won't Start
 
 #### Symptom: "Address already in use"
 
@@ -157,7 +215,7 @@ curl http://localhost:8080/api/v1/documents/doc-uuid
 
 ```bash
 # Re-upload with vision mode
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents/upload \
   -F "file=@scanned_book.pdf" \
   -F "title=Scanned Book" \
   -F 'config={"mode": "Vision", "vision_dpi": 150}'
@@ -167,7 +225,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 
 ```bash
 # Hybrid mode automatically detects low-quality pages
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents/upload \
   -F "file=@mixed_quality.pdf" \
   -F 'config={"mode": "Hybrid", "quality_threshold": 0.7}'
 ```
@@ -577,52 +635,52 @@ Common configurations for different PDF types:
 
 ```bash
 # Default settings - no config needed
-curl -F "file=@digital.pdf" http://localhost:8080/api/v1/documents
+curl -X POST http://localhost:8080/api/v1/documents/upload -F "file=@digital.pdf" http://localhost:8080/api/v1/documents/upload
 ```
 
 **Scanned Document**:
 
 ```bash
-curl -F "file=@scanned.pdf" \
+curl -X POST http://localhost:8080/api/v1/documents/upload -F "file=@scanned.pdf" \
      -F 'config={"mode": "Vision", "vision_dpi": 150}' \
-     http://localhost:8080/api/v1/documents
+     http://localhost:8080/api/v1/documents/upload
 ```
 
 **Academic Paper (multi-column)**:
 
 ```bash
-curl -F "file=@paper.pdf" \
+curl -X POST http://localhost:8080/api/v1/documents/upload -F "file=@paper.pdf" \
      -F 'config={"layout": {"detect_columns": true}}' \
-     http://localhost:8080/api/v1/documents
+     http://localhost:8080/api/v1/documents/upload
 ```
 
 **Financial Report (complex tables)**:
 
 ```bash
-curl -F "file=@financials.pdf" \
+curl -X POST http://localhost:8080/api/v1/documents/upload -F "file=@financials.pdf" \
      -F 'config={"enhance_tables": true}' \
-     http://localhost:8080/api/v1/documents
+     http://localhost:8080/api/v1/documents/upload
 ```
 
 **Unknown Quality (auto-detect)**:
 
 ```bash
-curl -F "file=@unknown.pdf" \
+curl -X POST http://localhost:8080/api/v1/documents/upload -F "file=@unknown.pdf" \
      -F 'config={"mode": "Hybrid", "quality_threshold": 0.7}' \
-     http://localhost:8080/api/v1/documents
+     http://localhost:8080/api/v1/documents/upload
 ```
 
 **Critical Document (maximum accuracy)**:
 
 ```bash
-curl -F "file=@critical.pdf" \
+curl -X POST http://localhost:8080/api/v1/documents/upload -F "file=@critical.pdf" \
      -F 'config={
        "mode": "Vision",
        "enhance_tables": true,
        "enhance_readability": true,
        "vision_dpi": 200
      }' \
-     http://localhost:8080/api/v1/documents
+     http://localhost:8080/api/v1/documents/upload
 ```
 
 ---
