@@ -26,8 +26,8 @@ from edgequake.types.conversations import (
     Message,
     MessageCreate,
     MessageUpdate,
-    ShareLink,
     SharedConversation,
+    ShareLink,
 )
 
 
@@ -140,7 +140,9 @@ class ConversationsResource(SyncResource):
             json=BulkArchiveRequest(ids=ids, archive=archive).model_dump(),
         )
 
-    def bulk_move(self, ids: list[str], *, folder_id: str | None = None) -> dict[str, Any]:
+    def bulk_move(
+        self, ids: list[str], *, folder_id: str | None = None
+    ) -> dict[str, Any]:
         """Bulk move conversations to a folder.
 
         POST /api/v1/conversations/bulk/move
@@ -160,12 +162,14 @@ class ConversationsResource(SyncResource):
         data = self._get(f"/api/v1/conversations/{conversation_id}/messages")
         if isinstance(data, list):
             return [Message.model_validate(m) for m in data]
-        items = data.get("messages", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("messages", data.get("items", []))
+            if isinstance(data, dict)
+            else []
+        )
         return [Message.model_validate(m) for m in items]
 
-    def create_message(
-        self, conversation_id: str, message: MessageCreate
-    ) -> Message:
+    def create_message(self, conversation_id: str, message: MessageCreate) -> Message:
         """Add a message to a conversation.
 
         POST /api/v1/conversations/{id}/messages
@@ -176,9 +180,7 @@ class ConversationsResource(SyncResource):
             response_type=Message,
         )
 
-    def update_message(
-        self, message_id: str, update: MessageUpdate
-    ) -> Message:
+    def update_message(self, message_id: str, update: MessageUpdate) -> Message:
         """Update a message.
 
         PATCH /api/v1/messages/{message_id}
@@ -221,9 +223,7 @@ class ConversationsResource(SyncResource):
 
         GET /api/v1/shared/{share_id}
         """
-        return self._get(
-            f"/api/v1/shared/{share_id}", response_type=SharedConversation
-        )
+        return self._get(f"/api/v1/shared/{share_id}", response_type=SharedConversation)
 
 
 class FoldersResource(SyncResource):
@@ -237,7 +237,9 @@ class FoldersResource(SyncResource):
         data = self._get("/api/v1/folders")
         if isinstance(data, list):
             return [FolderInfo.model_validate(f) for f in data]
-        items = data.get("folders", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("folders", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [FolderInfo.model_validate(f) for f in items]
 
     def create(self, name: str, *, parent_id: str | None = None) -> FolderInfo:
@@ -273,6 +275,7 @@ class FoldersResource(SyncResource):
 
 
 # --- Async versions ---
+
 
 class AsyncConversationsResource(AsyncResource):
     """Async conversations API."""
@@ -316,7 +319,11 @@ class AsyncConversationsResource(AsyncResource):
         data = await self._get(f"/api/v1/conversations/{conversation_id}/messages")
         if isinstance(data, list):
             return [Message.model_validate(m) for m in data]
-        items = data.get("messages", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("messages", data.get("items", []))
+            if isinstance(data, dict)
+            else []
+        )
         return [Message.model_validate(m) for m in items]
 
     async def create_message(
@@ -345,7 +352,9 @@ class AsyncFoldersResource(AsyncResource):
         data = await self._get("/api/v1/folders")
         if isinstance(data, list):
             return [FolderInfo.model_validate(f) for f in data]
-        items = data.get("folders", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("folders", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [FolderInfo.model_validate(f) for f in items]
 
     async def create(self, name: str, *, parent_id: str | None = None) -> FolderInfo:

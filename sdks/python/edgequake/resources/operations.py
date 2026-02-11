@@ -23,10 +23,10 @@ from edgequake.types.operations import (
     ModelInfo,
     ModelPricing,
     PipelineStatus,
-    ProviderDetail,
-    ProviderStatus,
     ProvenanceRecord,
+    ProviderDetail,
     ProvidersHealth,
+    ProviderStatus,
     QueueMetrics,
     TaskInfo,
     TaskListResponse,
@@ -45,9 +45,7 @@ from edgequake.types.workspaces import (
 class WorkspacesResource(SyncResource):
     """Workspace management operations."""
 
-    def create(
-        self, tenant_id: str, workspace: WorkspaceCreate
-    ) -> WorkspaceInfo:
+    def create(self, tenant_id: str, workspace: WorkspaceCreate) -> WorkspaceInfo:
         """Create a workspace.
 
         POST /api/v1/tenants/{tenant_id}/workspaces
@@ -93,9 +91,7 @@ class WorkspacesResource(SyncResource):
             response_type=WorkspaceInfo,
         )
 
-    def update(
-        self, workspace_id: str, update: WorkspaceUpdate
-    ) -> WorkspaceInfo:
+    def update(self, workspace_id: str, update: WorkspaceUpdate) -> WorkspaceInfo:
         """Update a workspace.
 
         PUT /api/v1/workspaces/{workspace_id}
@@ -138,9 +134,7 @@ class WorkspacesResource(SyncResource):
 
         POST /api/v1/workspaces/{workspace_id}/metrics-snapshot
         """
-        return self._post(
-            f"/api/v1/workspaces/{workspace_id}/metrics-snapshot"
-        )
+        return self._post(f"/api/v1/workspaces/{workspace_id}/metrics-snapshot")
 
     def rebuild_embeddings(self, workspace_id: str) -> RebuildResponse:
         """Rebuild embeddings for a workspace.
@@ -181,9 +175,7 @@ class TasksResource(SyncResource):
 
         GET /api/v1/tasks/{track_id}
         """
-        return self._get(
-            f"/api/v1/tasks/{track_id}", response_type=TaskInfo
-        )
+        return self._get(f"/api/v1/tasks/{track_id}", response_type=TaskInfo)
 
     def list(self) -> TaskListResponse:
         """List all tasks.
@@ -204,9 +196,7 @@ class TasksResource(SyncResource):
 
         POST /api/v1/tasks/{track_id}/retry
         """
-        return self._post(
-            f"/api/v1/tasks/{track_id}/retry", response_type=TaskInfo
-        )
+        return self._post(f"/api/v1/tasks/{track_id}/retry", response_type=TaskInfo)
 
 
 class PipelineResource(SyncResource):
@@ -217,9 +207,7 @@ class PipelineResource(SyncResource):
 
         GET /api/v1/pipeline/status
         """
-        return self._get(
-            "/api/v1/pipeline/status", response_type=PipelineStatus
-        )
+        return self._get("/api/v1/pipeline/status", response_type=PipelineStatus)
 
     def cancel(self) -> dict[str, Any]:
         """Cancel pipeline processing.
@@ -233,18 +221,14 @@ class PipelineResource(SyncResource):
 
         GET /api/v1/pipeline/queue-metrics
         """
-        return self._get(
-            "/api/v1/pipeline/queue-metrics", response_type=QueueMetrics
-        )
+        return self._get("/api/v1/pipeline/queue-metrics", response_type=QueueMetrics)
 
     def pricing(self) -> ModelPricing:
         """Get model pricing.
 
         GET /api/v1/pipeline/costs/pricing
         """
-        return self._get(
-            "/api/v1/pipeline/costs/pricing", response_type=ModelPricing
-        )
+        return self._get("/api/v1/pipeline/costs/pricing", response_type=ModelPricing)
 
     def estimate_cost(
         self,
@@ -285,7 +269,9 @@ class CostsResource(SyncResource):
         data = self._get("/api/v1/costs/history", params={"days": days})
         if isinstance(data, list):
             return [CostEntry.model_validate(e) for e in data]
-        items = data.get("entries", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("entries", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [CostEntry.model_validate(e) for e in items]
 
     def budget(self) -> BudgetInfo:
@@ -340,9 +326,7 @@ class ChunksResource(SyncResource):
 
         GET /api/v1/chunks/{chunk_id}
         """
-        return self._get(
-            f"/api/v1/chunks/{chunk_id}", response_type=ChunkDetail
-        )
+        return self._get(f"/api/v1/chunks/{chunk_id}", response_type=ChunkDetail)
 
 
 class ProvenanceResource(SyncResource):
@@ -356,7 +340,9 @@ class ProvenanceResource(SyncResource):
         data = self._get(f"/api/v1/entities/{entity_id}/provenance")
         if isinstance(data, list):
             return [ProvenanceRecord.model_validate(r) for r in data]
-        items = data.get("records", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("records", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [ProvenanceRecord.model_validate(r) for r in items]
 
 
@@ -395,7 +381,9 @@ class ModelsResource(SyncResource):
         data = self._get("/api/v1/models")
         if isinstance(data, list):
             return [ModelInfo.model_validate(m) for m in data]
-        items = data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [ModelInfo.model_validate(m) for m in items]
 
     def list_llm(self) -> list[ModelInfo]:
@@ -406,7 +394,9 @@ class ModelsResource(SyncResource):
         data = self._get("/api/v1/models/llm")
         if isinstance(data, list):
             return [ModelInfo.model_validate(m) for m in data]
-        items = data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [ModelInfo.model_validate(m) for m in items]
 
     def list_embedding(self) -> list[ModelInfo]:
@@ -417,7 +407,9 @@ class ModelsResource(SyncResource):
         data = self._get("/api/v1/models/embedding")
         if isinstance(data, list):
             return [ModelInfo.model_validate(m) for m in data]
-        items = data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [ModelInfo.model_validate(m) for m in items]
 
     def health(self) -> ProvidersHealth:
@@ -425,9 +417,11 @@ class ModelsResource(SyncResource):
 
         GET /api/v1/models/health
         """
-        return self._get(
-            "/api/v1/models/health", response_type=ProvidersHealth
-        )
+        # WHY: API returns a list directly, not {providers: [...]}
+        data = self._get("/api/v1/models/health")
+        if isinstance(data, list):
+            return ProvidersHealth(providers=data)
+        return ProvidersHealth.model_validate(data)
 
     def provider(self, provider_name: str) -> ProviderDetail:
         """Get provider details.
@@ -451,6 +445,7 @@ class ModelsResource(SyncResource):
 
 
 # --- Async Versions ---
+
 
 class AsyncWorkspacesResource(AsyncResource):
     """Async workspace management."""
@@ -500,9 +495,7 @@ class AsyncTasksResource(AsyncResource):
     """Async task management."""
 
     async def get(self, track_id: str) -> TaskInfo:
-        return await self._get(
-            f"/api/v1/tasks/{track_id}", response_type=TaskInfo
-        )
+        return await self._get(f"/api/v1/tasks/{track_id}", response_type=TaskInfo)
 
     async def list(self) -> TaskListResponse:
         return await self._get("/api/v1/tasks", response_type=TaskListResponse)
@@ -520,9 +513,7 @@ class AsyncPipelineResource(AsyncResource):
     """Async pipeline management."""
 
     async def status(self) -> PipelineStatus:
-        return await self._get(
-            "/api/v1/pipeline/status", response_type=PipelineStatus
-        )
+        return await self._get("/api/v1/pipeline/status", response_type=PipelineStatus)
 
     async def cancel(self) -> dict[str, Any]:
         return await self._post("/api/v1/pipeline/cancel")
@@ -543,7 +534,9 @@ class AsyncCostsResource(AsyncResource):
         data = await self._get("/api/v1/costs/history", params={"days": days})
         if isinstance(data, list):
             return [CostEntry.model_validate(e) for e in data]
-        items = data.get("entries", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("entries", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [CostEntry.model_validate(e) for e in items]
 
     async def budget(self) -> BudgetInfo:
@@ -590,9 +583,7 @@ class AsyncChunksResource(AsyncResource):
 
         GET /api/v1/chunks/{chunk_id}
         """
-        return await self._get(
-            f"/api/v1/chunks/{chunk_id}", response_type=ChunkDetail
-        )
+        return await self._get(f"/api/v1/chunks/{chunk_id}", response_type=ChunkDetail)
 
 
 class AsyncProvenanceResource(AsyncResource):
@@ -606,7 +597,9 @@ class AsyncProvenanceResource(AsyncResource):
         data = await self._get(f"/api/v1/entities/{entity_id}/provenance")
         if isinstance(data, list):
             return [ProvenanceRecord.model_validate(r) for r in data]
-        items = data.get("records", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("records", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [ProvenanceRecord.model_validate(r) for r in items]
 
 
@@ -617,20 +610,26 @@ class AsyncModelsResource(AsyncResource):
         data = await self._get("/api/v1/models")
         if isinstance(data, list):
             return [ModelInfo.model_validate(m) for m in data]
-        items = data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [ModelInfo.model_validate(m) for m in items]
 
     async def list_llm(self) -> list[ModelInfo]:
         data = await self._get("/api/v1/models/llm")
         if isinstance(data, list):
             return [ModelInfo.model_validate(m) for m in data]
-        items = data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("models", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [ModelInfo.model_validate(m) for m in items]
 
     async def health(self) -> ProvidersHealth:
-        return await self._get(
-            "/api/v1/models/health", response_type=ProvidersHealth
-        )
+        # WHY: API returns a list directly, not {providers: [...]}
+        data = await self._get("/api/v1/models/health")
+        if isinstance(data, list):
+            return ProvidersHealth(providers=data)
+        return ProvidersHealth.model_validate(data)
 
     async def provider(self, provider_name: str) -> ProviderDetail:
         return await self._get(

@@ -75,9 +75,7 @@ class GraphResource(SyncResource):
         params: dict[str, Any] = {}
         if label:
             params["label"] = label
-        response = self._transport.stream(
-            "GET", "/api/v1/graph/stream", params=params
-        )
+        response = self._transport.stream("GET", "/api/v1/graph/stream", params=params)
         return SSEStream(response, GraphStreamEvent)
 
     def get_node(self, node_id: str) -> GraphNode:
@@ -85,9 +83,7 @@ class GraphResource(SyncResource):
 
         GET /api/v1/graph/nodes/{node_id}
         """
-        return self._get(
-            f"/api/v1/graph/nodes/{node_id}", response_type=GraphNode
-        )
+        return self._get(f"/api/v1/graph/nodes/{node_id}", response_type=GraphNode)
 
     def search_nodes(
         self,
@@ -102,7 +98,8 @@ class GraphResource(SyncResource):
         """
         params: dict[str, Any] = {"limit": limit}
         if query:
-            params["query"] = query
+            # WHY: API expects `q` not `query`
+            params["q"] = query
         if label:
             params["label"] = label
         return self._get(
@@ -173,7 +170,11 @@ class EntitiesResource(SyncResource):
         data = self._get("/api/v1/graph/entities", params=params)
         if isinstance(data, list):
             return [Entity.model_validate(e) for e in data]
-        items = data.get("entities", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("entities", data.get("items", []))
+            if isinstance(data, dict)
+            else []
+        )
         return [Entity.model_validate(e) for e in items]
 
     def create(self, entity: EntityCreate) -> Entity:
@@ -181,11 +182,15 @@ class EntitiesResource(SyncResource):
 
         POST /api/v1/graph/entities
         """
-        return self._post(
+        # WHY: by_alias=True enables serialization_alias (name -> entity_name)
+        data = self._post(
             "/api/v1/graph/entities",
-            json=entity.model_dump(exclude_none=True),
-            response_type=Entity,
+            json=entity.model_dump(exclude_none=True, by_alias=True),
         )
+        # WHY: API returns {status, message, entity: {...}} — unwrap
+        if isinstance(data, dict) and "entity" in data:
+            return Entity.model_validate(data["entity"])
+        return Entity.model_validate(data)
 
     def get(self, entity_name: str) -> EntityDetail:
         """Get entity details.
@@ -208,12 +213,16 @@ class EntitiesResource(SyncResource):
             response_type=Entity,
         )
 
-    def delete(self, entity_name: str) -> None:
+    def delete(self, entity_name: str, *, confirm: bool = True) -> None:
         """Delete an entity.
 
         DELETE /api/v1/graph/entities/{entity_name}
         """
-        self._delete(f"/api/v1/graph/entities/{entity_name}")
+        # WHY: API requires `confirm` query parameter
+        self._delete(
+            f"/api/v1/graph/entities/{entity_name}",
+            params={"confirm": str(confirm).lower()},
+        )
 
     def exists(self, entity_name: str) -> EntityExistsResponse:
         """Check if an entity exists.
@@ -237,9 +246,7 @@ class EntitiesResource(SyncResource):
             response_type=MergeEntitiesResponse,
         )
 
-    def neighborhood(
-        self, entity_name: str, *, depth: int = 1
-    ) -> NeighborhoodResponse:
+    def neighborhood(self, entity_name: str, *, depth: int = 1) -> NeighborhoodResponse:
         """Get entity neighborhood graph.
 
         GET /api/v1/graph/entities/{entity_name}/neighborhood
@@ -299,9 +306,7 @@ class RelationshipsResource(SyncResource):
             response_type=RelationshipDetail,
         )
 
-    def update(
-        self, relationship_id: str, update: RelationshipUpdate
-    ) -> Relationship:
+    def update(self, relationship_id: str, update: RelationshipUpdate) -> Relationship:
         """Update a relationship.
 
         PUT /api/v1/graph/relationships/{relationship_id}
@@ -321,6 +326,7 @@ class RelationshipsResource(SyncResource):
 
 
 # --- Async versions ---
+
 
 class AsyncGraphResource(AsyncResource):
     """Asynchronous Graph API."""
@@ -366,7 +372,8 @@ class AsyncGraphResource(AsyncResource):
     ) -> SearchNodesResponse:
         params: dict[str, Any] = {"limit": limit}
         if query:
-            params["query"] = query
+            # WHY: API expects `q` not `query`
+            params["q"] = query
         return await self._get(
             "/api/v1/graph/nodes/search",
             params=params,
@@ -412,15 +419,23 @@ class AsyncEntitiesResource(AsyncResource):
         data = await self._get("/api/v1/graph/entities", params=params)
         if isinstance(data, list):
             return [Entity.model_validate(e) for e in data]
-        items = data.get("entities", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("entities", data.get("items", []))
+            if isinstance(data, dict)
+            else []
+        )
         return [Entity.model_validate(e) for e in items]
 
     async def create(self, entity: EntityCreate) -> Entity:
-        return await self._post(
+        # WHY: by_alias=True enables serialization_alias (name -> entity_name)
+        data = await self._post(
             "/api/v1/graph/entities",
-            json=entity.model_dump(exclude_none=True),
-            response_type=Entity,
+            json=entity.model_dump(exclude_none=True, by_alias=True),
         )
+        # WHY: API returns {status, message, entity: {...}} — unwrap
+        if isinstance(data, dict) and "entity" in data:
+            return Entity.model_validate(data["entity"])
+        return Entity.model_validate(data)
 
     async def get(self, entity_name: str) -> EntityDetail:
         return await self._get(
@@ -435,8 +450,12 @@ class AsyncEntitiesResource(AsyncResource):
             response_type=Entity,
         )
 
-    async def delete(self, entity_name: str) -> None:
-        await self._delete(f"/api/v1/graph/entities/{entity_name}")
+    async def delete(self, entity_name: str, *, confirm: bool = True) -> None:
+        # WHY: API requires `confirm` query parameter
+        await self._delete(
+            f"/api/v1/graph/entities/{entity_name}",
+            params={"confirm": str(confirm).lower()},
+        )
 
     async def exists(self, entity_name: str) -> EntityExistsResponse:
         return await self._get(

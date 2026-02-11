@@ -8,13 +8,9 @@
  * Tests handle gracefully when auth is not configured.
  */
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { EdgeQuake } from "../../src/index.js";
-import {
-  createE2EClient,
-  E2E_ENABLED,
-  testId,
-} from "./helpers.js";
+import { createE2EClient, E2E_ENABLED, testId } from "./helpers.js";
 
 const describeE2E = E2E_ENABLED ? describe : describe.skip;
 

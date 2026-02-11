@@ -1,0 +1,7 @@
+{
+  "servers": {
+    "edgequake-metals": {
+      "url": "http://localhost:52680/mcp"
+    }
+  }
+}

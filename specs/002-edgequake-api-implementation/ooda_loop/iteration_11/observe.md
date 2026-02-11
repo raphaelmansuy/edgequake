@@ -1,6 +1,7 @@
 # Iteration 11 — Observe
 
 ## Scope
+
 Python SDK implementation — full production-ready SDK.
 
 ## Observations

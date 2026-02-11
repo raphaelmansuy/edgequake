@@ -47,7 +47,14 @@ describe("AuthResource", () => {
       "POST /api/v1/auth/refresh": { body: { access_token: "new-t" } },
       "POST /api/v1/auth/logout": { body: {} },
       "GET /api/v1/auth/me": {
-        body: { user: { user_id: "u1", username: "me", email: "me@test.com", role: "user" } },
+        body: {
+          user: {
+            user_id: "u1",
+            username: "me",
+            email: "me@test.com",
+            role: "user",
+          },
+        },
       },
     });
     auth = new AuthResource(mock as unknown as HttpTransport);
@@ -88,10 +95,24 @@ describe("UsersResource", () => {
   beforeEach(() => {
     mock = createMockTransport({
       "POST /api/v1/users": {
-        body: { user: { user_id: "u1", username: "new", email: "new@test.com", role: "user" }, created_at: "2025-01-01" },
+        body: {
+          user: {
+            user_id: "u1",
+            username: "new",
+            email: "new@test.com",
+            role: "user",
+          },
+          created_at: "2025-01-01",
+        },
       },
       "GET /api/v1/users": {
-        body: { users: [{ user_id: "u1" }], total: 1, page: 1, page_size: 20, total_pages: 1 },
+        body: {
+          users: [{ user_id: "u1" }],
+          total: 1,
+          page: 1,
+          page_size: 20,
+          total_pages: 1,
+        },
       },
       "GET /api/v1/users/u1": { body: { user_id: "u1" } },
       "DELETE /api/v1/users/u1": { body: {} },
@@ -100,7 +121,12 @@ describe("UsersResource", () => {
   });
 
   it("create → POST /api/v1/users", async () => {
-    const res = await users.create({ username: "new", email: "new@test.com", password: "pw", role: "user" });
+    const res = await users.create({
+      username: "new",
+      email: "new@test.com",
+      password: "pw",
+      role: "user",
+    });
     expect(mock.lastRequest?.method).toBe("POST");
     expect(mock.lastRequest?.path).toBe("/api/v1/users");
     expect(res.user.user_id).toBe("u1");
@@ -133,12 +159,26 @@ describe("ApiKeysResource", () => {
   beforeEach(() => {
     mock = createMockTransport({
       "POST /api/v1/api-keys": {
-        body: { key_id: "k1", api_key: "eq-key", prefix: "eq_", scopes: ["read"], created_at: "2025-01-01" },
+        body: {
+          key_id: "k1",
+          api_key: "eq-key",
+          prefix: "eq_",
+          scopes: ["read"],
+          created_at: "2025-01-01",
+        },
       },
       "GET /api/v1/api-keys": {
-        body: { keys: [{ key_id: "k1" }], total: 1, page: 1, page_size: 20, total_pages: 1 },
+        body: {
+          keys: [{ key_id: "k1" }],
+          total: 1,
+          page: 1,
+          page_size: 20,
+          total_pages: 1,
+        },
       },
-      "DELETE /api/v1/api-keys/k1": { body: { key_id: "k1", message: "Key revoked" } },
+      "DELETE /api/v1/api-keys/k1": {
+        body: { key_id: "k1", message: "Key revoked" },
+      },
     });
     apiKeys = new ApiKeysResource(mock as unknown as HttpTransport);
   });

@@ -32,7 +32,8 @@ class SourceReference(BaseModel):
     score: float | None = None
     rerank_score: float | None = None
     snippet: str | None = None
-    reference_id: str | None = None
+    # WHY: API returns int but OpenAPI says string — accept both
+    reference_id: int | str | None = None
     document_id: str | None = None
     file_path: str | None = None
     start_line: int | None = None

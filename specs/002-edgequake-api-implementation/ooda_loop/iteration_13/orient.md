@@ -3,6 +3,7 @@
 ## Analysis
 
 ### SDK Structure (Flat Package)
+
 ```
 sdks/go/
 ├── go.mod              # Module: github.com/edgequake/edgequake-go, Go 1.21

@@ -30,6 +30,7 @@
    - `SearchNodesResponse` simplified vs Rust
 
 ### Current State
+
 - 247 unit tests pass, 62 E2E tests pass
 - 98.12% statement coverage
 - Build: ESM 48.25 KB, CJS 48.78 KB, DTS 91.21 KB

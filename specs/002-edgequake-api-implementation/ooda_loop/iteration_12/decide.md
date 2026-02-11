@@ -1,7 +1,9 @@
 # OODA Iteration 12 — Decide: Rust SDK
 
 ## Decision
+
 Implement full Rust SDK with:
+
 - Builder pattern for client construction
 - 21 resource modules covering all EdgeQuake API endpoints
 - 9 type modules with serde Serialize/Deserialize
@@ -9,12 +11,14 @@ Implement full Rust SDK with:
 - wiremock-based integration tests
 
 ## Rationale
+
 - Rust SDK is critical for ecosystem completeness (systems programming use case)
 - Builder pattern is idiomatic and ergonomic for Rust
 - Borrowed resource handles (`&'a`) avoid unnecessary Arc overhead
 - wiremock provides excellent HTTP mock testing without external servers
 
 ## File Structure
+
 ```
 sdks/rust/
 ├── Cargo.toml

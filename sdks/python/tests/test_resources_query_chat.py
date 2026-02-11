@@ -88,9 +88,7 @@ class TestChatResource:
         from edgequake.types.chat import ChatCompletionResponse
 
         client = EdgeQuake()
-        result = client.chat.complete(
-            messages=[{"role": "user", "content": "Hello"}]
-        )
+        result = client.chat.complete(messages=[{"role": "user", "content": "Hello"}])
         assert isinstance(result, ChatCompletionResponse)
         assert result.choices[0].message.content == "Hello! How can I help?"
         assert result.usage.total_tokens == 18

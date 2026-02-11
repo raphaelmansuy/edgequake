@@ -28,7 +28,7 @@ class TestDocumentsResource:
     def test_upload(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "id": "doc-1",
+            "document_id": "doc-1",
             "status": "processing",
             "message": "Upload received",
         }
@@ -37,7 +37,7 @@ class TestDocumentsResource:
         client = EdgeQuake()
         result = client.documents.upload(content="Hello world")
         assert isinstance(result, UploadDocumentResponse)
-        assert result.id == "doc-1"
+        assert result.document_id == "doc-1"
         assert result.status == "processing"
         client.close()
 

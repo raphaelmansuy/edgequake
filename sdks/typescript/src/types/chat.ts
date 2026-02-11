@@ -5,10 +5,10 @@
  * @see edgequake/crates/edgequake-api/src/handlers/chat_types.rs
  */
 
-import type { SourceReference, QueryStats } from "./query.js";
+import type { QueryStats, SourceReference } from "./query.js";
 
 // Re-export for consumers that import from chat module
-export type { SourceReference, QueryStats };
+export type { QueryStats, SourceReference };
 
 // ── Request ───────────────────────────────────────────────────
 

@@ -35,9 +35,7 @@ class ChatResource(SyncResource):
 
         POST /api/v1/chat/completions
         """
-        msgs = [
-            m.model_dump() if isinstance(m, ChatMessage) else m for m in messages
-        ]
+        msgs = [m.model_dump() if isinstance(m, ChatMessage) else m for m in messages]
         body: dict[str, Any] = {
             "messages": msgs,
             "model": model,
@@ -72,9 +70,7 @@ class ChatResource(SyncResource):
 
         POST /api/v1/chat/completions/stream
         """
-        msgs = [
-            m.model_dump() if isinstance(m, ChatMessage) else m for m in messages
-        ]
+        msgs = [m.model_dump() if isinstance(m, ChatMessage) else m for m in messages]
         body: dict[str, Any] = {
             "messages": msgs,
             "model": model,
@@ -107,9 +103,7 @@ class AsyncChatResource(AsyncResource):
         conversation_id: str | None = None,
         mode: str | None = None,
     ) -> ChatCompletionResponse:
-        msgs = [
-            m.model_dump() if isinstance(m, ChatMessage) else m for m in messages
-        ]
+        msgs = [m.model_dump() if isinstance(m, ChatMessage) else m for m in messages]
         body: dict[str, Any] = {
             "messages": msgs,
             "model": model,
@@ -139,9 +133,7 @@ class AsyncChatResource(AsyncResource):
         max_tokens: int | None = None,
         provider: str | None = None,
     ) -> AsyncSSEStream[ChatCompletionChunk]:
-        msgs = [
-            m.model_dump() if isinstance(m, ChatMessage) else m for m in messages
-        ]
+        msgs = [m.model_dump() if isinstance(m, ChatMessage) else m for m in messages]
         body: dict[str, Any] = {
             "messages": msgs,
             "model": model,

@@ -265,7 +265,9 @@ class PdfResource(SyncResource):
         data = self._get("/api/v1/documents/pdf")
         if isinstance(data, list):
             return [PdfInfo.model_validate(p) for p in data]
-        items = data.get("pdfs", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("pdfs", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [PdfInfo.model_validate(p) for p in items]
 
     def get(self, pdf_id: str) -> PdfInfo:
@@ -273,9 +275,7 @@ class PdfResource(SyncResource):
 
         GET /api/v1/documents/pdf/{pdf_id}
         """
-        return self._get(
-            f"/api/v1/documents/pdf/{pdf_id}", response_type=PdfInfo
-        )
+        return self._get(f"/api/v1/documents/pdf/{pdf_id}", response_type=PdfInfo)
 
     def delete(self, pdf_id: str) -> None:
         """Delete a PDF document.
@@ -330,6 +330,7 @@ class PdfResource(SyncResource):
 
 
 # --- Async versions ---
+
 
 class AsyncDocumentsResource(AsyncResource):
     """Asynchronous Documents API."""
@@ -451,13 +452,13 @@ class AsyncPdfResource(AsyncResource):
         data = await self._get("/api/v1/documents/pdf")
         if isinstance(data, list):
             return [PdfInfo.model_validate(p) for p in data]
-        items = data.get("pdfs", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("pdfs", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [PdfInfo.model_validate(p) for p in items]
 
     async def get(self, pdf_id: str) -> PdfInfo:
-        return await self._get(
-            f"/api/v1/documents/pdf/{pdf_id}", response_type=PdfInfo
-        )
+        return await self._get(f"/api/v1/documents/pdf/{pdf_id}", response_type=PdfInfo)
 
     async def delete(self, pdf_id: str) -> None:
         await self._delete(f"/api/v1/documents/pdf/{pdf_id}")

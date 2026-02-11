@@ -28,9 +28,7 @@ class TestGraphResource:
     def test_get(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "nodes": [
-                {"id": "n1", "label": "PERSON", "properties": {"name": "Alice"}}
-            ],
+            "nodes": [{"id": "n1", "label": "PERSON", "properties": {"name": "Alice"}}],
             "edges": [
                 {
                     "source": "n1",
@@ -52,9 +50,7 @@ class TestGraphResource:
     def test_search_nodes(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "nodes": [
-                {"id": "n1", "label": "PERSON", "properties": {"name": "Alice"}}
-            ],
+            "nodes": [{"id": "n1", "label": "PERSON", "properties": {"name": "Alice"}}],
             "total_matches": 1,
         }
         mock_req.return_value = mock_resp

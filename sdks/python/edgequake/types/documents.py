@@ -24,8 +24,9 @@ class UploadDocumentRequest(BaseModel):
 class UploadDocumentResponse(BaseModel):
     """Response from POST /api/v1/documents."""
 
-    id: str
-    status: str
+    # WHY: API returns "document_id" — we alias it for SDK consistency
+    document_id: str = Field(alias="document_id")
+    status: str | None = None
     message: str | None = None
     track_id: str | None = None
     task_id: str | None = None
@@ -34,6 +35,10 @@ class UploadDocumentResponse(BaseModel):
     entity_count: int | None = None
     relationship_count: int | None = None
     cost: DocumentCostInfo | None = None
+    # WHY: API may also return embedding_model
+    embedding_model: str | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 class DocumentCostInfo(BaseModel):

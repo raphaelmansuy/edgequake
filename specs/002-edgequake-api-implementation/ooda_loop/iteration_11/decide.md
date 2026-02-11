@@ -3,6 +3,7 @@
 ## Decision: Complete Python SDK Implementation
 
 ### Actions Taken
+
 1. **Create all 8 type modules** — Pydantic v2 models for documents, graph, auth, conversations, operations, query, chat, workspaces
 2. **Create 7 resource modules** — Sync + Async variants for all API domains
 3. **Wire 22 resource namespaces** to `EdgeQuake` and `AsyncEdgeQuake` clients via `@cached_property`

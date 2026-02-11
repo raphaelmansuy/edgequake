@@ -46,26 +46,26 @@
 
 ### Validation Results
 
-| Metric | Value |
-|--------|-------|
-| Unit tests | 247 passed |
-| E2E tests | 62 passed (8 test files) |
-| Coverage | 98.12% statements |
-| Type check | Clean (0 errors) |
-| Build ESM | 48.25 KB |
-| Build CJS | 48.78 KB |
-| Build DTS | 91.21 KB (was 83.97 KB) |
+| Metric     | Value                    |
+| ---------- | ------------------------ |
+| Unit tests | 247 passed               |
+| E2E tests  | 62 passed (8 test files) |
+| Coverage   | 98.12% statements        |
+| Type check | Clean (0 errors)         |
+| Build ESM  | 48.25 KB                 |
+| Build CJS  | 48.78 KB                 |
+| Build DTS  | 91.21 KB (was 83.97 KB)  |
 
 ### Type Interface Summary (After Iteration 10)
 
-| Module | Interfaces | Key Changes |
-|--------|-----------|-------------|
-| documents.ts | 11 | +DocumentCostInfo, +StatusCounts, +ListDocumentsResponse, +DocumentSummary |
-| query.ts | 7 | +SourceReference, +QueryStats; QueryResponse expanded |
-| chat.ts | 4 | ChatCompletionRequest fixed; shared type imports |
-| graph.ts | 22 | GraphNode/Edge/Response updated; SearchNodesResponse fixed |
-| costs.ts | 14 | (unchanged from IMPL-09) |
-| lineage.ts | 20 | (unchanged from IMPL-09) |
-| conversations.ts | 15 | (unchanged from IMPL-08) |
-| auth.ts | 10 | (unchanged from IMPL-08) |
-| **Total** | **~103** | Phase 1 TypeScript SDK complete |
+| Module           | Interfaces | Key Changes                                                                |
+| ---------------- | ---------- | -------------------------------------------------------------------------- |
+| documents.ts     | 11         | +DocumentCostInfo, +StatusCounts, +ListDocumentsResponse, +DocumentSummary |
+| query.ts         | 7          | +SourceReference, +QueryStats; QueryResponse expanded                      |
+| chat.ts          | 4          | ChatCompletionRequest fixed; shared type imports                           |
+| graph.ts         | 22         | GraphNode/Edge/Response updated; SearchNodesResponse fixed                 |
+| costs.ts         | 14         | (unchanged from IMPL-09)                                                   |
+| lineage.ts       | 20         | (unchanged from IMPL-09)                                                   |
+| conversations.ts | 15         | (unchanged from IMPL-08)                                                   |
+| auth.ts          | 10         | (unchanged from IMPL-08)                                                   |
+| **Total**        | **~103**   | Phase 1 TypeScript SDK complete                                            |

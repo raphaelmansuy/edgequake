@@ -10,8 +10,8 @@
  */
 
 import type {
-  EntityLineageResponse,
   DocumentGraphLineageResponse,
+  EntityLineageResponse,
 } from "../types/lineage.js";
 import { Resource } from "./base.js";
 

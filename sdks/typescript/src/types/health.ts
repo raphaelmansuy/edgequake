@@ -118,9 +118,9 @@ export interface ModelDetail extends ModelInfo {
 // WHY: Re-export legacy aliases for backward compatibility.
 // Actual types are now in lineage.ts with proper shapes matching Rust.
 export type {
-  EntityLineage,
-  DocumentLineage,
   ChunkDetail,
+  DocumentLineage,
+  EntityLineage,
   EntityProvenance,
 } from "./lineage.js";
 

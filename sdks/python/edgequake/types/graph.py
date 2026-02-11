@@ -89,14 +89,18 @@ class DegreesBatchResponse(BaseModel):
 
 # --- Entity types ---
 
+
 class EntityCreate(BaseModel):
     """Request to create an entity."""
 
-    name: str
+    # WHY: API expects `entity_name` — we expose `name` for SDK convenience
+    name: str = Field(serialization_alias="entity_name")
     entity_type: str
     description: str | None = None
     properties: dict[str, Any] | None = None
     source_id: str | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 class EntityUpdate(BaseModel):
@@ -110,14 +114,20 @@ class EntityUpdate(BaseModel):
 class Entity(BaseModel):
     """An entity in the knowledge graph."""
 
-    name: str
+    # WHY: API returns `entity_name` and/or `id` — handle both
+    name: str | None = Field(default=None, validation_alias="entity_name")
+    id: str | None = None
     entity_type: str | None = None
     description: str | None = None
     properties: dict[str, Any] | None = None
     degree: int | None = None
     source_count: int | None = None
+    source_id: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    metadata: dict[str, Any] | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 class EntityDetail(Entity):
@@ -161,6 +171,7 @@ class NeighborhoodResponse(BaseModel):
 
 
 # --- Relationship types ---
+
 
 class RelationshipCreate(BaseModel):
     """Request to create a relationship."""

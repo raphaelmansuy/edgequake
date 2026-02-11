@@ -27,13 +27,13 @@ type Document struct {
 }
 
 type UploadResponse struct {
-	ID                string  `json:"document_id"`
-	Status            string  `json:"status,omitempty"`
-	TrackID           string  `json:"track_id,omitempty"`
-	Message           string  `json:"message,omitempty"`
-	ChunkCount        *int    `json:"chunk_count,omitempty"`
-	EntityCount       *int    `json:"entity_count,omitempty"`
-	RelationshipCount *int    `json:"relationship_count,omitempty"`
+	ID                string `json:"document_id"`
+	Status            string `json:"status,omitempty"`
+	TrackID           string `json:"track_id,omitempty"`
+	Message           string `json:"message,omitempty"`
+	ChunkCount        *int   `json:"chunk_count,omitempty"`
+	EntityCount       *int   `json:"entity_count,omitempty"`
+	RelationshipCount *int   `json:"relationship_count,omitempty"`
 }
 
 type ListDocumentsResponse struct {
@@ -147,9 +147,9 @@ type MergeResponse struct {
 // EntityDetailResponse is the response from GET /api/v1/graph/entities/{id}.
 // It wraps the entity with related relationships and statistics.
 type EntityDetailResponse struct {
-	Entity        *Entity                `json:"entity"`
-	Relationships *EntityRelationships   `json:"relationships,omitempty"`
-	Statistics    *EntityStatistics      `json:"statistics,omitempty"`
+	Entity        *Entity              `json:"entity"`
+	Relationships *EntityRelationships `json:"relationships,omitempty"`
+	Statistics    *EntityStatistics    `json:"statistics,omitempty"`
 }
 
 type EntityRelationships struct {
@@ -481,34 +481,34 @@ type LineageGraph struct {
 
 // ModelCapabilities describes what a model supports.
 type ModelCapabilities struct {
-	ContextLength          int  `json:"context_length"`
-	MaxOutputTokens        int  `json:"max_output_tokens"`
-	SupportsVision         bool `json:"supports_vision"`
+	ContextLength           int  `json:"context_length"`
+	MaxOutputTokens         int  `json:"max_output_tokens"`
+	SupportsVision          bool `json:"supports_vision"`
 	SupportsFunctionCalling bool `json:"supports_function_calling"`
-	SupportsJSONMode       bool `json:"supports_json_mode"`
+	SupportsJSONMode        bool `json:"supports_json_mode"`
 	SupportsStreaming       bool `json:"supports_streaming"`
-	SupportsSystemMessage  bool `json:"supports_system_message"`
-	EmbeddingDimension     int  `json:"embedding_dimension"`
+	SupportsSystemMessage   bool `json:"supports_system_message"`
+	EmbeddingDimension      int  `json:"embedding_dimension"`
 }
 
 // ModelCost describes per-unit pricing.
 type ModelCost struct {
-	InputPer1K    float64 `json:"input_per_1k"`
-	OutputPer1K   float64 `json:"output_per_1k"`
+	InputPer1K     float64 `json:"input_per_1k"`
+	OutputPer1K    float64 `json:"output_per_1k"`
 	EmbeddingPer1K float64 `json:"embedding_per_1k"`
 }
 
 // ModelInfo describes a single model within a provider.
 type ModelInfo struct {
-	Name         string            `json:"name"`
-	DisplayName  string            `json:"display_name,omitempty"`
-	ModelType    string            `json:"model_type,omitempty"`
-	Description  string            `json:"description,omitempty"`
-	Deprecated   bool              `json:"deprecated"`
+	Name         string             `json:"name"`
+	DisplayName  string             `json:"display_name,omitempty"`
+	ModelType    string             `json:"model_type,omitempty"`
+	Description  string             `json:"description,omitempty"`
+	Deprecated   bool               `json:"deprecated"`
 	Capabilities *ModelCapabilities `json:"capabilities,omitempty"`
 	Cost         *ModelCost         `json:"cost,omitempty"`
-	Provider     string            `json:"provider,omitempty"`
-	IsAvailable  bool              `json:"is_available"`
+	Provider     string             `json:"provider,omitempty"`
+	IsAvailable  bool               `json:"is_available"`
 }
 
 // ProviderInfo describes an LLM provider with its models.

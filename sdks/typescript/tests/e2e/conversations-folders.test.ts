@@ -9,9 +9,18 @@
 
 import { beforeAll, describe, expect, it } from "vitest";
 import { EdgeQuake } from "../../src/index.js";
-import { createE2EClient, E2E_ENABLED, testId } from "./helpers.js";
+import {
+  createE2EClient,
+  E2E_ENABLED,
+  E2E_TENANT_ID,
+  E2E_USER_ID,
+  testId,
+} from "./helpers.js";
 
-const describeE2E = E2E_ENABLED ? describe : describe.skip;
+// WHY: Conversations/folders require X-Tenant-ID and X-User-ID headers.
+// Skip all tests when these env vars are not set to avoid false failures.
+const hasTenantUser = !!(E2E_TENANT_ID && E2E_USER_ID);
+const describeE2E = E2E_ENABLED && hasTenantUser ? describe : describe.skip;
 
 // ── Conversations ──────────────────────────────────────────
 

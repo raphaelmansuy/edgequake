@@ -91,9 +91,7 @@ class AsyncQueryResource(AsyncResource):
             body["model"] = model
         if conversation_id:
             body["conversation_id"] = conversation_id
-        return await self._post(
-            "/api/v1/query", json=body, response_type=QueryResponse
-        )
+        return await self._post("/api/v1/query", json=body, response_type=QueryResponse)
 
     async def stream(
         self,

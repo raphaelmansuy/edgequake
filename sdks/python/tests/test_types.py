@@ -36,16 +36,14 @@ class TestHealthResponse:
         assert h.status == "healthy"
 
     def test_extra_fields_allowed(self) -> None:
-        h = HealthResponse.model_validate(
-            {"status": "ok", "custom_field": True}
-        )
+        h = HealthResponse.model_validate({"status": "ok", "custom_field": True})
         assert h.status == "ok"
 
 
 class TestDocumentTypes:
     def test_upload_response(self) -> None:
-        r = UploadDocumentResponse(id="doc-1", status="processing", message="OK")
-        assert r.id == "doc-1"
+        r = UploadDocumentResponse(document_id="doc-1", status="processing", message="OK")
+        assert r.document_id == "doc-1"
 
     def test_document_summary(self) -> None:
         ds = DocumentSummary(id="doc-1", status="completed")
@@ -82,9 +80,7 @@ class TestChatTypes:
         assert m.role == "user"
 
     def test_chat_completion_request(self) -> None:
-        r = ChatCompletionRequest(
-            messages=[ChatMessage(role="user", content="Hi")]
-        )
+        r = ChatCompletionRequest(messages=[ChatMessage(role="user", content="Hi")])
         assert len(r.messages) == 1
 
     def test_chat_completion_response(self) -> None:
@@ -97,9 +93,7 @@ class TestChatTypes:
                     finish_reason="stop",
                 )
             ],
-            usage=ChatUsage(
-                prompt_tokens=5, completion_tokens=3, total_tokens=8
-            ),
+            usage=ChatUsage(prompt_tokens=5, completion_tokens=3, total_tokens=8),
         )
         assert r.choices[0].message.content == "Hi!"
 

@@ -10,15 +10,24 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # --- Task types ---
+
+
+class TaskProgress(BaseModel):
+    """Task progress details."""
+
+    current_step: str | None = None
+    percent_complete: float | int | None = None
+    total_steps: int | None = None
+
 
 class TaskInfo(BaseModel):
     """Async task information from GET /api/v1/tasks/{track_id}."""
 
     track_id: str
     status: str
-    progress: float | None = None
+    # WHY: API returns progress as dict with current_step, percent_complete, total_steps
+    progress: TaskProgress | dict[str, Any] | float | None = None
     message: str | None = None
     document_id: str | None = None
     task_type: str | None = None
@@ -27,6 +36,14 @@ class TaskInfo(BaseModel):
     completed_at: str | None = None
     error: str | None = None
     result: dict[str, Any] | None = None
+    # WHY: API also returns these fields
+    tenant_id: str | None = None
+    workspace_id: str | None = None
+    started_at: str | None = None
+    error_message: str | None = None
+    retry_count: int | None = None
+    max_retries: int | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class TaskListResponse(BaseModel):
@@ -38,14 +55,26 @@ class TaskListResponse(BaseModel):
 
 # --- Pipeline types ---
 
+
 class PipelineStatus(BaseModel):
     """Response from GET /api/v1/pipeline/status."""
 
-    status: str
-    active_tasks: int = 0
-    queued_tasks: int = 0
+    # WHY: API returns is_busy, total_documents, etc. instead of status/active_tasks
+    is_busy: bool = False
+    total_documents: int = 0
+    processed_documents: int = 0
+    current_batch: int = 0
+    total_batches: int = 0
+    history_messages: list[str] = Field(default_factory=list)
+    cancellation_requested: bool = False
+    pending_tasks: int = 0
+    processing_tasks: int = 0
     completed_tasks: int = 0
     failed_tasks: int = 0
+    # Legacy fields for backward compatibility
+    status: str | None = None
+    active_tasks: int | None = None
+    queued_tasks: int | None = None
     worker_count: int | None = None
     uptime_seconds: int | None = None
 
@@ -99,6 +128,7 @@ ModelPricing.model_rebuild()
 
 
 # --- Cost types ---
+
 
 class CostSummary(BaseModel):
     """Response from GET /api/v1/costs/summary."""
@@ -169,6 +199,7 @@ CostSummary.model_rebuild()
 
 # --- Lineage types ---
 
+
 class LineageNode(BaseModel):
     """A node in a lineage trace."""
 
@@ -197,6 +228,7 @@ class LineageGraph(BaseModel):
 
 # --- Chunk types ---
 
+
 class ChunkDetail(BaseModel):
     """Response from GET /api/v1/chunks/{chunk_id}."""
 
@@ -210,6 +242,7 @@ class ChunkDetail(BaseModel):
 
 
 # --- Provenance types ---
+
 
 class ProvenanceRecord(BaseModel):
     """A provenance record for an entity."""
@@ -225,6 +258,7 @@ class ProvenanceRecord(BaseModel):
 
 
 # --- Settings types ---
+
 
 class ProviderStatus(BaseModel):
     """Response from GET /api/v1/settings/provider/status."""
@@ -258,6 +292,7 @@ AvailableProviders.model_rebuild()
 
 # --- Models types ---
 
+
 class ModelInfo(BaseModel):
     """Model information from models API."""
 
@@ -277,20 +312,27 @@ class ModelDetail(ModelInfo):
     capabilities: list[str] | None = None
 
 
-class ProvidersHealth(BaseModel):
-    """Response from GET /api/v1/models/health."""
-
-    providers: list[ProviderHealthInfo] = Field(default_factory=list)
-
-
 class ProviderHealthInfo(BaseModel):
     """Health status for a single provider."""
 
     name: str
-    status: str
+    display_name: str | None = None
+    provider_type: str | None = None
+    enabled: bool = True
+    priority: int | None = None
+    description: str | None = None
+    models: list[dict[str, Any]] | None = None
+    # Legacy fields
+    status: str | None = None
     latency_ms: float | None = None
     error: str | None = None
     model_count: int | None = None
+
+
+class ProvidersHealth(BaseModel):
+    """Response from GET /api/v1/models/health."""
+
+    providers: list[ProviderHealthInfo] = Field(default_factory=list)
 
 
 # WHY: Rebuild forward references

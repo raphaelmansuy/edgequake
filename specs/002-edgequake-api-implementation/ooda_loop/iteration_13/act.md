@@ -6,16 +6,16 @@
 
 ### Files Created (8 files, ~65KB)
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `go.mod` | 3 | Module definition, Go 1.21 |
-| `doc.go` | 5 | Package documentation |
-| `option.go` | 65 | 9 functional options |
-| `error.go` | 80 | 8 sentinel errors + APIError |
-| `types.go` | 480 | ~60 struct types |
-| `client.go` | 180 | HTTP client + retry logic |
-| `services.go` | 650 | 22 service types |
-| `edgequake_test.go` | 750 | 55 tests |
+| File                | Lines | Purpose                      |
+| ------------------- | ----- | ---------------------------- |
+| `go.mod`            | 3     | Module definition, Go 1.21   |
+| `doc.go`            | 5     | Package documentation        |
+| `option.go`         | 65    | 9 functional options         |
+| `error.go`          | 80    | 8 sentinel errors + APIError |
+| `types.go`          | 480   | ~60 struct types             |
+| `client.go`         | 180   | HTTP client + retry logic    |
+| `services.go`       | 650   | 22 service types             |
+| `edgequake_test.go` | 750   | 55 tests                     |
 
 ### Services Implemented (22)
 

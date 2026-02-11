@@ -86,7 +86,9 @@ class UsersResource(SyncResource):
         data = self._get("/api/v1/users")
         if isinstance(data, list):
             return [UserInfo.model_validate(u) for u in data]
-        items = data.get("users", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("users", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [UserInfo.model_validate(u) for u in items]
 
     def get(self, user_id: str) -> UserInfo:
@@ -133,7 +135,9 @@ class ApiKeysResource(SyncResource):
         data = self._get("/api/v1/api-keys")
         if isinstance(data, list):
             return [ApiKeyInfo.model_validate(k) for k in data]
-        items = data.get("keys", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("keys", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [ApiKeyInfo.model_validate(k) for k in items]
 
     def revoke(self, key_id: str) -> None:
@@ -166,7 +170,9 @@ class TenantsResource(SyncResource):
         data = self._get("/api/v1/tenants")
         if isinstance(data, list):
             return [TenantInfo.model_validate(t) for t in data]
-        items = data.get("tenants", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("tenants", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [TenantInfo.model_validate(t) for t in items]
 
     def get(self, tenant_id: str) -> TenantDetail:
@@ -174,9 +180,7 @@ class TenantsResource(SyncResource):
 
         GET /api/v1/tenants/{tenant_id}
         """
-        return self._get(
-            f"/api/v1/tenants/{tenant_id}", response_type=TenantDetail
-        )
+        return self._get(f"/api/v1/tenants/{tenant_id}", response_type=TenantDetail)
 
     def update(self, tenant_id: str, update: TenantUpdate) -> TenantInfo:
         """Update a tenant.
@@ -198,6 +202,7 @@ class TenantsResource(SyncResource):
 
 
 # --- Async versions ---
+
 
 class AsyncAuthResource(AsyncResource):
     """Async authentication operations."""
@@ -237,7 +242,9 @@ class AsyncUsersResource(AsyncResource):
         data = await self._get("/api/v1/users")
         if isinstance(data, list):
             return [UserInfo.model_validate(u) for u in data]
-        items = data.get("users", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("users", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [UserInfo.model_validate(u) for u in items]
 
     async def get(self, user_id: str) -> UserInfo:
@@ -264,7 +271,9 @@ class AsyncApiKeysResource(AsyncResource):
         data = await self._get("/api/v1/api-keys")
         if isinstance(data, list):
             return [ApiKeyInfo.model_validate(k) for k in data]
-        items = data.get("keys", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("keys", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [ApiKeyInfo.model_validate(k) for k in items]
 
     async def revoke(self, key_id: str) -> None:
@@ -285,7 +294,9 @@ class AsyncTenantsResource(AsyncResource):
         data = await self._get("/api/v1/tenants")
         if isinstance(data, list):
             return [TenantInfo.model_validate(t) for t in data]
-        items = data.get("tenants", data.get("items", [])) if isinstance(data, dict) else []
+        items = (
+            data.get("tenants", data.get("items", [])) if isinstance(data, dict) else []
+        )
         return [TenantInfo.model_validate(t) for t in items]
 
     async def get(self, tenant_id: str) -> TenantDetail:
