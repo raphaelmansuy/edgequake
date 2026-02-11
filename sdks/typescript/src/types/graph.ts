@@ -20,15 +20,21 @@ export interface GraphQuery {
 export interface GraphNode {
   id: string;
   label: string;
+  /** Node type (entity type). */
+  node_type?: string;
+  /** Node description. */
+  description?: string;
   properties?: Record<string, unknown>;
+  /** Number of connections. */
   degree?: number;
 }
 
 export interface GraphEdge {
-  id: string;
   source: string;
   target: string;
-  label: string;
+  /** Edge type (relationship label). */
+  edge_type: string;
+  /** Edge weight. */
   weight?: number;
   properties?: Record<string, unknown>;
 }
@@ -36,6 +42,8 @@ export interface GraphEdge {
 export interface GraphResponse {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /** Whether the graph was truncated. */
+  is_truncated?: boolean;
   total_nodes: number;
   total_edges: number;
 }
@@ -47,15 +55,28 @@ export type GraphStreamEvent =
 
 export interface SearchNodesResponse {
   nodes: GraphNode[];
-  total: number;
+  /** Edges connecting the returned nodes. */
+  edges?: GraphEdge[];
+  /** Total matches in database (before limit). */
+  total_matches?: number;
+  /** Whether results were truncated. */
+  is_truncated?: boolean;
+  /** @deprecated Use total_matches instead. */
+  total?: number;
 }
 
 export interface SearchLabelsResponse {
-  labels: Array<{ label: string; count: number }>;
+  labels: string[];
 }
 
 export interface PopularLabelsResponse {
-  labels: Array<{ label: string; count: number }>;
+  labels: Array<{
+    label: string;
+    entity_type: string;
+    degree: number;
+    description: string;
+  }>;
+  total_entities?: number;
 }
 
 export interface DegreesBatchResponse {

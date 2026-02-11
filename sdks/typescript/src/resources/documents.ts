@@ -1,19 +1,21 @@
 /**
  * Documents resource — upload, list, manage documents and PDFs.
  *
+ * WHY: Updated list() to return ListDocumentsResponse directly,
+ * matching Rust API pagination style (page/page_size).
+ *
  * @module resources/documents
  * @see edgequake/crates/edgequake-api/src/handlers/documents.rs
  */
 
-import { Paginator } from "../pagination.js";
 import type { HttpTransport } from "../transport/types.js";
 import type {
   BatchUploadResponse,
   DeletionImpactResponse,
   DocumentDetail,
-  DocumentInfo,
   FailedChunkInfo,
   ListDocumentsQuery,
+  ListDocumentsResponse,
   PdfContentResponse,
   PdfInfo,
   PdfProgressResponse,
@@ -119,26 +121,15 @@ export class DocumentsResource extends Resource {
   }
 
   /** List documents with optional filters + pagination. */
-  list(query?: ListDocumentsQuery): Paginator<DocumentInfo> {
-    return new Paginator(async (page, perPage) => {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("page_size", String(perPage));
-      if (query?.status) params.set("status", query.status);
-      if (query?.search) params.set("search", query.search);
-      const path = `/api/v1/documents?${params}`;
-
-      // WHY: API returns { documents: [], has_more, page_size, total_pages }
-      // but SDK Page<T> uses { items: [], hasMore, pageSize }. Transform here.
-      const raw = await this._get<Record<string, unknown>>(path);
-      return {
-        items: (raw.documents ?? raw.items ?? []) as DocumentInfo[],
-        total: (raw.total ?? 0) as number,
-        page: (raw.page ?? page) as number,
-        pageSize: (raw.page_size ?? raw.pageSize ?? perPage) as number,
-        hasMore: (raw.has_more ?? raw.hasMore ?? false) as boolean,
-      };
-    }, query?.limit ?? 20);
+  async list(query?: ListDocumentsQuery): Promise<ListDocumentsResponse> {
+    const params = new URLSearchParams();
+    if (query?.page != null) params.set("page", String(query.page));
+    if (query?.page_size != null)
+      params.set("page_size", String(query.page_size));
+    if (query?.status) params.set("status", query.status);
+    if (query?.search) params.set("search", query.search);
+    const qs = params.toString();
+    return this._get(`/api/v1/documents${qs ? `?${qs}` : ""}`);
   }
 
   /** Get document details by ID. */

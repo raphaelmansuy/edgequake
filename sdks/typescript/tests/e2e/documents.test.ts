@@ -33,11 +33,12 @@ describeE2E("E2E: Document Lifecycle", () => {
   });
 
   it("should list documents with pagination", async () => {
-    // WHY: list() returns a Paginator — use firstPage() for direct page access
-    const page = await client.documents.list().firstPage();
-    expect(page).toBeDefined();
-    expect(Array.isArray(page.items)).toBe(true);
-    expect(typeof page.total).toBe("number");
+    // WHY: list() now returns ListDocumentsResponse directly (matches Rust API)
+    const res = await client.documents.list({ page: 1, page_size: 10 });
+    expect(res).toBeDefined();
+    expect(Array.isArray(res.documents)).toBe(true);
+    expect(typeof res.total).toBe("number");
+    expect(typeof res.has_more).toBe("boolean");
   });
 
   it("should upload a text document", async () => {

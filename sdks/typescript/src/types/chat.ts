@@ -5,37 +5,38 @@
  * @see edgequake/crates/edgequake-api/src/handlers/chat_types.rs
  */
 
-import type { ConversationMessage } from "./query.js";
+import type { SourceReference, QueryStats } from "./query.js";
+
+// Re-export for consumers that import from chat module
+export type { SourceReference, QueryStats };
 
 // ── Request ───────────────────────────────────────────────────
 
+/** Unified chat completion request matching Rust ChatCompletionRequest. */
 export interface ChatCompletionRequest {
+  /** User message content. */
   message: string;
+  /** Existing conversation ID. If null, creates a new conversation. */
   conversation_id?: string;
+  /** Query mode (local, global, hybrid, naive). */
   mode?: "naive" | "local" | "global" | "hybrid" | "mix";
+  /** Whether to stream the response (defaults to true). */
   stream?: boolean;
-  conversation_history?: ConversationMessage[];
-  enable_rerank?: boolean;
-  llm_provider?: string;
-  llm_model?: string;
+  /** Maximum tokens for response. */
+  max_tokens?: number;
+  /** Temperature for generation (0.0-2.0). */
+  temperature?: number;
+  /** Top K for retrieval. */
+  top_k?: number;
+  /** Parent message ID for threading. */
+  parent_id?: string;
+  /** LLM provider ID (e.g., "openai", "ollama", "lmstudio"). */
+  provider?: string;
+  /** Specific model name within the provider (e.g., "gpt-4o-mini", "gemma3:12b"). */
+  model?: string;
 }
 
 // ── Response ──────────────────────────────────────────────────
-
-/** Source reference in chat responses. */
-export interface SourceReference {
-  content: string;
-  document_id?: string;
-  chunk_id?: string;
-  score?: number;
-}
-
-/** Statistics for query generation. */
-export interface QueryStats {
-  entities_found?: number;
-  relationships_found?: number;
-  chunks_retrieved?: number;
-}
 
 /** Non-streaming chat completion response matching Rust ChatCompletionResponse. */
 export interface ChatCompletionResponse {

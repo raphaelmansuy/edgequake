@@ -176,7 +176,22 @@ describe("DocumentsResource", () => {
       "POST /api/v1/documents/upload": { body: { document_id: "d2" } },
       "POST /api/v1/documents/upload/batch": { body: { results: [] } },
       "GET /api/v1/documents": {
-        body: { items: [{ id: "d1" }], total: 1, page: 1, page_size: 20 },
+        body: {
+          documents: [{ id: "d1", chunk_count: 3 }],
+          total: 1,
+          page: 1,
+          page_size: 20,
+          total_pages: 1,
+          has_more: false,
+          status_counts: {
+            pending: 0,
+            processing: 0,
+            completed: 1,
+            partial_failure: 0,
+            failed: 0,
+            cancelled: 0,
+          },
+        },
       },
       "GET /api/v1/documents/d1": { body: { id: "d1", title: "test" } },
       "DELETE /api/v1/documents/d1": { body: {} },
@@ -208,9 +223,12 @@ describe("DocumentsResource", () => {
     expect(mock.lastRequest?.path).toBe("/api/v1/documents/upload/batch");
   });
 
-  it("list → returns Paginator", async () => {
-    const page = await docs.list().firstPage();
-    expect(page.items).toHaveLength(1);
+  it("list → returns ListDocumentsResponse", async () => {
+    const res = await docs.list();
+    expect(res.documents).toHaveLength(1);
+    expect(res.total).toBe(1);
+    expect(res.has_more).toBe(false);
+    expect(res.status_counts.completed).toBe(1);
   });
 
   it("get → GET /api/v1/documents/:id", async () => {
