@@ -27,10 +27,13 @@ type Document struct {
 }
 
 type UploadResponse struct {
-	ID      string `json:"id"`
-	Status  string `json:"status,omitempty"`
-	TrackID string `json:"track_id,omitempty"`
-	Message string `json:"message,omitempty"`
+	ID                string  `json:"document_id"`
+	Status            string  `json:"status,omitempty"`
+	TrackID           string  `json:"track_id,omitempty"`
+	Message           string  `json:"message,omitempty"`
+	ChunkCount        *int    `json:"chunk_count,omitempty"`
+	EntityCount       *int    `json:"entity_count,omitempty"`
+	RelationshipCount *int    `json:"relationship_count,omitempty"`
 }
 
 type ListDocumentsResponse struct {
@@ -102,31 +105,63 @@ type SearchNodesResponse struct {
 }
 
 type Entity struct {
-	Name        string                 `json:"name"`
+	ID          string                 `json:"id"`
+	EntityName  string                 `json:"entity_name"`
+	Name        string                 `json:"name,omitempty"`
 	EntityType  string                 `json:"entity_type,omitempty"`
 	Description string                 `json:"description,omitempty"`
+	SourceID    string                 `json:"source_id,omitempty"`
 	Properties  map[string]interface{} `json:"properties,omitempty"`
 	Degree      *int                   `json:"degree,omitempty"`
 	CreatedAt   string                 `json:"created_at,omitempty"`
+	UpdatedAt   string                 `json:"updated_at,omitempty"`
+	Metadata    interface{}            `json:"metadata,omitempty"`
 }
 
 type CreateEntityParams struct {
-	Name        string                 `json:"name"`
-	EntityType  string                 `json:"entity_type"`
-	Description string                 `json:"description,omitempty"`
-	Properties  map[string]interface{} `json:"properties,omitempty"`
-	SourceID    string                 `json:"source_id,omitempty"`
+	EntityName  string      `json:"entity_name"`
+	EntityType  string      `json:"entity_type"`
+	Description string      `json:"description"`
+	SourceID    string      `json:"source_id"`
+	Metadata    interface{} `json:"metadata,omitempty"`
+}
+
+// CreateEntityResponse is the response from POST /api/v1/graph/entities.
+type CreateEntityResponse struct {
+	Status  string  `json:"status"`
+	Message string  `json:"message"`
+	Entity  *Entity `json:"entity"`
 }
 
 type MergeEntitiesParams struct {
-	Source string `json:"source"`
-	Target string `json:"target"`
+	SourceEntity string `json:"source_entity"`
+	TargetEntity string `json:"target_entity"`
 }
 
 type MergeResponse struct {
 	MergedEntity *Entity `json:"merged_entity,omitempty"`
 	MergedCount  int     `json:"merged_count"`
 	Message      string  `json:"message,omitempty"`
+}
+
+// EntityDetailResponse is the response from GET /api/v1/graph/entities/{id}.
+// It wraps the entity with related relationships and statistics.
+type EntityDetailResponse struct {
+	Entity        *Entity                `json:"entity"`
+	Relationships *EntityRelationships   `json:"relationships,omitempty"`
+	Statistics    *EntityStatistics      `json:"statistics,omitempty"`
+}
+
+type EntityRelationships struct {
+	Outgoing []Relationship `json:"outgoing"`
+	Incoming []Relationship `json:"incoming"`
+}
+
+type EntityStatistics struct {
+	TotalRelationships int `json:"total_relationships"`
+	OutgoingCount      int `json:"outgoing_count"`
+	IncomingCount      int `json:"incoming_count"`
+	DocumentReferences int `json:"document_references"`
 }
 
 type NeighborhoodResponse struct {
@@ -137,8 +172,10 @@ type NeighborhoodResponse struct {
 }
 
 type EntityExistsResponse struct {
-	Exists     bool   `json:"exists"`
-	EntityName string `json:"entity_name,omitempty"`
+	Exists     bool    `json:"exists"`
+	EntityID   *string `json:"entity_id,omitempty"`
+	EntityType *string `json:"entity_type,omitempty"`
+	Degree     *int    `json:"degree,omitempty"`
 }
 
 type Relationship struct {
@@ -262,9 +299,19 @@ type CreateTenantParams struct {
 }
 
 type TenantInfo struct {
-	ID   UUID   `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug,omitempty"`
+	ID                        UUID   `json:"id"`
+	Name                      string `json:"name"`
+	Slug                      string `json:"slug,omitempty"`
+	Plan                      string `json:"plan,omitempty"`
+	IsActive                  bool   `json:"is_active,omitempty"`
+	MaxWorkspaces             int    `json:"max_workspaces,omitempty"`
+	DefaultLLMModel           string `json:"default_llm_model,omitempty"`
+	DefaultLLMProvider        string `json:"default_llm_provider,omitempty"`
+	DefaultEmbeddingModel     string `json:"default_embedding_model,omitempty"`
+	DefaultEmbeddingProvider  string `json:"default_embedding_provider,omitempty"`
+	DefaultEmbeddingDimension int    `json:"default_embedding_dimension,omitempty"`
+	CreatedAt                 string `json:"created_at,omitempty"`
+	UpdatedAt                 string `json:"updated_at,omitempty"`
 }
 
 type CreateConversationParams struct {
@@ -324,15 +371,34 @@ type CreateFolderParams struct {
 	ParentID string `json:"parent_id,omitempty"`
 }
 
+type TaskProgress struct {
+	CurrentStep     string `json:"current_step,omitempty"`
+	PercentComplete int    `json:"percent_complete"`
+	TotalSteps      int    `json:"total_steps"`
+}
+
+type TaskResult struct {
+	DocumentID        string `json:"document_id,omitempty"`
+	ChunkCount        int    `json:"chunk_count,omitempty"`
+	EntityCount       int    `json:"entity_count,omitempty"`
+	RelationshipCount int    `json:"relationship_count,omitempty"`
+}
+
 type TaskInfo struct {
-	TrackID    string   `json:"track_id"`
-	Status     string   `json:"status"`
-	Progress   *float64 `json:"progress,omitempty"`
-	Message    string   `json:"message,omitempty"`
-	DocumentID string   `json:"document_id,omitempty"`
-	TaskType   string   `json:"task_type,omitempty"`
-	CreatedAt  string   `json:"created_at,omitempty"`
-	Error      string   `json:"error,omitempty"`
+	TrackID      string        `json:"track_id"`
+	TenantID     string        `json:"tenant_id,omitempty"`
+	WorkspaceID  string        `json:"workspace_id,omitempty"`
+	TaskType     string        `json:"task_type,omitempty"`
+	Status       string        `json:"status"`
+	CreatedAt    string        `json:"created_at,omitempty"`
+	UpdatedAt    string        `json:"updated_at,omitempty"`
+	StartedAt    string        `json:"started_at,omitempty"`
+	CompletedAt  string        `json:"completed_at,omitempty"`
+	ErrorMessage *string       `json:"error_message"`
+	RetryCount   int           `json:"retry_count"`
+	MaxRetries   int           `json:"max_retries"`
+	Progress     *TaskProgress `json:"progress,omitempty"`
+	Result       *TaskResult   `json:"result,omitempty"`
 }
 
 type TaskListResponse struct {
@@ -413,11 +479,52 @@ type LineageGraph struct {
 	RootID string        `json:"root_id,omitempty"`
 }
 
+// ModelCapabilities describes what a model supports.
+type ModelCapabilities struct {
+	ContextLength          int  `json:"context_length"`
+	MaxOutputTokens        int  `json:"max_output_tokens"`
+	SupportsVision         bool `json:"supports_vision"`
+	SupportsFunctionCalling bool `json:"supports_function_calling"`
+	SupportsJSONMode       bool `json:"supports_json_mode"`
+	SupportsStreaming       bool `json:"supports_streaming"`
+	SupportsSystemMessage  bool `json:"supports_system_message"`
+	EmbeddingDimension     int  `json:"embedding_dimension"`
+}
+
+// ModelCost describes per-unit pricing.
+type ModelCost struct {
+	InputPer1K    float64 `json:"input_per_1k"`
+	OutputPer1K   float64 `json:"output_per_1k"`
+	EmbeddingPer1K float64 `json:"embedding_per_1k"`
+}
+
+// ModelInfo describes a single model within a provider.
 type ModelInfo struct {
-	Name        string `json:"name"`
-	Provider    string `json:"provider,omitempty"`
-	ModelType   string `json:"model_type,omitempty"`
-	IsAvailable bool   `json:"is_available"`
+	Name         string            `json:"name"`
+	DisplayName  string            `json:"display_name,omitempty"`
+	ModelType    string            `json:"model_type,omitempty"`
+	Description  string            `json:"description,omitempty"`
+	Deprecated   bool              `json:"deprecated"`
+	Capabilities *ModelCapabilities `json:"capabilities,omitempty"`
+	Cost         *ModelCost         `json:"cost,omitempty"`
+	Provider     string            `json:"provider,omitempty"`
+	IsAvailable  bool              `json:"is_available"`
+}
+
+// ProviderInfo describes an LLM provider with its models.
+type ProviderInfo struct {
+	Name         string      `json:"name"`
+	DisplayName  string      `json:"display_name,omitempty"`
+	ProviderType string      `json:"provider_type,omitempty"`
+	Enabled      bool        `json:"enabled"`
+	Priority     int         `json:"priority"`
+	Description  string      `json:"description,omitempty"`
+	Models       []ModelInfo `json:"models"`
+}
+
+// ProviderCatalog is the response from GET /api/v1/models.
+type ProviderCatalog struct {
+	Providers []ProviderInfo `json:"providers"`
 }
 
 type ProviderStatus struct {
@@ -426,15 +533,16 @@ type ProviderStatus struct {
 	Status          string `json:"status,omitempty"`
 }
 
-type ProvidersHealth struct {
-	Providers []ProviderHealthInfo `json:"providers"`
-}
-
+// ProviderHealthInfo describes an LLM provider health entry.
+// WHY: GET /api/v1/models/health returns a bare array of these.
 type ProviderHealthInfo struct {
-	Name      string   `json:"name"`
-	Status    string   `json:"status"`
-	LatencyMs *float64 `json:"latency_ms,omitempty"`
-	Error     string   `json:"error,omitempty"`
+	Name         string      `json:"name"`
+	DisplayName  string      `json:"display_name,omitempty"`
+	ProviderType string      `json:"provider_type,omitempty"`
+	Enabled      bool        `json:"enabled"`
+	Priority     int         `json:"priority"`
+	Description  string      `json:"description,omitempty"`
+	Models       []ModelInfo `json:"models"`
 }
 
 type CreateWorkspaceParams struct {
@@ -477,4 +585,65 @@ type PdfProgressResponse struct {
 type PdfContentResponse struct {
 	ID       UUID   `json:"id"`
 	Markdown string `json:"markdown,omitempty"`
+}
+
+// ============================================================================
+// Paginated List Responses
+// WHY: The real API wraps list results in paginated objects with different
+// field names depending on the resource type.
+// ============================================================================
+
+// PaginatedList is a generic paginated response using "items" as the key.
+// Used by: entities, relationships, tenants.
+type PaginatedList struct {
+	Items      interface{} `json:"items"`
+	Total      int         `json:"total"`
+	Page       int         `json:"page"`
+	PageSize   int         `json:"page_size"`
+	TotalPages int         `json:"total_pages"`
+}
+
+// EntityListResponse is the paginated response from GET /api/v1/graph/entities.
+type EntityListResponse struct {
+	Items      []Entity `json:"items"`
+	Total      int      `json:"total"`
+	Page       int      `json:"page"`
+	PageSize   int      `json:"page_size"`
+	TotalPages int      `json:"total_pages"`
+}
+
+// RelationshipListResponse is the paginated response from GET /api/v1/graph/relationships.
+type RelationshipListResponse struct {
+	Items      []Relationship `json:"items"`
+	Total      int            `json:"total"`
+	Page       int            `json:"page"`
+	PageSize   int            `json:"page_size"`
+	TotalPages int            `json:"total_pages"`
+}
+
+// TenantListResponse wraps paginated tenant results.
+type TenantListResponse struct {
+	Items      []TenantInfo `json:"items"`
+	Total      int          `json:"total"`
+	Page       int          `json:"page"`
+	PageSize   int          `json:"page_size"`
+	TotalPages int          `json:"total_pages"`
+}
+
+// UserListResponse wraps paginated user results.
+type UserListResponse struct {
+	Users      []UserInfo `json:"users"`
+	Total      int        `json:"total"`
+	Page       int        `json:"page"`
+	PageSize   int        `json:"page_size"`
+	TotalPages int        `json:"total_pages"`
+}
+
+// APIKeyListResponse wraps paginated API key results.
+type APIKeyListResponse struct {
+	Keys       []APIKeyInfo `json:"keys"`
+	Total      int          `json:"total"`
+	Page       int          `json:"page"`
+	PageSize   int          `json:"page_size"`
+	TotalPages int          `json:"total_pages"`
 }

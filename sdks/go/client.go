@@ -100,9 +100,12 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body inter
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", c.cfg.userAgent)
+	// WHY: API key uses X-API-Key header; JWT uses Authorization: Bearer.
+	// This matches the actual auth middleware in edgequake-api.
 	if c.cfg.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+c.cfg.apiKey)
-	} else if c.cfg.bearerToken != "" {
+		req.Header.Set("X-API-Key", c.cfg.apiKey)
+	}
+	if c.cfg.bearerToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.cfg.bearerToken)
 	}
 	if c.cfg.tenantID != "" {
@@ -110,6 +113,9 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body inter
 	}
 	if c.cfg.workspaceID != "" {
 		req.Header.Set("X-Workspace-ID", c.cfg.workspaceID)
+	}
+	if c.cfg.userID != "" {
+		req.Header.Set("X-User-ID", c.cfg.userID)
 	}
 	return req, nil
 }
@@ -214,6 +220,14 @@ func (c *Client) delNoContent(ctx context.Context, path string) error {
 
 func (c *Client) postNoContent(ctx context.Context, path string, body interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodPost, path, body)
+	if err != nil {
+		return err
+	}
+	return c.do(req, nil)
+}
+
+func (c *Client) patchNoContent(ctx context.Context, path string, body interface{}) error {
+	req, err := c.newRequest(ctx, http.MethodPatch, path, body)
 	if err != nil {
 		return err
 	}

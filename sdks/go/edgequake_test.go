@@ -168,28 +168,28 @@ func TestGraph_Search(t *testing.T) {
 }
 
 func TestEntities_List(t *testing.T) {
-	srv := mockServer(t, 200, []edgequake.Entity{{Name: "ENTITY_A"}})
+	srv := mockServer(t, 200, edgequake.EntityListResponse{Items: []edgequake.Entity{{EntityName: "ENTITY_A"}}, Total: 1, Page: 1, PageSize: 20, TotalPages: 1})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
 	ents, err := c.Entities.List(context.Background(), 0, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ents) != 1 {
-		t.Fatalf("got %d", len(ents))
+	if ents.Total != 1 {
+		t.Fatalf("got %d", ents.Total)
 	}
 }
 
 func TestEntities_Create(t *testing.T) {
-	srv := mockServer(t, 201, edgequake.Entity{Name: "NEW", EntityType: "PERSON"})
+	srv := mockServer(t, 201, edgequake.CreateEntityResponse{Status: "created", Message: "ok", Entity: &edgequake.Entity{EntityName: "NEW", EntityType: "PERSON"}})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
-	e, err := c.Entities.Create(context.Background(), &edgequake.CreateEntityParams{Name: "NEW", EntityType: "PERSON"})
+	e, err := c.Entities.Create(context.Background(), &edgequake.CreateEntityParams{EntityName: "NEW", EntityType: "PERSON", Description: "test", SourceID: "manual"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.Name != "NEW" {
-		t.Fatalf("got %s", e.Name)
+	if e.Entity.EntityName != "NEW" {
+		t.Fatalf("got %s", e.Entity.EntityName)
 	}
 }
 
@@ -197,7 +197,7 @@ func TestEntities_Merge(t *testing.T) {
 	srv := mockServer(t, 200, edgequake.MergeResponse{MergedCount: 2})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
-	resp, err := c.Entities.Merge(context.Background(), &edgequake.MergeEntitiesParams{Source: "A", Target: "B"})
+	resp, err := c.Entities.Merge(context.Background(), &edgequake.MergeEntitiesParams{SourceEntity: "A", TargetEntity: "B"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,15 +229,15 @@ func TestEntities_Neighborhood(t *testing.T) {
 }
 
 func TestRelationships_List(t *testing.T) {
-	srv := mockServer(t, 200, []edgequake.Relationship{{Source: "A", Target: "B"}})
+	srv := mockServer(t, 200, edgequake.RelationshipListResponse{Items: []edgequake.Relationship{{Source: "A", Target: "B"}}, Total: 1, Page: 1, PageSize: 20, TotalPages: 1})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
 	rels, err := c.Relationships.List(context.Background(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rels) != 1 {
-		t.Fatalf("got %d", len(rels))
+	if rels.Total != 1 {
+		t.Fatalf("got %d", rels.Total)
 	}
 }
 
@@ -346,15 +346,15 @@ func TestAPIKeys_Revoke(t *testing.T) {
 }
 
 func TestTenants_List(t *testing.T) {
-	srv := mockServer(t, 200, []edgequake.TenantInfo{{ID: "t1", Name: "Main"}})
+	srv := mockServer(t, 200, edgequake.TenantListResponse{Items: []edgequake.TenantInfo{{ID: "t1", Name: "Main"}}, Total: 1})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
 	ts, err := c.Tenants.List(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ts) != 1 {
-		t.Fatalf("got %d", len(ts))
+	if ts.Total != 1 {
+		t.Fatalf("got %d", ts.Total)
 	}
 }
 
@@ -497,16 +497,16 @@ func TestCosts_Summary(t *testing.T) {
 	}
 }
 
-func TestChunks_List(t *testing.T) {
-	srv := mockServer(t, 200, []edgequake.ChunkDetail{{ID: "ch1", Content: "Hello"}})
+func TestChunks_Get(t *testing.T) {
+	srv := mockServer(t, 200, edgequake.ChunkDetail{ID: "ch1", Content: "Hello"})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
-	chunks, err := c.Chunks.List(context.Background(), "d1", 0, 0)
+	chunk, err := c.Chunks.Get(context.Background(), "ch1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chunks) != 1 {
-		t.Fatalf("got %d", len(chunks))
+	if chunk.ID != "ch1" {
+		t.Fatalf("got %s", chunk.ID)
 	}
 }
 
@@ -537,23 +537,23 @@ func TestLineage_ForEntity(t *testing.T) {
 }
 
 func TestModels_List(t *testing.T) {
-	srv := mockServer(t, 200, []edgequake.ModelInfo{{Name: "gpt-5-nano", IsAvailable: true}})
+	srv := mockServer(t, 200, edgequake.ProviderCatalog{Providers: []edgequake.ProviderInfo{{Name: "openai", Models: []edgequake.ModelInfo{{Name: "gpt-5-nano", IsAvailable: true}}}}})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
-	models, err := c.Models.List(context.Background())
+	catalog, err := c.Models.List(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(models) != 1 {
-		t.Fatalf("got %d", len(models))
+	if len(catalog.Providers) != 1 {
+		t.Fatalf("got %d providers", len(catalog.Providers))
 	}
 }
 
-func TestModels_SetProvider(t *testing.T) {
+func TestModels_ProviderStatus(t *testing.T) {
 	srv := mockServer(t, 200, edgequake.ProviderStatus{CurrentProvider: "openai"})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
-	ps, err := c.Models.SetProvider(context.Background(), "openai")
+	ps, err := c.Models.ProviderStatus(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -562,11 +562,11 @@ func TestModels_SetProvider(t *testing.T) {
 	}
 }
 
-func TestWorkspaces_List(t *testing.T) {
+func TestWorkspaces_ListForTenant(t *testing.T) {
 	srv := mockServer(t, 200, []edgequake.WorkspaceInfo{{ID: "w1", Name: "Default"}})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
-	ws, err := c.Workspaces.List(context.Background())
+	ws, err := c.Workspaces.ListForTenant(context.Background(), "t1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,11 +575,11 @@ func TestWorkspaces_List(t *testing.T) {
 	}
 }
 
-func TestWorkspaces_Create(t *testing.T) {
+func TestWorkspaces_CreateForTenant(t *testing.T) {
 	srv := mockServer(t, 201, edgequake.WorkspaceInfo{ID: "w2", Name: "New"})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
-	w, err := c.Workspaces.Create(context.Background(), &edgequake.CreateWorkspaceParams{Name: "New"})
+	w, err := c.Workspaces.CreateForTenant(context.Background(), "t1", &edgequake.CreateWorkspaceParams{Name: "New"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -652,7 +652,7 @@ func TestError_Validation(t *testing.T) {
 	srv := mockServer(t, 422, map[string]string{"error": "Validation Error"})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
-	_, err := c.Entities.Create(context.Background(), &edgequake.CreateEntityParams{Name: ""})
+	_, err := c.Entities.Create(context.Background(), &edgequake.CreateEntityParams{EntityName: ""})
 	if !errors.Is(err, edgequake.ErrValidation) {
 		t.Fatalf("expected ErrValidation, got %v", err)
 	}
@@ -708,8 +708,8 @@ func TestClient_AuthHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if headers.Get("Authorization") != "Bearer key-123" {
-		t.Fatalf("got auth: %s", headers.Get("Authorization"))
+	if headers.Get("X-API-Key") != "key-123" {
+		t.Fatalf("got auth: %s", headers.Get("X-API-Key"))
 	}
 	if headers.Get("X-Tenant-ID") != "t-abc" {
 		t.Fatalf("got tenant: %s", headers.Get("X-Tenant-ID"))

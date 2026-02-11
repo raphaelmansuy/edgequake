@@ -14,6 +14,7 @@ type clientConfig struct {
 	bearerToken string
 	tenantID    string
 	workspaceID string
+	userID      string
 	httpClient  *http.Client
 	userAgent   string
 	timeout     time.Duration
@@ -52,6 +53,11 @@ func WithTenantID(id string) Option {
 // WithWorkspaceID sets the X-Workspace-ID header.
 func WithWorkspaceID(id string) Option {
 	return func(c *clientConfig) { c.workspaceID = id }
+}
+
+// WithUserID sets the X-User-ID header for user-scoped endpoints (conversations, folders).
+func WithUserID(id string) Option {
+	return func(c *clientConfig) { c.userID = id }
 }
 
 // WithHTTPClient provides a custom http.Client.
