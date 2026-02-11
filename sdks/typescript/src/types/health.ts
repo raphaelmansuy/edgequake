@@ -114,57 +114,15 @@ export interface ModelDetail extends ModelInfo {
   latency_ms?: number;
 }
 
-// ── Lineage ───────────────────────────────────────────────────
-
-/** Generic lineage response (entity or document). */
-export type LineageResponse = EntityLineage | DocumentLineage;
-
-export interface EntityLineage {
-  entity_name: string;
-  source_documents: Array<{
-    document_id: string;
-    title?: string;
-    chunk_ids: string[];
-  }>;
-}
-
-export interface DocumentLineage {
-  document_id: string;
-  entities: Array<{
-    name: string;
-    label: string;
-    chunk_ids: string[];
-  }>;
-  relationships: Array<{
-    source: string;
-    target: string;
-    label: string;
-  }>;
-}
-
-// ── Chunks ────────────────────────────────────────────────────
-
-export interface ChunkDetail {
-  chunk_id: string;
-  document_id: string;
-  content: string;
-  token_count?: number;
-  embedding_status?: string;
-  entities?: string[];
-}
-
-// ── Provenance ────────────────────────────────────────────────
-
-export interface EntityProvenance {
-  entity_id: string;
-  entity_name: string;
-  source_chunks: Array<{
-    chunk_id: string;
-    document_id: string;
-    content: string;
-    extraction_context?: string;
-  }>;
-}
+// ── Lineage (moved to lineage.ts) ─────────────────────────────
+// WHY: Re-export legacy aliases for backward compatibility.
+// Actual types are now in lineage.ts with proper shapes matching Rust.
+export type {
+  EntityLineage,
+  DocumentLineage,
+  ChunkDetail,
+  EntityProvenance,
+} from "./lineage.js";
 
 // ── Ollama Compatibility ──────────────────────────────────────
 

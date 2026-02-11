@@ -956,17 +956,62 @@ describe("CostsResource", () => {
 
   beforeEach(() => {
     mock = createMockTransport({
-      "GET /api/v1/costs/summary": { body: { total: 1.5 } },
-      "GET /api/v1/costs/history": { body: { entries: [] } },
-      "GET /api/v1/costs/budget": { body: { limit: 100, used: 1.5 } },
-      "PATCH /api/v1/costs/budget": { body: { limit: 200 } },
+      "GET /api/v1/costs/summary": {
+        body: {
+          total_input_tokens: 10000,
+          total_output_tokens: 5000,
+          total_cost_usd: 1.5,
+          formatted_cost: "$1.50",
+          operations: [],
+        },
+      },
+      "GET /api/v1/costs/history": { body: { data_points: [] } },
+      "GET /api/v1/costs/budget": {
+        body: {
+          monthly_budget_usd: 100,
+          spent_usd: 1.5,
+          remaining_usd: 98.5,
+          alert_threshold: 80,
+          is_over_budget: false,
+        },
+      },
+      "PATCH /api/v1/costs/budget": {
+        body: {
+          monthly_budget_usd: 200,
+          spent_usd: 1.5,
+          remaining_usd: 198.5,
+          alert_threshold: 80,
+          is_over_budget: false,
+        },
+      },
+      "GET /api/v1/costs/pricing": { body: { models: [] } },
+      "POST /api/v1/costs/estimate": {
+        body: {
+          model: "gpt-4",
+          input_tokens: 1000,
+          output_tokens: 500,
+          estimated_cost_usd: 0.5,
+          formatted_cost: "$0.50",
+        },
+      },
+      "GET /api/v1/costs/workspace": {
+        body: {
+          workspace_id: "ws1",
+          total_cost: 10.0,
+          document_count: 5,
+          total_tokens: 50000,
+          average_cost_per_document: 2.0,
+          by_operation: [],
+        },
+      },
     });
     costs = new CostsResource(mock as unknown as HttpTransport);
   });
 
   it("summary → GET .../costs/summary", async () => {
     const s = await costs.summary();
-    expect(s.total).toBe(1.5);
+    expect(s.total_cost_usd).toBe(1.5);
+    expect(s.formatted_cost).toBe("$1.50");
   });
 
   it("history → GET .../costs/history", async () => {
@@ -974,14 +1019,41 @@ describe("CostsResource", () => {
     expect(mock.lastRequest?.path).toBe("/api/v1/costs/history");
   });
 
+  it("history with query → GET .../costs/history?start_date=...", async () => {
+    await costs.history({ start_date: "2026-01-01", granularity: "day" });
+    expect(mock.lastRequest?.path).toContain("start_date=2026-01-01");
+    expect(mock.lastRequest?.path).toContain("granularity=day");
+  });
+
   it("budget → GET .../costs/budget", async () => {
     const b = await costs.budget();
-    expect(b.limit).toBe(100);
+    expect(b.monthly_budget_usd).toBe(100);
+    expect(b.is_over_budget).toBe(false);
   });
 
   it("updateBudget → PATCH .../costs/budget", async () => {
-    await costs.updateBudget({ limit: 200 });
+    await costs.updateBudget({ monthly_budget_usd: 200 });
     expect(mock.lastRequest?.method).toBe("PATCH");
+  });
+
+  it("pricing → GET .../costs/pricing", async () => {
+    const p = await costs.pricing();
+    expect(p.models).toBeDefined();
+  });
+
+  it("estimate → POST .../costs/estimate", async () => {
+    const e = await costs.estimate({
+      model: "gpt-4",
+      input_tokens: 1000,
+      output_tokens: 500,
+    });
+    expect(e.estimated_cost_usd).toBe(0.5);
+  });
+
+  it("workspaceSummary → GET .../costs/workspace", async () => {
+    const ws = await costs.workspaceSummary();
+    expect(ws.workspace_id).toBe("ws1");
+    expect(ws.total_cost).toBe(10.0);
   });
 });
 
@@ -994,21 +1066,43 @@ describe("LineageResource", () => {
   beforeEach(() => {
     mock = createMockTransport({
       "GET /api/v1/lineage/entities/ENTITY_1": {
-        body: { name: "ENTITY_1", documents: [] },
+        body: {
+          entity_name: "ENTITY_1",
+          entity_type: "PERSON",
+          source_documents: [],
+          source_count: 0,
+          description_versions: [],
+        },
       },
-      "GET /api/v1/lineage/documents/d1": { body: { id: "d1", entities: [] } },
+      "GET /api/v1/lineage/documents/d1": {
+        body: {
+          document_id: "d1",
+          chunk_count: 3,
+          entities: [],
+          relationships: [],
+          extraction_stats: {
+            total_entities: 0,
+            unique_entities: 0,
+            total_relationships: 0,
+            unique_relationships: 0,
+          },
+        },
+      },
     });
     lineage = new LineageResource(mock as unknown as HttpTransport);
   });
 
   it("entity → GET .../lineage/entities/:name", async () => {
-    await lineage.entity("ENTITY_1");
+    const res = await lineage.entity("ENTITY_1");
     expect(mock.lastRequest?.path).toBe("/api/v1/lineage/entities/ENTITY_1");
+    expect(res.entity_name).toBe("ENTITY_1");
   });
 
   it("document → GET .../lineage/documents/:id", async () => {
-    await lineage.document("d1");
+    const res = await lineage.document("d1");
     expect(mock.lastRequest?.path).toBe("/api/v1/lineage/documents/d1");
+    expect(res.document_id).toBe("d1");
+    expect(res.chunk_count).toBe(3);
   });
 });
 
@@ -1020,14 +1114,27 @@ describe("ChunksResource", () => {
 
   beforeEach(() => {
     mock = createMockTransport({
-      "GET /api/v1/chunks/c1": { body: { id: "c1", content: "text" } },
+      "GET /api/v1/chunks/c1": {
+        body: {
+          chunk_id: "c1",
+          document_id: "d1",
+          content: "Alice knows Bob",
+          index: 0,
+          char_range: { start: 0, end: 15 },
+          token_count: 3,
+          entities: [],
+          relationships: [],
+        },
+      },
     });
     chunks = new ChunksResource(mock as unknown as HttpTransport);
   });
 
   it("get → GET /api/v1/chunks/:id", async () => {
     const c = await chunks.get("c1");
-    expect(c.content).toBe("text");
+    expect(c.content).toBe("Alice knows Bob");
+    expect(c.chunk_id).toBe("c1");
+    expect(c.char_range.start).toBe(0);
   });
 });
 
@@ -1040,7 +1147,14 @@ describe("ProvenanceResource", () => {
   beforeEach(() => {
     mock = createMockTransport({
       "GET /api/v1/entities/e1/provenance": {
-        body: { entity: "e1", sources: [] },
+        body: {
+          entity_id: "e1",
+          entity_name: "ENTITY_1",
+          entity_type: "PERSON",
+          sources: [],
+          total_extraction_count: 3,
+          related_entities: [],
+        },
       },
     });
     prov = new ProvenanceResource(mock as unknown as HttpTransport);
@@ -1048,7 +1162,9 @@ describe("ProvenanceResource", () => {
 
   it("get → GET /api/v1/entities/:id/provenance", async () => {
     const p = await prov.get("e1");
-    expect(p.entity).toBe("e1");
+    expect(p.entity_id).toBe("e1");
+    expect(p.entity_name).toBe("ENTITY_1");
+    expect(p.total_extraction_count).toBe(3);
   });
 });
 
