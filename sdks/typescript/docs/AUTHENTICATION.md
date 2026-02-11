@@ -14,6 +14,7 @@ const client = new EdgeQuake({
 ```
 
 The API key is sent as a `Bearer` token in the `Authorization` header:
+
 ```
 Authorization: Bearer your-api-key
 ```
@@ -49,7 +50,7 @@ For multi-tenant deployments. Adds `X-Tenant-Id` and `X-Workspace-Id` headers.
 const client = new EdgeQuake({
   baseUrl: "http://localhost:8080",
   apiKey: "key",
-  tenantId: "tenant-123",      // X-Tenant-Id header
+  tenantId: "tenant-123", // X-Tenant-Id header
   workspaceId: "workspace-456", // X-Workspace-Id header
 });
 ```

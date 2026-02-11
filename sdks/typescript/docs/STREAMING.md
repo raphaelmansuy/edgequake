@@ -4,10 +4,10 @@
 
 EdgeQuake supports two streaming protocols:
 
-| Protocol | Use Case | Transport |
-|----------|----------|-----------|
-| **SSE** (Server-Sent Events) | Query streaming, chat streaming | HTTP |
-| **WebSocket** | Pipeline progress, real-time updates | WS |
+| Protocol                     | Use Case                             | Transport |
+| ---------------------------- | ------------------------------------ | --------- |
+| **SSE** (Server-Sent Events) | Query streaming, chat streaming      | HTTP      |
+| **WebSocket**                | Pipeline progress, real-time updates | WS        |
 
 ## SSE Streaming
 

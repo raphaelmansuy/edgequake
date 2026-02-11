@@ -79,7 +79,9 @@ async function getHealthyClient(): Promise<EdgeQuake> {
 
 async function main() {
   // Demo: use the environment factory
-  const env = (process.env.NODE_ENV as "development" | "staging" | "production") ?? "development";
+  const env =
+    (process.env.NODE_ENV as "development" | "staging" | "production") ??
+    "development";
   const client = createClient(env);
   console.log(`Created client for ${env} environment`);
 

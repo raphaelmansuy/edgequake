@@ -15,6 +15,7 @@ Option C: Both layers               → Most complete, more complexity
 **Decision**: Option B — environment-gated E2E tests.
 
 **Rationale**:
+
 - Unit tests already thoroughly cover SDK logic with mock transport
 - MSW would add another abstraction layer testing similar paths
 - Real E2E tests against `make dev` backend catch serialization/auth/timing issues
@@ -37,5 +38,6 @@ Total: 26 E2E tests covering 4 major feature areas.
 ### Examples Gap Analysis
 
 Need 2 more to hit 10+ target:
+
 - `error_handling.ts` — 5 patterns: specific types, retry, degradation, validation, catch-all
 - `configuration.ts` — 6 patterns: minimal, explicit, env-based, multi-tenant, factory, health check

@@ -633,7 +633,12 @@ describe("GraphResource", () => {
   });
 
   it("entities.create → POST /api/v1/graph/entities", async () => {
-    await graph.entities.create({ name: "Foo", entity_type: "PERSON" });
+    await graph.entities.create({
+      entity_name: "FOO",
+      entity_type: "PERSON",
+      description: "Test entity",
+      source_id: "manual_entry",
+    });
     expect(mock.lastRequest?.method).toBe("POST");
   });
 

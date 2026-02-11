@@ -6,7 +6,7 @@
  * Run: EDGEQUAKE_E2E_URL=http://localhost:8080 npm test -- tests/e2e/
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { EdgeQuake } from "../../src/index.js";
 import { E2E_ENABLED, createE2EClient, testId } from "./helpers.js";
 
@@ -31,110 +31,94 @@ describeE2E("E2E: Graph Entities", () => {
     }
   });
 
-  it("should merge an entity", async () => {
-    const name = testId("ENTITY").toUpperCase();
-    const result = await client.graph.entities.merge({
-      name,
-      type: "TEST_ENTITY",
+  it("should create an entity", async () => {
+    const name = testId("ENTITY").toUpperCase().replace(/-/g, "_");
+    // WHY: API requires entity_name, entity_type, description, source_id
+    const result = await client.graph.entities.create({
+      entity_name: name,
+      entity_type: "TEST_ENTITY",
       description: "E2E test entity",
+      source_id: "manual_entry",
     });
     expect(result).toBeDefined();
     createdEntities.push(name);
-  });
+  }, 15_000);
 
   it("should list entities", async () => {
     const entities = await client.graph.entities.list();
     expect(entities).toBeDefined();
-  });
+    expect(Array.isArray(entities)).toBe(true);
+  }, 15_000);
 
   it("should search entities by name", async () => {
-    const name = testId("SEARCH_ENTITY").toUpperCase();
-    await client.graph.entities.merge({
-      name,
-      type: "TEST_ENTITY",
+    const name = testId("SEARCH").toUpperCase().replace(/-/g, "_");
+    await client.graph.entities.create({
+      entity_name: name,
+      entity_type: "TEST_ENTITY",
       description: "Entity for search test",
+      source_id: "manual_entry",
     });
     createdEntities.push(name);
 
-    const results = await client.graph.entities.search({ query: name });
+    // WHY: No dedicated search() — use list() with search param
+    const results = await client.graph.entities.list({ search: name });
     expect(results).toBeDefined();
-  });
+    expect(Array.isArray(results)).toBe(true);
+  }, 15_000);
 
   it("should check entity existence", async () => {
-    const name = testId("EXISTS_ENTITY").toUpperCase();
-    await client.graph.entities.merge({
-      name,
-      type: "TEST_ENTITY",
+    const name = testId("EXISTS").toUpperCase().replace(/-/g, "_");
+    await client.graph.entities.create({
+      entity_name: name,
+      entity_type: "TEST_ENTITY",
       description: "Entity for existence check",
+      source_id: "manual_entry",
     });
     createdEntities.push(name);
 
     const exists = await client.graph.entities.exists(name);
     expect(exists).toBeDefined();
-  });
+  }, 15_000);
 
   it("should get entity neighborhood", async () => {
-    const name = testId("NEIGHBOR_ENTITY").toUpperCase();
-    await client.graph.entities.merge({
-      name,
-      type: "TEST_ENTITY",
+    const name = testId("NEIGHBOR").toUpperCase().replace(/-/g, "_");
+    await client.graph.entities.create({
+      entity_name: name,
+      entity_type: "TEST_ENTITY",
       description: "Entity for neighborhood test",
+      source_id: "manual_entry",
     });
     createdEntities.push(name);
 
-    const neighborhood = await client.graph.entities.getNeighborhood(name);
+    // WHY: SDK method is neighborhood(), not getNeighborhood()
+    const neighborhood = await client.graph.entities.neighborhood(name);
     expect(neighborhood).toBeDefined();
-  });
+  }, 15_000);
 });
 
 describeE2E("E2E: Graph Relationships", () => {
   let client: EdgeQuake;
-  const entitiesToCleanup: string[] = [];
 
   beforeAll(async () => {
     client = createE2EClient()!;
-
-    // Create two entities for relationship tests
-    const src = testId("REL_SRC").toUpperCase();
-    const tgt = testId("REL_TGT").toUpperCase();
-    await client.graph.entities.merge({
-      name: src,
-      type: "TEST_ENTITY",
-      description: "Source entity",
-    });
-    await client.graph.entities.merge({
-      name: tgt,
-      type: "TEST_ENTITY",
-      description: "Target entity",
-    });
-    entitiesToCleanup.push(src, tgt);
-  });
-
-  afterAll(async () => {
-    for (const name of entitiesToCleanup) {
-      try {
-        await client.graph.entities.delete(name);
-      } catch {
-        // Ignore
-      }
-    }
   });
 
   it("should list relationships", async () => {
     const rels = await client.graph.relationships.list();
     expect(rels).toBeDefined();
-  });
+  }, 15_000);
 });
 
-describeE2E("E2E: Graph Stats", () => {
+describeE2E("E2E: Graph Query", () => {
   let client: EdgeQuake;
 
   beforeAll(() => {
     client = createE2EClient()!;
   });
 
-  it("should return graph statistics", async () => {
-    const stats = await client.graph.getStats();
-    expect(stats).toBeDefined();
-  });
+  it("should query the graph", async () => {
+    // WHY: graph.get() returns graph data, not graph.getStats()
+    const graph = await client.graph.get();
+    expect(graph).toBeDefined();
+  }, 15_000);
 });

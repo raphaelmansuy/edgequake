@@ -46,7 +46,11 @@ export async function waitFor(
   condition: () => Promise<boolean>,
   options: { timeoutMs?: number; intervalMs?: number; label?: string } = {},
 ): Promise<void> {
-  const { timeoutMs = 30_000, intervalMs = 1_000, label = "condition" } = options;
+  const {
+    timeoutMs = 30_000,
+    intervalMs = 1_000,
+    label = "condition",
+  } = options;
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {

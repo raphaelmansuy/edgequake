@@ -20,6 +20,7 @@
 **File**: `sdks/typescript/README.md`
 
 Changes:
+
 - Fixed `RateLimitError` → `RateLimitedError` in error handling example
 - Added "Examples" section with table of all 8 example files
 - Added `npx tsx examples/basic_usage.ts` run instruction

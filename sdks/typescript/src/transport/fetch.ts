@@ -45,6 +45,14 @@ export class FetchTransport implements HttpTransport {
       return undefined as T;
     }
 
+    // WHY: Some endpoints (e.g., /ready, /live) return plain text "OK"
+    // instead of JSON. Detect via Content-Type header to avoid parse errors.
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      const text = await response.text();
+      return text as T;
+    }
+
     return (await response.json()) as T;
   }
 

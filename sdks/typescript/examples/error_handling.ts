@@ -7,13 +7,13 @@
 
 import {
   EdgeQuake,
+  EdgeQuakeError,
+  NetworkError,
   NotFoundError,
   RateLimitedError,
+  TimeoutError,
   UnauthorizedError,
   ValidationError,
-  NetworkError,
-  TimeoutError,
-  EdgeQuakeError,
 } from "@edgequake/sdk";
 
 async function main() {
@@ -47,12 +47,16 @@ async function main() {
       } catch (error) {
         if (error instanceof RateLimitedError && attempt < maxRetries) {
           const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
-          console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+          console.log(
+            `Rate limited, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`,
+          );
           await new Promise((r) => setTimeout(r, delay));
           continue;
         }
         if (error instanceof NetworkError && attempt < maxRetries) {
-          console.log(`Network error, retrying (attempt ${attempt}/${maxRetries})`);
+          console.log(
+            `Network error, retrying (attempt ${attempt}/${maxRetries})`,
+          );
           await new Promise((r) => setTimeout(r, 1000));
           continue;
         }
@@ -100,7 +104,9 @@ async function main() {
   } catch (error) {
     if (error instanceof EdgeQuakeError) {
       // All SDK errors extend EdgeQuakeError
-      console.log(`API error [${error.status}] ${error.code}: ${error.message}`);
+      console.log(
+        `API error [${error.status}] ${error.code}: ${error.message}`,
+      );
     } else {
       // Non-SDK error (e.g., TypeError from bad config)
       console.log("Unexpected error:", error);

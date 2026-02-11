@@ -7,9 +7,9 @@
  * Run: EDGEQUAKE_E2E_URL=http://localhost:8080 npm test -- tests/e2e/
  */
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { EdgeQuake } from "../../src/index.js";
-import { E2E_ENABLED, E2E_URL, createE2EClient } from "./helpers.js";
+import { E2E_ENABLED, createE2EClient } from "./helpers.js";
 
 // WHY: Skip entire suite when no backend is available.
 // This allows `npm test` to pass in CI without a running server.
@@ -26,19 +26,19 @@ describeE2E("E2E: Health & System", () => {
     const health = await client.health();
     expect(health).toBeDefined();
     expect(health.status).toBe("healthy");
-  });
+  }, 15_000);
 
   it("should include version in health response", async () => {
     const health = await client.health();
     expect(health.version).toBeTruthy();
     expect(typeof health.version).toBe("string");
-  });
+  }, 15_000);
 
   it("should include storage_mode in health response", async () => {
     const health = await client.health();
     // WHY: EdgeQuake now requires PostgreSQL — memory mode removed
     expect(health.storage_mode).toBe("postgresql");
-  });
+  }, 15_000);
 
   it("should include component status in health", async () => {
     const health = await client.health();
@@ -47,25 +47,29 @@ describeE2E("E2E: Health & System", () => {
     expect(health.components.vector_storage).toBe(true);
     expect(health.components.graph_storage).toBe(true);
     expect(health.components.llm_provider).toBe(true);
-  });
+  }, 15_000);
 
   it("should report readiness", async () => {
     const ready = await client.ready();
     expect(ready).toBeDefined();
-  });
+    // WHY: /ready returns plain text "OK", not JSON
+    expect(ready).toBe("OK");
+  }, 10_000);
 
   it("should report liveness", async () => {
     const live = await client.live();
     expect(live).toBeDefined();
-  });
+    expect(live).toBe("OK");
+  }, 10_000);
 
   it("should return provider status", async () => {
-    const status = await client.settings.getProviderStatus();
+    // WHY: Actual SDK method is providerStatus(), not getProviderStatus()
+    const status = await client.settings.providerStatus();
     expect(status).toBeDefined();
-  });
+  }, 10_000);
 
   it("should list available providers", async () => {
     const providers = await client.settings.listProviders();
     expect(providers).toBeDefined();
-  });
+  }, 10_000);
 });

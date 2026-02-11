@@ -17,6 +17,7 @@ E2E Tests (real server) → Gated by EDGEQUAKE_E2E_URL env var
 ### Rust E2E Test Reference
 
 Analyzed `edgequake/crates/edgequake-api/tests/e2e_pipeline_robustness.rs` — tests include:
+
 - Health check structure & provider detection
 - Pipeline status & queue metrics
 - Cost estimation, pricing, summary, history, budget

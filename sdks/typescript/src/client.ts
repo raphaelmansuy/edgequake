@@ -182,13 +182,13 @@ export class EdgeQuake {
     return this._transport.request({ method: "GET", path: "/health" });
   }
 
-  /** Readiness check — Kubernetes readiness probe. */
-  async ready(): Promise<HealthResponse> {
+  /** Readiness check — Kubernetes readiness probe. Returns "OK" when ready. */
+  async ready(): Promise<string> {
     return this._transport.request({ method: "GET", path: "/ready" });
   }
 
-  /** Liveness check — Kubernetes liveness probe. */
-  async live(): Promise<HealthResponse> {
+  /** Liveness check — Kubernetes liveness probe. Returns "OK" when alive. */
+  async live(): Promise<string> {
     return this._transport.request({ method: "GET", path: "/live" });
   }
 

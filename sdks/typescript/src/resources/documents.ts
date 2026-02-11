@@ -7,7 +7,6 @@
 
 import { Paginator } from "../pagination.js";
 import type { HttpTransport } from "../transport/types.js";
-import type { Page } from "../types/common.js";
 import type {
   BatchUploadResponse,
   DeletionImpactResponse,
@@ -124,11 +123,21 @@ export class DocumentsResource extends Resource {
     return new Paginator(async (page, perPage) => {
       const params = new URLSearchParams();
       params.set("page", String(page));
-      params.set("per_page", String(perPage));
+      params.set("page_size", String(perPage));
       if (query?.status) params.set("status", query.status);
       if (query?.search) params.set("search", query.search);
       const path = `/api/v1/documents?${params}`;
-      return this._get<Page<DocumentInfo>>(path);
+
+      // WHY: API returns { documents: [], has_more, page_size, total_pages }
+      // but SDK Page<T> uses { items: [], hasMore, pageSize }. Transform here.
+      const raw = await this._get<Record<string, unknown>>(path);
+      return {
+        items: (raw.documents ?? raw.items ?? []) as DocumentInfo[],
+        total: (raw.total ?? 0) as number,
+        page: (raw.page ?? page) as number,
+        pageSize: (raw.page_size ?? raw.pageSize ?? perPage) as number,
+        hasMore: (raw.has_more ?? raw.hasMore ?? false) as boolean,
+      };
     }, query?.limit ?? 20);
   }
 

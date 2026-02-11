@@ -100,10 +100,16 @@ export interface EntityResponse {
 }
 
 export interface CreateEntityRequest {
-  name: string;
-  label: string;
-  description?: string;
-  properties?: Record<string, unknown>;
+  /** Entity name (will be normalized to UPPERCASE). */
+  entity_name: string;
+  /** Entity type (e.g., PERSON, ORGANIZATION, TECHNOLOGY). */
+  entity_type: string;
+  /** Entity description. */
+  description: string;
+  /** Source document ID (use "manual_entry" for manual entries). */
+  source_id: string;
+  /** Additional metadata. */
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateEntityRequest {

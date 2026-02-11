@@ -40,7 +40,9 @@ export class EntitiesResource extends Resource {
       params.set("per_page", String(query.per_page));
     const qs = params.toString();
     const path = qs ? `/api/v1/graph/entities?${qs}` : "/api/v1/graph/entities";
-    return this._get(path);
+    // WHY: API returns paginated { items: [...], total, page, page_size }
+    const raw = await this._get<{ items: EntityDetail[]; [key: string]: unknown }>(path);
+    return raw.items ?? (raw as unknown as EntityDetail[]);
   }
 
   /** Create a new entity. */
@@ -57,8 +59,9 @@ export class EntitiesResource extends Resource {
 
   /** Check if an entity exists. */
   async exists(entityName: string): Promise<boolean> {
+    // WHY: API expects `entity_name` query param, not `name`
     const resp = await this._get<{ exists: boolean }>(
-      `/api/v1/graph/entities/exists?name=${encodeURIComponent(entityName)}`,
+      `/api/v1/graph/entities/exists?entity_name=${encodeURIComponent(entityName)}`,
     );
     return resp.exists;
   }
@@ -107,7 +110,9 @@ export class RelationshipsResource extends Resource {
     const path = qs
       ? `/api/v1/graph/relationships?${qs}`
       : "/api/v1/graph/relationships";
-    return this._get(path);
+    // WHY: API returns paginated { items: [...], total, page, page_size }
+    const raw = await this._get<{ items: RelationshipDetail[]; [key: string]: unknown }>(path);
+    return raw.items ?? (raw as unknown as RelationshipDetail[]);
   }
 
   /** Create a new relationship. */
