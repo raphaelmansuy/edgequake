@@ -1,0 +1,88 @@
+//! Authentication types.
+
+use serde::{Deserialize, Serialize};
+
+/// Login request.
+#[derive(Debug, Clone, Serialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+/// Token response from login/refresh.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+    #[serde(default)]
+    pub token_type: Option<String>,
+    #[serde(default)]
+    pub expires_in: Option<u64>,
+}
+
+/// Refresh request.
+#[derive(Debug, Clone, Serialize)]
+pub struct RefreshRequest {
+    pub refresh_token: String,
+}
+
+/// User info.
+#[derive(Debug, Clone, Deserialize)]
+pub struct UserInfo {
+    pub id: String,
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub role: Option<String>,
+}
+
+/// Create user request.
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateUserRequest {
+    pub username: String,
+    pub email: String,
+    pub password: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+}
+
+/// API key response.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ApiKeyResponse {
+    pub id: String,
+    pub key: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+
+/// API key info (without secret).
+#[derive(Debug, Clone, Deserialize)]
+pub struct ApiKeyInfo {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+
+/// Create tenant request.
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateTenantRequest {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+}
+
+/// Tenant info.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TenantInfo {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub slug: Option<String>,
+}

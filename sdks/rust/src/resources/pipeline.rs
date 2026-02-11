@@ -1,0 +1,21 @@
+//! Pipeline resource.
+
+use crate::client::EdgeQuakeClient;
+use crate::error::Result;
+use crate::types::operations::*;
+
+pub struct PipelineResource<'a> {
+    pub(crate) client: &'a EdgeQuakeClient,
+}
+
+impl<'a> PipelineResource<'a> {
+    /// `GET /api/v1/pipeline/status`
+    pub async fn status(&self) -> Result<PipelineStatus> {
+        self.client.get("/api/v1/pipeline/status").await
+    }
+
+    /// `GET /api/v1/pipeline/metrics`
+    pub async fn metrics(&self) -> Result<QueueMetrics> {
+        self.client.get("/api/v1/pipeline/metrics").await
+    }
+}

@@ -1,0 +1,32 @@
+[package]
+name = "edgequake-sdk"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Rust SDK for the EdgeQuake RAG platform"
+license = "Apache-2.0"
+repository = "https://github.com/raphaelmansuy/edgequake"
+keywords = ["rag", "knowledge-graph", "llm", "edgequake"]
+categories = ["api-bindings", "web-programming::http-client"]
+
+[dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "multipart", "rustls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+url = "2"
+bytes = "1"
+futures-core = "0.3"
+pin-project-lite = "0.2"
+tokio = { version = "1", features = ["time"] }
+urlencoding = "2"
+reqwest-eventsource = { version = "0.6", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+wiremock = "0.6"
+serde_json = "1"
+
+[features]
+default = ["stream"]
+stream = ["dep:reqwest-eventsource"]
