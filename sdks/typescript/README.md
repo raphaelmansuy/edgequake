@@ -124,14 +124,14 @@ const all = await client.documents.list().toArray();
 ## Error Handling
 
 ```typescript
-import { NotFoundError, RateLimitError, EdgeQuakeError } from "@edgequake/sdk";
+import { NotFoundError, RateLimitedError, EdgeQuakeError } from "@edgequake/sdk";
 
 try {
   await client.documents.get("missing-id");
 } catch (error) {
   if (error instanceof NotFoundError) {
     console.log("Document not found");
-  } else if (error instanceof RateLimitError) {
+  } else if (error instanceof RateLimitedError) {
     console.log("Rate limited, retry later");
   } else if (error instanceof EdgeQuakeError) {
     console.log(`API error: ${error.code} (${error.status})`);
@@ -139,6 +139,43 @@ try {
 }
 ```
 
+## Examples
+
+See the [`examples/`](./examples/) directory for complete working examples:
+
+| Example | Description |
+|---------|-------------|
+| [`basic_usage.ts`](./examples/basic_usage.ts) | Setup, health check, upload, query |
+| [`document_upload.ts`](./examples/document_upload.ts) | Text + PDF upload, tracking, pagination |
+| [`query_demo.ts`](./examples/query_demo.ts) | Simple, hybrid, and chat queries |
+| [`graph_exploration.ts`](./examples/graph_exploration.ts) | Entity search, neighborhood, relationships |
+| [`streaming_query.ts`](./examples/streaming_query.ts) | SSE streaming query + chat + abort |
+| [`websocket_progress.ts`](./examples/websocket_progress.ts) | WebSocket pipeline progress |
+| [`multi_tenant.ts`](./examples/multi_tenant.ts) | Tenant/workspace management |
+| [`batch_operations.ts`](./examples/batch_operations.ts) | Bulk operations, pagination, cost estimate |
+
+Run any example with:
+
+```bash
+npx tsx examples/basic_usage.ts
+```
+
+## Documentation
+
+- [**API Reference**](./docs/API.md) — All endpoints, methods, and types
+- [**Authentication**](./docs/AUTHENTICATION.md) — API key, JWT, multi-tenant
+- [**Streaming**](./docs/STREAMING.md) — SSE + WebSocket patterns
+
+## Development
+
+```bash
+npm install          # Install dependencies
+npm run build        # Build ESM + CJS + .d.ts
+npm test             # Run 243 unit tests
+npm run test:coverage # Run tests with coverage report
+npm run lint         # TypeScript type check
+```
+
 ## License
 
-MIT
+Apache-2.0
