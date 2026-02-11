@@ -25,7 +25,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Knowledge Graphs**: LLM-powered entity extraction and relationship mapping create a structured understanding of your documents — not just keyword matching
 - **6 Query Modes**: From fast naive vector search to graph-traversing hybrid queries, each mode optimizes for different question types
 - **Rust Performance**: Async-first Tokio architecture with zero-copy operations — handles thousands of concurrent requests
-- **Advanced PDF Processing**: Table detection, multi-column layout, OCR with quality-based mode fallback
+- **Planned Advanced PDF Processing ⚠️ Available Soon**: Table detection, multi-column layout, OCR with quality-based mode fallback
 - **Production Ready**: OpenAPI 3.0 REST API, SSE streaming, health checks, multi-tenant workspace isolation
 - **Modern Frontend**: React 19 with interactive Sigma.js graph visualizations
 
@@ -60,7 +60,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Community Detection**: Louvain modularity optimization clusters related entities for thematic queries
 - **Graph Visualization**: Interactive Sigma.js-powered frontend with zoom/pan
 
-### 📄 Advanced PDF Processing
+### 📄 Advanced PDF Processing (⚠️ Available Soon)
 
 - **Text Mode**: Fast extraction for text-based PDFs
 - **Vision Mode**: OCR for scanned documents and images

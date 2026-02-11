@@ -13,29 +13,29 @@ EdgeQuake has two main data flows:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        EdgeQuake Data Flow                           │
-│                                                                      │
-│  INGESTION                              QUERY                        │
-│  ─────────                              ─────                        │
-│                                                                      │
-│  Document ─┐                            Question ─┐                  │
-│            │                                      │                  │
-│            ▼                                      ▼                  │
+│                        EdgeQuake Data Flow                          │
+│                                                                     │
+│  INGESTION                              QUERY                       │
+│  ─────────                              ─────                       │
+│                                                                     │
+│  Document ─┐                            Question ─┐                 │
+│            │                                      │                 │
+│            ▼                                      ▼                 │
 │    ┌──────────────┐                      ┌──────────────┐           │
 │    │   Pipeline   │                      │ QueryEngine  │           │
 │    └──────┬───────┘                      └──────┬───────┘           │
-│           │                                     │                    │
-│           ▼                                     ▼                    │
+│           │                                     │                   │
+│           ▼                                     ▼                   │
 │    ┌──────────────┐                      ┌──────────────┐           │
 │    │  Knowledge   │◄────────────────────▶│   Hybrid     │           │
 │    │    Graph     │                      │  Retrieval   │           │
 │    └──────────────┘                      └──────┬───────┘           │
-│                                                 │                    │
-│                                                 ▼                    │
+│                                                 │                   │
+│                                                 ▼                   │
 │                                          ┌──────────────┐           │
 │                                          │   Answer     │           │
 │                                          └──────────────┘           │
-│                                                                      │
+│                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -78,9 +78,9 @@ EdgeQuake has two main data flows:
     │             │             │             │◀────────────│             │
     │             │             │             │             │             │
     │             │             │             │ store()     │             │
-    │             │             │             │────────────────────────▶│
+    │             │             │             │────────────────────────▶  │
     │             │             │             │   ack       │             │
-    │             │             │             │◀────────────────────────│
+    │             │             │             │◀────────────────────────  │
     │             │             │  result     │             │             │
     │             │             │◀────────────│             │             │
     │             │  result     │             │             │             │
@@ -94,11 +94,11 @@ EdgeQuake has two main data flows:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         STAGE 1: CHUNKING                                    │
-│                                                                              │
-│  Input: Raw document text                                                    │
-│  Output: TextChunk[]                                                         │
-│                                                                              │
+│                         STAGE 1: CHUNKING                                   │
+│                                                                             │
+│  Input: Raw document text                                                   │
+│  Output: TextChunk[]                                                        │
+│                                                                             │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │  "Marie Curie was a Polish-French physicist who discovered radium.   │   │
 │  │   She won two Nobel Prizes..."                                       │   │
@@ -107,71 +107,71 @@ EdgeQuake has two main data flows:
 │  │   ──▶ Chunk size: 1,200 tokens                                       │   │
 │  │   ──▶ Overlap: 100 tokens                                            │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
-│                                       │                                      │
-│                                       ▼                                      │
+│                                       │                                     │
+│                                       ▼                                     │
 │  ┌────────────────────────┐  ┌────────────────────────┐                     │
 │  │ Chunk 1 (1,200 tokens) │  │ Chunk 2 (400 tokens)   │                     │
 │  │ "Marie Curie was a..." │  │ "...Nobel Prizes..."   │                     │
 │  └────────────────────────┘  └────────────────────────┘                     │
-│                                                                              │
-│  Config: chunk_token_size=1200, overlap=100                                  │
-│  Business Rule: BR0002 (chunk size limits)                                   │
-│                                                                              │
+│                                                                             │
+│  Config: chunk_token_size=1200, overlap=100                                 │
+│  Business Rule: BR0002 (chunk size limits)                                  │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         STAGE 2: ENTITY EXTRACTION                           │
-│                                                                              │
-│  Input: TextChunk[]                                                          │
-│  Output: ExtractedEntity[], ExtractedRelationship[]                          │
-│                                                                              │
+│                         STAGE 2: ENTITY EXTRACTION                          │
+│                                                                             │
+│  Input: TextChunk[]                                                         │
+│  Output: ExtractedEntity[], ExtractedRelationship[]                         │
+│                                                                             │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │  LLM Prompt:                                                          │   │
-│  │  "Extract entities from the following text. Entity types:             │   │
-│  │   PERSON, ORGANIZATION, LOCATION, EVENT, CONCEPT, TECHNOLOGY, PRODUCT │   │
-│  │                                                                       │   │
+│  │  LLM Prompt:                                                         │   │
+│  │  "Extract entities from the following text. Entity types:            │   │
+│  │   PERSON, ORGANIZATION, LOCATION, EVENT, CONCEPT, TECHNOLOGY, PRODUCT│   │
+│  │                                                                      │   │
 │  │   Text: 'Marie Curie was a Polish-French physicist...'               │   │
-│  │                                                                       │   │
-│  │   Output format: (entity_name; entity_type; description)"             │   │
+│  │                                                                      │   │
+│  │   Output format: (entity_name; entity_type; description)"            │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
-│                                       │                                      │
-│                                       ▼                                      │
+│                                       │                                     │
+│                                       ▼                                     │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Extracted Entities:                                                 │    │
+│  │  Extracted Entities:                                                │    │
 │  │  ┌────────────────────────────────────────────────────────────────┐ │    │
-│  │  │ name: MARIE_CURIE                                               │ │    │
-│  │  │ type: PERSON                                                    │ │    │
-│  │  │ description: Polish-French physicist, chemist, Nobel laureate   │ │    │
+│  │  │ name: MARIE_CURIE                                              │ │    │
+│  │  │ type: PERSON                                                   │ │    │
+│  │  │ description: Polish-French physicist, chemist, Nobel laureate  │ │    │
 │  │  └────────────────────────────────────────────────────────────────┘ │    │
 │  │  ┌────────────────────────────────────────────────────────────────┐ │    │
-│  │  │ name: RADIUM                                                    │ │    │
-│  │  │ type: CONCEPT                                                   │ │    │
+│  │  │ name: RADIUM                                                   │ │    │
+│  │  │ type: CONCEPT                                                  │ │    │
 │  │  │ description: Radioactive element discovered by Marie Curie     │ │    │
 │  │  └────────────────────────────────────────────────────────────────┘ │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│  Business Rules: BR0003 (entity types), BR0005 (desc max 512 tokens)         │
-│                  BR0008 (UPPERCASE_UNDERSCORE names)                         │
-│                                                                              │
+│                                                                             │
+│  Business Rules: BR0003 (entity types), BR0005 (desc max 512 tokens)        │
+│                  BR0008 (UPPERCASE_UNDERSCORE names)                        │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         STAGE 3: RELATIONSHIP EXTRACTION                     │
-│                                                                              │
-│  Input: Entities + Text context                                              │
-│  Output: ExtractedRelationship[]                                             │
-│                                                                              │
+│                         STAGE 3: RELATIONSHIP EXTRACTION                    │
+│                                                                             │
+│  Input: Entities + Text context                                             │
+│  Output: ExtractedRelationship[]                                            │
+│                                                                             │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │  LLM Prompt:                                                          │   │
-│  │  "Given entities: MARIE_CURIE, RADIUM, NOBEL_PRIZE                    │   │
-│  │   Extract relationships between them.                                 │   │
-│  │                                                                       │   │
-│  │   Format: (source; target; keywords; description)"                    │   │
+│  │  LLM Prompt:                                                         │   │
+│  │  "Given entities: MARIE_CURIE, RADIUM, NOBEL_PRIZE                   │   │
+│  │   Extract relationships between them.                                │   │
+│  │                                                                      │   │
+│  │   Format: (source; target; keywords; description)"                   │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
-│                                       │                                      │
-│                                       ▼                                      │
+│                                       │                                     │
+│                                       ▼                                     │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Extracted Relationships:                                            │    │
+│  │  Extracted Relationships:                                           │    │
 │  │  ┌────────────────────────────────────────────────────────────────┐ │    │
 │  │  │ source: MARIE_CURIE                                            │ │    │
 │  │  │ target: RADIUM                                                 │ │    │
@@ -179,49 +179,49 @@ EdgeQuake has two main data flows:
 │  │  │ description: Marie Curie discovered radium in 1898             │ │    │
 │  │  └────────────────────────────────────────────────────────────────┘ │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│  Business Rules: BR0004 (max 5 keywords), BR0006 (no self-relationships)     │
-│                                                                              │
+│                                                                             │
+│  Business Rules: BR0004 (max 5 keywords), BR0006 (no self-relationships)    │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         STAGE 4: EMBEDDING GENERATION                        │
-│                                                                              │
-│  Input: Chunks + Entities + Relationships                                    │
-│  Output: Vector embeddings (1536 dimensions for OpenAI)                      │
-│                                                                              │
+│                         STAGE 4: EMBEDDING GENERATION                       │
+│                                                                             │
+│  Input: Chunks + Entities + Relationships                                   │
+│  Output: Vector embeddings (1536 dimensions for OpenAI)                     │
+│                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                                                                      │    │
-│  │   Text: "Marie Curie discovered radium"                              │    │
-│  │                    │                                                 │    │
-│  │                    ▼                                                 │    │
+│  │                                                                     │    │
+│  │   Text: "Marie Curie discovered radium"                             │    │
+│  │                    │                                                │    │
+│  │                    ▼                                                │    │
 │  │   ┌──────────────────────────────────────────────────────────────┐  │    │
-│  │   │ EmbeddingProvider.embed(text)                                 │  │    │
-│  │   │                                                               │  │    │
-│  │   │ Result: [0.023, -0.041, 0.089, ..., 0.012]  (1536 dims)       │  │    │
+│  │   │ EmbeddingProvider.embed(text)                                │  │    │
+│  │   │                                                              │  │    │
+│  │   │ Result: [0.023, -0.041, 0.089, ..., 0.012]  (1536 dims)      │  │    │
 │  │   └──────────────────────────────────────────────────────────────┘  │    │
-│  │                                                                      │    │
+│  │                                                                     │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│  Batch Processing: embedding_batch_size (default: 100)                       │
-│  Business Rule: BR0010 (embedding dimension validated)                       │
-│                                                                              │
+│                                                                             │
+│  Batch Processing: embedding_batch_size (default: 100)                      │
+│  Business Rule: BR0010 (embedding dimension validated)                      │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         STAGE 5: MERGE & DEDUPLICATION                       │
-│                                                                              │
-│  Input: Raw entities/relationships                                           │
-│  Output: Merged, deduplicated knowledge graph                                │
-│                                                                              │
+│                         STAGE 5: MERGE & DEDUPLICATION                      │
+│                                                                             │
+│  Input: Raw entities/relationships                                          │
+│  Output: Merged, deduplicated knowledge graph                               │
+│                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Before Merge:                                                       │    │
+│  │  Before Merge:                                                      │    │
 │  │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐            │    │
 │  │  │ MARIE_CURIE   │  │ Marie Curie   │  │ Curie         │            │    │
 │  │  │ (from chunk 1)│  │ (from chunk 2)│  │ (from chunk 3)│            │    │
 │  │  └───────────────┘  └───────────────┘  └───────────────┘            │    │
-│  │                                                                      │    │
-│  │  After Merge:                                                        │    │
+│  │                                                                     │    │
+│  │  After Merge:                                                       │    │
 │  │  ┌───────────────────────────────────────────────────────┐          │    │
 │  │  │ MARIE_CURIE                                           │          │    │
 │  │  │ description: Polish-French physicist and chemist who  │          │    │
@@ -230,20 +230,20 @@ EdgeQuake has two main data flows:
 │  │  │ source_chunks: [chunk_1, chunk_2, chunk_3]            │          │    │
 │  │  └───────────────────────────────────────────────────────┘          │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│  Strategies: Embedding similarity, LLM-based summarization                   │
-│  Deduplication: 20-40% reduction typical                                     │
-│                                                                              │
+│                                                                             │
+│  Strategies: Embedding similarity, LLM-based summarization                  │
+│  Deduplication: 20-40% reduction typical                                    │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         STAGE 6: STORAGE                                     │
-│                                                                              │
-│  Input: Merged entities, relationships, chunks, vectors                      │
-│  Output: Persisted data in 3 storage types                                   │
-│                                                                              │
+│                         STAGE 6: STORAGE                                    │
+│                                                                             │
+│  Input: Merged entities, relationships, chunks, vectors                     │
+│  Output: Persisted data in 3 storage types                                  │
+│                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                                                                      │    │
+│  │                                                                     │    │
 │  │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐              │    │
 │  │  │  KVStorage  │    │VectorStorage│    │GraphStorage │              │    │
 │  │  │             │    │             │    │             │              │    │
@@ -253,12 +253,12 @@ EdgeQuake has two main data flows:
 │  │  │             │    │  Entity     │    │   Edges     │              │    │
 │  │  │             │    │  Vectors    │    │  (relations)│              │    │
 │  │  └─────────────┘    └─────────────┘    └─────────────┘              │    │
-│  │                                                                      │    │
+│  │                                                                     │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│  Multi-tenancy: namespace-based isolation (tenant_id, workspace_id)          │
-│  Business Rule: BR0201 (tenant isolation)                                    │
-│                                                                              │
+│                                                                             │
+│  Multi-tenancy: namespace-based isolation (tenant_id, workspace_id)         │
+│  Business Rule: BR0201 (tenant isolation)                                   │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -283,7 +283,7 @@ EdgeQuake has two main data flows:
                           │                         │
                           ▼                         ▼
                    ┌─────────────┐          ┌─────────────┐
-                   │ mode=bypass?│──Yes───▶│ Direct LLM  │
+                   │ mode=bypass?│──Yes───▶ │ Direct LLM  │
                    └──────┬──────┘          └──────┬──────┘
                           │ No                     │
                           ▼                        │
@@ -342,7 +342,7 @@ EdgeQuake has two main data flows:
 ### Retrieval Detail by Mode
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────────┐
 │                         NAIVE MODE                                           │
 │                                                                              │
 │  Query: "What is radium?"                                                    │
@@ -353,15 +353,15 @@ EdgeQuake has two main data flows:
 │                                                                              │
 │  ┌─────────────┐                                                             │
 │  │   Query     │                                                             │
-│  │   Vector    │──▶ Similarity Search ──▶ [Chunk 1, Chunk 3, Chunk 7]       │
+│  │   Vector    │──▶ Similarity Search ──▶ [Chunk 1, Chunk 3, Chunk 7]        │
 │  └─────────────┘    (cosine distance)                                        │
 │                                                                              │
 │  Pro: Fast, simple                                                           │
 │  Con: Misses related context not in similar chunks                           │
 │                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────────┐
 │                         LOCAL MODE                                           │
 │                                                                              │
 │  Query: "Who discovered radium?"                                             │
@@ -385,9 +385,9 @@ EdgeQuake has two main data flows:
 │  Pro: Entity-focused, relationship-aware                                     │
 │  Con: May miss global patterns                                               │
 │                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────────┐
 │                         GLOBAL MODE                                          │
 │                                                                              │
 │  Query: "Summarize early 20th century physics"                               │
@@ -397,26 +397,26 @@ EdgeQuake has two main data flows:
 │  3. Aggregate community-level summaries                                      │
 │                                                                              │
 │  ┌──────────────────────────────────────────────────┐                        │
-│  │              Community: Physics Pioneers          │                        │
-│  │  ┌────────┐  ┌────────┐  ┌────────┐             │                        │
-│  │  │ CURIE  │──│EINSTEIN│──│PLANCK  │             │                        │
-│  │  └────────┘  └────────┘  └────────┘             │                        │
-│  │       │           │           │                 │                        │
-│  │       ▼           ▼           ▼                 │                        │
-│  │  ┌─────────────────────────────────────────┐   │                        │
-│  │  │ Community Summary: "Early 20th century  │   │                        │
-│  │  │ physics was defined by discoveries in   │   │                        │
-│  │  │ radioactivity, relativity, and quantum  │   │                        │
-│  │  │ mechanics..."                           │   │                        │
-│  │  └─────────────────────────────────────────┘   │                        │
+│  │              Community: Physics Pioneers         │                        │
+│  │  ┌────────┐  ┌────────┐  ┌────────┐              │                        │
+│  │  │ CURIE  │──│EINSTEIN│──│PLANCK  │              │                        │
+│  │  └────────┘  └────────┘  └────────┘              │                        │
+│  │       │           │           │                  │                        │
+│  │       ▼           ▼           ▼                  │                        │
+│  │  ┌─────────────────────────────────────────┐     │                        │
+│  │  │ Community Summary: "Early 20th century  │     │                        │
+│  │  │ physics was defined by discoveries in   │     │                        │
+│  │  │ radioactivity, relativity, and quantum  │     │                        │
+│  │  │ mechanics..."                           │     │                        │
+│  │  └─────────────────────────────────────────┘     │                        │
 │  └──────────────────────────────────────────────────┘                        │
 │                                                                              │
 │  Pro: Big picture, thematic understanding                                    │
 │  Con: May miss specific details                                              │
 │                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────────┐
 │                         HYBRID MODE (Default)                                │
 │                                                                              │
 │  Combines Local + Global for balanced retrieval                              │
@@ -442,7 +442,7 @@ EdgeQuake has two main data flows:
 │  Pro: Best of both worlds                                                    │
 │  Con: More compute                                                           │
 │                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -453,11 +453,11 @@ After retrieval, context is assembled and truncated to fit LLM limits:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                     CONTEXT ASSEMBLY                                         │
-│                                                                              │
+│                     CONTEXT ASSEMBLY                                        │
+│                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │ Token Budget Allocation (example: 8000 tokens max)                   │    │
-│  │                                                                      │    │
+│  │ Token Budget Allocation (example: 8000 tokens max)                  │    │
+│  │                                                                     │    │
 │  │  ┌────────────────────────────────────────────────────────────────┐ │    │
 │  │  │ System Prompt                                            500   │ │    │
 │  │  ├────────────────────────────────────────────────────────────────┤ │    │
@@ -471,14 +471,14 @@ After retrieval, context is assembled and truncated to fit LLM limits:
 │  │  ├────────────────────────────────────────────────────────────────┤ │    │
 │  │  │ Reserved for Response                                    500   │ │    │
 │  │  └────────────────────────────────────────────────────────────────┘ │    │
-│  │                                                    Total: 8000     │    │
+│  │                                                    Total: 8000      │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│  Truncation Strategy:                                                        │
-│  - Sort by relevance score                                                   │
-│  - Truncate from end of each section                                         │
-│  - Maintain minimum entity/relationship coverage                             │
-│                                                                              │
+│                                                                             │
+│  Truncation Strategy:                                                       │
+│  - Sort by relevance score                                                  │
+│  - Truncate from end of each section                                        │
+│  - Maintain minimum entity/relationship coverage                            │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -488,41 +488,41 @@ After retrieval, context is assembled and truncated to fit LLM limits:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                     ERROR HANDLING                                           │
-│                                                                              │
+│                     ERROR HANDLING                                          │
+│                                                                             │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │                          API Layer                                     │  │
-│  │                                                                        │  │
+│  │                          API Layer                                    │  │
+│  │                                                                       │  │
 │  │  Request ──▶ Validation ──▶ Handler ──▶ Response                      │  │
-│  │                 │              │                                       │  │
-│  │                 ▼              ▼                                       │  │
-│  │            ValidationError  ServiceError                               │  │
-│  │                 │              │                                       │  │
-│  │                 └──────┬───────┘                                       │  │
-│  │                        ▼                                               │  │
-│  │                 ┌───────────────┐                                      │  │
-│  │                 │ Error Handler │                                      │  │
-│  │                 │  (RFC 7807)   │                                      │  │
-│  │                 └───────┬───────┘                                      │  │
-│  │                         ▼                                              │  │
-│  │                 ┌───────────────┐                                      │  │
-│  │                 │ JSON Response │                                      │  │
-│  │                 │ {             │                                      │  │
-│  │                 │   "type": "...",│                                    │  │
-│  │                 │   "title": "...",│                                   │  │
-│  │                 │   "status": 400,│                                    │  │
-│  │                 │   "detail": "..."│                                   │  │
-│  │                 │ }             │                                      │  │
-│  │                 └───────────────┘                                      │  │
+│  │                 │              │                                      │  │
+│  │                 ▼              ▼                                      │  │
+│  │            ValidationError  ServiceError                              │  │
+│  │                 │              │                                      │  │
+│  │                 └──────┬───────┘                                      │  │
+│  │                        ▼                                              │  │
+│  │                 ┌───────────────┐                                     │  │
+│  │                 │ Error Handler │                                     │  │
+│  │                 │  (RFC 7807)   │                                     │  │
+│  │                 └───────┬───────┘                                     │  │
+│  │                         ▼                                             │  │
+│  │                 ┌───────────────┐                                     │  │
+│  │                 │ JSON Response │                                     │  │
+│  │                 │ {             │                                     │  │
+│  │                 │   "type": "...",│                                   │  │
+│  │                 │   "title": "...",│                                  │  │
+│  │                 │   "status": 400,│                                   │  │
+│  │                 │   "detail": "..."│                                  │  │
+│  │                 │ }             │                                     │  │
+│  │                 └───────────────┘                                     │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
-│  Error Categories:                                                           │
-│  - 400: Validation errors (bad input)                                        │
-│  - 401: Authentication required                                              │
-│  - 404: Resource not found                                                   │
-│  - 429: Rate limit exceeded                                                  │
-│  - 500: Internal server error                                                │
-│                                                                              │
+│                                                                             │
+│  Error Categories:                                                          │
+│  - 400: Validation errors (bad input)                                       │
+│  - 401: Authentication required                                             │
+│  - 404: Resource not found                                                  │
+│  - 429: Rate limit exceeded                                                 │
+│  - 500: Internal server error                                               │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
