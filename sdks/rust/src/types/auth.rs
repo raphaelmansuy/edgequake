@@ -85,4 +85,29 @@ pub struct TenantInfo {
     pub name: String,
     #[serde(default)]
     pub slug: Option<String>,
+    #[serde(default)]
+    pub plan: Option<String>,
+    #[serde(default)]
+    pub is_active: Option<bool>,
+}
+
+/// Tenant list response from GET /api/v1/tenants.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TenantListResponse {
+    #[serde(default)]
+    pub items: Vec<TenantInfo>,
+}
+
+/// User list response from GET /api/v1/users.
+#[derive(Debug, Clone, Deserialize)]
+pub struct UserListResponse {
+    #[serde(default)]
+    pub users: Vec<UserInfo>,
+}
+
+/// API key list response from GET /api/v1/api-keys.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ApiKeyListResponse {
+    #[serde(default)]
+    pub keys: Vec<ApiKeyInfo>,
 }

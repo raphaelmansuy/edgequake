@@ -198,7 +198,7 @@ mod tests {
     async fn test_graph_search() {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path_regex("/api/v1/graph/search.*"))
+            .and(path_regex("/api/v1/graph/nodes/search.*"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "nodes":[{"id":"n1","label":"Alice"}],"edges":[],"total_matches":1
             })))
@@ -216,47 +216,51 @@ mod tests {
     async fn test_entities_list() {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/api/v1/entities"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"name":"Alice","entity_type":"person"}
-            ])))
+            .and(path("/api/v1/graph/entities"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items":[{"id":"ALICE","entity_name":"ALICE","entity_type":"person"}],
+                "total":1,"page":1,"page_size":20,"total_pages":1
+            })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
-        let entities = client.entities().list().await.unwrap();
-        assert_eq!(entities.len(), 1);
-        assert_eq!(entities[0].name, "Alice");
+        let resp = client.entities().list().await.unwrap();
+        assert_eq!(resp.items.len(), 1);
+        assert_eq!(resp.items[0].entity_name, "ALICE");
+        assert_eq!(resp.total, 1);
     }
 
     #[tokio::test]
     async fn test_entities_create() {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/api/v1/entities"))
+            .and(path("/api/v1/graph/entities"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
-                "name":"Bob","entity_type":"person","description":"A person"
+                "status":"success","message":"Entity created successfully",
+                "entity":{"id":"BOB","entity_name":"BOB","entity_type":"person","description":"A person","source_id":"manual"}
             })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
         let req = types::graph::CreateEntityRequest {
-            name: "Bob".into(),
+            entity_name: "BOB".into(),
             entity_type: "person".into(),
-            description: Some("A person".into()),
-            properties: None,
-            source_id: None,
+            description: "A person".into(),
+            source_id: "manual".into(),
+            metadata: None,
         };
-        let entity = client.entities().create(&req).await.unwrap();
-        assert_eq!(entity.name, "Bob");
+        let resp = client.entities().create(&req).await.unwrap();
+        assert_eq!(resp.status, "success");
+        assert_eq!(resp.entity.as_ref().unwrap().entity_name, "BOB");
     }
 
     #[tokio::test]
     async fn test_entities_merge() {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/api/v1/entities/merge"))
+            .and(path("/api/v1/graph/entities/merge"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "merged_count":2,"message":"merged"
             })))
@@ -272,8 +276,10 @@ mod tests {
     async fn test_entities_delete() {
         let mock_server = MockServer::start().await;
         Mock::given(method("DELETE"))
-            .and(path_regex("/api/v1/entities/.*"))
-            .respond_with(ResponseTemplate::new(204))
+            .and(path_regex("/api/v1/graph/entities/.*"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "status":"success","message":"Entity deleted"
+            })))
             .mount(&mock_server)
             .await;
 
@@ -287,23 +293,25 @@ mod tests {
     async fn test_relationships_list() {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/api/v1/relationships"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"source":"Alice","target":"Bob","relationship_type":"knows"}
-            ])))
+            .and(path("/api/v1/graph/relationships"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items":[{"source":"Alice","target":"Bob","relationship_type":"knows"}],
+                "total":1,"page":1,"page_size":20,"total_pages":1
+            })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
-        let rels = client.relationships().list().await.unwrap();
-        assert_eq!(rels.len(), 1);
+        let resp = client.relationships().list().await.unwrap();
+        assert_eq!(resp.items.len(), 1);
+        assert_eq!(resp.total, 1);
     }
 
     #[tokio::test]
     async fn test_relationships_create() {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/api/v1/relationships"))
+            .and(path("/api/v1/graph/relationships"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "source":"Alice","target":"Bob","relationship_type":"knows"
             })))
@@ -478,16 +486,16 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/v1/tenants"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"id":"t1","name":"Acme"}
-            ])))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items":[{"id":"t1","name":"Acme","slug":"acme","plan":"free"}]
+            })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
-        let tenants = client.tenants().list().await.unwrap();
-        assert_eq!(tenants.len(), 1);
-        assert_eq!(tenants[0].name, "Acme");
+        let resp = client.tenants().list().await.unwrap();
+        assert_eq!(resp.items.len(), 1);
+        assert_eq!(resp.items[0].name, "Acme");
     }
 
     #[tokio::test]
@@ -572,7 +580,7 @@ mod tests {
     async fn test_conversations_bulk_delete() {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/api/v1/conversations/bulk-delete"))
+            .and(path("/api/v1/conversations/bulk/delete"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "deleted_count": 3
             })))
@@ -647,21 +655,22 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/api/v1/pipeline/status"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "status":"running","active_tasks":2,"queued_tasks":5,"completed_tasks":100,"failed_tasks":3
+                "is_busy":true,"pending_tasks":5,"processing_tasks":2,"completed_tasks":100,"failed_tasks":3
             })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
         let r = client.pipeline().status().await.unwrap();
-        assert_eq!(r.active_tasks, 2);
+        assert!(r.is_busy);
+        assert_eq!(r.processing_tasks, 2);
     }
 
     #[tokio::test]
     async fn test_pipeline_metrics() {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/api/v1/pipeline/metrics"))
+            .and(path("/api/v1/pipeline/queue-metrics"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "queue_depth":10,"processing":2,"completed_last_hour":50,"failed_last_hour":1
             })))
@@ -737,16 +746,17 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/v1/models"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"name":"gpt-4","provider":"openai","is_available":true}
-            ])))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "providers":[{"name":"openai","display_name":"OpenAI","models":[{"name":"gpt-4","is_available":true}]}]
+            })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
-        let models = client.models().list().await.unwrap();
-        assert_eq!(models.len(), 1);
-        assert_eq!(models[0].name, "gpt-4");
+        let catalog = client.models().list().await.unwrap();
+        assert_eq!(catalog.providers.len(), 1);
+        assert_eq!(catalog.providers[0].name, "openai");
+        assert_eq!(catalog.providers[0].models.len(), 1);
     }
 
     #[tokio::test]
@@ -826,7 +836,7 @@ mod tests {
     async fn test_pdf_progress() {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/api/v1/pdf/doc-1/progress"))
+            .and(path("/api/v1/documents/pdf/progress/doc-1"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "track_id":"trk-1","status":"processing","progress":0.5
             })))
@@ -842,7 +852,7 @@ mod tests {
     async fn test_pdf_content() {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/api/v1/pdf/doc-1/content"))
+            .and(path("/api/v1/documents/pdf/doc-1/content"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "id":"doc-1","markdown":"# Hello\nWorld"
             })))
@@ -896,20 +906,20 @@ mod tests {
     async fn test_error_validation() {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/api/v1/entities"))
+            .and(path("/api/v1/graph/entities"))
             .respond_with(ResponseTemplate::new(422).set_body_json(json!({
-                "error":"validation error","details":"name is required"
+                "error":"validation error","details":"entity_name is required"
             })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
         let req = types::graph::CreateEntityRequest {
-            name: String::new(),
+            entity_name: String::new(),
             entity_type: "person".into(),
-            description: None,
-            properties: None,
-            source_id: None,
+            description: "test".into(),
+            source_id: "manual".into(),
+            metadata: None,
         };
         let result = client.entities().create(&req).await;
         assert!(result.is_err());
@@ -949,16 +959,20 @@ mod tests {
     #[test]
     fn test_entity_roundtrip() {
         let e = types::graph::Entity {
-            name: "ALICE".into(),
+            id: "ALICE".into(),
+            entity_name: "ALICE".into(),
             entity_type: Some("person".into()),
             description: Some("A character".into()),
+            source_id: None,
             properties: None,
             degree: Some(5),
             created_at: None,
+            updated_at: None,
+            metadata: None,
         };
         let json = serde_json::to_string(&e).unwrap();
         let e2: types::graph::Entity = serde_json::from_str(&json).unwrap();
-        assert_eq!(e2.name, "ALICE");
+        assert_eq!(e2.entity_name, "ALICE");
         assert_eq!(e2.degree, Some(5));
     }
 }

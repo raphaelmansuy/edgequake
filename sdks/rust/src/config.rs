@@ -27,8 +27,7 @@ impl Default for ClientConfig {
 }
 
 /// Authentication method.
-#[derive(Clone, Debug)]
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub enum Auth {
     /// No authentication.
     #[default]
@@ -38,7 +37,6 @@ pub enum Auth {
     /// JWT bearer token.
     Bearer(String),
 }
-
 
 /// Multi-tenant context.
 #[derive(Clone, Debug, Default)]

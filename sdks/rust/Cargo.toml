@@ -10,7 +10,12 @@ keywords = ["rag", "knowledge-graph", "llm", "edgequake"]
 categories = ["api-bindings", "web-programming::http-client"]
 
 [dependencies]
-reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "multipart", "rustls"] }
+reqwest = { version = "0.13", default-features = false, features = [
+    "json",
+    "stream",
+    "multipart",
+    "rustls",
+] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -30,3 +35,4 @@ serde_json = "1"
 [features]
 default = ["stream"]
 stream = ["dep:reqwest-eventsource"]
+e2e = []

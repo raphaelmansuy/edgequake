@@ -77,11 +77,11 @@ impl<'a> ConversationsResource<'a> {
             .await
     }
 
-    /// `POST /api/v1/conversations/bulk-delete`
+    /// `POST /api/v1/conversations/bulk/delete`
     pub async fn bulk_delete(&self, ids: &[String]) -> Result<BulkDeleteResponse> {
         let body = serde_json::json!({ "ids": ids });
         self.client
-            .post("/api/v1/conversations/bulk-delete", Some(&body))
+            .post("/api/v1/conversations/bulk/delete", Some(&body))
             .await
     }
 }

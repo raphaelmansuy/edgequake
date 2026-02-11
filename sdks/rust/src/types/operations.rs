@@ -10,7 +10,7 @@ pub struct TaskInfo {
     pub track_id: String,
     pub status: String,
     #[serde(default)]
-    pub progress: Option<f64>,
+    pub progress: Option<TaskProgress>,
     #[serde(default)]
     pub message: Option<String>,
     #[serde(default)]
@@ -21,6 +21,17 @@ pub struct TaskInfo {
     pub created_at: Option<String>,
     #[serde(default)]
     pub error: Option<String>,
+}
+
+/// Task progress detail.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TaskProgress {
+    #[serde(default)]
+    pub current_step: Option<String>,
+    #[serde(default)]
+    pub percent_complete: Option<f64>,
+    #[serde(default)]
+    pub total_steps: Option<u32>,
 }
 
 /// Task list response.
@@ -37,11 +48,22 @@ pub struct TaskListResponse {
 /// Pipeline status.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PipelineStatus {
-    pub status: String,
     #[serde(default)]
-    pub active_tasks: u32,
+    pub is_busy: bool,
     #[serde(default)]
-    pub queued_tasks: u32,
+    pub total_documents: u32,
+    #[serde(default)]
+    pub processed_documents: u32,
+    #[serde(default)]
+    pub current_batch: u32,
+    #[serde(default)]
+    pub total_batches: u32,
+    #[serde(default)]
+    pub cancellation_requested: bool,
+    #[serde(default)]
+    pub pending_tasks: u32,
+    #[serde(default)]
+    pub processing_tasks: u32,
     #[serde(default)]
     pub completed_tasks: u32,
     #[serde(default)]
@@ -197,22 +219,50 @@ pub struct ModelInfo {
     pub model_type: Option<String>,
     #[serde(default)]
     pub is_available: bool,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub deprecated: Option<bool>,
 }
 
-/// Providers health.
+/// Provider info with models (returned by GET /api/v1/models).
 #[derive(Debug, Clone, Deserialize)]
-pub struct ProvidersHealth {
+pub struct ProviderInfo {
+    pub name: String,
     #[serde(default)]
-    pub providers: Vec<ProviderHealthInfo>,
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub models: Vec<ModelInfo>,
 }
+
+/// Provider catalog response from GET /api/v1/models.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProviderCatalog {
+    #[serde(default)]
+    pub providers: Vec<ProviderInfo>,
+}
+
+/// Providers health (bare array from GET /api/v1/models/health).
+/// The response is `Vec<ProviderHealthInfo>`.
 
 /// Health info for a provider.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProviderHealthInfo {
     pub name: String,
-    pub status: String,
     #[serde(default)]
-    pub latency_ms: Option<f64>,
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub provider_type: Option<String>,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub priority: Option<u32>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub models: Vec<ModelInfo>,
     #[serde(default)]
     pub error: Option<String>,
 }

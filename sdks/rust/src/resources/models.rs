@@ -1,4 +1,6 @@
 //! Models resource.
+//!
+//! WHY: Models endpoints verified against routes.rs.
 
 use crate::client::EdgeQuakeClient;
 use crate::error::Result;
@@ -9,19 +11,19 @@ pub struct ModelsResource<'a> {
 }
 
 impl<'a> ModelsResource<'a> {
-    /// `GET /api/v1/models`
-    pub async fn list(&self) -> Result<Vec<ModelInfo>> {
+    /// `GET /api/v1/models` — returns provider catalog.
+    pub async fn list(&self) -> Result<ProviderCatalog> {
         self.client.get("/api/v1/models").await
     }
 
-    /// `GET /api/v1/models/providers/health`
-    pub async fn providers_health(&self) -> Result<ProvidersHealth> {
-        self.client.get("/api/v1/models/providers/health").await
+    /// `GET /api/v1/models/health` — returns bare array of provider health.
+    pub async fn providers_health(&self) -> Result<Vec<ProviderHealthInfo>> {
+        self.client.get("/api/v1/models/health").await
     }
 
-    /// `GET /api/v1/settings/provider`
+    /// `GET /api/v1/settings/provider/status`
     pub async fn current_provider(&self) -> Result<ProviderStatus> {
-        self.client.get("/api/v1/settings/provider").await
+        self.client.get("/api/v1/settings/provider/status").await
     }
 
     /// `PUT /api/v1/settings/provider`

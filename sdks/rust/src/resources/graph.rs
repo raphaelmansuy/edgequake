@@ -14,10 +14,13 @@ impl<'a> GraphResource<'a> {
         self.client.get("/api/v1/graph").await
     }
 
-    /// `GET /api/v1/graph/search?q=…`
+    /// `GET /api/v1/graph/nodes/search?q=…`
     pub async fn search(&self, query: &str) -> Result<SearchNodesResponse> {
         self.client
-            .get(&format!("/api/v1/graph/search?q={}", urlencoding::encode(query)))
+            .get(&format!(
+                "/api/v1/graph/nodes/search?q={}",
+                urlencoding::encode(query)
+            ))
             .await
     }
 }

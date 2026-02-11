@@ -58,30 +58,93 @@ pub struct SearchNodesResponse {
 /// Entity.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Entity {
-    pub name: String,
+    pub id: String,
+    #[serde(default)]
+    pub entity_name: String,
     #[serde(default)]
     pub entity_type: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub source_id: Option<String>,
     #[serde(default)]
     pub properties: Option<HashMap<String, serde_json::Value>>,
     #[serde(default)]
     pub degree: Option<u32>,
     #[serde(default)]
     pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Paginated entity list response.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EntityListResponse {
+    #[serde(default)]
+    pub items: Vec<Entity>,
+    #[serde(default)]
+    pub total: u32,
+    #[serde(default)]
+    pub page: u32,
+    #[serde(default)]
+    pub page_size: u32,
+    #[serde(default)]
+    pub total_pages: u32,
+}
+
+/// Entity detail response from GET /api/v1/graph/entities/{name}.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EntityDetailResponse {
+    pub entity: Entity,
+    #[serde(default)]
+    pub relationships: Option<EntityRelationships>,
+    #[serde(default)]
+    pub statistics: Option<EntityStatistics>,
+}
+
+/// Relationships wrapper in entity detail response.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EntityRelationships {
+    #[serde(default)]
+    pub outgoing: Vec<Relationship>,
+    #[serde(default)]
+    pub incoming: Vec<Relationship>,
+}
+
+/// Statistics wrapper in entity detail response.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EntityStatistics {
+    #[serde(default)]
+    pub total_relationships: u32,
+    #[serde(default)]
+    pub outgoing_count: u32,
+    #[serde(default)]
+    pub incoming_count: u32,
+    #[serde(default)]
+    pub document_references: u32,
 }
 
 /// Request to create an entity.
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateEntityRequest {
-    pub name: String,
+    pub entity_name: String,
     pub entity_type: String,
+    pub description: String,
+    pub source_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub properties: Option<HashMap<String, serde_json::Value>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_id: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Response from POST /api/v1/graph/entities.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateEntityResponse {
+    pub status: String,
+    #[serde(default)]
+    pub message: Option<String>,
+    #[serde(default)]
+    pub entity: Option<Entity>,
 }
 
 /// Entity exists check.
@@ -89,7 +152,11 @@ pub struct CreateEntityRequest {
 pub struct EntityExistsResponse {
     pub exists: bool,
     #[serde(default)]
-    pub entity_name: Option<String>,
+    pub entity_id: Option<String>,
+    #[serde(default)]
+    pub entity_type: Option<String>,
+    #[serde(default)]
+    pub degree: Option<u32>,
 }
 
 /// Merge entities response.
@@ -106,8 +173,8 @@ pub struct MergeEntitiesResponse {
 /// Merge entities request.
 #[derive(Debug, Clone, Serialize)]
 pub struct MergeEntitiesRequest {
-    pub source: String,
-    pub target: String,
+    pub source_entity: String,
+    pub target_entity: String,
 }
 
 /// Neighborhood response.
@@ -161,4 +228,19 @@ pub struct CreateRelationshipRequest {
 pub struct DegreesBatchResponse {
     #[serde(default)]
     pub degrees: HashMap<String, u32>,
+}
+
+/// Paginated relationship list response.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RelationshipListResponse {
+    #[serde(default)]
+    pub items: Vec<Relationship>,
+    #[serde(default)]
+    pub total: u32,
+    #[serde(default)]
+    pub page: u32,
+    #[serde(default)]
+    pub page_size: u32,
+    #[serde(default)]
+    pub total_pages: u32,
 }

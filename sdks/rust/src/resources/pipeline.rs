@@ -14,8 +14,8 @@ impl<'a> PipelineResource<'a> {
         self.client.get("/api/v1/pipeline/status").await
     }
 
-    /// `GET /api/v1/pipeline/metrics`
+    /// `GET /api/v1/pipeline/queue-metrics`
     pub async fn metrics(&self) -> Result<QueueMetrics> {
-        self.client.get("/api/v1/pipeline/metrics").await
+        self.client.get("/api/v1/pipeline/queue-metrics").await
     }
 }

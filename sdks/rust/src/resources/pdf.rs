@@ -1,4 +1,6 @@
 //! PDF resource.
+//!
+//! WHY: PDF endpoints live under /api/v1/documents/pdf/ per routes.rs.
 
 use crate::client::EdgeQuakeClient;
 use crate::error::Result;
@@ -9,17 +11,17 @@ pub struct PdfResource<'a> {
 }
 
 impl<'a> PdfResource<'a> {
-    /// `GET /api/v1/pdf/{id}/progress`
-    pub async fn progress(&self, id: &str) -> Result<PdfProgressResponse> {
+    /// `GET /api/v1/documents/pdf/progress/{track_id}`
+    pub async fn progress(&self, track_id: &str) -> Result<PdfProgressResponse> {
         self.client
-            .get(&format!("/api/v1/pdf/{id}/progress"))
+            .get(&format!("/api/v1/documents/pdf/progress/{track_id}"))
             .await
     }
 
-    /// `GET /api/v1/pdf/{id}/content`
-    pub async fn content(&self, id: &str) -> Result<PdfContentResponse> {
+    /// `GET /api/v1/documents/pdf/{pdf_id}/content`
+    pub async fn content(&self, pdf_id: &str) -> Result<PdfContentResponse> {
         self.client
-            .get(&format!("/api/v1/pdf/{id}/content"))
+            .get(&format!("/api/v1/documents/pdf/{pdf_id}/content"))
             .await
     }
 }

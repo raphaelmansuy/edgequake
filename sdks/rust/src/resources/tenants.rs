@@ -9,8 +9,8 @@ pub struct TenantsResource<'a> {
 }
 
 impl<'a> TenantsResource<'a> {
-    /// `GET /api/v1/tenants`
-    pub async fn list(&self) -> Result<Vec<TenantInfo>> {
+    /// `GET /api/v1/tenants` — returns wrapped list.
+    pub async fn list(&self) -> Result<TenantListResponse> {
         self.client.get("/api/v1/tenants").await
     }
 
