@@ -158,6 +158,90 @@ async fn test_upload_document_whitespace_only() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+/// Test that multipart form data is rejected on /api/v1/documents endpoint.
+///
+/// WHY: This test documents the expected behavior that users were confused about.
+/// The /api/v1/documents endpoint only accepts JSON (application/json).
+/// For file uploads, users should use /api/v1/documents/upload instead.
+///
+/// This test ensures we catch regressions if someone accidentally makes
+/// the endpoint accept multipart data, which would break API consistency.
+#[tokio::test]
+async fn test_upload_document_rejects_multipart() {
+    let app = create_test_app();
+
+    // Simulate a multipart request (what users were trying in the issue)
+    let boundary = "----TestBoundary1234567890";
+    let body = format!(
+        "--{}\r\n\
+         Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n\
+         Content-Type: text/plain\r\n\r\n\
+         Test content\r\n\
+         --{}--\r\n",
+        boundary, boundary
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents")
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={}", boundary),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // WHY: Should return 415 Unsupported Media Type
+    // The endpoint expects JSON, not multipart form data
+    // This is the correct HTTP status for wrong content-type
+    assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+}
+
+/// Test that the correct endpoint (/api/v1/documents/upload) accepts multipart.
+///
+/// WHY: This test serves as documentation showing users the correct way
+/// to upload files. If they see test failures, they can look here to
+/// understand which endpoint to use.
+#[tokio::test]
+async fn test_upload_endpoint_accepts_multipart() {
+    let app = create_test_app();
+
+    // This is the CORRECT way to upload files
+    let boundary = "----TestBoundary1234567890";
+    let body = format!(
+        "--{}\r\n\
+         Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n\
+         Content-Type: text/plain\r\n\r\n\
+         Test content about artificial intelligence\r\n\
+         --{}--\r\n",
+        boundary, boundary
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/upload")
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={}", boundary),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // WHY: Should succeed with 201 Created
+    // This is the correct endpoint for file uploads
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
+
 #[tokio::test]
 async fn test_upload_document_with_metadata() {
     let app = create_test_app();
