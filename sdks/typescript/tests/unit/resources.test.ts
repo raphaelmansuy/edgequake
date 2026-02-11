@@ -46,7 +46,9 @@ describe("AuthResource", () => {
       },
       "POST /api/v1/auth/refresh": { body: { access_token: "new-t" } },
       "POST /api/v1/auth/logout": { body: {} },
-      "GET /api/v1/auth/me": { body: { id: "u1", username: "me" } },
+      "GET /api/v1/auth/me": {
+        body: { user: { user_id: "u1", username: "me", email: "me@test.com", role: "user" } },
+      },
     });
     auth = new AuthResource(mock as unknown as HttpTransport);
   });
@@ -71,9 +73,9 @@ describe("AuthResource", () => {
   });
 
   it("me → GET /api/v1/auth/me", async () => {
-    const user = await auth.me();
+    const res = await auth.me();
     expect(mock.lastRequest?.method).toBe("GET");
-    expect(user.username).toBe("me");
+    expect(res.user.username).toBe("me");
   });
 });
 
@@ -85,24 +87,29 @@ describe("UsersResource", () => {
 
   beforeEach(() => {
     mock = createMockTransport({
-      "POST /api/v1/users": { body: { id: "u1" } },
-      "GET /api/v1/users": { body: [{ id: "u1" }] },
-      "GET /api/v1/users/u1": { body: { id: "u1" } },
+      "POST /api/v1/users": {
+        body: { user: { user_id: "u1", username: "new", email: "new@test.com", role: "user" }, created_at: "2025-01-01" },
+      },
+      "GET /api/v1/users": {
+        body: { users: [{ user_id: "u1" }], total: 1, page: 1, page_size: 20, total_pages: 1 },
+      },
+      "GET /api/v1/users/u1": { body: { user_id: "u1" } },
       "DELETE /api/v1/users/u1": { body: {} },
     });
     users = new UsersResource(mock as unknown as HttpTransport);
   });
 
   it("create → POST /api/v1/users", async () => {
-    await users.create({ username: "new", password: "pw", role: "user" });
+    const res = await users.create({ username: "new", email: "new@test.com", password: "pw", role: "user" });
     expect(mock.lastRequest?.method).toBe("POST");
     expect(mock.lastRequest?.path).toBe("/api/v1/users");
+    expect(res.user.user_id).toBe("u1");
   });
 
   it("list → GET /api/v1/users", async () => {
-    const list = await users.list();
+    const res = await users.list();
     expect(mock.lastRequest?.method).toBe("GET");
-    expect(list).toHaveLength(1);
+    expect(res.users).toHaveLength(1);
   });
 
   it("get → GET /api/v1/users/:id", async () => {
@@ -125,9 +132,13 @@ describe("ApiKeysResource", () => {
 
   beforeEach(() => {
     mock = createMockTransport({
-      "POST /api/v1/api-keys": { body: { id: "k1", key: "eq-key" } },
-      "GET /api/v1/api-keys": { body: [{ id: "k1" }] },
-      "DELETE /api/v1/api-keys/k1": { body: {} },
+      "POST /api/v1/api-keys": {
+        body: { key_id: "k1", api_key: "eq-key", prefix: "eq_", scopes: ["read"], created_at: "2025-01-01" },
+      },
+      "GET /api/v1/api-keys": {
+        body: { keys: [{ key_id: "k1" }], total: 1, page: 1, page_size: 20, total_pages: 1 },
+      },
+      "DELETE /api/v1/api-keys/k1": { body: { key_id: "k1", message: "Key revoked" } },
     });
     apiKeys = new ApiKeysResource(mock as unknown as HttpTransport);
   });
@@ -135,18 +146,19 @@ describe("ApiKeysResource", () => {
   it("create → POST /api/v1/api-keys", async () => {
     const res = await apiKeys.create({ name: "test" });
     expect(mock.lastRequest?.method).toBe("POST");
-    expect(res.key).toBe("eq-key");
+    expect(res.api_key).toBe("eq-key");
   });
 
   it("list → GET /api/v1/api-keys", async () => {
-    const list = await apiKeys.list();
-    expect(list).toHaveLength(1);
+    const res = await apiKeys.list();
+    expect(res.keys).toHaveLength(1);
   });
 
   it("revoke → DELETE /api/v1/api-keys/:id", async () => {
-    await apiKeys.revoke("k1");
+    const res = await apiKeys.revoke("k1");
     expect(mock.lastRequest?.method).toBe("DELETE");
     expect(mock.lastRequest?.path).toBe("/api/v1/api-keys/k1");
+    expect(res.message).toBe("Key revoked");
   });
 });
 
@@ -400,20 +412,32 @@ describe("ConversationsResource", () => {
   beforeEach(() => {
     mock = createMockTransport({
       "GET /api/v1/conversations": {
-        body: { items: [{ id: "c1" }], total: 1, page: 1, page_size: 20 },
+        body: {
+          items: [{ id: "c1", title: "Test", mode: "hybrid" }],
+          pagination: { has_more: false, total: 1 },
+        },
       },
-      "GET /api/v1/conversations/c1": { body: { id: "c1", title: "Test" } },
+      "GET /api/v1/conversations/c1": {
+        body: { conversation: { id: "c1", title: "Test" }, messages: [] },
+      },
       "POST /api/v1/conversations": { body: { id: "c1" } },
       "PATCH /api/v1/conversations/c1": { body: { id: "c1" } },
       "DELETE /api/v1/conversations/c1": { body: {} },
       "POST /api/v1/conversations/c1/share": { body: { share_id: "s1" } },
       "DELETE /api/v1/conversations/c1/share": { body: {} },
-      "POST /api/v1/conversations/import": { body: { imported: 1 } },
-      "POST /api/v1/conversations/bulk/delete": { body: { deleted: 2 } },
-      "POST /api/v1/conversations/bulk/archive": { body: { archived: 2 } },
-      "POST /api/v1/conversations/bulk/move": { body: { moved: 2 } },
+      "POST /api/v1/conversations/import": {
+        body: { imported: 1, failed: 0, errors: [] },
+      },
+      "POST /api/v1/conversations/bulk/delete": { body: { affected: 2 } },
+      "POST /api/v1/conversations/bulk/archive": { body: { affected: 2 } },
+      "POST /api/v1/conversations/bulk/move": { body: { affected: 2 } },
       // Messages sub-resource
-      "GET /api/v1/conversations/c1/messages": { body: [{ id: "m1" }] },
+      "GET /api/v1/conversations/c1/messages": {
+        body: {
+          items: [{ id: "m1" }],
+          pagination: { has_more: false },
+        },
+      },
       "POST /api/v1/conversations/c1/messages": { body: { id: "m1" } },
       "PATCH /api/v1/messages/m1": { body: { id: "m1" } },
       "DELETE /api/v1/messages/m1": { body: {} },
@@ -421,14 +445,15 @@ describe("ConversationsResource", () => {
     conv = new ConversationsResource(mock as unknown as HttpTransport);
   });
 
-  it("list → returns Paginator", async () => {
-    const page = await conv.list().firstPage();
-    expect(page.items).toHaveLength(1);
+  it("list → returns PaginatedConversationsResponse", async () => {
+    const res = await conv.list();
+    expect(res.items).toHaveLength(1);
+    expect(res.pagination.has_more).toBe(false);
   });
 
   it("get → GET /api/v1/conversations/:id", async () => {
     const c = await conv.get("c1");
-    expect(c.title).toBe("Test");
+    expect(c.conversation.title).toBe("Test");
   });
 
   it("create → POST /api/v1/conversations", async () => {
@@ -461,25 +486,25 @@ describe("ConversationsResource", () => {
     expect(mock.lastRequest?.path).toBe("/api/v1/conversations/import");
   });
 
-  it("bulkDelete → POST .../bulk-delete", async () => {
-    await conv.bulkDelete({ ids: ["c1", "c2"] });
+  it("bulkDelete → POST .../bulk/delete", async () => {
+    await conv.bulkDelete({ conversation_ids: ["c1", "c2"] });
     expect(mock.lastRequest?.path).toBe("/api/v1/conversations/bulk/delete");
   });
 
-  it("bulkArchive → POST .../bulk-archive", async () => {
-    await conv.bulkArchive({ ids: ["c1"] });
+  it("bulkArchive → POST .../bulk/archive", async () => {
+    await conv.bulkArchive({ conversation_ids: ["c1"], archive: true });
     expect(mock.lastRequest?.path).toBe("/api/v1/conversations/bulk/archive");
   });
 
-  it("bulkMove → POST .../bulk-move", async () => {
-    await conv.bulkMove({ ids: ["c1"], folder_id: "f1" });
+  it("bulkMove → POST .../bulk/move", async () => {
+    await conv.bulkMove({ conversation_ids: ["c1"], folder_id: "f1" });
     expect(mock.lastRequest?.path).toBe("/api/v1/conversations/bulk/move");
   });
 
   // Messages sub-resource
-  it("messages.list → GET .../messages", async () => {
-    const msgs = await conv.messages.list("c1");
-    expect(msgs).toHaveLength(1);
+  it("messages.list → GET .../messages (paginated)", async () => {
+    const res = await conv.messages.list("c1");
+    expect(res.items).toHaveLength(1);
   });
 
   it("messages.create → POST .../messages", async () => {

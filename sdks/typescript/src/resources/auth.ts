@@ -1,16 +1,17 @@
 /**
  * Auth resource — login, refresh, logout, current user.
  *
+ * WHY: Updated to use full Rust response types.
  * @module resources/auth
  * @see edgequake/crates/edgequake-api/src/handlers/auth.rs
  */
 
 import type {
+  GetMeResponse,
   LoginRequest,
   LoginResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
-  UserInfo,
 } from "../types/auth.js";
 import { Resource } from "./base.js";
 
@@ -30,8 +31,11 @@ export class AuthResource extends Resource {
     await this._post("/api/v1/auth/logout");
   }
 
-  /** Get current authenticated user information. */
-  async me(): Promise<UserInfo> {
+  /**
+   * Get current authenticated user information.
+   * WHY: Rust returns GetMeResponse { user: UserInfo }.
+   */
+  async me(): Promise<GetMeResponse> {
     return this._get("/api/v1/auth/me");
   }
 }

@@ -4,30 +4,30 @@
 
 ### SDK Source Fixes (7 files)
 
-| File | Change | Lines |
-|------|--------|-------|
-| `src/transport/fetch.ts:48-55` | Content-Type detection: return `text()` for non-JSON responses | +8 |
-| `src/client.ts:191,196` | `ready()` and `live()` return `Promise<string>` instead of `Promise<HealthResponse>` | ±2 |
-| `src/resources/documents.ts:47-55` | Transform `{documents:[], has_more, page_size}` → `{items:[], hasMore, pageSize}` | +10 |
-| `src/resources/graph.ts:36-47` | Entities `list()`: extract `items` from paginated response | +3 |
-| `src/resources/graph.ts:62` | `exists()`: use `entity_name` param instead of `name` | ±1 |
-| `src/resources/graph.ts:106-118` | Relationships `list()`: extract `items` from paginated response | +3 |
-| `src/types/graph.ts:102-110` | `CreateEntityRequest`: `{entity_name, entity_type, description, source_id, metadata?}` | ±5 |
-| `src/resources/query.ts:28-55` | `stream()`: handle raw text SSE (try JSON, fall back to `{chunk: data}`) | +20 |
+| File                               | Change                                                                                 | Lines |
+| ---------------------------------- | -------------------------------------------------------------------------------------- | ----- |
+| `src/transport/fetch.ts:48-55`     | Content-Type detection: return `text()` for non-JSON responses                         | +8    |
+| `src/client.ts:191,196`            | `ready()` and `live()` return `Promise<string>` instead of `Promise<HealthResponse>`   | ±2    |
+| `src/resources/documents.ts:47-55` | Transform `{documents:[], has_more, page_size}` → `{items:[], hasMore, pageSize}`      | +10   |
+| `src/resources/graph.ts:36-47`     | Entities `list()`: extract `items` from paginated response                             | +3    |
+| `src/resources/graph.ts:62`        | `exists()`: use `entity_name` param instead of `name`                                  | ±1    |
+| `src/resources/graph.ts:106-118`   | Relationships `list()`: extract `items` from paginated response                        | +3    |
+| `src/types/graph.ts:102-110`       | `CreateEntityRequest`: `{entity_name, entity_type, description, source_id, metadata?}` | ±5    |
+| `src/resources/query.ts:28-55`     | `stream()`: handle raw text SSE (try JSON, fall back to `{chunk: data}`)               | +20   |
 
 ### E2E Test Fixes (4 files)
 
-| File | Change |
-|------|--------|
-| `tests/e2e/health.test.ts` | Added 10-15s explicit timeouts to all test cases; fixed method names |
-| `tests/e2e/documents.test.ts` | Handle 409 Conflict on delete (processing); afterAll cleanup |
-| `tests/e2e/query.test.ts` | Fixed `message` (singular); 30s hookTimeout; chat 401 graceful skip |
-| `tests/e2e/graph.test.ts` | `search()` → `list({search})`; `getNeighborhood()` → `neighborhood()`; 15s timeouts |
+| File                          | Change                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| `tests/e2e/health.test.ts`    | Added 10-15s explicit timeouts to all test cases; fixed method names                |
+| `tests/e2e/documents.test.ts` | Handle 409 Conflict on delete (processing); afterAll cleanup                        |
+| `tests/e2e/query.test.ts`     | Fixed `message` (singular); 30s hookTimeout; chat 401 graceful skip                 |
+| `tests/e2e/graph.test.ts`     | `search()` → `list({search})`; `getNeighborhood()` → `neighborhood()`; 15s timeouts |
 
 ### Unit Test Fix (1 file)
 
-| File | Change |
-|------|--------|
+| File                           | Change                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
 | `tests/unit/resources.test.ts` | Updated entity create test to use `{entity_name, entity_type, description, source_id}` |
 
 ## Test Results

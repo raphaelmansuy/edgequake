@@ -24,9 +24,9 @@
 
 ### Risks & Mitigations
 
-| Risk | Mitigation |
-|------|-----------|
-| Breaking changes to existing consumers | No published package yet — internal types only |
-| Chat stream format changes | Discriminated union with exhaustive type checking |
-| Workspace metrics history table missing | Test catches error gracefully, logs it |
-| Document delete timing flake | Test already handles 409 Conflict gracefully |
+| Risk                                    | Mitigation                                        |
+| --------------------------------------- | ------------------------------------------------- |
+| Breaking changes to existing consumers  | No published package yet — internal types only    |
+| Chat stream format changes              | Discriminated union with exhaustive type checking |
+| Workspace metrics history table missing | Test catches error gracefully, logs it            |
+| Document delete timing flake            | Test already handles 409 Conflict gracefully      |

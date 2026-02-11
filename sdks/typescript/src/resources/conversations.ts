@@ -1,13 +1,13 @@
 /**
  * Conversations resource — conversation management with messages sub-resource.
  *
+ * WHY: Updated to use cursor-based pagination matching Rust API.
  * @module resources/conversations
  * @see edgequake/crates/edgequake-api/src/handlers/conversations.rs
  */
 
-import { Paginator } from "../pagination.js";
 import type { HttpTransport } from "../transport/types.js";
-import type { BulkOperationResponse, Page } from "../types/common.js";
+import type { BulkOperationResponse } from "../types/common.js";
 import type {
   BulkArchiveRequest,
   BulkDeleteRequest,
@@ -19,7 +19,10 @@ import type {
   ImportConversationsRequest,
   ImportConversationsResponse,
   ListConversationsQuery,
+  ListMessagesQuery,
   MessageInfo,
+  PaginatedConversationsResponse,
+  PaginatedMessagesResponse,
   ShareResponse,
   UpdateConversationRequest,
   UpdateMessageRequest,
@@ -28,9 +31,20 @@ import { Resource } from "./base.js";
 
 /** Messages sub-resource accessed via `client.conversations.messages`. */
 export class MessagesResource extends Resource {
-  /** List messages in a conversation. */
-  async list(conversationId: string): Promise<MessageInfo[]> {
-    return this._get(`/api/v1/conversations/${conversationId}/messages`);
+  /**
+   * List messages in a conversation (cursor-based pagination).
+   * WHY: Rust returns PaginatedMessagesResponse { items, pagination }.
+   */
+  async list(
+    conversationId: string,
+    query?: ListMessagesQuery,
+  ): Promise<PaginatedMessagesResponse> {
+    const params = new URLSearchParams();
+    if (query?.cursor) params.set("cursor", query.cursor);
+    if (query?.limit) params.set("limit", String(query.limit));
+    const qs = params.toString();
+    const path = `/api/v1/conversations/${conversationId}/messages${qs ? `?${qs}` : ""}`;
+    return this._get(path);
   }
 
   /** Add a message to a conversation. */
@@ -68,22 +82,35 @@ export class ConversationsResource extends Resource {
     this.messages = new MessagesResource(transport);
   }
 
-  /** List conversations with optional filters + pagination. */
-  list(query?: ListConversationsQuery): Paginator<ConversationInfo> {
-    return new Paginator(async (page, perPage) => {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("per_page", String(perPage));
-      if (query?.folder_id) params.set("folder_id", query.folder_id);
-      if (query?.search) params.set("search", query.search);
-      if (query?.archived !== undefined)
-        params.set("archived", String(query.archived));
-      const path = `/api/v1/conversations?${params}`;
-      return this._get<Page<ConversationInfo>>(path);
-    }, query?.limit ?? 20);
+  /**
+   * List conversations with cursor-based pagination and filters.
+   * WHY: Rust uses cursor + filter[key] bracket params, not offset pagination.
+   */
+  async list(
+    query?: ListConversationsQuery,
+  ): Promise<PaginatedConversationsResponse> {
+    const params = new URLSearchParams();
+    if (query?.cursor) params.set("cursor", query.cursor);
+    if (query?.limit) params.set("limit", String(query.limit));
+    if (query?.filter_mode) params.set("filter[mode]", query.filter_mode);
+    if (query?.filter_archived !== undefined)
+      params.set("filter[archived]", String(query.filter_archived));
+    if (query?.filter_pinned !== undefined)
+      params.set("filter[pinned]", String(query.filter_pinned));
+    if (query?.filter_folder_id)
+      params.set("filter[folder_id]", query.filter_folder_id);
+    if (query?.filter_search) params.set("filter[search]", query.filter_search);
+    if (query?.sort) params.set("sort", query.sort);
+    if (query?.order) params.set("order", query.order);
+    const qs = params.toString();
+    const path = `/api/v1/conversations${qs ? `?${qs}` : ""}`;
+    return this._get(path);
   }
 
-  /** Get conversation details including messages. */
+  /**
+   * Get conversation details including messages.
+   * WHY: Rust returns ConversationWithMessagesResponse { conversation, messages }.
+   */
   async get(id: string): Promise<ConversationDetail> {
     return this._get(`/api/v1/conversations/${id}`);
   }
@@ -93,7 +120,7 @@ export class ConversationsResource extends Resource {
     return this._post("/api/v1/conversations", request);
   }
 
-  /** Update conversation metadata (title, folder, pin). */
+  /** Update conversation metadata (title, folder, pin, archive). */
   async update(
     id: string,
     request: UpdateConversationRequest,
