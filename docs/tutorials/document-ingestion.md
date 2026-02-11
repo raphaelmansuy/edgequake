@@ -63,8 +63,7 @@ EdgeQuake has advanced PDF extraction capabilities using layout analysis and opt
 
 ```bash
 # Upload a PDF with default settings (text mode)
-curl -X POST "http://localhost:8080/api/v1/documents" \
-  -H "Content-Type: multipart/form-data" \
+curl -X POST "http://localhost:8080/api/v1/documents/upload" \
   -F "file=@research_paper.pdf" \
   -F "title=AI Research Paper"
 ```
@@ -101,7 +100,7 @@ EdgeQuake supports three extraction modes:
 
 ```bash
 # Automatic text extraction from digital PDFs
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents/upload \
   -F "file=@doc.pdf"
 ```
 
@@ -113,7 +112,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 
 ```bash
 # LLM-based OCR for scanned/image PDFs
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents/upload \
   -F "file=@scanned_book.pdf" \
   -F 'config={"mode": "Vision"}'
 ```
@@ -126,7 +125,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 
 ```bash
 # Automatic fallback to vision for low-quality pages
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents/upload \
   -F "file=@mixed_quality.pdf" \
   -F 'config={"mode": "Hybrid", "quality_threshold": 0.7}'
 ```
@@ -142,7 +141,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 For complex tables (merged cells, nested structures):
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents/upload \
   -F "file=@financial_report.pdf" \
   -F 'config={"enhance_tables": true}'
 ```

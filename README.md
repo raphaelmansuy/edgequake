@@ -126,9 +126,8 @@ make dev
 ### First Document Upload
 
 ```bash
-# Upload a text file
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: multipart/form-data" \
+# Upload a file (PDF, TXT, MD, etc.)
+curl -X POST http://localhost:8080/api/v1/documents/upload \
   -F "file=@your-document.pdf"
 ```
 

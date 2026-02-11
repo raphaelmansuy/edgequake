@@ -127,7 +127,7 @@ Document ingestion with automatic entity extraction and knowledge graph construc
 
 ### POST /api/v1/documents
 
-Upload a document for processing. Supports both text and file uploads.
+Upload document content as JSON text.
 
 **Text Upload (JSON)**:
 
@@ -142,10 +142,14 @@ curl -X POST http://localhost:8080/api/v1/documents \
   }'
 ```
 
+### POST /api/v1/documents/upload
+
+Upload a file (PDF, TXT, MD, JSON) via multipart form data.
+
 **File Upload (Multipart)**:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -X POST http://localhost:8080/api/v1/documents/upload \
   -H "X-Workspace-ID: workspace-uuid" \
   -F "file=@document.pdf" \
   -F "title=My PDF Document"
