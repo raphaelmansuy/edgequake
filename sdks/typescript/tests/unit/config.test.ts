@@ -15,6 +15,7 @@ describe("resolveConfig", () => {
     delete process.env.EDGEQUAKE_BASE_URL;
     delete process.env.EDGEQUAKE_API_KEY;
     delete process.env.EDGEQUAKE_TENANT_ID;
+    delete process.env.EDGEQUAKE_USER_ID;
     delete process.env.EDGEQUAKE_WORKSPACE_ID;
   });
 
@@ -29,6 +30,7 @@ describe("resolveConfig", () => {
     expect(config.apiKey).toBe("");
     expect(config.accessToken).toBe("");
     expect(config.tenantId).toBe("");
+    expect(config.userId).toBe("");
     expect(config.workspaceId).toBe("");
     expect(config.timeout).toBe(30_000);
     expect(config.maxRetries).toBe(3);
@@ -40,6 +42,7 @@ describe("resolveConfig", () => {
       baseUrl: "https://api.example.com",
       apiKey: "my-key",
       tenantId: "tenant-1",
+      userId: "user-1",
       workspaceId: "ws-1",
       timeout: 5000,
       maxRetries: 5,
@@ -48,6 +51,7 @@ describe("resolveConfig", () => {
     expect(config.baseUrl).toBe("https://api.example.com");
     expect(config.apiKey).toBe("my-key");
     expect(config.tenantId).toBe("tenant-1");
+    expect(config.userId).toBe("user-1");
     expect(config.workspaceId).toBe("ws-1");
     expect(config.timeout).toBe(5000);
     expect(config.maxRetries).toBe(5);
@@ -57,12 +61,14 @@ describe("resolveConfig", () => {
     process.env.EDGEQUAKE_BASE_URL = "https://env.example.com";
     process.env.EDGEQUAKE_API_KEY = "env-key";
     process.env.EDGEQUAKE_TENANT_ID = "env-tenant";
+    process.env.EDGEQUAKE_USER_ID = "env-user";
     process.env.EDGEQUAKE_WORKSPACE_ID = "env-workspace";
 
     const config = resolveConfig();
     expect(config.baseUrl).toBe("https://env.example.com");
     expect(config.apiKey).toBe("env-key");
     expect(config.tenantId).toBe("env-tenant");
+    expect(config.userId).toBe("env-user");
     expect(config.workspaceId).toBe("env-workspace");
   });
 

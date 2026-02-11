@@ -18,6 +18,7 @@ export interface AuthConfig {
 /** Tenant configuration for middleware. */
 export interface TenantConfig {
   tenantId?: string;
+  userId?: string;
   workspaceId?: string;
 }
 
@@ -50,6 +51,9 @@ export function createTenantMiddleware(tenant: TenantConfig): Middleware {
     const headers = { ...req.headers };
     if (tenant.tenantId) {
       headers["X-Tenant-ID"] = tenant.tenantId;
+    }
+    if (tenant.userId) {
+      headers["X-User-ID"] = tenant.userId;
     }
     if (tenant.workspaceId) {
       headers["X-Workspace-ID"] = tenant.workspaceId;

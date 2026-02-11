@@ -22,6 +22,12 @@ export const E2E_API_KEY = process.env.EDGEQUAKE_API_KEY;
 /** Workspace ID for multi-tenant tests (defaults to "default") */
 export const E2E_WORKSPACE = process.env.EDGEQUAKE_WORKSPACE ?? "default";
 
+/** Tenant ID for multi-tenant E2E tests */
+export const E2E_TENANT_ID = process.env.EDGEQUAKE_TENANT_ID ?? "";
+
+/** User ID for user-scoped E2E tests */
+export const E2E_USER_ID = process.env.EDGEQUAKE_USER_ID ?? "";
+
 /** Whether E2E tests should run */
 export const E2E_ENABLED = !!E2E_URL;
 
@@ -34,6 +40,8 @@ export function createE2EClient(): EdgeQuake | undefined {
   return new EdgeQuake({
     baseUrl: E2E_URL,
     apiKey: E2E_API_KEY,
+    tenantId: E2E_TENANT_ID,
+    userId: E2E_USER_ID,
     workspaceId: E2E_WORKSPACE,
   });
 }

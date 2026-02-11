@@ -23,7 +23,12 @@ export class TenantsResource extends Resource {
 
   /** List all tenants. */
   async list(): Promise<TenantInfo[]> {
-    return this._get("/api/v1/tenants");
+    // WHY: API returns paginated { items: [...], total, offset, limit }
+    const raw = await this._get<{ items?: TenantInfo[] } | TenantInfo[]>(
+      "/api/v1/tenants",
+    );
+    if (Array.isArray(raw)) return raw;
+    return (raw as { items?: TenantInfo[] }).items ?? [];
   }
 
   /** Get a tenant by ID. */
@@ -54,7 +59,12 @@ export class TenantsResource extends Resource {
 
   /** List workspaces within a tenant. */
   async listWorkspaces(tenantId: string): Promise<WorkspaceInfo[]> {
-    return this._get(`/api/v1/tenants/${tenantId}/workspaces`);
+    // WHY: API returns paginated { items: [...], total, offset, limit }
+    const raw = await this._get<{ items?: WorkspaceInfo[] } | WorkspaceInfo[]>(
+      `/api/v1/tenants/${tenantId}/workspaces`,
+    );
+    if (Array.isArray(raw)) return raw;
+    return (raw as { items?: WorkspaceInfo[] }).items ?? [];
   }
 
   /** Get workspace by slug within a tenant. */

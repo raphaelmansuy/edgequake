@@ -363,9 +363,11 @@ describe("ChatResource", () => {
 
   beforeEach(() => {
     mock = createMockTransport({
-      "POST /api/v1/chat/completions": { body: { id: "c1", choices: [] } },
+      "POST /api/v1/chat/completions": {
+        body: { conversation_id: "c1", content: "Hello!", mode: "hybrid" },
+      },
       "POST /api/v1/chat/completions/stream": {
-        chunks: ['{"id":"c1","choices":[{"delta":{"content":"Hi"}}]}'],
+        chunks: ['{"type":"token","content":"Hi"}'],
       },
     });
     chat = new ChatResource(mock as unknown as HttpTransport);
@@ -373,15 +375,15 @@ describe("ChatResource", () => {
 
   it("completions → POST /api/v1/chat/completions", async () => {
     const res = await chat.completions({
-      messages: [{ role: "user", content: "hello" }],
+      message: "hello",
     });
-    expect(res.id).toBe("c1");
+    expect(res.conversation_id).toBe("c1");
   });
 
   it("stream → POST .../completions/stream", async () => {
     const events: unknown[] = [];
     for await (const e of chat.stream({
-      messages: [{ role: "user", content: "hi" }],
+      message: "hi",
     })) {
       events.push(e);
     }

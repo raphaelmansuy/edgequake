@@ -50,6 +50,7 @@ export function createTransport(config: ResolvedConfig): HttpTransport {
     }),
     createTenantMiddleware({
       tenantId: config.tenantId,
+      userId: config.userId,
       workspaceId: config.workspaceId,
     }),
     createRetryMiddleware({

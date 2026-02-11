@@ -198,9 +198,10 @@ describe("Auth middleware", () => {
 });
 
 describe("Tenant middleware", () => {
-  it("adds tenant and workspace headers", async () => {
+  it("adds tenant, user, and workspace headers", async () => {
     const middleware = createTenantMiddleware({
       tenantId: "t-1",
+      userId: "u-1",
       workspaceId: "w-1",
     });
     const next = vi.fn().mockResolvedValue(new Response());
@@ -210,6 +211,7 @@ describe("Tenant middleware", () => {
 
     const passedReq = next.mock.calls[0][0];
     expect(passedReq.headers["X-Tenant-ID"]).toBe("t-1");
+    expect(passedReq.headers["X-User-ID"]).toBe("u-1");
     expect(passedReq.headers["X-Workspace-ID"]).toBe("w-1");
   });
 
@@ -222,6 +224,7 @@ describe("Tenant middleware", () => {
 
     const passedReq = next.mock.calls[0][0];
     expect(passedReq.headers["X-Tenant-ID"]).toBeUndefined();
+    expect(passedReq.headers["X-User-ID"]).toBeUndefined();
     expect(passedReq.headers["X-Workspace-ID"]).toBeUndefined();
   });
 });

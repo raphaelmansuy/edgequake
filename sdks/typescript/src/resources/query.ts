@@ -5,13 +5,13 @@
  * @see edgequake/crates/edgequake-api/src/handlers/query.rs
  */
 
+import type { RequestOptions } from "../transport/types.js";
 import type {
   QueryRequest,
   QueryResponse,
   QueryStreamEvent,
   StreamQueryRequest,
 } from "../types/query.js";
-import type { RequestOptions } from "../transport/types.js";
 import { Resource } from "./base.js";
 
 export class QueryResource extends Resource {

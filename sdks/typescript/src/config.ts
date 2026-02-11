@@ -32,6 +32,9 @@ export interface EdgeQuakeConfig {
   /** Tenant ID for multi-tenant isolation. */
   tenantId?: string;
 
+  /** User ID for user-scoped operations (required for chat endpoints). */
+  userId?: string;
+
   /** Workspace ID for workspace-scoped operations. */
   workspaceId?: string;
 
@@ -61,6 +64,7 @@ export interface ResolvedConfig {
   accessToken: string;
   credentials?: { username: string; password: string };
   tenantId: string;
+  userId: string;
   workspaceId: string;
   timeout: number;
   maxRetries: number;
@@ -87,6 +91,7 @@ export function resolveConfig(config?: EdgeQuakeConfig): ResolvedConfig {
     accessToken: config?.accessToken ?? "",
     credentials: config?.credentials,
     tenantId: config?.tenantId ?? env.EDGEQUAKE_TENANT_ID ?? "",
+    userId: config?.userId ?? env.EDGEQUAKE_USER_ID ?? "",
     workspaceId: config?.workspaceId ?? env.EDGEQUAKE_WORKSPACE_ID ?? "",
     timeout: config?.timeout ?? 30_000,
     maxRetries: config?.maxRetries ?? 3,

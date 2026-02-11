@@ -41,7 +41,10 @@ export class EntitiesResource extends Resource {
     const qs = params.toString();
     const path = qs ? `/api/v1/graph/entities?${qs}` : "/api/v1/graph/entities";
     // WHY: API returns paginated { items: [...], total, page, page_size }
-    const raw = await this._get<{ items: EntityDetail[]; [key: string]: unknown }>(path);
+    const raw = await this._get<{
+      items: EntityDetail[];
+      [key: string]: unknown;
+    }>(path);
     return raw.items ?? (raw as unknown as EntityDetail[]);
   }
 
@@ -111,7 +114,10 @@ export class RelationshipsResource extends Resource {
       ? `/api/v1/graph/relationships?${qs}`
       : "/api/v1/graph/relationships";
     // WHY: API returns paginated { items: [...], total, page, page_size }
-    const raw = await this._get<{ items: RelationshipDetail[]; [key: string]: unknown }>(path);
+    const raw = await this._get<{
+      items: RelationshipDetail[];
+      [key: string]: unknown;
+    }>(path);
     return raw.items ?? (raw as unknown as RelationshipDetail[]);
   }
 

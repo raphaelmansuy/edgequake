@@ -90,12 +90,15 @@ describeE2E("E2E: Chat", () => {
         message: "Hello, what can you help me with?",
       });
       expect(result).toBeDefined();
-      expect(typeof result.message).toBe("string");
+      // WHY: Rust ChatCompletionResponse uses `content` not `message`
+      expect(typeof result.content).toBe("string");
     } catch (error: any) {
       // WHY: Chat endpoint requires X-Tenant-ID and X-User-ID headers.
       // Without tenant context configured, we get 401 — expected.
       if (error.status === 401) {
-        console.log("Chat requires tenant context — skipping (expected in E2E without tenant config)");
+        console.log(
+          "Chat requires tenant context — skipping (expected in E2E without tenant config)",
+        );
         return;
       }
       throw error;
@@ -112,8 +115,8 @@ describeE2E("E2E: Chat", () => {
 
       for await (const event of stream) {
         events.push(event);
-        // ChatStreamEvent uses { type: "content", delta: string }
-        if (event.type === "content" && event.delta) {
+        // WHY: Rust ChatStreamEvent uses { type: "token", content: string }
+        if (event.type === "token" && event.content) {
           break; // got at least one content chunk
         }
       }

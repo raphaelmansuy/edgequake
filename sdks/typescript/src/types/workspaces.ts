@@ -11,25 +11,50 @@ import type { Timestamp } from "./common.js";
 
 export interface CreateTenantRequest {
   name: string;
-  metadata?: Record<string, unknown>;
+  slug?: string;
+  description?: string;
+  plan?: string;
+  /** Default LLM model for new workspaces (e.g., "gemma3:12b", "gpt-4o-mini"). */
+  default_llm_model?: string;
+  /** Default LLM provider for new workspaces ("openai", "ollama", "lmstudio"). */
+  default_llm_provider?: string;
+  /** Default embedding model for new workspaces. */
+  default_embedding_model?: string;
+  /** Default embedding provider for new workspaces. */
+  default_embedding_provider?: string;
+  /** Default embedding dimension for new workspaces. */
+  default_embedding_dimension?: number;
 }
 
 export interface TenantInfo {
-  tenant_id: string;
+  id: string;
   name: string;
+  slug: string;
+  plan: string;
+  is_active: boolean;
+  max_workspaces: number;
+  default_llm_model: string;
+  default_llm_provider: string;
+  default_llm_full_id: string;
+  default_embedding_model: string;
+  default_embedding_provider: string;
+  default_embedding_dimension: number;
+  default_embedding_full_id: string;
   created_at: Timestamp;
+  updated_at: Timestamp;
 }
 
 export interface TenantDetail extends TenantInfo {
-  workspace_count: number;
-  metadata?: Record<string, unknown>;
+  workspace_count?: number;
 }
 
 export interface TenantResponse extends TenantInfo {}
 
 export interface UpdateTenantRequest {
   name?: string;
-  metadata?: Record<string, unknown>;
+  description?: string;
+  plan?: string;
+  is_active?: boolean;
 }
 
 // ── Workspaces ────────────────────────────────────────────────
@@ -38,20 +63,39 @@ export interface CreateWorkspaceRequest {
   name: string;
   slug?: string;
   description?: string;
-  metadata?: Record<string, unknown>;
+  max_documents?: number;
+  /** LLM model for knowledge graph generation (e.g., "gemma3:12b"). */
+  llm_model?: string;
+  /** LLM provider ("openai", "ollama", "lmstudio"). */
+  llm_provider?: string;
+  /** Embedding model name (e.g., "text-embedding-3-small"). */
+  embedding_model?: string;
+  /** Embedding provider ("openai", "ollama", "lmstudio"). */
+  embedding_provider?: string;
+  /** Embedding vector dimension override. */
+  embedding_dimension?: number;
 }
 
 export interface WorkspaceInfo {
-  workspace_id: string;
+  id: string;
   tenant_id: string;
   name: string;
   slug: string;
+  description?: string;
+  is_active: boolean;
+  max_documents?: number;
+  llm_model: string;
+  llm_provider: string;
+  llm_full_id: string;
+  embedding_model: string;
+  embedding_provider: string;
+  embedding_dimension: number;
+  embedding_full_id: string;
   created_at: Timestamp;
+  updated_at: Timestamp;
 }
 
 export interface WorkspaceDetail extends WorkspaceInfo {
-  description?: string;
-  metadata?: Record<string, unknown>;
   document_count?: number;
   entity_count?: number;
 }
@@ -60,9 +104,14 @@ export interface WorkspaceResponse extends WorkspaceInfo {}
 
 export interface UpdateWorkspaceRequest {
   name?: string;
-  slug?: string;
   description?: string;
-  metadata?: Record<string, unknown>;
+  is_active?: boolean;
+  max_documents?: number;
+  llm_model?: string;
+  llm_provider?: string;
+  embedding_model?: string;
+  embedding_provider?: string;
+  embedding_dimension?: number;
 }
 
 export interface WorkspaceStats {
