@@ -47,7 +47,7 @@ default = ["postgres"]
 postgres = ["edgequake-api/postgres", "edgequake-storage/postgres"]
 
 [dependencies]
-edgequake-core = { workspace = true }
+edgequake-core = { workspace = true, features = ["pipeline"] }
 edgequake-storage = { workspace = true }
 edgequake-llm = { workspace = true }
 edgequake-pipeline = { workspace = true }

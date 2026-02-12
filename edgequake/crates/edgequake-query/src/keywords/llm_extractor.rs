@@ -49,7 +49,7 @@ impl LLMKeywordExtractor {
     /// Extracted keywords with high-level concepts, low-level entities, and query intent
     ///
     /// # Example
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// // User selected OpenAI GPT-4 in the UI
     /// let user_llm = openai_provider.clone();
     /// let keywords = extractor.extract_with_provider(query, user_llm).await?;

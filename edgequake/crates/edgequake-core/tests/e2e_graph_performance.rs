@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 //! End-to-End Performance Tests for Graph API
 //!
 //! These tests verify the performance improvements from N+1 query elimination:

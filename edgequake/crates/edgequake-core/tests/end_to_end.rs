@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 use edgequake_core::orchestrator::{EdgeQuake, EdgeQuakeConfig};
 use edgequake_llm::MockProvider;
 use edgequake_storage::adapters::memory::{

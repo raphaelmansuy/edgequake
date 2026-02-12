@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 //! # Edge Case Tests for Inviolable Invariants
 //!
 //! These tests verify invariants hold at boundary conditions.

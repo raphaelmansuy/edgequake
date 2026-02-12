@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 //! End-to-End Pipeline Tests
 //!
 //! These tests verify the complete document processing pipeline:

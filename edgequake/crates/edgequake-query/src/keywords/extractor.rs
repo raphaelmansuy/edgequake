@@ -195,7 +195,7 @@ pub trait KeywordExtractor: Send + Sync {
     /// ## WHEN TO USE
     ///
     /// Always provide the LLM override when available from user selection:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let llm_override = user_selected_llm.clone();
     /// let keywords = extractor.extract_with_llm_override("query", Some(llm_override)).await?;
     /// ```
