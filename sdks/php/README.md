@@ -44,14 +44,14 @@ echo $result['answer'];
 
 ## Configuration
 
-| Parameter     | Type     | Default                  | Description           |
-|---------------|----------|--------------------------|-----------------------|
-| `baseUrl`     | `string` | `http://localhost:8080`  | API base URL          |
-| `apiKey`      | `?string`| `null`                   | API key               |
-| `tenantId`    | `?string`| `null`                   | Tenant ID header      |
-| `userId`      | `?string`| `null`                   | User ID header        |
-| `workspaceId` | `?string`| `null`                   | Workspace ID header   |
-| `timeout`     | `int`    | `60`                     | Request timeout (sec) |
+| Parameter     | Type      | Default                 | Description           |
+| ------------- | --------- | ----------------------- | --------------------- |
+| `baseUrl`     | `string`  | `http://localhost:8080` | API base URL          |
+| `apiKey`      | `?string` | `null`                  | API key               |
+| `tenantId`    | `?string` | `null`                  | Tenant ID header      |
+| `userId`      | `?string` | `null`                  | User ID header        |
+| `workspaceId` | `?string` | `null`                  | Workspace ID header   |
+| `timeout`     | `int`     | `60`                    | Request timeout (sec) |
 
 ```php
 $config = new Config(
@@ -201,11 +201,11 @@ try {
 }
 ```
 
-| Property       | Type      | Description            |
-|----------------|-----------|------------------------|
-| `statusCode`   | `?int`    | HTTP status code       |
-| `responseBody` | `?string` | Raw response body      |
-| `getMessage()`  | `string` | Error description      |
+| Property       | Type      | Description       |
+| -------------- | --------- | ----------------- |
+| `statusCode`   | `?int`    | HTTP status code  |
+| `responseBody` | `?string` | Raw response body |
+| `getMessage()` | `string`  | Error description |
 
 ## Testing
 

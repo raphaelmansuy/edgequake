@@ -15,6 +15,7 @@ Usage:
     python examples/graph_exploration.py
 """
 import os
+
 from edgequake import EdgequakeClient
 
 
@@ -40,7 +41,9 @@ def main():
     # ── 3. List entities ──────────────────────────────────────
 
     entities = client.graph.entities.list()
-    entities_list = entities.get("items", []) if isinstance(entities, dict) else entities
+    entities_list = (
+        entities.get("items", []) if isinstance(entities, dict) else entities
+    )
     print(f"\nTotal entities: {len(entities_list)}")
     for entity in entities_list[:5]:
         desc = entity.get("description") or "(no description)"
@@ -58,7 +61,11 @@ def main():
     # ── 5. List relationships ─────────────────────────────────
 
     relationships = client.graph.relationships.list()
-    rel_list = relationships.get("items", []) if isinstance(relationships, dict) else relationships
+    rel_list = (
+        relationships.get("items", [])
+        if isinstance(relationships, dict)
+        else relationships
+    )
     print(f"\nTotal relationships: {len(rel_list)}")
     for rel in rel_list[:5]:
         print(

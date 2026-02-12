@@ -684,9 +684,7 @@ class TestAsyncWorkspacesResource:
         mock_req.return_value = mock_resp
 
         client = AsyncEdgeQuake()
-        result = await client.workspaces.create(
-            "t-1", WorkspaceCreate(name="Test")
-        )
+        result = await client.workspaces.create("t-1", WorkspaceCreate(name="Test"))
         assert isinstance(result, WorkspaceInfo)
 
     @pytest.mark.asyncio
@@ -914,7 +912,9 @@ class TestAsyncSettingsResource:
     @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
     async def test_providers(self, mock_req: AsyncMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"providers": [{"name": "ollama", "is_available": True}]}
+        mock_resp.json.return_value = {
+            "providers": [{"name": "ollama", "is_available": True}]
+        }
         mock_req.return_value = mock_resp
 
         client = AsyncEdgeQuake()
@@ -960,9 +960,7 @@ class TestAsyncProvenanceResource:
     @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
     async def test_get_dict_response(self, mock_req: AsyncMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            "records": [{"chunk_id": "c-1"}]
-        }
+        mock_resp.json.return_value = {"records": [{"chunk_id": "c-1"}]}
         mock_req.return_value = mock_resp
 
         client = AsyncEdgeQuake()
@@ -999,7 +997,9 @@ class TestAsyncModelsResource:
     @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
     async def test_health_list(self, mock_req: AsyncMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = [{"name": "ollama", "status": "ok", "enabled": True}]
+        mock_resp.json.return_value = [
+            {"name": "ollama", "status": "ok", "enabled": True}
+        ]
         mock_req.return_value = mock_resp
 
         client = AsyncEdgeQuake()

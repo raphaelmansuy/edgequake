@@ -90,17 +90,17 @@ client := edgequake.NewClient(
 )
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `WithBaseURL` | `http://localhost:8080` | EdgeQuake server URL |
-| `WithAPIKey` | `""` | API key for `X-API-Key` header |
-| `WithBearerToken` | `""` | JWT for `Authorization: Bearer` header |
-| `WithTenantID` | `""` | Tenant ID for `X-Tenant-ID` header |
-| `WithWorkspaceID` | `""` | Workspace ID for `X-Workspace-ID` header |
-| `WithUserID` | `""` | User ID for `X-User-ID` header |
-| `WithTimeout` | `30s` | HTTP request timeout |
-| `WithMaxRetries` | `3` | Max retry attempts for 429/5xx errors |
-| `WithHTTPClient` | `nil` | Custom `*http.Client` (overrides timeout) |
+| Option            | Default                 | Description                               |
+| ----------------- | ----------------------- | ----------------------------------------- |
+| `WithBaseURL`     | `http://localhost:8080` | EdgeQuake server URL                      |
+| `WithAPIKey`      | `""`                    | API key for `X-API-Key` header            |
+| `WithBearerToken` | `""`                    | JWT for `Authorization: Bearer` header    |
+| `WithTenantID`    | `""`                    | Tenant ID for `X-Tenant-ID` header        |
+| `WithWorkspaceID` | `""`                    | Workspace ID for `X-Workspace-ID` header  |
+| `WithUserID`      | `""`                    | User ID for `X-User-ID` header            |
+| `WithTimeout`     | `30s`                   | HTTP request timeout                      |
+| `WithMaxRetries`  | `3`                     | Max retry attempts for 429/5xx errors     |
+| `WithHTTPClient`  | `nil`                   | Custom `*http.Client` (overrides timeout) |
 
 ## API Reference
 
@@ -484,6 +484,7 @@ if errors.As(err, &apiErr) {
 ## Retry Behavior
 
 The client automatically retries requests that fail with:
+
 - **429 Too Many Requests** — rate limited
 - **5xx Server Error** — transient server issues
 

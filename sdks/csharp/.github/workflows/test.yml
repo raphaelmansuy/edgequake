@@ -1,26 +1,26 @@
 name: C# SDK Tests
 
 on:
-  push:
-    paths: ['sdks/csharp/**']
-  pull_request:
-    paths: ['sdks/csharp/**']
+    push:
+        paths: ["sdks/csharp/**"]
+    pull_request:
+        paths: ["sdks/csharp/**"]
 
 defaults:
-  run:
-    working-directory: sdks/csharp
+    run:
+        working-directory: sdks/csharp
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        dotnet: ['10.0.x']
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ matrix.dotnet }}
-      - run: dotnet restore
-      - run: dotnet build --no-restore
-      - run: dotnet test --no-build --verbosity normal
+    test:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                dotnet: ["10.0.x"]
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: ${{ matrix.dotnet }}
+            - run: dotnet restore
+            - run: dotnet build --no-restore
+            - run: dotnet test --no-build --verbosity normal

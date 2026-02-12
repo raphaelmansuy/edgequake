@@ -16,6 +16,7 @@ Usage:
     python examples/multi_tenant.py
 """
 import os
+
 from edgequake import EdgequakeClient
 
 
@@ -74,7 +75,9 @@ def main():
     # ── 5. List workspaces ────────────────────────────────────
 
     workspaces = admin.tenants.list_workspaces(tenant["id"])
-    workspace_list = workspaces.get("items", []) if isinstance(workspaces, dict) else workspaces
+    workspace_list = (
+        workspaces.get("items", []) if isinstance(workspaces, dict) else workspaces
+    )
     print(f"\nWorkspaces for tenant {tenant['name']}:")
     for ws in workspace_list:
         print(f"  {ws['id']}: {ws['name']} ({ws['slug']})")

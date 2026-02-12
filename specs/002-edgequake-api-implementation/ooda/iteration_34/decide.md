@@ -8,6 +8,7 @@
 **Chosen Approach:** Documentation-first enhancement matching TypeScript reference standard
 
 **Rationale:**
+
 - Python SDK is functionally complete (9.5/10 E2E score)
 - Missing documentation reduces adoption
 - TypeScript SDK provides proven template
@@ -24,6 +25,7 @@ cp sdks/typescript/LICENSE sdks/python/LICENSE
 ```
 
 **Verification:**
+
 - LICENSE file exists
 - Contains Apache 2.0 text
 - Copyright matches EdgeQuake project
@@ -31,6 +33,7 @@ cp sdks/typescript/LICENSE sdks/python/LICENSE
 #### Task 1.2: Create CHANGELOG.md
 
 **Content:**
+
 - Version 1.0.0 (current release)
 - Document Phase 6 fixes (pagination, async cleanup)
 - Document Phase 7 documentation additions
@@ -48,18 +51,19 @@ mkdir -p sdks/python/examples
 
 #### Task 2.2: Port TypeScript examples to Python
 
-| Example | TypeScript Source | Python Output | Time |
-|---------|-------------------|---------------|------|
-| **Basic Usage** | `basic_usage.ts` | `basic_usage.py` | 5 min |
-| **Document Upload** | `document_upload.ts` | `document_upload.py` | 10 min |
+| Example               | TypeScript Source      | Python Output          | Time   |
+| --------------------- | ---------------------- | ---------------------- | ------ |
+| **Basic Usage**       | `basic_usage.ts`       | `basic_usage.py`       | 5 min  |
+| **Document Upload**   | `document_upload.ts`   | `document_upload.py`   | 10 min |
 | **Graph Exploration** | `graph_exploration.ts` | `graph_exploration.py` | 10 min |
-| **Query Demo** | `query_demo.ts` | `query_demo.py` | 10 min |
-| **Streaming Query** | `streaming_query.ts` | `streaming_query.py` | 15 min |
-| **Error Handling** | `error_handling.ts` | `error_handling.py` | 10 min |
-| **Configuration** | `configuration.ts` | `configuration.py` | 5 min |
-| **Multi-Tenant** | `multi_tenant.ts` | `multi_tenant.py` | 5 min |
+| **Query Demo**        | `query_demo.ts`        | `query_demo.py`        | 10 min |
+| **Streaming Query**   | `streaming_query.ts`   | `streaming_query.py`   | 15 min |
+| **Error Handling**    | `error_handling.ts`    | `error_handling.py`    | 10 min |
+| **Configuration**     | `configuration.ts`     | `configuration.py`     | 5 min  |
+| **Multi-Tenant**      | `multi_tenant.ts`      | `multi_tenant.py`      | 5 min  |
 
 **Python-specific adaptations:**
+
 - Use `EdgequakeClient` (sync) or `AsyncEdgequakeClient`
 - Use `with` context managers for resource cleanup
 - Use `try/except` instead of `try/catch`
@@ -91,9 +95,9 @@ def main():
         api_key=os.environ.get("EDGEQUAKE_API_KEY"),
         base_url="http://localhost:8080"
     )
-    
+
     # Example code here
-    
+
 if __name__ == "__main__":
     main()
 ```
@@ -101,6 +105,7 @@ if __name__ == "__main__":
 #### Task 2.3: Create examples/README.md
 
 **Content:**
+
 - Table of examples with descriptions
 - Prerequisites (server, API key)
 - How to run each example
@@ -117,6 +122,7 @@ mkdir -p sdks/python/docs
 #### Task 3.2: Write docs/API.md
 
 **Sections:**
+
 1. **Introduction** — API architecture overview
 2. **Authentication** — API key, JWT
 3. **Resource Namespaces** — Table of all 20+ resources
@@ -129,6 +135,7 @@ mkdir -p sdks/python/docs
 #### Task 3.3: Write docs/AUTHENTICATION.md
 
 **Sections:**
+
 1. **API Key Authentication** — Basic usage
 2. **JWT Tokens** — Advanced auth
 3. **Multi-Tenancy** — Workspace IDs
@@ -139,6 +146,7 @@ mkdir -p sdks/python/docs
 #### Task 3.4: Write docs/STREAMING.md
 
 **Sections:**
+
 1. **Server-Sent Events (SSE)** — Protocol overview
 2. **Streaming Queries** — Real-time RAG responses
 3. **Error Recovery** — Handling connection drops
@@ -153,17 +161,18 @@ mkdir -p sdks/python/docs
 **Location:** After "Quick Start" section
 
 **Content:**
+
 ```markdown
 ## 📍 Resource Namespaces
 
 The Python SDK provides access to 20+ resource namespaces:
 
-| Namespace | Description | Example |
-|-----------|-------------|---------|
-| `documents` | Document management | `client.documents.upload()` |
-| `queries` | RAG query operations | `client.queries.create()` |
-| `graphs` | Knowledge graph traversal | `client.graphs.get()` |
-| ... | ... | ... |
+| Namespace   | Description               | Example                     |
+| ----------- | ------------------------- | --------------------------- |
+| `documents` | Document management       | `client.documents.upload()` |
+| `queries`   | RAG query operations      | `client.queries.create()`   |
+| `graphs`    | Knowledge graph traversal | `client.graphs.get()`       |
+| ...         | ...                       | ...                         |
 ```
 
 #### Task 4.2: Add Configuration Section
@@ -171,7 +180,8 @@ The Python SDK provides access to 20+ resource namespaces:
 **Location:** Before "Quick Start"
 
 **Content:**
-```markdown
+
+````markdown
 ## ⚙️ Configuration
 
 Configure the client with these options:
@@ -184,12 +194,15 @@ client = EdgequakeClient(
     max_retries=3,                   # Retry attempts on failure
 )
 ```
+````
 
 **Environment Variables:**
+
 - `EDGEQUAKE_API_KEY` — API key (overrides parameter)
 - `EDGEQUAKE_BASE_URL` — Server URL
 - `EDGEQUAKE_TIMEOUT` — Timeout in seconds
-```
+
+````
 
 #### Task 4.3: Add Examples Section
 
@@ -213,8 +226,9 @@ Run any example:
 ```bash
 export EDGEQUAKE_API_KEY="your_key"
 python examples/basic_usage.py
-```
-```
+````
+
+````
 
 #### Task 4.4: Add Troubleshooting Section
 
@@ -225,25 +239,26 @@ python examples/basic_usage.py
 ## 🔧 Troubleshooting
 
 ### Connection Errors
-**Problem:** `ConnectionError: [Errno 61] Connection refused`  
+**Problem:** `ConnectionError: [Errno 61] Connection refused`
 **Solution:** Ensure EdgeQuake server is running on `base_url`
 
 ### Authentication Errors
-**Problem:** `401 Unauthorized`  
+**Problem:** `401 Unauthorized`
 **Solution:** Check that `EDGEQUAKE_API_KEY` is set correctly
 
 ### Timeout Errors
-**Problem:** `ReadTimeout: HTTPSConnectionPool`  
+**Problem:** `ReadTimeout: HTTPSConnectionPool`
 **Solution:** Increase timeout: `EdgequakeClient(timeout=60)`
 
 ### Streaming Issues
-**Problem:** SSE connection drops  
+**Problem:** SSE connection drops
 **Solution:** See [docs/STREAMING.md](docs/STREAMING.md) for reconnection strategies
-```
+````
 
 #### Task 4.5: Update Quick Start with Environment Variable
 
 **Change:**
+
 ```python
 # Before
 client = EdgequakeClient(api_key="YOUR_API_KEY")
@@ -312,13 +327,13 @@ mypy sdks/python/examples/
 
 ### Quality Metrics
 
-| Metric | Target | Verification |
-|--------|--------|--------------|
-| **Examples count** | 8 | `ls examples/*.py \| wc -l` |
-| **Docs files** | 3 | `ls docs/*.md \| wc -l` |
-| **README length** | ~200 lines | `wc -l sdks/python/README.md` |
-| **Example executability** | 100% | Manual test run |
-| **Link validity** | 100% | Manual check |
+| Metric                    | Target     | Verification                  |
+| ------------------------- | ---------- | ----------------------------- |
+| **Examples count**        | 8          | `ls examples/*.py \| wc -l`   |
+| **Docs files**            | 3          | `ls docs/*.md \| wc -l`       |
+| **README length**         | ~200 lines | `wc -l sdks/python/README.md` |
+| **Example executability** | 100%       | Manual test run               |
+| **Link validity**         | 100%       | Manual check                  |
 
 ## File Checklist
 
@@ -384,12 +399,12 @@ python examples/basic_usage.py
 
 ## Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| **Examples have bugs** | Medium | High | Test each before commit |
-| **Docs have typos** | Low | Low | Spell check, peer review |
-| **README too long** | Low | Low | Keep under 250 lines |
-| **API reference outdated** | Low | Medium | Cross-check with OpenAPI spec |
+| Risk                       | Likelihood | Impact | Mitigation                    |
+| -------------------------- | ---------- | ------ | ----------------------------- |
+| **Examples have bugs**     | Medium     | High   | Test each before commit       |
+| **Docs have typos**        | Low        | Low    | Spell check, peer review      |
+| **README too long**        | Low        | Low    | Keep under 250 lines          |
+| **API reference outdated** | Low        | Medium | Cross-check with OpenAPI spec |
 
 ## Success Criteria
 

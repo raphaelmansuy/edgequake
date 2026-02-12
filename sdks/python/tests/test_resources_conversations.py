@@ -62,9 +62,7 @@ class TestConversationsResource:
     @patch("edgequake._transport.SyncTransport.request")
     def test_list_dict_response(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            "conversations": [{"id": "c1", "title": "Chat"}]
-        }
+        mock_resp.json.return_value = {"conversations": [{"id": "c1", "title": "Chat"}]}
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()

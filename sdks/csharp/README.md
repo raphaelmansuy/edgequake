@@ -39,14 +39,14 @@ Console.WriteLine(result.Answer);
 
 ## Configuration
 
-| Property         | Type     | Default                 | Description           |
-|------------------|----------|-------------------------|-----------------------|
-| `BaseUrl`        | `string` | `http://localhost:8080` | API base URL          |
-| `ApiKey`         | `string?`| `null`                  | API key               |
-| `TenantId`       | `string?`| `null`                  | Tenant ID header      |
-| `UserId`         | `string?`| `null`                  | User ID header        |
-| `WorkspaceId`    | `string?`| `null`                  | Workspace ID header   |
-| `TimeoutSeconds` | `int`    | `60`                    | Request timeout (sec) |
+| Property         | Type      | Default                 | Description           |
+| ---------------- | --------- | ----------------------- | --------------------- |
+| `BaseUrl`        | `string`  | `http://localhost:8080` | API base URL          |
+| `ApiKey`         | `string?` | `null`                  | API key               |
+| `TenantId`       | `string?` | `null`                  | Tenant ID header      |
+| `UserId`         | `string?` | `null`                  | User ID header        |
+| `WorkspaceId`    | `string?` | `null`                  | Workspace ID header   |
+| `TimeoutSeconds` | `int`     | `60`                    | Request timeout (sec) |
 
 ```csharp
 var config = new EdgeQuakeConfig
@@ -178,11 +178,11 @@ catch (EdgeQuakeException ex)
 }
 ```
 
-| Property       | Type     | Description       |
-|----------------|----------|-------------------|
-| `StatusCode`   | `int?`   | HTTP status code  |
-| `ResponseBody` | `string?`| Raw response body |
-| `Message`      | `string` | Error description |
+| Property       | Type      | Description       |
+| -------------- | --------- | ----------------- |
+| `StatusCode`   | `int?`    | HTTP status code  |
+| `ResponseBody` | `string?` | Raw response body |
+| `Message`      | `string`  | Error description |
 
 ## Testing
 

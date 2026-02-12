@@ -196,9 +196,7 @@ class TestAsyncSSEStream:
 
     @pytest.mark.asyncio
     async def test_parse_single_event(self) -> None:
-        resp = self._make_async_response(
-            ['data: {"chunk": "Hello"}', "data: [DONE]"]
-        )
+        resp = self._make_async_response(['data: {"chunk": "Hello"}', "data: [DONE]"])
         stream = AsyncSSEStream(resp, ChunkEvent)
         events = []
         async for event in stream:
@@ -271,9 +269,7 @@ class TestAsyncSSEStream:
 
     @pytest.mark.asyncio
     async def test_to_string_no_chunk(self) -> None:
-        resp = self._make_async_response(
-            ['data: {"status": "ok"}', "data: [DONE]"]
-        )
+        resp = self._make_async_response(['data: {"status": "ok"}', "data: [DONE]"])
         stream = AsyncSSEStream(resp, StatusEvent)
         assert await stream.to_string() == ""
 
@@ -287,9 +283,7 @@ class TestAsyncSSEStream:
 
     @pytest.mark.asyncio
     async def test_context_manager(self) -> None:
-        resp = self._make_async_response(
-            ['data: {"chunk": "Hi"}', "data: [DONE]"]
-        )
+        resp = self._make_async_response(['data: {"chunk": "Hi"}', "data: [DONE]"])
         async with AsyncSSEStream(resp, ChunkEvent) as stream:
             events = []
             async for event in stream:

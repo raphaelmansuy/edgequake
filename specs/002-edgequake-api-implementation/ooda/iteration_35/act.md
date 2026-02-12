@@ -6,21 +6,22 @@
 
 Expanded all 7 test files from ~90 tests to **433 tests** (4.8× increase):
 
-| Test File | Before | After | Coverage |
-|-----------|--------|-------|----------|
-| test_transport.py | 0 | 55 | 92% |
-| test_streaming.py | 13 | 25 | 100% |
-| test_resources_query_chat.py | 3 | 20 | 98-100% |
-| test_resources_graph.py | 10 | 45 | 95% |
-| test_resources_operations.py | 10 | 55 | 93% |
-| test_resources_auth.py | 11 | 30 | 93% |
-| test_resources_conversations.py | 8 | 38 | 93% |
-| test_resources_documents.py | 14 | 45 | 81% |
-| conftest.py | - | - | fixtures |
+| Test File                       | Before | After | Coverage |
+| ------------------------------- | ------ | ----- | -------- |
+| test_transport.py               | 0      | 55    | 92%      |
+| test_streaming.py               | 13     | 25    | 100%     |
+| test_resources_query_chat.py    | 3      | 20    | 98-100%  |
+| test_resources_graph.py         | 10     | 45    | 95%      |
+| test_resources_operations.py    | 10     | 55    | 93%      |
+| test_resources_auth.py          | 11     | 30    | 93%      |
+| test_resources_conversations.py | 8      | 38    | 93%      |
+| test_resources_documents.py     | 14     | 45    | 81%      |
+| conftest.py                     | -      | -     | fixtures |
 
 ### 2. Comprehensive Async Coverage
 
 Every async resource variant now has full test coverage:
+
 - `AsyncQueryResource`, `AsyncChatResource`
 - `AsyncGraphResource`, `AsyncEntitiesResource`, `AsyncRelationshipsResource`
 - `AsyncWorkspacesResource`, `AsyncTasksResource`, `AsyncPipelineResource`
@@ -34,6 +35,7 @@ Every async resource variant now has full test coverage:
 ### 3. GitHub Actions CI Workflow
 
 Created `.github/workflows/test.yml`:
+
 - **Lint job**: ruff check, ruff format, mypy
 - **Test matrix**: Python 3.10, 3.11, 3.12, 3.13
 - **Coverage**: XML export on Python 3.12
@@ -41,13 +43,13 @@ Created `.github/workflows/test.yml`:
 
 ### 4. Test Patterns Established
 
-| Pattern | Usage |
-|---------|-------|
-| `@patch("edgequake._transport.SyncTransport.request")` | Sync resource tests |
-| `@patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)` | Async resource tests |
-| `@patch("edgequake._transport.SyncTransport.stream")` | Sync streaming tests |
-| `@patch("edgequake._transport.AsyncTransport.stream", new_callable=AsyncMock)` | Async streaming tests |
-| `@pytest.mark.asyncio` | All async tests |
+| Pattern                                                                         | Usage                 |
+| ------------------------------------------------------------------------------- | --------------------- |
+| `@patch("edgequake._transport.SyncTransport.request")`                          | Sync resource tests   |
+| `@patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)` | Async resource tests  |
+| `@patch("edgequake._transport.SyncTransport.stream")`                           | Sync streaming tests  |
+| `@patch("edgequake._transport.AsyncTransport.stream", new_callable=AsyncMock)`  | Async streaming tests |
+| `@pytest.mark.asyncio`                                                          | All async tests       |
 
 ## Verification
 

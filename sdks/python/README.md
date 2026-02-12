@@ -80,17 +80,17 @@ asyncio.run(main())
 
 The Python SDK provides access to 20+ resource namespaces:
 
-| Namespace | Description | Example |
-|-----------|-------------|---------|
-| `documents` | Document upload, retrieval, and management | `client.documents.upload(content="...")` |
-| `query` | RAG query execution (sync and streaming) | `client.query.execute(query="...")` |
-| `graph` | Knowledge graph exploration and traversal | `client.graph.get()` |
-| `chat` | OpenAI-compatible chat completions | `client.chat.completions(messages=[...])` |
-| `conversations` | Multi-turn conversation management | `client.conversations.create(title="...")` |
-| `auth` | Authentication (login, JWT refresh) | `client.auth.login(email="...", password="...")` |
-| `operations` | Long-running operation tracking | `client.operations.list()` |
-| `tenants` | Multi-tenant management (admin only) | `client.tenants.create(name="...")` |
-| `workspaces` | Workspace management | `client.workspaces.stats(workspace_id="...")` |
+| Namespace       | Description                                | Example                                          |
+| --------------- | ------------------------------------------ | ------------------------------------------------ |
+| `documents`     | Document upload, retrieval, and management | `client.documents.upload(content="...")`         |
+| `query`         | RAG query execution (sync and streaming)   | `client.query.execute(query="...")`              |
+| `graph`         | Knowledge graph exploration and traversal  | `client.graph.get()`                             |
+| `chat`          | OpenAI-compatible chat completions         | `client.chat.completions(messages=[...])`        |
+| `conversations` | Multi-turn conversation management         | `client.conversations.create(title="...")`       |
+| `auth`          | Authentication (login, JWT refresh)        | `client.auth.login(email="...", password="...")` |
+| `operations`    | Long-running operation tracking            | `client.operations.list()`                       |
+| `tenants`       | Multi-tenant management (admin only)       | `client.tenants.create(name="...")`              |
+| `workspaces`    | Workspace management                       | `client.workspaces.stats(workspace_id="...")`    |
 
 **API Coverage:** 100+ endpoints across 9 core resources
 
@@ -115,27 +115,27 @@ client = EdgeQuake(
 
 **Configuration Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `api_key` | `str` | - | API key for authentication (required) |
-| `base_url` | `str` | `http://localhost:8080` | EdgeQuake server URL |
-| `timeout` | `int` | `30` | Request timeout in seconds |
-| `max_retries` | `int` | `3` | Number of retry attempts on failure |
-| `workspace_id` | `str` | `None` | Default workspace for multi-tenancy |
-| `tenant_id` | `str` | `None` | Tenant ID for multi-tenant setup |
+| Parameter      | Type  | Default                 | Description                           |
+| -------------- | ----- | ----------------------- | ------------------------------------- |
+| `api_key`      | `str` | -                       | API key for authentication (required) |
+| `base_url`     | `str` | `http://localhost:8080` | EdgeQuake server URL                  |
+| `timeout`      | `int` | `30`                    | Request timeout in seconds            |
+| `max_retries`  | `int` | `3`                     | Number of retry attempts on failure   |
+| `workspace_id` | `str` | `None`                  | Default workspace for multi-tenancy   |
+| `tenant_id`    | `str` | `None`                  | Tenant ID for multi-tenant setup      |
 
 ## 🌍 Environment Variables
 
 The SDK reads these environment variables automatically:
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `EDGEQUAKE_API_KEY` | API authentication key (overrides parameter) | `sk-your-api-key-here` |
-| `EDGEQUAKE_BASE_URL` | Server URL | `http://localhost:8080` |
-| `EDGEQUAKE_URL` | Alternative to `EDGEQUAKE_BASE_URL` | `https://api.edgequake.example.com` |
-| `EDGEQUAKE_WORKSPACE_ID` | Default workspace ID | `my-workspace` |
-| `EDGEQUAKE_TENANT_ID` | Tenant ID for multi-tenancy | `tenant-123` |
-| `EDGEQUAKE_TIMEOUT` | Request timeout in seconds | `60` |
+| Variable                 | Purpose                                      | Example                             |
+| ------------------------ | -------------------------------------------- | ----------------------------------- |
+| `EDGEQUAKE_API_KEY`      | API authentication key (overrides parameter) | `sk-your-api-key-here`              |
+| `EDGEQUAKE_BASE_URL`     | Server URL                                   | `http://localhost:8080`             |
+| `EDGEQUAKE_URL`          | Alternative to `EDGEQUAKE_BASE_URL`          | `https://api.edgequake.example.com` |
+| `EDGEQUAKE_WORKSPACE_ID` | Default workspace ID                         | `my-workspace`                      |
+| `EDGEQUAKE_TENANT_ID`    | Tenant ID for multi-tenancy                  | `tenant-123`                        |
+| `EDGEQUAKE_TIMEOUT`      | Request timeout in seconds                   | `60`                                |
 
 **Example:**
 
@@ -158,16 +158,16 @@ client = EdgeQuake()
 
 See the [`examples/`](examples/) directory for complete, runnable examples:
 
-| Example | Description |
-|---------|-------------|
-| [`basic_usage.py`](examples/basic_usage.py) | Hello world — client setup, health check, simple query |
-| [`document_upload.py`](examples/document_upload.py) | Document management (upload, track, list, delete) |
-| [`graph_exploration.py`](examples/graph_exploration.py) | Navigate the knowledge graph |
-| [`query_demo.py`](examples/query_demo.py) | Different query modes (simple, hybrid, chat) |
-| [`streaming_query.py`](examples/streaming_query.py) | Real-time streaming responses (SSE) |
-| [`error_handling.py`](examples/error_handling.py) | Graceful error handling patterns |
-| [`configuration.py`](examples/configuration.py) | Advanced configuration and multi-environment setup |
-| [`multi_tenant.py`](examples/multi_tenant.py) | Tenant and workspace management |
+| Example                                                 | Description                                            |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| [`basic_usage.py`](examples/basic_usage.py)             | Hello world — client setup, health check, simple query |
+| [`document_upload.py`](examples/document_upload.py)     | Document management (upload, track, list, delete)      |
+| [`graph_exploration.py`](examples/graph_exploration.py) | Navigate the knowledge graph                           |
+| [`query_demo.py`](examples/query_demo.py)               | Different query modes (simple, hybrid, chat)           |
+| [`streaming_query.py`](examples/streaming_query.py)     | Real-time streaming responses (SSE)                    |
+| [`error_handling.py`](examples/error_handling.py)       | Graceful error handling patterns                       |
+| [`configuration.py`](examples/configuration.py)         | Advanced configuration and multi-environment setup     |
+| [`multi_tenant.py`](examples/multi_tenant.py)           | Tenant and workspace management                        |
 
 **Run any example:**
 
@@ -238,7 +238,8 @@ client = EdgeQuake(
 ### Streaming Issues
 
 **Problem:** SSE connection drops or no output  
-**Solution:** 
+**Solution:**
+
 1. Ensure output is flushed: `print(chunk, end="", flush=True)`
 2. Check network stability
 3. See [`docs/STREAMING.md`](docs/STREAMING.md) for reconnection strategies
@@ -263,6 +264,7 @@ doc = client.documents.upload(content="...", title="...")
 ```
 
 For more troubleshooting, see:
+
 - **API Reference:** [`docs/API.md`](docs/API.md)
 - **Authentication Guide:** [`docs/AUTHENTICATION.md`](docs/AUTHENTICATION.md)
 - **Streaming Guide:** [`docs/STREAMING.md`](docs/STREAMING.md)

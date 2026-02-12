@@ -368,6 +368,7 @@ for chunk in client.query.stream(query="What is RAG?"):
 ```
 
 **Expected latencies:**
+
 - Local (localhost): 10-50ms
 - Same datacenter: 50-200ms
 - Cross-region: 200-500ms
@@ -393,11 +394,11 @@ sys.stdout.flush()
 
 Streaming throughput depends on LLM provider:
 
-| Provider | Tokens/sec |
-|----------|------------|
-| Ollama (local) | 10-50 |
-| OpenAI GPT-4 | 30-80 |
-| OpenAI GPT-3.5 | 80-150 |
+| Provider       | Tokens/sec |
+| -------------- | ---------- |
+| Ollama (local) | 10-50      |
+| OpenAI GPT-4   | 30-80      |
+| OpenAI GPT-3.5 | 80-150     |
 
 ### 4. Connection Timeouts
 
@@ -437,6 +438,7 @@ full_text = "".join(chunks)
 **Problem:** Stream appears frozen
 
 **Solution:** Ensure output is flushed:
+
 ```python
 import sys
 for chunk in client.query.stream(query="..."):
@@ -449,6 +451,7 @@ for chunk in client.query.stream(query="..."):
 **Problem:** `BrokenPipeError: [Errno 32] Broken pipe`
 
 **Solution:** Connection lost mid-stream, retry:
+
 ```python
 from edgequake.exceptions import NetworkError
 
@@ -470,6 +473,7 @@ for attempt in range(max_retries):
 **Problem:** Tokens arrive slowly
 
 **Solutions:**
+
 1. Check network latency: `ping your-api-server`
 2. Increase buffer size in SDK (if configurable)
 3. Use faster LLM provider
@@ -480,6 +484,7 @@ for attempt in range(max_retries):
 **Problem:** `JSONDecodeError` while parsing chunks
 
 **Solution:** Handle both JSON and plain text:
+
 ```python
 import json
 

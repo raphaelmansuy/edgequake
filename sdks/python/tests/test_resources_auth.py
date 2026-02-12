@@ -229,9 +229,7 @@ class TestApiKeysResource:
     @patch("edgequake._transport.SyncTransport.request")
     def test_list_dict_response(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            "keys": [{"id": "k1", "name": "key-1"}]
-        }
+        mock_resp.json.return_value = {"keys": [{"id": "k1", "name": "key-1"}]}
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()

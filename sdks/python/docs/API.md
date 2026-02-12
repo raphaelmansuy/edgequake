@@ -42,6 +42,7 @@ client = EdgequakeClient(
 ```
 
 **Parameters:**
+
 - `api_key` (str): API key for authentication (can also use `EDGEQUAKE_API_KEY` env var)
 - `base_url` (str, optional): EdgeQuake server URL (default: `http://localhost:8080`)
 - `timeout` (int, optional): Request timeout in seconds (default: 30)
@@ -88,6 +89,7 @@ print(doc["document_id"])
 ```
 
 **Parameters:**
+
 - `content` (str): Document content (text)
 - `title` (str, optional): Document title
 - `metadata` (dict, optional): Custom metadata key-value pairs
@@ -110,6 +112,7 @@ with open("research.pdf", "rb") as f:
 ```
 
 **Parameters:**
+
 - `file` (bytes): PDF file content
 - `title` (str, optional): Document title
 - `metadata` (dict, optional): Custom metadata
@@ -129,6 +132,7 @@ for doc in result.get("items", []):
 ```
 
 **Parameters:**
+
 - `page` (int, optional): Page number (default: 1)
 - `page_size` (int, optional): Items per page (default: 20, max: 100)
 - `status` (str, optional): Filter by status (`uploading`, `processing`, `completed`, `failed`)
@@ -147,6 +151,7 @@ print(doc["title"], doc["status"], doc["chunk_count"])
 ```
 
 **Parameters:**
+
 - `document_id` (str): Document ID
 
 **Returns:** Dictionary with full document details
@@ -164,6 +169,7 @@ client.documents.delete("doc_123")
 ```
 
 **Parameters:**
+
 - `document_id` (str): Document ID
 
 **Returns:** None
@@ -180,6 +186,7 @@ print(status["status"])  # "processing", "completed", "failed"
 ```
 
 **Parameters:**
+
 - `track_id` (str): Track ID returned from upload
 
 **Returns:** Dictionary with `status`, `message`, `progress`
@@ -202,11 +209,13 @@ print(result["answer"])
 ```
 
 **Parameters:**
+
 - `query` (str): Natural language query
 - `mode` (str, optional): Retrieval mode (`"simple"`, `"hybrid"`, `"local"`, `"global"`)
 - `top_k` (int, optional): Number of results to retrieve (default: 10)
 
 **Returns:** Dictionary with:
+
 - `answer` (str): Generated answer
 - `sources` (list): Source documents/entities used
 - `context` (str): Retrieved context
@@ -262,6 +271,7 @@ for node in nodes:
 ```
 
 **Parameters:**
+
 - `query` (str): Search keyword
 - `limit` (int, optional): Max results (default: 20)
 
@@ -280,6 +290,7 @@ for entity in entities.get("items", []):
 ```
 
 **Parameters:**
+
 - `page` (int, optional): Page number
 - `page_size` (int, optional): Items per page
 
@@ -297,6 +308,7 @@ print(neighborhood)
 ```
 
 **Parameters:**
+
 - `entity_name` (str): Entity name (normalized to UPPERCASE_WITH_UNDERSCORES)
 
 **Returns:** Dictionary with entity and connected nodes/edges
@@ -327,6 +339,7 @@ print(labels)
 ```
 
 **Parameters:**
+
 - `query` (str): Label search keyword
 
 **Returns:** List of matching labels
@@ -343,6 +356,7 @@ print(popular)
 ```
 
 **Parameters:**
+
 - `limit` (int, optional): Max labels to return
 
 **Returns:** List of popular labels with counts
@@ -367,6 +381,7 @@ print(response["choices"][0]["message"]["content"])
 ```
 
 **Parameters:**
+
 - `model` (str): Model name (use `"edgequake"`)
 - `messages` (list): List of message dictionaries with `role` and `content`
 - Additional OpenAI-compatible parameters
@@ -490,6 +505,7 @@ except EdgeQuakeError as e:
 ```
 
 **Error attributes:**
+
 - `message` (str): Error description
 - `status` (int, optional): HTTP status code
 - `code` (str, optional): Error code
@@ -519,6 +535,7 @@ while True:
 ```
 
 **Response structure:**
+
 ```python
 {
     "items": [...],

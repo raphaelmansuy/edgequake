@@ -42,7 +42,9 @@ class TestHealthResponse:
 
 class TestDocumentTypes:
     def test_upload_response(self) -> None:
-        r = UploadDocumentResponse(document_id="doc-1", status="processing", message="OK")
+        r = UploadDocumentResponse(
+            document_id="doc-1", status="processing", message="OK"
+        )
         assert r.document_id == "doc-1"
 
     def test_document_summary(self) -> None:

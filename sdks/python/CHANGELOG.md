@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-02-12
 
 ### Added
+
 - Complete API coverage (20+ resource namespaces)
 - Streaming query support via Server-Sent Events (SSE)
 - Multi-tenant authentication with workspace IDs
@@ -18,18 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced README with resource namespaces table and troubleshooting
 
 ### Fixed
+
 - Cursor-based pagination implementation (Phase 6 fix)
 - Async client resource cleanup
 - Error handling for edge cases in streaming
 - Type hints for all public methods
 
 ### Changed
+
 - Improved error messages for better debugging
 - Updated documentation to match TypeScript SDK quality standard
 
 ## [0.1.0] - 2026-02-10
 
 ### Added
+
 - Initial Python SDK release
 - Basic CRUD operations for documents, queries, graphs
 - Synchronous client (`EdgequakeClient`)

@@ -16,6 +16,7 @@ Usage:
     python examples/configuration.py
 """
 import os
+
 from edgequake import EdgequakeClient
 
 

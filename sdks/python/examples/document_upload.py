@@ -16,6 +16,7 @@ Usage:
 import os
 import time
 from pathlib import Path
+
 from edgequake import EdgequakeClient
 
 

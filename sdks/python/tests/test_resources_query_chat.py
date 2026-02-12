@@ -9,7 +9,11 @@ import pytest
 from edgequake import EdgeQuake
 from edgequake._client import AsyncEdgeQuake
 from edgequake._streaming import AsyncSSEStream, SSEStream
-from edgequake.types.chat import ChatCompletionChunk, ChatCompletionResponse, ChatMessage
+from edgequake.types.chat import (
+    ChatCompletionChunk,
+    ChatCompletionResponse,
+    ChatMessage,
+)
 from edgequake.types.query import QueryRequest, QueryResponse, QueryStreamEvent
 
 
@@ -232,7 +236,9 @@ class TestChatResource:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             "id": "chat-2",
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}}],
+            "choices": [
+                {"index": 0, "message": {"role": "assistant", "content": "ok"}}
+            ],
         }
         mock_req.return_value = mock_resp
 
@@ -261,7 +267,9 @@ class TestChatResource:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             "id": "chat-3",
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}}],
+            "choices": [
+                {"index": 0, "message": {"role": "assistant", "content": "ok"}}
+            ],
         }
         mock_req.return_value = mock_resp
 
@@ -320,7 +328,9 @@ class TestChatResource:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             "id": "chat-4",
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}}],
+            "choices": [
+                {"index": 0, "message": {"role": "assistant", "content": "ok"}}
+            ],
             "sources": [{"document_id": "doc-1", "score": 0.9}],
             "stats": {"total_time_ms": 300},
             "conversation_id": "conv-x",
@@ -369,7 +379,9 @@ class TestAsyncChatResource:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             "id": "chat-async-2",
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}}],
+            "choices": [
+                {"index": 0, "message": {"role": "assistant", "content": "ok"}}
+            ],
         }
         mock_req.return_value = mock_resp
 

@@ -271,11 +271,13 @@ dev_docs = dev_client.documents.list()
 ### 1. Never Hardcode Credentials
 
 ❌ **Bad:**
+
 ```python
 client = EdgequakeClient(api_key="sk-proj-abc123...")
 ```
 
 ✅ **Good:**
+
 ```python
 import os
 client = EdgequakeClient(api_key=os.environ.get("EDGEQUAKE_API_KEY"))
@@ -329,11 +331,13 @@ automation_key = admin.api_keys.create(
 ### 5. Use HTTPS in Production
 
 ❌ **Bad (development only):**
+
 ```python
 client = EdgequakeClient(base_url="http://api.example.com")
 ```
 
 ✅ **Good (production):**
+
 ```python
 client = EdgequakeClient(base_url="https://api.example.com")
 ```
@@ -396,6 +400,7 @@ if key["last_used_at"] is None:
 **Problem:** `HTTP 401: Unauthorized`
 
 **Solutions:**
+
 1. Check API key is set: `echo $EDGEQUAKE_API_KEY`
 2. Verify key hasn't been revoked
 3. Ensure key has required scopes
@@ -406,6 +411,7 @@ if key["last_used_at"] is None:
 **Problem:** `HTTP 403: Forbidden`
 
 **Solutions:**
+
 1. Verify API key has required permissions
 2. Check workspace/tenant context is correct
 3. Ensure user has access to resource
@@ -415,6 +421,7 @@ if key["last_used_at"] is None:
 **Problem:** Token expires during long-running operations
 
 **Solution:** Use refresh token proactively:
+
 ```python
 import time
 

@@ -15,6 +15,7 @@ Usage:
     python examples/query_demo.py
 """
 import os
+
 from edgequake import EdgequakeClient
 
 
@@ -27,9 +28,7 @@ def main():
     # ── 1. Simple query ───────────────────────────────────────
 
     # WHY: Default mode uses the backend's configured retrieval strategy.
-    simple = client.query.execute(
-        query="What is retrieval-augmented generation?"
-    )
+    simple = client.query.execute(query="What is retrieval-augmented generation?")
     print(f"Simple query answer: {simple['answer']}")
 
     # ── 2. Hybrid mode query ──────────────────────────────────

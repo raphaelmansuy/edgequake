@@ -231,9 +231,7 @@ class TestEntitiesResource:
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
-        result = client.entities.create(
-            EntityCreate(name="BOB", entity_type="PERSON")
-        )
+        result = client.entities.create(EntityCreate(name="BOB", entity_type="PERSON"))
         assert result.name == "BOB"
         client.close()
 
@@ -417,9 +415,7 @@ class TestRelationshipsResource:
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
-        result = client.relationships.update(
-            "rel-1", RelationshipUpdate(weight=2.0)
-        )
+        result = client.relationships.update("rel-1", RelationshipUpdate(weight=2.0))
         assert isinstance(result, Relationship)
         assert result.weight == 2.0
         client.close()
@@ -704,9 +700,7 @@ class TestAsyncRelationshipsResource:
         mock_req.return_value = mock_resp
 
         client = AsyncEdgeQuake()
-        result = await client.relationships.update(
-            "r1", RelationshipUpdate(weight=3.0)
-        )
+        result = await client.relationships.update("r1", RelationshipUpdate(weight=3.0))
         assert isinstance(result, Relationship)
 
     @pytest.mark.asyncio

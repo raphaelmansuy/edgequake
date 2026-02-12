@@ -842,14 +842,20 @@ func TestRequestPaths(t *testing.T) {
 			path:   "/api/v1/graph/entities",
 		},
 		{
-			name:   "Entities Create",
-			call:   func(c *edgequake.Client) error { _, e := c.Entities.Create(context.Background(), &edgequake.CreateEntityParams{}); return e },
+			name: "Entities Create",
+			call: func(c *edgequake.Client) error {
+				_, e := c.Entities.Create(context.Background(), &edgequake.CreateEntityParams{})
+				return e
+			},
 			method: "POST",
 			path:   "/api/v1/graph/entities",
 		},
 		{
-			name:   "Entities Merge",
-			call:   func(c *edgequake.Client) error { _, e := c.Entities.Merge(context.Background(), &edgequake.MergeEntitiesParams{}); return e },
+			name: "Entities Merge",
+			call: func(c *edgequake.Client) error {
+				_, e := c.Entities.Merge(context.Background(), &edgequake.MergeEntitiesParams{})
+				return e
+			},
 			method: "POST",
 			path:   "/api/v1/graph/entities/merge",
 		},
@@ -860,20 +866,29 @@ func TestRequestPaths(t *testing.T) {
 			path:   "/api/v1/graph/relationships",
 		},
 		{
-			name:   "Query Execute",
-			call:   func(c *edgequake.Client) error { _, e := c.Query.Execute(context.Background(), &edgequake.QueryRequest{}); return e },
+			name: "Query Execute",
+			call: func(c *edgequake.Client) error {
+				_, e := c.Query.Execute(context.Background(), &edgequake.QueryRequest{})
+				return e
+			},
 			method: "POST",
 			path:   "/api/v1/query",
 		},
 		{
-			name:   "Chat Completions",
-			call:   func(c *edgequake.Client) error { _, e := c.Chat.Completions(context.Background(), &edgequake.ChatCompletionRequest{}); return e },
+			name: "Chat Completions",
+			call: func(c *edgequake.Client) error {
+				_, e := c.Chat.Completions(context.Background(), &edgequake.ChatCompletionRequest{})
+				return e
+			},
 			method: "POST",
 			path:   "/api/v1/chat/completions",
 		},
 		{
-			name:   "Auth Login",
-			call:   func(c *edgequake.Client) error { _, e := c.Auth.Login(context.Background(), &edgequake.LoginParams{}); return e },
+			name: "Auth Login",
+			call: func(c *edgequake.Client) error {
+				_, e := c.Auth.Login(context.Background(), &edgequake.LoginParams{})
+				return e
+			},
 			method: "POST",
 			path:   "/api/v1/auth/login",
 		},
@@ -884,8 +899,11 @@ func TestRequestPaths(t *testing.T) {
 			path:   "/api/v1/auth/me",
 		},
 		{
-			name:   "Auth Refresh",
-			call:   func(c *edgequake.Client) error { _, e := c.Auth.Refresh(context.Background(), &edgequake.RefreshParams{}); return e },
+			name: "Auth Refresh",
+			call: func(c *edgequake.Client) error {
+				_, e := c.Auth.Refresh(context.Background(), &edgequake.RefreshParams{})
+				return e
+			},
 			method: "POST",
 			path:   "/api/v1/auth/refresh",
 		},
@@ -1006,10 +1024,10 @@ func TestTypes_Document_JSON(t *testing.T) {
 	size := int64(1024)
 	count := 5
 	doc := edgequake.Document{
-		ID:       "d1",
-		Title:    "Test",
-		Status:   "completed",
-		FileSize: &size,
+		ID:         "d1",
+		Title:      "Test",
+		Status:     "completed",
+		FileSize:   &size,
 		ChunkCount: &count,
 	}
 	b, err := json.Marshal(doc)
@@ -1058,10 +1076,10 @@ func TestTypes_TaskInfo_JSON(t *testing.T) {
 func TestTypes_GraphEdge_JSON(t *testing.T) {
 	w := 0.85
 	edge := edgequake.GraphEdge{
-		Source:   "A",
-		Target:   "B",
-		EdgeType: "KNOWS",
-		Weight:   &w,
+		Source:     "A",
+		Target:     "B",
+		EdgeType:   "KNOWS",
+		Weight:     &w,
 		Properties: map[string]interface{}{"confidence": 0.9},
 	}
 	b, err := json.Marshal(edge)

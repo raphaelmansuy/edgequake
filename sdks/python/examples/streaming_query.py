@@ -16,6 +16,7 @@ Usage:
 """
 import os
 import sys
+
 from edgequake import EdgequakeClient
 
 
@@ -63,11 +64,7 @@ def main():
             ],
         ):
             if isinstance(chunk, dict):
-                delta = (
-                    chunk.get("choices", [{}])[0]
-                    .get("delta", {})
-                    .get("content")
-                )
+                delta = chunk.get("choices", [{}])[0].get("delta", {}).get("content")
                 if delta:
                     sys.stdout.write(delta)
                     sys.stdout.flush()

@@ -20,33 +20,33 @@ sdks/python/
 
 ### Missing Files
 
-| File/Folder | Status | Priority |
-|-------------|--------|----------|
-| `CHANGELOG.md` | ❌ MISSING | HIGH |
-| `LICENSE` | ❌ MISSING | HIGH |
-| `docs/` folder | ❌ MISSING | HIGH |
-| `docs/API.md` | ❌ MISSING | HIGH |
-| `docs/AUTHENTICATION.md` | ❌ MISSING | MEDIUM |
-| `docs/STREAMING.md` | ❌ MISSING | MEDIUM |
-| `examples/` folder | ❌ MISSING | HIGH |
-| `.github/workflows/` | ❌ MISSING | HIGH (next iteration) |
+| File/Folder              | Status     | Priority              |
+| ------------------------ | ---------- | --------------------- |
+| `CHANGELOG.md`           | ❌ MISSING | HIGH                  |
+| `LICENSE`                | ❌ MISSING | HIGH                  |
+| `docs/` folder           | ❌ MISSING | HIGH                  |
+| `docs/API.md`            | ❌ MISSING | HIGH                  |
+| `docs/AUTHENTICATION.md` | ❌ MISSING | MEDIUM                |
+| `docs/STREAMING.md`      | ❌ MISSING | MEDIUM                |
+| `examples/` folder       | ❌ MISSING | HIGH                  |
+| `.github/workflows/`     | ❌ MISSING | HIGH (next iteration) |
 
 ### README.md Quality Gap Analysis
 
 Comparing to TypeScript SDK reference:
 
-| Section | TypeScript | Python | Gap |
-|---------|------------|--------|-----|
-| **Features** | 8 bullet points, specific | 6 bullet points, generic | Minor |
-| **Installation** | npm command | pip command + extras | Good |
-| **Quick Start** | 4 examples (health, upload, query, stream) | 2 clients (sync/async) | Missing graph example |
-| **Configuration** | Full config object + env vars | Auth options only | **Major gap** |
-| **Resource Namespaces** | Complete table (20+ namespaces) | ❌ Missing | **Critical gap** |
-| **Environment Variables** | Listed explicitly | ❌ Not mentioned | Major |
-| **API Coverage** | "131+ endpoints across 27 resources" | No stats | Missing |
-| **Common Use Cases** | Link to examples | ❌ Missing | Major |
-| **Troubleshooting** | ❌ Missing in both | N/A |
-| **Contributing** | ❌ Missing in both | N/A |
+| Section                   | TypeScript                                 | Python                   | Gap                   |
+| ------------------------- | ------------------------------------------ | ------------------------ | --------------------- |
+| **Features**              | 8 bullet points, specific                  | 6 bullet points, generic | Minor                 |
+| **Installation**          | npm command                                | pip command + extras     | Good                  |
+| **Quick Start**           | 4 examples (health, upload, query, stream) | 2 clients (sync/async)   | Missing graph example |
+| **Configuration**         | Full config object + env vars              | Auth options only        | **Major gap**         |
+| **Resource Namespaces**   | Complete table (20+ namespaces)            | ❌ Missing               | **Critical gap**      |
+| **Environment Variables** | Listed explicitly                          | ❌ Not mentioned         | Major                 |
+| **API Coverage**          | "131+ endpoints across 27 resources"       | No stats                 | Missing               |
+| **Common Use Cases**      | Link to examples                           | ❌ Missing               | Major                 |
+| **Troubleshooting**       | ❌ Missing in both                         | N/A                      |
+| **Contributing**          | ❌ Missing in both                         | N/A                      |
 
 ### Documentation Gaps (vs TypeScript Standard)
 
@@ -81,14 +81,14 @@ Python has: **0 examples** ❌
 
 ## Quality Assessment
 
-| Criterion | Score (1-10) | Notes |
-|-----------|--------------|-------|
-| **README Completeness** | 6/10 | Good basics, missing advanced sections |
-| **CHANGELOG** | 0/10 | Doesn't exist |
-| **LICENSE** | 0/10 | Doesn't exist |
-| **API Documentation** | 0/10 | No docs/ folder |
-| **Examples** | 0/10 | No examples/ folder |
-| **Overall** | **3/10** | Below TypeScript standard |
+| Criterion               | Score (1-10) | Notes                                  |
+| ----------------------- | ------------ | -------------------------------------- |
+| **README Completeness** | 6/10         | Good basics, missing advanced sections |
+| **CHANGELOG**           | 0/10         | Doesn't exist                          |
+| **LICENSE**             | 0/10         | Doesn't exist                          |
+| **API Documentation**   | 0/10         | No docs/ folder                        |
+| **Examples**            | 0/10         | No examples/ folder                    |
+| **Overall**             | **3/10**     | Below TypeScript standard              |
 
 ## Required Work (OODA 34)
 

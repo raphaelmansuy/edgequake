@@ -43,17 +43,17 @@ async fn main() -> edgequake_sdk::Result<()> {
 
 ## Client Configuration
 
-| Method | Description | Default |
-|---|---|---|
-| `.base_url(url)` | API server URL | `http://localhost:8080` |
-| `.api_key(key)` | API key (X-API-Key header) | None |
-| `.bearer_token(token)` | JWT token (Authorization: Bearer) | None |
-| `.tenant_id(id)` | Tenant ID header | None |
-| `.workspace_id(id)` | Workspace ID header | None |
-| `.timeout(duration)` | Request timeout | 30s |
-| `.connect_timeout(duration)` | Connection timeout | 5s |
-| `.max_retries(n)` | Max retry attempts on 429/5xx | 3 |
-| `.user_agent(ua)` | Custom User-Agent string | `edgequake-rust/{version}` |
+| Method                       | Description                       | Default                    |
+| ---------------------------- | --------------------------------- | -------------------------- |
+| `.base_url(url)`             | API server URL                    | `http://localhost:8080`    |
+| `.api_key(key)`              | API key (X-API-Key header)        | None                       |
+| `.bearer_token(token)`       | JWT token (Authorization: Bearer) | None                       |
+| `.tenant_id(id)`             | Tenant ID header                  | None                       |
+| `.workspace_id(id)`          | Workspace ID header               | None                       |
+| `.timeout(duration)`         | Request timeout                   | 30s                        |
+| `.connect_timeout(duration)` | Connection timeout                | 5s                         |
+| `.max_retries(n)`            | Max retry attempts on 429/5xx     | 3                          |
+| `.user_agent(ua)`            | Custom User-Agent string          | `edgequake-rust/{version}` |
 
 ```rust
 use std::time::Duration;
@@ -404,25 +404,26 @@ match client.documents().get("doc-id").await {
 
 ### Error Variants
 
-| Variant | HTTP Status | Description |
-|---|---|---|
-| `BadRequest` | 400 | Invalid request parameters |
-| `Unauthorized` | 401 | Authentication failed |
-| `Forbidden` | 403 | Permission denied |
-| `NotFound` | 404 | Resource not found |
-| `Conflict` | 409 | Resource conflict |
-| `Validation` | 422 | Validation error |
-| `RateLimited` | 429 | Rate limit exceeded |
-| `Server` | 5xx | Server error |
-| `Network` | — | Transport error |
-| `Json` | — | Serialization error |
-| `Url` | — | URL parsing error |
-| `Config` | — | Configuration error |
-| `Timeout` | — | Operation timeout |
+| Variant        | HTTP Status | Description                |
+| -------------- | ----------- | -------------------------- |
+| `BadRequest`   | 400         | Invalid request parameters |
+| `Unauthorized` | 401         | Authentication failed      |
+| `Forbidden`    | 403         | Permission denied          |
+| `NotFound`     | 404         | Resource not found         |
+| `Conflict`     | 409         | Resource conflict          |
+| `Validation`   | 422         | Validation error           |
+| `RateLimited`  | 429         | Rate limit exceeded        |
+| `Server`       | 5xx         | Server error               |
+| `Network`      | —           | Transport error            |
+| `Json`         | —           | Serialization error        |
+| `Url`          | —           | URL parsing error          |
+| `Config`       | —           | Configuration error        |
+| `Timeout`      | —           | Operation timeout          |
 
 ## Retry Behavior
 
 The client automatically retries on:
+
 - **429 Too Many Requests**
 - **500, 502, 503, 504 Server Errors**
 - **Network errors** (connection timeouts, etc.)

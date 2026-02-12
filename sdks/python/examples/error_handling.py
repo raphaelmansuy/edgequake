@@ -14,15 +14,16 @@ Usage:
 """
 import os
 import time
+
 from edgequake import EdgequakeClient
 from edgequake.exceptions import (
     EdgeQuakeError,
-    NotFoundError,
-    UnauthorizedError,
-    RateLimitedError,
     NetworkError,
-    ValidationError,
+    NotFoundError,
+    RateLimitedError,
     TimeoutError,
+    UnauthorizedError,
+    ValidationError,
 )
 
 
@@ -65,8 +66,7 @@ def main():
             except NetworkError:
                 if attempt < max_retries:
                     print(
-                        f"Network error, retrying "
-                        f"(attempt {attempt}/{max_retries})"
+                        f"Network error, retrying " f"(attempt {attempt}/{max_retries})"
                     )
                     time.sleep(1)
                     continue

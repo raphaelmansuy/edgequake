@@ -46,14 +46,14 @@ puts result["answer"]
 
 ## Configuration
 
-| Parameter      | Type     | Default                 | Description           |
-|----------------|----------|-------------------------|-----------------------|
-| `base_url`     | `String` | `http://localhost:8080` | API base URL          |
-| `api_key`      | `String` | `nil`                   | API key               |
-| `tenant_id`    | `String` | `nil`                   | Tenant ID header      |
-| `user_id`      | `String` | `nil`                   | User ID header        |
-| `workspace_id` | `String` | `nil`                   | Workspace ID header   |
-| `timeout`      | `Integer`| `60`                    | Request timeout (sec) |
+| Parameter      | Type      | Default                 | Description           |
+| -------------- | --------- | ----------------------- | --------------------- |
+| `base_url`     | `String`  | `http://localhost:8080` | API base URL          |
+| `api_key`      | `String`  | `nil`                   | API key               |
+| `tenant_id`    | `String`  | `nil`                   | Tenant ID header      |
+| `user_id`      | `String`  | `nil`                   | User ID header        |
+| `workspace_id` | `String`  | `nil`                   | Workspace ID header   |
+| `timeout`      | `Integer` | `60`                    | Request timeout (sec) |
 
 ```ruby
 config = EdgeQuake::Config.new(
@@ -206,11 +206,11 @@ rescue EdgeQuake::ApiError => e
 end
 ```
 
-| Property        | Type     | Description       |
-|-----------------|----------|-------------------|
-| `status_code`   | `Integer`| HTTP status code  |
-| `response_body` | `String` | Raw response body |
-| `message`       | `String` | Error description |
+| Property        | Type      | Description       |
+| --------------- | --------- | ----------------- |
+| `status_code`   | `Integer` | HTTP status code  |
+| `response_body` | `String`  | Raw response body |
+| `message`       | `String`  | Error description |
 
 ## Testing
 

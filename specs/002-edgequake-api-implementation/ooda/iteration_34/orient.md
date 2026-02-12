@@ -16,6 +16,7 @@
 **Hypothesis**: Professional documentation accelerates adoption and reduces support burden.
 
 **Evidence from TypeScript SDK**:
+
 - Clear README → lower barrier to entry
 - Examples folder → users can copy-paste working code
 - API docs → reduces "how do I...?" questions
@@ -27,46 +28,37 @@
 
 ### Priority Matrix
 
-| Task | Impact | Effort | Priority | Reasoning |
-|------|--------|--------|----------|-----------|
-| **CHANGELOG.md** | High | Low | **P0** | Shows professionalism, tracks Phase 6 fixes |
-| **LICENSE** | High | Low | **P0** | Legal requirement, copy TypeScript Apache 2.0 |
-| **examples/** | High | Medium | **P0** | Fastest way for users to understand SDK |
-| **docs/API.md** | High | High | **P1** | Comprehensive but takes time to write |
-| **docs/AUTHENTICATION.md** | Medium | Low | **P1** | Specialized use case guide |
-| **docs/STREAMING.md** | Medium | Low | **P1** | Specialized feature guide |
-| **README enhancements** | High | Medium | **P1** | Update after examples/docs exist |
+| Task                       | Impact | Effort | Priority | Reasoning                                     |
+| -------------------------- | ------ | ------ | -------- | --------------------------------------------- |
+| **CHANGELOG.md**           | High   | Low    | **P0**   | Shows professionalism, tracks Phase 6 fixes   |
+| **LICENSE**                | High   | Low    | **P0**   | Legal requirement, copy TypeScript Apache 2.0 |
+| **examples/**              | High   | Medium | **P0**   | Fastest way for users to understand SDK       |
+| **docs/API.md**            | High   | High   | **P1**   | Comprehensive but takes time to write         |
+| **docs/AUTHENTICATION.md** | Medium | Low    | **P1**   | Specialized use case guide                    |
+| **docs/STREAMING.md**      | Medium | Low    | **P1**   | Specialized feature guide                     |
+| **README enhancements**    | High   | Medium | **P1**   | Update after examples/docs exist              |
 
 ### Implementation Order
 
 **Phase 1: Quick Wins (15 min)**
+
 1. Copy LICENSE from TypeScript
 2. Create CHANGELOG.md with v1.0.0 release notes
 
-**Phase 2: Examples (60 min)**
-3. Create `examples/` folder
-4. Port all TypeScript examples to Python:
-   - `basic_usage.py` (5 min)
-   - `document_upload.py` (10 min)
-   - `graph_exploration.py` (10 min)
-   - `query_demo.py` (10 min)
-   - `streaming_query.py` (15 min)
-   - `error_handling.py` (10 min)
-   - `configuration.py` (5 min)
-   - `multi_tenant.py` (5 min)
+**Phase 2: Examples (60 min)** 3. Create `examples/` folder 4. Port all TypeScript examples to Python:
 
-**Phase 3: Documentation (45 min)**
-5. Create `docs/` folder
-6. Write `docs/API.md` (20 min — focus on resource namespaces)
-7. Write `docs/AUTHENTICATION.md` (15 min)
-8. Write `docs/STREAMING.md` (10 min)
+- `basic_usage.py` (5 min)
+- `document_upload.py` (10 min)
+- `graph_exploration.py` (10 min)
+- `query_demo.py` (10 min)
+- `streaming_query.py` (15 min)
+- `error_handling.py` (10 min)
+- `configuration.py` (5 min)
+- `multi_tenant.py` (5 min)
 
-**Phase 4: README Enhancement (30 min)**
-9. Add resource namespaces table
-10. Add environment variables section
-11. Add configuration options
-12. Add troubleshooting section
-13. Link to examples and docs
+**Phase 3: Documentation (45 min)** 5. Create `docs/` folder 6. Write `docs/API.md` (20 min — focus on resource namespaces) 7. Write `docs/AUTHENTICATION.md` (15 min) 8. Write `docs/STREAMING.md` (10 min)
+
+**Phase 4: README Enhancement (30 min)** 9. Add resource namespaces table 10. Add environment variables section 11. Add configuration options 12. Add troubleshooting section 13. Link to examples and docs
 
 **Total Time Estimate:** ~2.5 hours
 
@@ -84,6 +76,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.0.0] - 2026-02-12
 
 ### Added
+
 - Complete API coverage (20+ resource namespaces)
 - Streaming query support (SSE)
 - Multi-tenant authentication
@@ -91,6 +84,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Full API documentation
 
 ### Fixed
+
 - Cursor-based pagination (Phase 6 fix)
 - Async client cleanup
 - Error handling edge cases
@@ -98,6 +92,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.1.0] - 2026-02-10
 
 ### Added
+
 - Initial Python SDK release
 - Basic CRUD operations
 - Synchronous and asynchronous clients
@@ -106,6 +101,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Examples Strategy
 
 **Port TypeScript → Python with these changes**:
+
 - Use `asyncio` for async examples
 - Show both `EdgequakeClient` (sync) and `AsyncEdgequakeClient`
 - Use Python idioms (context managers, type hints)
@@ -133,9 +129,9 @@ def main():
         api_key=os.environ.get("EDGEQUAKE_API_KEY"),
         base_url="http://localhost:8080"
     )
-    
+
     # [Example code]
-    
+
 if __name__ == "__main__":
     main()
 ```
@@ -143,18 +139,21 @@ if __name__ == "__main__":
 ### Documentation Strategy
 
 **docs/API.md** — Complete reference:
+
 - List all 20+ resource namespaces
 - Document each namespace's methods
 - Include request/response examples
 - Show pagination, filtering, sorting
 
 **docs/AUTHENTICATION.md** — Auth methods:
+
 - API key authentication
 - JWT token flow
 - Multi-tenant workspace IDs
 - Security best practices
 
 **docs/STREAMING.md** — Real-time features:
+
 - Server-Sent Events (SSE) setup
 - Handling streamed query responses
 - Error recovery in streams
@@ -171,6 +170,7 @@ Table showing all available resources (match TypeScript format)
 #### ⚙️ Configuration
 
 Complete config object with all options:
+
 - `api_key`: Authentication
 - `base_url`: Server endpoint
 - `timeout`: Request timeout (default 30s)
@@ -189,6 +189,7 @@ Link to examples folder with descriptions
 #### 🔧 Troubleshooting
 
 Common issues and solutions:
+
 - Connection errors → Check base_url
 - Auth errors → Verify API key
 - Timeout errors → Increase timeout setting
@@ -205,21 +206,21 @@ Common issues and solutions:
 
 ### Success Metrics
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| **Examples working** | 8/8 | Manual execution |
-| **Doc completeness** | 100% | All sections filled |
-| **README length** | ~200 lines | Match TypeScript |
-| **Quality score** | 9/10 | Match Phase 6 E2E |
+| Metric               | Target     | Measurement         |
+| -------------------- | ---------- | ------------------- |
+| **Examples working** | 8/8        | Manual execution    |
+| **Doc completeness** | 100%       | All sections filled |
+| **README length**    | ~200 lines | Match TypeScript    |
+| **Quality score**    | 9/10       | Match Phase 6 E2E   |
 
 ## Risk Mitigation
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| **Examples don't run** | High | Test each before committing |
-| **API docs outdated** | Medium | Generate from OpenAPI spec |
-| **README too verbose** | Low | Follow TypeScript length |
-| **Time overrun** | Low | Prioritize P0 items first |
+| Risk                   | Impact | Mitigation                  |
+| ---------------------- | ------ | --------------------------- |
+| **Examples don't run** | High   | Test each before committing |
+| **API docs outdated**  | Medium | Generate from OpenAPI spec  |
+| **README too verbose** | Low    | Follow TypeScript length    |
+| **Time overrun**       | Low    | Prioritize P0 items first   |
 
 ## Next Actions (Orient → Decide)
 

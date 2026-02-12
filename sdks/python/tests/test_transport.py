@@ -67,15 +67,15 @@ import pytest
 from edgequake._config import ClientConfig
 from edgequake._errors import (
     BadRequestError,
-    ConnectionError as EQConnectionError,
     ForbiddenError,
     InternalError,
     NotFoundError,
     RateLimitedError,
     ServiceUnavailableError,
-    TimeoutError as EQTimeoutError,
     UnauthorizedError,
 )
+from edgequake._errors import ConnectionError as EQConnectionError
+from edgequake._errors import TimeoutError as EQTimeoutError
 from edgequake._transport import AsyncTransport, SyncTransport
 
 
@@ -114,43 +114,57 @@ class TestSyncTransportHTTPErrors:
 
     def test_request_400_bad_request(self, transport: SyncTransport) -> None:
         """Test 400 raises BadRequestError."""
-        transport._client.request = MagicMock(return_value=_make_error_response(400, "Bad request"))
+        transport._client.request = MagicMock(
+            return_value=_make_error_response(400, "Bad request")
+        )
         with pytest.raises(BadRequestError):
             transport.request("POST", "/bad")
 
     def test_request_401_unauthorized(self, transport: SyncTransport) -> None:
         """Test 401 raises UnauthorizedError."""
-        transport._client.request = MagicMock(return_value=_make_error_response(401, "Unauthorized"))
+        transport._client.request = MagicMock(
+            return_value=_make_error_response(401, "Unauthorized")
+        )
         with pytest.raises(UnauthorizedError):
             transport.request("GET", "/protected")
 
     def test_request_403_forbidden(self, transport: SyncTransport) -> None:
         """Test 403 raises ForbiddenError."""
-        transport._client.request = MagicMock(return_value=_make_error_response(403, "Forbidden"))
+        transport._client.request = MagicMock(
+            return_value=_make_error_response(403, "Forbidden")
+        )
         with pytest.raises(ForbiddenError):
             transport.request("GET", "/forbidden")
 
     def test_request_404_not_found(self, transport: SyncTransport) -> None:
         """Test 404 raises NotFoundError."""
-        transport._client.request = MagicMock(return_value=_make_error_response(404, "Not found"))
+        transport._client.request = MagicMock(
+            return_value=_make_error_response(404, "Not found")
+        )
         with pytest.raises(NotFoundError):
             transport.request("GET", "/missing")
 
     def test_request_429_rate_limit(self, transport: SyncTransport) -> None:
         """Test 429 raises RateLimitedError."""
-        transport._client.request = MagicMock(return_value=_make_error_response(429, "Rate limited"))
+        transport._client.request = MagicMock(
+            return_value=_make_error_response(429, "Rate limited")
+        )
         with pytest.raises(RateLimitedError):
             transport.request("GET", "/api")
 
     def test_request_500_internal_error(self, transport: SyncTransport) -> None:
         """Test 500 raises InternalError."""
-        transport._client.request = MagicMock(return_value=_make_error_response(500, "Server error"))
+        transport._client.request = MagicMock(
+            return_value=_make_error_response(500, "Server error")
+        )
         with pytest.raises(InternalError):
             transport.request("GET", "/api")
 
     def test_request_503_service_unavailable(self, transport: SyncTransport) -> None:
         """Test 503 raises ServiceUnavailableError."""
-        transport._client.request = MagicMock(return_value=_make_error_response(503, "Unavailable"))
+        transport._client.request = MagicMock(
+            return_value=_make_error_response(503, "Unavailable")
+        )
         with pytest.raises(ServiceUnavailableError):
             transport.request("GET", "/api")
 
@@ -166,19 +180,25 @@ class TestSyncTransportNetworkErrors:
 
     def test_request_timeout(self, transport: SyncTransport) -> None:
         """Test timeout raises TimeoutError."""
-        transport._client.request = MagicMock(side_effect=httpx.TimeoutException("Timed out"))
+        transport._client.request = MagicMock(
+            side_effect=httpx.TimeoutException("Timed out")
+        )
         with pytest.raises(EQTimeoutError, match="Timed out"):
             transport.request("GET", "/slow")
 
     def test_request_connection_refused(self, transport: SyncTransport) -> None:
         """Test connection refused raises ConnectionError."""
-        transport._client.request = MagicMock(side_effect=httpx.ConnectError("Connection refused"))
+        transport._client.request = MagicMock(
+            side_effect=httpx.ConnectError("Connection refused")
+        )
         with pytest.raises(EQConnectionError, match="Connection refused"):
             transport.request("GET", "/api")
 
     def test_request_remote_protocol_error(self, transport: SyncTransport) -> None:
         """Test remote protocol error raises ConnectionError."""
-        transport._client.request = MagicMock(side_effect=httpx.RemoteProtocolError("Protocol error"))
+        transport._client.request = MagicMock(
+            side_effect=httpx.RemoteProtocolError("Protocol error")
+        )
         with pytest.raises(EQConnectionError, match="Protocol error"):
             transport.request("GET", "/api")
 
@@ -195,7 +215,9 @@ class TestSyncTransportRetryLogic:
         rate_limit_resp.headers = {"retry-after": "0"}
         success_resp = _make_success_response(200, {"ok": True})
 
-        transport._client.request = MagicMock(side_effect=[rate_limit_resp, success_resp])
+        transport._client.request = MagicMock(
+            side_effect=[rate_limit_resp, success_resp]
+        )
 
         with patch("time.sleep"):  # Don't actually sleep
             result = transport.request("GET", "/api")
@@ -210,7 +232,9 @@ class TestSyncTransportRetryLogic:
         unavailable_resp.headers = {"retry-after": "0"}
         success_resp = _make_success_response(200, {"ok": True})
 
-        transport._client.request = MagicMock(side_effect=[unavailable_resp, success_resp])
+        transport._client.request = MagicMock(
+            side_effect=[unavailable_resp, success_resp]
+        )
 
         with patch("time.sleep"):
             result = transport.request("GET", "/api")
@@ -248,6 +272,7 @@ class TestSyncTransportRetryLogic:
 
     def test_jwt_refresh_on_401(self) -> None:
         """Test JWT token refresh on 401 response."""
+
         def refresh_token(old_jwt: str) -> str:
             return "new-jwt-token"
 
@@ -373,7 +398,9 @@ class TestSyncTransportStreaming:
     def test_stream_timeout_error(self, transport: SyncTransport) -> None:
         """Test stream raises TimeoutError on timeout."""
         transport._client.build_request = MagicMock(return_value=MagicMock())
-        transport._client.send = MagicMock(side_effect=httpx.TimeoutException("Timeout"))
+        transport._client.send = MagicMock(
+            side_effect=httpx.TimeoutException("Timeout")
+        )
 
         with pytest.raises(EQTimeoutError, match="Timeout"):
             transport.stream("POST", "/stream")
@@ -404,7 +431,9 @@ class TestSyncTransportUpload:
         """Test upload raises ConnectionError on connect failure."""
         import io
 
-        transport._client.post = MagicMock(side_effect=httpx.ConnectError("Connection refused"))
+        transport._client.post = MagicMock(
+            side_effect=httpx.ConnectError("Connection refused")
+        )
 
         file_obj = io.BytesIO(b"data")
         file_obj.name = "test.txt"
@@ -415,7 +444,9 @@ class TestSyncTransportUpload:
         """Test upload raises TimeoutError on timeout."""
         import io
 
-        transport._client.post = MagicMock(side_effect=httpx.TimeoutException("Upload timed out"))
+        transport._client.post = MagicMock(
+            side_effect=httpx.TimeoutException("Upload timed out")
+        )
 
         file_obj = io.BytesIO(b"data")
         file_obj.name = "test.txt"
@@ -452,7 +483,9 @@ class TestAsyncTransportHTTPErrors:
         """Test 404 raises NotFoundError."""
         from unittest.mock import AsyncMock
 
-        transport._client.request = AsyncMock(return_value=_make_error_response(404, "Not found"))
+        transport._client.request = AsyncMock(
+            return_value=_make_error_response(404, "Not found")
+        )
         with pytest.raises(NotFoundError):
             await transport.request("GET", "/missing")
 
@@ -461,7 +494,9 @@ class TestAsyncTransportHTTPErrors:
         """Test 401 raises UnauthorizedError."""
         from unittest.mock import AsyncMock
 
-        transport._client.request = AsyncMock(return_value=_make_error_response(401, "Unauthorized"))
+        transport._client.request = AsyncMock(
+            return_value=_make_error_response(401, "Unauthorized")
+        )
         with pytest.raises(UnauthorizedError):
             await transport.request("GET", "/protected")
 
@@ -470,7 +505,9 @@ class TestAsyncTransportHTTPErrors:
         """Test timeout raises TimeoutError."""
         from unittest.mock import AsyncMock
 
-        transport._client.request = AsyncMock(side_effect=httpx.TimeoutException("Timed out"))
+        transport._client.request = AsyncMock(
+            side_effect=httpx.TimeoutException("Timed out")
+        )
         with pytest.raises(EQTimeoutError, match="Timed out"):
             await transport.request("GET", "/slow")
 
@@ -488,7 +525,9 @@ class TestAsyncTransportHTTPErrors:
         """Test successful async request."""
         from unittest.mock import AsyncMock
 
-        transport._client.request = AsyncMock(return_value=_make_success_response(200, {"ok": True}))
+        transport._client.request = AsyncMock(
+            return_value=_make_success_response(200, {"ok": True})
+        )
         result = await transport.request("GET", "/api")
         assert result.status_code == 200
 
@@ -531,7 +570,9 @@ class TestAsyncTransportStreaming:
         from unittest.mock import AsyncMock
 
         transport._client.build_request = MagicMock(return_value=MagicMock())
-        transport._client.send = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        transport._client.send = AsyncMock(
+            side_effect=httpx.TimeoutException("Timeout")
+        )
 
         with pytest.raises(EQTimeoutError, match="Timeout"):
             await transport.stream("POST", "/stream")
@@ -566,7 +607,9 @@ class TestAsyncTransportUpload:
         import io
         from unittest.mock import AsyncMock
 
-        transport._client.post = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
+        transport._client.post = AsyncMock(
+            side_effect=httpx.ConnectError("Connection refused")
+        )
 
         file_obj = io.BytesIO(b"data")
         file_obj.name = "test.txt"
@@ -605,7 +648,9 @@ class TestAsyncTransportRetryLogic:
         rate_limit_resp.headers = {"retry-after": "0"}
         success_resp = _make_success_response(200, {"ok": True})
 
-        transport._client.request = AsyncMock(side_effect=[rate_limit_resp, success_resp])
+        transport._client.request = AsyncMock(
+            side_effect=[rate_limit_resp, success_resp]
+        )
 
         with patch("asyncio.sleep", new_callable=AsyncMock):
             result = await transport.request("GET", "/api")
@@ -686,7 +731,9 @@ class TestSyncTransportRetryWithLogger:
         rate_limit_resp.headers = {"retry-after": "0.01"}
         success_resp = _make_success_response(200, {"ok": True})
 
-        transport._client.request = MagicMock(side_effect=[rate_limit_resp, success_resp])
+        transport._client.request = MagicMock(
+            side_effect=[rate_limit_resp, success_resp]
+        )
 
         with patch("time.sleep"):
             result = transport.request("GET", "/api")
@@ -701,7 +748,9 @@ class TestSyncTransportRetryWithLogger:
         unavailable_resp = _make_error_response(503, "Unavailable")
         unavailable_resp.headers = {"retry-after": "0.01"}
 
-        transport._client.request = MagicMock(side_effect=[unavailable_resp, unavailable_resp])
+        transport._client.request = MagicMock(
+            side_effect=[unavailable_resp, unavailable_resp]
+        )
 
         with patch("time.sleep"):
             with pytest.raises(ServiceUnavailableError):
