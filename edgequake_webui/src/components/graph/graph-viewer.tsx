@@ -51,6 +51,7 @@ import { GraphControls } from './graph-controls';
 import { GraphExport } from './graph-export';
 import { GraphFilters } from './graph-filters';
 import { GraphLegend } from './graph-legend';
+import { GraphLoadingOverlay } from './graph-loading-overlay';
 import { GraphMinimap } from './graph-minimap';
 import { GraphRenderer } from './graph-renderer';
 import { GraphSearch } from './graph-search';
@@ -241,6 +242,21 @@ export function GraphViewer() {
   // Combined loading state
   const isLoading = useStreaming ? isStreaming : isQueryLoading;
   
+  // WHY: When streaming is enabled but the useEffect hasn't fired yet to call
+  // startStream(), isStreaming is false and allNodes is empty. Without this check,
+  // users see a brief flash of "No knowledge graph yet" empty state before the
+  // stream starts (~1 frame). Also covers the period during dynamic import when
+  // GraphViewer just mounted but streaming hasn't initialized.
+  // The !selectedTenantId || !selectedWorkspaceId check covers the race condition
+  // where the first stream call happens before tenant/workspace context is available.
+  const isStreamingInitializing = useStreaming && !isStreaming && allNodes.length === 0 
+    && !isError && (
+      !selectedTenantId || !selectedWorkspaceId 
+      || streamingProgress.phase === 'idle' 
+      || streamingProgress.phase === 'connecting'
+    );
+  const effectiveIsLoading = isLoading || isStreamingInitializing;
+  
   // WHY: Ref to prevent React StrictMode double-render from causing duplicate stream starts
   const streamingInitializedRef = useRef(false);
   const lastStreamParamsRef = useRef<string>("");
@@ -302,8 +318,8 @@ export function GraphViewer() {
   }, [data, setGraph, setTruncationInfo, useStreaming]);
 
   useEffect(() => {
-    setLoading(isLoading);
-  }, [isLoading, setLoading]);
+    setLoading(effectiveIsLoading);
+  }, [effectiveIsLoading, setLoading]);
 
   useEffect(() => {
     if (error) {
@@ -437,7 +453,7 @@ export function GraphViewer() {
             <h2 className="text-sm sm:text-base font-semibold tracking-tight">
               {isMobile ? 'Graph' : 'Knowledge Graph'}
             </h2>
-            {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            {effectiveIsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
             {data?.metadata && !isMobile && (
               <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
                 {data.metadata.node_count.toLocaleString()} nodes · {data.metadata.edge_count.toLocaleString()} edges
@@ -500,13 +516,8 @@ export function GraphViewer() {
           {/* Screen reader announcements for node selection */}
           <GraphAccessibilityAnnouncer />
           
-          {isLoading && allNodes.length === 0 ? (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Loading knowledge graph...</p>
-              </div>
-            </div>
+          {effectiveIsLoading && allNodes.length === 0 ? (
+            <GraphLoadingOverlay visible={true} />
           ) : allNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center max-w-md px-4">
@@ -574,12 +585,7 @@ export function GraphViewer() {
               
               {/* Loading Overlay - Only for non-streaming refetch */}
               {isLoading && !useStreaming && allNodes.length > 0 && (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm z-10">
-                  <div className="text-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                    <p className="text-sm font-medium">Refreshing graph...</p>
-                  </div>
-                </div>
+                <GraphLoadingOverlay visible={true} phase="Refreshing graph..." />
               )}
             </>
           )}
@@ -749,7 +755,7 @@ export function GraphViewer() {
       
       {/* Mobile Entity Browser Drawer */}
       <Sheet open={mobileEntityDrawerOpen} onOpenChange={setMobileEntityDrawerOpen}>
-        <SheetContent side="left" className="w-[300px] p-0">
+        <SheetContent side="left" className="w-75 p-0">
           <SheetHeader className="px-4 py-3 border-b">
             <SheetTitle className="text-sm flex items-center gap-2">
               <Network className="h-4 w-4" />
@@ -766,7 +772,7 @@ export function GraphViewer() {
       
       {/* Mobile Details/Filters Drawer */}
       <Sheet open={mobileDetailsDrawerOpen} onOpenChange={setMobileDetailsDrawerOpen}>
-        <SheetContent side="right" className="w-[300px] p-0">
+        <SheetContent side="right" className="w-75 p-0">
           <SheetHeader className="px-4 py-3 border-b">
             <SheetTitle className="text-sm flex items-center gap-2">
               <Filter className="h-4 w-4" />

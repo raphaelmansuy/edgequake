@@ -474,6 +474,7 @@ EdgeQuake uses a unified, automated versioning strategy for both backend (Rust) 
    - Version is embedded in backend (via `build.rs`) and shown in the health API and frontend UI.
 
 **Example Release Flow:**
+
 ```sh
 make version-bump VERSION=0.2.0
 # Update CHANGELOG.md
