@@ -1,0 +1,42 @@
+name: Java SDK Tests
+
+on:
+  push:
+    paths:
+      - 'sdks/java/**'
+  pull_request:
+    paths:
+      - 'sdks/java/**'
+
+defaults:
+  run:
+    working-directory: sdks/java
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java-version: ['17', '21']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: ${{ matrix.java-version }}
+          cache: 'maven'
+
+      - name: Build
+        run: mvn compile -q
+
+      - name: Test
+        run: mvn test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-jdk${{ matrix.java-version }}
+          path: sdks/java/target/surefire-reports/
