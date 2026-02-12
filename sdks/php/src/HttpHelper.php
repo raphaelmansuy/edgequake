@@ -32,7 +32,7 @@ class HttpHelper
         return $this->requestRaw('GET', $path);
     }
 
-    private function request(string $method, string $path, ?array $body = null): array
+    protected function request(string $method, string $path, ?array $body = null): array
     {
         $raw = $this->requestRaw($method, $path, $body);
         $decoded = json_decode($raw, true);
@@ -42,7 +42,7 @@ class HttpHelper
         return $decoded ?? [];
     }
 
-    private function requestRaw(string $method, string $path, ?array $body = null): string
+    protected function requestRaw(string $method, string $path, ?array $body = null): string
     {
         $url = rtrim($this->config->baseUrl, '/') . $path;
         $ch = curl_init($url);
