@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import BaseModel
 
 from edgequake._errors import StreamError
-from edgequake._streaming import SSEStream
+from edgequake._streaming import AsyncSSEStream, SSEStream
 
 
 class ChunkEvent(BaseModel):
@@ -176,4 +176,150 @@ class TestSSEStream:
         resp = self._make_response([])
         stream = SSEStream(resp, ChunkEvent)
         events = list(stream)
+        assert events == []
+
+
+class TestAsyncSSEStream:
+    """Test asynchronous SSE stream parsing."""
+
+    def _make_async_response(self, lines: list[str]) -> MagicMock:
+        """Create a mock httpx.Response with async line iterator."""
+        response = MagicMock()
+
+        async def aiter_lines():
+            for line in lines:
+                yield line
+
+        response.aiter_lines.return_value = aiter_lines()
+        response.aclose = AsyncMock()
+        return response
+
+    @pytest.mark.asyncio
+    async def test_parse_single_event(self) -> None:
+        resp = self._make_async_response(
+            ['data: {"chunk": "Hello"}', "data: [DONE]"]
+        )
+        stream = AsyncSSEStream(resp, ChunkEvent)
+        events = []
+        async for event in stream:
+            events.append(event)
+        assert len(events) == 1
+        assert events[0].chunk == "Hello"
+
+    @pytest.mark.asyncio
+    async def test_parse_multiple_events(self) -> None:
+        resp = self._make_async_response(
+            [
+                'data: {"chunk": "Hello "}',
+                'data: {"chunk": "World"}',
+                "data: [DONE]",
+            ]
+        )
+        stream = AsyncSSEStream(resp, ChunkEvent)
+        events = []
+        async for event in stream:
+            events.append(event)
+        assert len(events) == 2
+        assert events[0].chunk == "Hello "
+        assert events[1].chunk == "World"
+
+    @pytest.mark.asyncio
+    async def test_skip_empty_and_comment_lines(self) -> None:
+        resp = self._make_async_response(
+            [
+                "",
+                ": heartbeat",
+                'data: {"chunk": "Hi"}',
+                "",
+                "data: [DONE]",
+            ]
+        )
+        stream = AsyncSSEStream(resp, ChunkEvent)
+        events = []
+        async for event in stream:
+            events.append(event)
+        assert len(events) == 1
+        assert events[0].chunk == "Hi"
+
+    @pytest.mark.asyncio
+    async def test_done_closes_stream(self) -> None:
+        resp = self._make_async_response(
+            [
+                'data: {"chunk": "Hi"}',
+                "data: [DONE]",
+                'data: {"chunk": "nope"}',
+            ]
+        )
+        stream = AsyncSSEStream(resp, ChunkEvent)
+        events = []
+        async for event in stream:
+            events.append(event)
+        assert len(events) == 1
+        resp.aclose.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_to_string(self) -> None:
+        resp = self._make_async_response(
+            [
+                'data: {"chunk": "Hello "}',
+                'data: {"chunk": "World"}',
+                "data: [DONE]",
+            ]
+        )
+        stream = AsyncSSEStream(resp, ChunkEvent)
+        assert await stream.to_string() == "Hello World"
+
+    @pytest.mark.asyncio
+    async def test_to_string_no_chunk(self) -> None:
+        resp = self._make_async_response(
+            ['data: {"status": "ok"}', "data: [DONE]"]
+        )
+        stream = AsyncSSEStream(resp, StatusEvent)
+        assert await stream.to_string() == ""
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_raises_stream_error(self) -> None:
+        resp = self._make_async_response(["data: bad-json"])
+        stream = AsyncSSEStream(resp, ChunkEvent)
+        with pytest.raises(StreamError, match="Failed to parse SSE data"):
+            async for _ in stream:
+                pass
+
+    @pytest.mark.asyncio
+    async def test_context_manager(self) -> None:
+        resp = self._make_async_response(
+            ['data: {"chunk": "Hi"}', "data: [DONE]"]
+        )
+        async with AsyncSSEStream(resp, ChunkEvent) as stream:
+            events = []
+            async for event in stream:
+                events.append(event)
+        assert len(events) == 1
+        resp.aclose.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_aclose_idempotent(self) -> None:
+        resp = self._make_async_response(["data: [DONE]"])
+        stream = AsyncSSEStream(resp, ChunkEvent)
+        await stream.aclose()
+        await stream.aclose()  # Should not raise
+        assert resp.aclose.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_iteration_after_close(self) -> None:
+        resp = self._make_async_response(['data: {"chunk": "Hi"}'])
+        stream = AsyncSSEStream(resp, ChunkEvent)
+        await stream.aclose()
+        events = []
+        async for event in stream:
+            events.append(event)
+        assert events == []
+
+    @pytest.mark.asyncio
+    async def test_empty_stream(self) -> None:
+        resp = self._make_async_response([])
+        stream = AsyncSSEStream(resp, ChunkEvent)
+        events = []
+        async for event in stream:
+            events.append(event)
         assert events == []

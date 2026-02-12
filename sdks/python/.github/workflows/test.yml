@@ -1,0 +1,68 @@
+name: Test Python SDK
+on:
+    push:
+        branches: [main, "feat/*"]
+        paths: ["sdks/python/**"]
+    pull_request:
+        branches: [main]
+        paths: ["sdks/python/**"]
+
+defaults:
+    run:
+        working-directory: sdks/python
+
+jobs:
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+            - run: pip install ruff mypy
+            - run: ruff check edgequake/
+            - run: ruff format --check edgequake/ tests/
+            - run: mypy edgequake/ --ignore-missing-imports
+
+    test:
+        name: Test (Python ${{ matrix.python-version }})
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                python-version: ["3.10", "3.11", "3.12", "3.13"]
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: ${{ matrix.python-version }}
+            - run: pip install -e ".[dev]"
+            - run: python -m pytest tests/ -m "not integration and not e2e" -q --tb=short
+            - name: Coverage
+              if: matrix.python-version == '3.12'
+              run: |
+                  python -m pytest tests/ -m "not integration and not e2e" \
+                    --cov=edgequake --cov-report=term --cov-report=xml:coverage.xml
+            - name: Upload coverage
+              if: matrix.python-version == '3.12'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-report
+                  path: sdks/python/coverage.xml
+
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        needs: [lint, test]
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+            - run: pip install build
+            - run: python -m build
+            - name: Verify dist output
+              run: |
+                  ls dist/*.whl || (echo "Missing wheel" && exit 1)
+                  ls dist/*.tar.gz || (echo "Missing sdist" && exit 1)
+                  echo "Build output verified ✅"
