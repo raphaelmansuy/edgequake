@@ -14,7 +14,9 @@ Cargo.lock
 
 # Environment files
 .env
-.env.local
+target/
+edgequake/target/
+edgequake/crates/*/target/
 .env.*.local
 *.env
 
@@ -55,7 +57,14 @@ wheels/
 .venv/
 venv/
 ENV/
-
+edgequake_webui/node_modules/
+edgequake_webui/.next/
+edgequake_webui/.turbo/
+edgequake_webui/playwright-report/
+edgequake_webui/build_pid.txt
+edgequake_webui/tsc_output.txt
+edgequake_webui/tsc_pid.txt
+node_modules/
 # Node.js (for webui)
 node_modules/
 .bun/
@@ -109,3 +118,4 @@ zz-explore/
 Thumbs.db
 ehthumbs.db
 specs/
+./metals
