@@ -261,9 +261,21 @@ See [LightRAG Algorithm Deep Dive](docs/deep-dives/lightrag-algorithm.md) for th
 
 ## Documentation
 
+
 ### 📚 Complete Documentation Index
 
 Explore the full documentation at [docs/README.md](docs/README.md)
+
+### 📦 SDKs
+
+EdgeQuake provides official SDKs for multiple languages:
+
+- [Python SDK](sdks/python/README.md) ([Changelog](sdks/python/CHANGELOG.md))
+- [TypeScript SDK](sdks/typescript/README.md) ([Changelog](sdks/typescript/CHANGELOG.md))
+- [Rust SDK](sdks/rust/README.md)
+- [Other SDKs](sdks/) for C#, Go, Java, Kotlin, PHP, Ruby, Swift
+
+See the [CHANGELOG.md](CHANGELOG.md) for SDK and core updates.
 
 ### 🚀 Getting Started (15 minutes)
 
@@ -511,6 +523,11 @@ EdgeQuake is inspired by and builds upon the excellent work of:
 | --------------------- | -------------------------------------------------------------------------------- |
 | 📚 Full Documentation | [docs/README.md](docs/README.md)                                                 |
 | 🚀 Quick Start Guide  | [docs/getting-started/quick-start.md](docs/getting-started/quick-start.md)       |
+| 📦 SDKs Overview      | [sdks/](sdks/)                                                                   |
+| 🐍 Python SDK         | [sdks/python/README.md](sdks/python/README.md)                                   |
+| 🦀 Rust SDK           | [sdks/rust/README.md](sdks/rust/README.md)                                       |
+| 🟦 TypeScript SDK     | [sdks/typescript/README.md](sdks/typescript/README.md)                           |
+| 📜 CHANGELOG          | [CHANGELOG.md](CHANGELOG.md)                                                     |
 | 🔧 Agent Workflow     | [AGENTS.md](AGENTS.md)                                                           |
 | 🤝 Contributing       | [CONTRIBUTING.md](CONTRIBUTING.md)                                               |
 | 📜 Code of Conduct    | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)                                         |
