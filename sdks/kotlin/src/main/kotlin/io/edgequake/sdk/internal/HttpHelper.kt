@@ -16,7 +16,7 @@ import java.time.Duration
  * Internal HTTP helper using java.net.http.HttpClient.
  * WHY: Zero external HTTP dependencies — JDK 11+ built-in.
  */
-class HttpHelper(@PublishedApi internal val config: EdgeQuakeConfig) {
+open class HttpHelper(@PublishedApi internal val config: EdgeQuakeConfig) {
 
     @PublishedApi internal val mapper = jacksonObjectMapper().apply {
         configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -44,7 +44,7 @@ class HttpHelper(@PublishedApi internal val config: EdgeQuakeConfig) {
     inline fun <reified T> delete(path: String): T =
         execute(buildRequest(path, "DELETE", null))
 
-    fun deleteRaw(path: String): String {
+    open fun deleteRaw(path: String): String {
         val req = buildRequest(path, "DELETE", null)
         val resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString())
         if (resp.statusCode() !in 200..299) {
@@ -56,7 +56,7 @@ class HttpHelper(@PublishedApi internal val config: EdgeQuakeConfig) {
         return resp.body()
     }
 
-    fun getRaw(path: String): String {
+    open fun getRaw(path: String): String {
         val req = buildRequest(path, "GET", null)
         val resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString())
         if (resp.statusCode() !in 200..299) {
@@ -68,7 +68,7 @@ class HttpHelper(@PublishedApi internal val config: EdgeQuakeConfig) {
         return resp.body()
     }
 
-    fun postRaw(path: String, body: Any? = null): String {
+    open fun postRaw(path: String, body: Any? = null): String {
         val req = buildRequest(path, "POST", body)
         val resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString())
         if (resp.statusCode() !in 200..299) {

@@ -1,0 +1,42 @@
+name: Kotlin SDK Tests
+
+on:
+  push:
+    paths:
+      - 'sdks/kotlin/**'
+  pull_request:
+    paths:
+      - 'sdks/kotlin/**'
+
+defaults:
+  run:
+    working-directory: sdks/kotlin
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java-version: ['17', '21']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: ${{ matrix.java-version }}
+          cache: 'maven'
+
+      - name: Build
+        run: mvn compile -q
+
+      - name: Test
+        run: mvn test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-jdk${{ matrix.java-version }}
+          path: sdks/kotlin/target/surefire-reports/
