@@ -944,8 +944,13 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
   },
 
   clearGraphForStreaming: () => {
-    // Clear existing graph data while preserving filter settings for streaming
+    // WHY: Clear ALL graph data including metadata and filter state.
+    // Previously only nodes/edges were cleared but visibleEntityTypes,
+    // visibleRelationshipTypes, and graph metadata from the previous
+    // workspace/query persisted — causing stale legends, stale entity
+    // type pills, and stale metadata display.
     set({
+      graph: null,
       nodes: [],
       edges: [],
       nodeMap: new Map(),
@@ -953,8 +958,15 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       nodesByType: new Map(),
       edgesBySource: new Map(),
       edgesByTarget: new Map(),
-      // Keep the visibleEntityTypes and visibleRelationshipTypes
-      // They will be rebuilt as streaming data arrives
+      visibleEntityTypes: new Set<string>(),
+      visibleRelationshipTypes: new Set<string>(),
+      selectedNodeId: null,
+      focusedNodeId: null,
+      selectedNodes: new Set<string>(),
+      expandedNodes: new Set<string>(),
+      isTruncated: false,
+      totalNodesInStorage: 0,
+      totalEdgesInStorage: 0,
     });
   },
 }));

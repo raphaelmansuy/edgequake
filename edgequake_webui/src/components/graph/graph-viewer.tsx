@@ -261,6 +261,21 @@ export function GraphViewer() {
   const streamingInitializedRef = useRef(false);
   const lastStreamParamsRef = useRef<string>("");
   
+  // WHY: Track previous workspace/tenant to detect changes.
+  // When workspace changes, the Zustand store still holds old nodes/edges from
+  // the previous workspace. Without clearing, those stale nodes remain visible
+  // until new data arrives (in non-streaming mode, React Query key changes trigger
+  // a new fetch but the store retains old data; in streaming mode, the streaming
+  // effect also clears but this provides defense-in-depth).
+  const prevWorkspaceKeyRef = useRef<string>("");
+  useEffect(() => {
+    const currentKey = `${selectedTenantId ?? ""}-${selectedWorkspaceId ?? ""}`;
+    if (prevWorkspaceKeyRef.current !== "" && prevWorkspaceKeyRef.current !== currentKey) {
+      clearGraphForStreaming();
+    }
+    prevWorkspaceKeyRef.current = currentKey;
+  }, [selectedTenantId, selectedWorkspaceId, clearGraphForStreaming]);
+
   // Start streaming when in streaming mode
   useEffect(() => {
     if (!useStreaming) {
@@ -274,6 +289,14 @@ export function GraphViewer() {
     // WHY: Skip if already initialized with same params (prevents duplicate calls)
     if (streamingInitializedRef.current && lastStreamParamsRef.current === paramKey) {
       return;
+    }
+    
+    // WHY: Clear stale graph data IMMEDIATELY when params change.
+    // Without this, nodes/edges from a previous workspace or query remain visible
+    // until the new stream's onMetadata callback fires (which can take seconds).
+    // This is the root cause of "stale data from previous execution" bug.
+    if (lastStreamParamsRef.current !== "" && lastStreamParamsRef.current !== paramKey) {
+      clearGraphForStreaming();
     }
     
     streamingInitializedRef.current = true;
