@@ -3,8 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-- Initial root changelog created. See SDK changelogs for language-specific updates.
-- Added cross-references to SDK documentation and changelogs.
+
+## [v0.2.1] - 2026-02-12
+### Fixed
+- Fixed TypeScript build error in dashboard: removed non-existent `entity_type_count` property reference
+- Set entity types count to 0 as placeholder until backend implementation is complete
 
 ## [v0.2.0] - 2026-02-12
 - Visual feedback for tenant/workspace switching in the knowledge graph view

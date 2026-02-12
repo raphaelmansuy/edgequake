@@ -58,7 +58,7 @@ export default function Home() {
   const entityCount = statsData?.entity_count ?? 0;
   const relationshipCount = statsData?.relationship_count ?? 0;
   const recentDocuments = documentsData?.items || [];
-  const entityTypes = statsData?.entity_type_count ?? 0;
+  const entityTypes = 0; // TODO: Backend needs to provide entity_type_count
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
