@@ -641,6 +641,8 @@ export interface WorkspaceStats {
   entity_count: number;
   /** Total number of relationships */
   relationship_count: number;
+  /** Number of distinct entity types (e.g., PERSON, ORGANIZATION, …) */
+  entity_type_count?: number;
   /** Total number of text chunks */
   chunk_count: number;
   /** Total number of vectors stored */
@@ -720,6 +722,13 @@ export interface PipelineStatus {
 export interface HealthResponse {
   status: "healthy" | "degraded" | "unhealthy";
   version: string;
+  /** Build metadata (git hash, timestamp, build number) */
+  build_info?: {
+    git_hash: string;
+    git_branch: string;
+    build_timestamp: string;
+    build_number: string;
+  };
   uptime_seconds?: number;
   workspace_id?: string;
   components: {

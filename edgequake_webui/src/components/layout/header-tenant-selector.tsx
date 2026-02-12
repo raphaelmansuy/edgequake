@@ -232,12 +232,28 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   });
 
   const handleTenantSelect = useCallback((tenantId: string) => {
+    if (tenantId === selectedTenantId) return;
     selectTenant(tenantId);
-  }, [selectTenant]);
+    const tenant = tenants.find((te) => te.id === tenantId);
+    if (tenant) {
+      toast.info(t('tenant.switched', `Switched to tenant "{{name}}"`, { name: tenant.name }), {
+        id: 'tenant-switch',
+        duration: 2000,
+      });
+    }
+  }, [selectTenant, selectedTenantId, tenants, t]);
 
   const handleWorkspaceSelect = useCallback((workspaceId: string) => {
+    if (workspaceId === selectedWorkspaceId) return;
     selectWorkspace(workspaceId);
-  }, [selectWorkspace]);
+    const workspace = workspaces.find((w) => w.id === workspaceId);
+    if (workspace) {
+      toast.info(t('workspace.switched', `Switched to workspace "{{name}}"`, { name: workspace.name }), {
+        id: 'workspace-switch',
+        duration: 2000,
+      });
+    }
+  }, [selectWorkspace, selectedWorkspaceId, workspaces, t]);
 
   const selectedTenant = tenants.find((t) => t.id === selectedTenantId);
   const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);

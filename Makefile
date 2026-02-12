@@ -24,6 +24,30 @@
         test-quality test-invariants test-timing test-count test-flaky \
         test-e2e-critical test-e2e-full test-stability-report
 
+# ============================================================================
+# Version Management
+# ============================================================================
+
+.PHONY: version-bump version-tag
+
+# Bump version in VERSION, Cargo.toml, and package.json
+version-bump:
+	@if [ -z "$(VERSION)" ]; then \
+	  echo "Usage: make version-bump VERSION=<new_version>"; \
+	  exit 1; \
+	fi
+	bash scripts/bump-version.sh $(VERSION)
+
+# Tag and push release
+version-tag:
+	@if [ -z "$(VERSION)" ]; then \
+	  echo "Set VERSION=<new_version> make version-bump version-tag"; \
+	  exit 1; \
+	fi
+	git commit -am "Bump version to $(VERSION)"
+	git tag v$(VERSION)
+	git push && git push --tags
+
 # Colors for terminal output
 BLUE := \033[34m
 GREEN := \033[32m

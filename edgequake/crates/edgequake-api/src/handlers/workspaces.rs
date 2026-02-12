@@ -997,8 +997,16 @@ async fn fetch_workspace_stats_uncached(
     start: Instant,
 ) -> Result<WorkspaceStatsResponse, ApiError> {
     // Try Method 1: PostgreSQL documents table (fastest if populated)
-    if let Ok(stats) = try_postgres_stats(state, workspace_id).await {
+    if let Ok(mut stats) = try_postgres_stats(state, workspace_id).await {
         if stats.document_count > 0 {
+            // Enrich with entity_type_count from graph storage
+            // (PostgreSQL path doesn't have this in the documents table)
+            stats.entity_type_count = state
+                .graph_storage
+                .distinct_node_type_count_by_workspace(&workspace_id)
+                .await
+                .unwrap_or(0);
+
             let elapsed = start.elapsed();
             tracing::info!(
                 workspace_id = %workspace_id,
@@ -1044,6 +1052,7 @@ async fn try_postgres_stats(
         document_count: stats.document_count,
         entity_count: stats.entity_count,
         relationship_count: stats.relationship_count,
+        entity_type_count: 0, // PostgreSQL path doesn't have this yet; will be overridden by graph query
         chunk_count: stats.chunk_count,
         embedding_count: stats.embedding_count,
         storage_bytes: stats.storage_bytes as u64,
@@ -1158,11 +1167,22 @@ async fn try_kv_storage_stats(
         }
     }
 
+    // Get distinct entity type count from graph storage.
+    // WHY: Dashboard EntityTypes KPI was extremely slow — it fetched ALL graph
+    // nodes over the wire just to compute unique types. This single aggregate
+    // query reduces latency from seconds to milliseconds.
+    let entity_type_count = state
+        .graph_storage
+        .distinct_node_type_count_by_workspace(&workspace_id)
+        .await
+        .unwrap_or(0);
+
     Ok(WorkspaceStatsResponse {
         workspace_id,
         document_count,
         entity_count,
         relationship_count,
+        entity_type_count,
         chunk_count,
         embedding_count,
         storage_bytes,
@@ -2392,6 +2412,7 @@ mod tests {
             document_count: 100,
             entity_count: 500,
             relationship_count: 200,
+            entity_type_count: 15,
             chunk_count: 1000,
             embedding_count: 800,
             storage_bytes: 1024 * 1024,

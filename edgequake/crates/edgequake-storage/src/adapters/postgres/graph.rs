@@ -1685,6 +1685,33 @@ impl GraphStorage for PostgresAGEGraphStorage {
         Ok(count as usize)
     }
 
+    /// Get distinct entity type count for a workspace using Cypher DISTINCT.
+    ///
+    /// WHY: Eliminates the O(N) fetch-all-nodes pattern that made the dashboard
+    /// EntityTypes KPI card extremely slow (8000+ nodes transferred over the
+    /// network just to count unique types). A single aggregate query brings
+    /// this down to milliseconds.
+    async fn distinct_node_type_count_by_workspace(
+        &self,
+        workspace_id: &uuid::Uuid,
+    ) -> Result<usize> {
+        let workspace_id_str = workspace_id.to_string();
+        let escaped_wid = Self::escape_sql_string(&workspace_id_str);
+
+        // Cypher: collect distinct entity_type values, then count them.
+        // We use collect + size because AGE's Cypher doesn't support
+        // COUNT(DISTINCT n.entity_type) directly in all versions.
+        let cypher = format!(
+            "MATCH (n:Node) WHERE n.workspace_id = '{}' AND n.entity_type IS NOT NULL \
+             WITH collect(DISTINCT n.entity_type) AS types \
+             RETURN size(types)",
+            escaped_wid
+        );
+
+        let count = self.cypher_query_count(&cypher).await.unwrap_or(0);
+        Ok(count as usize)
+    }
+
     async fn clear(&self) -> Result<()> {
         // Delete all nodes (edges will be deleted automatically with DETACH)
         let cypher = "MATCH (n:Node) DETACH DELETE n";

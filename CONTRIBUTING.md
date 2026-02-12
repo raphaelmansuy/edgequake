@@ -453,3 +453,32 @@ If you have any questions about contributing, please:
 4. Contact [@raphaelmansuy](https://github.com/raphaelmansuy)
 
 **Thank you for your interest in EdgeQuake!** 🙏
+
+---
+
+## Versioning Workflow (Best Practice)
+
+EdgeQuake uses a unified, automated versioning strategy for both backend (Rust) and frontend (Next.js):
+
+1. **Single Source of Truth:**
+   - The root `VERSION` file holds the canonical version.
+   - All `Cargo.toml` files and `edgequake_webui/package.json` are updated to match.
+2. **Automated Bumping:**
+   - Use `make version-bump VERSION=<new_version>` to bump version everywhere.
+   - This updates `VERSION`, all `Cargo.toml`, and frontend `package.json`.
+3. **Tagging Releases:**
+   - Use `make version-tag VERSION=<new_version>` to commit, tag, and push the release.
+4. **Changelog:**
+   - Update `CHANGELOG.md` after each version bump.
+5. **Display:**
+   - Version is embedded in backend (via `build.rs`) and shown in the health API and frontend UI.
+
+**Example Release Flow:**
+
+```sh
+make version-bump VERSION=0.2.0
+# Update CHANGELOG.md
+make version-tag VERSION=0.2.0
+```
+
+See the Makefile and scripts/bump-version.sh for details.

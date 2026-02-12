@@ -120,6 +120,7 @@ use crate::handlers;
     components(schemas(
         handlers::HealthResponse,
         handlers::ComponentHealth,
+        handlers::BuildInfo,
         handlers::UploadDocumentRequest,
         handlers::UploadDocumentResponse,
         handlers::ListDocumentsResponse,
