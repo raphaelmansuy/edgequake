@@ -33,8 +33,8 @@ use crate::state::AppState;
 
 // Re-export DTOs from health_types for backwards compatibility
 pub use crate::handlers::health_types::{
-    ComponentHealth, EmbeddingProviderHealth, HealthResponse, LlmProviderHealth, ProvidersHealth,
-    SchemaHealth,
+    BuildInfo, ComponentHealth, EmbeddingProviderHealth, HealthResponse, LlmProviderHealth,
+    ProvidersHealth, SchemaHealth,
 };
 
 /// Deep health check with component status.
@@ -110,6 +110,12 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     let response = HealthResponse {
         status: "healthy".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        build_info: Some(BuildInfo {
+            git_hash: env!("EDGEQUAKE_GIT_HASH").to_string(),
+            git_branch: env!("EDGEQUAKE_GIT_BRANCH").to_string(),
+            build_timestamp: env!("EDGEQUAKE_BUILD_TIMESTAMP").to_string(),
+            build_number: env!("EDGEQUAKE_BUILD_NUMBER").to_string(),
+        }),
         storage_mode: state.storage_mode.as_str().to_string(),
         workspace_id: state.config.workspace_id.clone(),
         components,

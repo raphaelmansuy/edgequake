@@ -334,6 +334,9 @@ pub fn workspaces_default_limit() -> usize {
 /// Workspace statistics response.
 ///
 /// WHY embedding_count: Mission requirement to track embeddings per workspace.
+/// WHY entity_type_count: Dashboard EntityTypes KPI was very slow because the
+/// frontend fetched ALL graph nodes just to count unique types. This field
+/// delivers the count from a single Cypher aggregate query (<1ms vs 2-5s).
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct WorkspaceStatsResponse {
     /// Workspace ID.
@@ -344,6 +347,8 @@ pub struct WorkspaceStatsResponse {
     pub entity_count: usize,
     /// Number of relationships (graph edges).
     pub relationship_count: usize,
+    /// Number of distinct entity types (e.g., PERSON, ORGANIZATION, …).
+    pub entity_type_count: usize,
     /// Number of chunks (text segments).
     pub chunk_count: usize,
     /// Number of embeddings (vector representations).
@@ -770,6 +775,7 @@ mod tests {
             document_count: 10,
             entity_count: 50,
             relationship_count: 25,
+            entity_type_count: 5,
             chunk_count: 100,
             embedding_count: 80,
             storage_bytes: 1024 * 1024,
