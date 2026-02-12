@@ -7,9 +7,13 @@ license.workspace = true
 repository.workspace = true
 description = "Query engine for EdgeQuake RAG system"
 
+[features]
+default = []
+postgres = ["dep:sqlx"]
+
 [dependencies]
-edgequake-core = { path = "../edgequake-core" }
-edgequake-storage = { path = "../edgequake-storage" }
+edgequake-core = { path = "../edgequake-core", default-features = false }
+edgequake-storage = { path = "../edgequake-storage", default-features = false }
 edgequake-llm = { path = "../edgequake-llm" }
 
 async-trait.workspace = true
@@ -25,7 +29,11 @@ chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
 hex = "0.4"
 regex = "1.10"
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono"] }
+sqlx = { version = "0.8", features = [
+    "runtime-tokio",
+    "postgres",
+    "chrono",
+], optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

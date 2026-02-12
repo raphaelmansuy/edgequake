@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 //! E2E tests for advanced retrieval features.
 //!
 //! Tests keyword extraction, truncation, and chunk retrieval integration.

@@ -16,6 +16,7 @@ pub enum Error {
     Llm(#[from] edgequake_llm::LlmError),
 
     /// Pipeline operation failed
+    #[cfg(feature = "pipeline")]
     #[error("Pipeline error: {0}")]
     Pipeline(#[from] edgequake_pipeline::PipelineError),
 

@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 //! End-to-End Retrieval Strategy Tests
 //!
 //! These tests verify all query modes work correctly with real data:

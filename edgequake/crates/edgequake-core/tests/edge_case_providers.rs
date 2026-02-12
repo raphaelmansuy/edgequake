@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 //! Edge Case and Error Handling Tests
 //!
 //! These tests verify robust behavior under edge conditions including:

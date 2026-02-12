@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 //! Advanced E2E Retrieval Tests
 //!
 //! This test suite validates advanced retrieval features and highlights

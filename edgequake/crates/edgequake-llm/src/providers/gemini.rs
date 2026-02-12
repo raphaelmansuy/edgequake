@@ -702,7 +702,7 @@ impl EmbeddingProvider for GeminiProvider {
             .collect();
 
         let total_texts = api_texts.len();
-        let num_batches = (total_texts + MAX_EMBEDDING_BATCH_SIZE - 1) / MAX_EMBEDDING_BATCH_SIZE;
+        let num_batches = total_texts.div_ceil(MAX_EMBEDDING_BATCH_SIZE);
 
         if num_batches > 1 {
             info!(

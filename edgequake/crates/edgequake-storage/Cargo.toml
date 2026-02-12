@@ -9,8 +9,8 @@ authors.workspace = true
 repository.workspace = true
 
 [features]
-default = ["postgres"]
-postgres = ["dep:sqlx", "dep:chrono"]
+default = []
+postgres = ["dep:sqlx"]
 # Enable all storage backends
 full = ["postgres"]
 
@@ -26,7 +26,7 @@ sha2 = "0.10"
 
 # Optional PostgreSQL dependencies
 sqlx = { workspace = true, optional = true }
-chrono = { workspace = true, optional = true }
+chrono = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

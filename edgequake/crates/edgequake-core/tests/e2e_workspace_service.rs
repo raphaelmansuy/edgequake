@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 //! Comprehensive End-to-End Workspace Service Tests
 //!
 //! This module provides comprehensive coverage for workspace service:

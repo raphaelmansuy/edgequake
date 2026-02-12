@@ -1,3 +1,5 @@
+#![cfg(feature = "pipeline")]
+
 //! # Inviolable Invariants Test Suite
 //!
 //! This module contains tests for the 10 critical invariants that MUST hold

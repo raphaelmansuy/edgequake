@@ -21,8 +21,7 @@ fn main() {
 
     // Build number: YYYYMMDD.HHMMSS format for monotonic ordering
     let build_number = build_timestamp
-        .replace('-', "")
-        .replace(':', "")
+        .replace(['-', ':'], "")
         .replace('T', ".")
         .replace('Z', "");
     println!("cargo:rustc-env=EDGEQUAKE_BUILD_NUMBER={build_number}");
