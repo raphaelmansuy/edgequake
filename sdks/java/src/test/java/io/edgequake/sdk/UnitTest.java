@@ -434,21 +434,20 @@ class UnitTest {
     @Test
     void chatCompletions() {
         fake.respondWith("""
-            {"id":"chat-1","choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}
+            {"conversation_id":"conv-1","user_message_id":"msg-1","assistant_message_id":"msg-2","content":"Hello!","mode":"hybrid","sources":[]}
             """);
         var svc = new ChatService(http);
-        var req = new ChatCompletionRequest(List.of(new ChatMessage("user", "Hi")));
+        var req = new ChatCompletionRequest("Hi");
         var result = svc.completions(req);
-        assertEquals("chat-1", result.id);
-        assertEquals("Hello!", result.choices.get(0).message.content);
-        assertEquals(8, result.usage.totalTokens);
+        assertEquals("conv-1", result.conversationId);
+        assertEquals("Hello!", result.content);
     }
 
     @Test
     void chatError() {
         fake.respondWithError(500);
         assertThrows(EdgeQuakeException.class, () ->
-                new ChatService(http).completions(new ChatCompletionRequest(List.of(new ChatMessage("user", "Hi")))));
+                new ChatService(http).completions(new ChatCompletionRequest("Hi")));
     }
 
     // ── AuthService ──────────────────────────────────────────────────
@@ -580,7 +579,7 @@ class UnitTest {
     @Test
     void conversationsList() {
         fake.respondWith("""
-            [{"id":"c1","title":"Test Chat","message_count":5}]
+            {"items":[{"id":"c1","title":"Test Chat","message_count":5}]}
             """);
         var svc = new ConversationService(http);
         var result = svc.list();
@@ -601,11 +600,11 @@ class UnitTest {
     @Test
     void conversationsGet() {
         fake.respondWith("""
-            {"id":"c1","title":"Chat","messages":[{"id":"m1","role":"user","content":"Hello"}]}
+            {"conversation":{"id":"c1","title":"Chat"},"messages":[{"id":"m1","role":"user","content":"Hello"}]}
             """);
         var svc = new ConversationService(http);
         var result = svc.get("c1");
-        assertEquals("c1", result.id);
+        assertEquals("c1", result.getId());
         assertEquals(1, result.messages.size());
     }
 

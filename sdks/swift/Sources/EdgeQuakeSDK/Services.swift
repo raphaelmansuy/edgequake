@@ -30,8 +30,9 @@ public final class DocumentService: @unchecked Sendable {
             "/api/v1/documents", body: TextUploadRequest(title: title, content: content))
     }
 
-    public func delete(id: String) async throws -> [String: AnyCodable] {
-        try await http.delete("/api/v1/documents/\(id)")
+    /// WHY: DELETE returns 204 No Content — use deleteRaw to avoid decoding empty body.
+    public func delete(id: String) async throws {
+        _ = try await http.deleteRaw("/api/v1/documents/\(id)")
     }
 }
 
@@ -175,5 +176,51 @@ public final class CostService: @unchecked Sendable {
 
     public func summary() async throws -> CostSummary {
         try await http.get("/api/v1/costs/summary")
+    }
+}
+
+public final class ConversationService: @unchecked Sendable {
+    private let http: HttpHelper
+    init(_ http: HttpHelper) { self.http = http }
+
+    /// WHY: GET /api/v1/conversations returns {"items":[...]} wrapper, not raw array.
+    public func list() async throws -> [ConversationInfo] {
+        let wrapper: ConversationListResponse = try await http.get("/api/v1/conversations")
+        return wrapper.items ?? []
+    }
+
+    public func create(title: String) async throws -> ConversationInfo {
+        try await http.post("/api/v1/conversations", body: CreateConversationRequest(title: title))
+    }
+
+    public func get(id: String) async throws -> ConversationDetail {
+        try await http.get("/api/v1/conversations/\(id)")
+    }
+
+    /// WHY: DELETE returns 204 No Content — use deleteRaw to avoid decoding empty body.
+    public func delete(id: String) async throws {
+        _ = try await http.deleteRaw("/api/v1/conversations/\(id)")
+    }
+
+    public func bulkDelete(ids: [String]) async throws -> BulkDeleteResponse {
+        try await http.post("/api/v1/conversations/bulk/delete", body: ["ids": ids])
+    }
+}
+
+public final class FolderService: @unchecked Sendable {
+    private let http: HttpHelper
+    init(_ http: HttpHelper) { self.http = http }
+
+    public func list() async throws -> [FolderInfo] {
+        try await http.get("/api/v1/folders")
+    }
+
+    public func create(name: String) async throws -> FolderInfo {
+        try await http.post("/api/v1/folders", body: CreateFolderRequest(name: name))
+    }
+
+    /// WHY: DELETE returns 204 No Content — use deleteRaw to avoid decoding empty body.
+    public func delete(id: String) async throws {
+        _ = try await http.deleteRaw("/api/v1/folders/\(id)")
     }
 }

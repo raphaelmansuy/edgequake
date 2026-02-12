@@ -364,25 +364,32 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/api/v1/chat/completions"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "id":"chat-1","choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"},"finish_reason":"stop"}],"model":"gpt-4","usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
+                "conversation_id": "conv-1",
+                "user_message_id": "msg-1",
+                "assistant_message_id": "msg-2",
+                "content": "Hello!",
+                "mode": "hybrid",
+                "sources": []
             })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
         let req = types::chat::ChatCompletionRequest {
-            messages: vec![types::chat::ChatMessage {
-                role: "user".into(),
-                content: "Hi".into(),
-            }],
-            model: Some("gpt-4".into()),
-            temperature: None,
+            message: "Hi".into(),
+            stream: Some(false),
+            mode: None,
+            conversation_id: None,
             max_tokens: None,
-            stream: None,
+            temperature: None,
+            top_k: None,
+            parent_id: None,
+            provider: None,
+            model: None,
         };
         let r = client.chat().completions(&req).await.unwrap();
-        assert_eq!(r.choices.len(), 1);
-        assert_eq!(r.choices[0].message.as_ref().unwrap().content, "Hello!");
+        assert_eq!(r.content.as_deref(), Some("Hello!"));
+        assert_eq!(r.conversation_id.as_deref(), Some("conv-1"));
     }
 
     // ── Auth ─────────────────────────────────────────────────────────

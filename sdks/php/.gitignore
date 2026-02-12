@@ -1,4 +1,7 @@
 /vendor/
 /composer.phar
+/composer.lock
+/composer-setup.php
 /.phpunit.cache/
 /coverage.xml
+.DS_Store

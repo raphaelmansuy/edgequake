@@ -19,8 +19,9 @@ public class DocumentService(HttpHelper http)
         http.PostAsync<UploadResponse>("/api/v1/documents",
             new { title, content, file_type = fileType });
 
-    public Task<Dictionary<string, object>> DeleteAsync(string id) =>
-        http.DeleteAsync<Dictionary<string, object>>($"/api/v1/documents/{id}");
+    /// <summary>WHY: DELETE returns 204 No Content — no body to deserialize.</summary>
+    public Task DeleteAsync(string id) =>
+        http.DeleteNoContentAsync($"/api/v1/documents/{id}");
 }
 
 public class EntityService(HttpHelper http)
@@ -115,4 +116,40 @@ public class CostService(HttpHelper http)
 {
     public Task<CostSummary> SummaryAsync() =>
         http.GetAsync<CostSummary>("/api/v1/costs/summary");
+}
+
+public class ConversationService(HttpHelper http)
+{
+    /// <summary>WHY: GET /api/v1/conversations returns {"items":[...]} wrapper.</summary>
+    public async Task<List<ConversationInfo>> ListAsync()
+    {
+        var wrapper = await http.GetAsync<ConversationListResponse>("/api/v1/conversations");
+        return wrapper.Items ?? new List<ConversationInfo>();
+    }
+
+    public Task<ConversationInfo> CreateAsync(string title) =>
+        http.PostAsync<ConversationInfo>("/api/v1/conversations", new { title });
+
+    public Task<ConversationDetail> GetAsync(string id) =>
+        http.GetAsync<ConversationDetail>($"/api/v1/conversations/{id}");
+
+    /// <summary>WHY: DELETE returns 204 No Content — no body to deserialize.</summary>
+    public Task DeleteAsync(string id) =>
+        http.DeleteNoContentAsync($"/api/v1/conversations/{id}");
+
+    public Task<BulkDeleteResponse> BulkDeleteAsync(List<string> ids) =>
+        http.PostAsync<BulkDeleteResponse>("/api/v1/conversations/bulk/delete", new { ids });
+}
+
+public class FolderService(HttpHelper http)
+{
+    public Task<List<FolderInfo>> ListAsync() =>
+        http.GetAsync<List<FolderInfo>>("/api/v1/folders");
+
+    public Task<FolderInfo> CreateAsync(string name) =>
+        http.PostAsync<FolderInfo>("/api/v1/folders", new { name });
+
+    /// <summary>WHY: DELETE returns 204 No Content — no body to deserialize.</summary>
+    public Task DeleteAsync(string id) =>
+        http.DeleteNoContentAsync($"/api/v1/folders/{id}");
 }

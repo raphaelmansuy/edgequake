@@ -26,6 +26,8 @@ class Client
     public readonly PipelineService $pipeline;
     public readonly ModelService $models;
     public readonly CostService $costs;
+    public readonly ConversationService $conversations;
+    public readonly FolderService $folders;
 
     public function __construct(?Config $config = null)
     {
@@ -46,5 +48,7 @@ class Client
         $this->pipeline      = new PipelineService($http);
         $this->models        = new ModelService($http);
         $this->costs         = new CostService($http);
+        $this->conversations = new ConversationService($http);
+        $this->folders       = new FolderService($http);
     }
 }

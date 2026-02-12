@@ -26,12 +26,19 @@ func e2eClient() *edgequake.Client {
 	if key := os.Getenv("EDGEQUAKE_API_KEY"); key != "" {
 		opts = append(opts, edgequake.WithAPIKey(key))
 	}
-	if tid := os.Getenv("EDGEQUAKE_TENANT_ID"); tid != "" {
-		opts = append(opts, edgequake.WithTenantID(tid))
+	// WHY: Default migration-created tenant/user always available for E2E
+	tid := os.Getenv("EDGEQUAKE_TENANT_ID")
+	if tid == "" {
+		tid = "00000000-0000-0000-0000-000000000002"
 	}
-	if uid := os.Getenv("EDGEQUAKE_USER_ID"); uid != "" {
-		opts = append(opts, edgequake.WithUserID(uid))
+	opts = append(opts, edgequake.WithTenantID(tid))
+
+	uid := os.Getenv("EDGEQUAKE_USER_ID")
+	if uid == "" {
+		uid = "00000000-0000-0000-0000-000000000001"
 	}
+	opts = append(opts, edgequake.WithUserID(uid))
+
 	if wid := os.Getenv("EDGEQUAKE_WORKSPACE_ID"); wid != "" {
 		opts = append(opts, edgequake.WithWorkspaceID(wid))
 	}
@@ -190,18 +197,19 @@ func TestE2E_Query_Execute(t *testing.T) {
 func TestE2E_Chat_Completions(t *testing.T) {
 	c := e2eClient()
 	ctx := context.Background()
+	// WHY: EdgeQuake chat API uses `message` (singular string), not messages array
 	resp, err := c.Chat.Completions(ctx, &edgequake.ChatCompletionRequest{
-		Messages: []edgequake.ChatMessage{
-			{Role: "user", Content: "Hello, what is EdgeQuake?"},
-		},
+		Message: "Hello, what is EdgeQuake?",
 	})
 	if err != nil {
 		t.Logf("Chat.Completions returned error (may need LLM): %v", err)
 		return
 	}
-	if len(resp.Choices) > 0 {
-		t.Logf("Chat response: %q",
-			truncStr(resp.Choices[0].Message.Content, 80))
+	if resp.Content != "" {
+		t.Logf("Chat response: %q", truncStr(resp.Content, 80))
+	}
+	if resp.ConversationID != "" {
+		t.Logf("Conversation ID: %s", resp.ConversationID)
 	}
 }
 
@@ -213,9 +221,7 @@ func TestE2E_Conversations_CRUD(t *testing.T) {
 		Title: "Go SDK E2E Test Conversation",
 	})
 	if err != nil {
-		// Conversations require X-Tenant-ID, X-User-ID headers
-		t.Logf("Conversations.Create needs tenant/user headers: %v", err)
-		t.Skip("Set EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID to test")
+		t.Fatalf("Conversations.Create failed: %v", err)
 	}
 	t.Logf("Created conversation: id=%s title=%s", conv.ID, conv.Title)
 
@@ -256,8 +262,7 @@ func TestE2E_Folders_CRUD(t *testing.T) {
 		Name: "Go SDK E2E Test Folder",
 	})
 	if err != nil {
-		t.Logf("Folders.Create needs tenant/user headers: %v", err)
-		t.Skip("Set EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID to test")
+		t.Fatalf("Folders.Create failed: %v", err)
 	}
 	t.Logf("Created folder: id=%s name=%s", folder.ID, folder.Name)
 

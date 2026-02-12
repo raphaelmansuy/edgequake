@@ -268,19 +268,25 @@ func TestQuery_Execute(t *testing.T) {
 }
 
 func TestChat_Completions(t *testing.T) {
+	// WHY: EdgeQuake chat API returns {conversation_id, content, sources}, not OpenAI choices
 	srv := mockServer(t, 200, edgequake.ChatCompletionResponse{
-		Choices: []edgequake.ChatChoice{{Index: 0, Message: &edgequake.ChatMessage{Role: "assistant", Content: "Hi!"}}},
+		ConversationID: "test-conv-id",
+		Content:        "Hi! I can help you.",
+		Mode:           "hybrid",
 	})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
 	resp, err := c.Chat.Completions(context.Background(), &edgequake.ChatCompletionRequest{
-		Messages: []edgequake.ChatMessage{{Role: "user", Content: "Hello"}},
+		Message: "Hello",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(resp.Choices) != 1 {
-		t.Fatalf("got %d", len(resp.Choices))
+	if resp.Content != "Hi! I can help you." {
+		t.Fatalf("got %q", resp.Content)
+	}
+	if resp.ConversationID != "test-conv-id" {
+		t.Fatalf("got conversation_id %q", resp.ConversationID)
 	}
 }
 

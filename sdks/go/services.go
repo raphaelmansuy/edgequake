@@ -352,11 +352,14 @@ func (s *ConversationService) Create(ctx context.Context, params *CreateConversa
 }
 
 func (s *ConversationService) List(ctx context.Context) ([]ConversationInfo, error) {
-	var out []ConversationInfo
-	if err := s.c.get(ctx, "/api/v1/conversations", nil, &out); err != nil {
+	// WHY: API returns {items: [...], pagination: {...}}, not a raw array
+	var wrapper struct {
+		Items []ConversationInfo `json:"items"`
+	}
+	if err := s.c.get(ctx, "/api/v1/conversations", nil, &wrapper); err != nil {
 		return nil, err
 	}
-	return out, nil
+	return wrapper.Items, nil
 }
 
 func (s *ConversationService) Get(ctx context.Context, id string) (*ConversationDetail, error) {

@@ -116,7 +116,18 @@ open class HttpHelper(@PublishedApi internal val config: EdgeQuakeConfig) {
                     resp.statusCode(), resp.body()
                 )
             }
-            return mapper.readValue(resp.body(), object : TypeReference<T>() {})
+            // WHY: 204 No Content returns empty body — handle gracefully
+            val body = resp.body()
+            if (body.isNullOrBlank()) {
+                @Suppress("UNCHECKED_CAST")
+                return when {
+                    T::class == Unit::class -> Unit as T
+                    T::class == Map::class -> emptyMap<String, Any?>() as T
+                    T::class == String::class -> "" as T
+                    else -> throw EdgeQuakeException("Empty response body for type ${T::class}")
+                }
+            }
+            return mapper.readValue(body, object : TypeReference<T>() {})
         } catch (e: EdgeQuakeException) {
             throw e
         } catch (e: Exception) {

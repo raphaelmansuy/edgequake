@@ -330,6 +330,81 @@ public struct CostSummary: Codable, Sendable {
     public let entries: [AnyCodable]?
 }
 
+// MARK: - Conversations
+
+public struct ConversationInfo: Codable, Sendable {
+    public let id: String?
+    public let tenantId: String?
+    public let workspaceId: String?
+    public let title: String?
+    public let mode: String?
+    public let isPinned: Bool?
+    public let folderId: String?
+    public let createdAt: String?
+    public let updatedAt: String?
+    public let messageCount: Int?
+}
+
+/// WHY: GET /api/v1/conversations returns {"items":[...]} wrapper, not raw array.
+public struct ConversationListResponse: Codable, Sendable {
+    public let items: [ConversationInfo]?
+}
+
+/// WHY: GET /api/v1/conversations/{id} returns {"conversation":{...},"messages":[...]} wrapper.
+public struct ConversationDetail: Codable, Sendable {
+    public let conversation: ConversationInfo?
+    public let messages: [ConversationMessage]?
+
+    /// Convenience accessor for conversation ID.
+    public var id: String? { conversation?.id }
+}
+
+public struct ConversationMessage: Codable, Sendable {
+    public let id: String?
+    public let conversationId: String?
+    public let parentId: String?
+    public let role: String?
+    public let content: String?
+    public let mode: String?
+    public let tokensUsed: Int?
+    public let createdAt: String?
+}
+
+public struct CreateConversationRequest: Codable, Sendable {
+    public let title: String
+    public let mode: String?
+    public let folderId: String?
+
+    public init(title: String, mode: String? = nil, folderId: String? = nil) {
+        self.title = title
+        self.mode = mode
+        self.folderId = folderId
+    }
+}
+
+public struct BulkDeleteResponse: Codable, Sendable {
+    public let deleted: Int?
+    public let status: String?
+}
+
+// MARK: - Folders
+
+public struct FolderInfo: Codable, Sendable {
+    public let id: String?
+    public let tenantId: String?
+    public let name: String?
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
+public struct CreateFolderRequest: Codable, Sendable {
+    public let name: String
+
+    public init(name: String) {
+        self.name = name
+    }
+}
+
 // MARK: - Generic JSON wrapper
 
 /// WHY: Swift Codable doesn't support [String: Any] natively.

@@ -26,12 +26,14 @@ class E2ETest {
         @BeforeAll
         fun setup() {
             val baseUrl = System.getenv("EDGEQUAKE_BASE_URL") ?: "http://localhost:8080"
+            // WHY: Default tenant/user UUIDs match migration-created defaults,
+            // so conversations/folders tests work without env vars.
             client = EdgeQuakeClient(
                 EdgeQuakeConfig(
                     baseUrl = baseUrl,
                     apiKey = System.getenv("EDGEQUAKE_API_KEY"),
-                    tenantId = System.getenv("EDGEQUAKE_TENANT_ID"),
-                    userId = System.getenv("EDGEQUAKE_USER_ID"),
+                    tenantId = System.getenv("EDGEQUAKE_TENANT_ID") ?: "00000000-0000-0000-0000-000000000002",
+                    userId = System.getenv("EDGEQUAKE_USER_ID") ?: "00000000-0000-0000-0000-000000000001",
                     workspaceId = System.getenv("EDGEQUAKE_WORKSPACE_ID"),
                     timeoutSeconds = 15
                 )
@@ -154,12 +156,11 @@ class E2ETest {
         try {
             val result = client.chat.completions(
                 ChatCompletionRequest(
-                    messages = listOf(ChatMessage("user", "Hello")),
-                    model = "default"
+                    message = "Hello, what is EdgeQuake?"
                 )
             )
-            assertNotNull(result.choices)
-            println("Chat: ${result.choices?.size} choices")
+            assertNotNull(result.content)
+            println("Chat: ${result.content?.take(80)}")
         } catch (e: EdgeQuakeException) {
             // Chat may not be fully implemented
             println("Chat: ${e.statusCode} (expected if not implemented)")
@@ -250,30 +251,34 @@ class E2ETest {
 
     @Test @Order(18)
     fun conversationsCRUD() {
-        val tenantId = System.getenv("EDGEQUAKE_TENANT_ID")
-        val userId = System.getenv("EDGEQUAKE_USER_ID")
-        Assumptions.assumeTrue(
-            !tenantId.isNullOrEmpty() && !userId.isNullOrEmpty(),
-            "Requires EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID"
-        )
+        val conv = client.conversations.create("Kotlin E2E Test ${System.currentTimeMillis()}")
+        assertNotNull(conv.id)
+        println("Created conversation: ${conv.id} title=${conv.title}")
 
         val convos = client.conversations.list()
+        assertTrue(convos.isNotEmpty())
         println("Conversations: ${convos.size}")
+
+        val detail = client.conversations.get(conv.id!!)
+        assertNotNull(detail.conversation)
+        assertEquals(conv.id, detail.conversation?.id)
+
+        client.conversations.delete(conv.id!!)
     }
 
-    // ── 19. Folders (requires tenant/user) ───────────────────────────
+    // ── 19. Folders ──────────────────────────────────────────────────
 
     @Test @Order(19)
     fun foldersCRUD() {
-        val tenantId = System.getenv("EDGEQUAKE_TENANT_ID")
-        val userId = System.getenv("EDGEQUAKE_USER_ID")
-        Assumptions.assumeTrue(
-            !tenantId.isNullOrEmpty() && !userId.isNullOrEmpty(),
-            "Requires EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID"
-        )
+        val folder = client.folders.create("Kotlin E2E Folder ${System.currentTimeMillis()}")
+        assertNotNull(folder.id)
+        println("Created folder: ${folder.id} name=${folder.name}")
 
         val folders = client.folders.list()
+        assertTrue(folders.isNotEmpty())
         println("Folders: ${folders.size}")
+
+        client.folders.delete(folder.id!!)
     }
 
     // ── 20. Costs ────────────────────────────────────────────────────

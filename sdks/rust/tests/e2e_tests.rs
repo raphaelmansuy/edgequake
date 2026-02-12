@@ -17,9 +17,15 @@ fn e2e_client() -> EdgeQuakeClient {
     if let Ok(key) = std::env::var("EDGEQUAKE_API_KEY") {
         builder = builder.api_key(&key);
     }
-    if let Ok(tid) = std::env::var("EDGEQUAKE_TENANT_ID") {
-        builder = builder.tenant_id(&tid);
-    }
+    // WHY: Default migration-created tenant/user always available for E2E
+    let tid = std::env::var("EDGEQUAKE_TENANT_ID")
+        .unwrap_or_else(|_| "00000000-0000-0000-0000-000000000002".into());
+    builder = builder.tenant_id(&tid);
+
+    let uid = std::env::var("EDGEQUAKE_USER_ID")
+        .unwrap_or_else(|_| "00000000-0000-0000-0000-000000000001".into());
+    builder = builder.user_id(&uid);
+
     if let Ok(wid) = std::env::var("EDGEQUAKE_WORKSPACE_ID") {
         builder = builder.workspace_id(&wid);
     }
@@ -132,18 +138,23 @@ async fn e2e_query_execute() {
 #[tokio::test]
 async fn e2e_chat_completions() {
     let c = e2e_client();
+    // WHY: EdgeQuake chat API uses `message` (singular string), not messages array
     let req = types::chat::ChatCompletionRequest {
-        messages: vec![types::chat::ChatMessage {
-            role: "user".into(),
-            content: "Say hello".into(),
-        }],
-        model: None,
-        temperature: None,
+        message: "Say hello".into(),
+        stream: Some(false),
+        mode: None,
+        conversation_id: None,
         max_tokens: None,
-        stream: None,
+        temperature: None,
+        top_k: None,
+        parent_id: None,
+        provider: None,
+        model: None,
     };
     match c.chat().completions(&req).await {
-        Ok(r) => println!("Chat: {} choices", r.choices.len()),
+        Ok(r) => println!("Chat: content_len={} conversation_id={:?}",
+            r.content.as_deref().unwrap_or("").len(),
+            r.conversation_id),
         Err(e) => println!("Chat: error (may need LLM configured): {e}"),
     }
 }

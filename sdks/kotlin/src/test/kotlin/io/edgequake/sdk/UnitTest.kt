@@ -327,10 +327,9 @@ class UnitTest {
 
     @Test
     fun `documents delete`() {
-        fake.respondWith("""{"deleted":true}""")
+        fake.respondWith("")
         val svc = DocumentService(http)
-        val result = svc.delete("d1")
-        assertTrue(result["deleted"] == true)
+        svc.delete("d1")
         assertTrue(fake.lastRequest().uri.contains("/api/v1/documents/d1"))
     }
 
@@ -489,17 +488,15 @@ class UnitTest {
 
     @Test
     fun `chat completions`() {
-        fake.respondWith("""{"id":"chat-1","choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}""")
+        fake.respondWith("""{"conversation_id":"conv-1","user_message_id":"msg-1","assistant_message_id":"msg-2","content":"Hello!","mode":"hybrid","sources":[]}""")
         val svc = ChatService(http)
         val result = svc.completions(
             ChatCompletionRequest(
-                messages = listOf(ChatMessage("user", "Hi")),
-                model = "default"
+                message = "Hi"
             )
         )
-        assertEquals("chat-1", result.id)
-        assertEquals("Hello!", result.choices?.first()?.message?.content)
-        assertEquals(8, result.usage?.totalTokens)
+        assertEquals("conv-1", result.conversationId)
+        assertEquals("Hello!", result.content)
     }
 
     @Test
@@ -507,7 +504,7 @@ class UnitTest {
         fake.respondWithError(500)
         val svc = ChatService(http)
         assertThrows(EdgeQuakeException::class.java) {
-            svc.completions(ChatCompletionRequest(listOf(ChatMessage("user", "Hi"))))
+            svc.completions(ChatCompletionRequest(message = "Hi"))
         }
     }
 
@@ -573,7 +570,7 @@ class UnitTest {
 
     @Test
     fun `conversations list`() {
-        fake.respondWith("""[{"id":"c1","title":"Test Chat","message_count":5}]""")
+        fake.respondWith("""{"items":[{"id":"c1","title":"Test Chat","message_count":5}]}""")
         val svc = ConversationService(http)
         val result = svc.list()
         assertEquals(1, result.size)
@@ -591,19 +588,19 @@ class UnitTest {
 
     @Test
     fun `conversations get`() {
-        fake.respondWith("""{"id":"c1","title":"Chat","messages":[{"id":"m1","role":"user","content":"Hello"}]}""")
+        fake.respondWith("""{"conversation":{"id":"c1","title":"Chat"},"messages":[{"id":"m1","role":"user","content":"Hello"}]}""")
         val svc = ConversationService(http)
         val result = svc.get("c1")
-        assertEquals("c1", result.id)
+        assertEquals("c1", result.conversation?.id)
         assertEquals(1, result.messages?.size)
     }
 
     @Test
     fun `conversations delete`() {
-        fake.respondWith("""{"deleted":true}""")
+        fake.respondWith("")
         val svc = ConversationService(http)
-        val result = svc.delete("c1")
-        assertTrue(result["deleted"] == true)
+        svc.delete("c1")
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/conversations/c1"))
     }
 
     @Test
@@ -642,10 +639,10 @@ class UnitTest {
 
     @Test
     fun `folders delete`() {
-        fake.respondWith("""{"deleted":true}""")
+        fake.respondWith("")
         val svc = FolderService(http)
-        val result = svc.delete("f1")
-        assertTrue(result["deleted"] == true)
+        svc.delete("f1")
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/folders/f1"))
     }
 
     // ── TaskService ──────────────────────────────────────────────────
@@ -830,9 +827,9 @@ class UnitTest {
 
     @Test
     fun `ChatCompletionRequest defaults`() {
-        val r = ChatCompletionRequest(messages = listOf(ChatMessage("user", "Hi")))
-        assertEquals("default", r.model)
+        val r = ChatCompletionRequest(message = "Hi")
         assertEquals(false, r.stream)
+        assertEquals("Hi", r.message)
     }
 
     @Test
@@ -893,11 +890,11 @@ class UnitTest {
     @Test
     fun `ConversationDetail model`() {
         val c = ConversationDetail(
-            id = "c1",
-            title = "Chat",
+            conversation = ConversationInfo(id = "c1", title = "Chat"),
             messages = listOf(Message(id = "m1", role = "user", content = "Hi"))
         )
         assertEquals(1, c.messages?.size)
+        assertEquals("c1", c.conversation?.id)
     }
 
     @Test

@@ -184,3 +184,36 @@ class CostService
         return $this->http->get('/api/v1/costs/summary');
     }
 }
+
+class ConversationService
+{
+    public function __construct(private readonly HttpHelper $http) {}
+
+    public function list(): array
+    {
+        return $this->http->get('/api/v1/conversations');
+    }
+
+    public function create(string $title, ?string $mode = null, ?string $folderId = null): array
+    {
+        $body = ['title' => $title];
+        if ($mode !== null) $body['mode'] = $mode;
+        if ($folderId !== null) $body['folder_id'] = $folderId;
+        return $this->http->post('/api/v1/conversations', $body);
+    }
+}
+
+class FolderService
+{
+    public function __construct(private readonly HttpHelper $http) {}
+
+    public function list(): array
+    {
+        return $this->http->get('/api/v1/folders');
+    }
+
+    public function create(string $name): array
+    {
+        return $this->http->post('/api/v1/folders', ['name' => $name]);
+    }
+}

@@ -8,7 +8,9 @@ require_relative "../lib/edgequake"
 class E2ETest < Minitest::Test
   def setup
     base = ENV.fetch("EDGEQUAKE_BASE_URL", "http://localhost:8080")
-    config = EdgeQuake::Config.new(base_url: base)
+    tenant_id = ENV.fetch("EDGEQUAKE_TENANT_ID", "00000000-0000-0000-0000-000000000002")
+    user_id = ENV.fetch("EDGEQUAKE_USER_ID", "00000000-0000-0000-0000-000000000001")
+    config = EdgeQuake::Config.new(base_url: base, tenant_id: tenant_id, user_id: user_id)
     @client = EdgeQuake::Client.new(config: config)
   end
 
@@ -147,16 +149,28 @@ class E2ETest < Minitest::Test
     refute_nil ps["provider"]
   end
 
-  # 17. Conversations (skip)
+  # 17. Conversations
   def test_conversations_list
-    skip "EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID required" unless ENV["EDGEQUAKE_TENANT_ID"] && ENV["EDGEQUAKE_USER_ID"]
-    skip "Conversation tests require tenant/user headers support"
+    list = @client.conversations.list
+    refute_nil list
   end
 
-  # 18. Folders (skip)
+  def test_conversations_create
+    conv = @client.conversations.create(title: "Ruby E2E Test #{SecureRandom.hex(4)}")
+    refute_nil conv
+    assert(conv.key?("id") || conv.key?("conversation_id"), "should return conversation id")
+  end
+
+  # 18. Folders
   def test_folders_list
-    skip "EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID required" unless ENV["EDGEQUAKE_TENANT_ID"] && ENV["EDGEQUAKE_USER_ID"]
-    skip "Folder tests require tenant/user headers support"
+    list = @client.folders.list
+    assert list.is_a?(Array), "folders should be an array"
+  end
+
+  def test_folders_create
+    folder = @client.folders.create(name: "Ruby E2E Folder #{SecureRandom.hex(4)}")
+    refute_nil folder
+    assert(folder.key?("id") || folder.key?("name"), "should return folder")
   end
 
   # 19. Costs

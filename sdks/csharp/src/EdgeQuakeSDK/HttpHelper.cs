@@ -56,6 +56,15 @@ public class HttpHelper
         return await HandleResponse<T>(resp);
     }
 
+    /// <summary>
+    /// WHY: DELETE endpoints return 204 No Content — no body to deserialize.
+    /// </summary>
+    public async Task DeleteNoContentAsync(string path)
+    {
+        var resp = await _client.DeleteAsync(path);
+        await EnsureSuccess(resp);
+    }
+
     public async Task<string> GetRawAsync(string path)
     {
         var resp = await _client.GetAsync(path);

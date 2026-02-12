@@ -224,7 +224,16 @@ mod error_path_tests {
             .mount(&ms).await;
         let c = client_no_retry(&ms).await;
         let req = types::chat::ChatCompletionRequest {
-            messages: vec![], model: None, temperature: None, max_tokens: None, stream: None,
+            message: String::new(),
+            stream: Some(false),
+            mode: None,
+            conversation_id: None,
+            max_tokens: None,
+            temperature: None,
+            top_k: None,
+            parent_id: None,
+            provider: None,
+            model: None,
         };
         assert!(c.chat().completions(&req).await.is_err());
     }

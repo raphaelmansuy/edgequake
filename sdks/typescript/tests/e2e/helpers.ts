@@ -19,14 +19,19 @@ export const E2E_URL = process.env.EDGEQUAKE_E2E_URL;
 /** API key for authenticated endpoints (optional — some endpoints are public) */
 export const E2E_API_KEY = process.env.EDGEQUAKE_API_KEY;
 
-/** Workspace ID for multi-tenant tests (defaults to "default") */
-export const E2E_WORKSPACE = process.env.EDGEQUAKE_WORKSPACE ?? "default";
+/** Workspace ID for multi-tenant tests.
+ * WHY: Chat API rejects non-UUID workspace IDs. Leave empty to use server default. */
+export const E2E_WORKSPACE = process.env.EDGEQUAKE_WORKSPACE ?? "";
 
-/** Tenant ID for multi-tenant E2E tests */
-export const E2E_TENANT_ID = process.env.EDGEQUAKE_TENANT_ID ?? "";
+/** Tenant ID for multi-tenant E2E tests.
+ * WHY: Default migration-created tenant works for all conversation/folder ops */
+export const E2E_TENANT_ID =
+  process.env.EDGEQUAKE_TENANT_ID || "00000000-0000-0000-0000-000000000002";
 
-/** User ID for user-scoped E2E tests */
-export const E2E_USER_ID = process.env.EDGEQUAKE_USER_ID ?? "";
+/** User ID for user-scoped E2E tests.
+ * WHY: Default migration-created user works for all user-scoped ops */
+export const E2E_USER_ID =
+  process.env.EDGEQUAKE_USER_ID || "00000000-0000-0000-0000-000000000001";
 
 /** Whether E2E tests should run */
 export const E2E_ENABLED = !!E2E_URL;

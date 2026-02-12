@@ -186,3 +186,66 @@ public class CostSummary
     public int? QueryCount { get; set; }
     public List<JsonElement>? Entries { get; set; }
 }
+
+// ── Conversations ──
+public class ConversationInfo
+{
+    public string? Id { get; set; }
+    public string? TenantId { get; set; }
+    public string? WorkspaceId { get; set; }
+    public string? Title { get; set; }
+    public string? Mode { get; set; }
+    public bool? IsPinned { get; set; }
+    public string? FolderId { get; set; }
+    public string? CreatedAt { get; set; }
+    public string? UpdatedAt { get; set; }
+    public int? MessageCount { get; set; }
+}
+
+/// <summary>
+/// WHY: GET /api/v1/conversations returns {"items":[...]} wrapper, not raw array.
+/// </summary>
+public class ConversationListResponse
+{
+    public List<ConversationInfo>? Items { get; set; }
+}
+
+/// <summary>
+/// WHY: GET /api/v1/conversations/{id} returns {"conversation":{...},"messages":[...]} wrapper.
+/// </summary>
+public class ConversationDetail
+{
+    public ConversationInfo? Conversation { get; set; }
+    public List<ConversationMessage>? Messages { get; set; }
+
+    /// <summary>Convenience accessor for conversation ID.</summary>
+    public string? Id => Conversation?.Id;
+}
+
+public class ConversationMessage
+{
+    public string? Id { get; set; }
+    public string? ConversationId { get; set; }
+    public string? ParentId { get; set; }
+    public string? Role { get; set; }
+    public string? Content { get; set; }
+    public string? Mode { get; set; }
+    public int? TokensUsed { get; set; }
+    public string? CreatedAt { get; set; }
+}
+
+public class BulkDeleteResponse
+{
+    public int? Deleted { get; set; }
+    public string? Status { get; set; }
+}
+
+// ── Folders ──
+public class FolderInfo
+{
+    public string? Id { get; set; }
+    public string? TenantId { get; set; }
+    public string? Name { get; set; }
+    public string? CreatedAt { get; set; }
+    public string? UpdatedAt { get; set; }
+}

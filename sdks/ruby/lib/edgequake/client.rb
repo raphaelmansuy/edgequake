@@ -10,7 +10,7 @@ module EdgeQuake
   class Client
     attr_reader :health, :documents, :entities, :relationships, :graph,
                 :query, :chat, :tenants, :users, :api_keys, :tasks,
-                :pipeline, :models, :costs
+                :pipeline, :models, :costs, :conversations, :folders
 
     def initialize(config: Config.new)
       http = HttpHelper.new(config)
@@ -28,6 +28,8 @@ module EdgeQuake
       @pipeline      = PipelineService.new(http)
       @models        = ModelService.new(http)
       @costs         = CostService.new(http)
+      @conversations = ConversationService.new(http)
+      @folders       = FolderService.new(http)
     end
   end
 end

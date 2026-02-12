@@ -18,7 +18,15 @@ public class E2ETest
     {
         _output = output;
         var baseUrl = Environment.GetEnvironmentVariable("EDGEQUAKE_BASE_URL") ?? "http://localhost:8080";
-        _client = new EdgeQuakeClient(new EdgeQuakeConfig { BaseUrl = baseUrl });
+        // WHY: Default tenant/user IDs from database migration — avoids Skip.
+        var tenantId = Environment.GetEnvironmentVariable("EDGEQUAKE_TENANT_ID") ?? "00000000-0000-0000-0000-000000000002";
+        var userId = Environment.GetEnvironmentVariable("EDGEQUAKE_USER_ID") ?? "00000000-0000-0000-0000-000000000001";
+        _client = new EdgeQuakeClient(new EdgeQuakeConfig
+        {
+            BaseUrl = baseUrl,
+            TenantId = tenantId,
+            UserId = userId,
+        });
     }
 
     // 1. Health
@@ -184,30 +192,45 @@ public class E2ETest
         Assert.NotNull(ps.Provider);
     }
 
-    // 17. Conversations (skip if no tenant/user)
+    // 17. Conversations CRUD
     [Fact]
-    public void Test18_ConversationsList()
+    public async Task Test18_ConversationsCRUD()
     {
-        var tenantId = Environment.GetEnvironmentVariable("EDGEQUAKE_TENANT_ID");
-        var userId = Environment.GetEnvironmentVariable("EDGEQUAKE_USER_ID");
-        if (string.IsNullOrEmpty(tenantId) || string.IsNullOrEmpty(userId))
-        {
-            _output.WriteLine("SKIP: EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID required");
-            return;
-        }
+        // Create
+        var conv = await _client.Conversations.CreateAsync($"CSharp E2E Test {Guid.NewGuid().ToString()[..8]}");
+        Assert.NotNull(conv.Id);
+        _output.WriteLine($"Created conversation: {conv.Id} title={conv.Title}");
+
+        // List
+        var convos = await _client.Conversations.ListAsync();
+        Assert.NotEmpty(convos);
+        _output.WriteLine($"Conversations: {convos.Count}");
+
+        // Get detail
+        var detail = await _client.Conversations.GetAsync(conv.Id!);
+        Assert.NotNull(detail.Conversation);
+        Assert.Equal(conv.Id, detail.Id);
+
+        // Delete (204 No Content)
+        await _client.Conversations.DeleteAsync(conv.Id!);
     }
 
-    // 18. Folders (skip if no tenant/user)
+    // 18. Folders CRUD
     [Fact]
-    public void Test19_FoldersList()
+    public async Task Test19_FoldersCRUD()
     {
-        var tenantId = Environment.GetEnvironmentVariable("EDGEQUAKE_TENANT_ID");
-        var userId = Environment.GetEnvironmentVariable("EDGEQUAKE_USER_ID");
-        if (string.IsNullOrEmpty(tenantId) || string.IsNullOrEmpty(userId))
-        {
-            _output.WriteLine("SKIP: EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID required");
-            return;
-        }
+        // Create
+        var folder = await _client.Folders.CreateAsync($"CSharp E2E Folder {Guid.NewGuid().ToString()[..8]}");
+        Assert.NotNull(folder.Id);
+        _output.WriteLine($"Created folder: {folder.Id} name={folder.Name}");
+
+        // List
+        var folders = await _client.Folders.ListAsync();
+        Assert.NotEmpty(folders);
+        _output.WriteLine($"Folders: {folders.Count}");
+
+        // Delete (204 No Content)
+        await _client.Folders.DeleteAsync(folder.Id!);
     }
 
     // 19. Costs

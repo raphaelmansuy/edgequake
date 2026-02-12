@@ -4,3 +4,5 @@ obj/
 *.suo
 .vs/
 *.DotSettings.user
+TestResults/
+.DS_Store

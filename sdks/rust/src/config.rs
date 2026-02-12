@@ -42,5 +42,6 @@ pub enum Auth {
 #[derive(Clone, Debug, Default)]
 pub struct TenantContext {
     pub tenant_id: Option<String>,
+    pub user_id: Option<String>,
     pub workspace_id: Option<String>,
 }

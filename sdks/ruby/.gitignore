@@ -1,0 +1,14 @@
+# Ruby build artifacts
+*.gem
+.bundle/
+vendor/bundle/
+pkg/
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

@@ -32,7 +32,9 @@ class E2ETest
     public function __construct()
     {
         $base = getenv('EDGEQUAKE_BASE_URL') ?: 'http://localhost:8080';
-        $this->client = new Client(new Config(baseUrl: $base));
+        $tenantId = getenv('EDGEQUAKE_TENANT_ID') ?: '00000000-0000-0000-0000-000000000002';
+        $userId = getenv('EDGEQUAKE_USER_ID') ?: '00000000-0000-0000-0000-000000000001';
+        $this->client = new Client(new Config(baseUrl: $base, tenantId: $tenantId, userId: $userId));
     }
 
     public function run(): void
@@ -310,13 +312,47 @@ class E2ETest
     // 17. Conversations
     public function testConversationsList(): void
     {
-        $this->skip('Conversations List', 'EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID required');
+        try {
+            $list = $this->client->conversations->list();
+            assert(is_array($list), 'conversations response is array');
+            $this->pass('Conversations List');
+        } catch (\Throwable $e) {
+            $this->fail('Conversations List', $e->getMessage());
+        }
+    }
+
+    public function testConversationsCreate(): void
+    {
+        try {
+            $conv = $this->client->conversations->create('PHP E2E Test ' . bin2hex(random_bytes(4)));
+            assert(isset($conv['id']) || isset($conv['conversation_id']), 'conversation created');
+            $this->pass('Conversations Create');
+        } catch (\Throwable $e) {
+            $this->fail('Conversations Create', $e->getMessage());
+        }
     }
 
     // 18. Folders
     public function testFoldersList(): void
     {
-        $this->skip('Folders List', 'EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID required');
+        try {
+            $list = $this->client->folders->list();
+            assert(is_array($list), 'folders response is array');
+            $this->pass('Folders List');
+        } catch (\Throwable $e) {
+            $this->fail('Folders List', $e->getMessage());
+        }
+    }
+
+    public function testFoldersCreate(): void
+    {
+        try {
+            $folder = $this->client->folders->create('PHP E2E Folder ' . bin2hex(random_bytes(4)));
+            assert(isset($folder['id']) || isset($folder['name']), 'folder created');
+            $this->pass('Folders Create');
+        } catch (\Throwable $e) {
+            $this->fail('Folders Create', $e->getMessage());
+        }
     }
 
     // 19. Costs

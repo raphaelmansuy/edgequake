@@ -18,6 +18,10 @@ import pytest
 E2E_URL = os.environ.get("EDGEQUAKE_E2E_URL", "")
 pytestmark = pytest.mark.skipif(not E2E_URL, reason="EDGEQUAKE_E2E_URL not set")
 
+# WHY: Default tenant/user IDs created by migrations — always available
+DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000002"
+DEFAULT_USER_ID = "00000000-0000-0000-0000-000000000001"
+
 
 @pytest.fixture(scope="module")
 def client():
@@ -28,10 +32,21 @@ def client():
 
 
 @pytest.fixture(scope="module")
+def tenant_client():
+    """Create an EdgeQuake client with tenant/user context for conversations/folders."""
+    from edgequake import EdgeQuake
+
+    return EdgeQuake(
+        base_url=E2E_URL,
+        tenant_id=DEFAULT_TENANT_ID,
+        user_id=DEFAULT_USER_ID,
+    )
+
+
+@pytest.fixture(scope="module")
 def test_doc_id(client):
     """Upload a test document and return its ID for subsequent tests."""
     tag = uuid.uuid4().hex[:8]
-    # WHY: Python SDK upload() takes content (positional) + title (kwarg)
     resp = client.documents.upload(
         content="Knowledge graphs connect ALICE and BOB through WORKS_WITH relationships.",
         title=f"Python E2E {tag}",
@@ -128,20 +143,51 @@ class TestQuery:
 
 
 class TestChat:
-    def test_chat_completions(self, client):
-        # WHY: Python SDK chat.complete takes messages list, not single message
-        # Chat may return 401/403 without auth — handle gracefully
-        try:
-            from edgequake.types.chat import ChatMessage
+    def test_chat_completions(self, tenant_client):
+        # WHY: EdgeQuake chat API uses `message` (singular string), not `messages` array
+        resp = tenant_client.chat.complete("Hello, what is EdgeQuake?")
+        assert resp is not None
+        assert resp.content is not None
+        assert len(resp.content) > 0
+        assert resp.conversation_id is not None
 
-            resp = client.chat.complete(
-                messages=[{"role": "user", "content": "Hello, what is EdgeQuake?"}]
-            )
-            assert resp is not None
-        except Exception as e:
-            if "401" in str(e) or "403" in str(e) or "422" in str(e):
-                pytest.skip("Chat requires auth or has validation error")
-            raise
+
+# ── 5b. Conversations (require tenant/user) ─────────────────
+
+
+class TestConversations:
+    def test_list_conversations(self, tenant_client):
+        convs = tenant_client.conversations.list()
+        assert convs is not None
+
+    def test_create_and_delete_conversation(self, tenant_client):
+        tag = uuid.uuid4().hex[:8]
+        # WHY: conversations.create() takes keyword args, not ConversationCreate object
+        created = tenant_client.conversations.create(title=f"pytest-conv-{tag}")
+        assert created is not None
+        assert created.id is not None
+
+        # Delete
+        tenant_client.conversations.delete(created.id)
+
+
+# ── 5c. Folders (require tenant/user) ───────────────────────
+
+
+class TestFolders:
+    def test_list_folders(self, tenant_client):
+        folders = tenant_client.folders.list()
+        assert folders is not None
+
+    def test_create_and_delete_folder(self, tenant_client):
+        tag = uuid.uuid4().hex[:8]
+        # WHY: folders.create() takes name string, not FolderCreate object
+        created = tenant_client.folders.create(f"pytest-folder-{tag}")
+        assert created is not None
+        assert created.id is not None
+
+        # Delete
+        tenant_client.folders.delete(created.id)
 
 
 # ── 6. Tenants ─────────────────────────────────────────────

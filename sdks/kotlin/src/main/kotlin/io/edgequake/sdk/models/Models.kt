@@ -180,33 +180,41 @@ data class QueryResponse(
     val mode: String? = null
 )
 
+// WHY: EdgeQuake uses `message` (singular string), NOT `messages` (array).
+// This is EdgeQuake's native RAG-aware chat format.
+
 data class ChatMessage(
     val role: String,
     val content: String
 )
 
 data class ChatCompletionRequest(
-    val messages: List<ChatMessage>,
-    val model: String = "default",
-    val stream: Boolean = false
+    val message: String,
+    val stream: Boolean = false,
+    val mode: String? = null,
+    @JsonProperty("conversation_id") val conversationId: String? = null,
+    @JsonProperty("max_tokens") val maxTokens: Int? = null,
+    val temperature: Double? = null,
+    @JsonProperty("top_k") val topK: Int? = null,
+    @JsonProperty("parent_id") val parentId: String? = null,
+    val provider: String? = null,
+    val model: String? = null
+)
+
+data class ChatSourceReference(
+    @JsonProperty("source_type") val sourceType: String? = null,
+    val id: String? = null,
+    val score: Double? = null,
+    val snippet: String? = null
 )
 
 data class ChatCompletionResponse(
-    val id: String? = null,
-    val choices: List<ChatChoice>? = null,
-    val usage: ChatUsage? = null
-)
-
-data class ChatChoice(
-    val index: Int? = null,
-    val message: ChatMessage? = null,
-    @JsonProperty("finish_reason") val finishReason: String? = null
-)
-
-data class ChatUsage(
-    @JsonProperty("prompt_tokens") val promptTokens: Int? = null,
-    @JsonProperty("completion_tokens") val completionTokens: Int? = null,
-    @JsonProperty("total_tokens") val totalTokens: Int? = null
+    @JsonProperty("conversation_id") val conversationId: String? = null,
+    @JsonProperty("user_message_id") val userMessageId: String? = null,
+    @JsonProperty("assistant_message_id") val assistantMessageId: String? = null,
+    val content: String? = null,
+    val mode: String? = null,
+    val sources: List<ChatSourceReference>? = null
 )
 
 // ── Auth & Multi-tenant ─────────────────────────────────────────────
@@ -247,9 +255,14 @@ data class ConversationInfo(
     @JsonProperty("message_count") val messageCount: Int? = null
 )
 
+// WHY: GET /api/v1/conversations returns {"items":[...]} wrapper, not raw array.
+data class ConversationListResponse(
+    val items: List<ConversationInfo>? = null
+)
+
+/** WHY: GET /conversations/{id} returns {"conversation":{...},"messages":[...]} wrapper. */
 data class ConversationDetail(
-    val id: String? = null,
-    val title: String? = null,
+    val conversation: ConversationInfo? = null,
     val messages: List<Message>? = null
 )
 

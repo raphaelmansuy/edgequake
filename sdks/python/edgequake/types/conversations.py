@@ -15,6 +15,7 @@ class ConversationCreate(BaseModel):
     """Request to create a conversation."""
 
     title: str | None = None
+    mode: str | None = None
     folder_id: str | None = None
     metadata: dict[str, Any] | None = None
 
@@ -33,7 +34,7 @@ class ConversationInfo(BaseModel):
     id: str
     title: str | None = None
     folder_id: str | None = None
-    message_count: int = 0
+    message_count: int | None = 0
     is_pinned: bool = False
     is_shared: bool = False
     is_archived: bool = False

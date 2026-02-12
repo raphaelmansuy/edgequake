@@ -152,4 +152,31 @@ module EdgeQuake
       @http.get("/api/v1/costs/summary")
     end
   end
+
+  class ConversationService
+    def initialize(http) = @http = http
+
+    def list
+      @http.get("/api/v1/conversations")
+    end
+
+    def create(title:, mode: nil, folder_id: nil)
+      body = { title: title }
+      body[:mode] = mode if mode
+      body[:folder_id] = folder_id if folder_id
+      @http.post("/api/v1/conversations", body)
+    end
+  end
+
+  class FolderService
+    def initialize(http) = @http = http
+
+    def list
+      @http.get("/api/v1/folders")
+    end
+
+    def create(name:)
+      @http.post("/api/v1/folders", { name: name })
+    end
+  end
 end

@@ -17,6 +17,8 @@ public class EdgeQuakeClient
     public PipelineService Pipeline { get; }
     public ModelService Models { get; }
     public CostService Costs { get; }
+    public ConversationService Conversations { get; }
+    public FolderService Folders { get; }
 
     public EdgeQuakeClient(EdgeQuakeConfig? config = null)
     {
@@ -37,5 +39,7 @@ public class EdgeQuakeClient
         Pipeline = new PipelineService(http);
         Models = new ModelService(http);
         Costs = new CostService(http);
+        Conversations = new ConversationService(http);
+        Folders = new FolderService(http);
     }
 }

@@ -2,6 +2,8 @@
 
 WHY: Maps to /api/v1/chat/completions endpoints. Supports both synchronous
 and streaming chat completions with RAG context.
+
+NOTE: EdgeQuake chat API uses `message` (singular string), NOT `messages` (array).
 """
 
 from __future__ import annotations
@@ -13,7 +15,6 @@ from edgequake.resources._base import AsyncResource, SyncResource
 from edgequake.types.chat import (
     ChatCompletionChunk,
     ChatCompletionResponse,
-    ChatMessage,
 )
 
 
@@ -22,34 +23,41 @@ class ChatResource(SyncResource):
 
     def complete(
         self,
-        messages: list[ChatMessage] | list[dict[str, str]],
+        message: str,
         *,
-        model: str = "edgequake",
-        temperature: float = 0.7,
-        max_tokens: int | None = None,
-        provider: str | None = None,
-        conversation_id: str | None = None,
         mode: str | None = None,
+        conversation_id: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        top_k: int | None = None,
+        provider: str | None = None,
+        model: str | None = None,
     ) -> ChatCompletionResponse:
         """Create a chat completion.
 
         POST /api/v1/chat/completions
+
+        WHY: EdgeQuake uses `message` (singular string). The backend handles
+        conversation threading via conversation_id.
         """
-        msgs = [m.model_dump() if isinstance(m, ChatMessage) else m for m in messages]
         body: dict[str, Any] = {
-            "messages": msgs,
-            "model": model,
-            "temperature": temperature,
+            "message": message,
             "stream": False,
         }
-        if max_tokens is not None:
-            body["max_tokens"] = max_tokens
-        if provider:
-            body["provider"] = provider
-        if conversation_id:
-            body["conversation_id"] = conversation_id
         if mode:
             body["mode"] = mode
+        if conversation_id:
+            body["conversation_id"] = conversation_id
+        if max_tokens is not None:
+            body["max_tokens"] = max_tokens
+        if temperature is not None:
+            body["temperature"] = temperature
+        if top_k is not None:
+            body["top_k"] = top_k
+        if provider:
+            body["provider"] = provider
+        if model:
+            body["model"] = model
         return self._post(
             "/api/v1/chat/completions",
             json=body,
@@ -58,31 +66,35 @@ class ChatResource(SyncResource):
 
     def stream(
         self,
-        messages: list[ChatMessage] | list[dict[str, str]],
+        message: str,
         *,
-        model: str = "edgequake",
-        temperature: float = 0.7,
-        max_tokens: int | None = None,
-        provider: str | None = None,
+        mode: str | None = None,
         conversation_id: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        provider: str | None = None,
+        model: str | None = None,
     ) -> SSEStream[ChatCompletionChunk]:
         """Create a streaming chat completion via SSE.
 
         POST /api/v1/chat/completions/stream
         """
-        msgs = [m.model_dump() if isinstance(m, ChatMessage) else m for m in messages]
         body: dict[str, Any] = {
-            "messages": msgs,
-            "model": model,
-            "temperature": temperature,
+            "message": message,
             "stream": True,
         }
-        if max_tokens is not None:
-            body["max_tokens"] = max_tokens
-        if provider:
-            body["provider"] = provider
+        if mode:
+            body["mode"] = mode
         if conversation_id:
             body["conversation_id"] = conversation_id
+        if max_tokens is not None:
+            body["max_tokens"] = max_tokens
+        if temperature is not None:
+            body["temperature"] = temperature
+        if provider:
+            body["provider"] = provider
+        if model:
+            body["model"] = model
         response = self._transport.stream(
             "POST", "/api/v1/chat/completions/stream", json=body
         )
@@ -94,30 +106,35 @@ class AsyncChatResource(AsyncResource):
 
     async def complete(
         self,
-        messages: list[ChatMessage] | list[dict[str, str]],
+        message: str,
         *,
-        model: str = "edgequake",
-        temperature: float = 0.7,
-        max_tokens: int | None = None,
-        provider: str | None = None,
-        conversation_id: str | None = None,
         mode: str | None = None,
+        conversation_id: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        top_k: int | None = None,
+        provider: str | None = None,
+        model: str | None = None,
     ) -> ChatCompletionResponse:
-        msgs = [m.model_dump() if isinstance(m, ChatMessage) else m for m in messages]
+        """Create a chat completion (async)."""
         body: dict[str, Any] = {
-            "messages": msgs,
-            "model": model,
-            "temperature": temperature,
+            "message": message,
             "stream": False,
         }
-        if max_tokens is not None:
-            body["max_tokens"] = max_tokens
-        if provider:
-            body["provider"] = provider
-        if conversation_id:
-            body["conversation_id"] = conversation_id
         if mode:
             body["mode"] = mode
+        if conversation_id:
+            body["conversation_id"] = conversation_id
+        if max_tokens is not None:
+            body["max_tokens"] = max_tokens
+        if temperature is not None:
+            body["temperature"] = temperature
+        if top_k is not None:
+            body["top_k"] = top_k
+        if provider:
+            body["provider"] = provider
+        if model:
+            body["model"] = model
         return await self._post(
             "/api/v1/chat/completions",
             json=body,
@@ -126,24 +143,32 @@ class AsyncChatResource(AsyncResource):
 
     async def stream(
         self,
-        messages: list[ChatMessage] | list[dict[str, str]],
+        message: str,
         *,
-        model: str = "edgequake",
-        temperature: float = 0.7,
+        mode: str | None = None,
+        conversation_id: str | None = None,
         max_tokens: int | None = None,
+        temperature: float | None = None,
         provider: str | None = None,
+        model: str | None = None,
     ) -> AsyncSSEStream[ChatCompletionChunk]:
-        msgs = [m.model_dump() if isinstance(m, ChatMessage) else m for m in messages]
+        """Create a streaming chat completion (async)."""
         body: dict[str, Any] = {
-            "messages": msgs,
-            "model": model,
-            "temperature": temperature,
+            "message": message,
             "stream": True,
         }
+        if mode:
+            body["mode"] = mode
+        if conversation_id:
+            body["conversation_id"] = conversation_id
         if max_tokens is not None:
             body["max_tokens"] = max_tokens
+        if temperature is not None:
+            body["temperature"] = temperature
         if provider:
             body["provider"] = provider
+        if model:
+            body["model"] = model
         response = await self._transport.stream(
             "POST", "/api/v1/chat/completions/stream", json=body
         )

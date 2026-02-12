@@ -40,11 +40,15 @@ class E2ETest {
         var apiKey = System.getenv("EDGEQUAKE_API_KEY");
         if (apiKey != null && !apiKey.isEmpty()) builder.apiKey(apiKey);
 
+        // WHY: Default tenant/user UUIDs match migration-created defaults,
+        // so conversations/folders tests work without env vars.
         var tenantId = System.getenv("EDGEQUAKE_TENANT_ID");
-        if (tenantId != null && !tenantId.isEmpty()) builder.tenantId(tenantId);
+        builder.tenantId(tenantId != null && !tenantId.isEmpty()
+                ? tenantId : "00000000-0000-0000-0000-000000000002");
 
         var userId = System.getenv("EDGEQUAKE_USER_ID");
-        if (userId != null && !userId.isEmpty()) builder.userId(userId);
+        builder.userId(userId != null && !userId.isEmpty()
+                ? userId : "00000000-0000-0000-0000-000000000001");
 
         var workspaceId = System.getenv("EDGEQUAKE_WORKSPACE_ID");
         if (workspaceId != null && !workspaceId.isEmpty()) builder.workspaceId(workspaceId);
@@ -170,13 +174,10 @@ class E2ETest {
     @Test @Order(8)
     void chatCompletions() {
         try {
-            var req = new ChatCompletionRequest(List.of(
-                    new ChatMessage("user", "Hello, what is EdgeQuake?")));
+            var req = new ChatCompletionRequest("Hello, what is EdgeQuake?");
             var resp = client.chat().completions(req);
-            if (resp.choices != null && !resp.choices.isEmpty()) {
-                System.out.printf("Chat: %s%n",
-                        truncate(resp.choices.get(0).message.content, 80));
-            }
+            assertNotNull(resp.content, "content should not be null");
+            System.out.printf("Chat: %s%n", truncate(resp.content, 80));
         } catch (Exception e) {
             System.out.println("Chat may need LLM: " + e.getMessage());
         }
@@ -279,57 +280,41 @@ class E2ETest {
                 status.currentProvider, status.currentModel, status.status);
     }
 
-    // ── 18. Conversations (requires tenant/user headers) ────────────
+    // ── 18. Conversations ─────────────────────────────────────────────
 
     @Test @Order(18)
     void conversationsCRUD() {
-        try {
-            var conv = client.conversations().create(
-                    new CreateConversationRequest("Java SDK E2E Conversation"));
-            assertNotNull(conv.id);
-            System.out.printf("Created conversation: id=%s title=%s%n", conv.id, conv.title);
+        var conv = client.conversations().create(
+                new CreateConversationRequest("Java SDK E2E Conversation"));
+        assertNotNull(conv.id);
+        System.out.printf("Created conversation: id=%s title=%s%n", conv.id, conv.title);
 
-            var convs = client.conversations().list();
-            assertNotNull(convs);
-            System.out.printf("Conversations: %d total%n", convs.size());
+        var convs = client.conversations().list();
+        assertNotNull(convs);
+        System.out.printf("Conversations: %d total%n", convs.size());
 
-            var detail = client.conversations().get(conv.id);
-            assertNotNull(detail.id);
+        var detail = client.conversations().get(conv.id);
+        assertNotNull(detail.getId());
 
-            var msg = client.conversations().createMessage(conv.id,
-                    new CreateMessageRequest("user", "Hello from Java SDK"));
-            assertNotNull(msg.id);
+        var msg = client.conversations().createMessage(conv.id,
+                new CreateMessageRequest("user", "Hello from Java SDK"));
+        assertNotNull(msg.id);
 
-            client.conversations().delete(conv.id);
-        } catch (EdgeQuakeException e) {
-            if (e.statusCode() == 400 || e.statusCode() == 401) {
-                System.out.println("Conversations need tenant/user headers — skipping");
-                Assumptions.assumeTrue(false, "Requires EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID");
-            }
-            throw e;
-        }
+        client.conversations().delete(conv.id);
     }
 
-    // ── 19. Folders (requires tenant/user headers) ───────────────────
+    // ── 19. Folders ──────────────────────────────────────────────────
 
     @Test @Order(19)
     void foldersCRUD() {
-        try {
-            var folder = client.folders().create(new CreateFolderRequest("Java SDK E2E Folder"));
-            assertNotNull(folder.id);
-            System.out.printf("Created folder: id=%s name=%s%n", folder.id, folder.name);
+        var folder = client.folders().create(new CreateFolderRequest("Java SDK E2E Folder"));
+        assertNotNull(folder.id);
+        System.out.printf("Created folder: id=%s name=%s%n", folder.id, folder.name);
 
-            var folders = client.folders().list();
-            assertNotNull(folders);
+        var folders = client.folders().list();
+        assertNotNull(folders);
 
-            client.folders().delete(folder.id);
-        } catch (EdgeQuakeException e) {
-            if (e.statusCode() == 400 || e.statusCode() == 401) {
-                System.out.println("Folders need tenant/user headers — skipping");
-                Assumptions.assumeTrue(false, "Requires EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID");
-            }
-            throw e;
-        }
+        client.folders().delete(folder.id);
     }
 
     // ── 20. Costs ────────────────────────────────────────────────────

@@ -12,7 +12,18 @@ final class E2ETest: XCTestCase {
     override func setUp() async throws {
         let base =
             ProcessInfo.processInfo.environment["EDGEQUAKE_BASE_URL"] ?? "http://localhost:8080"
-        let config = EdgeQuakeConfig(baseUrl: base)
+        /// WHY: Default tenant/user IDs from database migration — avoids XCTSkip.
+        let tenantId =
+            ProcessInfo.processInfo.environment["EDGEQUAKE_TENANT_ID"]
+                ?? "00000000-0000-0000-0000-000000000002"
+        let userId =
+            ProcessInfo.processInfo.environment["EDGEQUAKE_USER_ID"]
+                ?? "00000000-0000-0000-0000-000000000001"
+        let config = EdgeQuakeConfig(
+            baseUrl: base,
+            tenantId: tenantId,
+            userId: userId
+        )
         client = EdgeQuakeClient(config: config)
     }
 
@@ -173,30 +184,43 @@ final class E2ETest: XCTestCase {
         XCTAssertNotNil(ps.provider)
     }
 
-    // MARK: - 17. Conversations (requires tenant + user)
+    // MARK: - 17. Conversations CRUD
 
-    func testConversationsList() async throws {
-        let tenantId = ProcessInfo.processInfo.environment["EDGEQUAKE_TENANT_ID"]
-        let userId = ProcessInfo.processInfo.environment["EDGEQUAKE_USER_ID"]
-        guard let tid = tenantId, let uid = userId, !tid.isEmpty, !uid.isEmpty else {
-            throw XCTSkip("EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID required")
-        }
-        _ = tid
-        _ = uid
-        throw XCTSkip("Conversation tests require tenant/user headers support")
+    func testConversationsCRUD() async throws {
+        // Create
+        let conv = try await client.conversations.create(title: "Swift E2E Test \(UUID().uuidString.prefix(8))")
+        XCTAssertNotNil(conv.id)
+        print("Created conversation: \(conv.id ?? "nil") title=\(conv.title ?? "nil")")
+
+        // List
+        let convos = try await client.conversations.list()
+        XCTAssertFalse(convos.isEmpty)
+        print("Conversations: \(convos.count)")
+
+        // Get detail
+        let detail = try await client.conversations.get(id: conv.id!)
+        XCTAssertNotNil(detail.conversation)
+        XCTAssertEqual(detail.id, conv.id)
+
+        // Delete (204 No Content)
+        try await client.conversations.delete(id: conv.id!)
     }
 
-    // MARK: - 18. Folders (requires tenant + user)
+    // MARK: - 18. Folders CRUD
 
-    func testFoldersList() async throws {
-        let tenantId = ProcessInfo.processInfo.environment["EDGEQUAKE_TENANT_ID"]
-        let userId = ProcessInfo.processInfo.environment["EDGEQUAKE_USER_ID"]
-        guard let tid = tenantId, let uid = userId, !tid.isEmpty, !uid.isEmpty else {
-            throw XCTSkip("EDGEQUAKE_TENANT_ID and EDGEQUAKE_USER_ID required")
-        }
-        _ = tid
-        _ = uid
-        throw XCTSkip("Folder tests require tenant/user headers support")
+    func testFoldersCRUD() async throws {
+        // Create
+        let folder = try await client.folders.create(name: "Swift E2E Folder \(UUID().uuidString.prefix(8))")
+        XCTAssertNotNil(folder.id)
+        print("Created folder: \(folder.id ?? "nil") name=\(folder.name ?? "nil")")
+
+        // List
+        let folders = try await client.folders.list()
+        XCTAssertFalse(folders.isEmpty)
+        print("Folders: \(folders.count)")
+
+        // Delete (204 No Content)
+        try await client.folders.delete(id: folder.id!)
     }
 
     // MARK: - 19. Costs

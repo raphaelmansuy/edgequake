@@ -34,6 +34,8 @@ public class QueryModels {
     }
 
     // ── Chat ─────────────────────────────────────────────────────────
+    // WHY: EdgeQuake uses `message` (singular string), NOT `messages` (array).
+    // This is EdgeQuake's native RAG-aware chat format.
 
     public static class ChatMessage {
         @JsonProperty("role") public String role;
@@ -47,34 +49,37 @@ public class QueryModels {
     }
 
     public static class ChatCompletionRequest {
-        @JsonProperty("messages") public List<ChatMessage> messages;
-        @JsonProperty("model") public String model;
-        @JsonProperty("temperature") public Double temperature;
-        @JsonProperty("max_tokens") public Integer maxTokens;
+        @JsonProperty("message") public String message;
         @JsonProperty("stream") public Boolean stream;
+        @JsonProperty("mode") public String mode;
+        @JsonProperty("conversation_id") public String conversationId;
+        @JsonProperty("max_tokens") public Integer maxTokens;
+        @JsonProperty("temperature") public Double temperature;
+        @JsonProperty("top_k") public Integer topK;
+        @JsonProperty("parent_id") public String parentId;
+        @JsonProperty("provider") public String provider;
+        @JsonProperty("model") public String model;
 
         public ChatCompletionRequest() {}
-        public ChatCompletionRequest(List<ChatMessage> messages) {
-            this.messages = messages;
+        public ChatCompletionRequest(String message) {
+            this.message = message;
+            this.stream = false;
         }
     }
 
-    public static class ChatCompletionResponse {
+    public static class ChatSourceReference {
+        @JsonProperty("source_type") public String sourceType;
         @JsonProperty("id") public String id;
-        @JsonProperty("choices") public List<ChatChoice> choices;
-        @JsonProperty("model") public String model;
-        @JsonProperty("usage") public ChatUsage usage;
+        @JsonProperty("score") public Double score;
+        @JsonProperty("snippet") public String snippet;
     }
 
-    public static class ChatChoice {
-        @JsonProperty("index") public int index;
-        @JsonProperty("message") public ChatMessage message;
-        @JsonProperty("finish_reason") public String finishReason;
-    }
-
-    public static class ChatUsage {
-        @JsonProperty("prompt_tokens") public int promptTokens;
-        @JsonProperty("completion_tokens") public int completionTokens;
-        @JsonProperty("total_tokens") public int totalTokens;
+    public static class ChatCompletionResponse {
+        @JsonProperty("conversation_id") public String conversationId;
+        @JsonProperty("user_message_id") public String userMessageId;
+        @JsonProperty("assistant_message_id") public String assistantMessageId;
+        @JsonProperty("content") public String content;
+        @JsonProperty("mode") public String mode;
+        @JsonProperty("sources") public List<ChatSourceReference> sources;
     }
 }

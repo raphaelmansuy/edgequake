@@ -1,0 +1,10 @@
+# Go build artifacts
+cover.out
+*.test
+*.exe
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp

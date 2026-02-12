@@ -1,5 +1,6 @@
 package io.edgequake.sdk.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
@@ -128,25 +129,36 @@ public class AuthModels {
         @JsonProperty("id") public String id;
         @JsonProperty("title") public String title;
         @JsonProperty("folder_id") public String folderId;
-        @JsonProperty("message_count") public int messageCount;
+        @JsonProperty("message_count") public Integer messageCount;
         @JsonProperty("is_pinned") public boolean isPinned;
         @JsonProperty("created_at") public String createdAt;
         @JsonProperty("updated_at") public String updatedAt;
     }
 
+    /** WHY: GET /api/v1/conversations returns {"items":[...]} wrapper, not raw array. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class ConversationListResponse {
+        @JsonProperty("items") public List<ConversationInfo> items;
+    }
+
     public static class CreateConversationRequest {
         @JsonProperty("title") public String title;
+        @JsonProperty("mode") public String mode;
         @JsonProperty("folder_id") public String folderId;
 
         public CreateConversationRequest() {}
         public CreateConversationRequest(String title) { this.title = title; }
     }
 
+    /** WHY: GET /conversations/{id} returns {"conversation":{...},"messages":[...]} wrapper. */
     public static class ConversationDetail {
-        @JsonProperty("id") public String id;
-        @JsonProperty("title") public String title;
+        @JsonProperty("conversation") public ConversationInfo conversation;
         @JsonProperty("messages") public List<Message> messages;
-        @JsonProperty("created_at") public String createdAt;
+
+        /** Convenience accessor for conversation id. */
+        public String getId() {
+            return conversation != null ? conversation.id : null;
+        }
     }
 
     public static class Message {

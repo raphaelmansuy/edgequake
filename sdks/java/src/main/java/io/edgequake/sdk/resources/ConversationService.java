@@ -21,9 +21,10 @@ public class ConversationService {
         return http.post("/api/v1/conversations", request, ConversationInfo.class);
     }
 
+    /** WHY: GET /api/v1/conversations returns {"items":[...]} wrapper, not raw array. */
     public List<ConversationInfo> list() {
-        return http.get("/api/v1/conversations", null,
-                new TypeReference<List<ConversationInfo>>() {});
+        var wrapper = http.get("/api/v1/conversations", null, ConversationListResponse.class);
+        return wrapper.items != null ? wrapper.items : List.of();
     }
 
     public ConversationDetail get(String id) {

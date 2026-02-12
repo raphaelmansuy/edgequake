@@ -218,36 +218,37 @@ type SourceReference struct {
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
 
+// ChatMessage represents a message in a conversation (used for display/history).
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
+// ChatCompletionRequest is the request body for POST /api/v1/chat/completions.
+// WHY: EdgeQuake uses `message` (singular string), not `messages` (array).
 type ChatCompletionRequest struct {
-	Messages    []ChatMessage `json:"messages"`
-	Model       string        `json:"model,omitempty"`
-	Temperature *float64      `json:"temperature,omitempty"`
-	MaxTokens   *int          `json:"max_tokens,omitempty"`
-	Stream      *bool         `json:"stream,omitempty"`
+	Message        string   `json:"message"`
+	Stream         *bool    `json:"stream,omitempty"`
+	Mode           string   `json:"mode,omitempty"`
+	ConversationID string   `json:"conversation_id,omitempty"`
+	MaxTokens      *int     `json:"max_tokens,omitempty"`
+	Temperature    *float64 `json:"temperature,omitempty"`
+	TopK           *int     `json:"top_k,omitempty"`
+	ParentID       string   `json:"parent_id,omitempty"`
+	Provider       string   `json:"provider,omitempty"`
+	Model          string   `json:"model,omitempty"`
 }
 
+// ChatCompletionResponse is the response from POST /api/v1/chat/completions.
+// WHY: EdgeQuake returns conversation-threaded response with RAG sources,
+// not OpenAI-style choices array.
 type ChatCompletionResponse struct {
-	ID      string       `json:"id,omitempty"`
-	Choices []ChatChoice `json:"choices"`
-	Model   string       `json:"model,omitempty"`
-	Usage   *ChatUsage   `json:"usage,omitempty"`
-}
-
-type ChatChoice struct {
-	Index        int          `json:"index"`
-	Message      *ChatMessage `json:"message,omitempty"`
-	FinishReason string       `json:"finish_reason,omitempty"`
-}
-
-type ChatUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	ConversationID     string            `json:"conversation_id"`
+	UserMessageID      string            `json:"user_message_id"`
+	AssistantMessageID string            `json:"assistant_message_id"`
+	Content            string            `json:"content"`
+	Mode               string            `json:"mode"`
+	Sources            []SourceReference `json:"sources"`
 }
 
 type LoginParams struct {

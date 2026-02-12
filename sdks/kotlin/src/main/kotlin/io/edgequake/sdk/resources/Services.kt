@@ -21,7 +21,8 @@ class DocumentService(private val http: HttpHelper) {
         return http.mapper.readValue(json, UploadResponse::class.java)
     }
 
-    fun delete(id: String): Map<String, Any?> = http.delete("/api/v1/documents/$id")
+    /** WHY: DELETE may return 204 No Content — use deleteRaw to avoid deserialization of empty body. */
+    fun delete(id: String) { http.deleteRaw("/api/v1/documents/$id") }
 
     fun scan(path: String, recursive: Boolean = true): ScanResponse =
         http.post("/api/v1/documents/scan", ScanRequest(path, recursive))
@@ -87,14 +88,19 @@ class TenantService(private val http: HttpHelper) {
 }
 
 class ConversationService(private val http: HttpHelper) {
-    fun list(): List<ConversationInfo> = http.get("/api/v1/conversations")
+    /** WHY: GET /api/v1/conversations returns {"items":[...]} wrapper, not raw array. */
+    fun list(): List<ConversationInfo> {
+        val wrapper: ConversationListResponse = http.get("/api/v1/conversations")
+        return wrapper.items ?: emptyList()
+    }
 
     fun create(title: String): ConversationInfo =
         http.post("/api/v1/conversations", mapOf("title" to title))
 
     fun get(id: String): ConversationDetail = http.get("/api/v1/conversations/$id")
 
-    fun delete(id: String): Map<String, Any?> = http.delete("/api/v1/conversations/$id")
+    /** WHY: DELETE returns 204 No Content — use deleteRaw to avoid deserialization of empty body. */
+    fun delete(id: String) { http.deleteRaw("/api/v1/conversations/$id") }
 
     fun bulkDelete(ids: List<String>): BulkDeleteResponse =
         http.post("/api/v1/conversations/bulk/delete", mapOf("ids" to ids))
@@ -106,7 +112,8 @@ class FolderService(private val http: HttpHelper) {
     fun create(name: String): FolderInfo =
         http.post("/api/v1/folders", mapOf("name" to name))
 
-    fun delete(id: String): Map<String, Any?> = http.delete("/api/v1/folders/$id")
+    /** WHY: DELETE returns 204 No Content — use deleteRaw to avoid deserialization of empty body. */
+    fun delete(id: String) { http.deleteRaw("/api/v1/folders/$id") }
 }
 
 class TaskService(private val http: HttpHelper) {

@@ -3,6 +3,9 @@
 WHY: Maps chat completions request/response types, matching
 edgequake-api/src/handlers/chat_types.rs. Re-uses SourceReference
 and QueryStats from query types to avoid duplication (DRY).
+
+NOTE: EdgeQuake chat API uses `message` (singular string), NOT `messages` (array).
+This is NOT OpenAI-compatible — it is EdgeQuake's native RAG-aware chat format.
 """
 
 from __future__ import annotations
@@ -15,55 +18,45 @@ from edgequake.types.query import QueryStats, SourceReference
 
 
 class ChatMessage(BaseModel):
-    """A message in a chat conversation."""
+    """A message in a chat conversation (used for conversation history display)."""
 
     role: Literal["system", "user", "assistant"] = "user"
     content: str
 
 
 class ChatCompletionRequest(BaseModel):
-    """Request body for POST /api/v1/chat/completions."""
+    """Request body for POST /api/v1/chat/completions.
 
-    messages: list[ChatMessage]
-    model: str = "edgequake"
-    temperature: float = 0.7
-    max_tokens: int | None = None
-    top_k: int | None = None
+    WHY: EdgeQuake uses `message` (singular string) not `messages` (array).
+    The conversation threading is handled server-side via conversation_id.
+    """
+
+    message: str
     stream: bool = False
-    provider: str | None = None
-    conversation_id: str | None = None
-    parent_id: str | None = None
     mode: str | None = None
-
-
-class ChatChoice(BaseModel):
-    """A completion choice in the response."""
-
-    index: int = 0
-    message: ChatMessage | None = None
-    finish_reason: str | None = None
-
-
-class ChatUsage(BaseModel):
-    """Token usage in the chat completion response."""
-
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    total_tokens: int = 0
+    conversation_id: str | None = None
+    max_tokens: int | None = None
+    temperature: float | None = None
+    top_k: int | None = None
+    parent_id: str | None = None
+    provider: str | None = None
+    model: str | None = None
 
 
 class ChatCompletionResponse(BaseModel):
-    """Response from POST /api/v1/chat/completions."""
+    """Response from POST /api/v1/chat/completions.
 
-    id: str | None = None
-    object: str = "chat.completion"
-    created: int | None = None
-    model: str | None = None
-    choices: list[ChatChoice] = Field(default_factory=list)
-    usage: ChatUsage | None = None
-    sources: list[SourceReference] | None = None
-    stats: QueryStats | None = None
+    WHY: EdgeQuake returns conversation-threaded response with RAG sources,
+    not OpenAI-style choices array.
+    """
+
     conversation_id: str | None = None
+    user_message_id: str | None = None
+    assistant_message_id: str | None = None
+    content: str | None = None
+    mode: str | None = None
+    sources: list[SourceReference] = Field(default_factory=list)
+    stats: QueryStats | None = None
 
 
 class ChatCompletionChunk(BaseModel):

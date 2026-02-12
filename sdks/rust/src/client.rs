@@ -276,6 +276,9 @@ impl EdgeQuakeClient {
         if let Some(tid) = &self.inner.tenant.tenant_id {
             req = req.header("X-Tenant-ID", tid.as_str());
         }
+        if let Some(uid) = &self.inner.tenant.user_id {
+            req = req.header("X-User-ID", uid.as_str());
+        }
         if let Some(wid) = &self.inner.tenant.workspace_id {
             req = req.header("X-Workspace-ID", wid.as_str());
         }
@@ -336,6 +339,11 @@ impl ClientBuilder {
 
     pub fn tenant_id(mut self, id: impl Into<String>) -> Self {
         self.tenant.tenant_id = Some(id.into());
+        self
+    }
+
+    pub fn user_id(mut self, id: impl Into<String>) -> Self {
+        self.tenant.user_id = Some(id.into());
         self
     }
 

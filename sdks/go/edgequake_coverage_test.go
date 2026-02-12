@@ -300,9 +300,14 @@ func TestAPIKeys_List(t *testing.T) {
 // ── Conversation Service ─────────────────────────────────────────────────────
 
 func TestConversations_List(t *testing.T) {
-	srv := mockServer(t, 200, []edgequake.ConversationInfo{
-		{ID: "c1", Title: "Chat 1"},
-		{ID: "c2", Title: "Chat 2"},
+	// WHY: API returns {"items":[...]} wrapper, not raw array.
+	srv := mockServer(t, 200, struct {
+		Items []edgequake.ConversationInfo `json:"items"`
+	}{
+		Items: []edgequake.ConversationInfo{
+			{ID: "c1", Title: "Chat 1"},
+			{ID: "c2", Title: "Chat 2"},
+		},
 	})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
@@ -998,8 +1003,9 @@ func TestTypes_QueryRequest_JSON(t *testing.T) {
 func TestTypes_ChatCompletionRequest_JSON(t *testing.T) {
 	temp := 0.7
 	maxTok := 1000
+	// WHY: EdgeQuake uses `message` (singular string), not `messages` array
 	req := edgequake.ChatCompletionRequest{
-		Messages:    []edgequake.ChatMessage{{Role: "user", Content: "hi"}},
+		Message:     "hi",
 		Model:       "gpt-5-nano",
 		Temperature: &temp,
 		MaxTokens:   &maxTok,
@@ -1014,6 +1020,9 @@ func TestTypes_ChatCompletionRequest_JSON(t *testing.T) {
 	}
 	if decoded.Model != "gpt-5-nano" {
 		t.Fatalf("got %s", decoded.Model)
+	}
+	if decoded.Message != "hi" {
+		t.Fatalf("got %s", decoded.Message)
 	}
 	if *decoded.Temperature != 0.7 {
 		t.Fatalf("got %f", *decoded.Temperature)
