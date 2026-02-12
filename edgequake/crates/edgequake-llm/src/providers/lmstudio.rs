@@ -731,10 +731,9 @@ impl EmbeddingProvider for LMStudioProvider {
                 )));
             }
 
-            let embedding_response: EmbeddingResponse =
-                response.json().await.map_err(|e| {
-                    LlmError::NetworkError(format!("Failed to parse embedding response: {}", e))
-                })?;
+            let embedding_response: EmbeddingResponse = response.json().await.map_err(|e| {
+                LlmError::NetworkError(format!("Failed to parse embedding response: {}", e))
+            })?;
 
             all_embeddings.extend(embedding_response.data.into_iter().map(|d| d.embedding));
         }
