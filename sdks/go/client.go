@@ -186,29 +186,13 @@ func (c *Client) post(ctx context.Context, path string, body, v interface{}) err
 	return c.do(req, v)
 }
 
-func (c *Client) put(ctx context.Context, path string, body, v interface{}) error {
-	req, err := c.newRequest(ctx, http.MethodPut, path, body)
-	if err != nil {
-		return err
-	}
-	return c.do(req, v)
-}
-
-func (c *Client) patch(ctx context.Context, path string, body, v interface{}) error {
-	req, err := c.newRequest(ctx, http.MethodPatch, path, body)
-	if err != nil {
-		return err
-	}
-	return c.do(req, v)
-}
-
-func (c *Client) del(ctx context.Context, path string, v interface{}) error {
-	req, err := c.newRequest(ctx, http.MethodDelete, path, nil)
-	if err != nil {
-		return err
-	}
-	return c.do(req, v)
-}
+// WHY: put() and patch() with response decoding, and del() with response body,
+// are available for future service methods that need them. Currently unused
+// but retained as part of the complete HTTP method surface.
+// Uncomment when needed:
+//   func (c *Client) put(ctx, path, body, v) error { ... }
+//   func (c *Client) patch(ctx, path, body, v) error { ... }
+//   func (c *Client) del(ctx, path, v) error { ... }
 
 func (c *Client) delNoContent(ctx context.Context, path string) error {
 	req, err := c.newRequest(ctx, http.MethodDelete, path, nil)
