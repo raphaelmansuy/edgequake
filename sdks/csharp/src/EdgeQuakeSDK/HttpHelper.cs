@@ -16,14 +16,17 @@ public class HttpHelper
         PropertyNameCaseInsensitive = true,
     };
 
-    public HttpHelper(EdgeQuakeConfig config)
+    public HttpHelper(EdgeQuakeConfig config) : this(config, null) { }
+
+    /// <summary>Internal constructor accepting a custom HttpMessageHandler (for testing).</summary>
+    internal HttpHelper(EdgeQuakeConfig config, HttpMessageHandler? handler)
     {
         _config = config;
-        _client = new HttpClient
-        {
-            BaseAddress = new Uri(config.BaseUrl.TrimEnd('/')),
-            Timeout = TimeSpan.FromSeconds(config.TimeoutSeconds)
-        };
+        _client = handler is not null
+            ? new HttpClient(handler) { BaseAddress = new Uri(config.BaseUrl.TrimEnd('/')) }
+            : new HttpClient { BaseAddress = new Uri(config.BaseUrl.TrimEnd('/')) };
+
+        _client.Timeout = TimeSpan.FromSeconds(config.TimeoutSeconds);
 
         _client.DefaultRequestHeaders.Add("Accept", "application/json");
         if (config.ApiKey is not null) _client.DefaultRequestHeaders.Add("X-API-Key", config.ApiKey);
