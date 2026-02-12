@@ -1,0 +1,3 @@
+module EdgeQuakeSDKPackageTests {
+    header "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKPackageTests.build/include/EdgeQuakeSDKPackageTests-Swift.h"
+}

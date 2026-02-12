@@ -1,0 +1,56 @@
+name: Test Swift SDK
+
+on:
+  push:
+    branches: [main, "feat/*", "edgequake-main"]
+    paths:
+      - "sdks/swift/**"
+      - ".github/workflows/swift-test.yml"
+  pull_request:
+    branches: [main, "edgequake-main"]
+    paths:
+      - "sdks/swift/**"
+
+defaults:
+  run:
+    working-directory: sdks/swift
+
+jobs:
+  test:
+    name: Test (Swift ${{ matrix.swift-version }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        swift-version: ["5.9", "5.10"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ matrix.swift-version }}
+
+      - name: Build
+        run: swift build -v
+
+      - name: Run tests
+        run: swift test -v
+
+  build-linux:
+    name: Build (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.10"
+
+      - name: Build
+        run: swift build -v
+        working-directory: sdks/swift

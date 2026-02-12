@@ -19,6 +19,16 @@ final class HttpHelper: @unchecked Sendable {
         self.encoder.keyEncodingStrategy = .convertToSnakeCase
     }
 
+    /// Internal initializer for testing with a custom URLSession.
+    init(config: EdgeQuakeConfig, session: URLSession) {
+        self.config = config
+        self.session = session
+        self.decoder = JSONDecoder()
+        self.decoder.keyDecodingStrategy = .convertFromSnakeCase
+        self.encoder = JSONEncoder()
+        self.encoder.keyEncodingStrategy = .convertToSnakeCase
+    }
+
     // MARK: - Public API
 
     func get<T: Decodable>(_ path: String) async throws -> T {

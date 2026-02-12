@@ -22,7 +22,7 @@
   ],
   "swiftCommands" : {
     "C.EdgeQuakeSDK-arm64-apple-macosx26.0-debug.module" : {
-      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
       "fileList" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/sources",
       "importPath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/Modules",
       "inputs" : [
@@ -52,7 +52,7 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
         },
         {
           "kind" : "file",
@@ -93,19 +93,31 @@
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/include/EdgeQuakeSDK-Swift.h",
         "-swift-version",
         "5",
-        "-I",
-        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-        "-L",
-        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
         "-plugin-path",
-        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
         "-sdk",
-        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
         "-g",
         "-Xcc",
         "-isysroot",
         "-Xcc",
-        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
         "-Xcc",
         "-fPIC",
         "-Xcc",
@@ -157,7 +169,7 @@
       "wholeModuleOptimization" : false
     },
     "C.EdgeQuakeSDKPackageTests-arm64-apple-macosx26.0-debug.module" : {
-      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
       "fileList" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKPackageTests.build/sources",
       "importPath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/Modules",
       "inputs" : [
@@ -167,7 +179,7 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
         },
         {
           "kind" : "file",
@@ -207,19 +219,31 @@
         "-emit-objc-header",
         "-emit-objc-header-path",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKPackageTests.build/include/EdgeQuakeSDKPackageTests-Swift.h",
-        "-I",
-        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-        "-L",
-        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
         "-plugin-path",
-        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
         "-sdk",
-        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
         "-g",
         "-Xcc",
         "-isysroot",
         "-Xcc",
-        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
         "-Xcc",
         "-fPIC",
         "-Xcc",
@@ -246,7 +270,7 @@
       "wholeModuleOptimization" : false
     },
     "C.EdgeQuakeSDKTests-arm64-apple-macosx26.0-debug.module" : {
-      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
       "fileList" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/sources",
       "importPath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/Modules",
       "inputs" : [
@@ -256,7 +280,11 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/UnitTest.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
         },
         {
           "kind" : "file",
@@ -271,11 +299,12 @@
       "moduleName" : "EdgeQuakeSDKTests",
       "moduleOutputPath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/Modules/EdgeQuakeSDKTests.swiftmodule",
       "objects" : [
-        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/E2ETest.swift.o"
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/E2ETest.swift.o",
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/UnitTest.swift.o"
       ],
       "otherArguments" : [
         "-target",
-        "arm64-apple-macosx13.0",
+        "arm64-apple-macosx14.0",
         "-incremental",
         "-enable-batch-mode",
         "-serialize-diagnostics",
@@ -295,19 +324,31 @@
         "-parse-as-library",
         "-swift-version",
         "5",
-        "-I",
-        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-        "-L",
-        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
         "-plugin-path",
-        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
         "-sdk",
-        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
         "-g",
         "-Xcc",
         "-isysroot",
         "-Xcc",
-        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
         "-Xcc",
         "-fPIC",
         "-Xcc",
@@ -323,12 +364,17 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/UnitTest.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/Modules/EdgeQuakeSDKTests.swiftmodule"
         }
       ],
       "prepareForIndexing" : false,
       "sources" : [
-        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/E2ETest.swift"
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/E2ETest.swift",
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/UnitTest.swift"
       ],
       "tempsPath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build",
       "wholeModuleOptimization" : false
@@ -339,7 +385,7 @@
   },
   "swiftTargetScanArgs" : {
     "EdgeQuakeSDK" : [
-      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
       "-module-name",
       "EdgeQuakeSDK",
       "-package-name",
@@ -375,19 +421,31 @@
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/include/EdgeQuakeSDK-Swift.h",
       "-swift-version",
       "5",
-      "-I",
-      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-      "-L",
-      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
       "-plugin-path",
-      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
       "-sdk",
-      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
       "-g",
       "-Xcc",
       "-isysroot",
       "-Xcc",
-      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
       "-Xcc",
       "-fPIC",
       "-Xcc",
@@ -395,10 +453,10 @@
       "-package-name",
       "swift",
       "-driver-use-frontend-path",
-      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
     ],
     "EdgeQuakeSDKPackageTests" : [
-      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
       "-module-name",
       "EdgeQuakeSDKPackageTests",
       "-package-name",
@@ -429,19 +487,31 @@
       "-emit-objc-header",
       "-emit-objc-header-path",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKPackageTests.build/include/EdgeQuakeSDKPackageTests-Swift.h",
-      "-I",
-      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-      "-L",
-      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
       "-plugin-path",
-      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
       "-sdk",
-      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
       "-g",
       "-Xcc",
       "-isysroot",
       "-Xcc",
-      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
       "-Xcc",
       "-fPIC",
       "-Xcc",
@@ -449,20 +519,21 @@
       "-package-name",
       "swift",
       "-driver-use-frontend-path",
-      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
     ],
     "EdgeQuakeSDKTests" : [
-      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
       "-module-name",
       "EdgeQuakeSDKTests",
       "-package-name",
       "swift",
       "-c",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/E2ETest.swift",
+      "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/UnitTest.swift",
       "-I",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/Modules",
       "-target",
-      "arm64-apple-macosx13.0",
+      "arm64-apple-macosx14.0",
       "-incremental",
       "-enable-batch-mode",
       "-serialize-diagnostics",
@@ -482,19 +553,31 @@
       "-parse-as-library",
       "-swift-version",
       "5",
-      "-I",
-      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-      "-L",
-      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
       "-plugin-path",
-      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
       "-sdk",
-      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
       "-g",
       "-Xcc",
       "-isysroot",
       "-Xcc",
-      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
       "-Xcc",
       "-fPIC",
       "-Xcc",
@@ -502,7 +585,7 @@
       "-package-name",
       "swift",
       "-driver-use-frontend-path",
-      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
     ]
   },
   "targetDependencyMap" : {
@@ -625,6 +708,10 @@
         {
           "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/E2ETest.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/UnitTest.swift.o"
         }
       ],
       "outputFilePath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKPackageTests.product/Objects.LinkFileList"
@@ -639,11 +726,15 @@
         {
           "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/E2ETest.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/UnitTest.swift"
         }
       ],
       "outputFilePath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/sources"
     },
-    "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt" : {
+    "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
       "alwaysOutOfDate" : true,
       "inputs" : [
         {
@@ -652,10 +743,10 @@
         },
         {
           "kind" : "file",
-          "name" : "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
         }
       ],
-      "outputFilePath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+      "outputFilePath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
     }
   }
 }
