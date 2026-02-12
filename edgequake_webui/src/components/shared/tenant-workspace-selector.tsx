@@ -232,22 +232,32 @@ export function TenantWorkspaceSelector({
 
   const handleTenantSelect = useCallback(
     (tenantId: string) => {
+      if (tenantId === selectedTenantId) return;
       selectTenant(tenantId);
       const tenant = tenants.find((t) => t.id === tenantId);
       if (tenant) {
+        toast.info(t('tenant.switched', `Switched to tenant "{{name}}"`, { name: tenant.name }), {
+          id: 'tenant-switch',
+          duration: 2000,
+        });
         onTenantChange?.(tenant);
       }
     },
-    [selectTenant, tenants, onTenantChange]
+    [selectTenant, tenants, selectedTenantId, onTenantChange, t]
   );
 
   const handleWorkspaceSelect = useCallback(
     (workspaceId: string) => {
+      if (workspaceId === selectedWorkspaceId) return;
       selectWorkspace(workspaceId);
       // Invalidate workspace stats query to force refetch with new workspace
       queryClient.invalidateQueries({ queryKey: ['workspaceStats'] });
       const workspace = workspaces.find((w) => w.id === workspaceId);
       if (workspace) {
+        toast.info(t('workspace.switched', `Switched to workspace "{{name}}"`, { name: workspace.name }), {
+          id: 'workspace-switch',
+          duration: 2000,
+        });
         onWorkspaceChange?.(workspace);
       }
     },

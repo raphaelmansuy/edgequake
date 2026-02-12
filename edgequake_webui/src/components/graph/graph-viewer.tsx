@@ -255,7 +255,15 @@ export function GraphViewer() {
       || streamingProgress.phase === 'idle' 
       || streamingProgress.phase === 'connecting'
     );
-  const effectiveIsLoading = isLoading || isStreamingInitializing;
+  // WHY: When a tenant/workspace switch happens, streaming for an empty workspace
+  // can complete in <1 frame — the user sees the old graph vanish with zero feedback.
+  // This transition state guarantees a minimum 800ms loading overlay so the user
+  // always perceives "something happened" after switching context.
+  const [isWorkspaceTransitioning, setIsWorkspaceTransitioning] = useState(false);
+  const [transitionPhase, setTransitionPhase] = useState<string>("");
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const effectiveIsLoading = isLoading || isStreamingInitializing || isWorkspaceTransitioning;
   
   // WHY: Ref to prevent React StrictMode double-render from causing duplicate stream starts
   const streamingInitializedRef = useRef(false);
@@ -264,16 +272,25 @@ export function GraphViewer() {
   // WHY: Track previous workspace/tenant to detect changes.
   // When workspace changes, the Zustand store still holds old nodes/edges from
   // the previous workspace. Without clearing, those stale nodes remain visible
-  // until new data arrives (in non-streaming mode, React Query key changes trigger
-  // a new fetch but the store retains old data; in streaming mode, the streaming
-  // effect also clears but this provides defense-in-depth).
+  // until new data arrives. The transition state ensures the loading overlay
+  // stays visible for at least 800ms so users see clear visual feedback.
   const prevWorkspaceKeyRef = useRef<string>("");
   useEffect(() => {
     const currentKey = `${selectedTenantId ?? ""}-${selectedWorkspaceId ?? ""}`;
     if (prevWorkspaceKeyRef.current !== "" && prevWorkspaceKeyRef.current !== currentKey) {
       clearGraphForStreaming();
+      // WHY: Show loading overlay immediately with contextual message.
+      // The 800ms minimum guarantees users see feedback even for fast/empty workspaces.
+      setIsWorkspaceTransitioning(true);
+      setTransitionPhase("Switching workspace...");
+      if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
+      transitionTimerRef.current = setTimeout(() => {
+        setIsWorkspaceTransitioning(false);
+        setTransitionPhase("");
+      }, 800);
     }
     prevWorkspaceKeyRef.current = currentKey;
+    return () => { if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current); };
   }, [selectedTenantId, selectedWorkspaceId, clearGraphForStreaming]);
 
   // Start streaming when in streaming mode
@@ -540,7 +557,7 @@ export function GraphViewer() {
           <GraphAccessibilityAnnouncer />
           
           {effectiveIsLoading && allNodes.length === 0 ? (
-            <GraphLoadingOverlay visible={true} />
+            <GraphLoadingOverlay visible={true} phase={transitionPhase || undefined} />
           ) : allNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center max-w-md px-4">
