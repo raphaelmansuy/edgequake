@@ -1460,10 +1460,17 @@ pub async fn cancel_pdf_processing(
             .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
             .ok_or_else(|| ApiError::NotFound(format!("PDF not found: {}", pdf_id)))?;
 
-        // Only allow cancel of processing PDFs
-        if pdf.processing_status != PdfProcessingStatus::Processing {
+        // Allow cancel of Processing or Pending PDFs
+        // WHY: Documents can get stuck in non-terminal states (e.g., "uploading",
+        // "pending") after a server restart or network interruption. Previously
+        // only "processing" was cancellable, leaving users unable to recover from
+        // stuck states. Now Pending is also allowed so users can force-cancel
+        // documents that never transitioned to processing.
+        if pdf.processing_status != PdfProcessingStatus::Processing
+            && pdf.processing_status != PdfProcessingStatus::Pending
+        {
             return Err(ApiError::Conflict(format!(
-                "Cannot cancel PDF with status '{}'. Only 'processing' PDFs can be cancelled.",
+                "Cannot cancel PDF with status '{}'. Only 'processing' or 'pending' PDFs can be cancelled.",
                 pdf.processing_status
             )));
         }

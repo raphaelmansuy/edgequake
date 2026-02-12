@@ -15,8 +15,15 @@ pub struct HealthResponse {
     /// Service status.
     pub status: String,
 
-    /// Service version.
+    /// Service version (semver from Cargo.toml).
     pub version: String,
+
+    /// Build metadata (git hash, timestamp, build number).
+    ///
+    /// WHY: Operators need to identify exactly which build is running.
+    /// The semver alone is insufficient for debugging production issues.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub build_info: Option<BuildInfo>,
 
     /// Storage mode: "memory" or "postgresql".
     pub storage_mode: String,
@@ -52,6 +59,25 @@ pub struct HealthResponse {
     /// When false, document uploads may fail silently.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_storage_enabled: Option<bool>,
+}
+
+/// Build metadata embedded at compile time.
+///
+/// WHY: Every build must be traceable to a specific git commit and time.
+/// This enables fast debugging when issues arise in production.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct BuildInfo {
+    /// Git short hash (e.g., "a1b2c3d").
+    pub git_hash: String,
+
+    /// Git branch name (e.g., "main", "fix/improvement-fix").
+    pub git_branch: String,
+
+    /// Build timestamp in ISO 8601 UTC (e.g., "2026-02-12T10:30:00Z").
+    pub build_timestamp: String,
+
+    /// Build number in YYYYMMDD.HHMMSS format for monotonic ordering.
+    pub build_number: String,
 }
 
 /// Database schema health information.
@@ -147,6 +173,7 @@ mod tests {
         let response = HealthResponse {
             status: "healthy".to_string(),
             version: "0.1.0".to_string(),
+            build_info: None,
             storage_mode: "memory".to_string(),
             workspace_id: "default".to_string(),
             components: ComponentHealth {
@@ -177,6 +204,7 @@ mod tests {
         let response = HealthResponse {
             status: "healthy".to_string(),
             version: "0.1.0".to_string(),
+            build_info: None,
             storage_mode: "postgresql".to_string(),
             workspace_id: "ws-123".to_string(),
             components: ComponentHealth {
@@ -234,6 +262,7 @@ mod tests {
         let response = HealthResponse {
             status: "healthy".to_string(),
             version: "0.1.0".to_string(),
+            build_info: None,
             storage_mode: "postgresql".to_string(),
             workspace_id: "ws-123".to_string(),
             components: ComponentHealth {
@@ -293,6 +322,7 @@ mod tests {
         let response = HealthResponse {
             status: "healthy".to_string(),
             version: "0.1.0".to_string(),
+            build_info: None,
             storage_mode: "postgresql".to_string(),
             workspace_id: "default".to_string(),
             components: ComponentHealth {

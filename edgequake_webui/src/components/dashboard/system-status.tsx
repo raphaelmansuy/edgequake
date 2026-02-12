@@ -93,7 +93,16 @@ export function SystemStatus() {
               <span className="text-sm text-muted-foreground">
                 {t('dashboard.system.version', 'Version')}
               </span>
-              <span className="text-sm font-mono">v{health.version}</span>
+              <span className="text-sm font-mono" title={
+                health.build_info
+                  ? `Build: ${health.build_info.build_number}\nGit: ${health.build_info.git_hash} (${health.build_info.git_branch})\nBuilt: ${health.build_info.build_timestamp}`
+                  : undefined
+              }>
+                v{health.version}
+                {health.build_info?.git_hash && (
+                  <span className="text-xs text-muted-foreground ml-1">({health.build_info.git_hash})</span>
+                )}
+              </span>
             </div>
           )}
 

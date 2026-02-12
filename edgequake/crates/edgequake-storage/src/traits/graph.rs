@@ -586,6 +586,31 @@ pub trait GraphStorage: Send + Sync {
         self.edge_count().await
     }
 
+    /// Get the number of distinct entity types for a specific workspace.
+    ///
+    /// WHY: The dashboard EntityTypes KPI card needs this count. Previously the
+    /// frontend fetched ALL graph nodes just to compute
+    /// `new Set(nodes.map(n => n.node_type)).size`, which is O(N) in nodes and
+    /// extremely slow for large workspaces (8000+ nodes). This trait method
+    /// allows PostgreSQL to answer with a single `COUNT(DISTINCT ...)` query.
+    ///
+    /// Default implementation fetches all nodes and counts unique types in
+    /// memory — still faster than the old frontend approach because data
+    /// doesn't cross the network, but implementations should override with
+    /// a native aggregate query.
+    async fn distinct_node_type_count_by_workspace(
+        &self,
+        workspace_id: &uuid::Uuid,
+    ) -> Result<usize> {
+        let _ = workspace_id;
+        let nodes = self.get_all_nodes().await?;
+        let types: std::collections::HashSet<&str> = nodes
+            .iter()
+            .filter_map(|n| n.properties.get("entity_type").and_then(|v| v.as_str()))
+            .collect();
+        Ok(types.len())
+    }
+
     /// Clear all nodes and edges.
     async fn clear(&self) -> Result<()>;
 

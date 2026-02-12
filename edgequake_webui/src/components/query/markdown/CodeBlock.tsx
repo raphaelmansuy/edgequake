@@ -6,11 +6,11 @@
  */
 'use client';
 
-import { memo, useState, useCallback, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Check, Copy, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { codeToHtml, type BundledLanguage } from 'shiki';
+import { memo, useCallback, useEffect, useState } from 'react';
+import { bundledLanguages, codeToHtml, type BundledLanguage } from 'shiki';
 
 interface CodeBlockProps {
   code: string;
@@ -58,7 +58,15 @@ const LANGUAGE_MAP: Record<string, BundledLanguage> = {
 function normalizeLanguage(lang: string | undefined): string {
   if (!lang) return 'text';
   const normalized = lang.toLowerCase().trim();
-  return (LANGUAGE_MAP[normalized as keyof typeof LANGUAGE_MAP] ?? normalized);
+  const mapped = LANGUAGE_MAP[normalized as keyof typeof LANGUAGE_MAP] ?? normalized;
+
+  // WHY: Shiki throws `ShikiError: Language 'X' is not included in this bundle`
+  // for languages not in the bundle (e.g., "dafny", "verilog"). Validate against
+  // the bundled languages map and fall back to plain text for unsupported ones.
+  if (mapped in bundledLanguages) {
+    return mapped;
+  }
+  return 'text';
 }
 
 export const CodeBlock = memo(function CodeBlock({

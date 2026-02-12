@@ -140,6 +140,153 @@ async fn recover_orphaned_tasks(
     Ok(())
 }
 
+/// Recover orphaned documents stuck in non-terminal states after backend restart.
+///
+/// ## WHY This Fix Is Critical
+///
+/// When the backend restarts during upload or processing, documents can remain
+/// in non-terminal states like "uploading", "converting", "pending", "processing"
+/// in KV storage. Users cannot cancel or reprocess these "stuck" documents because:
+/// - The upload/processing context is lost on restart
+/// - The cancel endpoint may fail (no matching task, wrong status)
+/// - UI shows documents permanently stuck with animated spinners
+///
+/// ## Recovery Strategy
+///
+/// Documents with non-terminal status/current_stage updated >5 minutes ago are
+/// marked as "failed" with a clear message. Users can then retry or delete them.
+///
+/// @implements FIX: Stuck uploading status after cancel or server restart
+async fn recover_orphaned_documents(
+    kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("🔍 Checking for orphaned documents from previous backend session...");
+
+    let all_keys = kv_storage.keys().await?;
+    let metadata_keys: Vec<String> = all_keys
+        .iter()
+        .filter(|k| k.ends_with("-metadata"))
+        .cloned()
+        .collect();
+
+    if metadata_keys.is_empty() {
+        info!("✅ No documents found - clean startup");
+        return Ok(());
+    }
+
+    let metadata_values = kv_storage.get_by_ids(&metadata_keys).await?;
+    let now = Utc::now();
+    let orphan_threshold = Duration::minutes(5);
+
+    let non_terminal_statuses = [
+        "uploading",
+        "converting",
+        "preprocessing",
+        "chunking",
+        "extracting",
+        "gleaning",
+        "merging",
+        "summarizing",
+        "embedding",
+        "storing",
+        "pending",
+        "processing",
+    ];
+
+    let mut recovered_count = 0;
+
+    for (key, value) in metadata_keys.iter().zip(metadata_values.iter()) {
+        if let Some(obj) = value.as_object() {
+            // Check both `status` and `current_stage` for stuck states
+            let status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
+            let current_stage = obj
+                .get("current_stage")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            let is_stuck = non_terminal_statuses.contains(&status)
+                || non_terminal_statuses.contains(&current_stage);
+
+            if !is_stuck {
+                continue;
+            }
+
+            // Check age - only recover if old enough to be considered orphaned
+            let updated_at = obj
+                .get("updated_at")
+                .and_then(|v| v.as_str())
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&Utc));
+
+            let is_old_enough = match updated_at {
+                Some(dt) => now.signed_duration_since(dt) > orphan_threshold,
+                // No updated_at → assume orphaned (conservative)
+                None => true,
+            };
+
+            if !is_old_enough {
+                continue;
+            }
+
+            // Mark document as failed
+            let mut updated = obj.clone();
+            updated.insert("status".to_string(), serde_json::json!("failed"));
+            updated.insert("current_stage".to_string(), serde_json::json!("failed"));
+            updated.insert(
+                "stage_message".to_string(),
+                serde_json::json!(format!(
+                    "Document was stuck in '{}' state after backend restart. Please retry.",
+                    if !current_stage.is_empty() {
+                        current_stage
+                    } else {
+                        status
+                    }
+                )),
+            );
+            updated.insert(
+                "error_message".to_string(),
+                serde_json::json!("Orphaned during backend restart - please retry"),
+            );
+            updated.insert(
+                "updated_at".to_string(),
+                serde_json::json!(now.to_rfc3339()),
+            );
+
+            match kv_storage
+                .upsert(&[(key.clone(), serde_json::json!(updated))])
+                .await
+            {
+                Ok(_) => {
+                    info!(
+                        "✅ Recovered orphaned document: {} (was stuck in '{}')",
+                        key,
+                        if !current_stage.is_empty() {
+                            current_stage
+                        } else {
+                            status
+                        }
+                    );
+                    recovered_count += 1;
+                }
+                Err(e) => {
+                    warn!("⚠️ Failed to recover orphaned document {}: {}", key, e);
+                }
+            }
+        }
+    }
+
+    if recovered_count > 0 {
+        info!(
+            "🔧 Orphaned document recovery complete: {} recovered",
+            recovered_count
+        );
+    } else {
+        info!("✅ No orphaned documents found - clean startup");
+    }
+
+    Ok(())
+}
+
 /// Requeue pending tasks from database to in-memory queue on startup.
 ///
 /// @implements PRODUCTION_BUG_FIX: Pending task recovery
@@ -322,6 +469,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         recover_orphaned_tasks(Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>).await
     {
         warn!("Failed to recover orphaned tasks (non-fatal): {}", e);
+    }
+
+    // Recover orphaned documents stuck in non-terminal states (uploading, pending, etc.)
+    // MUST run BEFORE starting workers to avoid race with new uploads
+    if let Err(e) = recover_orphaned_documents(
+        Arc::clone(&state.kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>
+    )
+    .await
+    {
+        warn!("Failed to recover orphaned documents (non-fatal): {}", e);
     }
 
     // Requeue pending tasks from database to in-memory queue (PRODUCTION_BUG_FIX)
