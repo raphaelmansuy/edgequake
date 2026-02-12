@@ -1,0 +1,57 @@
+name: Test Rust SDK
+on:
+    push:
+        branches: [main, "feat/*"]
+        paths: ["sdks/rust/**"]
+    pull_request:
+        branches: [main]
+        paths: ["sdks/rust/**"]
+
+defaults:
+    run:
+        working-directory: sdks/rust
+
+jobs:
+    test:
+        name: Test (Rust ${{ matrix.rust }})
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                rust: [stable, "1.75"]
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@master
+              with:
+                  toolchain: ${{ matrix.rust }}
+                  components: clippy
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: sdks/rust
+            - name: Check formatting
+              if: matrix.rust == 'stable'
+              run: cargo fmt --check
+            - name: Clippy
+              run: cargo clippy --all-targets -- -D warnings
+            - name: Test
+              run: cargo test --lib --tests
+            - name: Build
+              run: cargo build --release
+
+    coverage:
+        name: Coverage
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: sdks/rust
+            - name: Install cargo-tarpaulin
+              run: cargo install cargo-tarpaulin
+            - name: Run coverage
+              run: cargo tarpaulin --lib --tests --out xml --output-dir coverage
+            - name: Upload coverage
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-report
+                  path: sdks/rust/coverage/

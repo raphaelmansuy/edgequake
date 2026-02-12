@@ -246,7 +246,6 @@ pub struct ProviderCatalog {
 
 /// Providers health (bare array from GET /api/v1/models/health).
 /// The response is `Vec<ProviderHealthInfo>`.
-
 /// Health info for a provider.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProviderHealthInfo {
