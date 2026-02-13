@@ -1371,13 +1371,40 @@ export async function getMultipleTrackProgress(
 // ============================================================================
 
 /**
- * Get document lineage showing all chunks extracted from a document.
+ * Get document lineage from the graph-based lineage endpoint.
+ * Uses /lineage/documents/:id which returns entity/relationship summaries.
  */
 export async function getDocumentLineage(
   documentId: string,
 ): Promise<import("@/types/lineage").DocumentLineageResponse> {
   return api.get<import("@/types/lineage").DocumentLineageResponse>(
+    `/lineage/documents/${documentId}`,
+  );
+}
+
+/**
+ * Get complete document lineage from persisted KV storage (OODA-07).
+ * Uses /documents/:id/lineage which returns full DocumentLineage tree.
+ * @implements F5 - Single API call retrieves complete lineage tree
+ */
+export async function getDocumentFullLineage(
+  documentId: string,
+): Promise<import("@/types/lineage").DocumentFullLineageResponse> {
+  return api.get<import("@/types/lineage").DocumentFullLineageResponse>(
     `/documents/${documentId}/lineage`,
+  );
+}
+
+/**
+ * Get document metadata (all fields in a single response).
+ * OODA-11: New endpoint from OODA-07.
+ * @implements F1 - All document metadata retrievable via API
+ */
+export async function getDocumentMetadata(
+  documentId: string,
+): Promise<Record<string, unknown>> {
+  return api.get<Record<string, unknown>>(
+    `/documents/${documentId}/metadata`,
   );
 }
 
@@ -1403,11 +1430,12 @@ export async function getEntityProvenance(
 
 /**
  * Get lineage for a specific chunk.
+ * OODA-11: Updated to use ChunkLineageApiResponse from OODA-08.
  */
 export async function getChunkLineage(
   chunkId: string,
-): Promise<import("@/types/lineage").ChunkLineage> {
-  return api.get<import("@/types/lineage").ChunkLineage>(
+): Promise<import("@/types/lineage").ChunkLineageApiResponse> {
+  return api.get<import("@/types/lineage").ChunkLineageApiResponse>(
     `/chunks/${chunkId}/lineage`,
   );
 }
@@ -1707,6 +1735,8 @@ export const edgequakeApi = {
 
   // Lineage API (WebUI Spec WEBUI-006)
   getDocumentLineage,
+  getDocumentFullLineage,
+  getDocumentMetadata,
   getChunkDetail,
   getEntityProvenance,
   getChunkLineage,
