@@ -91,7 +91,6 @@ pub struct Document {
     // WHY: Explicit fields are better than JSON blob for type safety, query indexing,
     // and API contract clarity. These enable the complete lineage chain:
     // PDF → Document → Chunks → Entities.
-
     /// Document type/source format (e.g., "pdf", "markdown", "text").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub document_type: Option<String>,
@@ -243,11 +242,7 @@ impl Document {
     }
 
     /// Set model information used for processing this document.
-    pub fn set_models(
-        &mut self,
-        llm_model: impl Into<String>,
-        embedding_model: impl Into<String>,
-    ) {
+    pub fn set_models(&mut self, llm_model: impl Into<String>, embedding_model: impl Into<String>) {
         self.llm_model = Some(llm_model.into());
         self.embedding_model = Some(embedding_model.into());
         self.updated_at = Utc::now();
@@ -361,7 +356,10 @@ mod tests {
         let mut doc = Document::new("Content".to_string(), None);
         doc.set_models("gpt-4.1-nano", "text-embedding-3-small");
         assert_eq!(doc.llm_model, Some("gpt-4.1-nano".to_string()));
-        assert_eq!(doc.embedding_model, Some("text-embedding-3-small".to_string()));
+        assert_eq!(
+            doc.embedding_model,
+            Some("text-embedding-3-small".to_string())
+        );
     }
 
     #[test]
@@ -385,7 +383,10 @@ mod tests {
 
     #[test]
     fn test_document_full_lineage_serialization() {
-        let mut doc = Document::new("Full lineage test".to_string(), Some("/data/report.pdf".to_string()));
+        let mut doc = Document::new(
+            "Full lineage test".to_string(),
+            Some("/data/report.pdf".to_string()),
+        );
         doc.set_lineage_metadata("pdf", 2048000, "sha256_hash_here");
         doc.set_pdf_id("pdf-uuid-456");
         doc.set_models("gpt-4.1-nano", "text-embedding-3-small");

@@ -778,12 +778,18 @@ pub async fn upload_document(
         "processing"
     };
 
+    // OODA-04: Include file_size_bytes, sha256_checksum, document_type for unified lineage
+    // WHY: Every document—markdown or PDF—must carry the same lineage fields so
+    // API consumers get consistent metadata regardless of source type.
     let doc_metadata = serde_json::json!({
         "id": document_id,
         "title": request.title,
         "content_summary": content_summary,
         "content_length": content_length,
         "content_hash": content_hash,
+        "file_size_bytes": content_length,
+        "sha256_checksum": content_hash,
+        "document_type": "markdown",
         "track_id": track_id,
         "created_at": Utc::now().to_rfc3339(),
         "status": initial_status,

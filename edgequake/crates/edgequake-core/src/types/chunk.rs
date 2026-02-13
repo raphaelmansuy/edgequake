@@ -45,7 +45,6 @@ pub struct Chunk {
     // WHY: Enables tracing a chunk back to exact location in source document.
     // These fields are Optional to maintain backward compatibility with existing
     // serialized chunks that don't have position info.
-
     /// Start line number in source document (1-indexed).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub start_line: Option<usize>,
@@ -62,7 +61,6 @@ pub struct Chunk {
     // === Lineage: Model metadata ===
     // WHY: Enables per-chunk traceability of which LLM/embedding models were used.
     // Critical for reproducibility and quality auditing when models change over time.
-
     /// LLM model used for entity extraction from this chunk.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llm_model: Option<String>,
@@ -269,16 +267,25 @@ mod tests {
         let chunk = Chunk::new("Content".to_string(), 10, 0, "doc-1".to_string(), None)
             .with_models("gpt-4.1-nano", "text-embedding-3-small", 1536);
         assert_eq!(chunk.llm_model, Some("gpt-4.1-nano".to_string()));
-        assert_eq!(chunk.embedding_model, Some("text-embedding-3-small".to_string()));
+        assert_eq!(
+            chunk.embedding_model,
+            Some("text-embedding-3-small".to_string())
+        );
         assert_eq!(chunk.embedding_dimension, Some(1536));
     }
 
     #[test]
     fn test_chunk_with_full_lineage() {
         // WHY: Test that both position and model metadata can be chained.
-        let chunk = Chunk::new("Full lineage chunk".to_string(), 50, 2, "doc-xyz".to_string(), Some("/data/file.pdf".to_string()))
-            .with_position(10, 20, 500, 1000)
-            .with_models("gpt-4.1-nano", "text-embedding-3-small", 1536);
+        let chunk = Chunk::new(
+            "Full lineage chunk".to_string(),
+            50,
+            2,
+            "doc-xyz".to_string(),
+            Some("/data/file.pdf".to_string()),
+        )
+        .with_position(10, 20, 500, 1000)
+        .with_models("gpt-4.1-nano", "text-embedding-3-small", 1536);
         assert_eq!(chunk.start_line, Some(10));
         assert_eq!(chunk.llm_model, Some("gpt-4.1-nano".to_string()));
         assert_eq!(chunk.embedding_dimension, Some(1536));
