@@ -798,4 +798,356 @@ public class LineageTest
         // Conversations, Folders, Lineage
         Assert.Equal(17, props.Length);
     }
+
+    // ── LineageService Endpoint Tests (OODA-25) ────────────────────
+
+    [Fact]
+    public async Task EntityLineage_AllFields()
+    {
+        var json = @"{
+            ""entity_name"": ""SARAH_CHEN"",
+            ""entity_type"": ""PERSON"",
+            ""source_documents"": [{
+                ""document_id"": ""doc-1"",
+                ""chunk_ids"": [""c-a"", ""c-b""],
+                ""line_ranges"": [{""start_line"": 10, ""end_line"": 15}]
+            }],
+            ""source_count"": 1,
+            ""description_versions"": [{
+                ""version"": 1,
+                ""description"": ""Lead researcher"",
+                ""source_chunk_id"": ""c-a"",
+                ""created_at"": ""2025-01-15T10:00:00Z""
+            }]
+        }";
+        var (http, mock) = MockHelperWithCalls(json);
+        var result = await new LineageService(http).EntityLineageAsync("SARAH_CHEN");
+        Assert.Equal("SARAH_CHEN", result.EntityName);
+        Assert.Equal("PERSON", result.EntityType);
+        Assert.Single(result.SourceDocuments!);
+        Assert.Equal("doc-1", result.SourceDocuments![0].DocumentId);
+        Assert.Equal(2, result.SourceDocuments[0].ChunkIds!.Count);
+        Assert.Equal(10, result.SourceDocuments[0].LineRanges![0].StartLine);
+        Assert.Equal(15, result.SourceDocuments[0].LineRanges![0].EndLine);
+        Assert.Equal(1, result.SourceCount);
+        Assert.Single(result.DescriptionVersions!);
+        Assert.Equal(1, result.DescriptionVersions![0].Version);
+        Assert.Equal("Lead researcher", result.DescriptionVersions[0].Description);
+        Assert.Equal("c-a", result.DescriptionVersions[0].SourceChunkId);
+        Assert.Contains("/lineage/entities/SARAH_CHEN", mock.LastCall!.Url!);
+    }
+
+    [Fact]
+    public async Task EntityLineage_UrlEncodesSpecialChars()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""entity_name"":""A B""}");
+        await new LineageService(http).EntityLineageAsync("A B");
+        Assert.Contains("A%20B", mock.LastCall!.Url!);
+    }
+
+    [Fact]
+    public async Task DocumentLineage_AllFields()
+    {
+        var json = @"{
+            ""document_id"": ""doc-42"",
+            ""chunk_count"": 5,
+            ""entities"": [{
+                ""name"": ""ALICE"",
+                ""entity_type"": ""PERSON"",
+                ""source_chunks"": [""c1"", ""c2""],
+                ""is_shared"": true
+            }],
+            ""relationships"": [{
+                ""source"": ""ALICE"",
+                ""target"": ""MIT"",
+                ""keywords"": ""AFFILIATED_WITH"",
+                ""source_chunks"": [""c1""]
+            }],
+            ""extraction_stats"": {
+                ""total_entities"": 20,
+                ""unique_entities"": 12,
+                ""total_relationships"": 15,
+                ""unique_relationships"": 10,
+                ""processing_time_ms"": 3500
+            }
+        }";
+        var (http, mock) = MockHelperWithCalls(json);
+        var result = await new LineageService(http).DocumentLineageAsync("doc-42");
+        Assert.Equal("doc-42", result.DocumentId);
+        Assert.Equal(5, result.ChunkCount);
+        Assert.Single(result.Entities!);
+        Assert.Equal("ALICE", result.Entities![0].Name);
+        Assert.True(result.Entities[0].IsShared);
+        Assert.Equal(2, result.Entities[0].SourceChunks!.Count);
+        Assert.Single(result.Relationships!);
+        Assert.Equal("MIT", result.Relationships![0].Target);
+        Assert.Equal("AFFILIATED_WITH", result.Relationships[0].Keywords);
+        Assert.Equal(20, result.ExtractionStats!.TotalEntities);
+        Assert.Equal(12, result.ExtractionStats.UniqueEntities);
+        Assert.Equal(3500, result.ExtractionStats.ProcessingTimeMs);
+        Assert.Contains("/lineage/documents/doc-42", mock.LastCall!.Url!);
+    }
+
+    [Fact]
+    public async Task DocumentFullLineage_AllFields()
+    {
+        var json = @"{
+            ""document_id"": ""doc-99"",
+            ""metadata"": {""title"": ""Research Paper"", ""author"": ""Jane""},
+            ""lineage"": {""entities"": 5, ""relationships"": 3}
+        }";
+        var (http, mock) = MockHelperWithCalls(json);
+        var result = await new LineageService(http).DocumentFullLineageAsync("doc-99");
+        Assert.Equal("doc-99", result.DocumentId);
+        Assert.NotNull(result.Metadata);
+        Assert.Equal("Research Paper", result.Metadata!.Value.GetProperty("title").GetString());
+        Assert.NotNull(result.Lineage);
+        Assert.Equal(5, result.Lineage!.Value.GetProperty("entities").GetInt32());
+        Assert.Contains("/documents/doc-99/lineage", mock.LastCall!.Url!);
+    }
+
+    [Fact]
+    public async Task ExportLineage_ReturnsJsonElement()
+    {
+        var json = @"{""format"": ""json"", ""data"": [{""entity"": ""ALICE""}]}";
+        var (http, mock) = MockHelperWithCalls(json);
+        var result = await new LineageService(http).ExportLineageAsync("doc-1", "json");
+        Assert.Equal("json", result.GetProperty("format").GetString());
+        Assert.Equal(1, result.GetProperty("data").GetArrayLength());
+        Assert.Contains("/lineage/export", mock.LastCall!.Url!);
+        Assert.Contains("format=json", mock.LastCall.Url!);
+    }
+
+    [Fact]
+    public async Task ChunkDetail_AllFields()
+    {
+        var json = @"{
+            ""chunk_id"": ""c-abc"",
+            ""document_id"": ""doc-1"",
+            ""document_name"": ""Research.pdf"",
+            ""content"": ""Text content here"",
+            ""index"": 3,
+            ""char_range_info"": {""start"": 100, ""end"": 500},
+            ""token_count"": 120,
+            ""entities"": [{
+                ""id"": ""e1"",
+                ""name"": ""QUANTUM"",
+                ""entity_type"": ""CONCEPT"",
+                ""description"": ""Quantum computing""
+            }],
+            ""relationships"": [{
+                ""source_name"": ""QUANTUM"",
+                ""target_name"": ""COMPUTING"",
+                ""relation_type"": ""RELATED_TO"",
+                ""description"": ""Related concepts""
+            }],
+            ""extraction_metadata"": {
+                ""model"": ""gpt-4o"",
+                ""gleaning_iterations"": 2,
+                ""duration_ms"": 1500,
+                ""input_tokens"": 200,
+                ""output_tokens"": 50,
+                ""cached"": false
+            }
+        }";
+        var (http, mock) = MockHelperWithCalls(json);
+        var result = await new LineageService(http).ChunkDetailAsync("c-abc");
+        Assert.Equal("c-abc", result.ChunkId);
+        Assert.Equal("doc-1", result.DocumentId);
+        Assert.Equal("Research.pdf", result.DocumentName);
+        Assert.Equal("Text content here", result.Content);
+        Assert.Equal(3, result.Index);
+        Assert.Equal(100, result.CharRangeInfo!.Start);
+        Assert.Equal(500, result.CharRangeInfo.End);
+        Assert.Equal(120, result.TokenCount);
+        Assert.Single(result.Entities!);
+        Assert.Equal("QUANTUM", result.Entities![0].Name);
+        Assert.Equal("CONCEPT", result.Entities[0].EntityType);
+        Assert.Single(result.Relationships!);
+        Assert.Equal("QUANTUM", result.Relationships![0].SourceName);
+        Assert.Equal("RELATED_TO", result.Relationships[0].RelationType);
+        Assert.Equal("gpt-4o", result.ExtractionMetadata!.Model);
+        Assert.Equal(2, result.ExtractionMetadata.GleaningIterations);
+        Assert.False(result.ExtractionMetadata.Cached);
+        Assert.Contains("/chunks/c-abc", mock.LastCall!.Url!);
+    }
+
+    [Fact]
+    public async Task ChunkLineage_AllFields()
+    {
+        var json = @"{
+            ""chunk_id"": ""c-x"",
+            ""document_id"": ""doc-5"",
+            ""document_name"": ""Thesis.pdf"",
+            ""document_type"": ""pdf"",
+            ""index"": 7,
+            ""start_line"": 50,
+            ""end_line"": 75,
+            ""start_offset"": 2000,
+            ""end_offset"": 3000,
+            ""token_count"": 180,
+            ""content_preview"": ""First 100 chars..."",
+            ""entity_count"": 4,
+            ""relationship_count"": 2,
+            ""entity_names"": [""ALICE"", ""BOB"", ""MIT"", ""RESEARCH""],
+            ""document_metadata"": {""author"": ""Dr. Smith""}
+        }";
+        var (http, mock) = MockHelperWithCalls(json);
+        var result = await new LineageService(http).ChunkLineageAsync("c-x");
+        Assert.Equal("c-x", result.ChunkId);
+        Assert.Equal("doc-5", result.DocumentId);
+        Assert.Equal("Thesis.pdf", result.DocumentName);
+        Assert.Equal("pdf", result.DocumentType);
+        Assert.Equal(7, result.Index);
+        Assert.Equal(50, result.StartLine);
+        Assert.Equal(75, result.EndLine);
+        Assert.Equal(2000, result.StartOffset);
+        Assert.Equal(3000, result.EndOffset);
+        Assert.Equal(180, result.TokenCount);
+        Assert.Equal("First 100 chars...", result.ContentPreview);
+        Assert.Equal(4, result.EntityCount);
+        Assert.Equal(2, result.RelationshipCount);
+        Assert.Equal(4, result.EntityNames!.Count);
+        Assert.Contains("ALICE", result.EntityNames);
+        Assert.Equal("Dr. Smith", result.DocumentMetadata!.Value.GetProperty("author").GetString());
+        Assert.Contains("/chunks/c-x/lineage", mock.LastCall!.Url!);
+    }
+
+    [Fact]
+    public async Task EntityProvenance_AllFields()
+    {
+        var json = @"{
+            ""entity_id"": ""ent-1"",
+            ""entity_name"": ""DEEP_THOUGHT"",
+            ""entity_type"": ""AI_SYSTEM"",
+            ""description"": ""The ultimate computer"",
+            ""sources"": [{
+                ""document_id"": ""doc-42"",
+                ""document_name"": ""Guide.txt"",
+                ""chunks"": [{
+                    ""chunk_id"": ""c-1"",
+                    ""start_line"": 10,
+                    ""end_line"": 20,
+                    ""source_text"": ""Deep Thought computed the answer""
+                }],
+                ""first_extracted_at"": ""2025-01-15T08:00:00Z""
+            }],
+            ""total_extraction_count"": 3,
+            ""related_entities"": [{
+                ""entity_id"": ""ent-2"",
+                ""entity_name"": ""EARTH"",
+                ""relationship_type"": ""CREATED"",
+                ""shared_documents"": 2
+            }]
+        }";
+        var (http, mock) = MockHelperWithCalls(json);
+        var result = await new LineageService(http).EntityProvenanceAsync("ent-1");
+        Assert.Equal("ent-1", result.EntityId);
+        Assert.Equal("DEEP_THOUGHT", result.EntityName);
+        Assert.Equal("AI_SYSTEM", result.EntityType);
+        Assert.Equal("The ultimate computer", result.Description);
+        Assert.Single(result.Sources!);
+        Assert.Equal("doc-42", result.Sources![0].DocumentId);
+        Assert.Equal("Guide.txt", result.Sources[0].DocumentName);
+        Assert.Single(result.Sources[0].Chunks!);
+        Assert.Equal("c-1", result.Sources[0].Chunks![0].ChunkId);
+        Assert.Equal(10, result.Sources[0].Chunks![0].StartLine);
+        Assert.Equal("Deep Thought computed the answer", result.Sources[0].Chunks![0].SourceText);
+        Assert.Equal("2025-01-15T08:00:00Z", result.Sources[0].FirstExtractedAt);
+        Assert.Equal(3, result.TotalExtractionCount);
+        Assert.Single(result.RelatedEntities!);
+        Assert.Equal("EARTH", result.RelatedEntities![0].EntityName);
+        Assert.Equal("CREATED", result.RelatedEntities[0].RelationshipType);
+        Assert.Equal(2, result.RelatedEntities[0].SharedDocuments);
+        Assert.Contains("/entities/ent-1/provenance", mock.LastCall!.Url!);
+    }
+
+    // ── Lineage Model Edge Cases (OODA-25) ─────────────────────────
+
+    [Fact]
+    public async Task EntityLineage_EmptySourceDocuments()
+    {
+        var http = MockHelper(@"{""entity_name"":""ORPHAN"",""source_documents"":[],""source_count"":0,""description_versions"":[]}");
+        var result = await new LineageService(http).EntityLineageAsync("ORPHAN");
+        Assert.Equal("ORPHAN", result.EntityName);
+        Assert.Empty(result.SourceDocuments!);
+        Assert.Equal(0, result.SourceCount);
+        Assert.Empty(result.DescriptionVersions!);
+    }
+
+    [Fact]
+    public async Task DocumentLineage_EmptyGraph()
+    {
+        var http = MockHelper(@"{""document_id"":""d-empty"",""chunk_count"":0,""entities"":[],""relationships"":[],""extraction_stats"":{""total_entities"":0,""unique_entities"":0,""total_relationships"":0,""unique_relationships"":0}}");
+        var result = await new LineageService(http).DocumentLineageAsync("d-empty");
+        Assert.Empty(result.Entities!);
+        Assert.Empty(result.Relationships!);
+        Assert.Equal(0, result.ExtractionStats!.TotalEntities);
+    }
+
+    [Fact]
+    public async Task ChunkDetail_NullOptionalFields()
+    {
+        var http = MockHelper(@"{""chunk_id"":""c-min"",""document_id"":""d1"",""content"":""text"",""index"":0,""token_count"":10,""entities"":[],""relationships"":[]}");
+        var result = await new LineageService(http).ChunkDetailAsync("c-min");
+        Assert.Equal("c-min", result.ChunkId);
+        Assert.Null(result.DocumentName);
+        Assert.Null(result.CharRangeInfo);
+        Assert.Null(result.ExtractionMetadata);
+        Assert.Empty(result.Entities!);
+    }
+
+    [Fact]
+    public async Task ChunkLineage_MinimalFields()
+    {
+        var http = MockHelper(@"{""chunk_id"":""c-min""}");
+        var result = await new LineageService(http).ChunkLineageAsync("c-min");
+        Assert.Equal("c-min", result.ChunkId);
+        Assert.Null(result.DocumentId);
+        Assert.Null(result.EntityNames);
+        Assert.Null(result.DocumentMetadata);
+    }
+
+    [Fact]
+    public async Task EntityProvenance_NoRelatedEntities()
+    {
+        var http = MockHelper(@"{""entity_id"":""e-solo"",""entity_name"":""SOLO"",""sources"":[],""total_extraction_count"":0,""related_entities"":[]}");
+        var result = await new LineageService(http).EntityProvenanceAsync("e-solo");
+        Assert.Empty(result.Sources!);
+        Assert.Equal(0, result.TotalExtractionCount);
+        Assert.Empty(result.RelatedEntities!);
+    }
+
+    [Fact]
+    public async Task EntityLineage_MultipleSourceDocuments()
+    {
+        var json = @"{
+            ""entity_name"": ""SHARED_ENTITY"",
+            ""source_documents"": [
+                {""document_id"":""d1"",""chunk_ids"":[""c1""],""line_ranges"":[{""start_line"":1,""end_line"":5}]},
+                {""document_id"":""d2"",""chunk_ids"":[""c2"",""c3""],""line_ranges"":[{""start_line"":10,""end_line"":15},{""start_line"":20,""end_line"":25}]},
+                {""document_id"":""d3"",""chunk_ids"":[""c4""],""line_ranges"":[]}
+            ],
+            ""source_count"": 3,
+            ""description_versions"": [
+                {""version"":1,""description"":""V1"",""created_at"":""2025-01-01T00:00:00Z""},
+                {""version"":2,""description"":""V2 updated"",""created_at"":""2025-06-01T00:00:00Z""}
+            ]
+        }";
+        var http = MockHelper(json);
+        var result = await new LineageService(http).EntityLineageAsync("SHARED_ENTITY");
+        Assert.Equal(3, result.SourceDocuments!.Count);
+        Assert.Equal(3, result.SourceCount);
+        Assert.Equal(2, result.SourceDocuments[1].LineRanges!.Count);
+        Assert.Equal(2, result.DescriptionVersions!.Count);
+        Assert.Equal("V2 updated", result.DescriptionVersions[1].Description);
+    }
+
+    [Fact]
+    public void Client_HasLineageServiceAccessor()
+    {
+        var client = new EdgeQuakeClient();
+        Assert.NotNull(client.Lineage);
+        Assert.IsType<LineageService>(client.Lineage);
+    }
 }
