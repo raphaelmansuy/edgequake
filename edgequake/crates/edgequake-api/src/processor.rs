@@ -1548,6 +1548,43 @@ impl DocumentTaskProcessor {
         self.update_document_status_with_stats(&document_id, final_status, &stats_with_lineage)
             .await?;
 
+        // OODA-06: Persist DocumentLineage to KV storage for lineage API queries
+        // WHY: Without persistence, lineage data only exists in memory during processing
+        // and is lost. Lineage endpoints need to read it back from storage.
+        if let Some(ref lineage) = result.lineage {
+            let lineage_key = format!("{}-lineage", document_id);
+            match serde_json::to_value(lineage) {
+                Ok(lineage_json) => {
+                    if let Err(e) = self
+                        .kv_storage
+                        .upsert(&[(lineage_key.clone(), lineage_json)])
+                        .await
+                    {
+                        warn!(
+                            document_id = %document_id,
+                            error = %e,
+                            "Failed to persist document lineage to KV storage"
+                        );
+                    } else {
+                        info!(
+                            document_id = %document_id,
+                            chunks = lineage.total_chunks,
+                            entities = lineage.entities.len(),
+                            relationships = lineage.relationships.len(),
+                            "Persisted document lineage to KV storage"
+                        );
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        document_id = %document_id,
+                        error = %e,
+                        "Failed to serialize document lineage"
+                    );
+                }
+            }
+        }
+
         // OODA-17: Update PDF phase progress - graph storage complete, all phases done
         if is_pdf_source {
             self.pipeline_state

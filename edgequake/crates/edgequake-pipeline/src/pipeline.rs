@@ -122,7 +122,11 @@ impl Default for PipelineConfig {
             enable_entity_embeddings: true,
             enable_relationship_embeddings: true,
             max_concurrent_extractions: 16,
-            enable_lineage_tracking: false,
+            // OODA-06: Enable lineage tracking by default
+            // WHY: Lineage data is critical for provenance queries. Without it,
+            // no chunk↔entity↔document traceability is possible. The overhead is
+            // minimal (one in-memory tree per document processing run).
+            enable_lineage_tracking: true,
             chunk_extraction_timeout_secs: default_chunk_timeout(),
             chunk_max_retries: default_max_retries(),
             initial_retry_delay_ms: default_initial_retry_delay(),
@@ -2153,14 +2157,16 @@ mod tests {
         assert_eq!(config.extraction_batch_size, 10);
         assert!(config.enable_entity_extraction);
         assert!(config.enable_chunk_embeddings);
-        assert!(!config.enable_lineage_tracking);
+        // OODA-06: Lineage tracking now enabled by default for provenance queries
+        assert!(config.enable_lineage_tracking);
     }
 
     #[tokio::test]
     async fn test_pipeline_with_lineage_tracking() {
         let extractor = Arc::new(SimpleExtractor::default());
-        let mut config = PipelineConfig::default();
-        config.enable_lineage_tracking = true;
+        // OODA-06: Lineage tracking is now enabled by default, no need to set it
+        let config = PipelineConfig::default();
+        assert!(config.enable_lineage_tracking);
 
         let pipeline = Pipeline::new(config).with_extractor(extractor);
 
@@ -2180,14 +2186,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_pipeline_without_lineage_tracking() {
-        let pipeline = Pipeline::default_pipeline();
+        // OODA-06: Explicitly disable lineage to test the opt-out path
+        let mut config = PipelineConfig::default();
+        config.enable_lineage_tracking = false;
+        let pipeline = Pipeline::new(config);
 
         let result = pipeline
             .process("doc-1", "Simple document content.")
             .await
             .unwrap();
 
-        // Should not have lineage (disabled by default)
+        // Should not have lineage (explicitly disabled)
         assert!(result.lineage.is_none());
     }
 }
