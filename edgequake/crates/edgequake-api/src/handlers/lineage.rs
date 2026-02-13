@@ -892,7 +892,7 @@ pub async fn get_document_metadata(
 // ============================================================================
 
 /// Query parameters for lineage export.
-#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct ExportParams {
     /// Export format: "json" (default) or "csv".
     #[serde(default = "default_format")]
