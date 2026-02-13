@@ -58,6 +58,20 @@ pub struct Chunk {
     /// End character offset in source document.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub end_offset: Option<usize>,
+
+    // === Lineage: Model metadata ===
+    // WHY: Enables per-chunk traceability of which LLM/embedding models were used.
+    // Critical for reproducibility and quality auditing when models change over time.
+
+    /// LLM model used for entity extraction from this chunk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
+    /// Embedding model used to vectorize this chunk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+    /// Embedding vector dimension used for this chunk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedding_dimension: Option<usize>,
 }
 
 impl Chunk {
@@ -102,6 +116,9 @@ impl Chunk {
             end_line: None,
             start_offset: None,
             end_offset: None,
+            llm_model: None,
+            embedding_model: None,
+            embedding_dimension: None,
         }
     }
 
@@ -124,6 +141,25 @@ impl Chunk {
         self.end_line = Some(end_line);
         self.start_offset = Some(start_offset);
         self.end_offset = Some(end_offset);
+        self
+    }
+
+    /// Set model metadata for lineage traceability (builder pattern).
+    ///
+    /// # Arguments
+    ///
+    /// * `llm_model` - LLM model used for entity extraction (e.g., "gpt-4.1-nano")
+    /// * `embedding_model` - Embedding model used (e.g., "text-embedding-3-small")
+    /// * `embedding_dimension` - Embedding vector dimension (e.g., 1536)
+    pub fn with_models(
+        mut self,
+        llm_model: impl Into<String>,
+        embedding_model: impl Into<String>,
+        embedding_dimension: usize,
+    ) -> Self {
+        self.llm_model = Some(llm_model.into());
+        self.embedding_model = Some(embedding_model.into());
+        self.embedding_dimension = Some(embedding_dimension);
         self
     }
 
@@ -224,5 +260,41 @@ mod tests {
         assert_eq!(chunk.content, "Hello");
         assert!(chunk.start_line.is_none());
         assert!(chunk.end_line.is_none());
+        assert!(chunk.llm_model.is_none());
+        assert!(chunk.embedding_model.is_none());
+    }
+
+    #[test]
+    fn test_chunk_with_models() {
+        let chunk = Chunk::new("Content".to_string(), 10, 0, "doc-1".to_string(), None)
+            .with_models("gpt-4.1-nano", "text-embedding-3-small", 1536);
+        assert_eq!(chunk.llm_model, Some("gpt-4.1-nano".to_string()));
+        assert_eq!(chunk.embedding_model, Some("text-embedding-3-small".to_string()));
+        assert_eq!(chunk.embedding_dimension, Some(1536));
+    }
+
+    #[test]
+    fn test_chunk_with_full_lineage() {
+        // WHY: Test that both position and model metadata can be chained.
+        let chunk = Chunk::new("Full lineage chunk".to_string(), 50, 2, "doc-xyz".to_string(), Some("/data/file.pdf".to_string()))
+            .with_position(10, 20, 500, 1000)
+            .with_models("gpt-4.1-nano", "text-embedding-3-small", 1536);
+        assert_eq!(chunk.start_line, Some(10));
+        assert_eq!(chunk.llm_model, Some("gpt-4.1-nano".to_string()));
+        assert_eq!(chunk.embedding_dimension, Some(1536));
+        assert_eq!(chunk.full_doc_id, "doc-xyz");
+        assert_eq!(chunk.file_path, Some("/data/file.pdf".to_string()));
+    }
+
+    #[test]
+    fn test_chunk_model_serialization_roundtrip() {
+        let chunk = Chunk::new("Content".to_string(), 10, 0, "doc-1".to_string(), None)
+            .with_models("ollama/gemma3", "nomic-embed-text", 768);
+        let json = serde_json::to_string(&chunk).unwrap();
+        assert!(json.contains("ollama/gemma3"));
+        assert!(json.contains("nomic-embed-text"));
+        let deserialized: Chunk = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.llm_model, Some("ollama/gemma3".to_string()));
+        assert_eq!(deserialized.embedding_dimension, Some(768));
     }
 }
