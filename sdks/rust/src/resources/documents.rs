@@ -3,6 +3,7 @@
 use crate::client::EdgeQuakeClient;
 use crate::error::Result;
 use crate::types::documents::*;
+use crate::types::operations::DocumentFullLineage;
 
 pub struct DocumentsResource<'a> {
     pub(crate) client: &'a EdgeQuakeClient,
@@ -54,6 +55,30 @@ impl<'a> DocumentsResource<'a> {
     pub async fn track(&self, track_id: &str) -> Result<TrackStatusResponse> {
         self.client
             .get(&format!("/api/v1/documents/track/{track_id}"))
+            .await
+    }
+
+    // ========================================================================
+    // Lineage Methods (OODA-14)
+    // ========================================================================
+
+    /// `GET /api/v1/documents/{id}/lineage`
+    ///
+    /// Returns complete document lineage (persisted pipeline lineage + metadata).
+    /// @implements F5 — Single API call retrieves complete lineage tree.
+    pub async fn get_lineage(&self, id: &str) -> Result<DocumentFullLineage> {
+        self.client
+            .get(&format!("/api/v1/documents/{id}/lineage"))
+            .await
+    }
+
+    /// `GET /api/v1/documents/{id}/metadata`
+    ///
+    /// Returns all document metadata stored in KV storage.
+    /// @implements F1 — All document metadata retrievable.
+    pub async fn get_metadata(&self, id: &str) -> Result<serde_json::Value> {
+        self.client
+            .get(&format!("/api/v1/documents/{id}/metadata"))
             .await
     }
 }

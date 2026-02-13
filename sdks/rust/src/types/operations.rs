@@ -159,6 +159,58 @@ pub struct LineageGraph {
     pub root_id: Option<String>,
 }
 
+// --- Document Lineage (OODA-14) ---
+
+/// Complete document lineage response from `GET /documents/:id/lineage`.
+///
+/// WHY: Returns persisted DocumentLineage + document metadata in a single call.
+/// @implements F5 — Single API call retrieves complete lineage tree.
+#[derive(Debug, Clone, Deserialize)]
+pub struct DocumentFullLineage {
+    pub document_id: String,
+    #[serde(default)]
+    pub metadata: Option<serde_json::Value>,
+    #[serde(default)]
+    pub lineage: Option<serde_json::Value>,
+}
+
+/// Chunk lineage response from `GET /chunks/:id/lineage`.
+///
+/// WHY: Lightweight chunk lineage with parent document refs and position info.
+/// @implements F3 — Every chunk contains parent_document_id and position info.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChunkLineageInfo {
+    pub chunk_id: String,
+    #[serde(default)]
+    pub document_id: Option<String>,
+    #[serde(default)]
+    pub document_name: Option<String>,
+    #[serde(default)]
+    pub document_type: Option<String>,
+    #[serde(default)]
+    pub index: Option<u32>,
+    #[serde(default)]
+    pub start_line: Option<u32>,
+    #[serde(default)]
+    pub end_line: Option<u32>,
+    #[serde(default)]
+    pub start_offset: Option<u64>,
+    #[serde(default)]
+    pub end_offset: Option<u64>,
+    #[serde(default)]
+    pub token_count: Option<u32>,
+    #[serde(default)]
+    pub content_preview: Option<String>,
+    #[serde(default)]
+    pub entity_count: Option<u32>,
+    #[serde(default)]
+    pub relationship_count: Option<u32>,
+    #[serde(default)]
+    pub entity_names: Vec<String>,
+    #[serde(default)]
+    pub document_metadata: Option<serde_json::Value>,
+}
+
 // --- Chunk types ---
 
 /// Chunk detail.
