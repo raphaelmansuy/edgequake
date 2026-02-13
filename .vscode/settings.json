@@ -13,7 +13,7 @@
     "**/zz-explore": true,
     "**/logs": true,
     "**/archive": true,
-    "**/specs": true,
+    "**/specs": false,
     "**/logf": true
   },
   "files.watcherExclude": {
