@@ -75,8 +75,10 @@ pub async fn get_chunk_detail(
         .unwrap_or("")
         .to_string();
 
+    // OODA-07: Read index field (stored as "index" by OODA-05, fallback to "chunk_index" for legacy)
     let chunk_index = chunk_data
-        .get("chunk_index")
+        .get("index")
+        .or_else(|| chunk_data.get("chunk_index"))
         .and_then(|v: &serde_json::Value| v.as_u64())
         .unwrap_or(0) as usize;
 
@@ -94,6 +96,17 @@ pub async fn get_chunk_detail(
         .get("end_offset")
         .and_then(|v: &serde_json::Value| v.as_u64())
         .unwrap_or(0) as usize;
+
+    // OODA-07: Read line numbers from chunk KV data (stored by OODA-05)
+    let start_line = chunk_data
+        .get("start_line")
+        .and_then(|v: &serde_json::Value| v.as_u64())
+        .map(|v| v as usize);
+
+    let end_line = chunk_data
+        .get("end_line")
+        .and_then(|v: &serde_json::Value| v.as_u64())
+        .map(|v| v as usize);
 
     // Extract document ID from chunk ID (format: doc_id-chunk-N)
     let document_id = if chunk_id.contains("-chunk-") {
@@ -185,6 +198,8 @@ pub async fn get_chunk_detail(
             start: start_offset,
             end: end_offset,
         },
+        start_line,
+        end_line,
         token_count,
         entities,
         relationships,
@@ -503,6 +518,91 @@ pub async fn get_document_lineage(
         entities,
         relationships,
     }))
+}
+
+// ============================================================================
+// Document Full Lineage Endpoint (OODA-07)
+// ============================================================================
+
+/// Get complete document lineage from persisted KV storage.
+///
+/// OODA-07: Returns the full DocumentLineage tree (chunks, entities, relationships)
+/// persisted by OODA-06 after pipeline processing. This is a single-call endpoint
+/// that returns everything needed for lineage visualization.
+///
+/// @implements F5: Single API call retrieves complete document lineage tree
+#[utoipa::path(
+    get,
+    path = "/api/v1/documents/{document_id}/lineage",
+    tag = "Lineage",
+    params(
+        ("document_id" = String, Path, description = "Document ID to query lineage for")
+    ),
+    responses(
+        (status = 200, description = "Complete document lineage tree"),
+        (status = 404, description = "Document or lineage not found")
+    )
+)]
+pub async fn get_document_full_lineage(
+    State(state): State<AppState>,
+    Path(document_id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    // Read persisted lineage from KV storage (stored by OODA-06)
+    let lineage_key = format!("{}-lineage", document_id);
+    let lineage_data = state
+        .kv_storage
+        .get_by_id(&lineage_key)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound(format!(
+                "Lineage for document '{}' not found. Document may not have been processed yet.",
+                document_id
+            ))
+        })?;
+
+    // Also fetch document metadata for context
+    let metadata_key = format!("{}-metadata", document_id);
+    let metadata = state.kv_storage.get_by_id(&metadata_key).await?.unwrap_or(
+        serde_json::json!({"id": document_id, "status": "unknown"}),
+    );
+
+    // Combine lineage + document metadata into a single response
+    Ok(Json(serde_json::json!({
+        "document_id": document_id,
+        "metadata": metadata,
+        "lineage": lineage_data,
+    })))
+}
+
+/// Get document metadata (all fields in a single response).
+///
+/// OODA-07: Returns all document metadata fields stored in KV storage.
+///
+/// @implements F1: All document metadata is stored and retrievable
+#[utoipa::path(
+    get,
+    path = "/api/v1/documents/{document_id}/metadata",
+    tag = "Lineage",
+    params(
+        ("document_id" = String, Path, description = "Document ID to query metadata for")
+    ),
+    responses(
+        (status = 200, description = "Document metadata"),
+        (status = 404, description = "Document not found")
+    )
+)]
+pub async fn get_document_metadata(
+    State(state): State<AppState>,
+    Path(document_id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let metadata_key = format!("{}-metadata", document_id);
+    let metadata = state
+        .kv_storage
+        .get_by_id(&metadata_key)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Document '{}' not found", document_id)))?;
+
+    Ok(Json(metadata))
 }
 
 #[cfg(test)]

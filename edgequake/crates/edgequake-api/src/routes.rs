@@ -263,6 +263,15 @@ fn api_v1_routes() -> Router<AppState> {
             "/documents/{document_id}/failed-chunks",
             get(handlers::list_failed_chunks),
         )
+        // OODA-07: Full lineage and metadata endpoints
+        .route(
+            "/documents/{document_id}/lineage",
+            get(handlers::get_document_full_lineage),
+        )
+        .route(
+            "/documents/{document_id}/metadata",
+            get(handlers::get_document_metadata),
+        )
         // Document by ID - comes last because {document_id} matches any path segment
         .route("/documents/{document_id}", get(handlers::get_document))
         .route(

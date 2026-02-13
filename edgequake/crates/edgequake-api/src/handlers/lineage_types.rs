@@ -137,6 +137,13 @@ pub struct ChunkDetailResponse {
     pub index: usize,
     /// Character offset range.
     pub char_range: CharRange,
+    /// Starting line number (1-based) in the source document.
+    /// OODA-07: Added for lineage traceability — maps chunk to source location.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<usize>,
+    /// Ending line number (1-based, inclusive) in the source document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
     /// Token count.
     pub token_count: usize,
     /// Entities extracted from this chunk.
@@ -398,6 +405,8 @@ mod tests {
             document_name: Some("Test Doc".to_string()),
             content: "Alice knows Bob".to_string(),
             index: 0,
+            start_line: Some(1),
+            end_line: Some(5),
             char_range: CharRange { start: 0, end: 15 },
             token_count: 3,
             entities: vec![],

@@ -109,6 +109,8 @@ use crate::handlers;
         handlers::get_entity_provenance,
         handlers::get_entity_lineage,
         handlers::get_document_lineage,
+        handlers::get_document_full_lineage,
+        handlers::get_document_metadata,
         // PDF Upload
         handlers::upload_pdf_document,
         handlers::get_pdf_status,
