@@ -10,11 +10,11 @@
 
 ## WCAG 2.1 Violations
 
-| Criterion | Level | Issue |
-|-----------|-------|-------|
-| 1.1.1 Non-text Content | A | Icon-only buttons have no text alternative |
-| 1.3.1 Info and Relationships | A | Table headers lack `scope` attribute |
-| 4.1.2 Name, Role, Value | A | Buttons without accessible names |
+| Criterion                    | Level | Issue                                      |
+| ---------------------------- | ----- | ------------------------------------------ |
+| 1.1.1 Non-text Content       | A     | Icon-only buttons have no text alternative |
+| 1.3.1 Info and Relationships | A     | Table headers lack `scope` attribute       |
+| 4.1.2 Name, Role, Value      | A     | Buttons without accessible names           |
 
 ## Possible Solutions
 

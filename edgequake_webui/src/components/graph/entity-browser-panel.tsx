@@ -766,7 +766,7 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
           </div>
         ) : viewMode === "grouped" ? (
           <ScrollArea className="h-full" showShadows>
-            <div className="p-1.5 space-y-0.5">
+            <div className="py-2 px-1.5 space-y-0.5">
               {groupedNodes.map(([type, typeNodes]) => (
                 <EntityTypeGroup
                   key={type}

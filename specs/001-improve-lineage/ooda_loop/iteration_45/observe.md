@@ -6,10 +6,10 @@
 
 Compared the scrollable panel pattern across all pages with right panels:
 
-| Page | Container overflow-hidden | Header shrink-0 | ScrollArea min-h-0 | showShadows | Status |
-|------|--------------------------|-----------------|---------------------|-------------|--------|
-| Document Detail (MetadataSidebar) | ✅ (fixed iter 41) | ✅ (fixed iter 41) | ✅ (fixed iter 41) | ✅ (fixed iter 41) | Fixed |
-| Graph (graph-viewer) | ✅ (pre-existing) | ✅ (pre-existing) | ✅ (pre-existing) | ✅ (pre-existing) | OK |
+| Page                              | Container overflow-hidden | Header shrink-0    | ScrollArea min-h-0 | showShadows        | Status |
+| --------------------------------- | ------------------------- | ------------------ | ------------------ | ------------------ | ------ |
+| Document Detail (MetadataSidebar) | ✅ (fixed iter 41)        | ✅ (fixed iter 41) | ✅ (fixed iter 41) | ✅ (fixed iter 41) | Fixed  |
+| Graph (graph-viewer)              | ✅ (pre-existing)         | ✅ (pre-existing)  | ✅ (pre-existing)  | ✅ (pre-existing)  | OK     |
 
 ## Canonical Pattern
 

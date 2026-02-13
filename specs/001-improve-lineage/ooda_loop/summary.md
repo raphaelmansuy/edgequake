@@ -197,16 +197,16 @@
 | 38  | Entity count discrepancy analysis (70 vs 69)      | —         | —                |
 | 39  | Summary and mission file update                   | —         | —                |
 | 40  | Final validation (all E2E tests passed)           | —         | —                |
-| 41  | Detail page MetadataSidebar scrollability fix      | —         | —                |
-| 42  | Graph page right panel audit (already correct)     | —         | —                |
-| 43  | Documents page accessibility (52→0 unnamed btns)   | —         | —                |
-| 44  | Documents page responsive audit (375px, 768px)     | —         | —                |
-| 45  | Cross-page scrollable panel pattern consistency    | —         | —                |
-| 46  | WCAG 2.1 Level A compliance verification           | —         | —                |
-| 47  | Frontend build verification (no errors)            | —         | —                |
-| 48  | Phase 5 quality criteria validation (Q6a-Q6e)      | —         | —                |
-| 49  | Summary and mission file documentation update      | —         | —                |
-| 50  | Final commit and close                             | —         | —                |
+| 41  | Detail page MetadataSidebar scrollability fix     | —         | —                |
+| 42  | Graph page right panel audit (already correct)    | —         | —                |
+| 43  | Documents page accessibility (52→0 unnamed btns)  | —         | —                |
+| 44  | Documents page responsive audit (375px, 768px)    | —         | —                |
+| 45  | Cross-page scrollable panel pattern consistency   | —         | —                |
+| 46  | WCAG 2.1 Level A compliance verification          | —         | —                |
+| 47  | Frontend build verification (no errors)           | —         | —                |
+| 48  | Phase 5 quality criteria validation (Q6a-Q6e)     | —         | —                |
+| 49  | Summary and mission file documentation update     | —         | —                |
+| 50  | Final commit and close                            | —         | —                |
 
 ---
 
@@ -240,21 +240,21 @@
 
 ### Quality Requirements
 
-| ID  | Requirement                          | Status              | OODA           |
-| --- | ------------------------------------ | ------------------- | -------------- |
-| Q1  | Code follows SRP                     | ✅ Modular handlers | Ongoing        |
-| Q2  | ASCII diagrams illustrate flows      | ✅ Data flow above  | 09             |
-| Q3  | WHY comments explain decisions       | ✅                  | 29             |
-| Q4  | Error messages are actionable        | ✅                  | 07, 08, 22, 29 |
-| Q5  | API follows REST best practices      | ✅                  | 07, 08, 22     |
+| ID  | Requirement                          | Status              | OODA             |
+| --- | ------------------------------------ | ------------------- | ---------------- |
+| Q1  | Code follows SRP                     | ✅ Modular handlers | Ongoing          |
+| Q2  | ASCII diagrams illustrate flows      | ✅ Data flow above  | 09               |
+| Q3  | WHY comments explain decisions       | ✅                  | 29               |
+| Q4  | Error messages are actionable        | ✅                  | 07, 08, 22, 29   |
+| Q5  | API follows REST best practices      | ✅                  | 07, 08, 22       |
 | Q6  | WebUI is responsive and accessible   | ✅                  | 10-13, 24, 41-44 |
-| Q6a | Detail page right panel scrollable   | ✅                  | 41                |
-| Q6b | Graph page right panel correct       | ✅                  | 42                |
-| Q6c | Documents page buttons accessible    | ✅ (52→0 unnamed)   | 43                |
-| Q6d | Documents page table semantics       | ✅                  | 43                |
-| Q6e | Documents page responsive            | ✅ (375px, 768px)   | 44                |
-| Q7  | Documentation includes real examples | ✅                  | 17-20          |
-| Q8  | Breaking changes documented          | ✅                  | 26             |
+| Q6a | Detail page right panel scrollable   | ✅                  | 41               |
+| Q6b | Graph page right panel correct       | ✅                  | 42               |
+| Q6c | Documents page buttons accessible    | ✅ (52→0 unnamed)   | 43               |
+| Q6d | Documents page table semantics       | ✅                  | 43               |
+| Q6e | Documents page responsive            | ✅ (375px, 768px)   | 44               |
+| Q7  | Documentation includes real examples | ✅                  | 17-20            |
+| Q8  | Breaking changes documented          | ✅                  | 26               |
 
 ---
 

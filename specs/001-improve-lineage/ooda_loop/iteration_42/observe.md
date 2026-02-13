@@ -13,21 +13,21 @@
 
 CSS evaluation at `http://localhost:3000/graph`:
 
-| Property | Value |
-|----------|-------|
-| rightEdgeGap | 0px |
+| Property                        | Value  |
+| ------------------------------- | ------ |
+| rightEdgeGap                    | 0px    |
 | Panel attached to right border? | ✅ YES |
 
 ### Right Panel (Node Selected — "TokenSeek")
 
 After clicking "TokenSeek" entity node:
 
-| Property | Value |
-|----------|-------|
-| scrollHeight | 774px |
-| clientHeight | 774px |
-| Content fits? | ✅ YES (no scroll needed) |
-| ScrollArea has `min-h-0`? | ✅ YES |
+| Property                  | Value                     |
+| ------------------------- | ------------------------- |
+| scrollHeight              | 774px                     |
+| clientHeight              | 774px                     |
+| Content fits?             | ✅ YES (no scroll needed) |
+| ScrollArea has `min-h-0`? | ✅ YES                    |
 
 ## Current State
 

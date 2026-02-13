@@ -16,17 +16,21 @@
 ## Verification
 
 ### Pre-Fix CSS Evaluation
+
 - ScrollArea viewport: `scrollHeight=1060`, `clientHeight=1060` → **NOT scrollable**
 
 ### Post-Fix CSS Evaluation
+
 - Container: `overflow: hidden` ✅
 - ScrollArea viewport: `scrollHeight=1060`, `clientHeight=630` → **IS scrollable** ✅
 
 ### Scroll Testing
+
 - Scrolled 400px down → Source Details section visible ✅
 - Scrolled to bottom → Processing Info + Extended Metadata visible ✅
 
 ### Screenshots
+
 - `audit_02_detail_page_fixed.png` — Post-fix initial view
 - `audit_03_detail_page_scrolled.png` — Scrolled to Source Details
 - `audit_04_detail_page_bottom.png` — Scrolled to bottom

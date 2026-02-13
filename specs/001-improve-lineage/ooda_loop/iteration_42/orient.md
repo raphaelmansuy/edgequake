@@ -10,7 +10,7 @@ The graph-viewer.tsx already follows the correct pattern:
 
 ```
 Container: overflow-hidden
-Header: shrink-0  
+Header: shrink-0
 ScrollArea: flex-1 min-h-0 showShadows
 ```
 

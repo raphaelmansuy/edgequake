@@ -751,8 +751,8 @@ export function GraphViewer() {
               </div>
 
               {/* Panel Content - Full height scroll */}
-              <ScrollArea className="flex-1 min-h-0" showShadows>
-                <div className="px-4 py-4 space-y-5">
+              <ScrollArea className="flex-1 min-h-0 [&_[data-slot=scroll-area-viewport]>div]:!block" showShadows>
+                <div className="px-4 py-4 space-y-5 overflow-hidden">
                   {/* Node Details - Primary content when selected */}
                   {selectedNode && showNodeDetails && (
                     <NodeDetails node={selectedNode} />

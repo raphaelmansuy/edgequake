@@ -4,15 +4,16 @@
 
 ## Breakpoints Tested
 
-| Breakpoint | Width | Device | Result |
-|------------|-------|--------|--------|
-| Mobile | 375px | iPhone 13 | ✅ Functional |
-| Tablet | 768px | iPad Mini | ✅ Functional |
-| Desktop | 1440px | Standard | ✅ Functional |
+| Breakpoint | Width  | Device    | Result        |
+| ---------- | ------ | --------- | ------------- |
+| Mobile     | 375px  | iPhone 13 | ✅ Functional |
+| Tablet     | 768px  | iPad Mini | ✅ Functional |
+| Desktop    | 1440px | Standard  | ✅ Functional |
 
 ## Mobile (375px) — Screenshot: `audit_08_documents_mobile_375.png`
 
 ### Layout Behavior
+
 - Sidebar collapses to hamburger menu ✅
 - Toolbar wraps: Retry/Refresh/Clear buttons on first row, Sort controls on second ✅
 - Search bar spans full width ✅
@@ -22,11 +23,13 @@
 - "Preview" panel collapsed to right edge button ✅
 
 ### Issues Found
+
 - None — responsive layout handles 375px correctly
 
 ## Tablet (768px) — Screenshot: `audit_09_documents_tablet_768.png`
 
 ### Layout Behavior
+
 - Sidebar expanded with navigation items ✅
 - Table shows Title column only (extra columns still hidden at this width) ✅
 - Toolbar laid out in single row ✅
@@ -35,11 +38,13 @@
 - "Preview" tab visible on right edge ✅
 
 ### Issues Found
+
 - None — tablet layout is clean and functional
 
 ## Desktop (1440px)
 
 ### Layout Behavior
+
 - Full sidebar with all navigation items ✅
 - Table shows all columns (Title, Status, Size, Age, Actions) ✅
 - Preview panel available on right side ✅

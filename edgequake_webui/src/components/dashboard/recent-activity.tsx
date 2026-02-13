@@ -91,7 +91,7 @@ export function RecentActivity({ documents, isLoading }: RecentActivityProps) {
           </div>
         ) : (
           <ScrollArea className="h-[300px] pr-4">
-            <div className="space-y-2">
+            <div className="space-y-2 py-1">
               {documents.map((doc) => {
                 const status = doc.status || 'completed';
                 const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.completed;

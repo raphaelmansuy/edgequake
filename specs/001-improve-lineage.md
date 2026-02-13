@@ -42,13 +42,11 @@ Your mission is to **conduct a deep audit of lineage extraction and metadata sto
   - ⚠️ **Gap**: WebUI may not display all available metadata fields
   - ⚠️ **Gap**: SDKs may not expose all lineage information
 
-
 New requirement in detail document page:
 
-- Have a deep audit of the Right Panel --> ensure the content is scrollable and all metadata is visible (file size, file type, document type, etc.). Currently it is not scrollable and some metadata is hidden. 
+- Have a deep audit of the Right Panel --> ensure the content is scrollable and all metadata is visible (file size, file type, document type, etc.). Currently it is not scrollable and some metadata is hidden.
 
 Do the same of each Right Panel of the other pages (Dashboard, Entity, etc.) and ensure all are scrollable and the panel content is fixed to the right border of the container
-
 
 Addition to the mission:
 
@@ -239,6 +237,10 @@ Failure to re-read causes alignment drift → incomplete implementation → user
 - [x] **Q6c**: Documents page: all buttons have aria-labels (52 → 0 violations)
 - [x] **Q6d**: Documents page: table has proper ARIA semantics
 - [x] **Q6e**: Documents page: responsive at 375px mobile and 768px tablet
+- [x] **Q6f**: Graph page right panel: no horizontal content overflow (Radix table wrapper override)
+- [x] **Q6g**: Graph page PropertyValue: proper flex shrinking with min-w-0 and reduced gap
+- [x] **Q6h**: Scrollable area padding audit: dashboard recent-activity (0px→4px), entity browser (6px→8px)
+- [x] **Q6i**: Graph page: description text uses break-words for long content
 - [ ] **Q7**: Documentation includes real examples
 - [ ] **Q8**: Breaking changes are documented in CHANGELOG
 
@@ -698,9 +700,10 @@ Ensure there is e2e test for metadata for each SDK.
 
 I use playwrigth to test metadata display in WebUI. I will check that all metadata fields are displayed correctly and that lineage information is accurate.
 
-**Mission Status**: � PHASE 5 (Validation — Iterations 41-50)
+**Mission Status**: 🔄 PHASE 5 (Validation — Iterations 41-60)
 
 **Latest Progress** (OODA 41-50):
+
 - ✅ Detail page right panel scrollability fixed (`metadata-sidebar.tsx`: `min-h-0` + `overflow-hidden`)
 - ✅ Graph page right panel verified correct (already attached to right border, already scrollable)
 - ✅ Documents page accessibility audit: 52 icon-only buttons without `aria-label` → fixed to 0
@@ -708,5 +711,16 @@ I use playwrigth to test metadata display in WebUI. I will check that all metada
 - ✅ Documents page responsive audit: 375px mobile + 768px tablet verified functional
 - ✅ Search input `aria-label="Search documents"` added
 - ✅ Pagination buttons labeled ("First page", "Previous page", "Next page", "Last page")
+
+**Latest Progress** (OODA 51-60):
+
+- ✅ Graph panel horizontal content overflow eliminated: Radix ScrollArea `display: table` wrapper overridden to `display: block` via Tailwind `[&_[data-slot=scroll-area-viewport]>div]:!block`
+- ✅ PropertyValue component: removed `min-w-[70px]` label constraint, added `min-w-0` to outer div, reduced gap from `gap-3` to `gap-2`, value span uses `truncate min-w-0` for proper flex shrinking
+- ✅ Description paragraph: added `break-words` for proper text wrapping in narrow panels
+- ✅ Content wrapper: added `overflow-hidden` inside ScrollArea to clip any remaining overflow
+- ✅ Scrollable area padding audit completed across all pages (dashboard, graph, query, pipeline, documents)
+- ✅ Dashboard recent-activity: padding added (0px → 4px top/bottom via `py-1`)
+- ✅ Entity browser: vertical padding increased (6px → 8px via `py-2 px-1.5`)
+- ✅ DOM hierarchy verified: viewport scrollWidth === clientWidth (279px = 279px, zero horizontal overflow)
 
 **Next Step**: Final validation, performance benchmarks, and documentation completion.

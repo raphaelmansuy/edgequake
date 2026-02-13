@@ -92,14 +92,14 @@ function PropertyValue({
   }, [value]);
   
   return (
-    <div className="flex justify-between text-xs gap-3 group py-1">
-      <span className="text-muted-foreground shrink-0 min-w-[70px] text-[11px]">{label}</span>
+    <div className="flex justify-between text-xs gap-2 group py-1 min-w-0">
+      <span className="text-muted-foreground shrink-0 text-[11px]">{label}</span>
       <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
         <span
           className={cn(
             "font-mono text-[10px] bg-background/50 px-1.5 py-0.5 rounded transition-all",
             isLong && "cursor-pointer hover:bg-muted",
-            isExpanded ? "break-all whitespace-normal" : "truncate"
+            isExpanded ? "break-all whitespace-normal" : "truncate min-w-0"
           )}
           onClick={isLong ? () => setIsExpanded(!isExpanded) : undefined}
           title={isLong ? (isExpanded ? "Click to collapse" : "Click to expand") : value}
@@ -222,7 +222,7 @@ export function NodeDetails({ node }: NodeDetailsProps) {
                     Description
                   </h5>
                 </div>
-                <p className="text-xs leading-relaxed text-foreground/90">{node.description}</p>
+                <p className="text-xs leading-relaxed text-foreground/90 break-words">{node.description}</p>
               </div>
             )}
 

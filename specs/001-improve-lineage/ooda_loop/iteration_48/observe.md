@@ -4,27 +4,27 @@
 
 ## Q6 Sub-Criteria Status
 
-| Criterion | Description | Status | Iteration |
-|-----------|-------------|--------|-----------|
-| Q6a | Detail page right panel scrollable | ✅ Fixed | 41 |
-| Q6b | Graph page right panel correct | ✅ Confirmed | 42 |
-| Q6c | Documents page buttons have aria-labels | ✅ Fixed (52→0) | 43 |
-| Q6d | Documents page table semantics | ✅ Fixed | 43 |
-| Q6e | Documents page responsive | ✅ Confirmed | 44 |
+| Criterion | Description                             | Status          | Iteration |
+| --------- | --------------------------------------- | --------------- | --------- |
+| Q6a       | Detail page right panel scrollable      | ✅ Fixed        | 41        |
+| Q6b       | Graph page right panel correct          | ✅ Confirmed    | 42        |
+| Q6c       | Documents page buttons have aria-labels | ✅ Fixed (52→0) | 43        |
+| Q6d       | Documents page table semantics          | ✅ Fixed        | 43        |
+| Q6e       | Documents page responsive               | ✅ Confirmed    | 44        |
 
 ## Testing Evidence
 
-| Test Type | Evidence | Result |
-|-----------|----------|--------|
-| CSS evaluation (pre-fix) | ScrollArea scrollHeight=clientHeight=1060 | Broken |
+| Test Type                 | Evidence                                       | Result        |
+| ------------------------- | ---------------------------------------------- | ------------- |
+| CSS evaluation (pre-fix)  | ScrollArea scrollHeight=clientHeight=1060      | Broken        |
 | CSS evaluation (post-fix) | ScrollArea scrollHeight=1060, clientHeight=630 | ✅ Scrollable |
-| Scroll test (400px) | Source Details section visible | ✅ |
-| Scroll test (bottom) | Processing Info visible | ✅ |
-| Graph panel position | rightEdgeGap=0 | ✅ Attached |
-| A11y audit (pre-fix) | 52 unnamed buttons | Broken |
-| A11y audit (post-fix) | 0 unnamed buttons | ✅ Fixed |
-| Mobile responsive | 375px screenshot | ✅ Functional |
-| Tablet responsive | 768px screenshot | ✅ Functional |
+| Scroll test (400px)       | Source Details section visible                 | ✅            |
+| Scroll test (bottom)      | Processing Info visible                        | ✅            |
+| Graph panel position      | rightEdgeGap=0                                 | ✅ Attached   |
+| A11y audit (pre-fix)      | 52 unnamed buttons                             | Broken        |
+| A11y audit (post-fix)     | 0 unnamed buttons                              | ✅ Fixed      |
+| Mobile responsive         | 375px screenshot                               | ✅ Functional |
+| Tablet responsive         | 768px screenshot                               | ✅ Functional |
 
 ## Screenshots Collected
 

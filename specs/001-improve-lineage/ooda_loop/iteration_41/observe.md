@@ -14,12 +14,12 @@
 
 CSS evaluation at `http://localhost:3000/documents/{id}`:
 
-| Property | Container | ScrollArea Viewport |
-|----------|-----------|---------------------|
-| scrollHeight | 1281px | 1060px |
-| clientHeight | 851px | 1060px |
-| overflow | visible | — |
-| scrollable? | — | NO (scrollHeight === clientHeight) |
+| Property     | Container | ScrollArea Viewport                |
+| ------------ | --------- | ---------------------------------- |
+| scrollHeight | 1281px    | 1060px                             |
+| clientHeight | 851px     | 1060px                             |
+| overflow     | visible   | —                                  |
+| scrollable?  | —         | NO (scrollHeight === clientHeight) |
 
 ## Root Cause Identified
 
