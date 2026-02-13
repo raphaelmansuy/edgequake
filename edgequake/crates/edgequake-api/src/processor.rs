@@ -1131,6 +1131,9 @@ impl DocumentTaskProcessor {
         }
 
         // Store chunks in KV storage
+        // OODA-05: Include position metadata and token count for lineage traceability
+        // WHY: Each chunk must carry its exact position in the source document so that
+        // lineage queries can map entity → chunk → source location without extra lookups.
         let chunks: Vec<(String, serde_json::Value)> = result
             .chunks
             .iter()
@@ -1141,6 +1144,11 @@ impl DocumentTaskProcessor {
                         "content": c.content,
                         "document_id": document_id,
                         "index": c.index,
+                        "start_line": c.start_line,
+                        "end_line": c.end_line,
+                        "start_offset": c.start_offset,
+                        "end_offset": c.end_offset,
+                        "token_count": c.token_count,
                     }),
                 )
             })
@@ -1205,6 +1213,9 @@ impl DocumentTaskProcessor {
         }
 
         // Store chunk embeddings in vector storage for semantic search
+        // OODA-05: Include position metadata for lineage-aware retrieval
+        // WHY: Semantic search results should carry source position so callers
+        // can display "found in lines 42-58" without extra KV lookups.
         let mut chunk_embeddings_stored = 0;
         for chunk in &result.chunks {
             if let Some(embedding) = &chunk.embedding {
@@ -1213,6 +1224,11 @@ impl DocumentTaskProcessor {
                     "document_id": document_id,
                     "index": chunk.index,
                     "content": chunk.content,
+                    "start_line": chunk.start_line,
+                    "end_line": chunk.end_line,
+                    "start_offset": chunk.start_offset,
+                    "end_offset": chunk.end_offset,
+                    "token_count": chunk.token_count,
                 });
 
                 // Add tenant and workspace IDs if present
