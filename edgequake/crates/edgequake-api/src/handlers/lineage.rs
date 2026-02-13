@@ -210,7 +210,9 @@ pub async fn get_chunk_detail(
         .and_then(|v: &serde_json::Value| v.as_u64())
         .map(|v| v as usize);
 
-    // Extract document ID from chunk ID (format: doc_id-chunk-N)
+    // WHY: Chunk IDs follow a deterministic format "{document_id}-chunk-{N}".
+    // Extracting the document ID from this format avoids an extra KV lookup
+    // and maintains the F8 bidirectional chain (Document ↔ Chunk).
     let document_id = if chunk_id.contains("-chunk-") {
         chunk_id
             .split("-chunk-")
@@ -326,7 +328,9 @@ pub async fn get_entity_provenance(
     State(state): State<AppState>,
     Path(entity_id): Path<String>,
 ) -> ApiResult<Json<EntityProvenanceResponse>> {
-    // Normalize entity ID
+    // WHY: Entity names are normalized to UPPERCASE_WITH_UNDERSCORES during
+    // extraction (see entity_extraction.rs). We must apply the same normalization
+    // here so lookups match stored graph nodes regardless of user input casing.
     let normalized_id = entity_id.to_uppercase().replace(' ', "_");
 
     // Look up entity
@@ -334,7 +338,13 @@ pub async fn get_entity_provenance(
         .graph_storage
         .get_node(&normalized_id)
         .await?
-        .ok_or_else(|| ApiError::NotFound(format!("Entity '{}' not found", entity_id)))?;
+        .ok_or_else(|| {
+            ApiError::NotFound(format!(
+                "Entity '{}' not found (normalized: '{}'). \
+                 Entity names are stored as UPPERCASE_WITH_UNDERSCORES.",
+                entity_id, normalized_id
+            ))
+        })?;
 
     let entity_type = node
         .properties
@@ -480,7 +490,7 @@ pub async fn get_entity_lineage(
     State(state): State<AppState>,
     Path(entity_name): Path<String>,
 ) -> ApiResult<Json<EntityLineageResponse>> {
-    // Normalize entity name
+    // WHY: Same normalization rule as get_entity_provenance — see comment there.
     let normalized_name = entity_name.to_uppercase().replace(' ', "_");
 
     // Look up entity in graph storage
@@ -488,7 +498,13 @@ pub async fn get_entity_lineage(
         .graph_storage
         .get_node(&normalized_name)
         .await?
-        .ok_or_else(|| ApiError::NotFound(format!("Entity '{}' not found", entity_name)))?;
+        .ok_or_else(|| {
+            ApiError::NotFound(format!(
+                "Entity '{}' not found (normalized: '{}'). \
+                 Entity names are stored as UPPERCASE_WITH_UNDERSCORES.",
+                entity_name, normalized_name
+            ))
+        })?;
 
     // Parse source_id to extract document and chunk information
     let source_id = node
@@ -558,7 +574,10 @@ pub async fn get_document_lineage(
     State(state): State<AppState>,
     Path(document_id): Path<String>,
 ) -> ApiResult<Json<DocumentGraphLineageResponse>> {
-    // Verify document exists
+    // WHY: We scan KV keys by prefix rather than querying a separate index.
+    // This is correct for in-memory and moderate-scale PostgreSQL KV stores.
+    // For very large datasets (>100K documents), consider adding a dedicated
+    // chunk-count index to avoid full key scan.
     let keys = state.kv_storage.keys().await?;
     let chunk_prefix = format!("{}-chunk-", document_id);
     let chunk_ids: Vec<String> = keys
@@ -694,6 +713,9 @@ pub async fn get_chunk_lineage(
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
+    // WHY: Truncate content to 200 chars for the preview field. The full content
+    // is available via the chunk detail endpoint. This keeps lineage responses
+    // compact for dashboard/tree views where only a preview is needed.
     let content_preview = if content.len() > 200 {
         format!("{}...", &content[..200])
     } else {
@@ -843,13 +865,13 @@ pub async fn get_document_full_lineage(
             ))
         })?;
 
-    // Also fetch document metadata for context (cached)
+    // WHY: Combine lineage tree + document metadata in one response so the UI
+    // can render both the hierarchy and document context without a second API call.
+    // This satisfies F5: "Single API call retrieves complete document lineage tree."
     let metadata_key = format!("{}-metadata", document_id);
     let metadata = cached_kv_get(state.kv_storage.as_ref(), &metadata_key)
         .await?
         .unwrap_or(serde_json::json!({"id": document_id, "status": "unknown"}));
-
-    // Combine lineage + document metadata into a single response
     Ok(Json(serde_json::json!({
         "document_id": document_id,
         "metadata": metadata,
@@ -934,7 +956,8 @@ pub async fn export_document_lineage(
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
-                "Lineage for document '{}' not found.",
+                "Lineage for document '{}' not found. \
+                 Document may not have been processed yet.",
                 document_id
             ))
         })?;
