@@ -406,6 +406,11 @@ fn api_v1_routes() -> Router<AppState> {
         )
         // Chunk Detail (WebUI Spec WEBUI-006)
         .route("/chunks/{chunk_id}", get(handlers::get_chunk_detail))
+        // OODA-08: Chunk lineage with parent refs
+        .route(
+            "/chunks/{chunk_id}/lineage",
+            get(handlers::get_chunk_lineage),
+        )
         // Entity Provenance (WebUI Spec WEBUI-006)
         .route(
             "/entities/{entity_id}/provenance",

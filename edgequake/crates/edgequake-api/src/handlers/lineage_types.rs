@@ -207,6 +207,55 @@ pub struct ExtractionMetadataInfo {
 }
 
 // ============================================================================
+// Chunk Lineage DTO (OODA-08)
+// ============================================================================
+
+/// Complete chunk lineage response — parent document context + position + entities.
+///
+/// OODA-08: Provides single-call retrieval of a chunk's full lineage chain:
+/// `Chunk → Document → PDF (optional) → Entities & Relationships`.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ChunkLineageResponse {
+    /// Chunk ID.
+    pub chunk_id: String,
+    /// Parent document ID.
+    pub document_id: String,
+    /// Document name/title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_name: Option<String>,
+    /// Document type (pdf, markdown, text).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_type: Option<String>,
+    /// Chunk index in parent document.
+    pub index: usize,
+    /// Starting line number (1-based).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<usize>,
+    /// Ending line number (1-based, inclusive).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
+    /// Start byte offset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_offset: Option<usize>,
+    /// End byte offset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_offset: Option<usize>,
+    /// Token count.
+    pub token_count: usize,
+    /// Content preview (first 200 chars).
+    pub content_preview: String,
+    /// Entity count extracted from this chunk.
+    pub entity_count: usize,
+    /// Relationship count extracted from this chunk.
+    pub relationship_count: usize,
+    /// Entity names extracted from this chunk.
+    pub entity_names: Vec<String>,
+    /// Document metadata snapshot.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_metadata: Option<serde_json::Value>,
+}
+
+// ============================================================================
 // Entity Provenance DTOs
 // ============================================================================
 

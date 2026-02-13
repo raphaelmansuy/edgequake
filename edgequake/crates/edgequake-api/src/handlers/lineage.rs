@@ -33,11 +33,11 @@ use crate::state::AppState;
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::lineage_types::{
-    CharRange, ChunkDetailResponse, ChunkSourceInfo, DescriptionVersionResponse,
-    DocumentGraphLineageResponse, EntityLineageResponse, EntityProvenanceResponse,
-    EntitySourceInfo, EntitySummaryResponse, ExtractedEntityInfo, ExtractedRelationshipInfo,
-    ExtractionMetadataInfo, ExtractionStatsResponse, LineRangeInfo, RelatedEntityInfo,
-    RelationshipSummaryResponse, SourceDocumentInfo,
+    CharRange, ChunkDetailResponse, ChunkLineageResponse, ChunkSourceInfo,
+    DescriptionVersionResponse, DocumentGraphLineageResponse, EntityLineageResponse,
+    EntityProvenanceResponse, EntitySourceInfo, EntitySummaryResponse, ExtractedEntityInfo,
+    ExtractedRelationshipInfo, ExtractionMetadataInfo, ExtractionStatsResponse, LineRangeInfo,
+    RelatedEntityInfo, RelationshipSummaryResponse, SourceDocumentInfo,
 };
 
 // ============================================================================
@@ -517,6 +517,157 @@ pub async fn get_document_lineage(
         },
         entities,
         relationships,
+    }))
+}
+
+// ============================================================================
+// Chunk Lineage Endpoint (OODA-08)
+// ============================================================================
+
+/// Get chunk lineage with parent document refs and extracted entities.
+///
+/// OODA-08: Returns a chunk's complete lineage chain — parent document info,
+/// position data, and entity/relationship summary — in a single API call.
+///
+/// @implements F3: Every chunk contains parent_document_id and complete position info
+/// @implements F8: PDF → Document → Chunk → Entity chain is traceable
+#[utoipa::path(
+    get,
+    path = "/api/v1/chunks/{chunk_id}/lineage",
+    tag = "Lineage",
+    params(
+        ("chunk_id" = String, Path, description = "Chunk ID to query lineage for")
+    ),
+    responses(
+        (status = 200, description = "Chunk lineage with parent refs", body = ChunkLineageResponse),
+        (status = 404, description = "Chunk not found")
+    )
+)]
+pub async fn get_chunk_lineage(
+    State(state): State<AppState>,
+    Path(chunk_id): Path<String>,
+) -> ApiResult<Json<ChunkLineageResponse>> {
+    // Look up chunk in KV storage
+    let chunk_data = state
+        .kv_storage
+        .get_by_id(&chunk_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Chunk '{}' not found", chunk_id)))?;
+
+    // Parse chunk fields
+    let content = chunk_data
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    let content_preview = if content.len() > 200 {
+        format!("{}...", &content[..200])
+    } else {
+        content.to_string()
+    };
+
+    let index = chunk_data
+        .get("index")
+        .or_else(|| chunk_data.get("chunk_index"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
+
+    let token_count = chunk_data
+        .get("token_count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
+
+    let start_line = chunk_data
+        .get("start_line")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
+
+    let end_line = chunk_data
+        .get("end_line")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
+
+    let start_offset = chunk_data
+        .get("start_offset")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
+
+    let end_offset = chunk_data
+        .get("end_offset")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
+
+    // Extract document ID from chunk ID (format: doc_id-chunk-N)
+    let document_id = if chunk_id.contains("-chunk-") {
+        chunk_id
+            .split("-chunk-")
+            .next()
+            .unwrap_or(&chunk_id)
+            .to_string()
+    } else {
+        chunk_data
+            .get("document_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or(&chunk_id)
+            .to_string()
+    };
+
+    // Get document metadata
+    let metadata_key = format!("{}-metadata", document_id);
+    let doc_metadata = state.kv_storage.get_by_id(&metadata_key).await?.unwrap_or(
+        serde_json::json!({"id": document_id}),
+    );
+
+    let document_name = doc_metadata
+        .get("title")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let document_type = doc_metadata
+        .get("document_type")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    // Count entities and relationships from this chunk
+    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    let mut entity_names: Vec<String> = Vec::new();
+
+    for node in &all_nodes {
+        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
+            if source_id.contains(&chunk_id) {
+                entity_names.push(node.id.clone());
+            }
+        }
+    }
+
+    let all_edges = state.graph_storage.get_all_edges().await?;
+    let mut relationship_count = 0usize;
+    for edge in &all_edges {
+        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
+            if source_id.contains(&chunk_id) {
+                relationship_count += 1;
+            }
+        }
+    }
+
+    let entity_count = entity_names.len();
+
+    Ok(Json(ChunkLineageResponse {
+        chunk_id,
+        document_id,
+        document_name,
+        document_type,
+        index,
+        start_line,
+        end_line,
+        start_offset,
+        end_offset,
+        token_count,
+        content_preview,
+        entity_count,
+        relationship_count,
+        entity_names,
+        document_metadata: Some(doc_metadata),
     }))
 }
 

@@ -111,6 +111,7 @@ use crate::handlers;
         handlers::get_document_lineage,
         handlers::get_document_full_lineage,
         handlers::get_document_metadata,
+        handlers::get_chunk_lineage,
         // PDF Upload
         handlers::upload_pdf_document,
         handlers::get_pdf_status,
