@@ -15,12 +15,13 @@
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Document } from '@/types';
-import { Brain, Database, FileText, GitBranch, Network, Settings } from 'lucide-react';
+import { Brain, Database, Download, FileText, GitBranch, Network, Settings } from 'lucide-react';
 import { CollapsibleSection } from './collapsible-section';
 import { DocumentHierarchyTree } from './document-hierarchy-tree';
 import { EnhancedMetadata } from './enhanced-metadata';
 import { EntityRelationStats } from './entity-relation-stats';
 import { KeyStats } from './key-stats';
+import { LineageExport } from './lineage-export';
 import { LineageTree } from './lineage-tree';
 import { ProcessingDetails } from './processing-details';
 import { SourceInfoGrid } from './source-info-grid';
@@ -101,6 +102,14 @@ export function MetadataSidebar({ document }: MetadataSidebarProps) {
             icon={<Database className="h-4 w-4" />}
           >
             <EnhancedMetadata documentId={document.id} />
+          </CollapsibleSection>
+
+          {/* Lineage Export (OODA-24): Download lineage as JSON/CSV */}
+          <CollapsibleSection
+            title="Export Lineage"
+            icon={<Download className="h-4 w-4" />}
+          >
+            <LineageExport documentId={document.id} />
           </CollapsibleSection>
         </div>
       </ScrollArea>

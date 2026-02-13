@@ -1440,6 +1440,29 @@ export async function getChunkLineage(
   );
 }
 
+/**
+ * Export document lineage as JSON or CSV file.
+ * OODA-24: Triggers browser download of lineage data.
+ * @implements F5 - Single API call retrieves complete lineage tree
+ */
+export async function exportDocumentLineage(
+  documentId: string,
+  format: "json" | "csv" = "json",
+): Promise<void> {
+  // WHY: Use same base URL pattern as getPdfDownloadUrl (line 694)
+  const baseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+  const url = `${baseUrl}/api/v1/documents/${documentId}/lineage/export?format=${format}`;
+  // WHY: Create temporary link for download — the endpoint returns
+  // Content-Disposition: attachment headers that trigger browser download.
+  const link = globalThis.document.createElement("a");
+  link.href = url;
+  link.download = `${documentId}-lineage.${format}`;
+  globalThis.document.body.appendChild(link);
+  link.click();
+  globalThis.document.body.removeChild(link);
+}
+
 // ============================================================================
 // Cost API (WebUI Spec WEBUI-007)
 // ============================================================================
@@ -1740,6 +1763,7 @@ export const edgequakeApi = {
   getChunkDetail,
   getEntityProvenance,
   getChunkLineage,
+  exportDocumentLineage,
 
   // Cost API (WebUI Spec WEBUI-007)
   getWorkspaceCostSummary,
