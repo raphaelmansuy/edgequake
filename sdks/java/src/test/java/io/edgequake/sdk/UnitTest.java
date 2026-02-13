@@ -7,6 +7,7 @@ import io.edgequake.sdk.models.DocumentModels.*;
 import io.edgequake.sdk.models.GraphModels.*;
 import io.edgequake.sdk.models.OperationModels.*;
 import io.edgequake.sdk.models.QueryModels.*;
+import io.edgequake.sdk.models.LineageModels.*;
 import io.edgequake.sdk.resources.*;
 
 import org.junit.jupiter.api.*;
@@ -1335,5 +1336,472 @@ class UnitTest {
         assertEquals(5, impact.entityCount);
         assertEquals(12, impact.relationshipCount);
         assertEquals(30, impact.chunkCount);
+    }
+
+    // ── LineageService Tests ─────────────────────────────────────────
+    // WHY: OODA-20 — Full lineage coverage for Java SDK.
+    // Each test verifies a LineageService method hits the correct endpoint
+    // and deserializes the response into the correct LineageModels type.
+
+    @Test
+    void lineageEntityLineageEndpoint() {
+        fake.respondWith("""
+            {"entity_name":"ALICE","entity_type":"PERSON","source_documents":[{"document_id":"d1","chunk_ids":["c1","c2"],"line_ranges":[{"start_line":10,"end_line":15}]}],"source_count":1,"description_versions":[{"version":1,"description":"A researcher","source_chunk_id":"c1","created_at":"2026-01-01T00:00:00Z"}]}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.entityLineage("ALICE");
+        assertEquals("ALICE", result.entityName);
+        assertEquals("PERSON", result.entityType);
+        assertEquals(1, result.sourceCount);
+        assertEquals(1, result.sourceDocuments.size());
+        assertEquals("d1", result.sourceDocuments.getFirst().documentId);
+        assertEquals(2, result.sourceDocuments.getFirst().chunkIds.size());
+        assertEquals(1, result.sourceDocuments.getFirst().lineRanges.size());
+        assertEquals(10, result.sourceDocuments.getFirst().lineRanges.getFirst().startLine);
+        assertEquals(15, result.sourceDocuments.getFirst().lineRanges.getFirst().endLine);
+        assertEquals(1, result.descriptionVersions.size());
+        assertEquals(1, result.descriptionVersions.getFirst().version);
+        assertEquals("A researcher", result.descriptionVersions.getFirst().description);
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/lineage/entities/ALICE"));
+    }
+
+    @Test
+    void lineageDocumentLineageEndpoint() {
+        fake.respondWith("""
+            {"document_id":"doc-1","chunk_count":5,"entities":[{"name":"BOB","entity_type":"PERSON","source_chunks":["c1"],"is_shared":false}],"relationships":[{"source":"A","target":"B","keywords":"KNOWS","source_chunks":["c1"]}],"extraction_stats":{"total_entities":10,"unique_entities":8,"total_relationships":5,"unique_relationships":4,"processing_time_ms":1500}}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.documentLineage("doc-1");
+        assertEquals("doc-1", result.documentId);
+        assertEquals(5, result.chunkCount);
+        assertEquals(1, result.entities.size());
+        assertEquals("BOB", result.entities.getFirst().name);
+        assertFalse(result.entities.getFirst().isShared);
+        assertEquals(1, result.relationships.size());
+        assertEquals("KNOWS", result.relationships.getFirst().keywords);
+        assertEquals(10, result.extractionStats.totalEntities);
+        assertEquals(8, result.extractionStats.uniqueEntities);
+        assertEquals(1500L, result.extractionStats.processingTimeMs);
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/lineage/documents/doc-1"));
+    }
+
+    @Test
+    void lineageDocumentFullLineage() {
+        fake.respondWith("""
+            {"document_id":"doc-2","metadata":{"author":"Jane"},"lineage":{"entities":["A","B"]}}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.documentFullLineage("doc-2");
+        assertEquals("doc-2", result.documentId);
+        assertNotNull(result.metadata);
+        assertEquals("Jane", result.metadata.get("author"));
+        assertNotNull(result.lineage);
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/documents/doc-2/lineage"));
+    }
+
+    @Test
+    void lineageExportJson() {
+        fake.respondWith("{\"export\":\"data\",\"format\":\"json\"}");
+        var svc = new LineageService(http);
+        var result = svc.exportLineage("doc-3", "json");
+        assertNotNull(result);
+        assertEquals("data", result.get("export"));
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/documents/doc-3/lineage/export"));
+        assertTrue(fake.lastRequest().uri().contains("format=json"));
+    }
+
+    @Test
+    void lineageExportCsv() {
+        fake.respondWith("{\"format\":\"csv\",\"data\":\"entity,type\\nALICE,PERSON\"}");
+        var svc = new LineageService(http);
+        var result = svc.exportLineage("doc-4", "csv");
+        assertNotNull(result);
+        assertTrue(fake.lastRequest().uri().contains("format=csv"));
+    }
+
+    @Test
+    void lineageExportDefaultFormat() {
+        fake.respondWith("{\"format\":\"json\"}");
+        var svc = new LineageService(http);
+        var result = svc.exportLineage("doc-5", null);
+        assertNotNull(result);
+        assertTrue(fake.lastRequest().uri().contains("format=json"));
+    }
+
+    @Test
+    void lineageChunkDetail() {
+        fake.respondWith("""
+            {"chunk_id":"ch-1","document_id":"d1","document_name":"Test Doc","content":"Some text","index":0,"char_range":{"start":0,"end":100},"token_count":25,"entities":[{"id":"e1","name":"ALICE","entity_type":"PERSON","description":"researcher"}],"relationships":[{"source_name":"ALICE","target_name":"BOB","relation_type":"KNOWS","description":"colleagues"}],"extraction_metadata":{"model":"gpt-4o","gleaning_iterations":2,"duration_ms":500,"input_tokens":100,"output_tokens":50,"cached":false}}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.chunkDetail("ch-1");
+        assertEquals("ch-1", result.chunkId);
+        assertEquals("d1", result.documentId);
+        assertEquals("Test Doc", result.documentName);
+        assertEquals("Some text", result.content);
+        assertEquals(0, result.index);
+        assertEquals(0, result.charRange.start);
+        assertEquals(100, result.charRange.end);
+        assertEquals(25, result.tokenCount);
+        assertEquals(1, result.entities.size());
+        assertEquals("ALICE", result.entities.getFirst().name);
+        assertEquals(1, result.relationships.size());
+        assertEquals("ALICE", result.relationships.getFirst().sourceName);
+        assertEquals("BOB", result.relationships.getFirst().targetName);
+        assertNotNull(result.extractionMetadata);
+        assertEquals("gpt-4o", result.extractionMetadata.model);
+        assertEquals(2, result.extractionMetadata.gleaningIterations);
+        assertEquals(500L, result.extractionMetadata.durationMs);
+        assertFalse(result.extractionMetadata.cached);
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/chunks/ch-1"));
+    }
+
+    @Test
+    void lineageChunkLineage() {
+        fake.respondWith("""
+            {"chunk_id":"ch-2","document_id":"d2","document_name":"Another Doc","document_type":"pdf","index":3,"start_line":50,"end_line":75,"start_offset":1200,"end_offset":1800,"token_count":30,"content_preview":"First 100 chars...","entity_count":4,"relationship_count":2,"entity_names":["ALICE","BOB","CAROL","DAVE"],"document_metadata":{"source":"upload"}}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.chunkLineage("ch-2");
+        assertEquals("ch-2", result.chunkId);
+        assertEquals("d2", result.documentId);
+        assertEquals("Another Doc", result.documentName);
+        assertEquals("pdf", result.documentType);
+        assertEquals(3, result.index);
+        assertEquals(50, result.startLine);
+        assertEquals(75, result.endLine);
+        assertEquals(1200, result.startOffset);
+        assertEquals(1800, result.endOffset);
+        assertEquals(30, result.tokenCount);
+        assertEquals("First 100 chars...", result.contentPreview);
+        assertEquals(4, result.entityCount);
+        assertEquals(2, result.relationshipCount);
+        assertEquals(4, result.entityNames.size());
+        assertTrue(result.entityNames.contains("ALICE"));
+        assertNotNull(result.documentMetadata);
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/chunks/ch-2/lineage"));
+    }
+
+    @Test
+    void lineageEntityProvenance() {
+        fake.respondWith("""
+            {"entity_id":"e1","entity_name":"ALICE","entity_type":"PERSON","description":"A researcher","sources":[{"document_id":"d1","document_name":"Paper","chunks":[{"chunk_id":"c1","start_line":10,"end_line":15,"source_text":"Alice is..."}],"first_extracted_at":"2026-01-01T00:00:00Z"}],"total_extraction_count":3,"related_entities":[{"entity_id":"e2","entity_name":"BOB","relationship_type":"COLLABORATES","shared_documents":2}]}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.entityProvenance("e1");
+        assertEquals("e1", result.entityId);
+        assertEquals("ALICE", result.entityName);
+        assertEquals("PERSON", result.entityType);
+        assertEquals("A researcher", result.description);
+        assertEquals(3, result.totalExtractionCount);
+        assertEquals(1, result.sources.size());
+        assertEquals("d1", result.sources.getFirst().documentId);
+        assertEquals("Paper", result.sources.getFirst().documentName);
+        assertEquals(1, result.sources.getFirst().chunks.size());
+        assertEquals("c1", result.sources.getFirst().chunks.getFirst().chunkId);
+        assertEquals(10, result.sources.getFirst().chunks.getFirst().startLine);
+        assertEquals("Alice is...", result.sources.getFirst().chunks.getFirst().sourceText);
+        assertEquals(1, result.relatedEntities.size());
+        assertEquals("BOB", result.relatedEntities.getFirst().entityName);
+        assertEquals("COLLABORATES", result.relatedEntities.getFirst().relationshipType);
+        assertEquals(2, result.relatedEntities.getFirst().sharedDocuments);
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/entities/e1/provenance"));
+    }
+
+    // ── LineageModels Unit Tests ──────────────────────────────────────
+    // WHY: Verify all LineageModels fields serialize/deserialize correctly.
+
+    @Test
+    void entityLineageResponseFields() {
+        var resp = new EntityLineageResponse();
+        resp.entityName = "TEST";
+        resp.entityType = "CONCEPT";
+        resp.sourceCount = 3;
+        resp.sourceDocuments = List.of();
+        resp.descriptionVersions = List.of();
+        assertEquals("TEST", resp.entityName);
+        assertEquals(3, resp.sourceCount);
+    }
+
+    @Test
+    void sourceDocumentInfoFields() {
+        var info = new SourceDocumentInfo();
+        info.documentId = "d1";
+        info.chunkIds = List.of("c1", "c2");
+        info.lineRanges = List.of();
+        assertEquals("d1", info.documentId);
+        assertEquals(2, info.chunkIds.size());
+    }
+
+    @Test
+    void lineRangeInfoFields() {
+        var lr = new LineRangeInfo();
+        lr.startLine = 1;
+        lr.endLine = 50;
+        assertEquals(1, lr.startLine);
+        assertEquals(50, lr.endLine);
+    }
+
+    @Test
+    void descriptionVersionFields() {
+        var dv = new DescriptionVersionResponse();
+        dv.version = 2;
+        dv.description = "Updated desc";
+        dv.sourceChunkId = "c5";
+        dv.createdAt = "2026-02-01T12:00:00Z";
+        assertEquals(2, dv.version);
+        assertEquals("c5", dv.sourceChunkId);
+    }
+
+    @Test
+    void documentGraphLineageFields() {
+        var resp = new DocumentGraphLineageResponse();
+        resp.documentId = "d-graph";
+        resp.chunkCount = 10;
+        resp.entities = List.of();
+        resp.relationships = List.of();
+        assertEquals("d-graph", resp.documentId);
+        assertEquals(10, resp.chunkCount);
+    }
+
+    @Test
+    void entitySummaryResponseFields() {
+        var es = new EntitySummaryResponse();
+        es.name = "ENTITY_1";
+        es.entityType = "ORG";
+        es.sourceChunks = List.of("c1");
+        es.isShared = true;
+        assertTrue(es.isShared);
+        assertEquals("ORG", es.entityType);
+    }
+
+    @Test
+    void extractionStatsFields() {
+        var stats = new ExtractionStatsResponse();
+        stats.totalEntities = 50;
+        stats.uniqueEntities = 40;
+        stats.totalRelationships = 30;
+        stats.uniqueRelationships = 25;
+        stats.processingTimeMs = 2500L;
+        assertEquals(50, stats.totalEntities);
+        assertEquals(40, stats.uniqueEntities);
+        assertEquals(2500L, stats.processingTimeMs);
+    }
+
+    @Test
+    void chunkDetailResponseFields() {
+        var cd = new ChunkDetailResponse();
+        cd.chunkId = "ch-test";
+        cd.documentId = "d-test";
+        cd.content = "content";
+        cd.index = 5;
+        cd.tokenCount = 100;
+        assertEquals("ch-test", cd.chunkId);
+        assertEquals(5, cd.index);
+        assertEquals(100, cd.tokenCount);
+    }
+
+    @Test
+    void charRangeFields() {
+        var cr = new CharRange();
+        cr.start = 0;
+        cr.end = 500;
+        assertEquals(0, cr.start);
+        assertEquals(500, cr.end);
+    }
+
+    @Test
+    void extractedEntityInfoFields() {
+        var ei = new ExtractedEntityInfo();
+        ei.id = "eid-1";
+        ei.name = "ALICE";
+        ei.entityType = "PERSON";
+        ei.description = "A person";
+        assertEquals("eid-1", ei.id);
+        assertEquals("PERSON", ei.entityType);
+    }
+
+    @Test
+    void extractedRelationshipInfoFields() {
+        var ri = new ExtractedRelationshipInfo();
+        ri.sourceName = "A";
+        ri.targetName = "B";
+        ri.relationType = "KNOWS";
+        ri.description = "friends";
+        assertEquals("A", ri.sourceName);
+        assertEquals("KNOWS", ri.relationType);
+    }
+
+    @Test
+    void extractionMetadataInfoFields() {
+        var em = new ExtractionMetadataInfo();
+        em.model = "gpt-4o";
+        em.gleaningIterations = 3;
+        em.durationMs = 1200;
+        em.inputTokens = 500;
+        em.outputTokens = 200;
+        em.cached = true;
+        assertEquals("gpt-4o", em.model);
+        assertEquals(3, em.gleaningIterations);
+        assertTrue(em.cached);
+    }
+
+    @Test
+    void entityProvenanceResponseFields() {
+        var ep = new EntityProvenanceResponse();
+        ep.entityId = "e-prov";
+        ep.entityName = "TEST_ENTITY";
+        ep.entityType = "CONCEPT";
+        ep.description = "A concept";
+        ep.totalExtractionCount = 7;
+        ep.sources = List.of();
+        ep.relatedEntities = List.of();
+        assertEquals("e-prov", ep.entityId);
+        assertEquals(7, ep.totalExtractionCount);
+    }
+
+    @Test
+    void entitySourceInfoFields() {
+        var esi = new EntitySourceInfo();
+        esi.documentId = "d-src";
+        esi.documentName = "Source Doc";
+        esi.chunks = List.of();
+        esi.firstExtractedAt = "2026-01-15T10:00:00Z";
+        assertEquals("Source Doc", esi.documentName);
+        assertEquals("2026-01-15T10:00:00Z", esi.firstExtractedAt);
+    }
+
+    @Test
+    void chunkSourceInfoFields() {
+        var csi = new ChunkSourceInfo();
+        csi.chunkId = "cs-1";
+        csi.startLine = 10;
+        csi.endLine = 20;
+        csi.sourceText = "sample text";
+        assertEquals("cs-1", csi.chunkId);
+        assertEquals(10, csi.startLine);
+        assertEquals("sample text", csi.sourceText);
+    }
+
+    @Test
+    void relatedEntityInfoFields() {
+        var rei = new RelatedEntityInfo();
+        rei.entityId = "re-1";
+        rei.entityName = "RELATED";
+        rei.relationshipType = "COLLABORATES";
+        rei.sharedDocuments = 5;
+        assertEquals("RELATED", rei.entityName);
+        assertEquals(5, rei.sharedDocuments);
+    }
+
+    @Test
+    void documentFullLineageFields() {
+        var dfl = new DocumentFullLineageResponse();
+        dfl.documentId = "d-full";
+        dfl.metadata = java.util.Map.of("key", "val");
+        dfl.lineage = java.util.Map.of("entities", List.of());
+        assertEquals("d-full", dfl.documentId);
+        assertEquals("val", dfl.metadata.get("key"));
+    }
+
+    @Test
+    void chunkLineageResponseFields() {
+        var clr = new ChunkLineageResponse();
+        clr.chunkId = "cl-1";
+        clr.documentId = "d-cl";
+        clr.documentName = "ChunkDoc";
+        clr.documentType = "markdown";
+        clr.index = 2;
+        clr.startLine = 20;
+        clr.endLine = 40;
+        clr.startOffset = 500;
+        clr.endOffset = 1000;
+        clr.tokenCount = 50;
+        clr.contentPreview = "preview...";
+        clr.entityCount = 3;
+        clr.relationshipCount = 1;
+        clr.entityNames = List.of("A", "B", "C");
+        clr.documentMetadata = java.util.Map.of("source", "upload");
+        assertEquals("cl-1", clr.chunkId);
+        assertEquals(2, clr.index);
+        assertEquals(3, clr.entityCount);
+        assertEquals(3, clr.entityNames.size());
+    }
+
+    @Test
+    void lineageServiceError() {
+        fake.respondWithError(404);
+        var svc = new LineageService(http);
+        assertThrows(EdgeQuakeException.class, () -> svc.entityLineage("NONEXISTENT"));
+    }
+
+    @Test
+    void lineageServiceServerError() {
+        fake.respondWithError(500);
+        var svc = new LineageService(http);
+        assertThrows(EdgeQuakeException.class, () -> svc.chunkDetail("bad-id"));
+    }
+
+    // ── Edge Cases ───────────────────────────────────────────────────
+
+    @Test
+    void entityLineageEmptySourceDocuments() {
+        fake.respondWith("""
+            {"entity_name":"ORPHAN","source_documents":[],"source_count":0,"description_versions":[]}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.entityLineage("ORPHAN");
+        assertEquals(0, result.sourceCount);
+        assertTrue(result.sourceDocuments.isEmpty());
+        assertTrue(result.descriptionVersions.isEmpty());
+    }
+
+    @Test
+    void chunkLineageNullOptionalFields() {
+        fake.respondWith("""
+            {"chunk_id":"ch-null","document_id":"d-null"}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.chunkLineage("ch-null");
+        assertEquals("ch-null", result.chunkId);
+        assertNull(result.documentName);
+        assertNull(result.documentType);
+        assertNull(result.index);
+        assertNull(result.startLine);
+        assertNull(result.entityNames);
+    }
+
+    @Test
+    void entityProvenanceMultipleSources() {
+        fake.respondWith("""
+            {"entity_id":"e-multi","entity_name":"MULTI","entity_type":"CONCEPT","sources":[{"document_id":"d1","chunks":[]},{"document_id":"d2","chunks":[]}],"total_extraction_count":5,"related_entities":[]}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.entityProvenance("e-multi");
+        assertEquals(2, result.sources.size());
+        assertEquals("d2", result.sources.get(1).documentId);
+    }
+
+    @Test
+    void documentGraphLineageNoEntities() {
+        fake.respondWith("""
+            {"document_id":"d-empty","chunk_count":0,"entities":[],"relationships":[],"extraction_stats":{"total_entities":0,"unique_entities":0,"total_relationships":0,"unique_relationships":0}}
+            """);
+        var svc = new LineageService(http);
+        var result = svc.documentLineage("d-empty");
+        assertEquals(0, result.chunkCount);
+        assertTrue(result.entities.isEmpty());
+        assertEquals(0, result.extractionStats.totalEntities);
+    }
+
+    @Test
+    void lineageEntityNameUrlEncoded() {
+        fake.respondWith("{\"entity_name\":\"ALICE BOB\",\"source_documents\":[],\"source_count\":0,\"description_versions\":[]}");
+        var svc = new LineageService(http);
+        svc.entityLineage("ALICE BOB");
+        // WHY: Space should be URL-encoded as + or %20
+        var uri = fake.lastRequest().uri();
+        assertTrue(uri.contains("ALICE+BOB") || uri.contains("ALICE%20BOB"),
+                "Entity name with space should be URL-encoded: " + uri);
     }
 }

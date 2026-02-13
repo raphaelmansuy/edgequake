@@ -5,6 +5,7 @@ import io.edgequake.sdk.models.LineageModels.*;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 /**
  * Lineage operations: entity lineage, document lineage, chunk detail/lineage,
@@ -54,16 +55,17 @@ public class LineageService {
     }
 
     /**
-     * Export document lineage as JSON.
+     * Export document lineage as raw data.
      * GET /api/v1/documents/{id}/lineage/export?format=json
      *
-     * WHY: Returns raw JSON string for download/serialization.
+     * WHY: Returns the export payload. Use format="json" or "csv".
      */
-    public String exportLineage(String documentId, String format) {
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> exportLineage(String documentId, String format) {
         String fmt = (format != null && !format.isEmpty()) ? format : "json";
         return http.get(
                 "/api/v1/documents/" + encode(documentId) + "/lineage/export?format=" + fmt,
-                null, String.class);
+                null, Map.class);
     }
 
     // ── Chunk Detail & Lineage ───────────────────────────────────────
