@@ -15,8 +15,9 @@
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Document } from '@/types';
-import { Brain, FileText, Network, Settings } from 'lucide-react';
+import { Brain, Database, FileText, Network, Settings } from 'lucide-react';
 import { CollapsibleSection } from './collapsible-section';
+import { EnhancedMetadata } from './enhanced-metadata';
 import { EntityRelationStats } from './entity-relation-stats';
 import { KeyStats } from './key-stats';
 import { LineageTree } from './lineage-tree';
@@ -81,6 +82,14 @@ export function MetadataSidebar({ document }: MetadataSidebarProps) {
               <ProcessingDetails lineage={document.lineage} />
             </CollapsibleSection>
           )}
+
+          {/* Enhanced Metadata from KV Storage (OODA-12) */}
+          <CollapsibleSection
+            title="Extended Metadata"
+            icon={<Database className="h-4 w-4" />}
+          >
+            <EnhancedMetadata documentId={document.id} />
+          </CollapsibleSection>
         </div>
       </ScrollArea>
     </div>
