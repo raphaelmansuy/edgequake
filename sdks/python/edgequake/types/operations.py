@@ -226,6 +226,46 @@ class LineageGraph(BaseModel):
     root_id: str | None = None
 
 
+# --- Document Full Lineage (OODA-16) ---
+
+
+class DocumentFullLineage(BaseModel):
+    """Complete document lineage from GET /documents/:id/lineage.
+
+    WHY: Returns persisted DocumentLineage + document metadata in a single call.
+    @implements F5 — Single API call retrieves complete lineage tree.
+    """
+
+    document_id: str
+    metadata: dict[str, Any] | None = None
+    lineage: dict[str, Any] | None = None
+
+
+class ChunkLineageInfo(BaseModel):
+    """Chunk lineage from GET /chunks/:id/lineage.
+
+    WHY: Lightweight chunk lineage with parent document refs and position info.
+    @implements F3 — Every chunk contains parent_document_id and position info.
+    @implements F8 — PDF → Document → Chunk → Entity chain traceable.
+    """
+
+    chunk_id: str
+    document_id: str | None = None
+    document_name: str | None = None
+    document_type: str | None = None
+    index: int | None = None
+    start_line: int | None = None
+    end_line: int | None = None
+    start_offset: int | None = None
+    end_offset: int | None = None
+    token_count: int | None = None
+    content_preview: str | None = None
+    entity_count: int | None = None
+    relationship_count: int | None = None
+    entity_names: list[str] = Field(default_factory=list)
+    document_metadata: dict[str, Any] | None = None
+
+
 # --- Chunk types ---
 
 

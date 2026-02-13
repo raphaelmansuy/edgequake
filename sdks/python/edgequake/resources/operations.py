@@ -14,6 +14,7 @@ from edgequake.types.operations import (
     BudgetInfo,
     BudgetUpdate,
     ChunkDetail,
+    ChunkLineageInfo,
     CostEntry,
     CostEstimateRequest,
     CostEstimateResponse,
@@ -328,6 +329,19 @@ class ChunksResource(SyncResource):
         """
         return self._get(f"/api/v1/chunks/{chunk_id}", response_type=ChunkDetail)
 
+    def get_lineage(self, chunk_id: str) -> ChunkLineageInfo:
+        """Get chunk lineage with parent document refs and position info.
+
+        GET /api/v1/chunks/{chunk_id}/lineage
+
+        @implements F3 — Every chunk contains parent_document_id and position info.
+        @implements F8 — PDF → Document → Chunk → Entity chain traceable.
+        """
+        return self._get(
+            f"/api/v1/chunks/{chunk_id}/lineage",
+            response_type=ChunkLineageInfo,
+        )
+
 
 class ProvenanceResource(SyncResource):
     """Entity provenance operations."""
@@ -584,6 +598,19 @@ class AsyncChunksResource(AsyncResource):
         GET /api/v1/chunks/{chunk_id}
         """
         return await self._get(f"/api/v1/chunks/{chunk_id}", response_type=ChunkDetail)
+
+    async def get_lineage(self, chunk_id: str) -> ChunkLineageInfo:
+        """Get chunk lineage with parent document refs and position info.
+
+        GET /api/v1/chunks/{chunk_id}/lineage
+
+        @implements F3 — Every chunk contains parent_document_id and position info.
+        @implements F8 — PDF → Document → Chunk → Entity chain traceable.
+        """
+        return await self._get(
+            f"/api/v1/chunks/{chunk_id}/lineage",
+            response_type=ChunkLineageInfo,
+        )
 
 
 class AsyncProvenanceResource(AsyncResource):

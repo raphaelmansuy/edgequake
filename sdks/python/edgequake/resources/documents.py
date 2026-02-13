@@ -25,6 +25,7 @@ from edgequake.types.documents import (
     TrackStatusResponse,
     UploadDocumentResponse,
 )
+from edgequake.types.operations import ChunkLineageInfo, DocumentFullLineage
 
 
 class DocumentsResource(SyncResource):
@@ -224,6 +225,32 @@ class DocumentsResource(SyncResource):
         # WHY: Some responses wrap in {"chunks": [...]}
         chunks = data.get("chunks", []) if isinstance(data, dict) else []
         return [FailedChunkInfo.model_validate(c) for c in chunks]
+
+    # ========================================================================
+    # Lineage Methods (OODA-16)
+    # ========================================================================
+
+    def get_lineage(self, document_id: str) -> DocumentFullLineage:
+        """Get complete document lineage.
+
+        GET /api/v1/documents/{document_id}/lineage
+
+        Returns persisted pipeline lineage + document metadata in a single call.
+        @implements F5 — Single API call retrieves complete lineage tree.
+        """
+        return self._get(
+            f"/api/v1/documents/{document_id}/lineage",
+            response_type=DocumentFullLineage,
+        )
+
+    def get_metadata(self, document_id: str) -> dict[str, Any]:
+        """Get all document metadata from KV storage.
+
+        GET /api/v1/documents/{document_id}/metadata
+
+        @implements F1 — All document metadata retrievable.
+        """
+        return self._get(f"/api/v1/documents/{document_id}/metadata")
 
     def _delete_with_response(
         self, path: str, *, response_type: type | None = None
@@ -428,6 +455,27 @@ class AsyncDocumentsResource(AsyncResource):
 
     async def recover_stuck(self) -> dict[str, Any]:
         return await self._post("/api/v1/documents/recover-stuck")
+
+    # ========================================================================
+    # Lineage Methods (OODA-16)
+    # ========================================================================
+
+    async def get_lineage(self, document_id: str) -> DocumentFullLineage:
+        """Get complete document lineage.
+
+        GET /api/v1/documents/{document_id}/lineage
+        """
+        return await self._get(
+            f"/api/v1/documents/{document_id}/lineage",
+            response_type=DocumentFullLineage,
+        )
+
+    async def get_metadata(self, document_id: str) -> dict[str, Any]:
+        """Get all document metadata from KV storage.
+
+        GET /api/v1/documents/{document_id}/metadata
+        """
+        return await self._get(f"/api/v1/documents/{document_id}/metadata")
 
 
 class AsyncPdfResource(AsyncResource):
