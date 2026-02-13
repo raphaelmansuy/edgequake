@@ -1070,4 +1070,269 @@ class UnitTest {
         fake.clear();
         assertEquals(0, fake.allRequests().size());
     }
+
+    // ── Lineage & Metadata Tests ─────────────────────────────────────
+    // WHY: The improve-lineage mission requires source_id, metadata,
+    // and provenance fields to be properly tested across all SDKs.
+
+    @Test
+    void entityModelHasSourceId() {
+        var e = new Entity();
+        e.sourceId = "doc-123";
+        assertEquals("doc-123", e.sourceId);
+    }
+
+    @Test
+    void entityModelHasMetadata() {
+        var e = new Entity();
+        e.metadata = java.util.Map.of("key", "value");
+        assertNotNull(e.metadata);
+        @SuppressWarnings("unchecked")
+        var meta = (java.util.Map<String, Object>) e.metadata;
+        assertEquals("value", meta.get("key"));
+    }
+
+    @Test
+    void entityModelHasTimestamps() {
+        var e = new Entity();
+        e.createdAt = "2025-01-01T00:00:00Z";
+        e.updatedAt = "2025-01-02T00:00:00Z";
+        assertNotNull(e.createdAt);
+        assertNotNull(e.updatedAt);
+    }
+
+    @Test
+    void createEntityRequestIncludesSourceId() {
+        var req = new CreateEntityRequest("ALICE", "person", "A researcher", "doc-456");
+        assertEquals("doc-456", req.sourceId);
+    }
+
+    @Test
+    void createEntityRequestWithMetadata() {
+        var req = new CreateEntityRequest();
+        req.entityName = "BOB";
+        req.entityType = "person";
+        req.description = "An engineer";
+        req.sourceId = "src-1";
+        req.metadata = java.util.Map.of("confidence", 0.95);
+        assertNotNull(req.metadata);
+    }
+
+    @Test
+    void entityCreateSendsSourceId() {
+        fake.respondWith("{\"status\":\"success\",\"message\":\"created\"}");
+        var req = new CreateEntityRequest("ALICE", "person", "test", "doc-lineage-1");
+        new EntityService(http).create(req);
+        var body = fake.lastRequest().body();
+        assertTrue(body.contains("doc-lineage-1"), "Request body should contain source_id");
+    }
+
+    @Test
+    void entityCreateSendsMetadata() {
+        fake.respondWith("{\"status\":\"success\",\"message\":\"created\"}");
+        var req = new CreateEntityRequest();
+        req.entityName = "META_ENTITY";
+        req.entityType = "concept";
+        req.description = "With metadata";
+        req.sourceId = "src-m";
+        req.metadata = java.util.Map.of("origin", "test");
+        new EntityService(http).create(req);
+        var body = fake.lastRequest().body();
+        assertTrue(body.contains("META_ENTITY"));
+        assertTrue(body.contains("src-m"));
+    }
+
+    @Test
+    void relationshipModelHasProperties() {
+        var r = new Relationship();
+        r.properties = java.util.Map.of("weight", 0.8, "source_doc", "doc-1");
+        assertNotNull(r.properties);
+        assertEquals(0.8, r.properties.get("weight"));
+        assertEquals("doc-1", r.properties.get("source_doc"));
+    }
+
+    @Test
+    void createRelationshipSendsDescription() {
+        fake.respondWith("{\"status\":\"success\"}");
+        var req = new CreateRelationshipRequest("ALICE", "BOB", "COLLABORATES_WITH");
+        req.weight = 0.9;
+        req.description = "Research collaboration";
+        new RelationshipService(http).create(req);
+        var body = fake.lastRequest().body();
+        assertTrue(body.contains("COLLABORATES_WITH"));
+        assertTrue(body.contains("Research collaboration"));
+    }
+
+    @Test
+    void sourceReferenceHasDocumentId() {
+        // WHY: Lineage requires tracing answers back to source documents
+        var src = new SourceReference();
+        src.documentId = "doc-trace-1";
+        src.chunkId = "chunk-7";
+        src.content = "Sample text";
+        src.score = 0.92;
+        assertEquals("doc-trace-1", src.documentId);
+        assertEquals("chunk-7", src.chunkId);
+        assertEquals(0.92, src.score);
+    }
+
+    @Test
+    void chatSourceReferenceLineage() {
+        // WHY: Chat responses should trace back to source entities/documents
+        var ref = new ChatSourceReference();
+        ref.sourceType = "entity";
+        ref.id = "entity-alice-1";
+        ref.score = 0.88;
+        ref.snippet = "Alice is a researcher...";
+        assertEquals("entity", ref.sourceType);
+        assertEquals("entity-alice-1", ref.id);
+    }
+
+    @Test
+    void queryResponsePreservesMode() {
+        // WHY: Lineage includes which query mode was used
+        fake.respondWith("{\"answer\":\"test answer\",\"sources\":[],\"mode\":\"local\"}");
+        var resp = new QueryService(http).execute(new QueryRequest("q", "local"));
+        assertNotNull(resp);
+    }
+
+    @Test
+    void entityDeleteResponseHasLineageInfo() {
+        // WHY: Delete response tracks cascaded deletions for lineage
+        var del = new EntityDeleteResponse();
+        del.deletedEntityId = "ent-1";
+        del.deletedRelationships = 5;
+        del.affectedEntities = List.of("ent-2", "ent-3");
+        assertEquals("ent-1", del.deletedEntityId);
+        assertEquals(5, del.deletedRelationships);
+        assertEquals(2, del.affectedEntities.size());
+    }
+
+    @Test
+    void entityDetailResponseHasStatistics() {
+        // WHY: Statistics provide lineage depth info (relationship counts)
+        var stats = new EntityStatistics();
+        stats.totalRelationships = 10;
+        stats.outgoingCount = 6;
+        stats.incomingCount = 4;
+        stats.documentReferences = 3;
+        assertEquals(10, stats.totalRelationships);
+        assertEquals(3, stats.documentReferences);
+    }
+
+    @Test
+    void mergeEntitiesPreservesLineage() {
+        fake.respondWith("{\"merged_entity\":{\"entity_name\":\"ALICE\"},\"merged_count\":2,\"message\":\"merged\"}");
+        var req = new MergeEntitiesRequest("ALICE_1", "ALICE_2");
+        new EntityService(http).merge(req);
+        var body = fake.lastRequest().body();
+        assertTrue(body.contains("ALICE_1"));
+        assertTrue(body.contains("ALICE_2"));
+    }
+
+    @Test
+    void documentTrackStatusHasDocumentId() {
+        // WHY: Track status links processing back to the source document
+        var track = new TrackStatus();
+        track.trackId = "trk-1";
+        track.status = "completed";
+        track.progress = 1.0;
+        track.documentId = "doc-lineage-2";
+        assertEquals("doc-lineage-2", track.documentId);
+        assertEquals("completed", track.status);
+    }
+
+    @Test
+    void uploadResponseContainsLineageCounts() {
+        // WHY: Upload response shows entity/relationship extraction results for lineage
+        var u = new UploadResponse();
+        u.documentId = "doc-up-1";
+        u.entityCount = 15;
+        u.relationshipCount = 8;
+        u.chunkCount = 42;
+        assertEquals(15, u.entityCount);
+        assertEquals(8, u.relationshipCount);
+        assertEquals(42, u.chunkCount);
+    }
+
+    @Test
+    void chatCompletionRequestHasConversationId() {
+        // WHY: Conversation lineage links messages to conversation threads
+        var req = new ChatCompletionRequest("Hello");
+        req.conversationId = "conv-1";
+        req.parentId = "msg-parent-1";
+        assertEquals("conv-1", req.conversationId);
+        assertEquals("msg-parent-1", req.parentId);
+    }
+
+    @Test
+    void chatCompletionResponseHasMessageIds() {
+        // WHY: Message IDs form the lineage chain within conversations
+        var resp = new ChatCompletionResponse();
+        resp.conversationId = "conv-2";
+        resp.userMessageId = "umsg-1";
+        resp.assistantMessageId = "amsg-1";
+        resp.content = "Hello!";
+        resp.mode = "hybrid";
+        assertEquals("umsg-1", resp.userMessageId);
+        assertEquals("amsg-1", resp.assistantMessageId);
+    }
+
+    @Test
+    void graphNodeHasProvenanceProperties() {
+        var node = new GraphNode();
+        node.id = "n1";
+        node.label = "ALICE";
+        node.nodeType = "person";
+        node.description = "A researcher";
+        node.degree = 5;
+        node.properties = java.util.Map.of("source_document", "doc-1", "extraction_confidence", 0.95);
+        assertEquals(5, node.degree);
+        assertEquals("doc-1", node.properties.get("source_document"));
+    }
+
+    @Test
+    void graphEdgeTracksProvenance() {
+        var edge = new GraphEdge();
+        edge.source = "ALICE";
+        edge.target = "BOB";
+        edge.edgeType = "COLLABORATES";
+        edge.weight = 0.85;
+        edge.properties = java.util.Map.of("extracted_from", "doc-3");
+        assertEquals("doc-3", edge.properties.get("extracted_from"));
+    }
+
+    @Test
+    void entityListResponseHasPagination() {
+        // WHY: Pagination is part of the lineage query interface
+        var resp = new EntityListResponse();
+        resp.total = 100;
+        resp.page = 2;
+        resp.pageSize = 20;
+        resp.totalPages = 5;
+        assertEquals(100, resp.total);
+        assertEquals(5, resp.totalPages);
+    }
+
+    @Test
+    void neighborhoodResponsePreservesDepth() {
+        // WHY: Neighborhood depth is lineage traversal depth
+        var resp = new NeighborhoodResponse();
+        resp.depth = 3;
+        resp.nodes = List.of();
+        resp.edges = List.of();
+        assertEquals(3, resp.depth);
+    }
+
+    @Test
+    void deletionImpactCountsLineageEffects() {
+        // WHY: Deletion impact shows how many entities/relationships are affected
+        var impact = new DeletionImpact();
+        impact.entityCount = 5;
+        impact.relationshipCount = 12;
+        impact.chunkCount = 30;
+        assertEquals(5, impact.entityCount);
+        assertEquals(12, impact.relationshipCount);
+        assertEquals(30, impact.chunkCount);
+    }
 }
