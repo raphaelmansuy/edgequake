@@ -86,6 +86,33 @@ pub struct Document {
     /// Additional metadata
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
+
+    // === Lineage: Type-safe metadata fields ===
+    // WHY: Explicit fields are better than JSON blob for type safety, query indexing,
+    // and API contract clarity. These enable the complete lineage chain:
+    // PDF → Document → Chunks → Entities.
+
+    /// Document type/source format (e.g., "pdf", "markdown", "text").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_type: Option<String>,
+    /// Original file size in bytes (distinct from content_length which is text length).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_size: Option<u64>,
+    /// SHA-256 checksum of original file for deduplication and integrity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256_checksum: Option<String>,
+    /// Link to originating PDF document (bidirectional with PdfDocument.document_id).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pdf_id: Option<String>,
+    /// LLM model used for entity extraction on this document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
+    /// Embedding model used for vectorizing chunks of this document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+    /// When processing completed (distinct from updated_at).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub processed_at: Option<DateTime<Utc>>,
 }
 
 impl Document {
@@ -139,6 +166,13 @@ impl Document {
             content_length: Some(content_length),
             chunk_ids: None,
             metadata: None,
+            document_type: None,
+            file_size: None,
+            sha256_checksum: None,
+            pdf_id: None,
+            llm_model: None,
+            embedding_model: None,
+            processed_at: None,
         }
     }
 
@@ -160,7 +194,9 @@ impl Document {
         self.status = DocumentStatus::Processed;
         self.chunks_count = Some(chunks_count);
         self.error = None;
-        self.updated_at = Utc::now();
+        let now = Utc::now();
+        self.updated_at = now;
+        self.processed_at = Some(now);
     }
 
     /// Mark the document as successfully processed with chunk IDs.
@@ -169,13 +205,51 @@ impl Document {
         self.chunks_count = Some(chunk_ids.len() as u32);
         self.chunk_ids = Some(chunk_ids);
         self.error = None;
-        self.updated_at = Utc::now();
+        let now = Utc::now();
+        self.updated_at = now;
+        self.processed_at = Some(now);
     }
 
     /// Mark the document as failed.
     pub fn mark_failed(&mut self, error: String) {
         self.status = DocumentStatus::Failed;
         self.error = Some(error);
+        self.updated_at = Utc::now();
+    }
+
+    /// Set lineage-related metadata for full traceability.
+    ///
+    /// # Arguments
+    ///
+    /// * `document_type` - Source format ("pdf", "markdown", "text")
+    /// * `file_size` - Original file size in bytes
+    /// * `sha256_checksum` - SHA-256 hash of original file
+    pub fn set_lineage_metadata(
+        &mut self,
+        document_type: impl Into<String>,
+        file_size: u64,
+        sha256_checksum: impl Into<String>,
+    ) {
+        self.document_type = Some(document_type.into());
+        self.file_size = Some(file_size);
+        self.sha256_checksum = Some(sha256_checksum.into());
+        self.updated_at = Utc::now();
+    }
+
+    /// Link this document to its originating PDF.
+    pub fn set_pdf_id(&mut self, pdf_id: impl Into<String>) {
+        self.pdf_id = Some(pdf_id.into());
+        self.updated_at = Utc::now();
+    }
+
+    /// Set model information used for processing this document.
+    pub fn set_models(
+        &mut self,
+        llm_model: impl Into<String>,
+        embedding_model: impl Into<String>,
+    ) {
+        self.llm_model = Some(llm_model.into());
+        self.embedding_model = Some(embedding_model.into());
         self.updated_at = Utc::now();
     }
 
@@ -252,5 +326,80 @@ mod tests {
         assert!(doc1.is_empty());
         assert!(doc2.is_empty());
         assert!(!doc3.is_empty());
+    }
+
+    #[test]
+    fn test_document_lineage_metadata_defaults() {
+        let doc = Document::new("Content".to_string(), None);
+        assert!(doc.document_type.is_none());
+        assert!(doc.file_size.is_none());
+        assert!(doc.sha256_checksum.is_none());
+        assert!(doc.pdf_id.is_none());
+        assert!(doc.llm_model.is_none());
+        assert!(doc.embedding_model.is_none());
+        assert!(doc.processed_at.is_none());
+    }
+
+    #[test]
+    fn test_document_set_lineage_metadata() {
+        let mut doc = Document::new("Content".to_string(), None);
+        doc.set_lineage_metadata("pdf", 1024000, "abc123def456");
+        assert_eq!(doc.document_type, Some("pdf".to_string()));
+        assert_eq!(doc.file_size, Some(1024000));
+        assert_eq!(doc.sha256_checksum, Some("abc123def456".to_string()));
+    }
+
+    #[test]
+    fn test_document_set_pdf_id() {
+        let mut doc = Document::new("Content".to_string(), None);
+        doc.set_pdf_id("pdf-uuid-123");
+        assert_eq!(doc.pdf_id, Some("pdf-uuid-123".to_string()));
+    }
+
+    #[test]
+    fn test_document_set_models() {
+        let mut doc = Document::new("Content".to_string(), None);
+        doc.set_models("gpt-4.1-nano", "text-embedding-3-small");
+        assert_eq!(doc.llm_model, Some("gpt-4.1-nano".to_string()));
+        assert_eq!(doc.embedding_model, Some("text-embedding-3-small".to_string()));
+    }
+
+    #[test]
+    fn test_document_processed_at_set_on_completion() {
+        let mut doc = Document::new("Content".to_string(), None);
+        assert!(doc.processed_at.is_none());
+        doc.mark_processed(3);
+        assert!(doc.processed_at.is_some());
+    }
+
+    #[test]
+    fn test_document_backward_compat_deserialization() {
+        // WHY: Old serialized documents without new lineage fields must deserialize correctly.
+        let old_json = r#"{"id":"doc-abc","content":"Hello","status":"PENDING","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z"}"#;
+        let doc: Document = serde_json::from_str(old_json).unwrap();
+        assert_eq!(doc.content, "Hello");
+        assert!(doc.document_type.is_none());
+        assert!(doc.pdf_id.is_none());
+        assert!(doc.llm_model.is_none());
+    }
+
+    #[test]
+    fn test_document_full_lineage_serialization() {
+        let mut doc = Document::new("Full lineage test".to_string(), Some("/data/report.pdf".to_string()));
+        doc.set_lineage_metadata("pdf", 2048000, "sha256_hash_here");
+        doc.set_pdf_id("pdf-uuid-456");
+        doc.set_models("gpt-4.1-nano", "text-embedding-3-small");
+        doc.mark_processed(10);
+
+        let json = serde_json::to_string(&doc).unwrap();
+        assert!(json.contains("\"document_type\":\"pdf\""));
+        assert!(json.contains("\"file_size\":2048000"));
+        assert!(json.contains("\"pdf_id\":\"pdf-uuid-456\""));
+        assert!(json.contains("\"llm_model\":\"gpt-4.1-nano\""));
+        assert!(json.contains("\"processed_at\""));
+
+        let deserialized: Document = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.document_type, Some("pdf".to_string()));
+        assert_eq!(deserialized.pdf_id, Some("pdf-uuid-456".to_string()));
     }
 }
