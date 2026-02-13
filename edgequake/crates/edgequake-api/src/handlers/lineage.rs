@@ -378,15 +378,47 @@ pub async fn get_entity_provenance(
         }
     }
 
-    let entity_sources: Vec<EntitySourceInfo> = doc_map
-        .into_iter()
-        .map(|(doc_id, chunks)| EntitySourceInfo {
+    // OODA-27: Resolve document names and chunk positions from cached KV storage
+    // WHY: Without document names, the UI shows UUIDs which are not user-friendly.
+    // Using cached_kv_get avoids repeated I/O for documents with many entities.
+    let mut entity_sources: Vec<EntitySourceInfo> = Vec::with_capacity(doc_map.len());
+    for (doc_id, mut chunks) in doc_map {
+        // Resolve document name from metadata
+        let metadata_key = format!("{}-metadata", doc_id);
+        let doc_name = if let Ok(Some(meta)) =
+            cached_kv_get(state.kv_storage.as_ref(), &metadata_key).await
+        {
+            meta.get("title")
+                .or_else(|| meta.get("file_name"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        } else {
+            None
+        };
+
+        // Resolve chunk line positions from KV storage
+        for chunk in &mut chunks {
+            if let Ok(Some(chunk_data)) =
+                cached_kv_get(state.kv_storage.as_ref(), &chunk.chunk_id).await
+            {
+                chunk.start_line = chunk_data
+                    .get("start_line")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as usize);
+                chunk.end_line = chunk_data
+                    .get("end_line")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as usize);
+            }
+        }
+
+        entity_sources.push(EntitySourceInfo {
             document_id: doc_id,
-            document_name: None,
+            document_name: doc_name,
             chunks,
             first_extracted_at: None,
-        })
-        .collect();
+        });
+    }
 
     // Find related entities
     let all_edges = state.graph_storage.get_all_edges().await?;
