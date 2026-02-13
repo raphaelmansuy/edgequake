@@ -1,0 +1,7 @@
+---
+type: specs.openrewrite.org/v1beta/recipe
+name: io.edgequake.UpgradeToJava21
+displayName: Upgrade to Java 21
+description: Migrate EdgeQuake Java SDK from Java 17 to Java 21.
+recipeList:
+  - org.openrewrite.java.migrate.UpgradeToJava21

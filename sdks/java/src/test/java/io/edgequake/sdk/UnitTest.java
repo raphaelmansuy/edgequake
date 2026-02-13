@@ -113,6 +113,7 @@ class UnitTest {
         assertNotNull(client.workspaces());
         assertNotNull(client.pdf());
         assertNotNull(client.costs());
+        assertNotNull(client.lineage());
     }
 
     // ── HttpHelper error handling ────────────────────────────────────
@@ -173,7 +174,7 @@ class UnitTest {
         var svc = new DocumentService(http);
         var result = svc.list(1, 20);
         assertEquals(1, result.pagination.total);
-        assertEquals("d1", result.documents.get(0).id);
+        assertEquals("d1", result.documents.getFirst().id);
     }
 
     @Test
@@ -261,7 +262,7 @@ class UnitTest {
         var svc = new EntityService(http);
         var result = svc.list(1, 20, null);
         assertEquals(1, result.total);
-        assertEquals("ALICE", result.items.get(0).entityName);
+        assertEquals("ALICE", result.items.getFirst().entityName);
     }
 
     @Test
@@ -355,7 +356,7 @@ class UnitTest {
         var svc = new RelationshipService(http);
         var result = svc.list(1, 20);
         assertEquals(1, result.total);
-        assertEquals("A", result.items.get(0).source);
+        assertEquals("A", result.items.getFirst().source);
     }
 
     @Test
@@ -379,7 +380,7 @@ class UnitTest {
         var svc = new GraphService(http);
         var result = svc.get(0);
         assertEquals(1, result.nodes.size());
-        assertEquals("Alice", result.nodes.get(0).label);
+        assertEquals("Alice", result.nodes.getFirst().label);
         assertEquals(1, result.edges.size());
     }
 
@@ -500,7 +501,7 @@ class UnitTest {
         var svc = new UserService(http);
         var result = svc.list();
         assertEquals(1, result.total);
-        assertEquals("admin", result.users.get(0).username);
+        assertEquals("admin", result.users.getFirst().username);
     }
 
     @Test
@@ -529,7 +530,7 @@ class UnitTest {
         var svc = new ApiKeyService(http);
         var result = svc.list();
         assertEquals(1, result.total);
-        assertEquals("my-key", result.keys.get(0).name);
+        assertEquals("my-key", result.keys.getFirst().name);
     }
 
     @Test
@@ -561,7 +562,7 @@ class UnitTest {
         var svc = new TenantService(http);
         var result = svc.list();
         assertEquals(1, result.total);
-        assertEquals("Default", result.items.get(0).name);
+        assertEquals("Default", result.items.getFirst().name);
     }
 
     @Test
@@ -584,7 +585,7 @@ class UnitTest {
         var svc = new ConversationService(http);
         var result = svc.list();
         assertEquals(1, result.size());
-        assertEquals("Test Chat", result.get(0).title);
+        assertEquals("Test Chat", result.getFirst().title);
     }
 
     @Test
@@ -680,7 +681,7 @@ class UnitTest {
         var svc = new FolderService(http);
         var result = svc.list();
         assertEquals(1, result.size());
-        assertEquals("My Folder", result.get(0).name);
+        assertEquals("My Folder", result.getFirst().name);
     }
 
     @Test
@@ -721,7 +722,7 @@ class UnitTest {
         var svc = new TaskService(http);
         var result = svc.list(null, 0, 0);
         assertEquals(1, result.total);
-        assertEquals("completed", result.tasks.get(0).status);
+        assertEquals("completed", result.tasks.getFirst().status);
     }
 
     @Test
@@ -795,7 +796,7 @@ class UnitTest {
         var svc = new ModelService(http);
         var result = svc.list();
         assertEquals(1, result.providers.size());
-        assertEquals("ollama", result.providers.get(0).name);
+        assertEquals("ollama", result.providers.getFirst().name);
     }
 
     @Test
@@ -806,7 +807,7 @@ class UnitTest {
         var svc = new ModelService(http);
         var result = svc.providerHealth();
         assertEquals(1, result.size());
-        assertTrue(result.get(0).enabled);
+        assertTrue(result.getFirst().enabled);
     }
 
     @Test
@@ -835,7 +836,7 @@ class UnitTest {
         var svc = new WorkspaceService(http);
         var result = svc.listForTenant("t1");
         assertEquals(1, result.size());
-        assertEquals("Default", result.get(0).name);
+        assertEquals("Default", result.getFirst().name);
     }
 
     @Test
@@ -935,7 +936,7 @@ class UnitTest {
         var svc = new CostService(http);
         var result = svc.history("2024-01-01", "2024-01-31");
         assertEquals(1, result.size());
-        assertEquals("2024-01-01", result.get(0).date);
+        assertEquals("2024-01-01", result.getFirst().date);
     }
 
     @Test
@@ -1057,7 +1058,7 @@ class UnitTest {
         new QueryService(http).execute(new QueryRequest("q", "hybrid"));
 
         assertEquals(2, fake.allRequests().size());
-        assertEquals("GET", fake.allRequests().get(0).method());
+        assertEquals("GET", fake.allRequests().getFirst().method());
         assertEquals("POST", fake.allRequests().get(1).method());
     }
 
