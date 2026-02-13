@@ -39,6 +39,7 @@ export function DocumentSearchBar({ value, onChange, placeholder }: DocumentSear
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="pl-9 pr-8 h-9"
+        aria-label="Search documents"
       />
       {/* OODA-36: Clear search button */}
       {value && (

@@ -15,9 +15,9 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
-import { useDocumentLineage } from '@/hooks/use-lineage';
+import { useDocumentFullLineage } from '@/hooks/use-lineage';
 import { cn } from '@/lib/utils';
-import type { ChunkLineage, EntityLineage } from '@/types/lineage';
+import type { EntityLineage } from '@/types/lineage';
 import {
   ChevronDown,
   ChevronRight,
@@ -28,6 +28,35 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+/**
+ * Chunk shape from the /documents/:id/lineage endpoint.
+ * WHY: The full-lineage endpoint returns chunks with entity_ids (not token_count).
+ */
+interface FullLineageChunk {
+  chunk_id: string;
+  chunk_index: number;
+  start_line?: number;
+  end_line?: number;
+  start_offset?: number;
+  end_offset?: number;
+  entity_ids?: string[];
+  extraction_metadata?: Record<string, unknown>;
+  relationship_ids?: string[];
+}
+
+/**
+ * Entity shape from the /documents/:id/lineage endpoint.
+ * WHY: Entities are stored as a dict keyed by entity_id in the KV lineage,
+ * not as an array like the graph-based endpoint.
+ */
+interface FullLineageEntity {
+  entity_id: string;
+  entity_name: string;
+  extraction_count: number;
+  sources?: Array<{ chunk_ids?: string[] }>;
+  description_history?: Array<{ description?: string }>;
+}
+
 interface DocumentHierarchyTreeProps {
   documentId: string;
   documentName?: string;
@@ -37,7 +66,53 @@ export function DocumentHierarchyTree({
   documentId,
   documentName,
 }: DocumentHierarchyTreeProps) {
-  const { data: lineage, isLoading, error } = useDocumentLineage(documentId);
+  // WHY: useDocumentFullLineage calls /documents/:id/lineage which returns
+  // persisted KV lineage with actual chunks and entity data.
+  // The old useDocumentLineage (/lineage/documents/:id) returned graph-based
+  // data without chunk details, causing "0 chunks" display.
+  const { data: fullLineage, isLoading, error } = useDocumentFullLineage(documentId);
+
+  // WHY: Transform the raw response into normalized arrays.
+  // The full-lineage endpoint returns entities as a dict (keyed by entity_id)
+  // and chunks as objects with entity_ids arrays.
+  // useMemo MUST be called unconditionally before any early returns
+  // to satisfy React Rules of Hooks (same order on every render).
+  const { chunks, entitiesByChunk, totalEntities, docName } = useMemo(() => {
+    const lineage = fullLineage?.lineage as Record<string, unknown> | undefined;
+    if (!lineage) {
+      return { chunks: [] as FullLineageChunk[], entitiesByChunk: new Map<string, EntityLineage[]>(), totalEntities: 0, docName: '' };
+    }
+
+    // Extract chunks array
+    const rawChunks = (lineage.chunks ?? []) as FullLineageChunk[];
+
+    // Extract entities dict → normalize to EntityLineage[]
+    const rawEntities = (lineage.entities ?? {}) as Record<string, FullLineageEntity>;
+    const entityArray: EntityLineage[] = Object.values(rawEntities).map((e) => ({
+      id: e.entity_id,
+      name: e.entity_name,
+      entity_type: '', // Not stored in KV lineage
+      source_chunks: (e.sources ?? []).flatMap((s) => s.chunk_ids ?? []),
+      extraction_count: e.extraction_count ?? 1,
+    }));
+
+    // Build chunk_id → entities lookup
+    const byChunk = new Map<string, EntityLineage[]>();
+    for (const entity of entityArray) {
+      for (const chunkId of entity.source_chunks) {
+        const list = byChunk.get(chunkId) ?? [];
+        list.push(entity);
+        byChunk.set(chunkId, list);
+      }
+    }
+
+    return {
+      chunks: rawChunks,
+      entitiesByChunk: byChunk,
+      totalEntities: entityArray.length,
+      docName: (lineage.document_name as string) ?? '',
+    };
+  }, [fullLineage?.lineage]);
 
   if (isLoading) {
     return (
@@ -48,7 +123,7 @@ export function DocumentHierarchyTree({
     );
   }
 
-  if (error || !lineage) {
+  if (error || !fullLineage) {
     return (
       <p className="text-xs text-muted-foreground p-2">
         Hierarchy data not available
@@ -56,28 +131,12 @@ export function DocumentHierarchyTree({
     );
   }
 
-  // Build entity lookup: chunk_id → entities
-  const entityByChunk = useMemo(() => {
-    const map = new Map<string, EntityLineage[]>();
-    for (const entity of lineage.entities ?? []) {
-      for (const chunkId of entity.source_chunks ?? []) {
-        const list = map.get(chunkId) ?? [];
-        list.push(entity);
-        map.set(chunkId, list);
-      }
-    }
-    return map;
-  }, [lineage.entities]);
-
-  const chunks = lineage.chunks ?? [];
-  const totalEntities = lineage.entities?.length ?? 0;
-
   return (
     <div className="space-y-1">
       {/* Document root node */}
       <TreeNode
         icon={<FileText className="h-3.5 w-3.5" />}
-        label={documentName ?? lineage.document_name ?? documentId.slice(0, 8)}
+        label={documentName ?? docName ?? documentId.slice(0, 8)}
         badge={`${chunks.length} chunks • ${totalEntities} entities`}
         defaultOpen
         depth={0}
@@ -91,7 +150,7 @@ export function DocumentHierarchyTree({
             <ChunkTreeNode
               key={chunk.chunk_id}
               chunk={chunk}
-              entities={entityByChunk.get(chunk.chunk_id) ?? []}
+              entities={entitiesByChunk.get(chunk.chunk_id) ?? []}
               depth={1}
             />
           ))
@@ -106,7 +165,7 @@ export function DocumentHierarchyTree({
 // ============================================================================
 
 interface ChunkTreeNodeProps {
-  chunk: ChunkLineage;
+  chunk: FullLineageChunk;
   entities: EntityLineage[];
   depth: number;
 }
@@ -114,13 +173,15 @@ interface ChunkTreeNodeProps {
 function ChunkTreeNode({ chunk, entities, depth }: ChunkTreeNodeProps) {
   const lineInfo = chunk.start_line
     ? `L${chunk.start_line}–${chunk.end_line ?? '?'}`
-    : `#${chunk.chunk_index ?? chunk.index}`;
+    : `#${chunk.chunk_index}`;
+
+  const entityCount = chunk.entity_ids?.length ?? entities.length;
 
   return (
     <TreeNode
       icon={<Layers className="h-3 w-3" />}
-      label={`Chunk ${chunk.chunk_index ?? chunk.index}`}
-      badge={`${lineInfo} • ${chunk.token_count} tok • ${entities.length} ent`}
+      label={`Chunk ${chunk.chunk_index}`}
+      badge={`${lineInfo} • ${entityCount} ent`}
       depth={depth}
     >
       {entities.length === 0 ? (

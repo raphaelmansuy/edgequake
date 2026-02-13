@@ -68,6 +68,7 @@ function ActionButton({ icon, label, onClick, className }: ActionButtonProps) {
             size="icon"
             className={`h-8 w-8 ${className || ''}`}
             onClick={onClick}
+            aria-label={label}
           >
             {icon}
           </Button>

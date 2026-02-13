@@ -32,14 +32,14 @@ interface MetadataSidebarProps {
 
 export function MetadataSidebar({ document }: MetadataSidebarProps) {
   return (
-    <div className="h-full flex flex-col border-l bg-background">
-      {/* Sticky Stats - Always visible */}
-      <div className="sticky top-0 z-10 bg-background border-b p-4 shadow-sm">
+    <div className="h-full flex flex-col border-l bg-background overflow-hidden">
+      {/* Fixed Stats Header - Always visible, never compressed */}
+      <div className="shrink-0 z-10 bg-background border-b p-4 shadow-sm">
         <KeyStats document={document} />
       </div>
 
-      {/* Scrollable sections */}
-      <ScrollArea className="flex-1">
+      {/* Scrollable sections - min-h-0 allows flex item to shrink below content height */}
+      <ScrollArea className="flex-1 min-h-0" showShadows>
         <div className="p-4 space-y-4">
           {/* Extraction Lineage */}
           {document.lineage && (

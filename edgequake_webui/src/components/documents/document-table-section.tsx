@@ -141,22 +141,22 @@ export function DocumentTableSection({
           
           {!isLoading && documents.length > 0 && (
             <div className="border rounded-lg overflow-hidden shadow-sm">
-              <Table>
+              <Table aria-label="Documents list">
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-10">
+                    <TableHead scope="col" className="w-10">
                       <Checkbox
                         checked={isAllSelected}
                         onCheckedChange={(checked) => onSelectAll(!!checked)}
                         aria-label={t('documents.bulk.selectAll', 'Select all')}
                       />
                     </TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-center">Entities</TableHead>
-                    <TableHead className="text-center">Cost</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="w-25"></TableHead>
+                    <TableHead scope="col">Title</TableHead>
+                    <TableHead scope="col">Status</TableHead>
+                    <TableHead scope="col" className="text-center">Entities</TableHead>
+                    <TableHead scope="col" className="text-center">Cost</TableHead>
+                    <TableHead scope="col">Created</TableHead>
+                    <TableHead scope="col" className="w-25"><span className="sr-only">Actions</span></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

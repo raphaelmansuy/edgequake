@@ -76,6 +76,7 @@ export function PaginationControls({
             className="h-8 w-8"
             onClick={handleFirstPage}
             disabled={currentPage <= 1}
+            aria-label="First page"
           >
             <ChevronsLeft className="h-4 w-4" />
           </Button>
@@ -85,6 +86,7 @@ export function PaginationControls({
             className="h-8 w-8"
             onClick={handlePrevPage}
             disabled={currentPage <= 1}
+            aria-label="Previous page"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -94,6 +96,7 @@ export function PaginationControls({
             className="h-8 w-8"
             onClick={handleNextPage}
             disabled={currentPage >= totalPages}
+            aria-label="Next page"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -103,6 +106,7 @@ export function PaginationControls({
             className="h-8 w-8"
             onClick={handleLastPage}
             disabled={currentPage >= totalPages}
+            aria-label="Last page"
           >
             <ChevronsRight className="h-4 w-4" />
           </Button>
