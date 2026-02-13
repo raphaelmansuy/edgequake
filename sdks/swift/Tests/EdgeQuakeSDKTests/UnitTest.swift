@@ -587,3 +587,228 @@ final class MockTests: XCTestCase {
         XCTAssertEqual(MockURLProtocol.requestHistory.count, 2)
     }
 }
+
+// MARK: - Conversation Tests
+
+final class ConversationServiceTest: XCTestCase {
+    func testList() async throws {
+        let http = mockHelper(json: #"{"items":[{"id":"c1","title":"Test Chat"}]}"#)
+        let svc = ConversationService(http)
+        let result = try await svc.list()
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].id, "c1")
+    }
+
+    func testListEmpty() async throws {
+        let http = mockHelper(json: #"{"items":[]}"#)
+        let svc = ConversationService(http)
+        let result = try await svc.list()
+        XCTAssertEqual(result.count, 0)
+    }
+
+    func testListNullItems() async throws {
+        let http = mockHelper(json: #"{}"#)
+        let svc = ConversationService(http)
+        let result = try await svc.list()
+        XCTAssertEqual(result.count, 0)
+    }
+
+    func testCreate() async throws {
+        let http = mockHelper(json: #"{"id":"c2","title":"New Chat"}"#)
+        let svc = ConversationService(http)
+        let result = try await svc.create(title: "New Chat")
+        XCTAssertEqual(result.id, "c2")
+        XCTAssertEqual(result.title, "New Chat")
+        let last = MockURLProtocol.lastRequest
+        XCTAssertEqual(last?.method, "POST")
+    }
+
+    func testGet() async throws {
+        let http = mockHelper(json: #"{"conversation":{"id":"c1","title":"Test"},"messages":[]}"#)
+        let svc = ConversationService(http)
+        let result = try await svc.get(id: "c1")
+        XCTAssertNotNil(result.conversation)
+        let last = MockURLProtocol.lastRequest
+        XCTAssertTrue(last!.url.contains("/api/v1/conversations/c1"))
+    }
+
+    func testDelete() async throws {
+        let http = mockHelper(json: #"{}"#)
+        let svc = ConversationService(http)
+        try await svc.delete(id: "c1")
+        let last = MockURLProtocol.lastRequest
+        XCTAssertEqual(last?.method, "DELETE")
+        XCTAssertTrue(last!.url.contains("/api/v1/conversations/c1"))
+    }
+
+    func testBulkDelete() async throws {
+        let http = mockHelper(json: #"{"deleted":3,"status":"ok"}"#)
+        let svc = ConversationService(http)
+        let result = try await svc.bulkDelete(ids: ["c1", "c2", "c3"])
+        XCTAssertEqual(result.deleted, 3)
+        let last = MockURLProtocol.lastRequest
+        XCTAssertEqual(last?.method, "POST")
+        XCTAssertTrue(last!.url.contains("bulk/delete"))
+    }
+
+    func testListError() async {
+        let http = mockHelper(json: "{}", status: 500)
+        let svc = ConversationService(http)
+        do {
+            _ = try await svc.list()
+            XCTFail("Expected error")
+        } catch {
+            // Expected
+        }
+    }
+}
+
+// MARK: - Folder Tests
+
+final class FolderServiceTest: XCTestCase {
+    func testList() async throws {
+        let http = mockHelper(json: #"[{"id":"f1","name":"Research"}]"#)
+        let svc = FolderService(http)
+        let result = try await svc.list()
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].name, "Research")
+    }
+
+    func testCreate() async throws {
+        let http = mockHelper(json: #"{"id":"f2","name":"New Folder"}"#)
+        let svc = FolderService(http)
+        let result = try await svc.create(name: "New Folder")
+        XCTAssertEqual(result.id, "f2")
+        XCTAssertEqual(result.name, "New Folder")
+        let last = MockURLProtocol.lastRequest
+        XCTAssertEqual(last?.method, "POST")
+    }
+
+    func testDelete() async throws {
+        let http = mockHelper(json: #"{}"#)
+        let svc = FolderService(http)
+        try await svc.delete(id: "f1")
+        let last = MockURLProtocol.lastRequest
+        XCTAssertEqual(last?.method, "DELETE")
+        XCTAssertTrue(last!.url.contains("/api/v1/folders/f1"))
+    }
+
+    func testListError() async {
+        let http = mockHelper(json: "{}", status: 500)
+        let svc = FolderService(http)
+        do {
+            _ = try await svc.list()
+            XCTFail("Expected error")
+        } catch {
+            // Expected
+        }
+    }
+}
+
+// MARK: - URL Validation Tests
+
+final class URLValidationTests: XCTestCase {
+    func testHealthUrl() async throws {
+        let http = mockHelper(json: #"{"status":"ok"}"#)
+        _ = try await HealthService(http).check()
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.hasSuffix("/health"))
+    }
+
+    func testTasksUrl() async throws {
+        let http = mockHelper(json: #"{"tasks":[]}"#)
+        _ = try await TaskService(http).list()
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/api/v1/tasks"))
+    }
+
+    func testPipelineStatusUrl() async throws {
+        let http = mockHelper(json: #"{"is_busy":false}"#)
+        _ = try await PipelineService(http).status()
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/api/v1/pipeline/status"))
+    }
+
+    func testCostsSummaryUrl() async throws {
+        let http = mockHelper(json: #"{"total_cost":0}"#)
+        _ = try await CostService(http).summary()
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/api/v1/costs/summary"))
+    }
+
+    func testModelsUrl() async throws {
+        let http = mockHelper(json: #"{"providers":[]}"#)
+        _ = try await ModelService(http).catalog()
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/api/v1/models"))
+    }
+
+    func testEntitiesDeleteUrl() async throws {
+        let http = mockHelper(json: #"{"status":"deleted"}"#)
+        _ = try await EntityService(http).delete(name: "BOB")
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/api/v1/graph/entities/BOB"))
+    }
+}
+
+// MARK: - Client Service Availability Tests
+
+final class ClientServiceAvailabilityTest: XCTestCase {
+    func testHasConversations() {
+        let client = EdgeQuakeClient()
+        XCTAssertNotNil(client.conversations)
+    }
+
+    func testHasFolders() {
+        let client = EdgeQuakeClient()
+        XCTAssertNotNil(client.folders)
+    }
+}
+
+// MARK: - Edge Case Tests
+
+final class EdgeCaseTests: XCTestCase {
+    func testQueryDefaultMode() async throws {
+        let http = mockHelper(json: #"{"answer":"x"}"#)
+        _ = try await QueryService(http).execute(query: "test")
+        let body = MockURLProtocol.lastRequest?.body
+        if let data = body, let str = String(data: data, encoding: .utf8) {
+            XCTAssertTrue(str.contains("hybrid"))
+        }
+    }
+
+    func testEntityCreateBody() async throws {
+        let http = mockHelper(json: #"{"status":"success"}"#)
+        let request = CreateEntityRequest(entityName: "NODE", entityType: "concept", description: "A concept", sourceId: "src-1")
+        _ = try await EntityService(http).create(request)
+        let body = MockURLProtocol.lastRequest?.body
+        if let data = body, let str = String(data: data, encoding: .utf8) {
+            XCTAssertTrue(str.contains("NODE"))
+            XCTAssertTrue(str.contains("concept"))
+        }
+    }
+
+    func testDocumentsListPaginationDefault() async throws {
+        let http = mockHelper(json: #"{"documents":[]}"#)
+        _ = try await DocumentService(http).list()
+        let url = MockURLProtocol.lastRequest!.url
+        XCTAssertTrue(url.contains("page=1"))
+        XCTAssertTrue(url.contains("page_size=20"))
+    }
+
+    func testErrorStatus502() async {
+        let http = mockHelper(json: "{}", status: 502)
+        let svc = HealthService(http)
+        do {
+            _ = try await svc.check()
+            XCTFail("Expected error")
+        } catch {
+            // Expected
+        }
+    }
+
+    func testErrorStatus429() async {
+        let http = mockHelper(json: #"{"error":"rate limited"}"#, status: 429)
+        let svc = QueryService(http)
+        do {
+            _ = try await svc.execute(query: "test")
+            XCTFail("Expected error")
+        } catch {
+            // Expected
+        }
+    }
+}
