@@ -954,4 +954,161 @@ class UnitTest {
         DocumentService(http).delete("d1")
         assertEquals("DELETE", fake.lastRequest().method)
     }
+
+    // ── Lineage & Metadata Tests ─────────────────────────────────────
+    // WHY: The improve-lineage mission requires source_id, metadata,
+    // and provenance fields to be properly tested across all SDKs.
+
+    @Test
+    fun `entity model has sourceId`() {
+        val e = Entity(entityName = "ALICE", entityType = "person", sourceId = "doc-123")
+        assertEquals("doc-123", e.sourceId)
+    }
+
+    @Test
+    fun `entity model has metadata`() {
+        val e = Entity(entityName = "BOB", metadata = mapOf("key" to "value"))
+        assertNotNull(e.metadata)
+        assertEquals("value", e.metadata!!["key"])
+    }
+
+    @Test
+    fun `entity model has timestamps`() {
+        val e = Entity(entityName = "EVE", createdAt = "2025-01-01T00:00:00Z", updatedAt = "2025-01-02T00:00:00Z")
+        assertNotNull(e.createdAt)
+        assertNotNull(e.updatedAt)
+    }
+
+    @Test
+    fun `createEntityRequest includes sourceId`() {
+        val req = CreateEntityRequest(entityName = "ALICE", entityType = "person", description = "A researcher", sourceId = "doc-456")
+        assertEquals("doc-456", req.sourceId)
+    }
+
+    @Test
+    fun `entity create sends sourceId in request body`() {
+        fake.respondWith("""{"status":"success","message":"created"}""")
+        val req = CreateEntityRequest(entityName = "ALICE", entityType = "person", description = "test", sourceId = "doc-lineage-1")
+        EntityService(http).create(req)
+        val body = fake.lastRequest().body
+        assertTrue(body?.contains("doc-lineage-1") == true)
+    }
+
+    @Test
+    fun `relationship model has sourceId`() {
+        val r = Relationship(source = "A", target = "B", relationshipType = "KNOWS", sourceId = "doc-rel-1")
+        assertEquals("doc-rel-1", r.sourceId)
+    }
+
+    @Test
+    fun `relationship model has createdAt`() {
+        val r = Relationship(source = "A", target = "B", createdAt = "2025-01-01T00:00:00Z")
+        assertNotNull(r.createdAt)
+    }
+
+    @Test
+    fun `entityDeleteResponse has lineage info`() {
+        val del = EntityDeleteResponse(status = "deleted", deletedRelationships = 5, affectedEntities = listOf("e2", "e3"))
+        assertEquals(5, del.deletedRelationships)
+        assertEquals(2, del.affectedEntities?.size)
+    }
+
+    @Test
+    fun `graphNode has properties for provenance`() {
+        val node = GraphNode(id = "n1", label = "ALICE", properties = mapOf("source_document" to "doc-1"))
+        assertEquals("doc-1", node.properties!!["source_document"])
+    }
+
+    @Test
+    fun `graphEdge has weight for lineage scoring`() {
+        val edge = GraphEdge(source = "A", target = "B", label = "COLLAB", weight = 0.85)
+        assertEquals(0.85, edge.weight)
+    }
+
+    @Test
+    fun `uploadResponse contains lineage documentId`() {
+        val u = UploadResponse(documentId = "doc-up-1", status = "processing")
+        assertEquals("doc-up-1", u.documentId)
+    }
+
+    @Test
+    fun `chatCompletionRequest has conversationId for lineage`() {
+        val req = ChatCompletionRequest(message = "Hello", conversationId = "conv-1", parentId = "msg-parent-1")
+        assertEquals("conv-1", req.conversationId)
+        assertEquals("msg-parent-1", req.parentId)
+    }
+
+    @Test
+    fun `conversation has createdAt and updatedAt timestamps`() {
+        val conv = ConversationInfo(id = "c1", title = "Test", createdAt = "2025-01-01T00:00:00Z", updatedAt = "2025-01-02T00:00:00Z")
+        assertNotNull(conv.createdAt)
+        assertNotNull(conv.updatedAt)
+    }
+
+    @Test
+    fun `message has createdAt timestamp`() {
+        val msg = Message(role = "user", content = "Hi", createdAt = "2025-01-01T00:00:00Z")
+        assertNotNull(msg.createdAt)
+    }
+
+    @Test
+    fun `folder has parentId for hierarchy lineage`() {
+        val f = FolderInfo(id = "f1", name = "Root", parentId = "f0", createdAt = "2025-01-01T00:00:00Z")
+        assertEquals("f0", f.parentId)
+    }
+
+    @Test
+    fun `document has chunk count for lineage`() {
+        val d = Document(id = "d1", title = "test.pdf", chunkCount = 42)
+        assertEquals(42, d.chunkCount)
+    }
+
+    @Test
+    fun `entityListResponse has pagination for lineage queries`() {
+        val resp = EntityListResponse(items = emptyList(), total = 100, page = 2, pageSize = 20, totalPages = 5)
+        assertEquals(100, resp.total)
+        assertEquals(5, resp.totalPages)
+    }
+
+    @Test
+    fun `entityExistsResponse has exists flag`() {
+        val resp = EntityExistsResponse(exists = true, entityId = "ent-1")
+        assertEquals(true, resp.exists)
+        assertEquals("ent-1", resp.entityId)
+    }
+
+    @Test
+    fun `mergeEntities sends source and target`() {
+        fake.respondWith("""{"merged_entity":{"entity_name":"ALICE"},"merged_count":2}""")
+        EntityService(http).merge("ALICE_1", "ALICE_2")
+        val body = fake.lastRequest().body
+        assertTrue(body?.contains("ALICE_1") == true)
+        assertTrue(body?.contains("ALICE_2") == true)
+    }
+
+    @Test
+    fun `providerStatus has metadata`() {
+        val ps = ProviderStatus(metadata = mapOf("version" to "1.0"))
+        assertNotNull(ps.metadata)
+        assertEquals("1.0", ps.metadata!!["version"])
+    }
+
+    @Test
+    fun `bulkDeleteResponse has deleted count`() {
+        val resp = BulkDeleteResponse(deleted = 3)
+        assertEquals(3, resp.deleted)
+    }
+
+    @Test
+    fun `taskInfo has createdAt for lineage tracking`() {
+        val task = TaskInfo(id = "t1", status = "running", createdAt = "2025-01-01T00:00:00Z")
+        assertNotNull(task.createdAt)
+    }
+
+    @Test
+    fun `costSummary tracks usage lineage`() {
+        val c = CostSummary(totalCost = 5.0, documentCount = 10)
+        assertEquals(5.0, c.totalCost)
+        assertEquals(10, c.documentCount)
+    }
 }
