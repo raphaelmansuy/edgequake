@@ -12,7 +12,8 @@
   "autoload": {
     "psr-4": {
       "EdgeQuake\\": "src/"
-    }
+    },
+    "classmap": ["src/Services.php"]
   },
   "autoload-dev": {
     "psr-4": {
