@@ -543,4 +543,290 @@ public class UnitTest
         var result = await svc.CheckAsync();
         Assert.Equal("ok", result.Status);
     }
+
+    // ── Conversation Service ───────────────────────────────────────
+
+    [Fact]
+    public async Task Conversations_List()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""items"":[{""id"":""c1"",""title"":""Test Chat""}]}");
+        var svc = new ConversationService(http);
+        var result = await svc.ListAsync();
+        Assert.Single(result);
+        Assert.Equal("c1", result[0].Id);
+        Assert.Equal(HttpMethod.Get, mock.LastCall!.Method);
+        Assert.Equal("/api/v1/conversations", mock.LastCall.Url);
+    }
+
+    [Fact]
+    public async Task Conversations_List_EmptyItems()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""items"":[]}");
+        var svc = new ConversationService(http);
+        var result = await svc.ListAsync();
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task Conversations_List_NullItems()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{}");
+        var svc = new ConversationService(http);
+        var result = await svc.ListAsync();
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task Conversations_Create()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""id"":""c2"",""title"":""New Chat""}");
+        var svc = new ConversationService(http);
+        var result = await svc.CreateAsync("New Chat");
+        Assert.Equal("c2", result.Id);
+        Assert.Equal("New Chat", result.Title);
+        Assert.Equal(HttpMethod.Post, mock.LastCall!.Method);
+        Assert.Contains("New Chat", mock.LastCall.Body!);
+    }
+
+    [Fact]
+    public async Task Conversations_Get()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""conversation"":{""id"":""c1"",""title"":""Test""},""messages"":[]}");
+        var svc = new ConversationService(http);
+        var result = await svc.GetAsync("c1");
+        Assert.Equal("c1", result.Id);
+        Assert.Contains("/api/v1/conversations/c1", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Conversations_Delete()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{}");
+        var svc = new ConversationService(http);
+        await svc.DeleteAsync("c1");
+        Assert.Equal(HttpMethod.Delete, mock.LastCall!.Method);
+        Assert.Contains("/api/v1/conversations/c1", mock.LastCall.Url);
+    }
+
+    [Fact]
+    public async Task Conversations_BulkDelete()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""deleted"":3,""status"":""ok""}");
+        var svc = new ConversationService(http);
+        var result = await svc.BulkDeleteAsync(new List<string> { "c1", "c2", "c3" });
+        Assert.Equal(3, result.Deleted);
+        Assert.Equal(HttpMethod.Post, mock.LastCall!.Method);
+        Assert.Contains("bulk/delete", mock.LastCall.Url);
+    }
+
+    [Fact]
+    public async Task Conversations_List_Error()
+    {
+        var http = MockHelper("{}", HttpStatusCode.InternalServerError);
+        var svc = new ConversationService(http);
+        await Assert.ThrowsAsync<EdgeQuakeException>(() => svc.ListAsync());
+    }
+
+    // ── Folder Service ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task Folders_List()
+    {
+        var (http, mock) = MockHelperWithCalls(@"[{""id"":""f1"",""name"":""Research""}]");
+        var svc = new FolderService(http);
+        var result = await svc.ListAsync();
+        Assert.Single(result);
+        Assert.Equal("Research", result[0].Name);
+        Assert.Equal(HttpMethod.Get, mock.LastCall!.Method);
+        Assert.Equal("/api/v1/folders", mock.LastCall.Url);
+    }
+
+    [Fact]
+    public async Task Folders_Create()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""id"":""f2"",""name"":""New Folder""}");
+        var svc = new FolderService(http);
+        var result = await svc.CreateAsync("New Folder");
+        Assert.Equal("f2", result.Id);
+        Assert.Equal("New Folder", result.Name);
+        Assert.Equal(HttpMethod.Post, mock.LastCall!.Method);
+        Assert.Contains("New Folder", mock.LastCall.Body!);
+    }
+
+    [Fact]
+    public async Task Folders_Delete()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{}");
+        var svc = new FolderService(http);
+        await svc.DeleteAsync("f1");
+        Assert.Equal(HttpMethod.Delete, mock.LastCall!.Method);
+        Assert.Contains("/api/v1/folders/f1", mock.LastCall.Url);
+    }
+
+    [Fact]
+    public async Task Folders_List_Error()
+    {
+        var http = MockHelper("{}", HttpStatusCode.InternalServerError);
+        var svc = new FolderService(http);
+        await Assert.ThrowsAsync<EdgeQuakeException>(() => svc.ListAsync());
+    }
+
+    // ── URL Validation Tests ───────────────────────────────────────
+
+    [Fact]
+    public async Task Health_CheckUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""status"":""ok""}");
+        var svc = new HealthService(http);
+        await svc.CheckAsync();
+        Assert.Equal("/health", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Tasks_ListUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""tasks"":[]}");
+        var svc = new TaskService(http);
+        await svc.ListAsync();
+        Assert.Equal("/api/v1/tasks", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task ApiKeys_ListUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""keys"":[]}");
+        var svc = new ApiKeyService(http);
+        await svc.ListAsync();
+        Assert.Equal("/api/v1/api-keys", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Users_ListUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""users"":[]}");
+        var svc = new UserService(http);
+        await svc.ListAsync();
+        Assert.Equal("/api/v1/users", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Tenants_ListUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""items"":[]}");
+        var svc = new TenantService(http);
+        await svc.ListAsync();
+        Assert.Equal("/api/v1/tenants", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Pipeline_StatusUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""is_busy"":false}");
+        var svc = new PipelineService(http);
+        await svc.StatusAsync();
+        Assert.Equal("/api/v1/pipeline/status", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Pipeline_QueueMetricsUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""pending_count"":0}");
+        var svc = new PipelineService(http);
+        await svc.QueueMetricsAsync();
+        Assert.Equal("/api/v1/pipeline/queue-metrics", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Costs_SummaryUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""total_cost"":0}");
+        var svc = new CostService(http);
+        await svc.SummaryAsync();
+        Assert.Equal("/api/v1/costs/summary", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Models_CatalogUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""providers"":[]}");
+        var svc = new ModelService(http);
+        await svc.CatalogAsync();
+        Assert.Equal("/api/v1/models", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Models_ProviderStatusUrl()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""provider"":{}}");
+        var svc = new ModelService(http);
+        await svc.ProviderStatusAsync();
+        Assert.Equal("/api/v1/settings/provider/status", mock.LastCall!.Url);
+    }
+
+    // ── Client Service Availability ────────────────────────────────
+
+    [Fact]
+    public void Client_HasConversations()
+    {
+        var client = new EdgeQuakeClient();
+        Assert.NotNull(client.Conversations);
+    }
+
+    [Fact]
+    public void Client_HasFolders()
+    {
+        var client = new EdgeQuakeClient();
+        Assert.NotNull(client.Folders);
+    }
+
+    // ── Documents Edge Cases ───────────────────────────────────────
+
+    [Fact]
+    public async Task Documents_UploadText_DefaultFileType()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""document_id"":""d3"",""status"":""processing""}");
+        var svc = new DocumentService(http);
+        var result = await svc.UploadTextAsync("Title", "Body");
+        Assert.Contains("txt", mock.LastCall!.Body!);
+    }
+
+    [Fact]
+    public async Task Documents_Delete_Url()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{}");
+        var svc = new DocumentService(http);
+        await svc.DeleteAsync("doc-abc");
+        Assert.Contains("/api/v1/documents/doc-abc", mock.LastCall!.Url);
+    }
+
+    // ── Query Default Mode ─────────────────────────────────────────
+
+    [Fact]
+    public async Task Query_DefaultMode()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""answer"":""x""}");
+        var svc = new QueryService(http);
+        await svc.ExecuteAsync("test");
+        Assert.Contains("hybrid", mock.LastCall!.Body!);
+    }
+
+    // ── Error Response Bodies ──────────────────────────────────────
+
+    [Fact]
+    public async Task Exception_Contains_ResponseBody()
+    {
+        var http = MockHelper(@"{""error"":""quota exceeded""}", HttpStatusCode.TooManyRequests);
+        var svc = new QueryService(http);
+        var ex = await Assert.ThrowsAsync<EdgeQuakeException>(() => svc.ExecuteAsync("test"));
+        Assert.Equal(429, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task Exception_BadGateway()
+    {
+        var http = MockHelper("{}", HttpStatusCode.BadGateway);
+        var svc = new HealthService(http);
+        var ex = await Assert.ThrowsAsync<EdgeQuakeException>(() => svc.CheckAsync());
+        Assert.Equal(502, ex.StatusCode);
+    }
 }
