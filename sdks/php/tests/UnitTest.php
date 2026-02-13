@@ -22,6 +22,8 @@ use EdgeQuake\TaskService;
 use EdgeQuake\PipelineService;
 use EdgeQuake\ModelService;
 use EdgeQuake\CostService;
+use EdgeQuake\ConversationService;
+use EdgeQuake\FolderService;
 
 /**
  * Unit tests for the EdgeQuake PHP SDK.
@@ -611,5 +613,252 @@ class UnitTest extends TestCase
         $svc = new HealthService($mock);
         $result = $svc->check();
         $this->assertSame(1, $result['a']);
+    }
+
+    // ── Conversation Service ───────────────────────────────────────
+
+    public function testConversationsList(): void
+    {
+        $mock = new MockHttpHelper('{"conversations":[{"id":"c1","title":"Test"}]}');
+        $svc = new ConversationService($mock);
+        $result = $svc->list();
+        $this->assertCount(1, $result['conversations']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/conversations', $mock->lastCall()['path']);
+    }
+
+    public function testConversationsCreate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"c2","title":"New Chat"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->create('New Chat');
+        $this->assertSame('c2', $result['id']);
+        $this->assertSame('POST', $mock->lastCall()['method']);
+        $this->assertSame('New Chat', $mock->lastCall()['body']['title']);
+    }
+
+    public function testConversationsCreateWithMode(): void
+    {
+        $mock = new MockHttpHelper('{"id":"c3","title":"Global Chat","mode":"global"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->create('Global Chat', 'global');
+        $this->assertSame('global', $mock->lastCall()['body']['mode']);
+        $this->assertArrayNotHasKey('folder_id', $mock->lastCall()['body']);
+    }
+
+    public function testConversationsCreateWithFolder(): void
+    {
+        $mock = new MockHttpHelper('{"id":"c4","title":"Folder Chat"}');
+        $svc = new ConversationService($mock);
+        $svc->create('Folder Chat', null, 'folder-1');
+        $this->assertSame('folder-1', $mock->lastCall()['body']['folder_id']);
+        $this->assertArrayNotHasKey('mode', $mock->lastCall()['body']);
+    }
+
+    public function testConversationsCreateWithAllOptions(): void
+    {
+        $mock = new MockHttpHelper('{"id":"c5"}');
+        $svc = new ConversationService($mock);
+        $svc->create('Full Chat', 'hybrid', 'f-2');
+        $body = $mock->lastCall()['body'];
+        $this->assertSame('Full Chat', $body['title']);
+        $this->assertSame('hybrid', $body['mode']);
+        $this->assertSame('f-2', $body['folder_id']);
+    }
+
+    public function testConversationsListError(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{}', 500);
+        $svc = new ConversationService($mock);
+        $this->expectException(ApiError::class);
+        $svc->list();
+    }
+
+    public function testConversationsCreateError(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{}', 422);
+        $svc = new ConversationService($mock);
+        $this->expectException(ApiError::class);
+        $svc->create('Bad');
+    }
+
+    // ── Folder Service ─────────────────────────────────────────────
+
+    public function testFoldersList(): void
+    {
+        $mock = new MockHttpHelper('[{"id":"f1","name":"Research"}]');
+        $svc = new FolderService($mock);
+        $result = $svc->list();
+        $this->assertCount(1, $result);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+    }
+
+    public function testFoldersCreate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"f2","name":"New Folder"}');
+        $svc = new FolderService($mock);
+        $result = $svc->create('New Folder');
+        $this->assertSame('f2', $result['id']);
+        $this->assertSame('POST', $mock->lastCall()['method']);
+        $this->assertSame('New Folder', $mock->lastCall()['body']['name']);
+    }
+
+    public function testFoldersListError(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{}', 500);
+        $svc = new FolderService($mock);
+        $this->expectException(ApiError::class);
+        $svc->list();
+    }
+
+    public function testFoldersCreateError(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{}', 409);
+        $svc = new FolderService($mock);
+        $this->expectException(ApiError::class);
+        $svc->create('Duplicate');
+    }
+
+    // ── Additional Edge Case Tests ─────────────────────────────────
+
+    public function testHealthCheckUrl(): void
+    {
+        $mock = new MockHttpHelper('{"status":"healthy"}');
+        $svc = new HealthService($mock);
+        $svc->check();
+        $this->assertSame('/health', $mock->lastCall()['path']);
+    }
+
+    public function testTasksListUrl(): void
+    {
+        $mock = new MockHttpHelper('{"tasks":[]}');
+        $svc = new TaskService($mock);
+        $svc->list();
+        $this->assertSame('/api/v1/tasks', $mock->lastCall()['path']);
+    }
+
+    public function testApiKeysListUrl(): void
+    {
+        $mock = new MockHttpHelper('[]');
+        $svc = new ApiKeyService($mock);
+        $svc->list();
+        $this->assertSame('/api/v1/api-keys', $mock->lastCall()['path']);
+    }
+
+    public function testUsersListUrl(): void
+    {
+        $mock = new MockHttpHelper('[]');
+        $svc = new UserService($mock);
+        $svc->list();
+        $this->assertSame('/api/v1/users', $mock->lastCall()['path']);
+    }
+
+    public function testTenantsListUrl(): void
+    {
+        $mock = new MockHttpHelper('{"items":[]}');
+        $svc = new TenantService($mock);
+        $svc->list();
+        $this->assertSame('/api/v1/tenants', $mock->lastCall()['path']);
+    }
+
+    public function testCostsSummaryUrl(): void
+    {
+        $mock = new MockHttpHelper('{"total_cost_usd":0}');
+        $svc = new CostService($mock);
+        $svc->summary();
+        $this->assertSame('/api/v1/costs/summary', $mock->lastCall()['path']);
+    }
+
+    public function testPipelineStatusUrl(): void
+    {
+        $mock = new MockHttpHelper('{"is_busy":false}');
+        $svc = new PipelineService($mock);
+        $svc->status();
+        $this->assertSame('/api/v1/pipeline/status', $mock->lastCall()['path']);
+    }
+
+    public function testPipelineQueueMetricsUrl(): void
+    {
+        $mock = new MockHttpHelper('{"queue_depth":0}');
+        $svc = new PipelineService($mock);
+        $svc->queueMetrics();
+        $this->assertSame('/api/v1/pipeline/queue-metrics', $mock->lastCall()['path']);
+    }
+
+    public function testModelCatalogUrl(): void
+    {
+        $mock = new MockHttpHelper('{"providers":[]}');
+        $svc = new ModelService($mock);
+        $svc->catalog();
+        $this->assertSame('/api/v1/models', $mock->lastCall()['path']);
+    }
+
+    public function testModelProviderStatusUrl(): void
+    {
+        $mock = new MockHttpHelper('{"current_provider":"mock"}');
+        $svc = new ModelService($mock);
+        $svc->providerStatus();
+        $this->assertSame('/api/v1/settings/provider/status', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentsGetUrl(): void
+    {
+        $mock = new MockHttpHelper('{"id":"abc"}');
+        $svc = new DocumentService($mock);
+        $svc->get('abc');
+        $this->assertStringContainsString('/api/v1/documents/abc', $mock->lastCall()['path']);
+    }
+
+    public function testEntitiesGetUrl(): void
+    {
+        $mock = new MockHttpHelper('{"entity_name":"FOO"}');
+        $svc = new EntityService($mock);
+        $svc->get('FOO');
+        $this->assertStringContainsString('/api/v1/graph/entities/FOO', $mock->lastCall()['path']);
+    }
+
+    public function testQueryDefaultMode(): void
+    {
+        $mock = new MockHttpHelper('{"answer":"x"}');
+        $svc = new QueryService($mock);
+        $svc->execute('test');
+        $this->assertSame('hybrid', $mock->lastCall()['body']['mode']);
+    }
+
+    public function testChatDefaultStream(): void
+    {
+        $mock = new MockHttpHelper('{"choices":[]}');
+        $svc = new ChatService($mock);
+        $svc->completions('hello');
+        $this->assertFalse($mock->lastCall()['body']['stream']);
+    }
+
+    public function testChatStreamEnabled(): void
+    {
+        $mock = new MockHttpHelper('{"choices":[]}');
+        $svc = new ChatService($mock);
+        $svc->completions('hello', 'local', true);
+        $this->assertTrue($mock->lastCall()['body']['stream']);
+    }
+
+    public function testEntityPagination(): void
+    {
+        $mock = new MockHttpHelper('{"items":[]}');
+        $svc = new EntityService($mock);
+        $svc->list(5, 100);
+        $this->assertStringContainsString('page=5', $mock->lastCall()['path']);
+        $this->assertStringContainsString('page_size=100', $mock->lastCall()['path']);
+    }
+
+    public function testClientHasConversationService(): void
+    {
+        $client = new Client();
+        $this->assertInstanceOf(ConversationService::class, $client->conversations);
+    }
+
+    public function testClientHasFolderService(): void
+    {
+        $client = new Client();
+        $this->assertInstanceOf(FolderService::class, $client->folders);
     }
 }

@@ -8,7 +8,10 @@
          failOnRisky="true">
     <testsuites>
         <testsuite name="Unit">
-            <directory>tests</directory>
+            <file>tests/UnitTest.php</file>
+        </testsuite>
+        <testsuite name="E2E">
+            <file>tests/E2ETest.php</file>
         </testsuite>
     </testsuites>
     <source>
