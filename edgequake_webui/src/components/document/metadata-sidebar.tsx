@@ -15,8 +15,9 @@
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Document } from '@/types';
-import { Brain, Database, FileText, Network, Settings } from 'lucide-react';
+import { Brain, Database, FileText, GitBranch, Network, Settings } from 'lucide-react';
 import { CollapsibleSection } from './collapsible-section';
+import { DocumentHierarchyTree } from './document-hierarchy-tree';
 import { EnhancedMetadata } from './enhanced-metadata';
 import { EntityRelationStats } from './entity-relation-stats';
 import { KeyStats } from './key-stats';
@@ -64,6 +65,17 @@ export function MetadataSidebar({ document }: MetadataSidebarProps) {
               />
             </CollapsibleSection>
           )}
+
+          {/* Document Hierarchy Tree (OODA-13): Doc → Chunks → Entities */}
+          <CollapsibleSection
+            title="Data Hierarchy"
+            icon={<GitBranch className="h-4 w-4" />}
+          >
+            <DocumentHierarchyTree
+              documentId={document.id}
+              documentName={document.file_name ?? document.title ?? undefined}
+            />
+          </CollapsibleSection>
 
           {/* Source Information */}
           <CollapsibleSection
