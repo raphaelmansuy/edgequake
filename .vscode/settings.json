@@ -1,0 +1,86 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/target": true,
+    "**/node_modules": true,
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/dist": true,
+    "**/build": true
+    ,"**/vendor": true
+    "**/zz_test_docs": true,
+    "**/zz-explore": true,
+    "**/logs": true,
+    "**/archive": true,
+    "**/specs": true,
+    "**/logf": true
+  },
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/*/**": true,
+    "**/target/**": true,
+    "**/lightrag_webui/node_modules/**": true,
+    "**/lightrag_webui/.bun/**": true,
+    "**/target": true
+    ,"**/vendor/**": true
+    "**/zz_test_docs/**": true,
+    "**/zz-explore/**": true,
+    "**/logs/**": true,
+    "**/archive/**": true,
+    "**/specs/**": true,
+    "**/logf/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/*.code-search": true,
+    "**/target": true,
+    "**/dist": true,
+    "**/build": true
+    ,"**/vendor": true
+    "**/zz_test_docs": true,
+    "**/zz-explore": true,
+    "**/logs": true,
+    "**/archive": true,
+    "**/specs": true,
+    "**/logf": true
+  },
+  "php.validate.enable": false,
+  "php.suggest.basic": false,
+  "php.executablePath": "/usr/bin/php",
+  "rust-analyzer.cargo.buildScripts.enable": true,
+  "rust-analyzer.procMacro.enable": true,
+  "rust-analyzer.checkOnSave.command": "check",
+  "rust-analyzer.cargo.allFeatures": true,
+  "rust-analyzer.files.excludeDirs": [
+    "target",
+    "node_modules",
+    ".venv",
+    "lightrag_webui/node_modules",
+    "lightrag/venv"
+  ],
+  "rust-analyzer.workspace.symbol.search.scope": "workspace",
+  "rust-analyzer.diagnostics.disabled": ["unresolved-proc-macro"],
+  "rust-analyzer.cargo.loadOutDirsFromCheck": true,
+  "rust-analyzer.checkOnSave.extraArgs": ["--target-dir", "target/ra"],
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  "explorer.confirmDragAndDrop": false,
+  "explorer.confirmDelete": false,
+  "git.autofetch": true,
+  "typescript.tsdk": "lightrag_webui/node_modules/typescript/lib",
+  "chat.tools.terminal.ignoreDefaultAutoApproveRules": true,
+  "chat.tools.eligibleForAutoApproval": {
+    "execute/*": true
+  },
+  "chat.tools.terminal.autoApprove": {
+    "/^git log --oneline -15 \\| cat$/": {
+      "approve": true,
+      "matchCommandLine": true
+    }
+  }
+}

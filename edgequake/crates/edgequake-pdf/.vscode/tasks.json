@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "run-test-gold-dataset-size",
+			"type": "shell",
+			"command": "cargo test --package edgequake-pdf --test test_gold_dataset_size -- --nocapture",
+			"isBackground": false
+		}
+	]
+}

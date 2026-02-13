@@ -1,0 +1,100 @@
+{
+  // ============================================================================
+  // TypeScript Server Optimization
+  // Prevents CPU spikes and crashes during build
+  // ============================================================================
+
+  // Limit TypeScript server memory
+  "typescript.tsserver.maxTsServerMemory": 3072,
+
+  // Use separate syntax server to reduce main server load
+  "typescript.tsserver.useSeparateSyntaxServer": true,
+
+  // Disable auto-import suggestions which can be CPU intensive
+  "typescript.suggest.autoImports": true,
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+
+  // Reduce TypeScript server logging
+  "typescript.tsserver.log": "off",
+
+  // Disable eager type checking
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+
+  // ============================================================================
+  // File Watching Optimization
+  // Reduces file watcher pressure
+  // ============================================================================
+
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.turbo/**": true,
+    "**/coverage/**": true,
+    "**/playwright-report/**": true,
+    "**/test-results/**": true
+  },
+
+  // Exclude from search
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.turbo": true,
+    "**/coverage": true,
+    "**/playwright-report": true,
+    "**/test-results": true,
+    "**/bun.lockb": true,
+    "**/pnpm-lock.yaml": true,
+    "**/package-lock.json": true
+  },
+
+  // ============================================================================
+  // Editor Performance
+  // ============================================================================
+
+  // Disable minimap for large files
+  "editor.minimap.maxColumn": 80,
+
+  // Limit bracket pair colorization depth
+  "editor.bracketPairColorization.enabled": true,
+
+  // ============================================================================
+  // Extension Optimization
+  // ============================================================================
+
+  // ESLint settings - validate only on save
+  "eslint.run": "onSave",
+  "eslint.probe": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+
+  // Tailwind CSS optimization
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+
+  // ============================================================================
+  // Project-Specific Settings
+  // ============================================================================
+
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+
+  // Next.js specific
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}
