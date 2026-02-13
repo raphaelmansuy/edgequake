@@ -78,6 +78,10 @@ export interface ChunkDetail {
   content_preview?: string;
   position?: ChunkPosition;
   index: number;
+  /** OODA-10: Start line number in source document (1-based). */
+  start_line?: number;
+  /** OODA-10: End line number in source document (1-based, inclusive). */
+  end_line?: number;
   char_range?: {
     start: number;
     end: number;
@@ -330,4 +334,43 @@ export interface LineageEdge {
   target: string;
   type: LineageEdgeType;
   weight?: number;
+}
+
+// ============================================================================
+// OODA-10: New API Response Types for Lineage Endpoints
+// ============================================================================
+
+/**
+ * Response from GET /api/v1/documents/:id/lineage (OODA-07).
+ * Returns persisted DocumentLineage + document metadata in single call.
+ * @implements F5 - Single API call retrieves complete lineage tree
+ */
+export interface DocumentFullLineageResponse {
+  document_id: string;
+  metadata: Record<string, unknown>;
+  lineage: Record<string, unknown>;
+}
+
+/**
+ * Response from GET /api/v1/chunks/:id/lineage (OODA-08).
+ * Lightweight chunk lineage with parent document refs.
+ * @implements F3 - Every chunk contains parent_document_id and position info
+ * @implements F8 - PDF → Document → Chunk → Entity chain traceable
+ */
+export interface ChunkLineageApiResponse {
+  chunk_id: string;
+  document_id: string;
+  document_name?: string;
+  document_type?: string;
+  index: number;
+  start_line?: number;
+  end_line?: number;
+  start_offset?: number;
+  end_offset?: number;
+  token_count: number;
+  content_preview: string;
+  entity_count: number;
+  relationship_count: number;
+  entity_names: string[];
+  document_metadata?: Record<string, unknown>;
 }

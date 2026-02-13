@@ -677,6 +677,10 @@ If you encounter:
 
 ---
 
+Ensure there is e2e test for metadata for each SDK.
+
+I use playwrigth to test metadata display in WebUI. I will check that all metadata fields are displayed correctly and that lineage information is accurate.
+
 **Mission Status**: 🟡 READY TO START
 
 **Next Step**: Begin Iteration 01 - OBSERVE current lineage implementation across all files listed in Context section.

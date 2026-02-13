@@ -26,14 +26,24 @@ export function SourceInfoGrid({ document }: SourceInfoGridProps) {
       <InfoRow label="File Name" value={document.file_name || 'N/A'} />
       <InfoRow label="MIME Type" value={document.mime_type || 'Unknown'} mono />
       <InfoRow label="Source Type" value={document.source_type || 'Unknown'} className="capitalize" />
+      {document.document_type && (
+        <InfoRow label="Document Type" value={document.document_type} className="capitalize" />
+      )}
       <InfoRow 
         label="Content Length" 
         value={document.content_length ? `${document.content_length.toLocaleString()} chars` : '-'} 
       />
       <InfoRow 
         label="File Size" 
-        value={document.file_size ? formatFileSize(document.file_size) : '-'} 
+        value={document.file_size ? formatFileSize(document.file_size) : 
+               document.file_size_bytes ? formatFileSize(document.file_size_bytes) : '-'} 
       />
+      {document.page_count && document.page_count > 0 && (
+        <InfoRow label="Pages" value={`${document.page_count}`} />
+      )}
+      {document.sha256_checksum && (
+        <InfoRow label="SHA-256" value={document.sha256_checksum.slice(0, 16) + '...'} mono />
+      )}
       {document.created_at && (
         <InfoRow 
           label="Created At" 

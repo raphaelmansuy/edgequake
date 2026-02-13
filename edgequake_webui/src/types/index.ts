@@ -129,6 +129,19 @@ export interface Document {
   embedding_model?: string;
 
   // ========================================================================
+  // OODA-10: Enhanced Lineage Metadata Fields
+  // ========================================================================
+
+  /** Document type (pdf, markdown, text). @implements F1 */
+  document_type?: string;
+  /** SHA-256 checksum for integrity verification. @implements F2 */
+  sha256_checksum?: string;
+  /** Number of pages (PDF documents only). @implements F2 */
+  page_count?: number;
+  /** File size in bytes (from metadata). @implements F1 */
+  file_size_bytes?: number;
+
+  // ========================================================================
   // SPEC-002: Unified Ingestion Pipeline Fields
   // ========================================================================
 
