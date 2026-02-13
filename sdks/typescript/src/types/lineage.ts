@@ -257,3 +257,66 @@ export type DocumentLineage = DocumentGraphLineageResponse;
 export type ChunkDetail = ChunkDetailResponse;
 /** @deprecated Use EntityProvenanceResponse */
 export type EntityProvenance = EntityProvenanceResponse;
+
+// ============================================================================
+// Document Full Lineage (OODA-15)
+// ============================================================================
+
+/**
+ * Complete document lineage response from `GET /documents/:id/lineage`.
+ *
+ * WHY: Returns persisted DocumentLineage + document metadata in a single call.
+ * This avoids the need for multiple API calls to assemble lineage data.
+ *
+ * @implements F5 — Single API call retrieves complete lineage tree.
+ */
+export interface DocumentFullLineageResponse {
+  /** Document ID. */
+  document_id: string;
+  /** KV-stored document metadata (JSON object). */
+  metadata?: Record<string, unknown>;
+  /** Persisted pipeline lineage data (JSON object). */
+  lineage?: Record<string, unknown>;
+}
+
+/**
+ * Chunk lineage response from `GET /chunks/:id/lineage`.
+ *
+ * WHY: Lightweight chunk lineage with parent document refs and position info,
+ * allowing source traceability without fetching the entire document lineage.
+ *
+ * @implements F3 — Every chunk contains parent_document_id and position info.
+ * @implements F8 — PDF → Document → Chunk → Entity chain traceable.
+ */
+export interface ChunkLineageResponse {
+  /** Chunk ID. */
+  chunk_id: string;
+  /** Parent document ID. */
+  document_id?: string;
+  /** Parent document name. */
+  document_name?: string;
+  /** Document type (pdf, markdown, text). */
+  document_type?: string;
+  /** Chunk index in the document. */
+  index?: number;
+  /** Start line in source document (1-based). */
+  start_line?: number;
+  /** End line in source document (1-based, inclusive). */
+  end_line?: number;
+  /** Start character offset. */
+  start_offset?: number;
+  /** End character offset. */
+  end_offset?: number;
+  /** Token count for this chunk. */
+  token_count?: number;
+  /** First N characters of chunk content. */
+  content_preview?: string;
+  /** Number of entities extracted from this chunk. */
+  entity_count?: number;
+  /** Number of relationships extracted from this chunk. */
+  relationship_count?: number;
+  /** Names of entities found in this chunk. */
+  entity_names?: string[];
+  /** Additional document-level metadata from KV storage. */
+  document_metadata?: Record<string, unknown>;
+}

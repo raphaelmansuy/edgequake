@@ -31,6 +31,7 @@ import type {
   UploadDocumentResponse,
   UploadFileResponse,
 } from "../types/documents.js";
+import type { DocumentFullLineageResponse } from "../types/lineage.js";
 import { Resource } from "./base.js";
 
 /** PDF sub-resource accessed via `client.documents.pdf`. */
@@ -182,5 +183,25 @@ export class DocumentsResource extends Resource {
   /** List failed chunks for a specific document. */
   async listFailedChunks(documentId: string): Promise<FailedChunkInfo[]> {
     return this._get(`/api/v1/documents/${documentId}/failed-chunks`);
+  }
+
+  // ========================================================================
+  // Lineage Methods (OODA-15)
+  // ========================================================================
+
+  /**
+   * Get complete document lineage (persisted pipeline lineage + metadata).
+   * @implements F5 — Single API call retrieves complete lineage tree.
+   */
+  async getLineage(documentId: string): Promise<DocumentFullLineageResponse> {
+    return this._get(`/api/v1/documents/${documentId}/lineage`);
+  }
+
+  /**
+   * Get all document metadata stored in KV storage.
+   * @implements F1 — All document metadata retrievable.
+   */
+  async getMetadata(documentId: string): Promise<Record<string, unknown>> {
+    return this._get(`/api/v1/documents/${documentId}/metadata`);
   }
 }

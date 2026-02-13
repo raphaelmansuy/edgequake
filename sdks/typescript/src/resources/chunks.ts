@@ -9,12 +9,21 @@
  * @see edgequake/crates/edgequake-api/src/handlers/chunks.rs
  */
 
-import type { ChunkDetailResponse } from "../types/lineage.js";
+import type { ChunkDetailResponse, ChunkLineageResponse } from "../types/lineage.js";
 import { Resource } from "./base.js";
 
 export class ChunksResource extends Resource {
   /** Get chunk details by ID. */
   async get(chunkId: string): Promise<ChunkDetailResponse> {
     return this._get(`/api/v1/chunks/${chunkId}`);
+  }
+
+  /**
+   * Get chunk lineage with parent document refs and position info.
+   * @implements F3 — Every chunk contains parent_document_id and position info.
+   * @implements F8 — PDF → Document → Chunk → Entity chain traceable.
+   */
+  async getLineage(chunkId: string): Promise<ChunkLineageResponse> {
+    return this._get(`/api/v1/chunks/${chunkId}/lineage`);
   }
 }
