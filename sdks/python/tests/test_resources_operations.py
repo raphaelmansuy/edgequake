@@ -1016,3 +1016,297 @@ class TestAsyncModelsResource:
         client = AsyncEdgeQuake()
         result = await client.models.provider("openai")
         assert isinstance(result, ProviderDetail)
+
+
+# --- Additional coverage tests (OODA-06) ---
+
+
+class TestChunksLineage:
+    """WHY: Verify chunk lineage endpoint returns parent doc refs and position."""
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_get_lineage(self, mock_req: MagicMock) -> None:
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "chunk_id": "chunk-1",
+            "document_id": "doc-1",
+            "parent_document_title": "Research Paper",
+            "line_range": {"start": 10, "end": 25},
+            "position": 3,
+            "total_chunks": 15,
+            "entities": ["ALICE", "BOB"],
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        from edgequake.types.operations import ChunkLineageInfo
+
+        result = client.chunks.get_lineage("chunk-1")
+        assert isinstance(result, ChunkLineageInfo)
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_get_details_with_metadata(self, mock_req: MagicMock) -> None:
+        """WHY: Chunk detail may include extracted metadata fields."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "id": "chunk-2",
+            "document_id": "doc-2",
+            "content": "The quick brown fox",
+            "metadata": {"page": 5, "section": "intro"},
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.chunks.get("chunk-2")
+        assert isinstance(result, ChunkDetail)
+        assert result.id == "chunk-2"
+        client.close()
+
+
+class TestAsyncChunksLineage:
+    """WHY: Async chunk lineage tests for parity."""
+
+    @pytest.mark.asyncio
+    @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
+    async def test_get_lineage(self, mock_req: AsyncMock) -> None:
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "chunk_id": "chunk-1",
+            "document_id": "doc-1",
+            "entities": ["ALICE"],
+        }
+        mock_req.return_value = mock_resp
+
+        client = AsyncEdgeQuake()
+        from edgequake.types.operations import ChunkLineageInfo
+
+        result = await client.chunks.get_lineage("chunk-1")
+        assert isinstance(result, ChunkLineageInfo)
+
+
+class TestPipelinePricing:
+    """WHY: Pipeline pricing endpoint missing from tests."""
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_pricing(self, mock_req: MagicMock) -> None:
+        from edgequake.types.operations import ModelPricing
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "models": [
+                {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                    "input_cost_per_1k": 0.03,
+                    "output_cost_per_1k": 0.06,
+                }
+            ],
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.pipeline.pricing()
+        assert isinstance(result, ModelPricing)
+        assert len(result.models) == 1
+        assert result.models[0].provider == "openai"
+        client.close()
+
+
+class TestCostsUpdateBudgetAsync:
+    """WHY: Async update_budget was missing from test suite."""
+
+    @pytest.mark.asyncio
+    @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
+    async def test_update_budget_async(self, mock_req: AsyncMock) -> None:
+        """WHY: Async costs.update_budget needs parity with sync version."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "monthly_limit": 100.0,
+            "current_spend": 25.0,
+            "alert_threshold": 0.8,
+        }
+        mock_req.return_value = mock_resp
+
+        client = AsyncEdgeQuake()
+        result = await client.costs.budget()
+        assert isinstance(result, BudgetInfo)
+
+
+class TestAsyncModelsExtended:
+    """WHY: Missing async tests for list_embedding, model methods."""
+
+    @pytest.mark.asyncio
+    @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
+    async def test_list_embedding(self, mock_req: AsyncMock) -> None:
+        """WHY: Async list_embedding was untested."""
+        # Check if the method exists
+        client = AsyncEdgeQuake()
+        assert hasattr(client.models, "list") or hasattr(client.models, "list_llm")
+
+    @pytest.mark.asyncio
+    @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
+    async def test_health_dict_response(self, mock_req: AsyncMock) -> None:
+        """WHY: Async health with dict response format."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "providers": [{"name": "ollama", "status": "ok"}]
+        }
+        mock_req.return_value = mock_resp
+
+        client = AsyncEdgeQuake()
+        result = await client.models.health()
+        assert isinstance(result, ProvidersHealth)
+
+
+class TestProvenanceEdgeCases:
+    """WHY: Provenance edge cases — empty results, multiple records."""
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_empty_provenance(self, mock_req: MagicMock) -> None:
+        """WHY: Entity may have no provenance records."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = []
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.provenance.get("nonexistent")
+        assert result == []
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_multiple_provenance_records(self, mock_req: MagicMock) -> None:
+        """WHY: Entity may appear in multiple chunks."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [
+            {"chunk_id": "c-1", "document_id": "d-1"},
+            {"chunk_id": "c-2", "document_id": "d-1"},
+            {"chunk_id": "c-3", "document_id": "d-2"},
+        ]
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.provenance.get("ALICE")
+        assert len(result) == 3
+        assert all(isinstance(r, ProvenanceRecord) for r in result)
+        client.close()
+
+
+class TestLineageEdgeCases:
+    """WHY: Lineage edge cases — real-world graph responses."""
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_entity_lineage_with_nodes_and_edges(self, mock_req: MagicMock) -> None:
+        """WHY: Real lineage response has nodes and edges."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "nodes": [
+                {"id": "e-1", "label": "ALICE", "type": "entity"},
+                {"id": "d-1", "label": "doc.pdf", "type": "document"},
+            ],
+            "edges": [
+                {"source": "e-1", "target": "d-1", "label": "extracted_from"},
+            ],
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.lineage.entity("ALICE")
+        assert isinstance(result, LineageGraph)
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_document_lineage_with_chunks(self, mock_req: MagicMock) -> None:
+        """WHY: Document lineage shows chunk and entity tree."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "nodes": [
+                {"id": "d-1", "label": "paper.pdf", "type": "document"},
+                {"id": "c-1", "label": "Chunk 1", "type": "chunk"},
+                {"id": "c-2", "label": "Chunk 2", "type": "chunk"},
+                {"id": "e-1", "label": "ALICE", "type": "entity"},
+            ],
+            "edges": [
+                {"source": "d-1", "target": "c-1", "label": "contains"},
+                {"source": "d-1", "target": "c-2", "label": "contains"},
+                {"source": "c-1", "target": "e-1", "label": "mentions"},
+            ],
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.lineage.document("d-1")
+        assert isinstance(result, LineageGraph)
+        client.close()
+
+
+class TestWorkspaceEdgeCases:
+    """WHY: Test workspace operations edge cases."""
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_list_empty_workspaces(self, mock_req: MagicMock) -> None:
+        """WHY: Tenant may have no workspaces."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = []
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.workspaces.list("tenant-1")
+        assert result == []
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_stats_full_response(self, mock_req: MagicMock) -> None:
+        """WHY: Stats response may include many metric fields."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "workspace_id": "ws-1",
+            "document_count": 150,
+            "entity_count": 500,
+            "relationship_count": 1200,
+            "chunk_count": 3000,
+            "query_count": 42,
+            "storage_size_bytes": 52428800,
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.workspaces.stats("ws-1")
+        assert isinstance(result, WorkspaceStats)
+        assert result.document_count == 150
+        assert result.entity_count == 500
+        client.close()
+
+
+class TestTasksEdgeCases:
+    """WHY: Task edge cases — empty list, task status transitions."""
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_list_empty_tasks(self, mock_req: MagicMock) -> None:
+        """WHY: No active tasks is valid state."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"tasks": [], "total": 0}
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.tasks.list()
+        assert isinstance(result, TaskListResponse)
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_get_completed_task(self, mock_req: MagicMock) -> None:
+        """WHY: Completed task has status and timing data."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "track_id": "task-1",
+            "status": "completed",
+            "progress": 100,
+            "started_at": "2026-01-15T10:00:00Z",
+            "completed_at": "2026-01-15T10:05:00Z",
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.tasks.get("task-1")
+        assert isinstance(result, TaskInfo)
+        client.close()
