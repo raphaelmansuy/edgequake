@@ -2133,3 +2133,226 @@ func TestConversations_Unpin_Error(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+// ── Lineage & Metadata Model Tests ──────────────────────────────────
+// WHY: The improve-lineage mission requires source_id, metadata,
+// and provenance fields to be properly tested across all SDKs.
+
+func TestEntity_SourceID_Field(t *testing.T) {
+	e := edgequake.Entity{SourceID: "doc-123", EntityName: "ALICE"}
+	if e.SourceID != "doc-123" {
+		t.Fatalf("expected doc-123, got %s", e.SourceID)
+	}
+}
+
+func TestEntity_Metadata_Field(t *testing.T) {
+	e := edgequake.Entity{
+		EntityName: "BOB",
+		Metadata:   map[string]interface{}{"key": "value"},
+	}
+	if e.Metadata == nil {
+		t.Fatal("expected metadata to be non-nil")
+	}
+}
+
+func TestEntity_Timestamps(t *testing.T) {
+	e := edgequake.Entity{
+		EntityName: "EVE",
+		CreatedAt:  "2025-01-01T00:00:00Z",
+		UpdatedAt:  "2025-01-02T00:00:00Z",
+	}
+	if e.CreatedAt == "" || e.UpdatedAt == "" {
+		t.Fatal("timestamps should not be empty")
+	}
+}
+
+func TestCreateEntityParams_SourceID(t *testing.T) {
+	p := edgequake.CreateEntityParams{
+		EntityName:  "ALICE",
+		EntityType:  "person",
+		Description: "A researcher",
+		SourceID:    "doc-456",
+	}
+	if p.SourceID != "doc-456" {
+		t.Fatalf("expected doc-456, got %s", p.SourceID)
+	}
+}
+
+func TestCreateEntityParams_Metadata(t *testing.T) {
+	p := edgequake.CreateEntityParams{
+		EntityName: "META",
+		SourceID:   "src-1",
+		Metadata:   map[string]interface{}{"confidence": 0.95},
+	}
+	if p.Metadata == nil {
+		t.Fatal("expected metadata")
+	}
+}
+
+func TestProvenanceRecord_Fields(t *testing.T) {
+	conf := 0.92
+	pr := edgequake.ProvenanceRecord{
+		EntityID:         "ent-1",
+		EntityName:       "ALICE",
+		DocumentID:       "doc-1",
+		ChunkID:          "chunk-7",
+		ExtractionMethod: "llm",
+		Confidence:       &conf,
+	}
+	if pr.DocumentID != "doc-1" {
+		t.Fatalf("expected doc-1, got %s", pr.DocumentID)
+	}
+	if *pr.Confidence != 0.92 {
+		t.Fatalf("expected 0.92, got %f", *pr.Confidence)
+	}
+}
+
+func TestLineageGraph_Structure(t *testing.T) {
+	lg := edgequake.LineageGraph{
+		Nodes: []edgequake.LineageNode{
+			{ID: "n1", Name: "ALICE", NodeType: "person"},
+			{ID: "n2", Name: "BOB", NodeType: "person"},
+		},
+		Edges: []edgequake.LineageEdge{
+			{Source: "n1", Target: "n2", Relationship: "KNOWS"},
+		},
+	}
+	if len(lg.Nodes) != 2 {
+		t.Fatalf("expected 2 nodes, got %d", len(lg.Nodes))
+	}
+	if lg.Edges[0].Relationship != "KNOWS" {
+		t.Fatalf("expected KNOWS, got %s", lg.Edges[0].Relationship)
+	}
+}
+
+func TestLineageNode_Fields(t *testing.T) {
+	n := edgequake.LineageNode{ID: "n1", Name: "ALICE", NodeType: "person"}
+	if n.NodeType != "person" {
+		t.Fatalf("expected person, got %s", n.NodeType)
+	}
+}
+
+func TestLineageEdge_Fields(t *testing.T) {
+	e := edgequake.LineageEdge{Source: "A", Target: "B", Relationship: "COLLAB"}
+	if e.Source != "A" || e.Target != "B" {
+		t.Fatal("source/target mismatch")
+	}
+}
+
+func TestEntity_JSON_SourceID_Roundtrip(t *testing.T) {
+	e := edgequake.Entity{
+		EntityName: "ALICE",
+		SourceID:   "doc-rt-1",
+		Metadata:   map[string]interface{}{"origin": "test"},
+	}
+	data, err := json.Marshal(e)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var e2 edgequake.Entity
+	if err := json.Unmarshal(data, &e2); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if e2.SourceID != "doc-rt-1" {
+		t.Fatalf("expected doc-rt-1, got %s", e2.SourceID)
+	}
+}
+
+func TestProvenanceRecord_JSON_Roundtrip(t *testing.T) {
+	conf := 0.88
+	pr := edgequake.ProvenanceRecord{
+		EntityName: "BOB",
+		DocumentID: "doc-prov-1",
+		Confidence: &conf,
+	}
+	data, err := json.Marshal(pr)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var pr2 edgequake.ProvenanceRecord
+	if err := json.Unmarshal(data, &pr2); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if pr2.DocumentID != "doc-prov-1" {
+		t.Fatalf("expected doc-prov-1, got %s", pr2.DocumentID)
+	}
+}
+
+func TestCreateEntityParams_JSON_Roundtrip(t *testing.T) {
+	p := edgequake.CreateEntityParams{
+		EntityName:  "TEST",
+		EntityType:  "concept",
+		Description: "A test entity",
+		SourceID:    "src-json-1",
+		Metadata:    map[string]interface{}{"key": "val"},
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if !strings.Contains(string(data), "src-json-1") {
+		t.Fatal("JSON should contain source_id")
+	}
+	if !strings.Contains(string(data), "key") {
+		t.Fatal("JSON should contain metadata")
+	}
+}
+
+func TestMergeEntitiesParams_JSON(t *testing.T) {
+	p := edgequake.MergeEntitiesParams{
+		SourceEntity: "ALICE_1",
+		TargetEntity: "ALICE_2",
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if !strings.Contains(string(data), "ALICE_1") || !strings.Contains(string(data), "ALICE_2") {
+		t.Fatal("JSON should contain both entities")
+	}
+}
+
+func TestEntity_Create_SendsSourceID(t *testing.T) {
+	// WHY: Verify that entity creation includes source_id in request body
+	var capturedBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		capturedBody = string(body)
+		w.WriteHeader(200)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	}))
+	defer srv.Close()
+
+	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
+	_, _ = c.Entities.Create(context.Background(), &edgequake.CreateEntityParams{
+		EntityName:  "LINEAGE_TEST",
+		EntityType:  "person",
+		Description: "Testing lineage",
+		SourceID:    "doc-lineage-test",
+	})
+	if !strings.Contains(capturedBody, "doc-lineage-test") {
+		t.Fatalf("request body should contain source_id, got: %s", capturedBody)
+	}
+}
+
+func TestEntity_Neighborhood_Lineage(t *testing.T) {
+	// WHY: Neighborhood is a lineage traversal operation
+	expected := map[string]interface{}{
+		"center": map[string]interface{}{
+			"id": "n1", "entity_name": "ALICE",
+		},
+		"nodes": []interface{}{},
+		"edges": []interface{}{},
+		"depth": float64(2),
+	}
+	srv := mockServer(t, 200, expected)
+	defer srv.Close()
+	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
+	resp, err := c.Entities.Neighborhood(context.Background(), "ALICE", 2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+}
