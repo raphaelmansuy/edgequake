@@ -582,4 +582,116 @@ mod tests {
         assert!(json.contains("Bob"));
         assert!(json.contains("\"shared_documents\":3"));
     }
+
+    // OODA-09: Tests for new lineage fields and types
+
+    #[test]
+    fn test_chunk_detail_start_end_line_serialization() {
+        // Verify start_line/end_line are included when present
+        let response = ChunkDetailResponse {
+            chunk_id: "doc1-chunk-0".to_string(),
+            document_id: "doc1".to_string(),
+            document_name: None,
+            content: "Hello world".to_string(),
+            index: 0,
+            start_line: Some(1),
+            end_line: Some(10),
+            char_range: CharRange { start: 0, end: 11 },
+            token_count: 2,
+            entities: vec![],
+            relationships: vec![],
+            extraction_metadata: None,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"start_line\":1"));
+        assert!(json.contains("\"end_line\":10"));
+    }
+
+    #[test]
+    fn test_chunk_detail_omits_none_lines() {
+        // Verify start_line/end_line are OMITTED when None (backward compat)
+        let response = ChunkDetailResponse {
+            chunk_id: "doc1-chunk-0".to_string(),
+            document_id: "doc1".to_string(),
+            document_name: None,
+            content: "Hello world".to_string(),
+            index: 0,
+            start_line: None,
+            end_line: None,
+            char_range: CharRange { start: 0, end: 11 },
+            token_count: 2,
+            entities: vec![],
+            relationships: vec![],
+            extraction_metadata: None,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(!json.contains("start_line"));
+        assert!(!json.contains("end_line"));
+    }
+
+    #[test]
+    fn test_chunk_lineage_response_serialization() {
+        let response = ChunkLineageResponse {
+            chunk_id: "doc1-chunk-2".to_string(),
+            document_id: "doc1".to_string(),
+            document_name: Some("Test Document".to_string()),
+            document_type: Some("pdf".to_string()),
+            index: 2,
+            start_line: Some(30),
+            end_line: Some(45),
+            start_offset: Some(1024),
+            end_offset: Some(2048),
+            token_count: 150,
+            content_preview: "This is a preview...".to_string(),
+            entity_count: 3,
+            relationship_count: 2,
+            entity_names: vec!["ALICE".to_string(), "BOB".to_string(), "ACME".to_string()],
+            document_metadata: Some(serde_json::json!({"status": "completed"})),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("doc1-chunk-2"));
+        assert!(json.contains("\"document_type\":\"pdf\""));
+        assert!(json.contains("\"start_line\":30"));
+        assert!(json.contains("\"entity_count\":3"));
+        assert!(json.contains("ALICE"));
+        assert!(json.contains("BOB"));
+        assert!(json.contains("ACME"));
+    }
+
+    #[test]
+    fn test_chunk_lineage_response_omits_none_fields() {
+        let response = ChunkLineageResponse {
+            chunk_id: "doc1-chunk-0".to_string(),
+            document_id: "doc1".to_string(),
+            document_name: None,
+            document_type: None,
+            index: 0,
+            start_line: None,
+            end_line: None,
+            start_offset: None,
+            end_offset: None,
+            token_count: 10,
+            content_preview: "Hello".to_string(),
+            entity_count: 0,
+            relationship_count: 0,
+            entity_names: vec![],
+            document_metadata: None,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        // These should be omitted when None
+        assert!(!json.contains("document_name"));
+        assert!(!json.contains("document_type"));
+        assert!(!json.contains("start_line"));
+        assert!(!json.contains("end_line"));
+        assert!(!json.contains("start_offset"));
+        assert!(!json.contains("end_offset"));
+        assert!(!json.contains("document_metadata"));
+        // These should always be present
+        assert!(json.contains("\"chunk_id\":\"doc1-chunk-0\""));
+        assert!(json.contains("\"entity_count\":0"));
+    }
 }
