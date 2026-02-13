@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Lineage Tracking & Metadata (OODA-01 through OODA-25)
+
+#### Core Types
+- Chunk position metadata: `start_line`, `end_line`, `start_offset`, `end_offset` fields (OODA-01)
+- Chunk model tracking: `llm_model`, `embedding_model`, `embedding_dimension` fields (OODA-02)
+- Document lineage metadata: `document_type`, `file_size`, `sha256_checksum`, `pdf_id`, `processed_at` fields (OODA-03)
+- All new fields are `Option<T>` with `serde(default)` for backward compatibility (T5)
+
+#### Pipeline & Storage
+- PDF↔Document bidirectional linking with `pdf_id` in document metadata (OODA-04)
+- Chunk metadata propagation to KV and vector storage (OODA-05)
+- Lineage persistence to KV storage under `{document_id}-lineage` key (OODA-06)
+- Lineage tracking enabled by default (`enable_lineage_tracking = true`)
+
+#### API Endpoints
+- `GET /api/v1/documents/{id}/lineage` — Complete document lineage tree (OODA-07)
+- `GET /api/v1/documents/{id}/metadata` — All metadata in single response (OODA-07)
+- `GET /api/v1/chunks/{id}/lineage` — Chunk lineage with parent refs (OODA-08)
+- `GET /api/v1/documents/{id}/lineage/export?format=json|csv` — Download lineage as file (OODA-22)
+- In-memory TTL cache (120s, 500 entries max) for lineage queries (OODA-23)
+- OpenAPI/utoipa annotations for all new endpoints
+
+#### WebUI
+- TypeScript types for full lineage responses (OODA-10)
+- React Query hooks: `useDocumentFullLineage`, `useDocumentMetadata` (OODA-11)
+- Enhanced metadata component with KV storage fields (OODA-12)
+- Document hierarchy tree: Document → Chunks → Entities (OODA-13)
+- Lineage export buttons (JSON/CSV download) in metadata sidebar (OODA-24)
+
+#### SDKs
+- **Rust SDK**: `documents().get_lineage()`, `get_metadata()`, `chunks().get_lineage()` (OODA-14)
+- **TypeScript SDK**: `documents.getLineage()`, `getMetadata()`, `chunks.getLineage()` (OODA-15)
+- **Python SDK**: Same methods on sync and async resource classes (OODA-16)
+- E2E tests for lineage/metadata in all 3 SDKs (OODA-21)
+
+#### Documentation
+- `docs/architecture/lineage-tracking.md` — Complete lineage architecture (~280 lines) (OODA-17)
+- `docs/api-reference/lineage-endpoints.md` — API reference for 7 endpoints (~360 lines) (OODA-18)
+- `docs/tutorials/tracing-entity-sources.md` — Step-by-step tracing tutorial (~230 lines) (OODA-19)
+- `docs/operations/metadata-debugging.md` — Diagnostics & repair guide (~260 lines) (OODA-20)
+
+### Migration Notes
+
+All changes are **additive and backward compatible**:
+- New fields use `Option<T>` with `serde(default)` — old documents read fine
+- New API endpoints don't change existing ones
+- Lineage/metadata KV keys (`{id}-lineage`, `{id}-metadata`) only populated for newly processed documents
+- Existing documents continue to work; lineage data appears after reprocessing
+
 ## [v0.2.2] - 2026-02-13
 
 ### Changed
