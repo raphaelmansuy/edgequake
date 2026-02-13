@@ -747,3 +747,233 @@ class TestResourceAccessFromClient:
         assert client.query is client.query
         assert client.graph is client.graph
         client.close()
+
+
+# --- OODA-07: Additional document & lineage tests ---
+
+
+class TestAsyncDocumentLineage:
+    """WHY: Async lineage methods need test parity with sync versions."""
+
+    @pytest.mark.asyncio
+    @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
+    async def test_get_lineage(self, mock_req: AsyncMock) -> None:
+        """WHY: Async get_lineage must return DocumentFullLineage."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "document_id": "doc-1",
+            "chunks": [
+                {
+                    "chunk_id": "c-1",
+                    "content": "text",
+                    "entities": ["ALICE"],
+                    "line_range": {"start": 1, "end": 10},
+                }
+            ],
+            "entities": [
+                {
+                    "name": "ALICE",
+                    "type": "PERSON",
+                    "description": "A researcher",
+                }
+            ],
+        }
+        mock_req.return_value = mock_resp
+
+        client = AsyncEdgeQuake()
+        result = await client.documents.get_lineage("doc-1")
+        from edgequake.types.operations import DocumentFullLineage
+
+        assert isinstance(result, DocumentFullLineage)
+
+    @pytest.mark.asyncio
+    @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
+    async def test_get_metadata(self, mock_req: AsyncMock) -> None:
+        """WHY: Async get_metadata returns arbitrary dict."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "author": "Dr. Smith",
+            "category": "research",
+            "tags": ["AI", "NLP"],
+        }
+        mock_req.return_value = mock_resp
+
+        client = AsyncEdgeQuake()
+        result = await client.documents.get_metadata("doc-1")
+        assert isinstance(result, dict)
+        assert result["author"] == "Dr. Smith"
+        assert "tags" in result
+
+    @pytest.mark.asyncio
+    @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
+    async def test_export_lineage_json(self, mock_req: AsyncMock) -> None:
+        """WHY: Async export_lineage JSON format."""
+        mock_resp = MagicMock()
+        mock_resp.content = b'{"document_id": "doc-1", "entities": []}'
+        mock_req.return_value = mock_resp
+
+        client = AsyncEdgeQuake()
+        result = await client.documents.export_lineage("doc-1", format="json")
+        assert isinstance(result, bytes)
+
+    @pytest.mark.asyncio
+    @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
+    async def test_export_lineage_csv(self, mock_req: AsyncMock) -> None:
+        """WHY: Async export_lineage CSV format."""
+        mock_resp = MagicMock()
+        mock_resp.content = b"entity,type,source\nALICE,PERSON,doc-1"
+        mock_req.return_value = mock_resp
+
+        client = AsyncEdgeQuake()
+        result = await client.documents.export_lineage("doc-1", format="csv")
+        assert isinstance(result, bytes)
+        assert b"ALICE" in result
+
+
+class TestDocumentMetadataEdgeCases:
+    """WHY: Document metadata edge cases for custom key-value pairs."""
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_upload_with_metadata(self, mock_req: MagicMock) -> None:
+        """WHY: Verify custom metadata dict is passed in upload body."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "document_id": "doc-new",
+            "status": "processing",
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        client.documents.upload(
+            content="Test doc content",
+            title="Test Doc",
+            metadata={
+                "author": "John Doe",
+                "tags": ["AI", "knowledge-graph"],
+                "source_url": "https://example.com",
+            },
+        )
+        body = mock_req.call_args[1]["json"]
+        assert body["metadata"]["author"] == "John Doe"
+        assert "tags" in body["metadata"]
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_metadata_empty_dict(self, mock_req: MagicMock) -> None:
+        """WHY: Empty metadata dict should not cause errors."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {}
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.get_metadata("doc-empty")
+        assert isinstance(result, dict)
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_metadata_nested_values(self, mock_req: MagicMock) -> None:
+        """WHY: Metadata may contain nested dicts and arrays."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "author": "Jane",
+            "nested": {"level1": {"level2": "deep"}},
+            "array_field": [1, 2, 3],
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.get_metadata("doc-nested")
+        assert result["nested"]["level1"]["level2"] == "deep"
+        assert result["array_field"] == [1, 2, 3]
+        client.close()
+
+
+class TestDocumentEdgeCases:
+    """WHY: Documents edge cases — empty lists, large payloads, error states."""
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_list_empty_documents(self, mock_req: MagicMock) -> None:
+        """WHY: Empty documents list is valid state."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"documents": [], "total": 0}
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.list()
+        assert result.documents == []
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_delete_all_returns_count(self, mock_req: MagicMock) -> None:
+        """WHY: Delete all returns count of deleted documents."""
+        from edgequake.types.documents import DeleteAllResponse
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"deleted_count": 42}
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.delete_all()
+        assert isinstance(result, DeleteAllResponse)
+        assert result.deleted_count == 42
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_failed_chunks_empty_list(self, mock_req: MagicMock) -> None:
+        """WHY: No failed chunks is a good state — empty list expected."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = []
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.failed_chunks("doc-healthy")
+        assert result == []
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_deletion_impact_with_entities(self, mock_req: MagicMock) -> None:
+        """WHY: Deletion impact analysis shows what would be affected."""
+        from edgequake.types.documents import DeletionImpactResponse
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "document_id": "doc-1",
+            "affected_entities": 15,
+            "affected_relationships": 30,
+            "orphaned_entities": 3,
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.deletion_impact("doc-1")
+        assert isinstance(result, DeletionImpactResponse)
+        client.close()
+
+
+class TestPdfEdgeCases:
+    """WHY: PDF resource edge cases."""
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_download_returns_bytes(self, mock_req: MagicMock) -> None:
+        """WHY: PDF download must return raw bytes."""
+        mock_resp = MagicMock()
+        mock_resp.content = b"%PDF-1.4 fake pdf content"
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.pdf.download("pdf-1")
+        assert isinstance(result, bytes)
+        assert result.startswith(b"%PDF")
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_list_empty_pdfs(self, mock_req: MagicMock) -> None:
+        """WHY: No uploaded PDFs returns empty list."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = []
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.pdf.list()
+        assert result == []
+        client.close()
