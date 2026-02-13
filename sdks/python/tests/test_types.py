@@ -82,22 +82,27 @@ class TestChatTypes:
         assert m.role == "user"
 
     def test_chat_completion_request(self) -> None:
-        r = ChatCompletionRequest(messages=[ChatMessage(role="user", content="Hi")])
-        assert len(r.messages) == 1
+        r = ChatCompletionRequest(message="Hi")
+        assert r.message == "Hi"
 
     def test_chat_completion_response(self) -> None:
         r = ChatCompletionResponse(
-            id="chat-1",
-            choices=[
-                ChatChoice(
-                    index=0,
-                    message=ChatMessage(role="assistant", content="Hi!"),
-                    finish_reason="stop",
-                )
-            ],
-            usage=ChatUsage(prompt_tokens=5, completion_tokens=3, total_tokens=8),
+            conversation_id="conv-1",
+            content="Hi there!",
         )
-        assert r.choices[0].message.content == "Hi!"
+        assert r.content == "Hi there!"
+
+    def test_chat_choice(self) -> None:
+        c = ChatChoice(
+            index=0,
+            message=ChatMessage(role="assistant", content="Hi!"),
+            finish_reason="stop",
+        )
+        assert c.message.content == "Hi!"
+
+    def test_chat_usage(self) -> None:
+        u = ChatUsage(prompt_tokens=5, completion_tokens=3, total_tokens=8)
+        assert u.total_tokens == 8
 
 
 class TestGraphTypes:

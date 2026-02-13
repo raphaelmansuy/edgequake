@@ -205,46 +205,30 @@ class TestChatResource:
     def test_complete(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "id": "chat-1",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": "Hello! How can I help?",
-                    },
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 8,
-                "total_tokens": 18,
-            },
+            "conversation_id": "conv-1",
+            "content": "Hello! How can I help?",
+            "sources": [],
         }
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
-        result = client.chat.complete(messages=[{"role": "user", "content": "Hello"}])
+        result = client.chat.complete(message="Hello")
         assert isinstance(result, ChatCompletionResponse)
-        assert result.choices[0].message.content == "Hello! How can I help?"
-        assert result.usage.total_tokens == 18
+        assert result.content == "Hello! How can I help?"
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
     def test_complete_with_all_params(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "id": "chat-2",
-            "choices": [
-                {"index": 0, "message": {"role": "assistant", "content": "ok"}}
-            ],
+            "conversation_id": "conv-2",
+            "content": "ok",
         }
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
         client.chat.complete(
-            messages=[ChatMessage(role="user", content="Hi")],
+            message="Hi",
             model="gpt-4",
             temperature=0.5,
             max_tokens=100,
@@ -264,26 +248,19 @@ class TestChatResource:
 
     @patch("edgequake._transport.SyncTransport.request")
     def test_complete_with_pydantic_messages(self, mock_req: MagicMock) -> None:
+        """WHY: Test that message string is correctly passed to API."""
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "id": "chat-3",
-            "choices": [
-                {"index": 0, "message": {"role": "assistant", "content": "ok"}}
-            ],
+            "conversation_id": "conv-3",
+            "content": "ok",
         }
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
-        client.chat.complete(
-            messages=[
-                ChatMessage(role="system", content="Be helpful"),
-                ChatMessage(role="user", content="Hello"),
-            ],
-        )
+        client.chat.complete(message="Hello, be helpful")
         body = mock_req.call_args[1]["json"]
-        assert len(body["messages"]) == 2
-        assert body["messages"][0]["role"] == "system"
-        assert body["messages"][1]["role"] == "user"
+        assert body["message"] == "Hello, be helpful"
+        assert body["stream"] is False
         client.close()
 
     @patch("edgequake._transport.SyncTransport.stream")
@@ -293,7 +270,7 @@ class TestChatResource:
 
         client = EdgeQuake()
         result = client.chat.stream(
-            messages=[{"role": "user", "content": "Hello"}],
+            message="Hello",
             model="gpt-4",
             temperature=0.9,
             max_tokens=200,
@@ -316,7 +293,7 @@ class TestChatResource:
         mock_stream.return_value = mock_resp
 
         client = EdgeQuake()
-        result = client.chat.stream(messages=[{"role": "user", "content": "Hi"}])
+        result = client.chat.stream(message="Hi")
         assert isinstance(result, SSEStream)
         body = mock_stream.call_args[1]["json"]
         assert "provider" not in body
@@ -327,18 +304,15 @@ class TestChatResource:
     def test_complete_with_sources_and_stats(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "id": "chat-4",
-            "choices": [
-                {"index": 0, "message": {"role": "assistant", "content": "ok"}}
-            ],
+            "conversation_id": "conv-x",
+            "content": "ok",
             "sources": [{"document_id": "doc-1", "score": 0.9}],
             "stats": {"total_time_ms": 300},
-            "conversation_id": "conv-x",
         }
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
-        result = client.chat.complete(messages=[{"role": "user", "content": "test"}])
+        result = client.chat.complete(message="test")
         assert result.sources is not None
         assert len(result.sources) == 1
         assert result.stats.total_time_ms == 300
@@ -354,40 +328,30 @@ class TestAsyncChatResource:
     async def test_complete(self, mock_req: AsyncMock) -> None:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "id": "chat-async-1",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": "Hi async!"},
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+            "conversation_id": "conv-async-1",
+            "content": "Hi async!",
+            "sources": [],
         }
         mock_req.return_value = mock_resp
 
         client = AsyncEdgeQuake()
-        result = await client.chat.complete(
-            messages=[{"role": "user", "content": "Hello"}]
-        )
+        result = await client.chat.complete(message="Hello")
         assert isinstance(result, ChatCompletionResponse)
-        assert result.choices[0].message.content == "Hi async!"
+        assert result.content == "Hi async!"
 
     @pytest.mark.asyncio
     @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
     async def test_complete_with_all_params(self, mock_req: AsyncMock) -> None:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "id": "chat-async-2",
-            "choices": [
-                {"index": 0, "message": {"role": "assistant", "content": "ok"}}
-            ],
+            "conversation_id": "conv-async-2",
+            "content": "ok",
         }
         mock_req.return_value = mock_resp
 
         client = AsyncEdgeQuake()
         await client.chat.complete(
-            messages=[ChatMessage(role="user", content="hi")],
+            message="hi",
             model="gpt-4",
             temperature=0.3,
             max_tokens=50,
@@ -407,7 +371,7 @@ class TestAsyncChatResource:
 
         client = AsyncEdgeQuake()
         result = await client.chat.stream(
-            messages=[{"role": "user", "content": "Hello"}],
+            message="Hello",
             provider="ollama",
         )
         assert isinstance(result, AsyncSSEStream)
