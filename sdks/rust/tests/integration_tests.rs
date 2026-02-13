@@ -982,4 +982,264 @@ mod tests {
         assert_eq!(e2.entity_name, "ALICE");
         assert_eq!(e2.degree, Some(5));
     }
+
+    // ── Lineage & Metadata Tests ─────────────────────────────────────
+    // WHY: The improve-lineage mission requires source_id, metadata,
+    // and provenance fields to be properly tested across all SDKs.
+
+    #[test]
+    fn test_entity_source_id_field() {
+        let e = types::graph::Entity {
+            id: "ent-1".into(),
+            entity_name: "ALICE".into(),
+            entity_type: Some("person".into()),
+            description: None,
+            source_id: Some("doc-123".into()),
+            properties: None,
+            degree: None,
+            created_at: None,
+            updated_at: None,
+            metadata: None,
+        };
+        assert_eq!(e.source_id, Some("doc-123".to_string()));
+    }
+
+    #[test]
+    fn test_entity_metadata_field() {
+        let meta = json!({"key": "value", "confidence": 0.95});
+        let e = types::graph::Entity {
+            id: "ent-2".into(),
+            entity_name: "BOB".into(),
+            entity_type: None,
+            description: None,
+            source_id: None,
+            properties: None,
+            degree: None,
+            created_at: None,
+            updated_at: None,
+            metadata: Some(meta.clone()),
+        };
+        assert_eq!(e.metadata.unwrap()["key"], "value");
+    }
+
+    #[test]
+    fn test_entity_timestamps() {
+        let e = types::graph::Entity {
+            id: "ent-3".into(),
+            entity_name: "EVE".into(),
+            entity_type: None,
+            description: None,
+            source_id: None,
+            properties: None,
+            degree: None,
+            created_at: Some("2025-01-01T00:00:00Z".into()),
+            updated_at: Some("2025-01-02T00:00:00Z".into()),
+            metadata: None,
+        };
+        assert!(e.created_at.is_some());
+        assert!(e.updated_at.is_some());
+    }
+
+    #[test]
+    fn test_create_entity_request_source_id() {
+        let req = types::graph::CreateEntityRequest {
+            entity_name: "ALICE".into(),
+            entity_type: "person".into(),
+            description: "A researcher".into(),
+            source_id: "doc-456".into(),
+            metadata: None,
+        };
+        assert_eq!(req.source_id, "doc-456");
+    }
+
+    #[test]
+    fn test_create_entity_request_with_metadata() {
+        let meta = json!({"origin": "test", "confidence": 0.9});
+        let req = types::graph::CreateEntityRequest {
+            entity_name: "META_ENTITY".into(),
+            entity_type: "concept".into(),
+            description: "With metadata".into(),
+            source_id: "src-m".into(),
+            metadata: Some(meta),
+        };
+        let json_str = serde_json::to_string(&req).unwrap();
+        assert!(json_str.contains("src-m"));
+        assert!(json_str.contains("origin"));
+    }
+
+    #[test]
+    fn test_entity_source_id_json_roundtrip() {
+        let e = types::graph::Entity {
+            id: "ent-rt".into(),
+            entity_name: "ROUNDTRIP".into(),
+            entity_type: Some("test".into()),
+            description: None,
+            source_id: Some("doc-rt-1".into()),
+            properties: None,
+            degree: None,
+            created_at: None,
+            updated_at: None,
+            metadata: Some(json!({"origin": "test"})),
+        };
+        let json_str = serde_json::to_string(&e).unwrap();
+        let e2: types::graph::Entity = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(e2.source_id, Some("doc-rt-1".to_string()));
+        assert_eq!(e2.metadata.unwrap()["origin"], "test");
+    }
+
+    #[test]
+    fn test_provenance_record_fields() {
+        let json = r#"{
+            "entity_id": "ent-1",
+            "entity_name": "ALICE",
+            "document_id": "doc-1",
+            "chunk_id": "chunk-7",
+            "extraction_method": "llm",
+            "confidence": 0.92
+        }"#;
+        let pr: types::operations::ProvenanceRecord = serde_json::from_str(json).unwrap();
+        assert_eq!(pr.document_id, Some("doc-1".to_string()));
+        assert_eq!(pr.confidence, Some(0.92));
+        assert_eq!(pr.extraction_method, Some("llm".to_string()));
+    }
+
+    #[test]
+    fn test_lineage_graph_structure() {
+        let json = r#"{
+            "nodes": [
+                {"id": "n1", "name": "ALICE", "node_type": "person"},
+                {"id": "n2", "name": "BOB", "node_type": "person"}
+            ],
+            "edges": [
+                {"source": "n1", "target": "n2", "relationship": "KNOWS"}
+            ]
+        }"#;
+        let lg: types::operations::LineageGraph = serde_json::from_str(json).unwrap();
+        assert_eq!(lg.nodes.len(), 2);
+        assert_eq!(lg.edges[0].relationship, Some("KNOWS".to_string()));
+    }
+
+    #[test]
+    fn test_lineage_node_fields() {
+        let json = r#"{"id": "n1", "name": "ALICE", "node_type": "person"}"#;
+        let n: types::operations::LineageNode = serde_json::from_str(json).unwrap();
+        assert_eq!(n.id, "n1");
+        assert_eq!(n.node_type, Some("person".to_string()));
+    }
+
+    #[test]
+    fn test_lineage_edge_fields() {
+        let json = r#"{"source": "A", "target": "B", "relationship": "COLLAB"}"#;
+        let e: types::operations::LineageEdge = serde_json::from_str(json).unwrap();
+        assert_eq!(e.source, "A");
+        assert_eq!(e.relationship, Some("COLLAB".to_string()));
+    }
+
+    #[test]
+    fn test_document_full_lineage() {
+        let json = r#"{
+            "document_id": "doc-1",
+            "metadata": {"title": "Test Doc"},
+            "lineage": {"entities": 5, "relationships": 3}
+        }"#;
+        let dfl: types::operations::DocumentFullLineage = serde_json::from_str(json).unwrap();
+        assert_eq!(dfl.document_id, "doc-1");
+        assert!(dfl.metadata.is_some());
+        assert!(dfl.lineage.is_some());
+    }
+
+    #[test]
+    fn test_chunk_lineage_info() {
+        let json = r#"{
+            "chunk_id": "chunk-1",
+            "document_id": "doc-1",
+            "document_name": "test.pdf",
+            "index": 3,
+            "start_line": 10,
+            "end_line": 20,
+            "entity_count": 5,
+            "relationship_count": 2,
+            "entity_names": ["ALICE", "BOB"]
+        }"#;
+        let cli: types::operations::ChunkLineageInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(cli.chunk_id, "chunk-1");
+        assert_eq!(cli.document_id, Some("doc-1".to_string()));
+        assert_eq!(cli.entity_count, Some(5));
+        assert_eq!(cli.entity_names.len(), 2);
+    }
+
+    #[test]
+    fn test_entity_statistics() {
+        let json = r#"{
+            "total_relationships": 10,
+            "outgoing_count": 6,
+            "incoming_count": 4,
+            "document_references": 3
+        }"#;
+        let stats: types::graph::EntityStatistics = serde_json::from_str(json).unwrap();
+        assert_eq!(stats.total_relationships, 10);
+        assert_eq!(stats.document_references, 3);
+    }
+
+    #[tokio::test]
+    async fn test_entity_create_sends_source_id() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/graph/entities"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "status": "success",
+                "message": "created"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let req = types::graph::CreateEntityRequest {
+            entity_name: "LINEAGE_TEST".into(),
+            entity_type: "person".into(),
+            description: "Testing lineage".into(),
+            source_id: "doc-lineage-test".into(),
+            metadata: Some(json!({"test": true})),
+        };
+        let result = client.entities().create(&req).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_lineage_via_provenance_service() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path_regex(r"/api/v1/entities/.+/lineage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "nodes": [{"id": "n1", "name": "ALICE"}],
+                "edges": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let result = client.provenance().lineage("ALICE").await;
+        assert!(result.is_ok());
+        let graph = result.unwrap();
+        assert_eq!(graph.nodes.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_provenance_for_entity_with_confidence() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path_regex(r"/api/v1/entities/.+/provenance"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"entity_id": "e1", "document_id": "doc-1", "confidence": 0.9}
+            ])))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let result = client.provenance().for_entity("ALICE").await;
+        assert!(result.is_ok());
+        let records = result.unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].confidence, Some(0.9));
+    }
 }
