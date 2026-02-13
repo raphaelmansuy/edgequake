@@ -1111,4 +1111,269 @@ class UnitTest {
         assertEquals(5.0, c.totalCost)
         assertEquals(10, c.documentCount)
     }
+
+    // ── LineageService Endpoint Tests ────────────────────────────────
+
+    @Test
+    fun `lineageService entityLineage hits correct endpoint`() {
+        fake.respondWith("""{"entity_name":"ALICE","entity_type":"PERSON","source_documents":[],"source_count":0,"description_versions":[]}""")
+        val svc = LineageService(http)
+        val res = svc.entityLineage("ALICE")
+        assertEquals("ALICE", res.entityName)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/lineage/entities/ALICE"))
+    }
+
+    @Test
+    fun `lineageService entityLineage URL-encodes special chars`() {
+        fake.respondWith("""{"entity_name":"HELLO WORLD","source_count":0}""")
+        val svc = LineageService(http)
+        svc.entityLineage("HELLO WORLD")
+        assertTrue(fake.lastRequest().uri.contains("HELLO+WORLD") || fake.lastRequest().uri.contains("HELLO%20WORLD"))
+    }
+
+    @Test
+    fun `lineageService documentLineage hits correct endpoint`() {
+        fake.respondWith("""{"document_id":"doc-1","chunk_count":5,"entities":[],"relationships":[],"extraction_stats":{"total_entities":10,"unique_entities":5,"total_relationships":8,"unique_relationships":4}}""")
+        val svc = LineageService(http)
+        val res = svc.documentLineage("doc-1")
+        assertEquals("doc-1", res.documentId)
+        assertEquals(5, res.chunkCount)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/lineage/documents/doc-1"))
+    }
+
+    @Test
+    fun `lineageService documentFullLineage hits correct endpoint`() {
+        fake.respondWith("""{"document_id":"doc-1","metadata":{"title":"Test"},"lineage":{"entities_extracted":15}}""")
+        val svc = LineageService(http)
+        val res = svc.documentFullLineage("doc-1")
+        assertEquals("doc-1", res.documentId)
+        assertNotNull(res.metadata)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/documents/doc-1/lineage"))
+    }
+
+    @Test
+    fun `lineageService exportLineage json format`() {
+        fake.respondWith("""{"format":"json","data":[]}""")
+        val svc = LineageService(http)
+        val res = svc.exportLineage("doc-1", "json")
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/documents/doc-1/lineage/export?format=json"))
+        assertEquals("json", res["format"])
+    }
+
+    @Test
+    fun `lineageService exportLineage csv format`() {
+        fake.respondWith("""{"format":"csv","data":""}""")
+        val svc = LineageService(http)
+        val res = svc.exportLineage("doc-1", "csv")
+        assertTrue(fake.lastRequest().uri.contains("format=csv"))
+    }
+
+    @Test
+    fun `lineageService chunkDetail hits correct endpoint`() {
+        fake.respondWith("""{"chunk_id":"c1","document_id":"d1","content":"text","index":0,"char_range":{"start":0,"end":4},"token_count":1,"entities":[],"relationships":[]}""")
+        val svc = LineageService(http)
+        val res = svc.chunkDetail("c1")
+        assertEquals("c1", res.chunkId)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/chunks/c1"))
+    }
+
+    @Test
+    fun `lineageService chunkLineage hits correct endpoint`() {
+        fake.respondWith("""{"chunk_id":"c1","document_id":"d1","index":3,"start_line":42,"end_line":60}""")
+        val svc = LineageService(http)
+        val res = svc.chunkLineage("c1")
+        assertEquals("c1", res.chunkId)
+        assertEquals(42, res.startLine)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/chunks/c1/lineage"))
+    }
+
+    @Test
+    fun `lineageService entityProvenance hits correct endpoint`() {
+        fake.respondWith("""{"entity_id":"e1","entity_name":"ALICE","entity_type":"PERSON","sources":[],"total_extraction_count":5,"related_entities":[]}""")
+        val svc = LineageService(http)
+        val res = svc.entityProvenance("e1")
+        assertEquals("ALICE", res.entityName)
+        assertEquals(5, res.totalExtractionCount)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/entities/e1/provenance"))
+    }
+
+    // ── LineageModels Unit Tests ─────────────────────────────────────
+
+    @Test
+    fun `EntityLineageResponse fields`() {
+        val r = EntityLineageResponse(entityName = "BOB", entityType = "PERSON", sourceCount = 3)
+        assertEquals("BOB", r.entityName)
+        assertEquals("PERSON", r.entityType)
+        assertEquals(3, r.sourceCount)
+    }
+
+    @Test
+    fun `SourceDocumentInfo fields`() {
+        val s = SourceDocumentInfo(documentId = "d1", chunkIds = listOf("c1", "c2"), lineRanges = listOf(LineRangeInfo(1, 10)))
+        assertEquals("d1", s.documentId)
+        assertEquals(2, s.chunkIds?.size)
+        assertEquals(1, s.lineRanges?.size)
+    }
+
+    @Test
+    fun `LineRangeInfo fields`() {
+        val lr = LineRangeInfo(startLine = 10, endLine = 20)
+        assertEquals(10, lr.startLine)
+        assertEquals(20, lr.endLine)
+    }
+
+    @Test
+    fun `DescriptionVersionResponse fields`() {
+        val dv = DescriptionVersionResponse(version = 2, description = "Updated", sourceChunkId = "c1", createdAt = "2026-01-01T00:00:00Z")
+        assertEquals(2, dv.version)
+        assertEquals("Updated", dv.description)
+        assertEquals("c1", dv.sourceChunkId)
+    }
+
+    @Test
+    fun `DocumentGraphLineageResponse fields`() {
+        val d = DocumentGraphLineageResponse(documentId = "d1", chunkCount = 10, entities = emptyList(), relationships = emptyList())
+        assertEquals("d1", d.documentId)
+        assertEquals(10, d.chunkCount)
+        assertTrue(d.entities!!.isEmpty())
+    }
+
+    @Test
+    fun `EntitySummaryResponse fields`() {
+        val e = EntitySummaryResponse(name = "ALICE", entityType = "PERSON", sourceChunks = listOf("c1"), isShared = true)
+        assertEquals("ALICE", e.name)
+        assertTrue(e.isShared == true)
+    }
+
+    @Test
+    fun `RelationshipSummaryResponse fields`() {
+        val r = RelationshipSummaryResponse(source = "A", target = "B", keywords = "KNOWS", sourceChunks = listOf("c1"))
+        assertEquals("A", r.source)
+        assertEquals("B", r.target)
+        assertEquals("KNOWS", r.keywords)
+    }
+
+    @Test
+    fun `ExtractionStatsResponse fields`() {
+        val s = ExtractionStatsResponse(totalEntities = 10, uniqueEntities = 5, totalRelationships = 8, uniqueRelationships = 4, processingTimeMs = 1500)
+        assertEquals(10, s.totalEntities)
+        assertEquals(1500, s.processingTimeMs)
+    }
+
+    @Test
+    fun `ChunkDetailResponse fields`() {
+        val c = ChunkDetailResponse(chunkId = "c1", documentId = "d1", content = "text", index = 0, tokenCount = 10)
+        assertEquals("c1", c.chunkId)
+        assertEquals(10, c.tokenCount)
+    }
+
+    @Test
+    fun `CharRange fields`() {
+        val cr = CharRange(start = 0, end = 100)
+        assertEquals(0, cr.start)
+        assertEquals(100, cr.end)
+    }
+
+    @Test
+    fun `ExtractedEntityInfo fields`() {
+        val e = ExtractedEntityInfo(id = "e1", name = "ALICE", entityType = "PERSON", description = "A researcher")
+        assertEquals("e1", e.id)
+        assertEquals("A researcher", e.description)
+    }
+
+    @Test
+    fun `ExtractedRelationshipInfo fields`() {
+        val r = ExtractedRelationshipInfo(sourceName = "A", targetName = "B", relationType = "KNOWS")
+        assertEquals("A", r.sourceName)
+        assertEquals("B", r.targetName)
+    }
+
+    @Test
+    fun `ExtractionMetadataInfo fields`() {
+        val m = ExtractionMetadataInfo(model = "gpt-4o", gleaningIterations = 2, durationMs = 1200, inputTokens = 500, outputTokens = 300, cached = false)
+        assertEquals("gpt-4o", m.model)
+        assertEquals(false, m.cached)
+    }
+
+    @Test
+    fun `EntityProvenanceResponse fields`() {
+        val p = EntityProvenanceResponse(entityId = "e1", entityName = "ALICE", totalExtractionCount = 5)
+        assertEquals("e1", p.entityId)
+        assertEquals(5, p.totalExtractionCount)
+    }
+
+    @Test
+    fun `EntitySourceInfo fields`() {
+        val s = EntitySourceInfo(documentId = "d1", documentName = "Paper.pdf", chunks = emptyList(), firstExtractedAt = "2026-01-01T00:00:00Z")
+        assertEquals("d1", s.documentId)
+        assertNotNull(s.firstExtractedAt)
+    }
+
+    @Test
+    fun `ChunkSourceInfo fields`() {
+        val cs = ChunkSourceInfo(chunkId = "c1", startLine = 10, endLine = 15, sourceText = "Alice...")
+        assertEquals("c1", cs.chunkId)
+        assertEquals("Alice...", cs.sourceText)
+    }
+
+    @Test
+    fun `RelatedEntityInfo fields`() {
+        val rel = RelatedEntityInfo(entityId = "e2", entityName = "BOB", relationshipType = "KNOWS", sharedDocuments = 3)
+        assertEquals(3, rel.sharedDocuments)
+    }
+
+    @Test
+    fun `DocumentFullLineageResponse fields`() {
+        val fl = DocumentFullLineageResponse(documentId = "d1", metadata = mapOf("title" to "Test"), lineage = mapOf("pipeline" to "v1"))
+        assertEquals("d1", fl.documentId)
+        assertEquals("Test", fl.metadata?.get("title"))
+    }
+
+    @Test
+    fun `ChunkLineageResponse fields`() {
+        val cl = ChunkLineageResponse(chunkId = "c1", documentId = "d1", documentName = "test.pdf", documentType = "pdf", index = 3, startLine = 42, endLine = 60, tokenCount = 150, entityCount = 3, entityNames = listOf("ALICE", "BOB"))
+        assertEquals("c1", cl.chunkId)
+        assertEquals(3, cl.entityCount)
+        assertEquals(listOf("ALICE", "BOB"), cl.entityNames)
+    }
+
+    // ── Lineage Edge Cases ──────────────────────────────────────────
+
+    @Test
+    fun `lineageService error handling returns EdgeQuakeException`() {
+        fake.respondWithError(404, """{"error":"Entity not found"}""")
+        val svc = LineageService(http)
+        assertThrows<EdgeQuakeException> { svc.entityLineage("UNKNOWN") }
+    }
+
+    @Test
+    fun `lineageModels null defaults`() {
+        val empty = EntityLineageResponse()
+        assertNull(empty.entityName)
+        assertNull(empty.entityType)
+        assertNull(empty.sourceDocuments)
+        assertNull(empty.sourceCount)
+        assertNull(empty.descriptionVersions)
+    }
+
+    @Test
+    fun `chunkLineageResponse minimal construction`() {
+        val cl = ChunkLineageResponse(chunkId = "c1")
+        assertNull(cl.documentId)
+        assertNull(cl.entityCount)
+        assertNull(cl.entityNames)
+    }
+
+    @Test
+    fun `entityProvenance with empty sources and related`() {
+        val p = EntityProvenanceResponse(entityId = "e1", sources = emptyList(), relatedEntities = emptyList())
+        assertTrue(p.sources!!.isEmpty())
+        assertTrue(p.relatedEntities!!.isEmpty())
+    }
+
+    @Test
+    fun `lineageService accessible from EdgeQuakeClient`() {
+        val client = EdgeQuakeClient(EdgeQuakeConfig(baseUrl = "http://test:8080"))
+        assertNotNull(client.lineage)
+    }
 }
