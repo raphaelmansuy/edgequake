@@ -19,6 +19,8 @@ public class EdgeQuakeClient
     public CostService Costs { get; }
     public ConversationService Conversations { get; }
     public FolderService Folders { get; }
+    /// <summary>WHY: Lineage service added in OODA-24 for entity/document/chunk provenance.</summary>
+    public LineageService Lineage { get; }
 
     public EdgeQuakeClient(EdgeQuakeConfig? config = null)
     {
@@ -41,5 +43,6 @@ public class EdgeQuakeClient
         Costs = new CostService(http);
         Conversations = new ConversationService(http);
         Folders = new FolderService(http);
+        Lineage = new LineageService(http);
     }
 }

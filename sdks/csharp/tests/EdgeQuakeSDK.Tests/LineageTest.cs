@@ -789,13 +789,13 @@ public class LineageTest
     // ── Client Service Count ───────────────────────────────────────
 
     [Fact]
-    public void Client_Has16Services()
+    public void Client_Has17Services()
     {
         var client = new EdgeQuakeClient();
         var props = typeof(EdgeQuakeClient).GetProperties();
-        // 16 services: Health, Documents, Entities, Relationships, Graph, Query,
+        // 17 services: Health, Documents, Entities, Relationships, Graph, Query,
         // Chat, Tenants, Users, ApiKeys, Tasks, Pipeline, Models, Costs,
-        // Conversations, Folders
-        Assert.Equal(16, props.Length);
+        // Conversations, Folders, Lineage
+        Assert.Equal(17, props.Length);
     }
 }
