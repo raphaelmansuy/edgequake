@@ -24,7 +24,9 @@
 //! - **BR0542**: Extraction metadata must include version info
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
+    http::{header, StatusCode},
+    response::IntoResponse,
     Json,
 };
 
@@ -756,6 +758,169 @@ pub async fn get_document_metadata(
     Ok(Json(metadata))
 }
 
+// ============================================================================
+// Lineage Export Endpoint (OODA-22)
+// ============================================================================
+
+/// Query parameters for lineage export.
+#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+pub struct ExportParams {
+    /// Export format: "json" (default) or "csv".
+    #[serde(default = "default_format")]
+    pub format: String,
+}
+
+fn default_format() -> String {
+    "json".to_string()
+}
+
+/// Export complete document lineage as JSON or CSV file.
+///
+/// OODA-22: Returns lineage data as a downloadable file with proper
+/// Content-Disposition headers. CSV format flattens the hierarchical
+/// lineage into a table with one row per chunk.
+///
+/// @implements F5: Single API call retrieves complete document lineage tree
+#[utoipa::path(
+    get,
+    path = "/api/v1/documents/{document_id}/lineage/export",
+    tag = "Lineage",
+    params(
+        ("document_id" = String, Path, description = "Document ID to export lineage for"),
+        ExportParams,
+    ),
+    responses(
+        (status = 200, description = "Lineage export file (JSON or CSV)"),
+        (status = 404, description = "Document or lineage not found")
+    )
+)]
+pub async fn export_document_lineage(
+    State(state): State<AppState>,
+    Path(document_id): Path<String>,
+    Query(params): Query<ExportParams>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Read persisted lineage from KV storage
+    let lineage_key = format!("{}-lineage", document_id);
+    let lineage_data = state
+        .kv_storage
+        .get_by_id(&lineage_key)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound(format!(
+                "Lineage for document '{}' not found.",
+                document_id
+            ))
+        })?;
+
+    // Read metadata for context
+    let metadata_key = format!("{}-metadata", document_id);
+    let metadata = state
+        .kv_storage
+        .get_by_id(&metadata_key)
+        .await?
+        .unwrap_or(serde_json::json!({"id": document_id}));
+
+    let combined = serde_json::json!({
+        "document_id": document_id,
+        "metadata": metadata,
+        "lineage": lineage_data,
+    });
+
+    match params.format.as_str() {
+        "csv" => {
+            // WHY: CSV flattens hierarchical lineage into a chunk-per-row table.
+            // This is useful for spreadsheet analysis and data pipeline ingestion.
+            let csv_content = lineage_to_csv(&document_id, &lineage_data);
+            let filename = format!("{}-lineage.csv", document_id);
+            Ok((
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        format!("attachment; filename=\"{}\"", filename),
+                    ),
+                ],
+                csv_content,
+            ))
+        }
+        _ => {
+            // Default: JSON export
+            let json_content =
+                serde_json::to_string_pretty(&combined).unwrap_or_else(|_| "{}".to_string());
+            let filename = format!("{}-lineage.json", document_id);
+            Ok((
+                StatusCode::OK,
+                [
+                    (
+                        header::CONTENT_TYPE,
+                        "application/json; charset=utf-8".to_string(),
+                    ),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        format!("attachment; filename=\"{}\"", filename),
+                    ),
+                ],
+                json_content,
+            ))
+        }
+    }
+}
+
+/// Convert lineage data to CSV format.
+///
+/// WHY: Flattens the document → chunks hierarchy into a tabular format
+/// with one row per chunk, suitable for spreadsheets and data analysis.
+fn lineage_to_csv(document_id: &str, lineage: &serde_json::Value) -> String {
+    let mut csv = String::new();
+    csv.push_str(
+        "document_id,chunk_index,content_preview,tokens,start_line,end_line,entity_count\n",
+    );
+
+    if let Some(chunks) = lineage.get("chunks").and_then(|c| c.as_array()) {
+        for chunk in chunks {
+            let index = chunk
+                .get("chunk_index")
+                .or_else(|| chunk.get("index"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let content = chunk
+                .get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let preview = if content.len() > 100 {
+                &content[..100]
+            } else {
+                content
+            };
+            // WHY: Escape CSV fields — wrap in quotes and double any internal quotes
+            let escaped_preview = preview.replace('"', "\"\"").replace('\n', " ");
+            let tokens = chunk.get("tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+            let start_line = chunk
+                .get("start_line")
+                .and_then(|v| v.as_u64())
+                .map(|v| v.to_string())
+                .unwrap_or_default();
+            let end_line = chunk
+                .get("end_line")
+                .and_then(|v| v.as_u64())
+                .map(|v| v.to_string())
+                .unwrap_or_default();
+            let entity_count = chunk
+                .get("entity_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+
+            csv.push_str(&format!(
+                "{},{},\"{}\",{},{},{},{}\n",
+                document_id, index, escaped_preview, tokens, start_line, end_line, entity_count
+            ));
+        }
+    }
+
+    csv
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -850,5 +1015,80 @@ mod tests {
         let json = serde_json::to_string(&version).unwrap();
         assert!(json.contains("\"version\":1"));
         assert!(json.contains("Initial description"));
+    }
+
+    // OODA-22: Export tests
+    #[test]
+    fn test_lineage_to_csv_basic() {
+        let lineage = serde_json::json!({
+            "chunks": [
+                {
+                    "chunk_index": 0,
+                    "content": "Hello world",
+                    "tokens": 2,
+                    "start_line": 1,
+                    "end_line": 5,
+                    "entity_count": 3
+                },
+                {
+                    "chunk_index": 1,
+                    "content": "Second chunk",
+                    "tokens": 4,
+                    "start_line": 6,
+                    "end_line": 10,
+                    "entity_count": 1
+                }
+            ]
+        });
+        let csv = lineage_to_csv("doc-001", &lineage);
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 3); // header + 2 rows
+        assert!(lines[0].starts_with("document_id,chunk_index"));
+        assert!(lines[1].contains("doc-001"));
+        assert!(lines[1].contains("Hello world"));
+        assert!(lines[2].contains("Second chunk"));
+    }
+
+    #[test]
+    fn test_lineage_to_csv_empty_chunks() {
+        let lineage = serde_json::json!({ "chunks": [] });
+        let csv = lineage_to_csv("doc-empty", &lineage);
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 1); // header only
+    }
+
+    #[test]
+    fn test_lineage_to_csv_no_chunks_key() {
+        let lineage = serde_json::json!({ "metadata": {} });
+        let csv = lineage_to_csv("doc-no-chunks", &lineage);
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 1); // header only
+    }
+
+    #[test]
+    fn test_lineage_to_csv_escapes_quotes() {
+        let lineage = serde_json::json!({
+            "chunks": [{
+                "chunk_index": 0,
+                "content": "He said \"hello\" to her",
+                "tokens": 5,
+                "entity_count": 0
+            }]
+        });
+        let csv = lineage_to_csv("doc-esc", &lineage);
+        // Escaped quotes should be doubled inside CSV field
+        assert!(csv.contains("\"\"hello\"\""));
+    }
+
+    #[test]
+    fn test_export_params_default_format() {
+        let params: ExportParams = serde_json::from_str("{}").unwrap();
+        assert_eq!(params.format, "json");
+    }
+
+    #[test]
+    fn test_export_params_csv_format() {
+        let params: ExportParams = serde_json::from_str(r#"{"format":"csv"}"#).unwrap();
+        assert_eq!(params.format, "csv");
     }
 }

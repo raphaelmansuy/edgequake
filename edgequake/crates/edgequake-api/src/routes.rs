@@ -272,6 +272,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/documents/{document_id}/metadata",
             get(handlers::get_document_metadata),
         )
+        // OODA-22: Lineage export endpoint (JSON/CSV download)
+        .route(
+            "/documents/{document_id}/lineage/export",
+            get(handlers::export_document_lineage),
+        )
         // Document by ID - comes last because {document_id} matches any path segment
         .route("/documents/{document_id}", get(handlers::get_document))
         .route(
