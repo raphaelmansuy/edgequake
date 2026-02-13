@@ -1,0 +1,1312 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Generate test PDFs",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data && python3 generate_simple_pdfs.py"
+		},
+		{
+			"label": "Build edgequake-pdf",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && cargo build --package edgequake-pdf 2>&1 | tail -50"
+		},
+		{
+			"label": "Validate Loop 20 Fix",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 validate_loop20.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run PDF Tests",
+			"type": "shell",
+			"command": "cd edgequake && cargo test --package edgequake-pdf --lib --bins --tests -- --nocapture 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run PDF Integration Tests",
+			"type": "shell",
+			"command": "cd edgequake && cargo test --package edgequake-pdf integration_tests -- --nocapture 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run PDF Integration Tests Full",
+			"type": "shell",
+			"command": "cd edgequake && cargo test --package edgequake-pdf --test integration_tests -- --nocapture 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run All PDF Tests",
+			"type": "shell",
+			"command": "cd edgequake && cargo test --package edgequake-pdf -- --nocapture 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run Comprehensive PDF Test Suite",
+			"type": "shell",
+			"command": "cd edgequake/crates/edgequake-pdf/test-data && bash test_all.sh 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run Full PDF Evaluation",
+			"type": "shell",
+			"command": "cd edgequake/crates/edgequake-pdf/test-data && bash run_full_evaluation.sh 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run Comprehensive Evaluation Test",
+			"type": "shell",
+			"command": "cd edgequake && cargo test --package edgequake-pdf --test comprehensive_evaluation -- --ignored --nocapture 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run Character Fidelity Test",
+			"type": "shell",
+			"command": "cd edgequake && cargo test --package edgequake-pdf --test character_fidelity_test -- --nocapture 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Test All Numbered PDFs",
+			"type": "shell",
+			"command": "cd edgequake && for pdf in crates/edgequake-pdf/test-data/[0-9][0-9][0-9]_*.pdf; do echo \"Testing: $pdf\"; cargo run --release --bin edgequake-pdf -- info -i \"$pdf\" 2>&1 | head -5 || echo \"Failed: $pdf\"; done 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Build PDF Binary",
+			"type": "shell",
+			"command": "cd edgequake/crates/edgequake-pdf && cargo build --release --bin edgequake-pdf 2>&1 | tail -20 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Test PDF Info Sample",
+			"type": "shell",
+			"command": "cd edgequake && ./target/release/edgequake-pdf info -i crates/edgequake-pdf/test-data/001_simple_text.pdf 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Test PDF Conversion Sample",
+			"type": "shell",
+			"command": "cd edgequake && ./target/release/edgequake-pdf convert -i crates/edgequake-pdf/test-data/001_simple_text.pdf -o /tmp/test_001.md && echo '--- EXTRACTED ---' && cat /tmp/test_001.md && echo '' && echo '--- GOLD ---' && cat crates/edgequake-pdf/test-data/001_simple_text.gold.md 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run All PDF Tests Python",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 test_all_pdfs.py 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Show Test Report",
+			"type": "shell",
+			"command": "cat /tmp/pdf_test_results/test_report.json 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Analyze Test Results",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 -c \"import json; data = json.load(open('/tmp/pdf_test_results/test_report.json')); results = sorted(data['results'], key=lambda x: x.get('score', 0), reverse=True); print('\\n📊 Top 10 Results:'); [print(f'{i+1}. {r[\\\"name\\\"]}: {r.get(\\\"score\\\", 0):.1f}%') for i, r in enumerate(results[:10])]; print('\\n📉 Bottom 10 Results:'); [print(f'{i+1}. {r[\\\"name\\\"]}: {r.get(\\\"score\\\", 0):.1f}%') for i, r in enumerate(results[-10:])]\" 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Show Top Results",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 -c \"import json; data = json.load(open('/tmp/pdf_test_results/test_report.json')); results = sorted(data['results'], key=lambda x: x.get('score', 0), reverse=True); print('\\nTop 15 Results:'); [print(f'{i+1:2d}. {r[\\\"name\\\"]:<40s} {r.get(\\\"score\\\", 0):6.1f}%') for i, r in enumerate(results[:15])]\" 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Test Real PDFs",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 test_real_pdfs.py 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Generate Test Report",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 generate_test_report.py 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Show Summary",
+			"type": "shell",
+			"command": "cat << 'EOF'\n\n╔════════════════════════════════════════════════════════════╗\n║     EdgeQuake PDF Extraction Test Results Summary         ║\n╚════════════════════════════════════════════════════════════╝\n\n📊 OVERALL STATISTICS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  Total PDFs Tested:        44\n  Successful Extractions:   42 (95.5%)\n  Failed Extractions:       2  (4.5%)\n\n📋 SYNTHETIC DATASET (39 PDFs)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  Success Rate:             37/39 (94.9%)\n  Average Similarity:       35.2%\n  \n  Top Performer:            006_multi_column_layout (98.4%)\n  Worst Performer:          11 tests with 0% (edge cases)\n\n📚 REAL-WORLD DATASET (5 Academic Papers)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  Success Rate:             5/5 (100%)\n  Average Similarity:       36.1%\n  \n  Best:                     2900_Goyal_et_al (65.2%, 11 pages)\n  Most Complex:             AlphaEvolve (12.4%, 44 pages)\n\n📈 SCORE DISTRIBUTION\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  Excellent (≥80%):         ████  4 tests\n  Good (60-79%):            ██████  6 tests\n  Acceptable (40-59%):      ███████  7 tests\n  Poor (<40%):              ████████████████████  20 tests\n\n✅ STRENGTHS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  ✓ Multi-column layout extraction (98.4% accuracy)\n  ✓ Nested lists and structured content\n  ✓ Simple to moderate tables\n  ✓ Basic formatting preservation\n  ✓ Large document handling (up to 44 pages)\n\n❌ CRITICAL ISSUES (0% Success)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  ✗ Math formulas (LaTeX/MathML)\n  ✗ Encrypted/password-protected PDFs\n  ✗ Complex Unicode mappings\n  ✗ Rotated text transformations\n  ✗ Overlapping text layers\n  ✗ Vector graphics with text on paths\n\n📁 GENERATED ARTIFACTS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  ✓ PDF_TEST_REPORT.md\n  ✓ /tmp/pdf_test_results/test_report.json\n  ✓ /tmp/pdf_real_dataset_results/real_dataset_report.json\n  ✓ logs/2026-01-03-15-00-pdf-test-suite-execution.md\n  ✓ test_all_pdfs.py (reusable test harness)\n  ✓ test_real_pdfs.py (reusable test harness)\n  ✓ generate_test_report.py (report generator)\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ Test suite execution completed successfully!\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nEOF",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Run PDF Tests",
+			"type": "shell",
+			"command": "cd edgequake && cargo test -p edgequake-pdf 2>&1 | tail -30 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Run Evaluation",
+			"type": "shell",
+			"command": "cd edgequake && cargo run --release -p edgequake-pdf --example real_dataset_eval -- --write 2>&1 | tail -50 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Validate",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 .github/skills/pdf-markdown-validator/scripts/validate.py --pdf-dir edgequake/crates/edgequake-pdf/test-data/real_dataset --gold-dir edgequake/crates/edgequake-pdf/test-data/real_dataset --output-report sessions/improve_pdf/metrics_loop_018.json 2>&1 | tail -50 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Test After Patch",
+			"type": "shell",
+			"command": "cd edgequake && cargo test -p edgequake-pdf 2>&1 | tail -40 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Eval After Patch",
+			"type": "shell",
+			"command": "cd edgequake && cargo run --release -p edgequake-pdf --example real_dataset_eval -- --write 2>&1 | tail -50 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Final Validation",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 .github/skills/pdf-markdown-validator/scripts/validate.py --pdf-dir edgequake/crates/edgequake-pdf/test-data/real_dataset --gold-dir edgequake/crates/edgequake-pdf/test-data/real_dataset --output-report sessions/improve_pdf/metrics_loop_018_final.json 2>&1 | tail -50 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Check Debug Output",
+			"type": "shell",
+			"command": "cd edgequake && RUST_LOG=edgequake_pdf=debug cargo run --release -p edgequake-pdf --example real_dataset_eval -- --write 2>&1 | grep -i 'heading\\|font size' | head -30 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Test With Section Pattern Enabled",
+			"type": "shell",
+			"command": "cd edgequake && cargo test -p edgequake-pdf 2>&1 | tail -30 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Eval With Section Pattern",
+			"type": "shell",
+			"command": "cd edgequake && cargo run --release -p edgequake-pdf --example real_dataset_eval -- --write 2>&1 | tail -30 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Final Validation v2",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 .github/skills/pdf-markdown-validator/scripts/validate.py --pdf-dir edgequake/crates/edgequake-pdf/test-data/real_dataset --gold-dir edgequake/crates/edgequake-pdf/test-data/real_dataset --output-report sessions/improve_pdf/metrics_loop_018_final.json 2>&1 | tail -30 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Loop 18 - Debug Logging",
+			"type": "shell",
+			"command": "cd edgequake && RUST_LOG=edgequake_pdf=debug cargo run --release -p edgequake-pdf --example real_dataset_eval 2>&1 | grep -E '(font size|heading)' | head -50 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Check Generated Markdown",
+			"type": "shell",
+			"command": "head -50 /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data/real_dataset/2900_Goyal_et_al.mdf.gen | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Build edgequake-pdf refactored",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1"
+		},
+		{
+			"label": "Test edgequake-pdf refactored",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | cat"
+		},
+		{
+			"label": "Test real PDFs after refactoring",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 test_real_pdfs.py 2>&1 | cat"
+		},
+		{
+			"label": "Validate PDF quality after refactoring",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 .github/skills/pdf-markdown-validator/scripts/validate.py --pdf-dir edgequake/crates/edgequake-pdf/test-data --gold-dir edgequake/crates/edgequake-pdf/test-data --verbose 2>&1 | cat"
+		},
+		{
+			"label": "Validate full synthetic dataset",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 .github/skills/pdf-markdown-validator/scripts/validate.py --pdf-dir edgequake/crates/edgequake-pdf/test-data-v2 --gold-dir edgequake/crates/edgequake-pdf/test-data-v2 --verbose 2>&1 | cat"
+		},
+		{
+			"label": "Generate markdown for synthetic PDFs",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 test_all_pdfs.py 2>&1 | cat"
+		},
+		{
+			"label": "Final validation with comprehensive metrics",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 .github/skills/pdf-markdown-validator/scripts/validate.py --pdf-dir /tmp/pdf_test_results --gold-dir edgequake/crates/edgequake-pdf/test-data-v2 --verbose 2>&1 | tail -60 | cat"
+		},
+		{
+			"label": "Generate and analyze all synthetic PDFs",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 test_all_pdfs.py 2>&1",
+			"isBackground": false
+		},
+		{
+			"label": "Check git status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git status --short 2>&1 | cat"
+		},
+		{
+			"label": "Check modified files",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff --name-only HEAD 2>&1 | cat"
+		},
+		{
+			"label": "Stage refactoring changes",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add edgequake/crates/edgequake-pdf/src/processors/ edgequake/crates/edgequake-pdf/src/extractor.rs sessions/improve_pdf/ 2>&1 | cat"
+		},
+		{
+			"label": "Commit refactoring",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git commit -m 'refactor(pdf): Extract FontAnalyzer and HeadingClassifier modules for single responsibility' 2>&1 | cat"
+		},
+		{
+			"label": "Build PDF crate",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && cargo build --package edgequake-pdf 2>&1 | head -100",
+			"isBackground": false
+		},
+		{
+			"label": "Build PDF crate v2",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | head -150",
+			"isBackground": false
+		},
+		{
+			"label": "Swap processor files",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/src/processors && mv processor.rs processor_old.rs && mv processor_new.rs processor.rs && echo 'Files swapped'",
+			"isBackground": false
+		},
+		{
+			"label": "Build PDF crate v3",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | head -200",
+			"isBackground": false
+		},
+		{
+			"label": "Get error details",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | grep -A 10 'error\\[E'",
+			"isBackground": false
+		},
+		{
+			"label": "Build PDF crate v4",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | head -100",
+			"isBackground": false
+		},
+		{
+			"label": "Test PDF crate",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | tail -80",
+			"isBackground": false
+		},
+		{
+			"label": "Test results summary",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --no-fail-fast 2>&1 | grep -E '(test result|PASSED|FAILED|running|test.*ok|test.*FAIL)'",
+			"isBackground": false
+		},
+		{
+			"label": "Run lib tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | tail -40",
+			"isBackground": false
+		},
+		{
+			"label": "Run quality validation",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && python3 ../.github/skills/pdf-markdown-validator/scripts/validate.py --pdf-dir crates/edgequake-pdf/test-data --gold-dir crates/edgequake-pdf/test-data 2>&1 | tail -30",
+			"isBackground": false
+		},
+		{
+			"label": "Cleanup and count lines",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/src/processors && rm processor_old.rs && echo 'Removed old processor file' && wc -l *.rs | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "List processor files",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/src/processors && ls -la *.rs | head -20",
+			"isBackground": false
+		},
+		{
+			"label": "Full build check",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | grep -E '(error|warning:.*unused|Compiling)'",
+			"isBackground": false
+		},
+		{
+			"label": "All processor file sizes",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/src/processors && wc -l *.rs | sort -n",
+			"isBackground": false
+		},
+		{
+			"label": "Check git status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git status --short | head -30",
+			"isBackground": false
+		},
+		{
+			"label": "Check modified files",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff --name-only | head -30",
+			"isBackground": false
+		},
+		{
+			"label": "Check processor status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git status edgequake/crates/edgequake-pdf/src/processors/",
+			"isBackground": false
+		},
+		{
+			"label": "Stage processor files",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add edgequake/crates/edgequake-pdf/src/processors/ && git status --short edgequake/crates/edgequake-pdf/src/processors/",
+			"isBackground": false
+		},
+		{
+			"label": "Commit refactoring",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git commit -m 'refactor(pdf): Modularize processors into single-responsibility modules\n\n- Extract table_detection.rs: TableDetectionProcessor, TextTableReconstructionProcessor (~730 lines)\n- Extract text_cleanup.rs: PostProcessor, GarbledTextFilterProcessor, HyphenContinuationProcessor (~670 lines)\n- Extract structure_detection.rs: HeaderDetectionProcessor, CaptionDetectionProcessor, ListDetectionProcessor, CodeBlockDetectionProcessor (~570 lines)\n- Extract layout_processing.rs: LayoutProcessor, BlockMergeProcessor, MarginFilterProcessor, SectionNumberMergeProcessor (~640 lines)\n- Slim processor.rs to core traits: Processor, ProcessorChain, SectionPatternProcessor, StyleDetectionProcessor (~520 lines)\n- Add test_helpers.rs for shared test utilities\n- Update mod.rs with proper module organization and exports\n\nAll 133 tests pass, quality score maintained at 92.7/100.\n\nOriginal processor.rs: 3712 lines (16 processors)\nNew modular structure: 13 focused files averaging ~350 lines each'",
+			"isBackground": false
+		},
+		{
+			"label": "Final test verification",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | grep -E '(test result|passed|failed)'",
+			"isBackground": false
+		},
+		{
+			"label": "Check git status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git status --short 2>&1 | head -30",
+			"isBackground": false
+		},
+		{
+			"label": "Check modified files",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff --name-only 2>&1 | head -20",
+			"isBackground": false
+		},
+		{
+			"label": "Commit sessions and logs",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add sessions/ logs/ && git commit -m 'docs: Add session visualization and task logs' 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run clippy",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E '(warning|error)' | head -40",
+			"isBackground": false
+		},
+		{
+			"label": "Detailed clippy",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E '(-->|warning:)' | head -60",
+			"isBackground": false
+		},
+		{
+			"label": "Clippy on processors",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'processors' | head -30",
+			"isBackground": false
+		},
+		{
+			"label": "Test structure_detection",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && cargo test --package edgequake-pdf structure_detection 2>&1 | cat"
+		},
+		{
+			"label": "Test structure_detection",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf structure_detection 2>&1 | cat"
+		},
+		{
+			"label": "Test structure_detection 2",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf structure_detection 2>&1 | cat"
+		},
+		{
+			"label": "Test layout_processing",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf layout_processing 2>&1 | cat"
+		},
+		{
+			"label": "Clippy for dead code",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf -- -W dead_code -W unused_imports 2>&1 | head -80 | cat"
+		},
+		{
+			"label": "Clippy warnings summary",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep 'warning\\|error' | head -50 | cat"
+		},
+		{
+			"label": "Clippy detailed",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'warning:|-->' | head -40 | cat"
+		},
+		{
+			"label": "Clippy recheck",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'warning:|-->' | head -30 | cat"
+		},
+		{
+			"label": "Find avg_density",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -B2 'avg_density' | cat"
+		},
+		{
+			"label": "Clippy warning count",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -c 'warning' | cat"
+		},
+		{
+			"label": "Build to refresh",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | tail -10 | cat"
+		},
+		{
+			"label": "Build verify",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | tail -5 | cat"
+		},
+		{
+			"label": "Run all tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | tail -40 | cat"
+		},
+		{
+			"label": "Run all tests v2",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf -- --test-threads=1 2>&1 | tail -50 | cat"
+		},
+		{
+			"label": "Test summary",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'test result:|running [0-9]+ test' | cat"
+		},
+		{
+			"label": "Test list",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E '^test |^running' | head -80 | cat"
+		},
+		{
+			"label": "Count passed tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -c 'ok$' | cat"
+		},
+		{
+			"label": "Count ok tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E '\\.\\.\\. ok$' | wc -l | cat"
+		},
+		{
+			"label": "Run validation",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && python3 validate_loop20.py 2>&1 | cat"
+		},
+		{
+			"label": "Clippy strict check",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf -- -D warnings 2>&1 | tail -20 | cat"
+		},
+		{
+			"label": "Count pdf warnings",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'warning.*edgequake-pdf' | wc -l | cat"
+		},
+		{
+			"label": "Git status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git status --short 2>&1 | cat"
+		},
+		{
+			"label": "Git diff names",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff --name-only 2>&1 | cat"
+		},
+		{
+			"label": "Git staged",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff --name-only --cached 2>&1 | cat"
+		},
+		{
+			"label": "Git diff processors",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff edgequake/crates/edgequake-pdf/src/processors/ --name-only 2>&1 | cat"
+		},
+		{
+			"label": "Git diff src",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff --name-only -- edgequake/crates/edgequake-pdf/src/ 2>&1 | cat"
+		},
+		{
+			"label": "Git add changes",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add edgequake/crates/edgequake-pdf/src/backend/sota_backend.rs edgequake/crates/edgequake-pdf/src/backend/lattice.rs edgequake/crates/edgequake-pdf/src/layout/geometric.rs edgequake/crates/edgequake-pdf/src/processors/*.rs edgequake/crates/edgequake-pdf/src/schema/document.rs 2>&1 | cat"
+		},
+		{
+			"label": "Git status short",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git status --short 2>&1 | head -20 | cat"
+		},
+		{
+			"label": "Git staged files",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff --cached --name-only 2>&1 | cat"
+		},
+		{
+			"label": "Add lattice",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add edgequake/crates/edgequake-pdf/src/backend/lattice.rs 2>&1 && git status --short | grep '^M' | head -15 | cat"
+		},
+		{
+			"label": "Check lattice",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff --name-only edgequake/crates/edgequake-pdf/src/backend/lattice.rs 2>&1 | cat"
+		},
+		{
+			"label": "Check lattice staged",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git diff --cached --name-only | grep lattice | cat"
+		},
+		{
+			"label": "Git commit",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git commit -m 'refactor(pdf): Modularize tests, fix clippy warnings, add WHY docs' 2>&1 | cat"
+		},
+		{
+			"label": "Smoke test",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf smoke 2>&1 | tail -20 | cat"
+		},
+		{
+			"label": "Count sota lines",
+			"type": "shell",
+			"command": "wc -l /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/src/backend/sota_backend.rs 2>&1 | cat"
+		},
+		{
+			"label": "Run all tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E '(ok|FAILED|error)' | head -50 | cat"
+		},
+		{
+			"label": "Test results summary",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'test result:' | cat"
+		},
+		{
+			"label": "Count tests per file",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/tests && for f in *.rs; do echo \"$f: $(grep -c '#\\[test\\]' $f 2>/dev/null || echo 0) tests\"; done | cat"
+		},
+		{
+			"label": "Run quality tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf quality_evaluation 2>&1 | tail -40 | cat"
+		},
+		{
+			"label": "Run quality eval",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --test quality_evaluation 2>&1 | tail -50 | cat"
+		},
+		{
+			"label": "Force rebuild quality",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && touch crates/edgequake-pdf/tests/quality_evaluation.rs && cargo test --package edgequake-pdf --test quality_evaluation 2>&1 | tail -60 | cat"
+		},
+		{
+			"label": "Build tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf --tests 2>&1 | tail -30 | cat"
+		},
+		{
+			"label": "Quality test run",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --test quality_evaluation -- --nocapture 2>&1 | tail -70 | cat"
+		},
+		{
+			"label": "Commit quality tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add edgequake/crates/edgequake-pdf/tests/quality_evaluation.rs && git commit -m 'test(pdf): Add unified quality evaluation test suite' 2>&1 | cat"
+		},
+		{
+			"label": "Remove empty tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/tests && rm -f character_fidelity_test.rs pipeline_test.rs quick_evaluation.rs && ls -la *.rs 2>&1 | cat"
+		},
+		{
+			"label": "Remove more empty",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/tests && rm -f full_evaluation_workflow.rs comprehensive_evaluation.rs && ls *.rs 2>&1 | cat"
+		},
+		{
+			"label": "Test summary",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'test result:|running [0-9]+ test' | cat"
+		},
+		{
+			"label": "Count passed",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -c ' ok$' | cat"
+		},
+		{
+			"label": "Count all ok",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E '\\.\\.\\. ok' | wc -l | cat"
+		},
+		{
+			"label": "Git status tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git status --short edgequake/crates/edgequake-pdf/tests/ 2>&1 | cat"
+		},
+		{
+			"label": "Commit test cleanup",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add -A edgequake/crates/edgequake-pdf/tests/ && git commit -m 'test(pdf): Clean empty test files, keep working tests' 2>&1 | cat"
+		},
+		{
+			"label": "Build and test PDF crate",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | tail -50"
+		},
+		{
+			"label": "Build PDF full output",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | cat"
+		},
+		{
+			"label": "Build PDF crate",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | tail -30"
+		},
+		{
+			"label": "Build PDF detailed",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | head -60 | cat"
+		},
+		{
+			"label": "Test PDF crate",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | tail -30 | cat"
+		},
+		{
+			"label": "Test PDF summary",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E '(passed|failed|error|FAILED|ok)' | tail -20 | cat"
+		},
+		{
+			"label": "Count passing tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf -- --test-threads=1 2>&1 | grep -c ' ok$'"
+		},
+		{
+			"label": "Test encodings module",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf encodings 2>&1 | cat"
+		},
+		{
+			"label": "Check file sizes",
+			"type": "shell",
+			"command": "wc -l /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/src/backend/sota_backend.rs /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/src/backend/encodings.rs 2>&1 | cat"
+		},
+		{
+			"label": "Commit encodings extraction",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add -A edgequake/crates/edgequake-pdf/src/backend/ && git commit -m 'refactor(pdf): Extract encodings module from sota_backend (1074 lines -> separate file)' 2>&1 | cat"
+		},
+		{
+			"label": "Check clippy warnings",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'warning:|error:' | head -30 | cat"
+		},
+		{
+			"label": "Clippy with line numbers",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E '(warning:|-->)' | head -50 | cat"
+		},
+		{
+			"label": "Clippy check 2",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E '(warning:|-->)' | head -50 | cat"
+		},
+		{
+			"label": "Clippy final check",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf -- -D warnings 2>&1 | tail -20 | cat"
+		},
+		{
+			"label": "Build PDF only",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | tail -10 | cat"
+		},
+		{
+			"label": "Commit clippy fixes",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add -A edgequake/crates/edgequake-pdf/ && git commit -m 'fix(pdf): Address clippy warnings - use clamp(), remove unnecessary clone/cast' 2>&1 | cat"
+		},
+		{
+			"label": "Check python scripts",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data && head -15 *.py 2>&1 | cat"
+		},
+		{
+			"label": "List python scripts",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data && ls -la *.py 2>&1 | cat"
+		},
+		{
+			"label": "Remove empty script",
+			"type": "shell",
+			"command": "rm /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data/gen_pdfs_inline.py 2>&1 | cat"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E '(test result|error)' | cat"
+		},
+		{
+			"label": "Check failing test",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --test comprehensive_test_data 2>&1 | tail -30 | cat"
+		},
+		{
+			"label": "Get test failure reason",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --test comprehensive_test_data 2>&1 | grep -E '(assertion|panicked|Error|error:)' | head -15 | cat"
+		},
+		{
+			"label": "Get panic details",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --test comprehensive_test_data 2>&1 | grep -A 10 'panicked' | head -20 | cat"
+		},
+		{
+			"label": "Rerun test",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --test comprehensive_test_data 2>&1 | tail -10 | cat"
+		},
+		{
+			"label": "Full test suite",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'test result' | cat"
+		},
+		{
+			"label": "Count passed tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -c 'passed' | cat"
+		},
+		{
+			"label": "Test summary",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf -- --test-threads=1 2>&1 | grep 'test result' | cat"
+		},
+		{
+			"label": "Commit fixes",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add -A edgequake/crates/edgequake-pdf/ && git commit -m 'fix(pdf): Fix clamp() panic when min > max, clean dead_code warnings' 2>&1 | cat"
+		},
+		{
+			"label": "Clean empty dirs",
+			"type": "shell",
+			"command": "find /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data-v2 -type d -empty -delete 2>&1 && ls -la /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data-v2 2>&1 | cat"
+		},
+		{
+			"label": "Commit WHY comments",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add -A edgequake/crates/edgequake-pdf/ && git commit -m 'docs(pdf): Add WHY comments explaining core algorithm decisions' 2>&1 | cat"
+		},
+		{
+			"label": "Count edge case tests",
+			"type": "shell",
+			"command": "grep -c '#\\[test\\]' /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/tests/edge_cases_and_complex.rs 2>&1 | cat"
+		},
+		{
+			"label": "Run full tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'test result' | cat"
+		},
+		{
+			"label": "Test summary",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'passed|failed' | tail -5 | cat"
+		},
+		{
+			"label": "Count backend lines",
+			"type": "shell",
+			"command": "wc -l /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/src/backend/*.rs 2>&1 | cat"
+		},
+		{
+			"label": "Commit cleanup",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add -A edgequake/crates/edgequake-pdf/ && git commit -m 'refactor(pdf): Remove leftover debug statement, clean code' 2>&1 | cat"
+		},
+		{
+			"label": "Run clippy check",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && cargo clippy --package edgequake-pdf 2>&1 | tail -50",
+			"isBackground": false
+		},
+		{
+			"label": "Run clippy",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | tail -50",
+			"isBackground": false
+		},
+		{
+			"label": "Auto-fix clippy",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --fix --lib -p edgequake-pdf --allow-dirty 2>&1 | tail -100",
+			"isBackground": false
+		},
+		{
+			"label": "Check remaining warnings",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E '^warning:|error' | head -30",
+			"isBackground": false
+		},
+		{
+			"label": "Check loop warning",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -A 10 'loop variable'",
+			"isBackground": false
+		},
+		{
+			"label": "Find clamp warnings",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -B 5 'clamp-like'",
+			"isBackground": false
+		},
+		{
+			"label": "Get line numbers",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'src.*rs:[0-9]+' | head -10",
+			"isBackground": false
+		},
+		{
+			"label": "Count warnings",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -c 'warning:'",
+			"isBackground": false
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'test result|running [0-9]+ test'",
+			"isBackground": false
+		},
+		{
+			"label": "View error details",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | head -50",
+			"isBackground": false
+		},
+		{
+			"label": "Build to see error",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --package edgequake-pdf 2>&1 | head -30",
+			"isBackground": false
+		},
+		{
+			"label": "Find error source",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -B 10 'no rules expected'",
+			"isBackground": false
+		},
+		{
+			"label": "Run tests again",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'test result|running [0-9]+ test|passed|failed'",
+			"isBackground": false
+		},
+		{
+			"label": "Find failed tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | grep -E 'FAILED|test.*failed'",
+			"isBackground": false
+		},
+		{
+			"label": "Show test failures",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib -- test_identity_decodes_raw_bytes test_control_characters_replaced --nocapture 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Show identity failure",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib test_identity_decodes_raw_bytes 2>&1 | tail -30",
+			"isBackground": false
+		},
+		{
+			"label": "Run lib tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | grep -E 'test result|passed|failed'",
+			"isBackground": false
+		},
+		{
+			"label": "Check assertion",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib test_identity_odd_bytes_handled -- --nocapture 2>&1 | grep -A 10 'left'",
+			"isBackground": false
+		},
+		{
+			"label": "Get left right",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib test_identity_odd_bytes_handled 2>&1 | grep -E 'left.*right'",
+			"isBackground": false
+		},
+		{
+			"label": "Run lib tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | tail -5",
+			"isBackground": false
+		},
+		{
+			"label": "Full test suite",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'test result' | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "Count test results",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep 'test result' | wc -l",
+			"isBackground": false
+		},
+		{
+			"label": "Sum all passed",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -E 'passed.*failed' | awk '{sum += $4} END {print \"Total passed:\", sum}'",
+			"isBackground": false
+		},
+		{
+			"label": "Git commit",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git add -A && git commit -m 'test(pdf): Add 15 encoding tests, fix clippy loop warning, correct edge_cases doc' 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Check git status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git status --short 2>&1 | head -20",
+			"isBackground": false
+		},
+		{
+			"label": "Check edgequake status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && git status --short 2>&1 | head -20",
+			"isBackground": false
+		},
+		{
+			"label": "Check pdf crate status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git status --short 2>&1 | head -20",
+			"isBackground": false
+		},
+		{
+			"label": "Git diff stat",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git diff --stat 2>&1 | head -20",
+			"isBackground": false
+		},
+		{
+			"label": "Commit pdf changes",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git add src tests && git commit -m 'test(pdf): Add 15 encoding tests, fix clippy loop warning, correct edge_cases doc' 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Show main warnings",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'warning:.*manual_clamp|warning:.*should_implement_trait|warning:.*too_many_arguments|warning:.*doc list' | head -10",
+			"isBackground": false
+		},
+		{
+			"label": "Doc list warning",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -B 5 'doc list item'",
+			"isBackground": false
+		},
+		{
+			"label": "Doc list details",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -A 10 'doc list item'",
+			"isBackground": false
+		},
+		{
+			"label": "Count clippy warnings",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -c 'warning:'",
+			"isBackground": false
+		},
+		{
+			"label": "Find doc issues",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'src.*rs:[0-9]+.*doc_lazy' | head -5",
+			"isBackground": false
+		},
+		{
+			"label": "Find doc issues v2",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -B 3 'doc_lazy_continuation'",
+			"isBackground": false
+		},
+		{
+			"label": "Find doc issues v3",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep 'doc list item without' | head -5",
+			"isBackground": false
+		},
+		{
+			"label": "Clippy output",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | tail -40",
+			"isBackground": false
+		},
+		{
+			"label": "Final clippy count",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'warning.*edgequake-pdf' | tail -5",
+			"isBackground": false
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | tail -8",
+			"isBackground": false
+		},
+		{
+			"label": "Test results",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep 'test result'",
+			"isBackground": false
+		},
+		{
+			"label": "Commit",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git add src && git commit -m 'refactor(pdf): Fix clippy warnings, improve doc comments, add crate-level lint suppression' 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Line count",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && wc -l src/backend/sota_backend.rs",
+			"isBackground": false
+		},
+		{
+			"label": "Quick test",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | tail -3",
+			"isBackground": false
+		},
+		{
+			"label": "Commit docs",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git add src && git commit -m 'docs(pdf): Add function documentation to FontInfo and key methods' 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run lattice tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib lattice 2>&1 | tail -15",
+			"isBackground": false
+		},
+		{
+			"label": "Run lattice tests v2",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib lattice 2>&1 | tail -15",
+			"isBackground": false
+		},
+		{
+			"label": "Debug box test",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib test_simple_box_table_detection -- --nocapture 2>&1 | tail -20",
+			"isBackground": false
+		},
+		{
+			"label": "Run lattice tests v3",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib lattice 2>&1 | tail -5",
+			"isBackground": false
+		},
+		{
+			"label": "Run lattice tests v4",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib lattice 2>&1 | tail -3",
+			"isBackground": false
+		},
+		{
+			"label": "Run all lib tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | tail -3",
+			"isBackground": false
+		},
+		{
+			"label": "Commit tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git add src && git commit -m 'test(pdf): Add 7 lattice engine tests for table detection' 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Run sota tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib sota 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "Full lib tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | tail -3",
+			"isBackground": false
+		},
+		{
+			"label": "Commit",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git add src && git commit -m 'test(pdf): Add 5 dedup/merge tests for SotaBackend' 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Quick test",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | tail -3",
+			"isBackground": false
+		},
+		{
+			"label": "Commit",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git add src && git commit -m 'docs(pdf): Add WHY comments to LatticeEngine detect_tables algorithm' 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Full test run",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep 'test result'",
+			"isBackground": false
+		},
+		{
+			"label": "Count passed tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf 2>&1 | grep -o '[0-9]\\+ passed' | awk '{sum += $1} END {print \"Total tests passed:\", sum}'",
+			"isBackground": false
+		},
+		{
+			"label": "Clippy check",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo clippy --package edgequake-pdf 2>&1 | grep -E 'warning.*edgequake-pdf' | tail -3",
+			"isBackground": false
+		},
+		{
+			"label": "Git log",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git log --oneline -15 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Full git log",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake && git log --oneline -20 | head -20 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Git status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git status --short 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Check src/tests status",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git status --short src tests 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Quick test check",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf --lib 2>&1 | tail -5",
+			"isBackground": false
+		},
+		{
+			"label": "Count gold files",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data && find gold -name '*.md' | wc -l",
+			"isBackground": false
+		},
+		{
+			"label": "Count files per category",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data/gold && for dir in */; do echo \"$dir: $(find \"$dir\" -name '*.md' | wc -l | tr -d ' ')\"; done",
+			"isBackground": false
+		},
+		{
+			"label": "Check basics",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data/gold && ls -la 01-basics/",
+			"isBackground": false
+		},
+		{
+			"label": "Commit protocol",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf && git add TEST_PROTOCOL.md && git commit -m 'docs(pdf): Update TEST_PROTOCOL with accurate counts (120 gold files, 239 tests)' 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Build PDF binary fresh",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --release -p edgequake-pdf --bin edgequake-pdf 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Build with chain tracing",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo build --release -p edgequake-pdf --bin edgequake-pdf 2>&1 | cat",
+			"isBackground": false
+		},
+		{
+			"label": "Force full rebuild",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && rm -f target/release/edgequake-pdf && touch crates/edgequake-pdf/src/processors/processor.rs && cargo build --release -p edgequake-pdf --bin edgequake-pdf 2>&1 && ls -la target/release/edgequake-pdf",
+			"isBackground": false
+		},
+		{
+			"label": "Wait for binary",
+			"type": "shell",
+			"command": "while ! test -f /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/target/release/edgequake-pdf; do sleep 5; done && ls -la /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/target/release/edgequake-pdf",
+			"isBackground": false
+		},
+		{
+			"label": "Rebuild with render logging",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && rm -f target/release/edgequake-pdf && cargo build --release -p edgequake-pdf --bin edgequake-pdf 2>&1 && ls -la target/release/edgequake-pdf",
+			"isBackground": false
+		},
+		{
+			"label": "Rebuild with page tracking",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && rm -f target/release/edgequake-pdf && cargo build --release -p edgequake-pdf --bin edgequake-pdf 2>&1 && ls -la target/release/edgequake-pdf",
+			"isBackground": false
+		},
+		{
+			"label": "Wait for build 2",
+			"type": "shell",
+			"command": "while ! test -f /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/target/release/edgequake-pdf; do sleep 5; done && ls -la /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/target/release/edgequake-pdf",
+			"isBackground": false
+		},
+		{
+			"label": "Run PDF quality tests",
+			"type": "shell",
+			"command": "cd /Users/raphaelmansuy/Github/03-working/edgequake/edgequake && cargo test --package edgequake-pdf -- quality --nocapture",
+			"isBackground": false,
+			"group": "test"
+		}
+	]
+}
