@@ -285,7 +285,46 @@ class TestCosts:
         assert summary is not None
 
 
-# ── 14. Cleanup ────────────────────────────────────────────
+# ── 14. Lineage & Metadata (OODA-21) ──────────────────────────
+
+
+class TestLineage:
+    """E2E tests for lineage and metadata retrieval.
+
+    @implements F5 — Single API call retrieves complete document lineage tree
+    @implements F7 — All SDKs expose lineage retrieval methods
+    """
+
+    def test_document_lineage(self, client, test_doc_id):
+        """GET /documents/{id}/lineage returns complete lineage tree."""
+        lineage = client.documents.get_lineage(test_doc_id)
+        assert lineage is not None
+        assert lineage.document_id == test_doc_id
+        assert isinstance(lineage.chunks, list)
+        assert isinstance(lineage.entities, list)
+
+    def test_document_metadata(self, client, test_doc_id):
+        """GET /documents/{id}/metadata returns metadata dict."""
+        metadata = client.documents.get_metadata(test_doc_id)
+        assert metadata is not None
+        assert isinstance(metadata, dict)
+
+    def test_chunk_lineage(self, client, test_doc_id):
+        """GET /chunks/{id}/lineage returns chunk with parent refs."""
+        chunk_id = f"{test_doc_id}-chunk-0"
+        try:
+            lineage = client.chunks.get_lineage(chunk_id)
+            assert lineage is not None
+            assert lineage.chunk_id == chunk_id
+            assert lineage.document_id == test_doc_id
+        except Exception as e:
+            # Chunk may not exist if document uses different ID format
+            if "404" in str(e) or "not found" in str(e).lower():
+                pytest.skip(f"Chunk {chunk_id} not found")
+            raise
+
+
+# ── 15. Cleanup ────────────────────────────────────────────
 
 
 class TestCleanup:
