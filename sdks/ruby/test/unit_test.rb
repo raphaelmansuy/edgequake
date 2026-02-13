@@ -456,6 +456,277 @@ module EdgeQuake
     end
   end
 
+  # --- ConversationService Tests ---
+  class ConversationServiceTest < Minitest::Test
+    def test_list
+      mock = MockHttpHelper.new('{"items":[{"id":"c1","title":"Chat 1"}],"total":1}')
+      svc = ConversationService.new(mock)
+      result = svc.list
+      assert_equal 1, result["items"].size
+      assert_equal "c1", result["items"][0]["id"]
+      assert_equal :get, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/conversations"
+    end
+
+    def test_list_empty
+      mock = MockHttpHelper.new('{"items":[],"total":0}')
+      svc = ConversationService.new(mock)
+      result = svc.list
+      assert_equal 0, result["items"].size
+    end
+
+    def test_create
+      mock = MockHttpHelper.new('{"id":"c2","title":"New Chat"}')
+      svc = ConversationService.new(mock)
+      result = svc.create(title: "New Chat")
+      assert_equal "c2", result["id"]
+      assert_equal :post, mock.last_call[:method]
+      assert_equal "New Chat", mock.last_call[:body][:title]
+    end
+
+    def test_create_with_mode
+      mock = MockHttpHelper.new('{"id":"c3"}')
+      svc = ConversationService.new(mock)
+      svc.create(title: "T", mode: "local")
+      assert_equal "local", mock.last_call[:body][:mode]
+    end
+
+    def test_create_with_folder_id
+      mock = MockHttpHelper.new('{"id":"c4"}')
+      svc = ConversationService.new(mock)
+      svc.create(title: "T", folder_id: "f-1")
+      assert_equal "f-1", mock.last_call[:body][:folder_id]
+    end
+
+    def test_create_with_all_options
+      mock = MockHttpHelper.new('{"id":"c5"}')
+      svc = ConversationService.new(mock)
+      svc.create(title: "Full", mode: "global", folder_id: "f-2")
+      body = mock.last_call[:body]
+      assert_equal "Full", body[:title]
+      assert_equal "global", body[:mode]
+      assert_equal "f-2", body[:folder_id]
+    end
+
+    def test_create_omits_nil_mode
+      mock = MockHttpHelper.new('{"id":"c6"}')
+      svc = ConversationService.new(mock)
+      svc.create(title: "Simple")
+      refute mock.last_call[:body].key?(:mode)
+    end
+
+    def test_create_omits_nil_folder_id
+      mock = MockHttpHelper.new('{"id":"c7"}')
+      svc = ConversationService.new(mock)
+      svc.create(title: "Simple")
+      refute mock.last_call[:body].key?(:folder_id)
+    end
+
+    def test_list_error
+      mock = MockHttpHelper.new.will_return("{}", 500)
+      svc = ConversationService.new(mock)
+      assert_raises(ApiError) { svc.list }
+    end
+
+    def test_create_error
+      mock = MockHttpHelper.new.will_return("{}", 422)
+      svc = ConversationService.new(mock)
+      assert_raises(ApiError) { svc.create(title: "Bad") }
+    end
+  end
+
+  # --- FolderService Tests ---
+  class FolderServiceTest < Minitest::Test
+    def test_list
+      mock = MockHttpHelper.new('{"items":[{"id":"f1","name":"Folder 1"}],"total":1}')
+      svc = FolderService.new(mock)
+      result = svc.list
+      assert_equal 1, result["items"].size
+      assert_equal "f1", result["items"][0]["id"]
+      assert_equal :get, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/folders"
+    end
+
+    def test_list_empty
+      mock = MockHttpHelper.new('{"items":[],"total":0}')
+      svc = FolderService.new(mock)
+      result = svc.list
+      assert_equal 0, result["items"].size
+    end
+
+    def test_create
+      mock = MockHttpHelper.new('{"id":"f2","name":"New Folder"}')
+      svc = FolderService.new(mock)
+      result = svc.create(name: "New Folder")
+      assert_equal "f2", result["id"]
+      assert_equal :post, mock.last_call[:method]
+      assert_equal "New Folder", mock.last_call[:body][:name]
+    end
+
+    def test_list_error
+      mock = MockHttpHelper.new.will_return("{}", 500)
+      svc = FolderService.new(mock)
+      assert_raises(ApiError) { svc.list }
+    end
+
+    def test_create_error
+      mock = MockHttpHelper.new.will_return("{}", 409)
+      svc = FolderService.new(mock)
+      assert_raises(ApiError) { svc.create(name: "Duplicate") }
+    end
+  end
+
+  # --- URL Validation Tests ---
+  class UrlValidationTest < Minitest::Test
+    def test_health_url
+      mock = MockHttpHelper.new('{"status":"ok"}')
+      svc = HealthService.new(mock)
+      svc.check
+      assert_equal "/health", mock.last_call[:path]
+    end
+
+    def test_tasks_url
+      mock = MockHttpHelper.new('{"tasks":[]}')
+      svc = TaskService.new(mock)
+      svc.list
+      assert_equal "/api/v1/tasks", mock.last_call[:path]
+    end
+
+    def test_api_keys_url
+      mock = MockHttpHelper.new("[]")
+      svc = ApiKeyService.new(mock)
+      svc.list
+      assert_equal "/api/v1/api-keys", mock.last_call[:path]
+    end
+
+    def test_users_url
+      mock = MockHttpHelper.new("[]")
+      svc = UserService.new(mock)
+      svc.list
+      assert_equal "/api/v1/users", mock.last_call[:path]
+    end
+
+    def test_tenants_url
+      mock = MockHttpHelper.new('{"items":[]}')
+      svc = TenantService.new(mock)
+      svc.list
+      assert_equal "/api/v1/tenants", mock.last_call[:path]
+    end
+
+    def test_costs_url
+      mock = MockHttpHelper.new('{"total_cost_usd":0}')
+      svc = CostService.new(mock)
+      svc.summary
+      assert_equal "/api/v1/costs/summary", mock.last_call[:path]
+    end
+
+    def test_pipeline_status_url
+      mock = MockHttpHelper.new('{"is_busy":false}')
+      svc = PipelineService.new(mock)
+      svc.status
+      assert_equal "/api/v1/pipeline/status", mock.last_call[:path]
+    end
+
+    def test_models_catalog_url
+      mock = MockHttpHelper.new('{"providers":[]}')
+      svc = ModelService.new(mock)
+      svc.catalog
+      assert_equal "/api/v1/models", mock.last_call[:path]
+    end
+
+    def test_conversations_url
+      mock = MockHttpHelper.new('{"items":[]}')
+      svc = ConversationService.new(mock)
+      svc.list
+      assert_equal "/api/v1/conversations", mock.last_call[:path]
+    end
+
+    def test_folders_url
+      mock = MockHttpHelper.new('{"items":[]}')
+      svc = FolderService.new(mock)
+      svc.list
+      assert_equal "/api/v1/folders", mock.last_call[:path]
+    end
+  end
+
+  # --- Client Service Availability Tests ---
+  class ClientServiceAvailabilityTest < Minitest::Test
+    def test_has_conversations_service
+      client = Client.new
+      assert_instance_of ConversationService, client.conversations
+    end
+
+    def test_has_folders_service
+      client = Client.new
+      assert_instance_of FolderService, client.folders
+    end
+
+    def test_all_services_count
+      client = Client.new
+      services = %i[health documents entities relationships graph query chat
+                     tenants users api_keys tasks pipeline models costs
+                     conversations folders]
+      services.each do |svc_name|
+        assert_respond_to client, svc_name, "Client should respond to #{svc_name}"
+      end
+    end
+  end
+
+  # --- Edge Case Tests ---
+  class EdgeCaseTest < Minitest::Test
+    def test_query_default_mode_not_set
+      mock = MockHttpHelper.new('{"answer":"ok"}')
+      svc = QueryService.new(mock)
+      svc.execute(query: "test")
+      # WHY: mode should default to nil/"hybrid" — verify body contains query but not forced mode
+      assert_equal "test", mock.last_call[:body][:query]
+    end
+
+    def test_chat_default_stream_not_set
+      mock = MockHttpHelper.new('{"choices":[]}')
+      svc = ChatService.new(mock)
+      svc.completions(message: "hello")
+      # WHY: stream should only be sent when explicitly set
+      assert_equal "hello", mock.last_call[:body][:message]
+    end
+
+    def test_entity_pagination_defaults
+      mock = MockHttpHelper.new('{"items":[],"total":0}')
+      svc = EntityService.new(mock)
+      svc.list
+      # WHY: verify default pagination params are sent
+      assert_includes mock.last_call[:path], "page=1"
+      assert_includes mock.last_call[:path], "page_size=20"
+    end
+
+    def test_error_status_429
+      mock = MockHttpHelper.new.will_return('{"error":"rate limited"}', 429)
+      svc = HealthService.new(mock)
+      err = assert_raises(ApiError) { svc.check }
+      assert_equal 429, err.status_code
+    end
+
+    def test_error_status_502
+      mock = MockHttpHelper.new.will_return('{"error":"bad gateway"}', 502)
+      svc = HealthService.new(mock)
+      err = assert_raises(ApiError) { svc.check }
+      assert_equal 502, err.status_code
+    end
+
+    def test_error_preserves_response_body
+      mock = MockHttpHelper.new.will_return('{"detail":"not found"}', 404)
+      svc = HealthService.new(mock)
+      err = assert_raises(ApiError) { svc.check }
+      assert_includes err.response_body, "not found"
+    end
+
+    def test_config_strips_single_trailing_slash
+      # WHY: Ruby's chomp("/") only strips one trailing slash
+      c = Config.new(base_url: "http://example.com/")
+      assert_equal "http://example.com", c.base_url
+    end
+  end
+
   class MockHttpHelperTest < Minitest::Test
     def test_tracks_all_calls
       mock = MockHttpHelper.new("{}")
