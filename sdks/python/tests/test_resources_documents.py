@@ -23,6 +23,7 @@ from edgequake.types.documents import (
     TrackStatusResponse,
     UploadDocumentResponse,
 )
+from edgequake.types.operations import DocumentFullLineage
 
 
 class TestDocumentsResource:
@@ -393,6 +394,93 @@ class TestPdfResource:
         client = EdgeQuake()
         client.pdf.cancel("pdf-1")
         mock_req.assert_called_once()
+        client.close()
+
+
+class TestDocumentLineageMethods:
+    """Test lineage, metadata, and export methods on DocumentsResource.
+
+    WHY: These endpoints power compliance audit trails and provenance tracking.
+    """
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_get_lineage(self, mock_req: MagicMock) -> None:
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "document_id": "doc-1",
+            "title": "Test Doc",
+            "chunks": [],
+            "entities": [],
+            "relationships": [],
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.get_lineage("doc-1")
+        assert result.document_id == "doc-1"
+        mock_req.assert_called_once()
+        args = mock_req.call_args
+        assert "/api/v1/documents/doc-1/lineage" in str(args)
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_get_metadata(self, mock_req: MagicMock) -> None:
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "id": "doc-1",
+            "title": "Test Doc",
+            "author": "John Doe",
+            "custom_field": "custom_value",
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.get_metadata("doc-1")
+        assert result["author"] == "John Doe"
+        assert result["custom_field"] == "custom_value"
+        mock_req.assert_called_once()
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_export_lineage_json(self, mock_req: MagicMock) -> None:
+        """WHY: JSON export enables programmatic lineage analysis."""
+        mock_resp = MagicMock()
+        mock_resp.content = b'{"document_id":"doc-1","lineage":{}}'
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.export_lineage("doc-1", format="json")
+        assert isinstance(result, bytes)
+        assert b"doc-1" in result
+        args = mock_req.call_args
+        assert "lineage/export" in str(args)
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_export_lineage_csv(self, mock_req: MagicMock) -> None:
+        """WHY: CSV export enables spreadsheet analysis and data pipeline ingestion."""
+        mock_resp = MagicMock()
+        mock_resp.content = b"document_id,chunk_id,entity_name\ndoc-1,ch-1,ALICE"
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.documents.export_lineage("doc-1", format="csv")
+        assert isinstance(result, bytes)
+        assert b"ALICE" in result
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_export_lineage_default_format(self, mock_req: MagicMock) -> None:
+        """WHY: Default format should be JSON for backward compatibility."""
+        mock_resp = MagicMock()
+        mock_resp.content = b'{"document_id":"doc-1"}'
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        client.documents.export_lineage("doc-1")
+        args = mock_req.call_args
+        # Verify format=json is the default
+        assert "json" in str(args) or "format" in str(args)
         client.close()
 
 

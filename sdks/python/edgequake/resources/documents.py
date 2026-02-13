@@ -252,6 +252,33 @@ class DocumentsResource(SyncResource):
         """
         return self._get(f"/api/v1/documents/{document_id}/metadata")
 
+    def export_lineage(
+        self, document_id: str, *, format: str = "json"
+    ) -> bytes:
+        """Export document lineage as a downloadable file.
+
+        GET /api/v1/documents/{document_id}/lineage/export?format={format}
+
+        WHY: Enables compliance audit trails and data pipeline ingestion.
+        Supports 'json' (default) and 'csv' formats.
+
+        Args:
+            document_id: Document ID to export lineage for.
+            format: Export format — 'json' or 'csv'.
+
+        Returns:
+            Raw bytes of the exported file content.
+        """
+        response = self._transport.request(
+            "GET",
+            f"/api/v1/documents/{document_id}/lineage/export",
+            params={"format": format},
+        )
+        # WHY: Export returns raw file content, not JSON
+        if hasattr(response, "content"):
+            return response.content
+        return response.read()
+
     def _delete_with_response(
         self, path: str, *, response_type: type | None = None
     ) -> Any:
@@ -476,6 +503,24 @@ class AsyncDocumentsResource(AsyncResource):
         GET /api/v1/documents/{document_id}/metadata
         """
         return await self._get(f"/api/v1/documents/{document_id}/metadata")
+
+    async def export_lineage(
+        self, document_id: str, *, format: str = "json"
+    ) -> bytes:
+        """Export document lineage as a downloadable file.
+
+        GET /api/v1/documents/{document_id}/lineage/export?format={format}
+
+        WHY: Enables compliance audit trails and data pipeline ingestion.
+        """
+        response = await self._transport.request(
+            "GET",
+            f"/api/v1/documents/{document_id}/lineage/export",
+            params={"format": format},
+        )
+        if hasattr(response, "content"):
+            return response.content
+        return response.read()
 
 
 class AsyncPdfResource(AsyncResource):
