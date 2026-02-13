@@ -38,4 +38,5 @@ class EdgeQuakeClient(config: EdgeQuakeConfig = EdgeQuakeConfig()) {
     val workspaces = WorkspaceService(http)
     val pdf = PdfService(http)
     val costs = CostService(http)
+    val lineage = LineageService(http)
 }
