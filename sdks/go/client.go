@@ -217,3 +217,47 @@ func (c *Client) patchNoContent(ctx context.Context, path string, body interface
 	}
 	return c.do(req, nil)
 }
+
+// getRaw performs a GET and returns the raw response body as bytes.
+// WHY: The lineage export endpoint returns CSV or raw JSON, not a typed struct.
+func (c *Client) getRaw(ctx context.Context, path string, params url.Values) ([]byte, error) {
+	if len(params) > 0 {
+		path = path + "?" + params.Encode()
+	}
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	maxAttempts := c.cfg.maxRetries + 1
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * 500 * time.Millisecond
+			select {
+			case <-time.After(backoff):
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			}
+		}
+		resp, err := c.http.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("edgequake: request: %w", err)
+			continue
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return io.ReadAll(resp.Body)
+		}
+		apiErr := parseAPIError(resp)
+		ae, ok := apiErr.(*APIError)
+		if ok && ae.IsRetryable() && attempt < maxAttempts-1 {
+			lastErr = apiErr
+			continue
+		}
+		return nil, apiErr
+	}
+	return nil, lastErr
+}

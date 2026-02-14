@@ -480,6 +480,47 @@ type LineageGraph struct {
 	RootID string        `json:"root_id,omitempty"`
 }
 
+// DocumentLineageResponse is the response from GET /api/v1/lineage/documents/{id}.
+type DocumentLineageResponse struct {
+	DocumentID    string                 `json:"document_id"`
+	Entities      []EntitySummary        `json:"entities"`
+	Relationships []RelationshipSummary  `json:"relationships"`
+	Stats         map[string]interface{} `json:"extraction_stats,omitempty"`
+}
+
+// EntitySummary is a lightweight entity in document lineage.
+type EntitySummary struct {
+	Name       string `json:"entity_name"`
+	Type       string `json:"entity_type,omitempty"`
+	Mentions   int    `json:"mentions,omitempty"`
+	Confidence *float64 `json:"confidence,omitempty"`
+}
+
+// RelationshipSummary is a lightweight relationship in document lineage.
+type RelationshipSummary struct {
+	Source   string   `json:"source_entity"`
+	Target   string   `json:"target_entity"`
+	Keywords []string `json:"keywords,omitempty"`
+	Weight   *float64 `json:"weight,omitempty"`
+}
+
+// DocumentFullLineageResponse is the response from GET /api/v1/documents/{id}/lineage.
+type DocumentFullLineageResponse struct {
+	DocumentID  string                 `json:"document_id"`
+	Chunks      []ChunkDetail          `json:"chunks,omitempty"`
+	TotalChunks int                    `json:"total_chunks,omitempty"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// ChunkLineageResponse is the response from GET /api/v1/chunks/{id}/lineage.
+type ChunkLineageResponse struct {
+	ChunkID    string                 `json:"chunk_id"`
+	DocumentID string                 `json:"document_id,omitempty"`
+	Entities   []EntitySummary        `json:"entities,omitempty"`
+	Relationships []RelationshipSummary `json:"relationships,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+}
+
 // ModelCapabilities describes what a model supports.
 type ModelCapabilities struct {
 	ContextLength           int  `json:"context_length"`

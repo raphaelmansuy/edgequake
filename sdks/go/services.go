@@ -544,6 +544,16 @@ func (s *ChunkService) Get(ctx context.Context, id string) (*ChunkDetail, error)
 	return &out, nil
 }
 
+// Lineage returns chunk lineage with parent document references.
+// WHY: Route is /api/v1/chunks/{id}/lineage per routes.rs.
+func (s *ChunkService) Lineage(ctx context.Context, id string) (*ChunkLineageResponse, error) {
+	var out ChunkLineageResponse
+	if err := s.c.get(ctx, fmt.Sprintf("/api/v1/chunks/%s/lineage", id), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ProvenanceService handles entity provenance.
 // WHY: Route is /api/v1/entities/{entity_id}/provenance per routes.rs.
 type ProvenanceService struct{ c *Client }
@@ -570,6 +580,36 @@ func (s *LineageService) ForEntity(ctx context.Context, entityName string, depth
 		return nil, err
 	}
 	return &out, nil
+}
+
+// ForDocument returns document graph lineage with entities and relationships.
+// WHY: Route is /api/v1/lineage/documents/{id} per routes.rs.
+func (s *LineageService) ForDocument(ctx context.Context, documentID string) (*DocumentLineageResponse, error) {
+	var out DocumentLineageResponse
+	if err := s.c.get(ctx, fmt.Sprintf("/api/v1/lineage/documents/%s", documentID), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DocumentFullLineage returns the full document lineage including chunk details.
+// WHY: Route is /api/v1/documents/{id}/lineage per routes.rs.
+func (s *LineageService) DocumentFullLineage(ctx context.Context, documentID string) (*DocumentFullLineageResponse, error) {
+	var out DocumentFullLineageResponse
+	if err := s.c.get(ctx, fmt.Sprintf("/api/v1/documents/%s/lineage", documentID), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExportLineage exports document lineage as JSON or CSV. Returns raw bytes.
+// WHY: Route is /api/v1/documents/{id}/lineage/export?format= per routes.rs.
+func (s *LineageService) ExportLineage(ctx context.Context, documentID, format string) ([]byte, error) {
+	params := url.Values{}
+	if format != "" {
+		params.Set("format", format)
+	}
+	return s.c.getRaw(ctx, fmt.Sprintf("/api/v1/documents/%s/lineage/export", documentID), params)
 }
 
 // ModelService handles /api/v1/models endpoints.

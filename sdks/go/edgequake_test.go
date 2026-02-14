@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	edgequake "github.com/edgequake/edgequake-go"
@@ -539,6 +540,141 @@ func TestLineage_ForEntity(t *testing.T) {
 	}
 	if len(g.Nodes) != 1 {
 		t.Fatalf("got %d", len(g.Nodes))
+	}
+}
+
+func TestLineage_ForDocument(t *testing.T) {
+	srv := mockServer(t, 200, edgequake.DocumentLineageResponse{
+		DocumentID: "d1",
+		Entities:   []edgequake.EntitySummary{{Name: "ALICE", Type: "person"}},
+		Relationships: []edgequake.RelationshipSummary{{Source: "ALICE", Target: "BOB"}},
+	})
+	defer srv.Close()
+	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
+	resp, err := c.Lineage.ForDocument(context.Background(), "d1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.DocumentID != "d1" {
+		t.Fatalf("got %s", resp.DocumentID)
+	}
+	if len(resp.Entities) != 1 {
+		t.Fatalf("got %d entities", len(resp.Entities))
+	}
+	if resp.Entities[0].Name != "ALICE" {
+		t.Fatalf("got entity %s", resp.Entities[0].Name)
+	}
+}
+
+func TestLineage_ForDocumentEmpty(t *testing.T) {
+	srv := mockServer(t, 200, edgequake.DocumentLineageResponse{DocumentID: "d2"})
+	defer srv.Close()
+	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
+	resp, err := c.Lineage.ForDocument(context.Background(), "d2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Entities) != 0 {
+		t.Fatalf("expected empty entities, got %d", len(resp.Entities))
+	}
+}
+
+func TestLineage_DocumentFullLineage(t *testing.T) {
+	srv := mockServer(t, 200, edgequake.DocumentFullLineageResponse{
+		DocumentID:  "d1",
+		TotalChunks: 5,
+		Chunks:      []edgequake.ChunkDetail{{ID: "c1", Content: "hello"}},
+	})
+	defer srv.Close()
+	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
+	resp, err := c.Lineage.DocumentFullLineage(context.Background(), "d1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.DocumentID != "d1" {
+		t.Fatalf("got %s", resp.DocumentID)
+	}
+	if resp.TotalChunks != 5 {
+		t.Fatalf("got %d chunks", resp.TotalChunks)
+	}
+	if len(resp.Chunks) != 1 {
+		t.Fatalf("got %d chunk details", len(resp.Chunks))
+	}
+}
+
+func TestLineage_ExportLineageJSON(t *testing.T) {
+	rawJSON := `{"document_id":"d1","format":"json"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(rawJSON))
+	}))
+	defer srv.Close()
+	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
+	data, err := c.Lineage.ExportLineage(context.Background(), "d1", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != rawJSON {
+		t.Fatalf("got %s", string(data))
+	}
+}
+
+func TestLineage_ExportLineageCSV(t *testing.T) {
+	csv := "entity_name,entity_type\nALICE,person\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/csv")
+		w.WriteHeader(200)
+		w.Write([]byte(csv))
+	}))
+	defer srv.Close()
+	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
+	data, err := c.Lineage.ExportLineage(context.Background(), "d1", "csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "ALICE") {
+		t.Fatalf("missing ALICE in export: %s", string(data))
+	}
+}
+
+func TestChunks_Lineage(t *testing.T) {
+	srv := mockServer(t, 200, edgequake.ChunkLineageResponse{
+		ChunkID:    "c1",
+		DocumentID: "d1",
+		Entities:   []edgequake.EntitySummary{{Name: "BOB"}},
+	})
+	defer srv.Close()
+	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
+	resp, err := c.Chunks.Lineage(context.Background(), "c1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.ChunkID != "c1" {
+		t.Fatalf("got %s", resp.ChunkID)
+	}
+	if resp.DocumentID != "d1" {
+		t.Fatalf("got doc %s", resp.DocumentID)
+	}
+	if len(resp.Entities) != 1 {
+		t.Fatalf("got %d entities", len(resp.Entities))
+	}
+}
+
+func TestLineage_ForEntityError(t *testing.T) {
+	srv := mockServer(t, 404, map[string]string{"error": "not found"})
+	defer srv.Close()
+	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
+	_, err := c.Lineage.ForEntity(context.Background(), "MISSING", 0)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var apiErr *edgequake.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatal("expected APIError")
+	}
+	if apiErr.StatusCode != 404 {
+		t.Fatalf("got status %d", apiErr.StatusCode)
 	}
 }
 
