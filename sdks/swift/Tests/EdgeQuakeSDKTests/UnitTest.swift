@@ -776,7 +776,8 @@ final class EdgeCaseTests: XCTestCase {
 
     func testEntityCreateBody() async throws {
         let http = mockHelper(json: #"{"status":"success"}"#)
-        let request = CreateEntityRequest(entityName: "NODE", entityType: "concept", description: "A concept", sourceId: "src-1")
+        let request = CreateEntityRequest(
+            entityName: "NODE", entityType: "concept", description: "A concept", sourceId: "src-1")
         _ = try await EntityService(http).create(request)
         let body = MockURLProtocol.lastRequest?.body
         if let data = body, let str = String(data: data, encoding: .utf8) {

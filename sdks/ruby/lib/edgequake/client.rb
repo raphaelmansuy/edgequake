@@ -2,6 +2,7 @@
 
 module EdgeQuake
   # Main client for the EdgeQuake API.
+  # OODA-34: Added auth, workspaces, shared services for complete API coverage.
   #
   #   client = EdgeQuake::Client.new(config: EdgeQuake::Config.new)
   #   health = client.health.check
@@ -10,7 +11,8 @@ module EdgeQuake
   class Client
     attr_reader :health, :documents, :entities, :relationships, :graph,
                 :query, :chat, :tenants, :users, :api_keys, :tasks,
-                :pipeline, :models, :costs, :conversations, :folders, :lineage
+                :pipeline, :models, :costs, :conversations, :folders, :lineage,
+                :auth, :workspaces, :shared
 
     def initialize(config: Config.new)
       http = HttpHelper.new(config)
@@ -31,6 +33,9 @@ module EdgeQuake
       @conversations = ConversationService.new(http)
       @folders       = FolderService.new(http)
       @lineage       = LineageService.new(http)
+      @auth          = AuthService.new(http)
+      @workspaces    = WorkspaceService.new(http)
+      @shared        = SharedService.new(http)
     end
   end
 end

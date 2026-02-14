@@ -11,10 +11,11 @@
 - .NET 10.0 target framework
 
 ## SDK State Before
-| Metric | Value |
-|--------|-------|
-| Services | 16 |
-| Lineage models | 0 |
-| Lineage service methods | 0 |
-| Unit tests | 79 (UnitTest) + 39 (LineageTest) = 118 |
-| E2E tests | 21 (skipped, need live backend) |
+
+| Metric                  | Value                                  |
+| ----------------------- | -------------------------------------- |
+| Services                | 16                                     |
+| Lineage models          | 0                                      |
+| Lineage service methods | 0                                      |
+| Unit tests              | 79 (UnitTest) + 39 (LineageTest) = 118 |
+| E2E tests               | 21 (skipped, need live backend)        |

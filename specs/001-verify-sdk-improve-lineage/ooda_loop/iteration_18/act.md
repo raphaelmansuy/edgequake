@@ -1,11 +1,13 @@
 # OODA-18: Act — Java SDK LineageModels.java
 
 ## Execution
+
 - Created `sdks/java/src/main/java/io/edgequake/sdk/models/LineageModels.java` (19 model classes, 205 lines)
 - All 123 existing tests pass (0 failures, 0 errors)
 - Build with JDK 23 (target 21) successful
 
 ## Model Classes Added
+
 1. EntityLineageResponse — entity_name, source_documents, description_versions
 2. SourceDocumentInfo — document_id, chunk_ids, line_ranges
 3. LineRangeInfo — start_line, end_line
@@ -27,6 +29,7 @@
 19. ChunkLineageResponse — chunk_id, position info, entity_count, entity_names
 
 ## Test Results
+
 ```
 Tests run: 123, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS

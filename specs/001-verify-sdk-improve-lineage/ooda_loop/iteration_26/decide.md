@@ -1,6 +1,7 @@
 # OODA-26 Decide: Swift SDK Lineage Implementation
 
 ## Priority Actions
+
 1. Create LineageModels.swift — 19 Codable+Sendable structs with all optional fields
 2. Create LineageService.swift — 7 async throws methods with URL encoding
 3. Wire LineageService into EdgeQuakeClient (16→17 services)

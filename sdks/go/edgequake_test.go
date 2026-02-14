@@ -545,8 +545,8 @@ func TestLineage_ForEntity(t *testing.T) {
 
 func TestLineage_ForDocument(t *testing.T) {
 	srv := mockServer(t, 200, edgequake.DocumentLineageResponse{
-		DocumentID: "d1",
-		Entities:   []edgequake.EntitySummary{{Name: "ALICE", Type: "person"}},
+		DocumentID:    "d1",
+		Entities:      []edgequake.EntitySummary{{Name: "ALICE", Type: "person"}},
 		Relationships: []edgequake.RelationshipSummary{{Source: "ALICE", Target: "BOB"}},
 	})
 	defer srv.Close()

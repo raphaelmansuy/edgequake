@@ -490,9 +490,9 @@ type DocumentLineageResponse struct {
 
 // EntitySummary is a lightweight entity in document lineage.
 type EntitySummary struct {
-	Name       string `json:"entity_name"`
-	Type       string `json:"entity_type,omitempty"`
-	Mentions   int    `json:"mentions,omitempty"`
+	Name       string   `json:"entity_name"`
+	Type       string   `json:"entity_type,omitempty"`
+	Mentions   int      `json:"mentions,omitempty"`
 	Confidence *float64 `json:"confidence,omitempty"`
 }
 
@@ -514,11 +514,11 @@ type DocumentFullLineageResponse struct {
 
 // ChunkLineageResponse is the response from GET /api/v1/chunks/{id}/lineage.
 type ChunkLineageResponse struct {
-	ChunkID    string                 `json:"chunk_id"`
-	DocumentID string                 `json:"document_id,omitempty"`
-	Entities   []EntitySummary        `json:"entities,omitempty"`
-	Relationships []RelationshipSummary `json:"relationships,omitempty"`
-	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	ChunkID       string                 `json:"chunk_id"`
+	DocumentID    string                 `json:"document_id,omitempty"`
+	Entities      []EntitySummary        `json:"entities,omitempty"`
+	Relationships []RelationshipSummary  `json:"relationships,omitempty"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // ModelCapabilities describes what a model supports.

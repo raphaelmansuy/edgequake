@@ -24,6 +24,14 @@ module EdgeQuake
       request(:delete, path)
     end
 
+    def put(path, body = nil)
+      request(:put, path, body)
+    end
+
+    def patch(path, body = nil)
+      request(:patch, path, body)
+    end
+
     def get_raw(path)
       request_raw(:get, path)
     end

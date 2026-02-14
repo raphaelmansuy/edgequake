@@ -3,6 +3,7 @@
 ## Changes Made
 
 ### New Files
+
 - `sdks/csharp/src/EdgeQuakeSDK/LineageModels.cs` — 19 model classes (~210 lines)
   - EntityLineageResponse, SourceDocumentInfo, LineRangeInfo, DescriptionVersionResponse
   - DocumentGraphLineageResponse, EntitySummaryResponse, RelationshipSummaryResponse, ExtractionStatsResponse
@@ -20,10 +21,12 @@
   - `EntityProvenanceAsync(entityId)` → EntityProvenanceResponse
 
 ### Modified Files
+
 - `sdks/csharp/src/EdgeQuakeSDK/EdgeQuakeClient.cs` — Added `Lineage` property (16→17 services)
 - `sdks/csharp/tests/EdgeQuakeSDK.Tests/LineageTest.cs` — Updated service count 16→17
 
 ## Test Evidence
+
 ```
 dotnet test --filter "FullyQualifiedName~LineageTest"
 Passed! - Failed: 0, Passed: 39, Total: 39
@@ -35,4 +38,5 @@ Total: 118 unit tests passing, 0 failures
 ```
 
 ## Commit
+
 SHA: (pending)

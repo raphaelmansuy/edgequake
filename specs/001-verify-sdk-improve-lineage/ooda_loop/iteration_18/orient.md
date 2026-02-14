@@ -1,9 +1,11 @@
 # OODA-18: Orient — Java SDK Lineage Model Design
 
 ## Analysis
+
 The Java SDK currently has basic lineage types (LineageNode/Edge/Graph, ProvenanceRecord, ChunkDetail) but lacks the comprehensive response types that match the actual API endpoints. The TypeScript SDK's `types/lineage.ts` (323 lines) is the gold standard reference.
 
 ## Design Decision
+
 Create `LineageModels.java` as a new model file (SRP — separate from OperationModels.java) containing:
 
 1. **EntityLineageResponse** — source_documents, description_versions, source_count
@@ -27,5 +29,6 @@ Create `LineageModels.java` as a new model file (SRP — separate from Operation
 19. **ChunkLineageResponse** — chunk_id, document_id, position info, entity_count
 
 ## Risk Assessment
+
 - Low risk: purely additive, no existing code changes
 - All field names verified against TypeScript SDK and backend Rust types

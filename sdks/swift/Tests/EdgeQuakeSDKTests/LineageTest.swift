@@ -9,17 +9,17 @@ import XCTest
 final class EntityLineageTest: XCTestCase {
     func testFullDeserialization() async throws {
         let json = """
-        {
-            "entity": {
-                "id": "e-1", "entityName": "SARAH_CHEN", "entityType": "PERSON",
-                "description": "AI researcher", "sourceId": "doc-1",
-                "createdAt": "2025-01-01T00:00:00Z", "updatedAt": "2025-01-02T00:00:00Z",
-                "degree": 5, "metadata": {"confidence": 0.95, "source": "pdf"}
-            },
-            "relationships": {"incoming": 2, "outgoing": 3},
-            "statistics": {"pageRank": 0.42}
-        }
-        """
+            {
+                "entity": {
+                    "id": "e-1", "entityName": "SARAH_CHEN", "entityType": "PERSON",
+                    "description": "AI researcher", "sourceId": "doc-1",
+                    "createdAt": "2025-01-01T00:00:00Z", "updatedAt": "2025-01-02T00:00:00Z",
+                    "degree": 5, "metadata": {"confidence": 0.95, "source": "pdf"}
+                },
+                "relationships": {"incoming": 2, "outgoing": 3},
+                "statistics": {"pageRank": 0.42}
+            }
+            """
         let http = mockHelper(json: json)
         let svc = EntityService(http)
         let result = try await svc.get(id: "e-1")
@@ -59,8 +59,8 @@ final class EntityLineageTest: XCTestCase {
 
     func testListPagination() async throws {
         let json = """
-        {"items":[{"id":"e-1"},{"id":"e-2"}],"total":100,"page":2,"pageSize":10,"totalPages":10}
-        """
+            {"items":[{"id":"e-1"},{"id":"e-2"}],"total":100,"page":2,"pageSize":10,"totalPages":10}
+            """
         let http = mockHelper(json: json)
         let svc = EntityService(http)
         let result = try await svc.list(page: 2, pageSize: 10)
@@ -95,9 +95,9 @@ final class EntityLineageTest: XCTestCase {
 final class EntityDeleteLineageTest: XCTestCase {
     func testAffectedEntities() async throws {
         let json = """
-        {"status":"deleted","message":"Removed","deletedEntityId":"e-1",
-         "deletedRelationships":3,"affectedEntities":["e-2","e-3","e-4"]}
-        """
+            {"status":"deleted","message":"Removed","deletedEntityId":"e-1",
+             "deletedRelationships":3,"affectedEntities":["e-2","e-3","e-4"]}
+            """
         let http = mockHelper(json: json)
         let svc = EntityService(http)
         let result = try await svc.delete(id: "e-1")
@@ -109,7 +109,8 @@ final class EntityDeleteLineageTest: XCTestCase {
     }
 
     func testZeroRelationships() async throws {
-        let json = #"{"status":"deleted","deletedEntityId":"e-1","deletedRelationships":0,"affectedEntities":[]}"#
+        let json =
+            #"{"status":"deleted","deletedEntityId":"e-1","deletedRelationships":0,"affectedEntities":[]}"#
         let http = mockHelper(json: json)
         let svc = EntityService(http)
         let result = try await svc.delete(id: "e-1")
@@ -123,11 +124,12 @@ final class EntityDeleteLineageTest: XCTestCase {
 final class CreateEntityLineageTest: XCTestCase {
     func testResponseWithEntity() async throws {
         let json = """
-        {"status":"created","message":"Entity created","entity":{"id":"e-new","entityName":"ALICE","entityType":"PERSON","description":"Engineer","sourceId":"doc-1"}}
-        """
+            {"status":"created","message":"Entity created","entity":{"id":"e-new","entityName":"ALICE","entityType":"PERSON","description":"Engineer","sourceId":"doc-1"}}
+            """
         let http = mockHelper(json: json)
         let svc = EntityService(http)
-        let req = CreateEntityRequest(entityName: "ALICE", entityType: "PERSON", description: "Engineer", sourceId: "doc-1")
+        let req = CreateEntityRequest(
+            entityName: "ALICE", entityType: "PERSON", description: "Engineer", sourceId: "doc-1")
         let result = try await svc.create(request: req)
         XCTAssertEqual(result.status, "created")
         XCTAssertEqual(result.entity?.id, "e-new")
@@ -138,7 +140,8 @@ final class CreateEntityLineageTest: XCTestCase {
         let json = #"{"status":"created"}"#
         let http = mockHelper(json: json)
         let svc = EntityService(http)
-        let req = CreateEntityRequest(entityName: "BOB", entityType: "ORG", description: "Corp", sourceId: "s1")
+        let req = CreateEntityRequest(
+            entityName: "BOB", entityType: "ORG", description: "Corp", sourceId: "s1")
         _ = try await svc.create(request: req)
         let body = MockURLProtocol.lastRequest?.body
         XCTAssertNotNil(body)
@@ -157,10 +160,10 @@ final class CreateEntityLineageTest: XCTestCase {
 final class RelationshipLineageTest: XCTestCase {
     func testAllFields() async throws {
         let json = """
-        {"items":[{"id":"r-1","source":"e-1","target":"e-2","relationshipType":"WORKS_WITH",
-          "weight":0.85,"description":"Colleagues","sourceId":"doc-1","createdAt":"2025-01-01T00:00:00Z"}],
-         "total":1,"page":1,"pageSize":20,"totalPages":1}
-        """
+            {"items":[{"id":"r-1","source":"e-1","target":"e-2","relationshipType":"WORKS_WITH",
+              "weight":0.85,"description":"Colleagues","sourceId":"doc-1","createdAt":"2025-01-01T00:00:00Z"}],
+             "total":1,"page":1,"pageSize":20,"totalPages":1}
+            """
         let http = mockHelper(json: json)
         let svc = RelationshipService(http)
         let result = try await svc.list()
@@ -194,9 +197,9 @@ final class RelationshipLineageTest: XCTestCase {
 final class GraphLineageTest: XCTestCase {
     func testNodesWithProperties() async throws {
         let json = """
-        {"nodes":[{"id":"n1","label":"ALICE","entityType":"PERSON","properties":{"rank":0.9,"tags":["ai","ml"]}}],
-         "edges":[{"source":"n1","target":"n2","label":"KNOWS","weight":0.7}]}
-        """
+            {"nodes":[{"id":"n1","label":"ALICE","entityType":"PERSON","properties":{"rank":0.9,"tags":["ai","ml"]}}],
+             "edges":[{"source":"n1","target":"n2","label":"KNOWS","weight":0.7}]}
+            """
         let http = mockHelper(json: json)
         let svc = GraphService(http)
         let result = try await svc.get()
@@ -236,9 +239,9 @@ final class GraphLineageTest: XCTestCase {
 final class DocumentLineageTest: XCTestCase {
     func testFullFields() async throws {
         let json = """
-        {"id":"d-1","title":"Paper","status":"completed","fileType":"pdf",
-         "createdAt":"2025-01-01","updatedAt":"2025-01-02","fileSize":1024,"chunkCount":12}
-        """
+            {"id":"d-1","title":"Paper","status":"completed","fileType":"pdf",
+             "createdAt":"2025-01-01","updatedAt":"2025-01-02","fileSize":1024,"chunkCount":12}
+            """
         let http = mockHelper(json: json)
         let svc = DocumentService(http)
         let result = try await svc.get(id: "d-1")
@@ -254,8 +257,8 @@ final class DocumentLineageTest: XCTestCase {
 
     func testListAllPaginationFields() async throws {
         let json = """
-        {"documents":[{"id":"d-1"}],"total":50,"page":1,"pageSize":20,"totalPages":3,"hasMore":true}
-        """
+            {"documents":[{"id":"d-1"}],"total":50,"page":1,"pageSize":20,"totalPages":3,"hasMore":true}
+            """
         let http = mockHelper(json: json)
         let svc = DocumentService(http)
         let result = try await svc.list()
@@ -268,10 +271,12 @@ final class DocumentLineageTest: XCTestCase {
     }
 
     func testUploadDuplicateDetection() async throws {
-        let json = #"{"documentId":"d-1","status":"duplicate","message":"Already exists","trackId":"t-1","duplicateOf":"d-orig"}"#
+        let json =
+            #"{"documentId":"d-1","status":"duplicate","message":"Already exists","trackId":"t-1","duplicateOf":"d-orig"}"#
         let http = mockHelper(json: json)
         let svc = DocumentService(http)
-        let result = try await svc.uploadText(request: TextUploadRequest(title: "Dup", content: "test"))
+        let result = try await svc.uploadText(
+            request: TextUploadRequest(title: "Dup", content: "test"))
         XCTAssertEqual(result.documentId, "d-1")
         XCTAssertEqual(result.status, "duplicate")
         XCTAssertEqual(result.duplicateOf, "d-orig")
@@ -283,7 +288,8 @@ final class DocumentLineageTest: XCTestCase {
         let json = #"{"documentId":"d-2","status":"processing","message":"Queued"}"#
         let http = mockHelper(json: json)
         let svc = DocumentService(http)
-        let result = try await svc.uploadText(request: TextUploadRequest(title: "New", content: "data"))
+        let result = try await svc.uploadText(
+            request: TextUploadRequest(title: "New", content: "data"))
         XCTAssertEqual(result.status, "processing")
         XCTAssertNil(result.duplicateOf)
     }
@@ -294,10 +300,10 @@ final class DocumentLineageTest: XCTestCase {
 final class PipelineLineageTest: XCTestCase {
     func testAllFields() async throws {
         let json = """
-        {"isBusy":true,"totalDocuments":100,"processedDocuments":75,
-         "pendingTasks":10,"processingTasks":5,"completedTasks":80,"failedTasks":2,
-         "cancellationRequested":false}
-        """
+            {"isBusy":true,"totalDocuments":100,"processedDocuments":75,
+             "pendingTasks":10,"processingTasks":5,"completedTasks":80,"failedTasks":2,
+             "cancellationRequested":false}
+            """
         let http = mockHelper(json: json)
         let svc = PipelineService(http)
         let result = try await svc.status()
@@ -312,7 +318,8 @@ final class PipelineLineageTest: XCTestCase {
     }
 
     func testIdleState() async throws {
-        let json = #"{"isBusy":false,"totalDocuments":0,"processedDocuments":0,"pendingTasks":0,"processingTasks":0,"completedTasks":0,"failedTasks":0,"cancellationRequested":false}"#
+        let json =
+            #"{"isBusy":false,"totalDocuments":0,"processedDocuments":0,"pendingTasks":0,"processingTasks":0,"completedTasks":0,"failedTasks":0,"cancellationRequested":false}"#
         let http = mockHelper(json: json)
         let svc = PipelineService(http)
         let result = try await svc.status()
@@ -323,9 +330,9 @@ final class PipelineLineageTest: XCTestCase {
 
     func testQueueMetricsAllFields() async throws {
         let json = """
-        {"pendingCount":5,"processingCount":2,"activeWorkers":3,"maxWorkers":8,
-         "workerUtilization":37,"avgWaitTimeSeconds":1.5,"throughputPerMinute":12.0,"rateLimited":false}
-        """
+            {"pendingCount":5,"processingCount":2,"activeWorkers":3,"maxWorkers":8,
+             "workerUtilization":37,"avgWaitTimeSeconds":1.5,"throughputPerMinute":12.0,"rateLimited":false}
+            """
         let http = mockHelper(json: json)
         let svc = PipelineService(http)
         let result = try await svc.queueMetrics()
@@ -340,7 +347,8 @@ final class PipelineLineageTest: XCTestCase {
     }
 
     func testQueueMetricsRateLimited() async throws {
-        let json = #"{"pendingCount":100,"processingCount":8,"activeWorkers":8,"maxWorkers":8,"workerUtilization":100,"avgWaitTimeSeconds":30.0,"throughputPerMinute":2.0,"rateLimited":true}"#
+        let json =
+            #"{"pendingCount":100,"processingCount":8,"activeWorkers":8,"maxWorkers":8,"workerUtilization":100,"avgWaitTimeSeconds":30.0,"throughputPerMinute":2.0,"rateLimited":true}"#
         let http = mockHelper(json: json)
         let svc = PipelineService(http)
         let result = try await svc.queueMetrics()
@@ -354,13 +362,13 @@ final class PipelineLineageTest: XCTestCase {
 final class ChatLineageTest: XCTestCase {
     func testAllFields() async throws {
         let json = """
-        {"conversationId":"c-1","userMessageId":"m-1","assistantMessageId":"m-2",
-         "content":"Answer here","mode":"hybrid",
-         "sources":[{"entity":"e-1","score":0.9}],
-         "stats":{"tokens":150},
-         "tokensUsed":150,"durationMs":1200,
-         "llmProvider":"openai","llmModel":"gpt-5-nano"}
-        """
+            {"conversationId":"c-1","userMessageId":"m-1","assistantMessageId":"m-2",
+             "content":"Answer here","mode":"hybrid",
+             "sources":[{"entity":"e-1","score":0.9}],
+             "stats":{"tokens":150},
+             "tokensUsed":150,"durationMs":1200,
+             "llmProvider":"openai","llmModel":"gpt-5-nano"}
+            """
         let http = mockHelper(json: json)
         let svc = ChatService(http)
         let req = ChatCompletionRequest(message: "test")
@@ -396,8 +404,8 @@ final class ChatLineageTest: XCTestCase {
 final class QueryLineageTest: XCTestCase {
     func testSourcesWithLineage() async throws {
         let json = """
-        {"answer":"The capital is Paris","sources":[{"entity":"FRANCE","score":0.95,"document":"doc-1"}],"mode":"hybrid"}
-        """
+            {"answer":"The capital is Paris","sources":[{"entity":"FRANCE","score":0.95,"document":"doc-1"}],"mode":"hybrid"}
+            """
         let http = mockHelper(json: json)
         let svc = QueryService(http)
         let req = QueryRequest(query: "capital of France")
@@ -424,9 +432,9 @@ final class QueryLineageTest: XCTestCase {
 final class CostLineageTest: XCTestCase {
     func testAllFields() async throws {
         let json = """
-        {"totalCost":15.50,"documentCount":100,"queryCount":500,
-         "entries":[{"provider":"openai","cost":10.0},{"provider":"ollama","cost":5.50}]}
-        """
+            {"totalCost":15.50,"documentCount":100,"queryCount":500,
+             "entries":[{"provider":"openai","cost":10.0},{"provider":"ollama","cost":5.50}]}
+            """
         let http = mockHelper(json: json)
         let svc = CostService(http)
         let result = try await svc.summary()
@@ -451,12 +459,12 @@ final class CostLineageTest: XCTestCase {
 final class ConversationLineageTest: XCTestCase {
     func testDetailFull() async throws {
         let json = """
-        {"conversation":{"id":"c-1","tenantId":"t-1","workspaceId":"ws-1",
-          "title":"Chat","mode":"hybrid","isPinned":true,"folderId":"f-1",
-          "createdAt":"2025-01-01","updatedAt":"2025-01-02","messageCount":5},
-         "messages":[{"id":"m-1","conversationId":"c-1","parentId":null,
-          "role":"user","content":"Hello","mode":"hybrid","tokensUsed":10,"createdAt":"2025-01-01"}]}
-        """
+            {"conversation":{"id":"c-1","tenantId":"t-1","workspaceId":"ws-1",
+              "title":"Chat","mode":"hybrid","isPinned":true,"folderId":"f-1",
+              "createdAt":"2025-01-01","updatedAt":"2025-01-02","messageCount":5},
+             "messages":[{"id":"m-1","conversationId":"c-1","parentId":null,
+              "role":"user","content":"Hello","mode":"hybrid","tokensUsed":10,"createdAt":"2025-01-01"}]}
+            """
         let http = mockHelper(json: json)
         let svc = ChatService(http)
         let result = try await svc.getConversation(id: "c-1")
@@ -483,10 +491,10 @@ final class ConversationLineageTest: XCTestCase {
 
     func testInfoAllFields() async throws {
         let json = """
-        {"items":[{"id":"c-1","tenantId":"t-1","workspaceId":"ws-1","title":"Test",
-          "mode":"local","isPinned":false,"folderId":null,"createdAt":"2025-01-01",
-          "updatedAt":"2025-01-02","messageCount":0}]}
-        """
+            {"items":[{"id":"c-1","tenantId":"t-1","workspaceId":"ws-1","title":"Test",
+              "mode":"local","isPinned":false,"folderId":null,"createdAt":"2025-01-01",
+              "updatedAt":"2025-01-02","messageCount":0}]}
+            """
         let http = mockHelper(json: json)
         let svc = ChatService(http)
         let result = try await svc.listConversations()
@@ -512,9 +520,9 @@ final class ConversationLineageTest: XCTestCase {
 final class ProviderLineageTest: XCTestCase {
     func testHealthAllFields() async throws {
         let json = """
-        {"name":"openai","displayName":"OpenAI","providerType":"cloud",
-         "enabled":true,"priority":1,"models":[{"id":"gpt-5-nano","name":"GPT-5 Nano"}]}
-        """
+            {"name":"openai","displayName":"OpenAI","providerType":"cloud",
+             "enabled":true,"priority":1,"models":[{"id":"gpt-5-nano","name":"GPT-5 Nano"}]}
+            """
         let http = mockHelper(json: json)
         let svc = ModelService(http)
         let result = try await svc.providerHealth(name: "openai")
@@ -528,7 +536,8 @@ final class ProviderLineageTest: XCTestCase {
     }
 
     func testDisabled() async throws {
-        let json = #"{"name":"local","displayName":"Local","providerType":"local","enabled":false,"priority":99,"models":[]}"#
+        let json =
+            #"{"name":"local","displayName":"Local","providerType":"local","enabled":false,"priority":99,"models":[]}"#
         let http = mockHelper(json: json)
         let svc = ModelService(http)
         let result = try await svc.providerHealth(name: "local")
@@ -539,9 +548,9 @@ final class ProviderLineageTest: XCTestCase {
 
     func testStatusAllSections() async throws {
         let json = """
-        {"provider":{"name":"openai"},"embedding":{"model":"text-embedding-3-small"},
-         "storage":{"type":"postgresql"},"metadata":{"version":"0.1.0"}}
-        """
+            {"provider":{"name":"openai"},"embedding":{"model":"text-embedding-3-small"},
+             "storage":{"type":"postgresql"},"metadata":{"version":"0.1.0"}}
+            """
         let http = mockHelper(json: json)
         let svc = ModelService(http)
         let result = try await svc.status()
@@ -553,9 +562,9 @@ final class ProviderLineageTest: XCTestCase {
 
     func testCatalogWithModels() async throws {
         let json = """
-        {"providers":[{"name":"openai","displayName":"OpenAI","models":[{"id":"gpt-5-nano"}]},
-                       {"name":"ollama","displayName":"Ollama","models":[]}]}
-        """
+            {"providers":[{"name":"openai","displayName":"OpenAI","models":[{"id":"gpt-5-nano"}]},
+                           {"name":"ollama","displayName":"Ollama","models":[]}]}
+            """
         let http = mockHelper(json: json)
         let svc = ModelService(http)
         let result = try await svc.catalog()
@@ -571,8 +580,8 @@ final class ProviderLineageTest: XCTestCase {
 final class FolderLineageTest: XCTestCase {
     func testAllFields() async throws {
         let json = """
-        [{"id":"f-1","tenantId":"t-1","name":"Research","createdAt":"2025-01-01","updatedAt":"2025-01-02"}]
-        """
+            [{"id":"f-1","tenantId":"t-1","name":"Research","createdAt":"2025-01-01","updatedAt":"2025-01-02"}]
+            """
         let http = mockHelper(json: json)
         let svc = ChatService(http)
         let result = try await svc.listFolders()
@@ -590,8 +599,8 @@ final class FolderLineageTest: XCTestCase {
 final class TaskLineageTest: XCTestCase {
     func testAllFields() async throws {
         let json = """
-        {"tasks":[{"id":"t-1","trackId":"trk-1","status":"completed","taskType":"extraction","createdAt":"2025-01-01"}],"total":1}
-        """
+            {"tasks":[{"id":"t-1","trackId":"trk-1","status":"completed","taskType":"extraction","createdAt":"2025-01-01"}],"total":1}
+            """
         let http = mockHelper(json: json)
         let svc = TaskService(http)
         let result = try await svc.list()
@@ -610,10 +619,10 @@ final class TaskLineageTest: XCTestCase {
 final class HealthLineageTest: XCTestCase {
     func testAllFields() async throws {
         let json = """
-        {"status":"healthy","version":"0.1.0","storageMode":"postgresql",
-         "workspaceId":"default","components":{"kv":true,"vector":true,"graph":true},
-         "llmProviderName":"openai"}
-        """
+            {"status":"healthy","version":"0.1.0","storageMode":"postgresql",
+             "workspaceId":"default","components":{"kv":true,"vector":true,"graph":true},
+             "llmProviderName":"openai"}
+            """
         let http = mockHelper(json: json)
         let svc = HealthService(http)
         let result = try await svc.check()
@@ -649,12 +658,12 @@ final class LineageServiceTest: XCTestCase {
 
     func testEntityLineage() async throws {
         let json = """
-        {"entityName":"SARAH_CHEN","entityType":"PERSON",
-         "sourceDocuments":[{"documentId":"doc-1","documentTitle":"Paper","chunkIds":["c-1","c-2"],
-           "lineRanges":[{"startLine":10,"endLine":15}]}],
-         "descriptionVersions":[{"version":1,"description":"AI researcher","sourceChunkId":"c-1","createdAt":"2025-01-01"}],
-         "totalSourceDocuments":1,"totalChunks":2}
-        """
+            {"entityName":"SARAH_CHEN","entityType":"PERSON",
+             "sourceDocuments":[{"documentId":"doc-1","documentTitle":"Paper","chunkIds":["c-1","c-2"],
+               "lineRanges":[{"startLine":10,"endLine":15}]}],
+             "descriptionVersions":[{"version":1,"description":"AI researcher","sourceChunkId":"c-1","createdAt":"2025-01-01"}],
+             "totalSourceDocuments":1,"totalChunks":2}
+            """
         let http = mockHelper(json: json)
         let svc = LineageService(http)
         let result = try await svc.entityLineage(name: "SARAH_CHEN")
@@ -676,7 +685,8 @@ final class LineageServiceTest: XCTestCase {
     }
 
     func testEntityLineageEmpty() async throws {
-        let json = #"{"entityName":"UNKNOWN","sourceDocuments":[],"descriptionVersions":[],"totalSourceDocuments":0,"totalChunks":0}"#
+        let json =
+            #"{"entityName":"UNKNOWN","sourceDocuments":[],"descriptionVersions":[],"totalSourceDocuments":0,"totalChunks":0}"#
         let http = mockHelper(json: json)
         let svc = LineageService(http)
         let result = try await svc.entityLineage(name: "UNKNOWN")
@@ -699,11 +709,11 @@ final class LineageServiceTest: XCTestCase {
 
     func testDocumentLineage() async throws {
         let json = """
-        {"documentId":"doc-1","documentTitle":"Paper",
-         "entities":[{"entityName":"ALICE","entityType":"PERSON","mentions":3}],
-         "relationships":[{"source":"ALICE","target":"BOB","type":"WORKS_WITH","mentions":2}],
-         "extractionStats":{"totalEntities":5,"totalRelationships":3,"totalChunks":10}}
-        """
+            {"documentId":"doc-1","documentTitle":"Paper",
+             "entities":[{"entityName":"ALICE","entityType":"PERSON","mentions":3}],
+             "relationships":[{"source":"ALICE","target":"BOB","type":"WORKS_WITH","mentions":2}],
+             "extractionStats":{"totalEntities":5,"totalRelationships":3,"totalChunks":10}}
+            """
         let http = mockHelper(json: json)
         let svc = LineageService(http)
         let result = try await svc.documentLineage(id: "doc-1")
@@ -730,9 +740,9 @@ final class LineageServiceTest: XCTestCase {
 
     func testDocumentFullLineage() async throws {
         let json = """
-        {"documentId":"doc-1","documentTitle":"Full Paper","status":"completed",
-         "chunkCount":12,"entityCount":5,"relationshipCount":3}
-        """
+            {"documentId":"doc-1","documentTitle":"Full Paper","status":"completed",
+             "chunkCount":12,"entityCount":5,"relationshipCount":3}
+            """
         let http = mockHelper(json: json)
         let svc = LineageService(http)
         let result = try await svc.documentFullLineage(id: "doc-1")
@@ -778,11 +788,11 @@ final class LineageServiceTest: XCTestCase {
 
     func testChunkDetail() async throws {
         let json = """
-        {"chunkId":"c-1","documentId":"doc-1","content":"Some text content",
-         "chunkIndex":0,"charRange":{"start":0,"end":500},
-         "entities":[{"entityName":"BOB","entityType":"PERSON","confidence":0.92}],
-         "relationships":[{"source":"BOB","target":"CAROL","type":"KNOWS","weight":0.8}]}
-        """
+            {"chunkId":"c-1","documentId":"doc-1","content":"Some text content",
+             "chunkIndex":0,"charRange":{"start":0,"end":500},
+             "entities":[{"entityName":"BOB","entityType":"PERSON","confidence":0.92}],
+             "relationships":[{"source":"BOB","target":"CAROL","type":"KNOWS","weight":0.8}]}
+            """
         let http = mockHelper(json: json)
         let svc = LineageService(http)
         let result = try await svc.chunkDetail(id: "c-1")
@@ -816,9 +826,9 @@ final class LineageServiceTest: XCTestCase {
 
     func testChunkLineage() async throws {
         let json = """
-        {"chunkId":"c-1","documentId":"doc-1","documentTitle":"Paper",
-         "chunkIndex":2,"totalChunksInDocument":10}
-        """
+            {"chunkId":"c-1","documentId":"doc-1","documentTitle":"Paper",
+             "chunkIndex":2,"totalChunksInDocument":10}
+            """
         let http = mockHelper(json: json)
         let svc = LineageService(http)
         let result = try await svc.chunkLineage(id: "c-1")
@@ -835,11 +845,11 @@ final class LineageServiceTest: XCTestCase {
 
     func testEntityProvenance() async throws {
         let json = """
-        {"entityId":"e-1","entityName":"ALICE","entityType":"PERSON",
-         "sources":[{"documentId":"doc-1","documentTitle":"Paper","chunkId":"c-1","confidence":0.95}],
-         "relatedEntities":[{"entityId":"e-2","entityName":"BOB","relationshipType":"WORKS_WITH"}],
-         "totalSources":1}
-        """
+            {"entityId":"e-1","entityName":"ALICE","entityType":"PERSON",
+             "sources":[{"documentId":"doc-1","documentTitle":"Paper","chunkId":"c-1","confidence":0.95}],
+             "relatedEntities":[{"entityId":"e-2","entityName":"BOB","relationshipType":"WORKS_WITH"}],
+             "totalSources":1}
+            """
         let http = mockHelper(json: json)
         let svc = LineageService(http)
         let result = try await svc.entityProvenance(id: "e-1")
@@ -880,9 +890,9 @@ final class LineageServiceTest: XCTestCase {
 final class AnyCodableLineageTest: XCTestCase {
     func testAllValueTypes() throws {
         let json = """
-        {"string":"hello","int":42,"double":3.14,"bool":true,"null":null,
-         "array":[1,2,3],"object":{"key":"value"}}
-        """
+            {"string":"hello","int":42,"double":3.14,"bool":true,"null":null,
+             "array":[1,2,3],"object":{"key":"value"}}
+            """
         let data = json.data(using: .utf8)!
         let decoded = try JSONDecoder().decode([String: AnyCodable].self, from: data)
         XCTAssertEqual(decoded["string"]?.value as? String, "hello")
