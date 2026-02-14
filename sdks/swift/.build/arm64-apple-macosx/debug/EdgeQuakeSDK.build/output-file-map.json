@@ -30,6 +30,20 @@
     "swift-dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/HttpHelper.swiftdeps",
     "diagnostics": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/HttpHelper.dia"
   },
+  "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageModels.swift": {
+    "dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageModels.d",
+    "object": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageModels.swift.o",
+    "swiftmodule": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageModels~partial.swiftmodule",
+    "swift-dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageModels.swiftdeps",
+    "diagnostics": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageModels.dia"
+  },
+  "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageService.swift": {
+    "dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageService.d",
+    "object": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageService.swift.o",
+    "swiftmodule": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageService~partial.swiftmodule",
+    "swift-dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageService.swiftdeps",
+    "diagnostics": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageService.dia"
+  },
   "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/Models.swift": {
     "dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/Models.d",
     "object": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/Models.swift.o",

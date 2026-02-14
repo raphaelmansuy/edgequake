@@ -9,6 +9,13 @@
     "swift-dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/E2ETest.swiftdeps",
     "diagnostics": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/E2ETest.dia"
   },
+  "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/LineageTest.swift": {
+    "dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/LineageTest.d",
+    "object": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/LineageTest.swift.o",
+    "swiftmodule": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/LineageTest~partial.swiftmodule",
+    "swift-dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/LineageTest.swiftdeps",
+    "diagnostics": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/LineageTest.dia"
+  },
   "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/UnitTest.swift": {
     "dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/UnitTest.d",
     "object": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/index-build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/UnitTest.swift.o",

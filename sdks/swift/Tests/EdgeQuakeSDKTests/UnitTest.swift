@@ -140,6 +140,9 @@ final class ClientTest: XCTestCase {
         XCTAssertNotNil(client.pipeline)
         XCTAssertNotNil(client.models)
         XCTAssertNotNil(client.costs)
+        XCTAssertNotNil(client.conversations)
+        XCTAssertNotNil(client.folders)
+        XCTAssertNotNil(client.lineage)
     }
 }
 

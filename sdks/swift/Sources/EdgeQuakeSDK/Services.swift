@@ -30,6 +30,11 @@ public final class DocumentService: @unchecked Sendable {
             "/api/v1/documents", body: TextUploadRequest(title: title, content: content))
     }
 
+    /// Upload text with a TextUploadRequest object.
+    public func uploadText(request: TextUploadRequest) async throws -> UploadResponse {
+        try await http.post("/api/v1/documents", body: request)
+    }
+
     /// WHY: DELETE returns 204 No Content — use deleteRaw to avoid decoding empty body.
     public func delete(id: String) async throws {
         _ = try await http.deleteRaw("/api/v1/documents/\(id)")
@@ -48,12 +53,27 @@ public final class EntityService: @unchecked Sendable {
         try await http.get("/api/v1/graph/entities/\(name)")
     }
 
+    /// Get entity by ID. WHY: Alias for get(name:) — entity names are the primary key.
+    public func get(id: String) async throws -> EntityDetailResponse {
+        try await get(name: id)
+    }
+
     public func create(_ request: CreateEntityRequest) async throws -> CreateEntityResponse {
         try await http.post("/api/v1/graph/entities", body: request)
     }
 
+    /// Create entity with explicit label.
+    public func create(request: CreateEntityRequest) async throws -> CreateEntityResponse {
+        try await create(request)
+    }
+
     public func delete(name: String) async throws -> EntityDeleteResponse {
         try await http.delete("/api/v1/graph/entities/\(name)?confirm=true")
+    }
+
+    /// Delete entity by ID. WHY: Alias for delete(name:).
+    public func delete(id: String) async throws -> EntityDeleteResponse {
+        try await delete(name: id)
     }
 
     public func exists(name: String) async throws -> EntityExistsResponse {
@@ -91,6 +111,11 @@ public final class QueryService: @unchecked Sendable {
     public func execute(query: String, mode: String = "hybrid") async throws -> QueryResponse {
         try await http.post("/api/v1/query", body: QueryRequest(query: query, mode: mode))
     }
+
+    /// Execute query with a QueryRequest object.
+    public func query(request: QueryRequest) async throws -> QueryResponse {
+        try await http.post("/api/v1/query", body: request)
+    }
 }
 
 public final class ChatService: @unchecked Sendable {
@@ -100,6 +125,31 @@ public final class ChatService: @unchecked Sendable {
     public func completions(_ request: ChatCompletionRequest) async throws -> ChatCompletionResponse
     {
         try await http.post("/api/v1/chat/completions", body: request)
+    }
+
+    /// Convenience alias for `completions`.
+    public func complete(request: ChatCompletionRequest) async throws -> ChatCompletionResponse {
+        try await completions(request)
+    }
+
+    /// Get a conversation by ID. WHY: Maps to GET /api/v1/conversations/{id}.
+    public func getConversation(id: String) async throws -> ConversationDetail {
+        try await http.get("/api/v1/conversations/\(id)")
+    }
+
+    /// List all conversations. WHY: Maps to GET /api/v1/conversations.
+    public func listConversations() async throws -> ConversationListResponse {
+        try await http.get("/api/v1/conversations")
+    }
+
+    /// Bulk delete conversations. WHY: Maps to POST /api/v1/conversations/bulk/delete.
+    public func bulkDeleteConversations(ids: [String]) async throws -> BulkDeleteResponse {
+        try await http.post("/api/v1/conversations/bulk/delete", body: ["ids": ids])
+    }
+
+    /// List conversation folders. WHY: Maps to GET /api/v1/folders.
+    public func listFolders() async throws -> [FolderInfo] {
+        try await http.get("/api/v1/folders")
     }
 }
 
@@ -167,6 +217,17 @@ public final class ModelService: @unchecked Sendable {
 
     public func providerStatus() async throws -> ProviderStatus {
         try await http.get("/api/v1/settings/provider/status")
+    }
+
+    /// Get named provider health. WHY: Maps to GET /api/v1/models/health/{name}.
+    public func providerHealth(name: String) async throws -> ProviderHealthInfo {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
+        return try await http.get("/api/v1/models/health/\(encoded)")
+    }
+
+    /// Alias for providerStatus(). WHY: Convenience for tests that call status().
+    public func status() async throws -> ProviderStatus {
+        try await providerStatus()
     }
 }
 

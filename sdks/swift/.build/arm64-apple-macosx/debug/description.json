@@ -44,6 +44,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageModels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageService.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/Models.swift"
         },
         {
@@ -67,6 +75,8 @@
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/EdgeQuakeConfig.swift.o",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/EdgeQuakeError.swift.o",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/HttpHelper.swift.o",
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageModels.swift.o",
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageService.swift.o",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/Models.swift.o",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/Services.swift.o"
       ],
@@ -145,6 +155,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageModels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageService.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/Models.swift.o"
         },
         {
@@ -162,6 +180,8 @@
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/EdgeQuakeConfig.swift",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/EdgeQuakeError.swift",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/HttpHelper.swift",
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageModels.swift",
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageService.swift",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/Models.swift",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/Services.swift"
       ],
@@ -280,6 +300,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/LineageTest.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/UnitTest.swift"
         },
         {
@@ -300,6 +324,7 @@
       "moduleOutputPath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/Modules/EdgeQuakeSDKTests.swiftmodule",
       "objects" : [
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/E2ETest.swift.o",
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/LineageTest.swift.o",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/UnitTest.swift.o"
       ],
       "otherArguments" : [
@@ -364,6 +389,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/LineageTest.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/UnitTest.swift.o"
         },
         {
@@ -374,6 +403,7 @@
       "prepareForIndexing" : false,
       "sources" : [
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/E2ETest.swift",
+        "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/LineageTest.swift",
         "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/UnitTest.swift"
       ],
       "tempsPath" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build",
@@ -395,6 +425,8 @@
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/EdgeQuakeConfig.swift",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/EdgeQuakeError.swift",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/HttpHelper.swift",
+      "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageModels.swift",
+      "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageService.swift",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/Models.swift",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/Services.swift",
       "-I",
@@ -529,6 +561,7 @@
       "swift",
       "-c",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/E2ETest.swift",
+      "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/LineageTest.swift",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/UnitTest.swift",
       "-I",
       "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/Modules",
@@ -647,6 +680,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageModels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/LineageService.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Sources/EdgeQuakeSDK/Models.swift"
         },
         {
@@ -695,6 +736,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageModels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/LineageService.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDK.build/Models.swift.o"
         },
         {
@@ -708,6 +757,10 @@
         {
           "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/E2ETest.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKTests.build/LineageTest.swift.o"
         },
         {
           "kind" : "file",
@@ -726,6 +779,10 @@
         {
           "kind" : "file",
           "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/E2ETest.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/Tests/EdgeQuakeSDKTests/LineageTest.swift"
         },
         {
           "kind" : "file",

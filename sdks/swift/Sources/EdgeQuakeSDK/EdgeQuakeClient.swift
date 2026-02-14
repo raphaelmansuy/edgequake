@@ -27,6 +27,7 @@ public final class EdgeQuakeClient: @unchecked Sendable {
     public let costs: CostService
     public let conversations: ConversationService
     public let folders: FolderService
+    public let lineage: LineageService
 
     public init(config: EdgeQuakeConfig = EdgeQuakeConfig()) {
         self.http = HttpHelper(config: config)
@@ -46,5 +47,6 @@ public final class EdgeQuakeClient: @unchecked Sendable {
         self.costs = CostService(http)
         self.conversations = ConversationService(http)
         self.folders = FolderService(http)
+        self.lineage = LineageService(http)
     }
 }
