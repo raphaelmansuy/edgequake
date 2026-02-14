@@ -65,6 +65,56 @@ public class HttpHelper
         await EnsureSuccess(resp);
     }
 
+    public async Task<T> PutAsync<T>(string path, object? body = null) where T : class
+    {
+        var content = body is not null
+            ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
+            : new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _client.PutAsync(path, content);
+        return await HandleResponse<T>(resp);
+    }
+
+    /// <summary>WHY: PUT endpoints may return 204 No Content.</summary>
+    public async Task PutNoContentAsync(string path, object? body = null)
+    {
+        var content = body is not null
+            ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
+            : new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _client.PutAsync(path, content);
+        await EnsureSuccess(resp);
+    }
+
+    public async Task<T> PatchAsync<T>(string path, object? body = null) where T : class
+    {
+        var content = body is not null
+            ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
+            : new StringContent("{}", Encoding.UTF8, "application/json");
+        var req = new HttpRequestMessage(HttpMethod.Patch, path) { Content = content };
+        var resp = await _client.SendAsync(req);
+        return await HandleResponse<T>(resp);
+    }
+
+    /// <summary>WHY: PATCH endpoints may return 204 No Content.</summary>
+    public async Task PatchNoContentAsync(string path, object? body = null)
+    {
+        var content = body is not null
+            ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
+            : new StringContent("{}", Encoding.UTF8, "application/json");
+        var req = new HttpRequestMessage(HttpMethod.Patch, path) { Content = content };
+        var resp = await _client.SendAsync(req);
+        await EnsureSuccess(resp);
+    }
+
+    public async Task<string> PostRawAsync(string path, object? body = null)
+    {
+        var content = body is not null
+            ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
+            : new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _client.PostAsync(path, content);
+        await EnsureSuccess(resp);
+        return await resp.Content.ReadAsStringAsync();
+    }
+
     public async Task<string> GetRawAsync(string path)
     {
         var resp = await _client.GetAsync(path);

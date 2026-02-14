@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 
 namespace EdgeQuakeSDK;
 
+// OODA-36: Enhanced with complete API response types.
+
 // ── Health ──
 public class HealthResponse
 {
@@ -12,6 +14,24 @@ public class HealthResponse
     public string? WorkspaceId { get; set; }
     public Dictionary<string, bool>? Components { get; set; }
     public string? LlmProviderName { get; set; }
+}
+
+public class ReadinessResponse
+{
+    public string? Status { get; set; }
+    public bool? Ready { get; set; }
+    public Dictionary<string, bool>? Checks { get; set; }
+}
+
+public class LivenessResponse
+{
+    public string? Status { get; set; }
+    public bool? Alive { get; set; }
+}
+
+public class MetricsResponse
+{
+    public Dictionary<string, object>? Metrics { get; set; }
 }
 
 // ── Documents ──
@@ -24,6 +44,31 @@ public class DocumentListResponse
     public int? PageSize { get; set; }
     public int? TotalPages { get; set; }
     public bool? HasMore { get; set; }
+}
+
+public class DocumentDetailResponse
+{
+    public string? Id { get; set; }
+    public string? Title { get; set; }
+    public string? Status { get; set; }
+    public string? CreatedAt { get; set; }
+    public int? ChunkCount { get; set; }
+    public int? EntityCount { get; set; }
+    public Dictionary<string, object>? Metadata { get; set; }
+}
+
+public class DocumentChunksResponse
+{
+    public List<JsonElement>? Chunks { get; set; }
+    public int? Total { get; set; }
+}
+
+public class DocumentStatusResponse
+{
+    public string? Status { get; set; }
+    public int? Progress { get; set; }
+    public string? Stage { get; set; }
+    public string? Message { get; set; }
 }
 
 public class UploadResponse
@@ -51,11 +96,33 @@ public class EntityDetailResponse
     public JsonElement? Statistics { get; set; }
 }
 
+public class EntityNeighborhoodResponse
+{
+    public JsonElement? Entity { get; set; }
+    public List<JsonElement>? Neighbors { get; set; }
+    public List<JsonElement>? Relationships { get; set; }
+    public int? Depth { get; set; }
+}
+
 public class CreateEntityResponse
 {
     public string? Status { get; set; }
     public string? Message { get; set; }
     public JsonElement? Entity { get; set; }
+}
+
+public class MergeEntitiesResponse
+{
+    public string? Status { get; set; }
+    public string? Message { get; set; }
+    public string? MergedEntityId { get; set; }
+    public int? MergedRelationships { get; set; }
+}
+
+public class EntityTypesResponse
+{
+    public List<string>? Types { get; set; }
+    public Dictionary<string, int>? TypeCounts { get; set; }
 }
 
 public class EntityDeleteResponse
@@ -74,6 +141,27 @@ public class RelationshipListResponse
     public int? Total { get; set; }
 }
 
+public class RelationshipDetailResponse
+{
+    public string? Source { get; set; }
+    public string? Target { get; set; }
+    public List<string>? Keywords { get; set; }
+    public string? Description { get; set; }
+    public double? Weight { get; set; }
+}
+
+public class CreateRelationshipResponse
+{
+    public string? Status { get; set; }
+    public string? Message { get; set; }
+}
+
+public class RelationshipTypesResponse
+{
+    public List<string>? Types { get; set; }
+    public Dictionary<string, int>? TypeCounts { get; set; }
+}
+
 // ── Graph ──
 public class GraphResponse
 {
@@ -81,9 +169,40 @@ public class GraphResponse
     public List<JsonElement>? Edges { get; set; }
 }
 
+public class GraphStatsResponse
+{
+    public int? NodeCount { get; set; }
+    public int? EdgeCount { get; set; }
+    public int? ComponentCount { get; set; }
+    public double? Density { get; set; }
+    public Dictionary<string, int>? TypeDistribution { get; set; }
+}
+
 public class SearchResponse
 {
     public List<JsonElement>? Results { get; set; }
+}
+
+public class LabelSearchResponse
+{
+    public List<JsonElement>? Results { get; set; }
+    public int? Total { get; set; }
+}
+
+public class PopularLabelsResponse
+{
+    public List<LabelInfo>? Labels { get; set; }
+}
+
+public class LabelInfo
+{
+    public string? Label { get; set; }
+    public int? Count { get; set; }
+}
+
+public class BatchDegreesResponse
+{
+    public Dictionary<string, int>? Degrees { get; set; }
 }
 
 // ── Query ──
@@ -113,9 +232,27 @@ public class TenantListResponse
     public List<JsonElement>? Items { get; set; }
 }
 
+public class TenantInfo
+{
+    public string? Id { get; set; }
+    public string? Name { get; set; }
+    public string? DisplayName { get; set; }
+    public string? CreatedAt { get; set; }
+    public string? UpdatedAt { get; set; }
+}
+
 public class UserListResponse
 {
     public List<JsonElement>? Users { get; set; }
+}
+
+public class UserInfo
+{
+    public string? Id { get; set; }
+    public string? Email { get; set; }
+    public string? Name { get; set; }
+    public string? Role { get; set; }
+    public string? CreatedAt { get; set; }
 }
 
 public class ApiKeyListResponse
@@ -123,11 +260,54 @@ public class ApiKeyListResponse
     public List<JsonElement>? Keys { get; set; }
 }
 
+public class ApiKeyInfo
+{
+    public string? Id { get; set; }
+    public string? Name { get; set; }
+    public string? Prefix { get; set; }
+    public List<string>? Scopes { get; set; }
+    public string? CreatedAt { get; set; }
+    public string? ExpiresAt { get; set; }
+}
+
+public class CreateApiKeyResponse
+{
+    public string? Id { get; set; }
+    public string? Key { get; set; }
+    public string? Name { get; set; }
+    public List<string>? Scopes { get; set; }
+}
+
 // ── Tasks ──
 public class TaskListResponse
 {
     public List<JsonElement>? Tasks { get; set; }
     public List<JsonElement>? Items { get; set; }
+}
+
+public class TaskInfo
+{
+    public string? Id { get; set; }
+    public string? Type { get; set; }
+    public string? Status { get; set; }
+    public string? DocumentId { get; set; }
+    public int? Progress { get; set; }
+    public string? CreatedAt { get; set; }
+    public string? CompletedAt { get; set; }
+}
+
+public class TaskStatusResponse
+{
+    public string? Status { get; set; }
+    public int? Progress { get; set; }
+    public string? Stage { get; set; }
+    public string? Message { get; set; }
+}
+
+public class StatusResponse
+{
+    public string? Status { get; set; }
+    public string? Message { get; set; }
 }
 
 // ── Pipeline ──
@@ -154,10 +334,47 @@ public class QueueMetricsResponse
     public bool? RateLimited { get; set; }
 }
 
+public class ProcessingListResponse
+{
+    public List<JsonElement>? Items { get; set; }
+    public int? Total { get; set; }
+}
+
+public class CostEstimateResponse
+{
+    public double? EstimatedCost { get; set; }
+    public int? EstimatedTokens { get; set; }
+    public string? Model { get; set; }
+}
+
 // ── Models ──
 public class ProviderCatalog
 {
     public List<JsonElement>? Providers { get; set; }
+}
+
+public class ModelListResponse
+{
+    public List<ModelInfo>? Models { get; set; }
+}
+
+public class ModelInfo
+{
+    public string? Id { get; set; }
+    public string? Name { get; set; }
+    public string? Provider { get; set; }
+    public string? Type { get; set; }
+    public bool? IsDefault { get; set; }
+    public int? ContextLength { get; set; }
+}
+
+public class ModelTestResponse
+{
+    public bool? Success { get; set; }
+    public string? Response { get; set; }
+    public int? TokensUsed { get; set; }
+    public long? DurationMs { get; set; }
+    public string? Error { get; set; }
 }
 
 public class ProviderHealthInfo
@@ -178,6 +395,11 @@ public class ProviderStatus
     public JsonElement? Metadata { get; set; }
 }
 
+public class ProviderListResponse
+{
+    public List<ProviderHealthInfo>? Providers { get; set; }
+}
+
 // ── Costs ──
 public class CostSummary
 {
@@ -185,6 +407,61 @@ public class CostSummary
     public int? DocumentCount { get; set; }
     public int? QueryCount { get; set; }
     public List<JsonElement>? Entries { get; set; }
+}
+
+public class DailyCostResponse
+{
+    public List<DailyCostEntry>? Days { get; set; }
+    public double? TotalCost { get; set; }
+}
+
+public class DailyCostEntry
+{
+    public string? Date { get; set; }
+    public double? Cost { get; set; }
+    public int? Queries { get; set; }
+    public int? Documents { get; set; }
+}
+
+public class ProviderCostResponse
+{
+    public List<ProviderCostEntry>? Providers { get; set; }
+}
+
+public class ProviderCostEntry
+{
+    public string? Provider { get; set; }
+    public double? Cost { get; set; }
+    public int? Requests { get; set; }
+}
+
+public class ModelCostResponse
+{
+    public List<ModelCostEntry>? Models { get; set; }
+}
+
+public class ModelCostEntry
+{
+    public string? Model { get; set; }
+    public double? Cost { get; set; }
+    public int? Requests { get; set; }
+    public int? Tokens { get; set; }
+}
+
+public class CostHistoryResponse
+{
+    public List<JsonElement>? Items { get; set; }
+    public int? Total { get; set; }
+    public int? Page { get; set; }
+    public int? PageSize { get; set; }
+}
+
+public class BudgetInfo
+{
+    public double? Limit { get; set; }
+    public double? CurrentUsage { get; set; }
+    public string? Period { get; set; }
+    public double? PercentUsed { get; set; }
 }
 
 // ── Conversations ──
@@ -234,10 +511,34 @@ public class ConversationMessage
     public string? CreatedAt { get; set; }
 }
 
+public class MessageListResponse
+{
+    public List<ConversationMessage>? Messages { get; set; }
+}
+
 public class BulkDeleteResponse
 {
     public int? Deleted { get; set; }
     public string? Status { get; set; }
+}
+
+public class ShareLinkResponse
+{
+    public string? ShareId { get; set; }
+    public string? ShareUrl { get; set; }
+    public string? ExpiresAt { get; set; }
+}
+
+public class ConversationImport
+{
+    public string? Title { get; set; }
+    public List<ConversationMessage>? Messages { get; set; }
+}
+
+public class ImportResponse
+{
+    public int? Imported { get; set; }
+    public List<string>? ConversationIds { get; set; }
 }
 
 // ── Folders ──
@@ -248,4 +549,73 @@ public class FolderInfo
     public string? Name { get; set; }
     public string? CreatedAt { get; set; }
     public string? UpdatedAt { get; set; }
+}
+
+public class FolderConversationsResponse
+{
+    public List<ConversationInfo>? Conversations { get; set; }
+}
+
+// ── Auth (OODA-36) ──
+public class AuthTokenResponse
+{
+    public string? AccessToken { get; set; }
+    public string? RefreshToken { get; set; }
+    public string? TokenType { get; set; }
+    public int? ExpiresIn { get; set; }
+}
+
+public class AuthUserResponse
+{
+    public string? Id { get; set; }
+    public string? Email { get; set; }
+    public string? Name { get; set; }
+    public string? Role { get; set; }
+    public string? TenantId { get; set; }
+}
+
+// ── Workspaces (OODA-36) ──
+public class WorkspaceListResponse
+{
+    public List<WorkspaceInfo>? Items { get; set; }
+}
+
+public class WorkspaceInfo
+{
+    public string? Id { get; set; }
+    public string? TenantId { get; set; }
+    public string? Name { get; set; }
+    public string? Description { get; set; }
+    public string? CreatedAt { get; set; }
+    public string? UpdatedAt { get; set; }
+}
+
+public class WorkspaceStatsResponse
+{
+    public int? DocumentCount { get; set; }
+    public int? EntityCount { get; set; }
+    public int? RelationshipCount { get; set; }
+    public int? ChunkCount { get; set; }
+    public double? StorageUsedMb { get; set; }
+}
+
+// ── Shared (OODA-36) ──
+public class SharedLinkResponse
+{
+    public string? ShareId { get; set; }
+    public string? ConversationId { get; set; }
+    public string? ShareUrl { get; set; }
+    public string? CreatedAt { get; set; }
+    public string? ExpiresAt { get; set; }
+}
+
+public class SharedAccessResponse
+{
+    public ConversationInfo? Conversation { get; set; }
+    public List<ConversationMessage>? Messages { get; set; }
+}
+
+public class SharedLinksListResponse
+{
+    public List<SharedLinkResponse>? Items { get; set; }
 }

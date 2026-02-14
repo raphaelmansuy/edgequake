@@ -1,6 +1,7 @@
 namespace EdgeQuakeSDK;
 
 /// <summary>Main client for the EdgeQuake API.</summary>
+/// <remarks>OODA-36: Added AuthService, WorkspaceService, SharedService.</remarks>
 public class EdgeQuakeClient
 {
     public HealthService Health { get; }
@@ -21,6 +22,12 @@ public class EdgeQuakeClient
     public FolderService Folders { get; }
     /// <summary>WHY: Lineage service added in OODA-24 for entity/document/chunk provenance.</summary>
     public LineageService Lineage { get; }
+    /// <summary>WHY: Auth service added in OODA-36 for login/logout/refresh/me.</summary>
+    public AuthService Auth { get; }
+    /// <summary>WHY: Workspace service added in OODA-36 for workspace CRUD/stats/switch.</summary>
+    public WorkspaceService Workspaces { get; }
+    /// <summary>WHY: Shared service added in OODA-36 for conversation sharing.</summary>
+    public SharedService Shared { get; }
 
     public EdgeQuakeClient(EdgeQuakeConfig? config = null)
     {
@@ -44,5 +51,8 @@ public class EdgeQuakeClient
         Conversations = new ConversationService(http);
         Folders = new FolderService(http);
         Lineage = new LineageService(http);
+        Auth = new AuthService(http);
+        Workspaces = new WorkspaceService(http);
+        Shared = new SharedService(http);
     }
 }

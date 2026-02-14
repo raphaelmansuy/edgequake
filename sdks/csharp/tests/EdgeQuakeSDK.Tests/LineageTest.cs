@@ -789,14 +789,15 @@ public class LineageTest
     // ── Client Service Count ───────────────────────────────────────
 
     [Fact]
-    public void Client_Has17Services()
+    public void Client_Has20Services()
     {
         var client = new EdgeQuakeClient();
         var props = typeof(EdgeQuakeClient).GetProperties();
-        // 17 services: Health, Documents, Entities, Relationships, Graph, Query,
+        // 20 services: Health, Documents, Entities, Relationships, Graph, Query,
         // Chat, Tenants, Users, ApiKeys, Tasks, Pipeline, Models, Costs,
-        // Conversations, Folders, Lineage
-        Assert.Equal(17, props.Length);
+        // Conversations, Folders, Lineage, Auth, Workspaces, Shared
+        // OODA-36: Added Auth, Workspaces, Shared services
+        Assert.Equal(20, props.Length);
     }
 
     // ── LineageService Endpoint Tests (OODA-25) ────────────────────
