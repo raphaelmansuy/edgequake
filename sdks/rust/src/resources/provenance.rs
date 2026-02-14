@@ -19,11 +19,13 @@ impl<'a> ProvenanceResource<'a> {
             .await
     }
 
-    /// `GET /api/v1/entities/{name}/lineage`
+    /// `GET /api/v1/lineage/entities/{name}`
+    ///
+    /// WHY: Route is under /lineage/ prefix, not /entities/. Fixed in OODA-31.
     pub async fn lineage(&self, entity_name: &str) -> Result<LineageGraph> {
         self.client
             .get(&format!(
-                "/api/v1/entities/{}/lineage",
+                "/api/v1/lineage/entities/{}",
                 urlencoding::encode(entity_name)
             ))
             .await

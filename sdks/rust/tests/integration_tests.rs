@@ -2,7 +2,7 @@
 mod tests {
     use edgequake_sdk::*;
     use serde_json::json;
-    use wiremock::matchers::{method, path, path_regex};
+    use wiremock::matchers::{method, path, path_regex, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     // ── Helper ──────────────────────────────────────────────────────
@@ -1209,7 +1209,7 @@ mod tests {
     async fn test_lineage_via_provenance_service() {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path_regex(r"/api/v1/entities/.+/lineage"))
+            .and(path_regex(r"/api/v1/lineage/entities/.+"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "nodes": [{"id": "n1", "name": "ALICE"}],
                 "edges": []
@@ -1241,5 +1241,208 @@ mod tests {
         let records = result.unwrap();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].confidence, Some(0.9));
+    }
+
+    // ── Lineage resource tests (OODA-31) ──
+
+    #[tokio::test]
+    async fn test_lineage_entity_lineage() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/lineage/entities/ALICE"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "nodes": [
+                    {"id": "n1", "name": "ALICE", "type": "entity"},
+                    {"id": "n2", "name": "BOB", "type": "entity"}
+                ],
+                "edges": [
+                    {"source": "n1", "target": "n2", "relationship": "KNOWS"}
+                ],
+                "root_id": "n1"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let graph = client.lineage().entity_lineage("ALICE").await.unwrap();
+        assert_eq!(graph.nodes.len(), 2);
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.root_id, Some("n1".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_lineage_entity_lineage_url_encodes_name() {
+        let mock_server = MockServer::start().await;
+        // Names with spaces should be URL-encoded
+        Mock::given(method("GET"))
+            .and(path("/api/v1/lineage/entities/SARAH%20CHEN"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "nodes": [{"id": "n1", "name": "SARAH CHEN"}],
+                "edges": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let graph = client.lineage().entity_lineage("SARAH CHEN").await.unwrap();
+        assert_eq!(graph.nodes.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_lineage_document_lineage() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/lineage/documents/doc-123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "nodes": [{"id": "d1", "name": "report.pdf", "type": "document"}],
+                "edges": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let graph = client.lineage().document_lineage("doc-123").await.unwrap();
+        assert_eq!(graph.nodes.len(), 1);
+        assert!(graph.edges.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_lineage_document_full_lineage() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/doc-456/lineage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "document_id": "doc-456",
+                "metadata": {"title": "Test Doc"},
+                "lineage": {
+                    "nodes": [{"id": "e1", "name": "ALICE"}],
+                    "edges": []
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let full = client.lineage().document_full_lineage("doc-456").await.unwrap();
+        assert_eq!(full.document_id, "doc-456");
+        assert!(full.metadata.is_some());
+        assert!(full.lineage.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_lineage_export_json() {
+        let mock_server = MockServer::start().await;
+        let export_body = r#"{"nodes":[],"edges":[]}"#;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/doc-789/lineage/export"))
+            .and(query_param("format", "json"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(export_body.as_bytes().to_vec(), "application/json"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let bytes = client.lineage().export_lineage("doc-789", "json").await.unwrap();
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.contains("nodes"));
+    }
+
+    #[tokio::test]
+    async fn test_lineage_export_csv() {
+        let mock_server = MockServer::start().await;
+        let csv_body = "source,target,relationship\nALICE,BOB,KNOWS\n";
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/doc-789/lineage/export"))
+            .and(query_param("format", "csv"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(csv_body.as_bytes().to_vec(), "text/csv"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let bytes = client.lineage().export_lineage("doc-789", "csv").await.unwrap();
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.contains("ALICE"));
+        assert!(text.contains("KNOWS"));
+    }
+
+    #[tokio::test]
+    async fn test_lineage_empty_graph() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/lineage/entities/UNKNOWN"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "nodes": [],
+                "edges": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let graph = client.lineage().entity_lineage("UNKNOWN").await.unwrap();
+        assert!(graph.nodes.is_empty());
+        assert!(graph.edges.is_empty());
+        assert!(graph.root_id.is_none());
+    }
+
+    // ── Settings resource tests (OODA-31) ──
+
+    #[tokio::test]
+    async fn test_settings_provider_status() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/settings/provider/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "current_provider": "ollama",
+                "current_model": "gemma3:latest",
+                "status": "healthy"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let status = client.settings().provider_status().await.unwrap();
+        assert_eq!(status.current_provider, Some("ollama".to_string()));
+        assert_eq!(status.current_model, Some("gemma3:latest".to_string()));
+        assert_eq!(status.status, Some("healthy".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_settings_list_providers() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/settings/providers"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"name": "ollama", "status": "available"},
+                {"name": "openai", "status": "available"}
+            ])))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let providers = client.settings().list_providers().await.unwrap();
+        assert_eq!(providers.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_settings_provider_status_no_provider() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/settings/provider/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "status": "no_provider"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_client(&mock_server).await;
+        let status = client.settings().provider_status().await.unwrap();
+        assert!(status.current_provider.is_none());
+        assert!(status.current_model.is_none());
+        assert_eq!(status.status, Some("no_provider".to_string()));
     }
 }

@@ -116,6 +116,14 @@ impl EdgeQuakeClient {
         crate::resources::pdf::PdfResource { client: self }
     }
 
+    pub fn lineage(&self) -> crate::resources::lineage::LineageResource<'_> {
+        crate::resources::lineage::LineageResource { client: self }
+    }
+
+    pub fn settings(&self) -> crate::resources::settings::SettingsResource<'_> {
+        crate::resources::settings::SettingsResource { client: self }
+    }
+
     // ── Low-level request helpers (used by resources) ───────────────
 
     /// Build a full URL from a path segment.
@@ -172,6 +180,17 @@ impl EdgeQuakeClient {
         let status = resp.status();
         if status.is_success() {
             Ok(())
+        } else {
+            Err(Error::from_response(resp).await)
+        }
+    }
+
+    /// Execute a GET request and return raw bytes (for CSV/binary downloads).
+    pub(crate) async fn get_raw(&self, path: &str) -> Result<Vec<u8>> {
+        let resp = self.send_with_retry(Method::GET, path, Option::<&()>::None).await?;
+        let status = resp.status();
+        if status.is_success() {
+            resp.bytes().await.map(|b| b.to_vec()).map_err(Error::Network)
         } else {
             Err(Error::from_response(resp).await)
         }
