@@ -750,4 +750,143 @@ module EdgeQuake
       assert_equal 1, result["a"]
     end
   end
+
+  # ── Lineage Service Tests ────────────────────────────────────────
+
+  class LineageServiceTest < Minitest::Test
+    def test_client_has_lineage_service
+      client = Client.new
+      assert_instance_of LineageService, client.lineage
+    end
+
+    def test_entity_lineage
+      mock = MockHttpHelper.new('{"entity_name":"ALICE","entity_type":"person","description_history":[]}')
+      svc = LineageService.new(mock)
+      result = svc.entity_lineage(name: "ALICE")
+      assert_equal "ALICE", result["entity_name"]
+      assert_equal "person", result["entity_type"]
+      assert_kind_of Array, result["description_history"]
+      assert_equal :get, mock.last_call[:method]
+      assert_equal "/api/v1/lineage/entities/ALICE", mock.last_call[:path]
+    end
+
+    def test_entity_lineage_url_encoding
+      mock = MockHttpHelper.new('{"entity_name":"HELLO WORLD"}')
+      svc = LineageService.new(mock)
+      svc.entity_lineage(name: "HELLO WORLD")
+      assert_equal "/api/v1/lineage/entities/HELLO+WORLD", mock.last_call[:path]
+    end
+
+    def test_entity_lineage_special_chars
+      mock = MockHttpHelper.new('{"entity_name":"O\'BRIEN"}')
+      svc = LineageService.new(mock)
+      svc.entity_lineage(name: "O'BRIEN")
+      assert_includes mock.last_call[:path], "/api/v1/lineage/entities/"
+      assert_equal :get, mock.last_call[:method]
+    end
+
+    def test_document_lineage
+      mock = MockHttpHelper.new('{"document_id":"d1","entities":[],"relationships":[]}')
+      svc = LineageService.new(mock)
+      result = svc.document_lineage(id: "d1")
+      assert_equal "d1", result["document_id"]
+      assert_kind_of Array, result["entities"]
+      assert_kind_of Array, result["relationships"]
+      assert_equal :get, mock.last_call[:method]
+      assert_equal "/api/v1/lineage/documents/d1", mock.last_call[:path]
+    end
+
+    def test_document_lineage_empty
+      mock = MockHttpHelper.new('{"document_id":"d2","entities":[],"relationships":[],"extraction_stats":null}')
+      svc = LineageService.new(mock)
+      result = svc.document_lineage(id: "d2")
+      assert_equal "d2", result["document_id"]
+      assert_empty result["entities"]
+      assert_nil result["extraction_stats"]
+    end
+
+    def test_document_full_lineage
+      mock = MockHttpHelper.new('{"document_id":"d1","chunks":[],"total_chunks":5}')
+      svc = LineageService.new(mock)
+      result = svc.document_full_lineage(id: "d1")
+      assert_equal "d1", result["document_id"]
+      assert_kind_of Array, result["chunks"]
+      assert_equal 5, result["total_chunks"]
+      assert_equal :get, mock.last_call[:method]
+      assert_equal "/api/v1/documents/d1/lineage", mock.last_call[:path]
+    end
+
+    def test_export_lineage_json
+      mock = MockHttpHelper.new('{"document_id":"d1","format":"json"}')
+      svc = LineageService.new(mock)
+      result = svc.export_lineage(id: "d1")
+      assert_kind_of String, result
+      assert_includes result, "document_id"
+      assert_equal :get, mock.last_call[:method]
+      assert_equal "/api/v1/documents/d1/lineage/export?format=json", mock.last_call[:path]
+    end
+
+    def test_export_lineage_csv
+      mock = MockHttpHelper.new("entity_name,entity_type\nALICE,person")
+      svc = LineageService.new(mock)
+      result = svc.export_lineage(id: "d1", format: "csv")
+      assert_kind_of String, result
+      assert_includes result, "ALICE"
+      assert_equal "/api/v1/documents/d1/lineage/export?format=csv", mock.last_call[:path]
+    end
+
+    def test_chunk_detail
+      mock = MockHttpHelper.new('{"chunk_id":"c1","content":"hello","entities":[],"relationships":[]}')
+      svc = LineageService.new(mock)
+      result = svc.chunk_detail(id: "c1")
+      assert_equal "c1", result["chunk_id"]
+      assert_equal "hello", result["content"]
+      assert_kind_of Array, result["entities"]
+      assert_equal :get, mock.last_call[:method]
+      assert_equal "/api/v1/chunks/c1", mock.last_call[:path]
+    end
+
+    def test_chunk_detail_minimal
+      mock = MockHttpHelper.new('{"chunk_id":"c2","content":""}')
+      svc = LineageService.new(mock)
+      result = svc.chunk_detail(id: "c2")
+      assert_equal "c2", result["chunk_id"]
+      assert_equal "", result["content"]
+    end
+
+    def test_chunk_lineage
+      mock = MockHttpHelper.new('{"chunk_id":"c1","document_id":"d1","entities":[],"relationships":[]}')
+      svc = LineageService.new(mock)
+      result = svc.chunk_lineage(id: "c1")
+      assert_equal "c1", result["chunk_id"]
+      assert_equal "d1", result["document_id"]
+      assert_equal :get, mock.last_call[:method]
+      assert_equal "/api/v1/chunks/c1/lineage", mock.last_call[:path]
+    end
+
+    def test_entity_provenance
+      mock = MockHttpHelper.new('{"entity_name":"BOB","source_documents":[],"related_entities":[]}')
+      svc = LineageService.new(mock)
+      result = svc.entity_provenance(id: "ent-1")
+      assert_equal "BOB", result["entity_name"]
+      assert_kind_of Array, result["source_documents"]
+      assert_kind_of Array, result["related_entities"]
+      assert_equal :get, mock.last_call[:method]
+      assert_equal "/api/v1/entities/ent-1/provenance", mock.last_call[:path]
+    end
+
+    def test_entity_provenance_minimal
+      mock = MockHttpHelper.new('{"entity_name":"X"}')
+      svc = LineageService.new(mock)
+      result = svc.entity_provenance(id: "ent-2")
+      assert_equal "X", result["entity_name"]
+      assert_equal "/api/v1/entities/ent-2/provenance", mock.last_call[:path]
+    end
+
+    def test_lineage_error_handling
+      mock = MockHttpHelper.new.will_return('{"error":"Not Found"}', 404)
+      svc = LineageService.new(mock)
+      assert_raises(ApiError) { svc.entity_lineage(name: "MISSING") }
+    end
+  end
 end

@@ -179,4 +179,47 @@ module EdgeQuake
       @http.post("/api/v1/folders", { name: name })
     end
   end
+
+  # WHY: Lineage & provenance service — maps 7 lineage API endpoints.
+  # OODA-28: Ruby SDK lineage service.
+  class LineageService
+    def initialize(http) = @http = http
+
+    # Get entity lineage showing all source documents.
+    def entity_lineage(name:)
+      encoded = URI.encode_www_form_component(name)
+      @http.get("/api/v1/lineage/entities/#{encoded}")
+    end
+
+    # Get document graph lineage with entities and relationships.
+    def document_lineage(id:)
+      @http.get("/api/v1/lineage/documents/#{id}")
+    end
+
+    # Get full document lineage including metadata.
+    def document_full_lineage(id:)
+      @http.get("/api/v1/documents/#{id}/lineage")
+    end
+
+    # Export document lineage as JSON or CSV. Returns raw string.
+    def export_lineage(id:, format: "json")
+      fmt = URI.encode_www_form_component(format)
+      @http.get_raw("/api/v1/documents/#{id}/lineage/export?format=#{fmt}")
+    end
+
+    # Get chunk detail with extracted entities and relationships.
+    def chunk_detail(id:)
+      @http.get("/api/v1/chunks/#{id}")
+    end
+
+    # Get chunk lineage with parent document references.
+    def chunk_lineage(id:)
+      @http.get("/api/v1/chunks/#{id}/lineage")
+    end
+
+    # Get entity provenance with source documents and related entities.
+    def entity_provenance(id:)
+      @http.get("/api/v1/entities/#{id}/provenance")
+    end
+  end
 end
