@@ -30,4 +30,14 @@ impl<'a> TasksResource<'a> {
             )
             .await
     }
+
+    /// `POST /api/v1/tasks/{track_id}/retry` — Retry a failed task.
+    pub async fn retry(&self, track_id: &str) -> Result<serde_json::Value> {
+        self.client
+            .post::<(), serde_json::Value>(
+                &format!("/api/v1/tasks/{track_id}/retry"),
+                None,
+            )
+            .await
+    }
 }

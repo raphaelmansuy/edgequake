@@ -46,4 +46,69 @@ impl<'a> WorkspacesResource<'a> {
             )
             .await
     }
+
+    /// `GET /api/v1/workspaces/{id}` — Get workspace by ID.
+    pub async fn get(&self, workspace_id: &str) -> Result<WorkspaceInfo> {
+        self.client
+            .get(&format!("/api/v1/workspaces/{workspace_id}"))
+            .await
+    }
+
+    /// `PUT /api/v1/workspaces/{id}` — Update workspace.
+    pub async fn update(
+        &self,
+        workspace_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<WorkspaceInfo> {
+        self.client
+            .put(
+                &format!("/api/v1/workspaces/{workspace_id}"),
+                Some(body),
+            )
+            .await
+    }
+
+    /// `DELETE /api/v1/workspaces/{id}` — Delete workspace.
+    pub async fn delete(&self, workspace_id: &str) -> Result<()> {
+        self.client
+            .delete_no_content(&format!("/api/v1/workspaces/{workspace_id}"))
+            .await
+    }
+
+    /// `GET /api/v1/workspaces/{id}/metrics-history`
+    pub async fn metrics_history(&self, workspace_id: &str) -> Result<Vec<serde_json::Value>> {
+        self.client
+            .get(&format!("/api/v1/workspaces/{workspace_id}/metrics-history"))
+            .await
+    }
+
+    /// `POST /api/v1/workspaces/{id}/rebuild-embeddings`
+    pub async fn rebuild_embeddings(&self, workspace_id: &str) -> Result<serde_json::Value> {
+        self.client
+            .post::<(), serde_json::Value>(
+                &format!("/api/v1/workspaces/{workspace_id}/rebuild-embeddings"),
+                None,
+            )
+            .await
+    }
+
+    /// `POST /api/v1/workspaces/{id}/rebuild-knowledge-graph`
+    pub async fn rebuild_knowledge_graph(&self, workspace_id: &str) -> Result<serde_json::Value> {
+        self.client
+            .post::<(), serde_json::Value>(
+                &format!("/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph"),
+                None,
+            )
+            .await
+    }
+
+    /// `POST /api/v1/workspaces/{id}/reprocess-documents`
+    pub async fn reprocess_documents(&self, workspace_id: &str) -> Result<serde_json::Value> {
+        self.client
+            .post::<(), serde_json::Value>(
+                &format!("/api/v1/workspaces/{workspace_id}/reprocess-documents"),
+                None,
+            )
+            .await
+    }
 }

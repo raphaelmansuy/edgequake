@@ -23,4 +23,11 @@ impl<'a> AuthResource<'a> {
     pub async fn me(&self) -> Result<UserInfo> {
         self.client.get("/api/v1/auth/me").await
     }
+
+    /// `POST /api/v1/auth/logout`
+    pub async fn logout(&self) -> Result<()> {
+        self.client
+            .post_no_content::<()>("/api/v1/auth/logout", None)
+            .await
+    }
 }

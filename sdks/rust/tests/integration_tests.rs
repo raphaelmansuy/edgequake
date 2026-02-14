@@ -1445,4 +1445,576 @@ mod tests {
         assert!(status.current_model.is_none());
         assert_eq!(status.status, Some("no_provider".to_string()));
     }
+
+    // ── OODA-32: Health extended endpoints ──
+
+    #[tokio::test]
+    async fn test_health_ready() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/ready"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "ready"})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val: serde_json::Value = client.health().ready().await.unwrap();
+        assert_eq!(val["status"], "ready");
+    }
+
+    #[tokio::test]
+    async fn test_health_live() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/live"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "live"})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val: serde_json::Value = client.health().live().await.unwrap();
+        assert_eq!(val["status"], "live");
+    }
+
+    #[tokio::test]
+    async fn test_health_metrics() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/metrics"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"requests": 42})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val: serde_json::Value = client.health().metrics().await.unwrap();
+        assert_eq!(val["requests"], 42);
+    }
+
+    // ── OODA-32: Auth logout ──
+
+    #[tokio::test]
+    async fn test_auth_logout() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/logout"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let result = client.auth().logout().await;
+        assert!(result.is_ok());
+    }
+
+    // ── OODA-32: Document recovery endpoints ──
+
+    #[tokio::test]
+    async fn test_documents_delete_all() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/documents"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"deleted": 5})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.documents().delete_all().await.unwrap();
+        assert_eq!(val["deleted"], 5);
+    }
+
+    #[tokio::test]
+    async fn test_documents_reprocess() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/documents/reprocess"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"reprocessed": 3})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.documents().reprocess().await.unwrap();
+        assert_eq!(val["reprocessed"], 3);
+    }
+
+    #[tokio::test]
+    async fn test_documents_recover_stuck() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/documents/recover-stuck"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"recovered": 2})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.documents().recover_stuck().await.unwrap();
+        assert_eq!(val["recovered"], 2);
+    }
+
+    #[tokio::test]
+    async fn test_documents_retry_chunks() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/documents/doc-1/retry-chunks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"retried": 4})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.documents().retry_chunks("doc-1").await.unwrap();
+        assert_eq!(val["retried"], 4);
+    }
+
+    #[tokio::test]
+    async fn test_documents_failed_chunks() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/doc-1/failed-chunks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"chunk_id": "c1", "error": "timeout"}
+            ])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let chunks = client.documents().failed_chunks("doc-1").await.unwrap();
+        assert_eq!(chunks.len(), 1);
+    }
+
+    // ── OODA-32: Graph extended endpoints ──
+
+    #[tokio::test]
+    async fn test_graph_get_node() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/graph/nodes/n123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "n123", "label": "PERSON", "name": "Alice"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let node = client.graph().get_node("n123").await.unwrap();
+        assert_eq!(node["name"], "Alice");
+    }
+
+    #[tokio::test]
+    async fn test_graph_search_labels() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/graph/labels/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"label": "PERSON", "count": 42}
+            ])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let labels = client.graph().search_labels("PERS").await.unwrap();
+        assert_eq!(labels.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_graph_popular_labels() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/graph/labels/popular"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"label": "ORGANIZATION", "count": 100},
+                {"label": "PERSON", "count": 80}
+            ])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let labels = client.graph().popular_labels().await.unwrap();
+        assert_eq!(labels.len(), 2);
+    }
+
+    // ── OODA-32: Entity update ──
+
+    #[tokio::test]
+    async fn test_entities_update() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("PUT"))
+            .and(path("/api/v1/graph/entities/ALICE"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "name": "ALICE", "entity_type": "PERSON", "description": "Updated"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let body = json!({"description": "Updated"});
+        let val = client.entities().update("ALICE", &body).await.unwrap();
+        assert_eq!(val["description"], "Updated");
+    }
+
+    // ── OODA-32: Relationship get/update ──
+
+    #[tokio::test]
+    async fn test_relationships_get() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/graph/relationships/r1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "r1", "source": "ALICE", "target": "BOB",
+                "keywords": ["KNOWS"], "weight": 0.9
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let rel = client.relationships().get("r1").await.unwrap();
+        assert_eq!(rel.source, "ALICE");
+    }
+
+    #[tokio::test]
+    async fn test_relationships_update() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("PUT"))
+            .and(path("/api/v1/graph/relationships/r1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "r1", "weight": 1.0
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let body = json!({"weight": 1.0});
+        let val = client.relationships().update("r1", &body).await.unwrap();
+        assert_eq!(val["weight"], 1.0);
+    }
+
+    // ── OODA-32: Task retry ──
+
+    #[tokio::test]
+    async fn test_tasks_retry() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/tasks/t1/retry"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "retrying"})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.tasks().retry("t1").await.unwrap();
+        assert_eq!(val["status"], "retrying");
+    }
+
+    // ── OODA-32: Pipeline cancel ──
+
+    #[tokio::test]
+    async fn test_pipeline_cancel() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/pipeline/cancel"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        assert!(client.pipeline().cancel().await.is_ok());
+    }
+
+    // ── OODA-32: Costs extended ──
+
+    #[tokio::test]
+    async fn test_costs_pricing() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/pipeline/costs/pricing"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "models": [{"name": "gpt-4o", "cost_per_1k_tokens": 0.03}]
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.costs().pricing().await.unwrap();
+        assert!(val["models"].is_array());
+    }
+
+    #[tokio::test]
+    async fn test_costs_estimate() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/pipeline/costs/estimate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "estimated_cost": 1.50, "token_count": 50000
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let body = json!({"document_count": 10});
+        let val = client.costs().estimate(&body).await.unwrap();
+        assert_eq!(val["estimated_cost"], 1.5);
+    }
+
+    #[tokio::test]
+    async fn test_costs_update_budget() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("PATCH"))
+            .and(path("/api/v1/costs/budget"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "monthly_budget_usd": 100.0, "current_spend_usd": 10.0
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let body = json!({"monthly_budget_usd": 100.0});
+        let val = client.costs().update_budget(&body).await.unwrap();
+        assert_eq!(val.monthly_budget_usd, Some(100.0));
+    }
+
+    // ── OODA-32: Tenant update ──
+
+    #[tokio::test]
+    async fn test_tenants_update() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("PUT"))
+            .and(path("/api/v1/tenants/t1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "t1", "name": "Updated Tenant"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let body = json!({"name": "Updated Tenant"});
+        let val = client.tenants().update("t1", &body).await.unwrap();
+        assert_eq!(val.name, "Updated Tenant");
+    }
+
+    // ── OODA-32: Folder update ──
+
+    #[tokio::test]
+    async fn test_folders_update() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("PATCH"))
+            .and(path("/api/v1/folders/f1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "f1", "name": "Renamed Folder"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let body = json!({"name": "Renamed Folder"});
+        let val = client.folders().update("f1", &body).await.unwrap();
+        assert_eq!(val.name, "Renamed Folder");
+    }
+
+    // ── OODA-32: Conversation extended ──
+
+    #[tokio::test]
+    async fn test_conversations_import() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/conversations/import"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"imported": 3})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let body = json!({"conversations": []});
+        let val = client.conversations().import(&body).await.unwrap();
+        assert_eq!(val["imported"], 3);
+    }
+
+    #[tokio::test]
+    async fn test_conversations_update() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("PATCH"))
+            .and(path("/api/v1/conversations/c1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "c1", "title": "New Title"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let body = json!({"title": "New Title"});
+        let val = client.conversations().update("c1", &body).await.unwrap();
+        assert_eq!(val.title, Some("New Title".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_conversations_unshare() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/conversations/c1/share"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        assert!(client.conversations().unshare("c1").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_conversations_bulk_archive() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/conversations/bulk/archive"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"archived": 2})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let ids = vec!["c1".to_string(), "c2".to_string()];
+        let val = client.conversations().bulk_archive(&ids).await.unwrap();
+        assert_eq!(val["archived"], 2);
+    }
+
+    #[tokio::test]
+    async fn test_conversations_bulk_move() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/conversations/bulk/move"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"moved": 2})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let ids = vec!["c1".to_string(), "c2".to_string()];
+        let val = client.conversations().bulk_move(&ids, "folder-1").await.unwrap();
+        assert_eq!(val["moved"], 2);
+    }
+
+    // ── OODA-32: Models extended ──
+
+    #[tokio::test]
+    async fn test_models_list_llm() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/models/llm"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "models": [{"name": "gemma3"}]
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.models().list_llm().await.unwrap();
+        assert!(val["models"].is_array());
+    }
+
+    #[tokio::test]
+    async fn test_models_list_embedding() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/models/embedding"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "models": [{"name": "nomic-embed-text"}]
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.models().list_embedding().await.unwrap();
+        assert!(val["models"].is_array());
+    }
+
+    #[tokio::test]
+    async fn test_models_get_provider() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/models/ollama"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "name": "ollama", "models": [{"name": "gemma3"}]
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.models().get_provider("ollama").await.unwrap();
+        assert_eq!(val["name"], "ollama");
+    }
+
+    #[tokio::test]
+    async fn test_models_get_model() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/models/ollama/gemma3"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "name": "gemma3", "provider": "ollama", "is_available": true
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.models().get_model("ollama", "gemma3").await.unwrap();
+        assert_eq!(val["name"], "gemma3");
+    }
+
+    // ── OODA-32: Workspace extended ──
+
+    #[tokio::test]
+    async fn test_workspaces_get() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/workspaces/ws1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "ws1", "name": "Default Workspace"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let ws = client.workspaces().get("ws1").await.unwrap();
+        assert_eq!(ws.name, "Default Workspace");
+    }
+
+    #[tokio::test]
+    async fn test_workspaces_update() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("PUT"))
+            .and(path("/api/v1/workspaces/ws1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "ws1", "name": "Renamed"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let body = json!({"name": "Renamed"});
+        let ws = client.workspaces().update("ws1", &body).await.unwrap();
+        assert_eq!(ws.name, "Renamed");
+    }
+
+    #[tokio::test]
+    async fn test_workspaces_delete() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/workspaces/ws1"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        assert!(client.workspaces().delete("ws1").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_workspaces_metrics_history() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/workspaces/ws1/metrics-history"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"timestamp": "2026-01-01", "document_count": 10}
+            ])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let history = client.workspaces().metrics_history("ws1").await.unwrap();
+        assert_eq!(history.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_workspaces_rebuild_embeddings() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/workspaces/ws1/rebuild-embeddings"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "started"})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.workspaces().rebuild_embeddings("ws1").await.unwrap();
+        assert_eq!(val["status"], "started");
+    }
+
+    #[tokio::test]
+    async fn test_workspaces_rebuild_knowledge_graph() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/workspaces/ws1/rebuild-knowledge-graph"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "started"})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.workspaces().rebuild_knowledge_graph("ws1").await.unwrap();
+        assert_eq!(val["status"], "started");
+    }
+
+    #[tokio::test]
+    async fn test_workspaces_reprocess_documents() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/workspaces/ws1/reprocess-documents"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"reprocessed": 5})))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let val = client.workspaces().reprocess_documents("ws1").await.unwrap();
+        assert_eq!(val["reprocessed"], 5);
+    }
 }

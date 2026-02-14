@@ -81,4 +81,21 @@ impl<'a> EntitiesResource<'a> {
             .post("/api/v1/graph/degrees/batch", Some(&names))
             .await
     }
+
+    /// `PUT /api/v1/graph/entities/{name}` — Update entity.
+    pub async fn update(
+        &self,
+        name: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.client
+            .put(
+                &format!(
+                    "/api/v1/graph/entities/{}",
+                    urlencoding::encode(name)
+                ),
+                Some(body),
+            )
+            .await
+    }
 }

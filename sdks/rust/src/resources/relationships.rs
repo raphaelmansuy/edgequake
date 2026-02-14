@@ -29,4 +29,25 @@ impl<'a> RelationshipsResource<'a> {
             .delete_no_content(&format!("/api/v1/graph/relationships/{id}"))
             .await
     }
+
+    /// `GET /api/v1/graph/relationships/{id}` — Get a specific relationship.
+    pub async fn get(&self, id: &str) -> Result<Relationship> {
+        self.client
+            .get(&format!("/api/v1/graph/relationships/{id}"))
+            .await
+    }
+
+    /// `PUT /api/v1/graph/relationships/{id}` — Update a relationship.
+    pub async fn update(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.client
+            .put(
+                &format!("/api/v1/graph/relationships/{id}"),
+                Some(body),
+            )
+            .await
+    }
 }

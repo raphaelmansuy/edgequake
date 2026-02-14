@@ -30,4 +30,15 @@ impl<'a> TenantsResource<'a> {
             .delete_no_content(&format!("/api/v1/tenants/{id}"))
             .await
     }
+
+    /// `PUT /api/v1/tenants/{id}` — Update tenant.
+    pub async fn update(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<TenantInfo> {
+        self.client
+            .put(&format!("/api/v1/tenants/{id}"), Some(body))
+            .await
+    }
 }

@@ -81,4 +81,44 @@ impl<'a> DocumentsResource<'a> {
             .get(&format!("/api/v1/documents/{id}/metadata"))
             .await
     }
+
+    // ========================================================================
+    // Bulk / Recovery Operations (OODA-32)
+    // ========================================================================
+
+    /// `DELETE /api/v1/documents` — Delete all documents in workspace.
+    pub async fn delete_all(&self) -> Result<serde_json::Value> {
+        self.client.delete("/api/v1/documents").await
+    }
+
+    /// `POST /api/v1/documents/reprocess` — Retry all failed documents.
+    pub async fn reprocess(&self) -> Result<serde_json::Value> {
+        self.client
+            .post::<(), serde_json::Value>("/api/v1/documents/reprocess", None)
+            .await
+    }
+
+    /// `POST /api/v1/documents/recover-stuck` — Recover stuck processing docs.
+    pub async fn recover_stuck(&self) -> Result<serde_json::Value> {
+        self.client
+            .post::<(), serde_json::Value>("/api/v1/documents/recover-stuck", None)
+            .await
+    }
+
+    /// `POST /api/v1/documents/{id}/retry-chunks` — Retry failed chunks for a document.
+    pub async fn retry_chunks(&self, id: &str) -> Result<serde_json::Value> {
+        self.client
+            .post::<(), serde_json::Value>(
+                &format!("/api/v1/documents/{id}/retry-chunks"),
+                None,
+            )
+            .await
+    }
+
+    /// `GET /api/v1/documents/{id}/failed-chunks` — List failed chunks for a document.
+    pub async fn failed_chunks(&self, id: &str) -> Result<Vec<serde_json::Value>> {
+        self.client
+            .get(&format!("/api/v1/documents/{id}/failed-chunks"))
+            .await
+    }
 }

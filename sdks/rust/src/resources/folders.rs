@@ -25,4 +25,15 @@ impl<'a> FoldersResource<'a> {
             .delete_no_content(&format!("/api/v1/folders/{id}"))
             .await
     }
+
+    /// `PATCH /api/v1/folders/{id}` — Update folder name or settings.
+    pub async fn update(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<FolderInfo> {
+        self.client
+            .patch(&format!("/api/v1/folders/{id}"), Some(body))
+            .await
+    }
 }

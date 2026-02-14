@@ -33,4 +33,32 @@ impl<'a> ModelsResource<'a> {
             .put("/api/v1/settings/provider", Some(&body))
             .await
     }
+
+    /// `GET /api/v1/models/llm` — List LLM models only.
+    pub async fn list_llm(&self) -> Result<serde_json::Value> {
+        self.client.get("/api/v1/models/llm").await
+    }
+
+    /// `GET /api/v1/models/embedding` — List embedding models only.
+    pub async fn list_embedding(&self) -> Result<serde_json::Value> {
+        self.client.get("/api/v1/models/embedding").await
+    }
+
+    /// `GET /api/v1/models/{provider}` — Get models for a specific provider.
+    pub async fn get_provider(&self, provider: &str) -> Result<serde_json::Value> {
+        self.client
+            .get(&format!("/api/v1/models/{provider}"))
+            .await
+    }
+
+    /// `GET /api/v1/models/{provider}/{model}` — Get specific model details.
+    pub async fn get_model(
+        &self,
+        provider: &str,
+        model: &str,
+    ) -> Result<serde_json::Value> {
+        self.client
+            .get(&format!("/api/v1/models/{provider}/{model}"))
+            .await
+    }
 }
