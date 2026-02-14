@@ -25,6 +25,9 @@ use EdgeQuake\CostService;
 use EdgeQuake\ConversationService;
 use EdgeQuake\FolderService;
 use EdgeQuake\LineageService;
+use EdgeQuake\AuthService;
+use EdgeQuake\WorkspaceService;
+use EdgeQuake\SharedService;
 
 /**
  * Unit tests for the EdgeQuake PHP SDK.
@@ -92,6 +95,7 @@ class UnitTest extends TestCase
     {
         $client = new Client();
         $this->assertInstanceOf(HealthService::class, $client->health);
+        $this->assertInstanceOf(AuthService::class, $client->auth);
         $this->assertInstanceOf(DocumentService::class, $client->documents);
         $this->assertInstanceOf(EntityService::class, $client->entities);
         $this->assertInstanceOf(RelationshipService::class, $client->relationships);
@@ -107,6 +111,8 @@ class UnitTest extends TestCase
         $this->assertInstanceOf(CostService::class, $client->costs);
         $this->assertInstanceOf(ConversationService::class, $client->conversations);
         $this->assertInstanceOf(FolderService::class, $client->folders);
+        $this->assertInstanceOf(WorkspaceService::class, $client->workspaces);
+        $this->assertInstanceOf(SharedService::class, $client->shared);
         $this->assertInstanceOf(LineageService::class, $client->lineage);
     }
 
@@ -1017,5 +1023,672 @@ class UnitTest extends TestCase
         $svc = new LineageService($mock);
         $this->expectException(ApiError::class);
         $svc->entityLineage('MISSING');
+    }
+
+    // ── OODA-33: Health Service Additional Tests ──────────────────
+
+    public function testHealthReady(): void
+    {
+        $mock = new MockHttpHelper('{"status":"ready"}');
+        $svc = new HealthService($mock);
+        $result = $svc->ready();
+        $this->assertSame('ready', $result['status']);
+        $this->assertSame('/ready', $mock->lastCall()['path']);
+    }
+
+    public function testHealthLive(): void
+    {
+        $mock = new MockHttpHelper('{"status":"live"}');
+        $svc = new HealthService($mock);
+        $result = $svc->live();
+        $this->assertSame('live', $result['status']);
+        $this->assertSame('/live', $mock->lastCall()['path']);
+    }
+
+    public function testHealthMetrics(): void
+    {
+        $mock = new MockHttpHelper("# HELP process_cpu\n# TYPE process_cpu gauge\nprocess_cpu 0.5");
+        $svc = new HealthService($mock);
+        $result = $svc->metrics();
+        $this->assertIsString($result);
+        $this->assertStringContainsString('process_cpu', $result);
+        $this->assertSame('/metrics', $mock->lastCall()['path']);
+    }
+
+    // ── OODA-33: Auth Service Tests ───────────────────────────────
+
+    public function testAuthLogin(): void
+    {
+        $mock = new MockHttpHelper('{"token":"jwt123","refresh_token":"rf456"}');
+        $svc = new AuthService($mock);
+        $result = $svc->login('admin', 'secret');
+        $this->assertSame('jwt123', $result['token']);
+        $this->assertSame('POST', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/auth/login', $mock->lastCall()['path']);
+        $this->assertSame('admin', $mock->lastCall()['body']['username']);
+    }
+
+    public function testAuthLogout(): void
+    {
+        $mock = new MockHttpHelper('{"status":"logged_out"}');
+        $svc = new AuthService($mock);
+        $result = $svc->logout();
+        $this->assertSame('logged_out', $result['status']);
+        $this->assertSame('POST', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/auth/logout', $mock->lastCall()['path']);
+    }
+
+    public function testAuthRefresh(): void
+    {
+        $mock = new MockHttpHelper('{"token":"newjwt","refresh_token":"newrf"}');
+        $svc = new AuthService($mock);
+        $result = $svc->refresh('old-rf');
+        $this->assertSame('newjwt', $result['token']);
+        $this->assertSame('old-rf', $mock->lastCall()['body']['refresh_token']);
+    }
+
+    public function testAuthMe(): void
+    {
+        $mock = new MockHttpHelper('{"id":"u1","username":"admin","email":"admin@test.com"}');
+        $svc = new AuthService($mock);
+        $result = $svc->me();
+        $this->assertSame('admin', $result['username']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/auth/me', $mock->lastCall()['path']);
+    }
+
+    public function testAuthLoginError(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"invalid credentials"}', 401);
+        $svc = new AuthService($mock);
+        $this->expectException(ApiError::class);
+        $svc->login('bad', 'creds');
+    }
+
+    // ── OODA-33: Document Service Additional Tests ────────────────
+
+    public function testDocumentDeleteAll(): void
+    {
+        $mock = new MockHttpHelper('{"deleted_count":5}');
+        $svc = new DocumentService($mock);
+        $result = $svc->deleteAll();
+        $this->assertSame(5, $result['deleted_count']);
+        $this->assertSame('DELETE', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/documents', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentReprocess(): void
+    {
+        $mock = new MockHttpHelper('{"reprocessed_count":3}');
+        $svc = new DocumentService($mock);
+        $result = $svc->reprocess();
+        $this->assertSame(3, $result['reprocessed_count']);
+        $this->assertSame('POST', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/documents/reprocess', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentRecoverStuck(): void
+    {
+        $mock = new MockHttpHelper('{"recovered_count":2}');
+        $svc = new DocumentService($mock);
+        $result = $svc->recoverStuck();
+        $this->assertSame(2, $result['recovered_count']);
+        $this->assertSame('/api/v1/documents/recover-stuck', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentRetryChunks(): void
+    {
+        $mock = new MockHttpHelper('{"retried_count":1}');
+        $svc = new DocumentService($mock);
+        $result = $svc->retryChunks('doc-1');
+        $this->assertSame(1, $result['retried_count']);
+        $this->assertSame('/api/v1/documents/doc-1/retry-chunks', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentFailedChunks(): void
+    {
+        $mock = new MockHttpHelper('{"chunks":[{"id":"c1","error":"parse failed"}]}');
+        $svc = new DocumentService($mock);
+        $result = $svc->failedChunks('doc-1');
+        $this->assertCount(1, $result['chunks']);
+        $this->assertSame('/api/v1/documents/doc-1/failed-chunks', $mock->lastCall()['path']);
+    }
+
+    // ── OODA-33: Entity Service Additional Tests ──────────────────
+
+    public function testEntityUpdate(): void
+    {
+        $mock = new MockHttpHelper('{"entity_name":"ALICE","entity_type":"updated"}');
+        $svc = new EntityService($mock);
+        $result = $svc->update('ALICE', ['entity_type' => 'updated']);
+        $this->assertSame('updated', $result['entity_type']);
+        $this->assertSame('PUT', $mock->lastCall()['method']);
+        $this->assertStringContainsString('/api/v1/graph/entities/ALICE', $mock->lastCall()['path']);
+    }
+
+    public function testEntityMerge(): void
+    {
+        $mock = new MockHttpHelper('{"status":"merged","target_name":"BOB"}');
+        $svc = new EntityService($mock);
+        $result = $svc->merge('ALICE', 'BOB');
+        $this->assertSame('merged', $result['status']);
+        $this->assertSame('BOB', $mock->lastCall()['body']['target_name']);
+        $this->assertSame('/api/v1/graph/entities/merge', $mock->lastCall()['path']);
+    }
+
+    public function testEntityNeighborhood(): void
+    {
+        $mock = new MockHttpHelper('{"nodes":[{"id":"n1"}],"edges":[]}');
+        $svc = new EntityService($mock);
+        $result = $svc->neighborhood('ALICE', 2);
+        $this->assertCount(1, $result['nodes']);
+        $this->assertStringContainsString('depth=2', $mock->lastCall()['path']);
+    }
+
+    // ── OODA-33: Relationship Service Additional Tests ────────────
+
+    public function testRelationshipGet(): void
+    {
+        $mock = new MockHttpHelper('{"id":"r1","source":"A","target":"B"}');
+        $svc = new RelationshipService($mock);
+        $result = $svc->get('r1');
+        $this->assertSame('A', $result['source']);
+        $this->assertStringContainsString('/api/v1/graph/relationships/r1', $mock->lastCall()['path']);
+    }
+
+    public function testRelationshipUpdate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"r1","weight":0.9}');
+        $svc = new RelationshipService($mock);
+        $result = $svc->update('r1', ['weight' => 0.9]);
+        $this->assertSame(0.9, $result['weight']);
+        $this->assertSame('PUT', $mock->lastCall()['method']);
+    }
+
+    public function testRelationshipDelete(): void
+    {
+        $mock = new MockHttpHelper('{"status":"deleted"}');
+        $svc = new RelationshipService($mock);
+        $svc->delete('r1');
+        $this->assertSame('DELETE', $mock->lastCall()['method']);
+    }
+
+    // ── OODA-33: Graph Service Additional Tests ───────────────────
+
+    public function testGraphGetNode(): void
+    {
+        $mock = new MockHttpHelper('{"id":"n1","label":"ALICE","type":"person"}');
+        $svc = new GraphService($mock);
+        $result = $svc->getNode('n1');
+        $this->assertSame('ALICE', $result['label']);
+        $this->assertStringContainsString('/api/v1/graph/nodes/n1', $mock->lastCall()['path']);
+    }
+
+    public function testGraphSearchLabels(): void
+    {
+        $mock = new MockHttpHelper('{"labels":[{"name":"person","count":10}]}');
+        $svc = new GraphService($mock);
+        $result = $svc->searchLabels('per');
+        $this->assertCount(1, $result['labels']);
+        $this->assertStringContainsString('q=per', $mock->lastCall()['path']);
+    }
+
+    public function testGraphPopularLabels(): void
+    {
+        $mock = new MockHttpHelper('{"labels":[{"name":"person","count":100}]}');
+        $svc = new GraphService($mock);
+        $result = $svc->popularLabels(10);
+        $this->assertCount(1, $result['labels']);
+        $this->assertStringContainsString('limit=10', $mock->lastCall()['path']);
+    }
+
+    public function testGraphDegreesBatch(): void
+    {
+        $mock = new MockHttpHelper('{"degrees":[{"node_id":"n1","degree":5}]}');
+        $svc = new GraphService($mock);
+        $result = $svc->degreesBatch(['n1', 'n2']);
+        $this->assertCount(1, $result['degrees']);
+        $this->assertSame('POST', $mock->lastCall()['method']);
+    }
+
+    // ── OODA-33: Tenant Service Additional Tests ──────────────────
+
+    public function testTenantGet(): void
+    {
+        $mock = new MockHttpHelper('{"id":"t1","name":"Acme"}');
+        $svc = new TenantService($mock);
+        $result = $svc->get('t1');
+        $this->assertSame('Acme', $result['name']);
+    }
+
+    public function testTenantCreate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"t2","name":"NewCo"}');
+        $svc = new TenantService($mock);
+        $result = $svc->create('NewCo');
+        $this->assertSame('NewCo', $mock->lastCall()['body']['name']);
+    }
+
+    public function testTenantUpdate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"t1","name":"UpdatedCo"}');
+        $svc = new TenantService($mock);
+        $result = $svc->update('t1', ['name' => 'UpdatedCo']);
+        $this->assertSame('PUT', $mock->lastCall()['method']);
+    }
+
+    public function testTenantDelete(): void
+    {
+        $mock = new MockHttpHelper('{"status":"deleted"}');
+        $svc = new TenantService($mock);
+        $svc->delete('t1');
+        $this->assertSame('DELETE', $mock->lastCall()['method']);
+    }
+
+    // ── OODA-33: User Service Additional Tests ────────────────────
+
+    public function testUserGet(): void
+    {
+        $mock = new MockHttpHelper('{"id":"u1","username":"alice"}');
+        $svc = new UserService($mock);
+        $result = $svc->get('u1');
+        $this->assertSame('alice', $result['username']);
+    }
+
+    public function testUserCreate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"u2","username":"bob"}');
+        $svc = new UserService($mock);
+        $result = $svc->create('bob', 'bob@test.com');
+        $this->assertSame('bob', $mock->lastCall()['body']['username']);
+        $this->assertSame('bob@test.com', $mock->lastCall()['body']['email']);
+    }
+
+    public function testUserDelete(): void
+    {
+        $mock = new MockHttpHelper('{"status":"deleted"}');
+        $svc = new UserService($mock);
+        $svc->delete('u1');
+        $this->assertSame('DELETE', $mock->lastCall()['method']);
+    }
+
+    // ── OODA-33: API Key Service Additional Tests ─────────────────
+
+    public function testApiKeyCreate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"ak-1","key":"sk-test123"}');
+        $svc = new ApiKeyService($mock);
+        $result = $svc->create('Production');
+        $this->assertSame('Production', $mock->lastCall()['body']['name']);
+    }
+
+    public function testApiKeyDelete(): void
+    {
+        $mock = new MockHttpHelper('{"status":"deleted"}');
+        $svc = new ApiKeyService($mock);
+        $svc->delete('ak-1');
+        $this->assertStringContainsString('/api/v1/api-keys/ak-1', $mock->lastCall()['path']);
+    }
+
+    public function testApiKeyRevoke(): void
+    {
+        $mock = new MockHttpHelper('{"status":"revoked"}');
+        $svc = new ApiKeyService($mock);
+        $result = $svc->revoke('ak-1');
+        $this->assertSame('revoked', $result['status']);
+        $this->assertStringContainsString('/revoke', $mock->lastCall()['path']);
+    }
+
+    // ── OODA-33: Task Service Additional Tests ────────────────────
+
+    public function testTaskGet(): void
+    {
+        $mock = new MockHttpHelper('{"track_id":"t1","status":"running"}');
+        $svc = new TaskService($mock);
+        $result = $svc->get('t1');
+        $this->assertSame('running', $result['status']);
+    }
+
+    public function testTaskCancel(): void
+    {
+        $mock = new MockHttpHelper('{"status":"cancelled"}');
+        $svc = new TaskService($mock);
+        $result = $svc->cancel('t1');
+        $this->assertSame('cancelled', $result['status']);
+        $this->assertStringContainsString('/cancel', $mock->lastCall()['path']);
+    }
+
+    public function testTaskRetry(): void
+    {
+        $mock = new MockHttpHelper('{"status":"retrying"}');
+        $svc = new TaskService($mock);
+        $result = $svc->retry('t1');
+        $this->assertSame('retrying', $result['status']);
+        $this->assertStringContainsString('/retry', $mock->lastCall()['path']);
+    }
+
+    // ── OODA-33: Pipeline Service Additional Tests ────────────────
+
+    public function testPipelineCancel(): void
+    {
+        $mock = new MockHttpHelper('{"status":"cancelled"}');
+        $svc = new PipelineService($mock);
+        $result = $svc->cancel();
+        $this->assertSame('cancelled', $result['status']);
+        $this->assertSame('/api/v1/pipeline/cancel', $mock->lastCall()['path']);
+    }
+
+    // ── OODA-33: Model Service Additional Tests ───────────────────
+
+    public function testModelListLlm(): void
+    {
+        $mock = new MockHttpHelper('{"models":[{"id":"gpt-4","name":"GPT-4"}]}');
+        $svc = new ModelService($mock);
+        $result = $svc->listLlm();
+        $this->assertCount(1, $result['models']);
+        $this->assertSame('/api/v1/models/llm', $mock->lastCall()['path']);
+    }
+
+    public function testModelListEmbedding(): void
+    {
+        $mock = new MockHttpHelper('{"models":[{"id":"text-embedding-3-small"}]}');
+        $svc = new ModelService($mock);
+        $result = $svc->listEmbedding();
+        $this->assertCount(1, $result['models']);
+        $this->assertSame('/api/v1/models/embedding', $mock->lastCall()['path']);
+    }
+
+    public function testModelGetProvider(): void
+    {
+        $mock = new MockHttpHelper('{"name":"openai","models":["gpt-4"]}');
+        $svc = new ModelService($mock);
+        $result = $svc->getProvider('openai');
+        $this->assertSame('openai', $result['name']);
+        $this->assertStringContainsString('/api/v1/models/openai', $mock->lastCall()['path']);
+    }
+
+    public function testModelGetModel(): void
+    {
+        $mock = new MockHttpHelper('{"id":"gpt-4","context_window":128000}');
+        $svc = new ModelService($mock);
+        $result = $svc->getModel('openai', 'gpt-4');
+        $this->assertSame(128000, $result['context_window']);
+        $this->assertStringContainsString('/api/v1/models/openai/gpt-4', $mock->lastCall()['path']);
+    }
+
+    public function testModelListProviders(): void
+    {
+        $mock = new MockHttpHelper('{"providers":["openai","ollama"]}');
+        $svc = new ModelService($mock);
+        $result = $svc->listProviders();
+        $this->assertCount(2, $result['providers']);
+        $this->assertSame('/api/v1/settings/providers', $mock->lastCall()['path']);
+    }
+
+    // ── OODA-33: Cost Service Additional Tests ────────────────────
+
+    public function testCostHistory(): void
+    {
+        $mock = new MockHttpHelper('{"entries":[{"date":"2026-01-15","cost_usd":10.5}]}');
+        $svc = new CostService($mock);
+        $result = $svc->history();
+        $this->assertCount(1, $result['entries']);
+        $this->assertSame('/api/v1/costs/history', $mock->lastCall()['path']);
+    }
+
+    public function testCostPricing(): void
+    {
+        $mock = new MockHttpHelper('{"models":[{"model":"gpt-4","input_cost_per_1k":0.03}]}');
+        $svc = new CostService($mock);
+        $result = $svc->pricing();
+        $this->assertCount(1, $result['models']);
+        $this->assertSame('/api/v1/pipeline/costs/pricing', $mock->lastCall()['path']);
+    }
+
+    public function testCostEstimate(): void
+    {
+        $mock = new MockHttpHelper('{"estimated_cost_usd":5.25}');
+        $svc = new CostService($mock);
+        $result = $svc->estimate(['document_count' => 100]);
+        $this->assertSame(5.25, $result['estimated_cost_usd']);
+        $this->assertSame('POST', $mock->lastCall()['method']);
+    }
+
+    public function testCostUpdateBudget(): void
+    {
+        $mock = new MockHttpHelper('{"monthly_budget_usd":100}');
+        $svc = new CostService($mock);
+        $result = $svc->updateBudget(['monthly_budget_usd' => 100]);
+        $this->assertSame(100, $result['monthly_budget_usd']);
+        $this->assertSame('PATCH', $mock->lastCall()['method']);
+    }
+
+    // ── OODA-33: Conversation Service Additional Tests ────────────
+
+    public function testConversationGet(): void
+    {
+        $mock = new MockHttpHelper('{"id":"c1","title":"Test Chat"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->get('c1');
+        $this->assertSame('Test Chat', $result['title']);
+    }
+
+    public function testConversationUpdate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"c1","title":"Updated"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->update('c1', ['title' => 'Updated']);
+        $this->assertSame('PATCH', $mock->lastCall()['method']);
+    }
+
+    public function testConversationDelete(): void
+    {
+        $mock = new MockHttpHelper('{"status":"deleted"}');
+        $svc = new ConversationService($mock);
+        $svc->delete('c1');
+        $this->assertSame('DELETE', $mock->lastCall()['method']);
+    }
+
+    public function testConversationImport(): void
+    {
+        $mock = new MockHttpHelper('{"id":"c2","title":"Imported"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->import(['title' => 'Imported', 'messages' => []]);
+        $this->assertSame('Imported', $result['title']);
+        $this->assertSame('/api/v1/conversations/import', $mock->lastCall()['path']);
+    }
+
+    public function testConversationShare(): void
+    {
+        $mock = new MockHttpHelper('{"share_id":"sh-123"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->share('c1');
+        $this->assertSame('sh-123', $result['share_id']);
+        $this->assertStringContainsString('/share', $mock->lastCall()['path']);
+    }
+
+    public function testConversationUnshare(): void
+    {
+        $mock = new MockHttpHelper('{"status":"unshared"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->unshare('c1');
+        $this->assertSame('unshared', $result['status']);
+        $this->assertSame('DELETE', $mock->lastCall()['method']);
+    }
+
+    public function testConversationListMessages(): void
+    {
+        $mock = new MockHttpHelper('{"messages":[{"id":"m1","content":"Hello"}]}');
+        $svc = new ConversationService($mock);
+        $result = $svc->listMessages('c1');
+        $this->assertCount(1, $result['messages']);
+        $this->assertStringContainsString('/messages', $mock->lastCall()['path']);
+    }
+
+    public function testConversationCreateMessage(): void
+    {
+        $mock = new MockHttpHelper('{"id":"m2","content":"Test","role":"user"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->createMessage('c1', 'Test');
+        $this->assertSame('Test', $mock->lastCall()['body']['content']);
+        $this->assertSame('user', $mock->lastCall()['body']['role']);
+    }
+
+    public function testConversationBulkArchive(): void
+    {
+        $mock = new MockHttpHelper('{"archived_count":3}');
+        $svc = new ConversationService($mock);
+        $result = $svc->bulkArchive(['c1', 'c2', 'c3']);
+        $this->assertSame(3, $result['archived_count']);
+        $this->assertSame('/api/v1/conversations/bulk/archive', $mock->lastCall()['path']);
+    }
+
+    public function testConversationBulkMove(): void
+    {
+        $mock = new MockHttpHelper('{"moved_count":2}');
+        $svc = new ConversationService($mock);
+        $result = $svc->bulkMove(['c1', 'c2'], 'folder-1');
+        $this->assertSame(2, $result['moved_count']);
+        $this->assertSame('folder-1', $mock->lastCall()['body']['folder_id']);
+    }
+
+    // ── OODA-33: Folder Service Additional Tests ──────────────────
+
+    public function testFolderGet(): void
+    {
+        $mock = new MockHttpHelper('{"id":"f1","name":"Research"}');
+        $svc = new FolderService($mock);
+        $result = $svc->get('f1');
+        $this->assertSame('Research', $result['name']);
+    }
+
+    public function testFolderUpdate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"f1","name":"Updated"}');
+        $svc = new FolderService($mock);
+        $result = $svc->update('f1', ['name' => 'Updated']);
+        $this->assertSame('PATCH', $mock->lastCall()['method']);
+    }
+
+    public function testFolderDelete(): void
+    {
+        $mock = new MockHttpHelper('{"status":"deleted"}');
+        $svc = new FolderService($mock);
+        $svc->delete('f1');
+        $this->assertSame('DELETE', $mock->lastCall()['method']);
+    }
+
+    // ── OODA-33: Workspace Service Tests ──────────────────────────
+
+    public function testWorkspaceList(): void
+    {
+        $mock = new MockHttpHelper('{"workspaces":[{"id":"ws1","name":"Default"}]}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->list();
+        $this->assertCount(1, $result['workspaces']);
+        $this->assertSame('/api/v1/workspaces', $mock->lastCall()['path']);
+    }
+
+    public function testWorkspaceGet(): void
+    {
+        $mock = new MockHttpHelper('{"id":"ws1","name":"Default"}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->get('ws1');
+        $this->assertSame('Default', $result['name']);
+    }
+
+    public function testWorkspaceCreate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"ws2","name":"NewWs"}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->create('NewWs');
+        $this->assertSame('NewWs', $mock->lastCall()['body']['name']);
+    }
+
+    public function testWorkspaceCreateWithTenant(): void
+    {
+        $mock = new MockHttpHelper('{"id":"ws3","name":"TenantWs"}');
+        $svc = new WorkspaceService($mock);
+        $svc->create('TenantWs', 't1');
+        $this->assertSame('t1', $mock->lastCall()['body']['tenant_id']);
+    }
+
+    public function testWorkspaceUpdate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"ws1","name":"Updated"}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->update('ws1', ['name' => 'Updated']);
+        $this->assertSame('PUT', $mock->lastCall()['method']);
+    }
+
+    public function testWorkspaceDelete(): void
+    {
+        $mock = new MockHttpHelper('{"status":"deleted"}');
+        $svc = new WorkspaceService($mock);
+        $svc->delete('ws1');
+        $this->assertSame('DELETE', $mock->lastCall()['method']);
+    }
+
+    public function testWorkspaceMetricsHistory(): void
+    {
+        $mock = new MockHttpHelper('{"metrics":[{"date":"2026-01-15","documents":100}]}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->metricsHistory('ws1');
+        $this->assertCount(1, $result['metrics']);
+        $this->assertStringContainsString('/metrics-history', $mock->lastCall()['path']);
+    }
+
+    public function testWorkspaceRebuildEmbeddings(): void
+    {
+        $mock = new MockHttpHelper('{"task_id":"task-1"}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->rebuildEmbeddings('ws1');
+        $this->assertSame('task-1', $result['task_id']);
+        $this->assertStringContainsString('/rebuild-embeddings', $mock->lastCall()['path']);
+    }
+
+    public function testWorkspaceRebuildKnowledgeGraph(): void
+    {
+        $mock = new MockHttpHelper('{"task_id":"task-2"}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->rebuildKnowledgeGraph('ws1');
+        $this->assertSame('task-2', $result['task_id']);
+        $this->assertStringContainsString('/rebuild-knowledge-graph', $mock->lastCall()['path']);
+    }
+
+    public function testWorkspaceReprocessDocuments(): void
+    {
+        $mock = new MockHttpHelper('{"task_id":"task-3"}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->reprocessDocuments('ws1');
+        $this->assertSame('task-3', $result['task_id']);
+        $this->assertStringContainsString('/reprocess-documents', $mock->lastCall()['path']);
+    }
+
+    public function testWorkspaceListError(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{}', 500);
+        $svc = new WorkspaceService($mock);
+        $this->expectException(ApiError::class);
+        $svc->list();
+    }
+
+    // ── OODA-33: Shared Service Tests ─────────────────────────────
+
+    public function testSharedGet(): void
+    {
+        $mock = new MockHttpHelper('{"id":"c1","title":"Shared Chat","messages":[]}');
+        $svc = new SharedService($mock);
+        $result = $svc->get('sh-123');
+        $this->assertSame('Shared Chat', $result['title']);
+        $this->assertSame('/api/v1/shared/sh-123', $mock->lastCall()['path']);
+    }
+
+    public function testSharedGetNotFound(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"not found"}', 404);
+        $svc = new SharedService($mock);
+        $this->expectException(ApiError::class);
+        $svc->get('invalid');
     }
 }

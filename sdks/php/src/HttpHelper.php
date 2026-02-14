@@ -22,6 +22,16 @@ class HttpHelper
         return $this->request('POST', $path, $body);
     }
 
+    public function put(string $path, ?array $body = null): array
+    {
+        return $this->request('PUT', $path, $body);
+    }
+
+    public function patch(string $path, ?array $body = null): array
+    {
+        return $this->request('PATCH', $path, $body);
+    }
+
     public function delete(string $path): array
     {
         return $this->request('DELETE', $path);

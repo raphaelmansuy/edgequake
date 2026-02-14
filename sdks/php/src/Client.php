@@ -9,10 +9,13 @@ namespace EdgeQuake;
  *
  *   $client = new Client(new Config());
  *   $health = $client->health->check();
+ *
+ * OODA-33: Added auth, workspaces, shared services.
  */
 class Client
 {
     public readonly HealthService $health;
+    public readonly AuthService $auth;
     public readonly DocumentService $documents;
     public readonly EntityService $entities;
     public readonly RelationshipService $relationships;
@@ -28,6 +31,8 @@ class Client
     public readonly CostService $costs;
     public readonly ConversationService $conversations;
     public readonly FolderService $folders;
+    public readonly WorkspaceService $workspaces;
+    public readonly SharedService $shared;
     public readonly LineageService $lineage;
 
     public function __construct(?Config $config = null)
@@ -36,6 +41,7 @@ class Client
         $http = new HttpHelper($config);
 
         $this->health        = new HealthService($http);
+        $this->auth          = new AuthService($http);
         $this->documents     = new DocumentService($http);
         $this->entities      = new EntityService($http);
         $this->relationships = new RelationshipService($http);
@@ -51,6 +57,8 @@ class Client
         $this->costs         = new CostService($http);
         $this->conversations = new ConversationService($http);
         $this->folders       = new FolderService($http);
+        $this->workspaces    = new WorkspaceService($http);
+        $this->shared        = new SharedService($http);
         $this->lineage       = new LineageService($http);
     }
 }
