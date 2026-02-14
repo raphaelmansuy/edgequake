@@ -28,6 +28,7 @@ class Client
     public readonly CostService $costs;
     public readonly ConversationService $conversations;
     public readonly FolderService $folders;
+    public readonly LineageService $lineage;
 
     public function __construct(?Config $config = null)
     {
@@ -50,5 +51,6 @@ class Client
         $this->costs         = new CostService($http);
         $this->conversations = new ConversationService($http);
         $this->folders       = new FolderService($http);
+        $this->lineage       = new LineageService($http);
     }
 }

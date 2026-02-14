@@ -24,6 +24,7 @@ use EdgeQuake\ModelService;
 use EdgeQuake\CostService;
 use EdgeQuake\ConversationService;
 use EdgeQuake\FolderService;
+use EdgeQuake\LineageService;
 
 /**
  * Unit tests for the EdgeQuake PHP SDK.
@@ -104,6 +105,9 @@ class UnitTest extends TestCase
         $this->assertInstanceOf(PipelineService::class, $client->pipeline);
         $this->assertInstanceOf(ModelService::class, $client->models);
         $this->assertInstanceOf(CostService::class, $client->costs);
+        $this->assertInstanceOf(ConversationService::class, $client->conversations);
+        $this->assertInstanceOf(FolderService::class, $client->folders);
+        $this->assertInstanceOf(LineageService::class, $client->lineage);
     }
 
     public function testClientWithCustomConfig(): void
@@ -860,5 +864,158 @@ class UnitTest extends TestCase
     {
         $client = new Client();
         $this->assertInstanceOf(FolderService::class, $client->folders);
+    }
+
+    // ── Lineage Service ────────────────────────────────────────────
+
+    public function testClientHasLineageService(): void
+    {
+        $client = new Client();
+        $this->assertInstanceOf(LineageService::class, $client->lineage);
+    }
+
+    public function testEntityLineage(): void
+    {
+        $mock = new MockHttpHelper('{"entity_name":"ALICE","entity_type":"person","description_history":[]}');
+        $svc = new LineageService($mock);
+        $result = $svc->entityLineage('ALICE');
+        $this->assertSame('ALICE', $result['entity_name']);
+        $this->assertSame('person', $result['entity_type']);
+        $this->assertIsArray($result['description_history']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/lineage/entities/ALICE', $mock->lastCall()['path']);
+    }
+
+    public function testEntityLineageUrlEncoding(): void
+    {
+        $mock = new MockHttpHelper('{"entity_name":"HELLO WORLD"}');
+        $svc = new LineageService($mock);
+        $svc->entityLineage('HELLO WORLD');
+        $this->assertSame('/api/v1/lineage/entities/HELLO%20WORLD', $mock->lastCall()['path']);
+    }
+
+    public function testEntityLineageSpecialChars(): void
+    {
+        $mock = new MockHttpHelper('{"entity_name":"O\'BRIEN"}');
+        $svc = new LineageService($mock);
+        $svc->entityLineage("O'BRIEN");
+        $this->assertStringContainsString('/api/v1/lineage/entities/', $mock->lastCall()['path']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+    }
+
+    public function testDocumentLineage(): void
+    {
+        $mock = new MockHttpHelper('{"document_id":"d1","entities":[],"relationships":[]}');
+        $svc = new LineageService($mock);
+        $result = $svc->documentLineage('d1');
+        $this->assertSame('d1', $result['document_id']);
+        $this->assertIsArray($result['entities']);
+        $this->assertIsArray($result['relationships']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/lineage/documents/d1', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentLineageEmpty(): void
+    {
+        $mock = new MockHttpHelper('{"document_id":"d2","entities":[],"relationships":[],"extraction_stats":null}');
+        $svc = new LineageService($mock);
+        $result = $svc->documentLineage('d2');
+        $this->assertSame('d2', $result['document_id']);
+        $this->assertEmpty($result['entities']);
+        $this->assertNull($result['extraction_stats']);
+    }
+
+    public function testDocumentFullLineage(): void
+    {
+        $mock = new MockHttpHelper('{"document_id":"d1","chunks":[],"total_chunks":5}');
+        $svc = new LineageService($mock);
+        $result = $svc->documentFullLineage('d1');
+        $this->assertSame('d1', $result['document_id']);
+        $this->assertIsArray($result['chunks']);
+        $this->assertSame(5, $result['total_chunks']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/documents/d1/lineage', $mock->lastCall()['path']);
+    }
+
+    public function testExportLineageJson(): void
+    {
+        $mock = new MockHttpHelper('{"document_id":"d1","format":"json"}');
+        $svc = new LineageService($mock);
+        $result = $svc->exportLineage('d1');
+        $this->assertIsString($result);
+        $this->assertStringContainsString('document_id', $result);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/documents/d1/lineage/export?format=json', $mock->lastCall()['path']);
+    }
+
+    public function testExportLineageCsv(): void
+    {
+        $mock = new MockHttpHelper("entity_name,entity_type\nALICE,person");
+        $svc = new LineageService($mock);
+        $result = $svc->exportLineage('d1', 'csv');
+        $this->assertIsString($result);
+        $this->assertStringContainsString('ALICE', $result);
+        $this->assertSame('/api/v1/documents/d1/lineage/export?format=csv', $mock->lastCall()['path']);
+    }
+
+    public function testChunkDetail(): void
+    {
+        $mock = new MockHttpHelper('{"chunk_id":"c1","content":"hello","entities":[],"relationships":[]}');
+        $svc = new LineageService($mock);
+        $result = $svc->chunkDetail('c1');
+        $this->assertSame('c1', $result['chunk_id']);
+        $this->assertSame('hello', $result['content']);
+        $this->assertIsArray($result['entities']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/chunks/c1', $mock->lastCall()['path']);
+    }
+
+    public function testChunkDetailMinimal(): void
+    {
+        $mock = new MockHttpHelper('{"chunk_id":"c2","content":""}');
+        $svc = new LineageService($mock);
+        $result = $svc->chunkDetail('c2');
+        $this->assertSame('c2', $result['chunk_id']);
+        $this->assertSame('', $result['content']);
+    }
+
+    public function testChunkLineage(): void
+    {
+        $mock = new MockHttpHelper('{"chunk_id":"c1","document_id":"d1","entities":[],"relationships":[]}');
+        $svc = new LineageService($mock);
+        $result = $svc->chunkLineage('c1');
+        $this->assertSame('c1', $result['chunk_id']);
+        $this->assertSame('d1', $result['document_id']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/chunks/c1/lineage', $mock->lastCall()['path']);
+    }
+
+    public function testEntityProvenance(): void
+    {
+        $mock = new MockHttpHelper('{"entity_name":"BOB","source_documents":[],"related_entities":[]}');
+        $svc = new LineageService($mock);
+        $result = $svc->entityProvenance('ent-1');
+        $this->assertSame('BOB', $result['entity_name']);
+        $this->assertIsArray($result['source_documents']);
+        $this->assertIsArray($result['related_entities']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/entities/ent-1/provenance', $mock->lastCall()['path']);
+    }
+
+    public function testEntityProvenanceMinimal(): void
+    {
+        $mock = new MockHttpHelper('{"entity_name":"X"}');
+        $svc = new LineageService($mock);
+        $result = $svc->entityProvenance('ent-2');
+        $this->assertSame('X', $result['entity_name']);
+        $this->assertSame('/api/v1/entities/ent-2/provenance', $mock->lastCall()['path']);
+    }
+
+    public function testLineageErrorHandling(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"Not Found"}', 404);
+        $svc = new LineageService($mock);
+        $this->expectException(ApiError::class);
+        $svc->entityLineage('MISSING');
     }
 }

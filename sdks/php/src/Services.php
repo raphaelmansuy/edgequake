@@ -217,3 +217,60 @@ class FolderService
         return $this->http->post('/api/v1/folders', ['name' => $name]);
     }
 }
+
+// WHY: Lineage & provenance service — maps 7 lineage API endpoints.
+// OODA-27: PHP SDK lineage service.
+class LineageService
+{
+    public function __construct(private readonly HttpHelper $http) {}
+
+    /** Get entity lineage showing all source documents. */
+    public function entityLineage(string $name): array
+    {
+        $encoded = rawurlencode($name);
+        return $this->http->get("/api/v1/lineage/entities/{$encoded}");
+    }
+
+    /** Get document graph lineage with entities and relationships. */
+    public function documentLineage(string $id): array
+    {
+        $encoded = rawurlencode($id);
+        return $this->http->get("/api/v1/lineage/documents/{$encoded}");
+    }
+
+    /** Get full document lineage including metadata. */
+    public function documentFullLineage(string $id): array
+    {
+        $encoded = rawurlencode($id);
+        return $this->http->get("/api/v1/documents/{$encoded}/lineage");
+    }
+
+    /** Export document lineage as JSON or CSV. Returns raw string. */
+    public function exportLineage(string $id, string $format = 'json'): string
+    {
+        $encoded = rawurlencode($id);
+        $fmtEncoded = rawurlencode($format);
+        return $this->http->getRaw("/api/v1/documents/{$encoded}/lineage/export?format={$fmtEncoded}");
+    }
+
+    /** Get detailed chunk information with extracted entities. */
+    public function chunkDetail(string $id): array
+    {
+        $encoded = rawurlencode($id);
+        return $this->http->get("/api/v1/chunks/{$encoded}");
+    }
+
+    /** Get chunk lineage with parent document references. */
+    public function chunkLineage(string $id): array
+    {
+        $encoded = rawurlencode($id);
+        return $this->http->get("/api/v1/chunks/{$encoded}/lineage");
+    }
+
+    /** Get entity provenance with source documents and related entities. */
+    public function entityProvenance(string $id): array
+    {
+        $encoded = rawurlencode($id);
+        return $this->http->get("/api/v1/entities/{$encoded}/provenance");
+    }
+}
