@@ -23,7 +23,9 @@ class LineageService(private val http: HttpHelper) {
 
     /** Get entity lineage — which documents contributed to an entity. */
     fun entityLineage(entityName: String): EntityLineageResponse {
-        val encoded = URLEncoder.encode(entityName, StandardCharsets.UTF_8)
+        // WHY: URLEncoder.encode(String, Charset) was added in Java 10, but we use
+        // the String overload for broader compatibility with Java 8+.
+        val encoded = URLEncoder.encode(entityName, "UTF-8")
         return http.get("/api/v1/lineage/entities/$encoded")
     }
 

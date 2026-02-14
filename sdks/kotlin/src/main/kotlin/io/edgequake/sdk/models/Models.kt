@@ -14,6 +14,18 @@ data class HealthResponse(
     @JsonProperty("llm_provider_name") val llmProviderName: String? = null
 )
 
+/** WHY: /ready checks database/provider health. */
+data class ReadinessResponse(
+    val ready: Boolean? = null,
+    val checks: Map<String, Any?>? = null
+)
+
+/** WHY: /live is lightweight server check. */
+data class LivenessResponse(
+    val alive: Boolean? = null,
+    val uptime: Long? = null
+)
+
 // ── Documents ───────────────────────────────────────────────────────
 
 data class Document(
@@ -59,6 +71,35 @@ data class ScanResponse(
     val status: String? = null,
     val message: String? = null,
     @JsonProperty("files_found") val filesFound: Int? = null
+)
+
+/** WHY: Document chunks contain extracted entities. */
+data class DocumentChunksResponse(
+    @JsonProperty("document_id") val documentId: String? = null,
+    val chunks: List<ChunkInfo>? = null,
+    val total: Int? = null
+)
+
+data class ChunkInfo(
+    val id: String? = null,
+    val content: String? = null,
+    val index: Int? = null,
+    @JsonProperty("token_count") val tokenCount: Int? = null,
+    val entities: List<String>? = null
+)
+
+/** WHY: Document status for tracking processing progress. */
+data class DocumentStatusResponse(
+    @JsonProperty("document_id") val documentId: String? = null,
+    val status: String? = null,
+    val progress: Double? = null,
+    val error: String? = null
+)
+
+/** WHY: Generic status response for operations. */
+data class StatusResponse(
+    val status: String? = null,
+    val message: String? = null
 )
 
 // ── Entities ────────────────────────────────────────────────────────
@@ -120,6 +161,26 @@ data class MergeEntitiesRequest(
     @JsonProperty("target_entity") val targetEntity: String
 )
 
+/** WHY: Entity neighborhood for graph traversal. */
+data class EntityNeighborhoodResponse(
+    @JsonProperty("entity_name") val entityName: String? = null,
+    val neighbors: List<NeighborEntity>? = null,
+    val depth: Int? = null
+)
+
+data class NeighborEntity(
+    val name: String? = null,
+    @JsonProperty("entity_type") val entityType: String? = null,
+    @JsonProperty("relationship_type") val relationshipType: String? = null,
+    val distance: Int? = null
+)
+
+/** WHY: List of entity types for filtering. */
+data class EntityTypesResponse(
+    val types: List<String>? = null,
+    val total: Int? = null
+)
+
 // ── Relationships ───────────────────────────────────────────────────
 
 data class Relationship(
@@ -139,6 +200,35 @@ data class RelationshipListResponse(
     val page: Int? = null,
     @JsonProperty("page_size") val pageSize: Int? = null,
     @JsonProperty("total_pages") val totalPages: Int? = null
+)
+
+/** WHY: Relationship detail response. */
+data class RelationshipDetailResponse(
+    val relationship: Relationship? = null,
+    val source: Entity? = null,
+    val target: Entity? = null
+)
+
+/** WHY: Request to create relationship. */
+data class CreateRelationshipRequest(
+    val source: String,
+    val target: String,
+    @JsonProperty("relationship_type") val relationshipType: String,
+    val weight: Double = 1.0,
+    val description: String? = null,
+    @JsonProperty("source_id") val sourceId: String? = null
+)
+
+/** WHY: Response after creating relationship. */
+data class CreateRelationshipResponse(
+    val status: String? = null,
+    val relationship: Relationship? = null
+)
+
+/** WHY: List of relationship types. */
+data class RelationshipTypesResponse(
+    val types: List<String>? = null,
+    val total: Int? = null
 )
 
 // ── Graph ───────────────────────────────────────────────────────────
@@ -165,6 +255,36 @@ data class GraphResponse(
 data class SearchNodesResponse(
     val nodes: List<GraphNode>? = null,
     val total: Int? = null
+)
+
+/** WHY: Graph statistics for monitoring. */
+data class GraphStatsResponse(
+    @JsonProperty("node_count") val nodeCount: Int? = null,
+    @JsonProperty("edge_count") val edgeCount: Int? = null,
+    @JsonProperty("entity_count") val entityCount: Int? = null,
+    @JsonProperty("relationship_count") val relationshipCount: Int? = null
+)
+
+/** WHY: Label search results. */
+data class LabelSearchResponse(
+    val labels: List<LabelMatch>? = null,
+    val total: Int? = null
+)
+
+data class LabelMatch(
+    val label: String? = null,
+    val count: Int? = null,
+    @JsonProperty("node_type") val nodeType: String? = null
+)
+
+/** WHY: Popular labels for discovery. */
+data class PopularLabelsResponse(
+    val labels: List<LabelMatch>? = null
+)
+
+/** WHY: Batch degree calculation results. */
+data class BatchDegreesResponse(
+    val degrees: Map<String, Int>? = null
 )
 
 // ── Query & Chat ────────────────────────────────────────────────────
@@ -222,6 +342,15 @@ data class ChatCompletionResponse(
 data class LoginRequest(val username: String, val password: String)
 data class TokenResponse(val token: String? = null, @JsonProperty("expires_at") val expiresAt: String? = null)
 
+/** WHY: Auth user info response. */
+data class AuthUserResponse(
+    val id: String? = null,
+    val username: String? = null,
+    val email: String? = null,
+    val role: String? = null,
+    val permissions: List<String>? = null
+)
+
 data class UserInfo(
     val id: String? = null,
     val username: String? = null,
@@ -237,6 +366,15 @@ data class ApiKeyInfo(
     @JsonProperty("created_at") val createdAt: String? = null
 )
 data class ApiKeyListResponse(val keys: List<ApiKeyInfo>? = null)
+
+/** WHY: Response when creating new API key with secret. */
+data class CreateApiKeyResponse(
+    val id: String? = null,
+    val name: String? = null,
+    val key: String? = null,
+    @JsonProperty("created_at") val createdAt: String? = null,
+    @JsonProperty("expires_at") val expiresAt: String? = null
+)
 
 data class TenantInfo(
     val id: String? = null,
@@ -276,6 +414,39 @@ data class Message(
 data class BulkDeleteResponse(
     val deleted: Int? = null,
     val status: String? = null
+)
+
+/** WHY: Message list for conversation. */
+data class MessageListResponse(
+    val messages: List<Message>? = null,
+    val total: Int? = null
+)
+
+/** WHY: Share link response. */
+data class ShareLinkResponse(
+    @JsonProperty("share_id") val shareId: String? = null,
+    val url: String? = null,
+    @JsonProperty("expires_at") val expiresAt: String? = null
+)
+
+/** WHY: Import conversations from external source. */
+data class ConversationImport(
+    val conversations: List<Map<String, Any?>>? = null,
+    val format: String = "json"
+)
+
+/** WHY: Import result. */
+data class ImportResponse(
+    val imported: Int? = null,
+    val failed: Int? = null,
+    val errors: List<String>? = null
+)
+
+/** WHY: Conversations in folder. */
+data class FolderConversationsResponse(
+    @JsonProperty("folder_id") val folderId: String? = null,
+    val conversations: List<ConversationInfo>? = null,
+    val total: Int? = null
 )
 
 // ── Folders ─────────────────────────────────────────────────────────
@@ -334,6 +505,34 @@ data class TaskListResponse(
     val total: Int? = null
 )
 
+/** WHY: Lightweight task status check. */
+data class TaskStatusResponse(
+    val status: String? = null,
+    val progress: Double? = null,
+    @JsonProperty("completed_at") val completedAt: String? = null
+)
+
+/** WHY: List of items in processing queue. */
+data class ProcessingListResponse(
+    val items: List<ProcessingItem>? = null,
+    val total: Int? = null
+)
+
+data class ProcessingItem(
+    val id: String? = null,
+    val status: String? = null,
+    @JsonProperty("document_id") val documentId: String? = null,
+    val progress: Double? = null,
+    @JsonProperty("started_at") val startedAt: String? = null
+)
+
+/** WHY: Cost estimate for processing. */
+data class CostEstimateResponse(
+    @JsonProperty("estimated_cost") val estimatedCost: Double? = null,
+    @JsonProperty("token_count") val tokenCount: Int? = null,
+    @JsonProperty("model_used") val modelUsed: String? = null
+)
+
 // ── Models / Providers ──────────────────────────────────────────────
 
 data class ProviderCatalog(
@@ -362,6 +561,39 @@ data class ProviderStatus(
     val metadata: Map<String, Any?>? = null
 )
 
+/** WHY: List of available models. */
+data class ModelListResponse(
+    val models: List<ModelInfo>? = null,
+    val total: Int? = null
+)
+
+/** WHY: Model information. */
+data class ModelInfo(
+    val id: String? = null,
+    val name: String? = null,
+    val provider: String? = null,
+    @JsonProperty("context_length") val contextLength: Int? = null,
+    @JsonProperty("cost_per_token") val costPerToken: Double? = null
+)
+
+/** WHY: List of providers. */
+data class ProviderListResponse(
+    val providers: List<ProviderSummary>? = null
+)
+
+data class ProviderSummary(
+    val id: String? = null,
+    val name: String? = null,
+    val enabled: Boolean? = null
+)
+
+/** WHY: Model test result. */
+data class ModelTestResponse(
+    val success: Boolean? = null,
+    @JsonProperty("response_time_ms") val responseTimeMs: Long? = null,
+    val error: String? = null
+)
+
 // ── Costs ───────────────────────────────────────────────────────────
 
 data class CostSummary(
@@ -369,6 +601,44 @@ data class CostSummary(
     @JsonProperty("document_count") val documentCount: Int? = null,
     @JsonProperty("query_count") val queryCount: Int? = null,
     val entries: List<Map<String, Any?>>? = null
+)
+
+/** WHY: Daily cost breakdown. */
+data class DailyCostResponse(
+    val date: String? = null,
+    val cost: Double? = null,
+    val breakdown: Map<String, Double>? = null
+)
+
+/** WHY: Costs by provider. */
+data class ProviderCostResponse(
+    val providers: Map<String, Double>? = null,
+    val total: Double? = null
+)
+
+/** WHY: Costs by model. */
+data class ModelCostResponse(
+    val models: Map<String, Double>? = null,
+    val total: Double? = null
+)
+
+/** WHY: Cost history for date range. */
+data class CostHistoryResponse(
+    val history: List<DailyCostEntry>? = null,
+    val total: Double? = null
+)
+
+data class DailyCostEntry(
+    val date: String? = null,
+    val cost: Double? = null
+)
+
+/** WHY: Budget configuration. */
+data class BudgetInfo(
+    val amount: Double? = null,
+    val period: String? = null,
+    val used: Double? = null,
+    val remaining: Double? = null
 )
 
 // ── PDF ─────────────────────────────────────────────────────────────
@@ -382,4 +652,40 @@ data class PdfProgressResponse(
 data class PdfContentResponse(
     val content: String? = null,
     @JsonProperty("page_count") val pageCount: Int? = null
+)
+
+// ── Workspace Extended ──────────────────────────────────────────────
+
+/** WHY: Workspace statistics. */
+data class WorkspaceStatsResponse(
+    @JsonProperty("workspace_id") val workspaceId: String? = null,
+    @JsonProperty("document_count") val documentCount: Int? = null,
+    @JsonProperty("entity_count") val entityCount: Int? = null,
+    @JsonProperty("relationship_count") val relationshipCount: Int? = null,
+    @JsonProperty("storage_bytes") val storageBytes: Long? = null
+)
+
+// ── Shared Links ────────────────────────────────────────────────────
+
+/** WHY: Shared link info. */
+data class SharedLinkResponse(
+    @JsonProperty("share_id") val shareId: String? = null,
+    @JsonProperty("conversation_id") val conversationId: String? = null,
+    val url: String? = null,
+    @JsonProperty("created_at") val createdAt: String? = null,
+    @JsonProperty("expires_at") val expiresAt: String? = null,
+    @JsonProperty("access_count") val accessCount: Int? = null
+)
+
+/** WHY: Access shared content. */
+data class SharedAccessResponse(
+    val conversation: ConversationInfo? = null,
+    val messages: List<Message>? = null,
+    @JsonProperty("expires_at") val expiresAt: String? = null
+)
+
+/** WHY: List of shared links. */
+data class SharedLinksListResponse(
+    val links: List<SharedLinkResponse>? = null,
+    val total: Int? = null
 )

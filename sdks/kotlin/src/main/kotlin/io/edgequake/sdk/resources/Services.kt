@@ -8,6 +8,15 @@ import io.edgequake.sdk.models.*
 
 class HealthService(private val http: HttpHelper) {
     fun check(): HealthResponse = http.get("/health")
+    
+    /** WHY: /ready checks database and provider connectivity. */
+    fun ready(): ReadinessResponse = http.get("/ready")
+    
+    /** WHY: /live checks if server is responding (lightweight). */
+    fun live(): LivenessResponse = http.get("/live")
+    
+    /** WHY: /metrics returns Prometheus-style metrics. */
+    fun metrics(): String = http.getRaw("/metrics")
 }
 
 class DocumentService(private val http: HttpHelper) {
@@ -26,6 +35,22 @@ class DocumentService(private val http: HttpHelper) {
 
     fun scan(path: String, recursive: Boolean = true): ScanResponse =
         http.post("/api/v1/documents/scan", ScanRequest(path, recursive))
+    
+    /** WHY: Get document chunks with extracted entities. */
+    fun chunks(id: String): DocumentChunksResponse = 
+        http.get("/api/v1/documents/$id/chunks")
+    
+    /** WHY: Get document processing status. */
+    fun status(id: String): DocumentStatusResponse = 
+        http.get("/api/v1/documents/$id/status")
+    
+    /** WHY: Reprocess a failed document. */
+    fun reprocess(id: String): StatusResponse = 
+        http.post("/api/v1/documents/$id/reprocess")
+    
+    /** WHY: Recover documents stuck in processing state. */
+    fun recoverStuck(): StatusResponse = 
+        http.post("/api/v1/documents/recover-stuck")
 }
 
 class EntityService(private val http: HttpHelper) {
@@ -46,11 +71,34 @@ class EntityService(private val http: HttpHelper) {
 
     fun merge(source: String, target: String): Map<String, Any?> =
         http.post("/api/v1/graph/entities/merge", MergeEntitiesRequest(source, target))
+    
+    /** WHY: Get entity's neighborhood for graph traversal. */
+    fun neighborhood(entityName: String, depth: Int = 1): EntityNeighborhoodResponse =
+        http.get("/api/v1/graph/entities/$entityName/neighborhood?depth=$depth")
+    
+    /** WHY: Get list of entity types for filtering. */
+    fun types(): EntityTypesResponse = 
+        http.get("/api/v1/graph/entities/types")
 }
 
 class RelationshipService(private val http: HttpHelper) {
     fun list(page: Int = 1, pageSize: Int = 20): RelationshipListResponse =
         http.get("/api/v1/graph/relationships?page=$page&page_size=$pageSize")
+    
+    /** WHY: Get specific relationship by ID. */
+    fun get(id: String): RelationshipDetailResponse =
+        http.get("/api/v1/graph/relationships/$id")
+    
+    /** WHY: Create new relationship between entities. */
+    fun create(req: CreateRelationshipRequest): CreateRelationshipResponse =
+        http.post("/api/v1/graph/relationships", req)
+    
+    /** WHY: Delete a relationship. */
+    fun delete(id: String) { http.deleteRaw("/api/v1/graph/relationships/$id") }
+    
+    /** WHY: Get list of relationship types. */
+    fun types(): RelationshipTypesResponse =
+        http.get("/api/v1/graph/relationships/types")
 }
 
 class GraphService(private val http: HttpHelper) {
@@ -58,33 +106,123 @@ class GraphService(private val http: HttpHelper) {
 
     fun search(query: String): SearchNodesResponse =
         http.get("/api/v1/graph/nodes/search?q=$query")
+    
+    /** WHY: Get graph statistics for monitoring. */
+    fun stats(): GraphStatsResponse = http.get("/api/v1/graph/stats")
+    
+    /** WHY: Search labels across graph. */
+    fun labelSearch(query: String): LabelSearchResponse =
+        http.get("/api/v1/graph/labels/search?q=$query")
+    
+    /** WHY: Get most popular labels. */
+    fun popularLabels(limit: Int = 10): PopularLabelsResponse =
+        http.get("/api/v1/graph/labels/popular?limit=$limit")
+    
+    /** WHY: Batch degree calculation for multiple nodes. */
+    fun batchDegrees(nodeIds: List<String>): BatchDegreesResponse =
+        http.post("/api/v1/graph/degrees/batch", mapOf("node_ids" to nodeIds))
+    
+    /** WHY: Clear entire graph (dangerous!). */
+    fun clear(): StatusResponse =
+        http.post("/api/v1/graph/clear", mapOf("confirm" to true))
 }
 
 class QueryService(private val http: HttpHelper) {
     fun execute(query: String, mode: String = "hybrid"): QueryResponse =
         http.post("/api/v1/query", QueryRequest(query, mode))
+    
+    /** WHY: Stream query results via SSE. Returns raw SSE text. */
+    fun stream(query: String, mode: String = "hybrid"): String =
+        http.postRaw("/api/v1/query/stream", QueryRequest(query, mode))
 }
 
 class ChatService(private val http: HttpHelper) {
     fun completions(req: ChatCompletionRequest): ChatCompletionResponse =
         http.post("/api/v1/chat/completions", req)
+    
+    /** WHY: Stream chat completions via SSE. Returns raw SSE text. */
+    fun stream(req: ChatCompletionRequest): String {
+        val streamingReq = req.copy(stream = true)
+        return http.postRaw("/api/v1/chat/completions/stream", streamingReq)
+    }
+    
+    /** WHY: Chat with conversation history. */
+    fun completionsWithConversation(conversationId: String, message: String): ChatCompletionResponse {
+        val req = ChatCompletionRequest(message = message, conversationId = conversationId)
+        return http.post("/api/v1/chat/completions", req)
+    }
 }
 
 class AuthService(private val http: HttpHelper) {
     fun login(username: String, password: String): TokenResponse =
         http.post("/api/v1/auth/login", LoginRequest(username, password))
+    
+    /** WHY: Logout invalidates current token. */
+    fun logout() { http.postRaw("/api/v1/auth/logout", null) }
+    
+    /** WHY: Refresh token before expiration. */
+    fun refresh(): TokenResponse = http.post("/api/v1/auth/refresh")
+    
+    /** WHY: Get current user info. */
+    fun me(): AuthUserResponse = http.get("/api/v1/auth/me")
+    
+    /** WHY: Change password for current user. */
+    fun changePassword(oldPassword: String, newPassword: String): StatusResponse =
+        http.post("/api/v1/auth/change-password", mapOf("old_password" to oldPassword, "new_password" to newPassword))
 }
 
 class UserService(private val http: HttpHelper) {
     fun list(): UserListResponse = http.get("/api/v1/users")
+    
+    /** WHY: Get user by ID. */
+    fun get(id: String): UserInfo = http.get("/api/v1/users/$id")
+    
+    /** WHY: Create new user (admin only). */
+    fun create(username: String, email: String, password: String, role: String = "user"): UserInfo =
+        http.post("/api/v1/users", mapOf("username" to username, "email" to email, "password" to password, "role" to role))
+    
+    /** WHY: Update user (admin only). */
+    fun update(id: String, updates: Map<String, Any?>): UserInfo =
+        http.put("/api/v1/users/$id", updates)
+    
+    /** WHY: Delete user (admin only). */
+    fun delete(id: String) { http.deleteRaw("/api/v1/users/$id") }
 }
 
 class ApiKeyService(private val http: HttpHelper) {
     fun list(): ApiKeyListResponse = http.get("/api/v1/api-keys")
+    
+    /** WHY: Get API key by ID. */
+    fun get(id: String): ApiKeyInfo = http.get("/api/v1/api-keys/$id")
+    
+    /** WHY: Create new API key. */
+    fun create(name: String, expiresAt: String? = null): CreateApiKeyResponse =
+        http.post("/api/v1/api-keys", mapOf("name" to name, "expires_at" to expiresAt))
+    
+    /** WHY: Revoke an API key. */
+    fun revoke(id: String) { http.deleteRaw("/api/v1/api-keys/$id") }
+    
+    /** WHY: Rotate an API key (create new, revoke old). */
+    fun rotate(id: String): CreateApiKeyResponse =
+        http.post("/api/v1/api-keys/$id/rotate")
 }
 
 class TenantService(private val http: HttpHelper) {
     fun list(): TenantListResponse = http.get("/api/v1/tenants")
+    
+    /** WHY: Get tenant by ID. */
+    fun get(id: String): TenantInfo = http.get("/api/v1/tenants/$id")
+    
+    /** WHY: Create new tenant. */
+    fun create(name: String, slug: String): TenantInfo =
+        http.post("/api/v1/tenants", mapOf("name" to name, "slug" to slug))
+    
+    /** WHY: Update tenant. */
+    fun update(id: String, updates: Map<String, Any?>): TenantInfo =
+        http.put("/api/v1/tenants/$id", updates)
+    
+    /** WHY: Delete tenant. */
+    fun delete(id: String) { http.deleteRaw("/api/v1/tenants/$id") }
 }
 
 class ConversationService(private val http: HttpHelper) {
@@ -104,6 +242,35 @@ class ConversationService(private val http: HttpHelper) {
 
     fun bulkDelete(ids: List<String>): BulkDeleteResponse =
         http.post("/api/v1/conversations/bulk/delete", mapOf("ids" to ids))
+    
+    /** WHY: Update conversation title. */
+    fun update(id: String, title: String): ConversationInfo =
+        http.put("/api/v1/conversations/$id", mapOf("title" to title))
+    
+    /** WHY: Get messages for a conversation. */
+    fun messages(id: String): MessageListResponse =
+        http.get("/api/v1/conversations/$id/messages")
+    
+    /** WHY: Add message to conversation. */
+    fun addMessage(id: String, role: String, content: String): Message =
+        http.post("/api/v1/conversations/$id/messages", mapOf("role" to role, "content" to content))
+    
+    /** WHY: Delete message from conversation. */
+    fun deleteMessage(conversationId: String, messageId: String) {
+        http.deleteRaw("/api/v1/conversations/$conversationId/messages/$messageId")
+    }
+    
+    /** WHY: Search conversations by content. */
+    fun search(query: String): List<ConversationInfo> =
+        http.get("/api/v1/conversations/search?q=$query")
+    
+    /** WHY: Share conversation via link. */
+    fun share(id: String): ShareLinkResponse =
+        http.post("/api/v1/conversations/$id/share")
+    
+    /** WHY: Import conversations from external source. */
+    fun import(data: ConversationImport): ImportResponse =
+        http.post("/api/v1/conversations/import", data)
 }
 
 class FolderService(private val http: HttpHelper) {
@@ -114,18 +281,66 @@ class FolderService(private val http: HttpHelper) {
 
     /** WHY: DELETE returns 204 No Content — use deleteRaw to avoid deserialization of empty body. */
     fun delete(id: String) { http.deleteRaw("/api/v1/folders/$id") }
+    
+    /** WHY: Get folder by ID. */
+    fun get(id: String): FolderInfo = http.get("/api/v1/folders/$id")
+    
+    /** WHY: Update folder name. */
+    fun update(id: String, name: String): FolderInfo =
+        http.put("/api/v1/folders/$id", mapOf("name" to name))
+    
+    /** WHY: Move conversation to folder. */
+    fun moveConversation(folderId: String, conversationId: String): StatusResponse =
+        http.post("/api/v1/folders/$folderId/conversations/$conversationId")
+    
+    /** WHY: List conversations in folder. */
+    fun conversations(id: String): FolderConversationsResponse =
+        http.get("/api/v1/folders/$id/conversations")
 }
 
 class TaskService(private val http: HttpHelper) {
     fun list(): TaskListResponse = http.get("/api/v1/tasks")
 
     fun get(id: String): TaskInfo = http.get("/api/v1/tasks/$id")
+    
+    /** WHY: Create new background task. */
+    fun create(taskType: String, params: Map<String, Any?> = emptyMap()): TaskInfo =
+        http.post("/api/v1/tasks", mapOf("task_type" to taskType, "params" to params))
+    
+    /** WHY: Cancel running task. */
+    fun cancel(id: String): StatusResponse =
+        http.post("/api/v1/tasks/$id/cancel")
+    
+    /** WHY: Get task status only (lightweight). */
+    fun status(id: String): TaskStatusResponse =
+        http.get("/api/v1/tasks/$id/status")
+    
+    /** WHY: Retry failed task. */
+    fun retry(id: String): TaskInfo =
+        http.post("/api/v1/tasks/$id/retry")
 }
 
 class PipelineService(private val http: HttpHelper) {
     fun status(): PipelineStatus = http.get("/api/v1/pipeline/status")
 
     fun queueMetrics(): QueueMetrics = http.get("/api/v1/pipeline/queue-metrics")
+    
+    /** WHY: Get processing queue items. */
+    fun processing(): ProcessingListResponse =
+        http.get("/api/v1/pipeline/processing")
+    
+    /** WHY: Pause pipeline processing. */
+    fun pause(): StatusResponse = http.post("/api/v1/pipeline/pause")
+    
+    /** WHY: Resume pipeline processing. */
+    fun resume(): StatusResponse = http.post("/api/v1/pipeline/resume")
+    
+    /** WHY: Cancel current pipeline run. */
+    fun cancel(): StatusResponse = http.post("/api/v1/pipeline/cancel")
+    
+    /** WHY: Estimate cost for document processing. */
+    fun costEstimate(documentCount: Int, avgTokens: Int = 1000): CostEstimateResponse =
+        http.post("/api/v1/pipeline/costs/estimate", mapOf("document_count" to documentCount, "avg_tokens" to avgTokens))
 }
 
 class ModelService(private val http: HttpHelper) {
@@ -138,10 +353,53 @@ class ModelService(private val http: HttpHelper) {
 
     fun providerStatus(): ProviderStatus =
         http.get("/api/v1/settings/provider/status")
+    
+    /** WHY: List available models. */
+    fun list(): ModelListResponse = http.get("/api/v1/models/list")
+    
+    /** WHY: Get specific model info. */
+    fun get(modelId: String): ModelInfo = http.get("/api/v1/models/$modelId")
+    
+    /** WHY: List available providers. */
+    fun providers(): ProviderListResponse = http.get("/api/v1/settings/providers")
+    
+    /** WHY: Set default model for provider. */
+    fun setDefault(providerId: String, modelId: String): StatusResponse =
+        http.put("/api/v1/models/default", mapOf("provider_id" to providerId, "model_id" to modelId))
+    
+    /** WHY: Test model connectivity. */
+    fun test(modelId: String): ModelTestResponse =
+        http.post("/api/v1/models/$modelId/test")
 }
 
 class WorkspaceService(private val http: HttpHelper) {
     fun list(): List<WorkspaceInfo> = http.get("/api/v1/workspaces")
+    
+    /** WHY: Get workspace by ID. */
+    fun get(id: String): WorkspaceInfo = http.get("/api/v1/workspaces/$id")
+    
+    /** WHY: Create new workspace. */
+    fun create(name: String, slug: String): WorkspaceInfo =
+        http.post("/api/v1/workspaces", mapOf("name" to name, "slug" to slug))
+    
+    /** WHY: Update workspace. */
+    fun update(id: String, updates: Map<String, Any?>): WorkspaceInfo =
+        http.put("/api/v1/workspaces/$id", updates)
+    
+    /** WHY: Delete workspace. */
+    fun delete(id: String) { http.deleteRaw("/api/v1/workspaces/$id") }
+    
+    /** WHY: Get workspace statistics. */
+    fun stats(id: String): WorkspaceStatsResponse =
+        http.get("/api/v1/workspaces/$id/stats")
+    
+    /** WHY: Switch to different workspace. */
+    fun switch(id: String): StatusResponse =
+        http.post("/api/v1/workspaces/$id/switch")
+    
+    /** WHY: Rebuild workspace index. */
+    fun rebuild(id: String): StatusResponse =
+        http.post("/api/v1/workspaces/$id/rebuild")
 }
 
 class PdfService(private val http: HttpHelper) {
@@ -154,4 +412,53 @@ class PdfService(private val http: HttpHelper) {
 
 class CostService(private val http: HttpHelper) {
     fun summary(): CostSummary = http.get("/api/v1/costs/summary")
+    
+    /** WHY: Get daily cost breakdown. */
+    fun daily(date: String? = null): DailyCostResponse {
+        val path = if (date != null) "/api/v1/costs/daily?date=$date" else "/api/v1/costs/daily"
+        return http.get(path)
+    }
+    
+    /** WHY: Get costs grouped by provider. */
+    fun byProvider(): ProviderCostResponse = http.get("/api/v1/costs/by-provider")
+    
+    /** WHY: Get costs grouped by model. */
+    fun byModel(): ModelCostResponse = http.get("/api/v1/costs/by-model")
+    
+    /** WHY: Get cost history for date range. */
+    fun history(startDate: String, endDate: String): CostHistoryResponse =
+        http.get("/api/v1/costs/history?start_date=$startDate&end_date=$endDate")
+    
+    /** WHY: Export cost data. */
+    fun export(format: String = "csv"): String =
+        http.getRaw("/api/v1/costs/export?format=$format")
+    
+    /** WHY: Get current budget info. */
+    fun budget(): BudgetInfo = http.get("/api/v1/costs/budget")
+    
+    /** WHY: Set cost budget. */
+    fun setBudget(amount: Double, period: String = "monthly"): StatusResponse =
+        http.post("/api/v1/costs/budget", mapOf("amount" to amount, "period" to period))
+}
+
+/** WHY: Shared link service for public conversation access. */
+class SharedService(private val http: HttpHelper) {
+    /** WHY: Create shared link for conversation. */
+    fun createLink(conversationId: String, expiresAt: String? = null): SharedLinkResponse =
+        http.post("/api/v1/shared", mapOf("conversation_id" to conversationId, "expires_at" to expiresAt))
+    
+    /** WHY: Get shared link info. */
+    fun getLink(shareId: String): SharedLinkResponse =
+        http.get("/api/v1/shared/$shareId")
+    
+    /** WHY: Delete shared link. */
+    fun deleteLink(shareId: String) { http.deleteRaw("/api/v1/shared/$shareId") }
+    
+    /** WHY: Access shared content. */
+    fun access(shareId: String): SharedAccessResponse =
+        http.get("/api/v1/shared/$shareId/access")
+    
+    /** WHY: List all shared links for user. */
+    fun listLinks(): SharedLinksListResponse =
+        http.get("/api/v1/shared")
 }
