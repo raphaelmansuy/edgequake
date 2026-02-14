@@ -43,6 +43,23 @@ final class HttpHelper: @unchecked Sendable {
         try await execute(buildRequest(path: path, method: "DELETE"))
     }
 
+    // OODA-35: Added PUT and PATCH methods for complete API coverage
+    func put<T: Decodable>(_ path: String, body: (any Encodable)? = nil) async throws -> T {
+        try await execute(buildRequest(path: path, method: "PUT", body: body))
+    }
+
+    func patch<T: Decodable>(_ path: String, body: (any Encodable)? = nil) async throws -> T {
+        try await execute(buildRequest(path: path, method: "PATCH", body: body))
+    }
+
+    func putRaw(_ path: String, body: (any Encodable)? = nil) async throws -> Data {
+        try await executeRaw(buildRequest(path: path, method: "PUT", body: body))
+    }
+
+    func patchRaw(_ path: String, body: (any Encodable)? = nil) async throws -> Data {
+        try await executeRaw(buildRequest(path: path, method: "PATCH", body: body))
+    }
+
     func getRaw(_ path: String) async throws -> Data {
         try await executeRaw(buildRequest(path: path, method: "GET"))
     }

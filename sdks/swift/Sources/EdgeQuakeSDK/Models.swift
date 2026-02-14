@@ -11,6 +11,29 @@ public struct HealthResponse: Codable, Sendable {
     public let llmProviderName: String?
 }
 
+// OODA-35: Additional health response types
+public struct ReadinessResponse: Codable, Sendable {
+    public let ready: Bool?
+    public let status: String?
+    public let checks: [String: AnyCodable]?
+}
+
+public struct LivenessResponse: Codable, Sendable {
+    public let alive: Bool?
+    public let status: String?
+}
+
+public struct DetailedHealthResponse: Codable, Sendable {
+    public let status: String?
+    public let version: String?
+    public let uptime: Double?
+    public let memoryUsage: Int?
+    public let cpuUsage: Double?
+    public let components: [String: AnyCodable]?
+    public let database: [String: AnyCodable]?
+    public let llm: [String: AnyCodable]?
+}
+
 // MARK: - Documents
 
 public struct Document: Codable, Sendable {
@@ -448,4 +471,242 @@ public struct AnyCodable: Codable, Sendable {
         default: try container.encodeNil()
         }
     }
+}
+
+// MARK: - OODA-35: New Model Types for Enhanced Services
+
+// Health Extended
+public struct HealthDetailedResponse: Codable, Sendable {
+    public let status: String?
+    public let version: String?
+    public let uptime: Double?
+    public let memoryUsage: Int?
+    public let cpuUsage: Double?
+    public let components: [String: AnyCodable]?
+}
+
+// Document Extended
+public struct DocumentChunksResponse: Codable, Sendable {
+    public let documentId: String?
+    public let chunks: [DocumentChunk]?
+    public let total: Int?
+}
+
+public struct DocumentChunk: Codable, Sendable {
+    public let id: String?
+    public let content: String?
+    public let chunkIndex: Int?
+    public let tokens: Int?
+}
+
+public struct DocumentStatusResponse: Codable, Sendable {
+    public let id: String?
+    public let status: String?
+    public let progress: Double?
+    public let error: String?
+}
+
+public struct DocumentSearchResponse: Codable, Sendable {
+    public let documents: [Document]?
+    public let total: Int?
+}
+
+// Entity Extended
+public struct MergeEntitiesResponse: Codable, Sendable {
+    public let status: String?
+    public let mergedEntity: Entity?
+    public let removedEntities: [String]?
+}
+
+public struct EntityTypesResponse: Codable, Sendable {
+    public let types: [String]?
+    public let counts: [String: Int]?
+}
+
+// Relationship Extended
+public struct CreateRelationshipRequest: Codable, Sendable {
+    public let sourceEntity: String
+    public let targetEntity: String
+    public let relationshipType: String
+    public let weight: Double?
+    public let description: String?
+
+    public init(sourceEntity: String, targetEntity: String, relationshipType: String, weight: Double? = nil, description: String? = nil) {
+        self.sourceEntity = sourceEntity
+        self.targetEntity = targetEntity
+        self.relationshipType = relationshipType
+        self.weight = weight
+        self.description = description
+    }
+}
+
+public struct RelationshipTypesResponse: Codable, Sendable {
+    public let types: [String]?
+    public let counts: [String: Int]?
+}
+
+// Graph Extended
+public struct GraphStatsResponse: Codable, Sendable {
+    public let nodeCount: Int?
+    public let edgeCount: Int?
+    public let avgDegree: Double?
+    public let density: Double?
+    public let components: Int?
+}
+
+public struct SubgraphResponse: Codable, Sendable {
+    public let nodes: [GraphNode]?
+    public let edges: [GraphEdge]?
+    public let depth: Int?
+}
+
+// Task Extended
+public struct TaskStatus: Codable, Sendable {
+    public let id: String?
+    public let status: String?
+    public let progress: Double?
+    public let error: String?
+    public let result: AnyCodable?
+}
+
+// API Key Extended
+public struct CreateApiKeyResponse: Codable, Sendable {
+    public let id: String?
+    public let key: String?
+    public let name: String?
+    public let prefix: String?
+    public let createdAt: String?
+}
+
+// Pipeline Extended
+public struct ProcessingListResponse: Codable, Sendable {
+    public let items: [ProcessingItem]?
+    public let total: Int?
+}
+
+public struct ProcessingItem: Codable, Sendable {
+    public let id: String?
+    public let documentId: String?
+    public let status: String?
+    public let progress: Double?
+    public let startedAt: String?
+}
+
+public struct PipelineConfig: Codable, Sendable {
+    public let maxWorkers: Int?
+    public let batchSize: Int?
+    public let retryLimit: Int?
+    public let timeout: Int?
+}
+
+// Model Extended
+public struct ModelListResponse: Codable, Sendable {
+    public let models: [ModelInfo]?
+    public let total: Int?
+}
+
+public struct ModelInfo: Codable, Sendable {
+    public let id: String?
+    public let name: String?
+    public let provider: String?
+    public let contextLength: Int?
+    public let capabilities: [String]?
+}
+
+public struct ModelConfig: Codable, Sendable {
+    public let provider: String?
+    public let model: String?
+    public let temperature: Double?
+    public let maxTokens: Int?
+}
+
+public struct ModelTestResult: Codable, Sendable {
+    public let success: Bool?
+    public let latencyMs: Int?
+    public let error: String?
+}
+
+// Cost Extended
+public struct DailyCost: Codable, Sendable {
+    public let date: String?
+    public let cost: Double?
+    public let queryCount: Int?
+    public let documentCount: Int?
+}
+
+public struct ProviderCost: Codable, Sendable {
+    public let provider: String?
+    public let cost: Double?
+    public let percentage: Double?
+}
+
+public struct ModelCost: Codable, Sendable {
+    public let model: String?
+    public let provider: String?
+    public let cost: Double?
+    public let tokenCount: Int?
+}
+
+// Conversation Extended
+public struct MessageInfo: Codable, Sendable {
+    public let id: String?
+    public let conversationId: String?
+    public let role: String?
+    public let content: String?
+    public let tokensUsed: Int?
+    public let createdAt: String?
+}
+
+// Auth Extended
+public struct AuthTokenResponse: Codable, Sendable {
+    public let accessToken: String?
+    public let refreshToken: String?
+    public let expiresIn: Int?
+    public let tokenType: String?
+}
+
+public struct AuthUserResponse: Codable, Sendable {
+    public let id: String?
+    public let email: String?
+    public let name: String?
+    public let role: String?
+    public let tenantId: String?
+}
+
+// Workspace Extended
+public struct WorkspaceInfo: Codable, Sendable {
+    public let id: String?
+    public let name: String?
+    public let tenantId: String?
+    public let settings: [String: AnyCodable]?
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
+public struct WorkspaceListResponse: Codable, Sendable {
+    public let items: [WorkspaceInfo]?
+    public let total: Int?
+}
+
+public struct WorkspaceStatsResponse: Codable, Sendable {
+    public let documentCount: Int?
+    public let entityCount: Int?
+    public let relationshipCount: Int?
+    public let queryCount: Int?
+    public let storageUsed: Int?
+}
+
+// Shared Extended
+public struct SharedLinkResponse: Codable, Sendable {
+    public let id: String?
+    public let url: String?
+    public let resourceType: String?
+    public let resourceId: String?
+    public let expiresAt: String?
+}
+
+public struct SharedAccessResponse: Codable, Sendable {
+    public let resourceType: String?
+    public let resourceId: String?
+    public let content: AnyCodable?
 }
