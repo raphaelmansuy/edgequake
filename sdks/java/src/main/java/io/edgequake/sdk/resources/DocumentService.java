@@ -52,4 +52,26 @@ public class DocumentService {
     public DeletionImpact deletionImpact(String id) {
         return http.get("/api/v1/documents/" + id + "/deletion-impact", null, DeletionImpact.class);
     }
+
+    // ── OODA-38: Added missing document methods ──────────────────────
+
+    /** Get document chunks. */
+    public DocumentChunksResponse chunks(String id) {
+        return http.get("/api/v1/documents/" + id + "/chunks", null, DocumentChunksResponse.class);
+    }
+
+    /** Get document processing status. */
+    public DocumentStatusResponse status(String id) {
+        return http.get("/api/v1/documents/" + id + "/status", null, DocumentStatusResponse.class);
+    }
+
+    /** Reprocess a failed document. */
+    public StatusResponse reprocess(String id) {
+        return http.post("/api/v1/documents/" + id + "/reprocess", null, StatusResponse.class);
+    }
+
+    /** Recover stuck documents. */
+    public StatusResponse recoverStuck() {
+        return http.post("/api/v1/documents/recover-stuck", null, StatusResponse.class);
+    }
 }

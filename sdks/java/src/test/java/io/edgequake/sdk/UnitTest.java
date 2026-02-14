@@ -1804,4 +1804,177 @@ class UnitTest {
         assertTrue(uri.contains("ALICE+BOB") || uri.contains("ALICE%20BOB"),
                 "Entity name with space should be URL-encoded: " + uri);
     }
+
+    // ── OODA-38: Extended Service Tests ──────────────────────────────
+
+    // ── Health Extended Tests ────────────────────────────────────────
+
+    @Test
+    void healthReady() {
+        fake.respondWith("{\"ready\":true,\"checks\":{\"database\":\"ok\",\"provider\":\"ok\"}}");
+        var svc = new HealthService(http);
+        var result = svc.ready();
+        assertTrue(result.ready);
+        assertTrue(fake.lastRequest().uri().contains("/ready"));
+    }
+
+    @Test
+    void healthLive() {
+        fake.respondWith("{\"alive\":true,\"uptime\":12345}");
+        var svc = new HealthService(http);
+        var result = svc.live();
+        assertTrue(result.alive);
+        assertEquals(12345L, result.uptime);
+    }
+
+    @Test
+    void healthMetrics() {
+        fake.respondWith("# TYPE edgequake_requests_total counter\nedgequake_requests_total 100");
+        var svc = new HealthService(http);
+        var result = svc.metrics();
+        assertTrue(result.contains("edgequake_requests_total"));
+    }
+
+    // ── Document Extended Tests ──────────────────────────────────────
+
+    @Test
+    void documentsChunks() {
+        fake.respondWith("{\"document_id\":\"d1\",\"chunks\":[{\"id\":\"c1\",\"content\":\"text\",\"index\":0}],\"total\":1}");
+        var svc = new DocumentService(http);
+        var result = svc.chunks("d1");
+        assertEquals("d1", result.documentId);
+        assertEquals(1, result.total);
+    }
+
+    @Test
+    void documentsStatus() {
+        fake.respondWith("{\"document_id\":\"d1\",\"status\":\"completed\",\"progress\":1.0}");
+        var svc = new DocumentService(http);
+        var result = svc.status("d1");
+        assertEquals("completed", result.status);
+    }
+
+    @Test
+    void documentsReprocess() {
+        fake.respondWith("{\"status\":\"ok\",\"message\":\"Reprocessing started\"}");
+        var svc = new DocumentService(http);
+        var result = svc.reprocess("d1");
+        assertEquals("ok", result.status);
+    }
+
+    @Test
+    void documentsRecoverStuck() {
+        fake.respondWith("{\"status\":\"ok\",\"message\":\"Recovered 3 documents\"}");
+        var svc = new DocumentService(http);
+        var result = svc.recoverStuck();
+        assertEquals("ok", result.status);
+    }
+
+    // ── Graph Extended Tests ─────────────────────────────────────────
+
+    @Test
+    void graphStats() {
+        fake.respondWith("{\"node_count\":100,\"edge_count\":200,\"entity_count\":50,\"relationship_count\":80}");
+        var svc = new GraphService(http);
+        var result = svc.stats();
+        assertEquals(100, result.nodeCount);
+        assertEquals(200, result.edgeCount);
+    }
+
+    @Test
+    void graphLabelSearch() {
+        fake.respondWith("{\"labels\":[{\"label\":\"PERSON\",\"count\":25}],\"total\":1}");
+        var svc = new GraphService(http);
+        var result = svc.labelSearch("PERSON");
+        assertEquals(1, result.total);
+    }
+
+    @Test
+    void graphPopularLabels() {
+        fake.respondWith("{\"labels\":[{\"label\":\"PERSON\",\"count\":50},{\"label\":\"ORG\",\"count\":30}]}");
+        var svc = new GraphService(http);
+        var result = svc.popularLabels();
+        assertEquals(2, result.labels.size());
+    }
+
+    @Test
+    void graphBatchDegrees() {
+        fake.respondWith("{\"degrees\":{\"node1\":5,\"node2\":3}}");
+        var svc = new GraphService(http);
+        var result = svc.batchDegrees(List.of("node1", "node2"));
+        assertEquals(5, result.degrees.get("node1"));
+    }
+
+    @Test
+    void graphClear() {
+        fake.respondWith("");
+        var svc = new GraphService(http);
+        svc.clear();
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/graph"));
+    }
+
+    // ── Entity Extended Tests ────────────────────────────────────────
+
+    @Test
+    void entityTypes() {
+        fake.respondWith("{\"types\":[\"PERSON\",\"ORGANIZATION\",\"CONCEPT\"],\"total\":3}");
+        var svc = new EntityService(http);
+        var result = svc.types();
+        assertEquals(3, result.total);
+        assertTrue(result.types.contains("PERSON"));
+    }
+
+    // ── Relationship Extended Tests ──────────────────────────────────
+
+    @Test
+    void relationshipGet() {
+        fake.respondWith("{\"relationship\":{\"id\":\"r1\",\"source\":\"A\",\"target\":\"B\"},\"source\":{\"entity_name\":\"A\"},\"target\":{\"entity_name\":\"B\"}}");
+        var svc = new RelationshipService(http);
+        var result = svc.get("r1");
+        assertEquals("r1", result.relationship.id);
+    }
+
+    @Test
+    void relationshipDelete() {
+        fake.respondWith("");
+        var svc = new RelationshipService(http);
+        svc.delete("r1");
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/graph/relationships/r1"));
+    }
+
+    @Test
+    void relationshipTypes() {
+        fake.respondWith("{\"types\":[\"KNOWS\",\"WORKS_WITH\",\"LOCATED_IN\"],\"total\":3}");
+        var svc = new RelationshipService(http);
+        var result = svc.types();
+        assertEquals(3, result.total);
+    }
+
+    // ── Query Extended Tests ─────────────────────────────────────────
+
+    @Test
+    void queryStream() {
+        fake.respondWith("data: {\"chunk\":\"Hello\"}\n\n");
+        var svc = new QueryService(http);
+        var result = svc.stream("test query");
+        assertTrue(result.contains("Hello"));
+    }
+
+    // ── Chat Extended Tests ──────────────────────────────────────────
+
+    @Test
+    void chatStream() {
+        fake.respondWith("data: {\"delta\":\"world\"}\n\n");
+        var svc = new ChatService(http);
+        var result = svc.stream(new ChatCompletionRequest());
+        assertTrue(result.contains("world"));
+    }
+
+    @Test
+    void chatCompletionsWithConversation() {
+        fake.respondWith("{\"content\":\"Response\"}");
+        var svc = new ChatService(http);
+        var result = svc.completionsWithConversation("c1", "Hello");
+        assertEquals("Response", result.content);
+    }
 }

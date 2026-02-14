@@ -13,4 +13,19 @@ public class ChatService {
     public ChatCompletionResponse completions(ChatCompletionRequest request) {
         return http.post("/api/v1/chat/completions", request, ChatCompletionResponse.class);
     }
+
+    // ── OODA-38: Added streaming chat methods ────────────────────────
+
+    /** Stream chat completions (SSE). */
+    public String stream(ChatCompletionRequest request) {
+        return http.postRaw("/api/v1/chat/completions/stream", request);
+    }
+
+    /** Completions with conversation ID. */
+    public ChatCompletionResponse completionsWithConversation(String conversationId, String message) {
+        var request = new ChatCompletionRequest();
+        request.message = message;
+        request.conversationId = conversationId;
+        return http.post("/api/v1/chat/completions", request, ChatCompletionResponse.class);
+    }
 }

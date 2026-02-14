@@ -80,4 +80,36 @@ public class DocumentModels {
             this.title = title;
         }
     }
+
+    // ── OODA-38: Added missing document models ───────────────────────
+
+    /** Document chunks response. */
+    public static class DocumentChunksResponse {
+        @JsonProperty("document_id") public String documentId;
+        @JsonProperty("chunks") public List<ChunkInfo> chunks;
+        @JsonProperty("total") public int total;
+    }
+
+    /** Chunk information. */
+    public static class ChunkInfo {
+        @JsonProperty("id") public String id;
+        @JsonProperty("content") public String content;
+        @JsonProperty("index") public Integer index;
+        @JsonProperty("start_line") public Integer startLine;
+        @JsonProperty("end_line") public Integer endLine;
+    }
+
+    /** Document status response. */
+    public static class DocumentStatusResponse {
+        @JsonProperty("document_id") public String documentId;
+        @JsonProperty("status") public String status;
+        @JsonProperty("progress") public Double progress;
+        @JsonProperty("error") public String error;
+    }
+
+    /** Generic status response. */
+    public static class StatusResponse {
+        @JsonProperty("status") public String status;
+        @JsonProperty("message") public String message;
+    }
 }

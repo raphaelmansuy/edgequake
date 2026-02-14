@@ -13,4 +13,13 @@ public class QueryService {
     public QueryResponse execute(QueryRequest request) {
         return http.post("/api/v1/query", request, QueryResponse.class);
     }
+
+    // ── OODA-38: Added streaming query method ────────────────────────
+
+    /** Stream query response (SSE). */
+    public String stream(String query) {
+        var request = new QueryRequest();
+        request.query = query;
+        return http.postRaw("/api/v1/query/stream", request);
+    }
 }

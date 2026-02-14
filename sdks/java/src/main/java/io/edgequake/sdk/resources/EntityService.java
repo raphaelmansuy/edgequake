@@ -65,6 +65,13 @@ public class EntityService {
                 params, NeighborhoodResponse.class);
     }
 
+    // ── OODA-38: Added entity types method ───────────────────────────
+
+    /** Get all entity types. */
+    public EntityTypesResponse types() {
+        return http.get("/api/v1/graph/entities/types", null, EntityTypesResponse.class);
+    }
+
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
