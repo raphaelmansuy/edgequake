@@ -470,6 +470,8 @@ cd edgequake && make dev
 
 ---
 
+Ensure to commit when you something stable. Optimize .gitignore to avoid committing large files (e.g., coverage reports, test artifacts). Always link to specific commits in `act.md` for traceability.
+
 **Mission Status**: 🚀 **READY TO EXECUTE**  
 **Expected Duration**: 50+ OODA iterations  
 **Success Metric**: All 10 SDKs at 95%+ coverage with complete API parity

@@ -11,15 +11,15 @@
 
 ## Priority for Next Iterations
 
-| Priority | OODA | SDK    | Focus                                    |
-|----------|------|--------|------------------------------------------|
-| P0       | 31   | Python | Add Tenants, Workspaces, Settings resources |
-| P0       | 32   | Python | Add Models, Costs, Folders resources     |
-| P1       | 33   | TypeScript | Quality sweep — verify 95%+ target    |
-| P1       | 34   | Java/Kotlin | Add missing endpoint tests           |
-| P2       | 35   | C#/Swift | Add missing endpoint tests              |
-| P2       | 36   | PHP/Ruby/Go | Add Models, Settings services        |
-| P3       | 37+  | All    | Conversation bulk ops, Document ops      |
+| Priority | OODA | SDK         | Focus                                       |
+| -------- | ---- | ----------- | ------------------------------------------- |
+| P0       | 31   | Python      | Add Tenants, Workspaces, Settings resources |
+| P0       | 32   | Python      | Add Models, Costs, Folders resources        |
+| P1       | 33   | TypeScript  | Quality sweep — verify 95%+ target          |
+| P1       | 34   | Java/Kotlin | Add missing endpoint tests                  |
+| P2       | 35   | C#/Swift    | Add missing endpoint tests                  |
+| P2       | 36   | PHP/Ruby/Go | Add Models, Settings services               |
+| P3       | 37+  | All         | Conversation bulk ops, Document ops         |
 
 ## Rationale
 

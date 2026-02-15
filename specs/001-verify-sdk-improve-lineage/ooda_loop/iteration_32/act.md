@@ -3,6 +3,7 @@
 ## Changes Made
 
 ### Files Modified (12 resource modules)
+
 - `health.rs` — +3 methods: ready(), live(), metrics()
 - `auth.rs` — +1 method: logout()
 - `documents.rs` — +5 methods: delete_all(), reprocess(), recover_stuck(), retry_chunks(), failed_chunks()
@@ -19,14 +20,17 @@
 - `workspaces.rs` — +7 methods: get(), update(), delete(), metrics_history(), rebuild_embeddings(), rebuild_knowledge_graph(), reprocess_documents()
 
 ### Test File
+
 - `tests/integration_tests.rs` — +38 new wiremock tests
 
 ### Test Results
+
 - **Before**: 166 tests (OODA-31)
 - **After**: 204 tests (85 integration + 118 unit + 1 doc)
 - **All passing**: `test result: ok. 204 passed; 0 failed`
 
 ### Method Count
+
 - **Before**: ~75 public methods
 - **After**: ~113 public methods (+38 endpoints)
 - **Remaining gaps**: Streaming endpoints only (query/stream, chat/stream, graph/stream, websocket)

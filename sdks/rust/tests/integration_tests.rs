@@ -2382,4 +2382,199 @@ mod tests {
         let token = client.auth().refresh(&req).await.unwrap();
         assert_eq!(token.access_token, "new-tok-123");
     }
+
+    // ── OODA-46: Additional Edge Case Tests ─────────────────────────────
+
+    #[tokio::test]
+    async fn test_documents_list_empty() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "documents": [],
+                "pagination": {"page": 1, "per_page": 10, "total": 0, "total_pages": 0}
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let docs = client.documents().list().await.unwrap();
+        assert!(docs.documents.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_entities_list_empty() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/graph/entities"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items": [],
+                "total": 0
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let entities = client.entities().list().await.unwrap();
+        assert!(entities.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_status_idle() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/pipeline/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "is_busy": false,
+                "pending_tasks": 0,
+                "processing_tasks": 0
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let status = client.pipeline().status().await.unwrap();
+        assert!(!status.is_busy);
+        assert_eq!(status.pending_tasks, 0);
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_status_busy() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/pipeline/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "is_busy": true,
+                "pending_tasks": 10,
+                "processing_tasks": 3
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let status = client.pipeline().status().await.unwrap();
+        assert!(status.is_busy);
+        assert_eq!(status.pending_tasks, 10);
+    }
+
+    #[tokio::test]
+    async fn test_relationships_list_empty() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/graph/relationships"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items": [],
+                "total": 0
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let rels = client.relationships().list().await.unwrap();
+        assert!(rels.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_tasks_list_empty() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/tasks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "tasks": [],
+                "total": 0
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let tasks = client.tasks().list().await.unwrap();
+        assert_eq!(tasks.total, 0);
+    }
+
+    #[tokio::test]
+    async fn test_tasks_get() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/tasks/t-123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "track_id": "t-123",
+                "status": "completed",
+                "task_type": "document_processing"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let task = client.tasks().get("t-123").await.unwrap();
+        assert_eq!(task.status, "completed");
+    }
+
+    #[tokio::test]
+    async fn test_models_list_empty() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "providers": []
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let models = client.models().list().await.unwrap();
+        assert!(models.providers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_costs_summary_ooda46() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/costs/summary"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "total_cost_usd": 150.75,
+                "total_tokens": 50000,
+                "total_input_tokens": 30000,
+                "total_output_tokens": 20000,
+                "document_count": 100,
+                "query_count": 500
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let summary = client.costs().summary().await.unwrap();
+        assert_eq!(summary.total_cost_usd, 150.75);
+    }
+
+    #[tokio::test]
+    async fn test_tenants_list_empty() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/tenants"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items": []
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let tenants = client.tenants().list().await.unwrap();
+        assert!(tenants.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_users_list_empty() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/users"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let users = client.users().list().await.unwrap();
+        assert!(users.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_folders_list_empty() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/folders"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let folders = client.folders().list().await.unwrap();
+        assert!(folders.is_empty());
+    }
 }

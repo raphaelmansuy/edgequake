@@ -1,5 +1,7 @@
 # How EdgeQuake Extracts Knowledge from Documents
 
+Knowledge extraction is the foundation of any Graph-RAG system. It's how we turn unstructured text into structured entities and relationships that can be queried and reasoned over.
+
 _LLMs as librarians: The entity extraction deep-dive_
 
 ---
@@ -23,38 +25,9 @@ EdgeQuake takes a third path: **LLMs as extraction engines**.
 
 Here's the insight: Large Language Models are incredible at understanding context. They don't just recognize "John Smith" as a person—they understand that John is a _lead researcher_ who _collaborated_ with Sarah on the _climate paper_.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 EXTRACTION APPROACHES COMPARED                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Traditional NER:                                                │
-│  "John Smith works at MIT on climate research with Sarah Chen"  │
-│       │                │                           │             │
-│       ▼                ▼                           ▼             │
-│  [PERSON: John]   [ORG: MIT]               [PERSON: Sarah]      │
-│                                                                   │
-│  ❌ Lost: "works at", "research", "with" relationships          │
-│                                                                   │
-│  ────────────────────────────────────────────────────────────── │
-│                                                                   │
-│  LLM-Based Extraction:                                           │
-│  "John Smith works at MIT on climate research with Sarah Chen"  │
-│       │                │                           │             │
-│       ▼                ▼                           ▼             │
-│  [JOHN_SMITH]     [MIT]                      [SARAH_CHEN]       │
-│   (PERSON)        (ORG)                       (PERSON)          │
-│   "Lead climate   "Research                  "Climate           │
-│    researcher"    institution"               collaborator"      │
-│       │                                           │              │
-│       └────── WORKS_AT ────────────────┬──────────┘              │
-│       └────── COLLABORATES_WITH ───────┘                         │
-│       └────── RESEARCHES → CLIMATE_SCIENCE ─────────             │
-│                                                                   │
-│  ✅ Entities with descriptions + relationships extracted        │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+![LLM Extraction vs NER](./assets/01-extract-llm.jpg)
+
 
 The LLM gives us:
 
@@ -81,51 +54,14 @@ One malformed character and your entire extraction fails.
 
 EdgeQuake uses a **tuple-delimited format** instead:
 
-```
-entity<|#|>SARAH_CHEN<|#|>PERSON<|#|>Lead researcher at Quantum Lab
-entity<|#|>MIT<|#|>ORGANIZATION<|#|>Research institution in Cambridge
-entity<|#|>NEURAL_NETWORK<|#|>CONCEPT<|#|>Machine learning architecture
-relation<|#|>SARAH_CHEN<|#|>MIT<|#|>works_at<|#|>Sarah works at MIT
-relation<|#|>SARAH_CHEN<|#|>NEURAL_NETWORK<|#|>researches<|#|>Sarah researches neural networks
-<|COMPLETE|>
-```
+![Tuple Format](./assets/02-tuple.jpg)
 
 ### Why Tuples Win
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    JSON vs TUPLE COMPARISON                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  JSON Format:                                                    │
-│  {                                                               │
-│    "entities": [                                                 │
-│      {"name": "SARAH_CHEN", "type": "PERSON", ...},             │
-│      {"name": "MIT", "type": "ORGANIZATION", ...}  ← Missing ]  │
-│    ]                                                             │
-│  }                                                               │
-│                                                                   │
-│  ❌ Result: Parse error. ZERO entities extracted.               │
-│                                                                   │
-│  ────────────────────────────────────────────────────────────── │
-│                                                                   │
-│  Tuple Format:                                                   │
-│  entity<|#|>SARAH_CHEN<|#|>PERSON<|#|>...                       │
-│  entity<|#|>MIT<|#|>ORGANIZATION<|#|>...                        │
-│  entity<|#|>GARBLED_OUTPUT ← Bad line                           │
-│  entity<|#|>NEURAL_NETWORK<|#|>CONCEPT<|#|>...                  │
-│                                                                   │
-│  ✅ Result: 3 valid entities. Bad line skipped.                 │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![JSON vs Tuples](./assets/03-json-vs-tuple.jpg)
 
-| Aspect           | JSON                       | Tuples                |
-| ---------------- | -------------------------- | --------------------- |
-| Streaming        | ❌ Need complete structure | ✅ Line-by-line       |
-| Partial recovery | ❌ All or nothing          | ✅ Skip bad lines     |
-| Escaping         | ❌ Quote/backslash issues  | ✅ No special chars   |
-| LLM reliability  | ❌ 10-20% failure rate     | ✅ ~99% parse success |
+![JSON vs Tuples Metrics](./assets/05-tab-json-tuple.png)
+
 
 This isn't theoretical—it's battle-tested from the LightRAG research and thousands of production extractions.
 
@@ -135,43 +71,8 @@ This isn't theoretical—it's battle-tested from the LightRAG research and thous
 
 The quality of extraction depends on the prompt. Here's what EdgeQuake sends to the LLM:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    EXTRACTION PROMPT STRUCTURE                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  SYSTEM PROMPT:                                                  │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Role: Knowledge Graph Specialist                            ││
-│  │                                                              ││
-│  │ Entity Instructions:                                         ││
-│  │ - Identify meaningful entities                               ││
-│  │ - Use types: PERSON, ORG, LOCATION, CONCEPT...              ││
-│  │ - Provide concise descriptions                               ││
-│  │                                                              ││
-│  │ Relationship Instructions:                                   ││
-│  │ - Identify direct relationships                              ││
-│  │ - Decompose N-ary to binary pairs                           ││
-│  │ - Use keywords to summarize                                  ││
-│  │                                                              ││
-│  │ Output Format:                                               ││
-│  │ - entity<|#|>name<|#|>type<|#|>description                  ││
-│  │ - relation<|#|>source<|#|>target<|#|>keywords<|#|>desc      ││
-│  │ - <|COMPLETE|> when done                                     ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                   │
-│  USER PROMPT:                                                    │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Entity types: [PERSON, ORG, LOCATION, CONCEPT, ...]         ││
-│  │                                                              ││
-│  │ Input text:                                                  ││
-│  │ "Sarah Chen works at Quantum Dynamics Lab. She authored..."  ││
-│  │                                                              ││
-│  │ Extract entities and relationships.                          ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Extraction Prompt](./assets/03-extract-prompt.jpg)
+
 
 Key prompt engineering choices:
 
@@ -190,47 +91,9 @@ Complex documents have entities buried in context. The LLM might miss them on th
 
 EdgeQuake implements **gleaning**: iterative re-extraction for completeness.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    GLEANING LOOP                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│   Input Text                                                     │
-│       │                                                          │
-│       ▼                                                          │
-│  ┌──────────────┐                                                │
-│  │ First Pass   │ → 8 entities, 5 relationships                 │
-│  │ Extraction   │                                                │
-│  └──────┬───────┘                                                │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────┐                                                │
-│  │ Threshold    │ "Did we find enough?"                         │
-│  │ Check        │ (configurable: min entities, min relations)   │
-│  └──────┬───────┘                                                │
-│         │                                                        │
-│         │ NO: Below threshold                                    │
-│         ▼                                                        │
-│  ┌──────────────┐                                                │
-│  │ Gleaning     │ "Find missed entities in this text..."        │
-│  │ Prompt       │                                                │
-│  └──────┬───────┘                                                │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────┐                                                │
-│  │ Second Pass  │ → 3 more entities, 2 more relationships       │
-│  │ Extraction   │                                                │
-│  └──────┬───────┘                                                │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────┐                                                │
-│  │ Merge        │ → 11 entities, 7 relationships (total)        │
-│  └──────────────┘                                                │
-│                                                                   │
-│  Repeat up to N times (configurable)                            │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+![Gleaning Loop](./assets/04-gleaning.jpg)
+
 
 **Results from production**:
 
@@ -273,37 +136,9 @@ The rules:
 
 **Before/After Comparison**:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 NORMALIZATION IMPACT                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  BEFORE (Raw Extraction):                                        │
-│                                                                   │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │ "John Doe"  │  │ "john doe"  │  │ "JOHN DOE"  │              │
-│  └─────────────┘  └─────────────┘  └─────────────┘              │
-│  ┌─────────────┐  ┌─────────────┐                                │
-│  │ "Sarah Chen"│  │"Dr. S. Chen"│                                │
-│  └─────────────┘  └─────────────┘                                │
-│                                                                   │
-│  = 5 nodes (duplicates!)                                        │
-│                                                                   │
-│  ────────────────────────────────────────────────────────────── │
-│                                                                   │
-│  AFTER (Normalized):                                             │
-│                                                                   │
-│  ┌─────────────┐         ┌─────────────┐                         │
-│  │  JOHN_DOE   │         │ SARAH_CHEN  │                         │
-│  │  (merged)   │         │  (merged)   │                         │
-│  └─────────────┘         └─────────────┘                         │
-│                                                                   │
-│  = 2 nodes (clean!)                                             │
-│                                                                   │
-│  Deduplication: 60% reduction                                   │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+![Normalization Impact](./assets/05-normalization.jpg)
+
 
 In production, we see **40-67% deduplication rates**. That's the difference between a usable knowledge graph and a tangled mess.
 
@@ -313,51 +148,8 @@ In production, we see **40-67% deduplication rates**. That's the difference betw
 
 Putting it all together:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│              EDGEQUAKE ENTITY EXTRACTION PIPELINE                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│   Document                                                       │
-│       │                                                          │
-│       ▼                                                          │
-│  ┌──────────────┐                                                │
-│  │   Chunking   │  Split into 600-1200 token chunks             │
-│  │              │  with 100-token overlap                        │
-│  └──────┬───────┘                                                │
-│         │                                                        │
-│         ▼  (parallel processing)                                 │
-│  ┌──────────────┐                                                │
-│  │ LLM Extract  │  Send to LLM with extraction prompt           │
-│  │              │  → Tuple-delimited output                      │
-│  └──────┬───────┘                                                │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────┐                                                │
-│  │   Parsing    │  Line-by-line tuple parsing                   │
-│  │              │  → Skip malformed lines                        │
-│  └──────┬───────┘                                                │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────┐                                                │
-│  │  Gleaning    │  Re-extract missed entities (optional)        │
-│  │              │  → +20-30% more coverage                       │
-│  └──────┬───────┘                                                │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────┐                                                │
-│  │Normalization │  UPPERCASE_UNDERSCORE format                  │
-│  │              │  → 40-67% deduplication                        │
-│  └──────┬───────┘                                                │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────┐                                                │
-│  │   Merging    │  Combine across chunks                        │
-│  │              │  → Unified knowledge graph                     │
-│  └──────────────┘                                                │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Complete Pipeline](./assets/01-extract-pipeline.jpg)
+
 
 ---
 
@@ -365,14 +157,7 @@ Putting it all together:
 
 From EdgeQuake production testing:
 
-| Metric                     | Value               |
-| -------------------------- | ------------------- |
-| Entities per 10k-token doc | 15-25               |
-| Relationships per doc      | 10-20               |
-| Extraction time            | ~2-10 seconds       |
-| Parse success rate         | ~99% (tuple format) |
-| Gleaning improvement       | +20-37%             |
-| Deduplication rate         | 40-67%              |
+![Tuple Extraction Metrics](./assets/05-tab-result.png)
 
 Compare to traditional NER:
 

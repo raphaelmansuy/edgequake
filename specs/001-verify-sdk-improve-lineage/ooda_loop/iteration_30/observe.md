@@ -8,19 +8,19 @@ All 10 SDKs have been audited for test counts, service method counts, and API en
 
 ## Test Counts (Validated)
 
-| SDK        | Tests | Status  | Runner    |
-|------------|------:|---------|-----------|
-| Python     |   520 | ✅ Pass | pytest    |
-| TypeScript |   288 | ✅ Pass | vitest    |
-| Rust       |   156 | ✅ Pass | tokio     |
-| Java       |   157 | ✅ Pass | JUnit 5   |
-| Kotlin     |   155 | ✅ Pass | JUnit 5   |
-| C#         |   154 | ✅ Pass | xUnit     |
-| Swift      |   150 | ✅ Pass | XCTest    |
-| Go         |   216 | ✅ Pass | testing   |
-| PHP        |   106 | ✅ Pass | PHPUnit   |
-| Ruby       |   109 | ✅ Pass | Minitest  |
-| **Total**  | **2,011** |     |           |
+| SDK        |     Tests | Status  | Runner   |
+| ---------- | --------: | ------- | -------- |
+| Python     |       520 | ✅ Pass | pytest   |
+| TypeScript |       288 | ✅ Pass | vitest   |
+| Rust       |       156 | ✅ Pass | tokio    |
+| Java       |       157 | ✅ Pass | JUnit 5  |
+| Kotlin     |       155 | ✅ Pass | JUnit 5  |
+| C#         |       154 | ✅ Pass | xUnit    |
+| Swift      |       150 | ✅ Pass | XCTest   |
+| Go         |       216 | ✅ Pass | testing  |
+| PHP        |       106 | ✅ Pass | PHPUnit  |
+| Ruby       |       109 | ✅ Pass | Minitest |
+| **Total**  | **2,011** |         |          |
 
 ## Service Method Counts
 
