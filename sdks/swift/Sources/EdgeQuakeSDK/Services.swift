@@ -54,16 +54,21 @@ public final class DocumentService: @unchecked Sendable {
     }
 
     // OODA-35: New document methods
-    public func update(id: String, title: String? = nil, content: String? = nil) async throws -> Document {
+    public func update(id: String, title: String? = nil, content: String? = nil) async throws
+        -> Document
+    {
         var body: [String: String] = [:]
         if let t = title { body["title"] = t }
         if let c = content { body["content"] = c }
         return try await http.put("/api/v1/documents/\(id)", body: body)
     }
 
-    public func search(query: String, page: Int = 1, pageSize: Int = 20) async throws -> ListDocumentsResponse {
+    public func search(query: String, page: Int = 1, pageSize: Int = 20) async throws
+        -> ListDocumentsResponse
+    {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        return try await http.get("/api/v1/documents/search?q=\(encoded)&page=\(page)&page_size=\(pageSize)")
+        return try await http.get(
+            "/api/v1/documents/search?q=\(encoded)&page=\(page)&page_size=\(pageSize)")
     }
 
     public func chunks(id: String) async throws -> DocumentChunksResponse {
@@ -119,15 +124,20 @@ public final class EntityService: @unchecked Sendable {
     }
 
     // OODA-35: New entity methods
-    public func update(name: String, description: String? = nil, entityType: String? = nil) async throws -> EntityDetailResponse {
+    public func update(name: String, description: String? = nil, entityType: String? = nil)
+        async throws -> EntityDetailResponse
+    {
         var body: [String: String] = [:]
         if let d = description { body["description"] = d }
         if let t = entityType { body["entity_type"] = t }
         return try await http.put("/api/v1/graph/entities/\(name)", body: body)
     }
 
-    public func merge(sourceName: String, targetName: String) async throws -> MergeEntitiesResponse {
-        try await http.post("/api/v1/graph/entities/merge", body: ["source_name": sourceName, "target_name": targetName])
+    public func merge(sourceName: String, targetName: String) async throws -> MergeEntitiesResponse
+    {
+        try await http.post(
+            "/api/v1/graph/entities/merge",
+            body: ["source_name": sourceName, "target_name": targetName])
     }
 
     public func types() async throws -> EntityTypesResponse {
@@ -144,10 +154,15 @@ public final class RelationshipService: @unchecked Sendable {
     }
 
     // OODA-35: New relationship methods
-    public func create(source: String, target: String, relationshipType: String, weight: Double = 1.0) async throws -> Relationship {
-        try await http.post("/api/v1/graph/relationships", body: [
-            "source": source, "target": target, "relationship_type": relationshipType, "weight": String(weight)
-        ])
+    public func create(
+        source: String, target: String, relationshipType: String, weight: Double = 1.0
+    ) async throws -> Relationship {
+        try await http.post(
+            "/api/v1/graph/relationships",
+            body: [
+                "source": source, "target": target, "relationship_type": relationshipType,
+                "weight": String(weight),
+            ])
     }
 
     public func delete(id: String) async throws {
@@ -279,13 +294,17 @@ public final class UserService: @unchecked Sendable {
         try await http.get("/api/v1/users/\(id)")
     }
 
-    public func create(email: String, name: String? = nil, role: String = "user") async throws -> UserInfo {
+    public func create(email: String, name: String? = nil, role: String = "user") async throws
+        -> UserInfo
+    {
         var body: [String: String] = ["email": email, "role": role]
         if let n = name { body["name"] = n }
         return try await http.post("/api/v1/users", body: body)
     }
 
-    public func update(id: String, name: String? = nil, role: String? = nil) async throws -> UserInfo {
+    public func update(id: String, name: String? = nil, role: String? = nil) async throws
+        -> UserInfo
+    {
         var body: [String: String] = [:]
         if let n = name { body["name"] = n }
         if let r = role { body["role"] = r }
@@ -491,12 +510,17 @@ public final class ConversationService: @unchecked Sendable {
         try await http.get("/api/v1/conversations/\(id)/messages")
     }
 
-    public func addMessage(conversationId: String, role: String, content: String) async throws -> MessageInfo {
-        try await http.post("/api/v1/conversations/\(conversationId)/messages", body: ["role": role, "content": content])
+    public func addMessage(conversationId: String, role: String, content: String) async throws
+        -> MessageInfo
+    {
+        try await http.post(
+            "/api/v1/conversations/\(conversationId)/messages",
+            body: ["role": role, "content": content])
     }
 
     public func deleteMessage(conversationId: String, messageId: String) async throws {
-        _ = try await http.deleteRaw("/api/v1/conversations/\(conversationId)/messages/\(messageId)")
+        _ = try await http.deleteRaw(
+            "/api/v1/conversations/\(conversationId)/messages/\(messageId)")
     }
 
     public func search(query: String, limit: Int = 10) async throws -> [ConversationInfo] {
@@ -534,8 +558,12 @@ public final class FolderService: @unchecked Sendable {
         try await http.put("/api/v1/folders/\(id)", body: ["name": name])
     }
 
-    public func moveConversation(conversationId: String, folderId: String) async throws -> ConversationInfo {
-        try await http.post("/api/v1/folders/move", body: ["conversation_id": conversationId, "folder_id": folderId])
+    public func moveConversation(conversationId: String, folderId: String) async throws
+        -> ConversationInfo
+    {
+        try await http.post(
+            "/api/v1/folders/move",
+            body: ["conversation_id": conversationId, "folder_id": folderId])
     }
 
     public func conversations(id: String) async throws -> [ConversationInfo] {
@@ -571,7 +599,9 @@ public final class AuthService: @unchecked Sendable {
 
     /// Change password
     public func changePassword(currentPassword: String, newPassword: String) async throws {
-        _ = try await http.postRaw("/api/v1/auth/change-password", body: ["current_password": currentPassword, "new_password": newPassword])
+        _ = try await http.postRaw(
+            "/api/v1/auth/change-password",
+            body: ["current_password": currentPassword, "new_password": newPassword])
     }
 }
 
@@ -620,8 +650,12 @@ public final class SharedService: @unchecked Sendable {
     init(_ http: HttpHelper) { self.http = http }
 
     /// Create a shared link for a resource
-    public func createLink(resourceType: String, resourceId: String) async throws -> SharedLinkResponse {
-        try await http.post("/api/v1/shared/links", body: ["resource_type": resourceType, "resource_id": resourceId])
+    public func createLink(resourceType: String, resourceId: String) async throws
+        -> SharedLinkResponse
+    {
+        try await http.post(
+            "/api/v1/shared/links",
+            body: ["resource_type": resourceType, "resource_id": resourceId])
     }
 
     /// Get shared link by ID

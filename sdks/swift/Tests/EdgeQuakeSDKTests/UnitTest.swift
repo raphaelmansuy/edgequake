@@ -903,7 +903,8 @@ final class EntityExtendedTests: XCTestCase {
 final class RelationshipExtendedTests: XCTestCase {
     func testCreateRelationship() async throws {
         let http = mockHelper(json: #"{"id":"rel-1","source":"A","target":"B"}"#)
-        let res = try await RelationshipService(http).create(source: "A", target: "B", relationshipType: "KNOWS")
+        let res = try await RelationshipService(http).create(
+            source: "A", target: "B", relationshipType: "KNOWS")
         XCTAssertEqual(res.source, "A")
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
     }
@@ -1174,13 +1175,15 @@ final class ConversationExtendedTests: XCTestCase {
 
     func testAddMessage() async throws {
         let http = mockHelper(json: #"{"id":"msg-2","role":"user","content":"Hi"}"#)
-        let res = try await ConversationService(http).addMessage(conversationId: "conv-1", role: "user", content: "Hi")
+        let res = try await ConversationService(http).addMessage(
+            conversationId: "conv-1", role: "user", content: "Hi")
         XCTAssertEqual(res.content, "Hi")
     }
 
     func testDeleteMessage() async throws {
         let http = mockHelper(json: "{}", status: 204)
-        try await ConversationService(http).deleteMessage(conversationId: "conv-1", messageId: "msg-1")
+        try await ConversationService(http).deleteMessage(
+            conversationId: "conv-1", messageId: "msg-1")
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "DELETE")
     }
 
@@ -1215,7 +1218,8 @@ final class FolderExtendedTests: XCTestCase {
 
     func testMoveConversation() async throws {
         let http = mockHelper(json: #"{"id":"conv-1","folder_id":"folder-1"}"#)
-        _ = try await FolderService(http).moveConversation(conversationId: "conv-1", folderId: "folder-1")
+        _ = try await FolderService(http).moveConversation(
+            conversationId: "conv-1", folderId: "folder-1")
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
     }
 
@@ -1314,7 +1318,8 @@ final class WorkspaceServiceTests: XCTestCase {
 final class SharedServiceTests: XCTestCase {
     func testCreateLink() async throws {
         let http = mockHelper(json: #"{"id":"link-1","url":"https://share.example.com/xxx"}"#)
-        let res = try await SharedService(http).createLink(resourceType: "document", resourceId: "doc-1")
+        let res = try await SharedService(http).createLink(
+            resourceType: "document", resourceId: "doc-1")
         XCTAssertEqual(res.id, "link-1")
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
     }
@@ -1360,5 +1365,205 @@ final class ClientExtendedServiceAvailabilityTests: XCTestCase {
     func testHasShared() {
         let client = EdgeQuakeClient()
         XCTAssertNotNil(client.shared)
+    }
+}
+
+// MARK: - OODA-45: Additional Edge Case Tests
+
+final class OODA45EdgeCaseTests: XCTestCase {
+    // Document edge cases
+    func testDocumentListReturnsResponse() async throws {
+        let http = mockHelper(json: #"{"items":[],"total":0,"page":1,"total_pages":0}"#)
+        let res = try await DocumentService(http).list()
+        XCTAssertEqual(res.total, 0)
+    }
+
+    func testDocumentGetReturnsDocument() async throws {
+        let http = mockHelper(json: #"{"id":"d-1","title":"Test"}"#)
+        let res = try await DocumentService(http).get(id: "d-1")
+        XCTAssertEqual(res.id, "d-1")
+    }
+
+    func testDocumentChunksReturnsChunks() async throws {
+        let http = mockHelper(json: #"{"document_id":"d-1","chunks":[]}"#)
+        let res = try await DocumentService(http).chunks(id: "d-1")
+        XCTAssertEqual(res.documentId, "d-1")
+    }
+
+    func testDocumentStatusReturnsStatus() async throws {
+        let http = mockHelper(json: #"{"status":"completed"}"#)
+        let res = try await DocumentService(http).status(id: "d-1")
+        XCTAssertEqual(res.status, "completed")
+    }
+
+    // Entity edge cases
+    func testEntityListReturnsResponse() async throws {
+        let http = mockHelper(json: #"{"items":[],"total":0}"#)
+        let res = try await EntityService(http).list()
+        XCTAssertEqual(res.total, 0)
+    }
+
+    func testEntityExistsReturnsTrue() async throws {
+        let http = mockHelper(json: #"{"exists":true,"entity_id":"e-123"}"#)
+        let res = try await EntityService(http).exists(name: "TEST_ENTITY")
+        XCTAssertEqual(res.exists, true)
+    }
+
+    func testEntityExistsReturnsFalse() async throws {
+        let http = mockHelper(json: #"{"exists":false}"#)
+        let res = try await EntityService(http).exists(name: "MISSING")
+        XCTAssertEqual(res.exists, false)
+    }
+
+    func testEntityTypesReturnsTypes() async throws {
+        let http = mockHelper(json: #"{"types":["PERSON","ORGANIZATION"]}"#)
+        let res = try await EntityService(http).types()
+        XCTAssertEqual(res.types?.count, 2)
+    }
+
+    // Graph edge cases
+    func testGraphGetReturnsGraph() async throws {
+        let http = mockHelper(json: #"{"nodes":[],"edges":[]}"#)
+        let res = try await GraphService(http).get()
+        XCTAssertTrue(res.nodes?.isEmpty ?? true)
+    }
+
+    func testGraphSearchReturnsResults() async throws {
+        let http = mockHelper(json: #"{"nodes":[]}"#)
+        let res = try await GraphService(http).search(query: "test")
+        XCTAssertTrue(res.nodes?.isEmpty ?? true)
+    }
+
+    func testGraphStatsReturnsStats() async throws {
+        let http = mockHelper(json: #"{"node_count":10,"edge_count":20}"#)
+        let res = try await GraphService(http).stats()
+        XCTAssertEqual(res.nodeCount, 10)
+    }
+
+    // Pipeline edge cases
+    func testPipelineStatusReturnsStatus() async throws {
+        let http = mockHelper(json: #"{"is_busy":false,"pending_tasks":0}"#)
+        let res = try await PipelineService(http).status()
+        XCTAssertEqual(res.isBusy, false)
+    }
+
+    func testPipelineQueueMetricsReturns() async throws {
+        let http = mockHelper(json: #"{"pending_count":12,"processing_count":3}"#)
+        let res = try await PipelineService(http).queueMetrics()
+        XCTAssertEqual(res.pendingCount, 12)
+    }
+
+    // Cost edge cases
+    func testCostSummaryReturns() async throws {
+        let http = mockHelper(json: #"{"total_cost":100.50}"#)
+        let res = try await CostService(http).summary()
+        XCTAssertEqual(res.totalCost, 100.5)
+    }
+
+    func testCostDailyReturns() async throws {
+        let http = mockHelper(json: #"[]"#)
+        let res = try await CostService(http).daily()
+        XCTAssertTrue(res.isEmpty)
+    }
+
+    // Model edge cases
+    func testModelListReturns() async throws {
+        let http = mockHelper(json: #"{"models":[]}"#)
+        let res = try await ModelService(http).list()
+        XCTAssertTrue(res.models?.isEmpty ?? true)
+    }
+
+    func testModelHealthReturns() async throws {
+        let http = mockHelper(json: #"[{"name":"openai","enabled":true}]"#)
+        let res = try await ModelService(http).health()
+        XCTAssertEqual(res.count, 1)
+    }
+
+    // Task edge cases
+    func testTaskListReturns() async throws {
+        let http = mockHelper(json: #"{"tasks":[],"total":0}"#)
+        let res = try await TaskService(http).list()
+        XCTAssertEqual(res.total, 0)
+    }
+
+    func testTaskGetReturns() async throws {
+        let http = mockHelper(json: #"{"id":"t-1","status":"completed"}"#)
+        let res = try await TaskService(http).get(id: "t-1")
+        XCTAssertEqual(res.status, "completed")
+    }
+
+    // Folder edge cases
+    func testFolderListReturnsArray() async throws {
+        let http = mockHelper(json: #"[]"#)
+        let res = try await FolderService(http).list()
+        XCTAssertTrue(res.isEmpty)
+    }
+
+    func testFolderCreateReturnsFolder() async throws {
+        let http = mockHelper(json: #"{"id":"f-1","name":"Test"}"#)
+        let res = try await FolderService(http).create(name: "Test")
+        XCTAssertEqual(res.name, "Test")
+    }
+}
+
+// MARK: - OODA-45: Relationship & Conversation Edge Cases
+
+final class OODA45RelationshipConversationTests: XCTestCase {
+    func testRelationshipListReturns() async throws {
+        let http = mockHelper(json: #"{"items":[],"total":0}"#)
+        let res = try await RelationshipService(http).list()
+        XCTAssertEqual(res.total, 0)
+    }
+
+    func testRelationshipTypesReturns() async throws {
+        let http = mockHelper(json: #"{"types":["WORKS_FOR","LOCATED_IN"]}"#)
+        let res = try await RelationshipService(http).types()
+        XCTAssertEqual(res.types?.count, 2)
+    }
+
+    func testConversationListReturnsEmpty() async throws {
+        let http = mockHelper(json: #"{"items":[]}"#)
+        let res = try await ConversationService(http).list()
+        XCTAssertTrue(res.isEmpty)
+    }
+
+    func testConversationGetReturnsDetail() async throws {
+        let http = mockHelper(json: #"{"conversation":{"id":"conv-1","title":"Test"},"messages":[]}"#)
+        let res = try await ConversationService(http).get(id: "conv-1")
+        XCTAssertEqual(res.id, "conv-1")
+    }
+
+    func testConversationSearchReturnsArray() async throws {
+        let http = mockHelper(json: #"[]"#)
+        let res = try await ConversationService(http).search(query: "test")
+        XCTAssertTrue(res.isEmpty)
+    }
+}
+
+// MARK: - OODA-45: Tenant & User Service Tests
+
+final class OODA45TenantUserTests: XCTestCase {
+    func testTenantListReturns() async throws {
+        let http = mockHelper(json: #"{"items":[]}"#)
+        let res = try await TenantService(http).list()
+        XCTAssertTrue(res.items?.isEmpty ?? true)
+    }
+
+    func testTenantCreateReturns() async throws {
+        let http = mockHelper(json: #"{"id":"t-1","name":"Test"}"#)
+        let res = try await TenantService(http).create(name: "Test")
+        XCTAssertEqual(res.id, "t-1")
+    }
+
+    func testUserListReturns() async throws {
+        let http = mockHelper(json: #"{"users":[]}"#)
+        let res = try await UserService(http).list()
+        XCTAssertTrue(res.users?.isEmpty ?? true)
+    }
+
+    func testUserGetReturns() async throws {
+        let http = mockHelper(json: #"{"id":"u-1","email":"test@example.com"}"#)
+        let res = try await UserService(http).get(id: "u-1")
+        XCTAssertEqual(res.email, "test@example.com")
     }
 }

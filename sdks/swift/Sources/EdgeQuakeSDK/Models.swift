@@ -531,7 +531,10 @@ public struct CreateRelationshipRequest: Codable, Sendable {
     public let weight: Double?
     public let description: String?
 
-    public init(sourceEntity: String, targetEntity: String, relationshipType: String, weight: Double? = nil, description: String? = nil) {
+    public init(
+        sourceEntity: String, targetEntity: String, relationshipType: String, weight: Double? = nil,
+        description: String? = nil
+    ) {
         self.sourceEntity = sourceEntity
         self.targetEntity = targetEntity
         self.relationshipType = relationshipType
