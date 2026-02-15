@@ -1709,4 +1709,293 @@ module EdgeQuake
       assert_raises(ApiError) { svc.version }
     end
   end
+
+  # ── OODA-50: Additional tests for comprehensive coverage ────────────────────
+
+  class Ooda50DocumentsTest < Minitest::Test
+    def test_list_empty_ooda50
+      mock = MockHttpHelper.new('{"documents":[],"total":0}')
+      svc = DocumentService.new(mock)
+      result = svc.list
+      assert_empty result["documents"]
+      assert_equal "/api/v1/documents?page=1&page_size=20", mock.last_call[:path]
+    end
+
+    def test_upload_text_minimal_ooda50
+      mock = MockHttpHelper.new('{"id":"d-min","status":"pending"}')
+      svc = DocumentService.new(mock)
+      result = svc.upload_text(title: "Minimal", content: "")
+      assert_equal "d-min", result["id"]
+      assert_equal "", mock.last_call[:body][:content]
+    end
+
+    def test_update_with_both_params_ooda50
+      mock = MockHttpHelper.new('{"id":"d1","title":"New Title","content":"New Content"}')
+      svc = DocumentService.new(mock)
+      result = svc.update(id: "d1", title: "New Title", content: "New Content")
+      assert_equal "New Title", result["title"]
+      body = mock.last_call[:body]
+      assert_equal "New Title", body[:title]
+      assert_equal "New Content", body[:content]
+    end
+
+    def test_search_empty_results_ooda50
+      mock = MockHttpHelper.new('{"documents":[],"total":0}')
+      svc = DocumentService.new(mock)
+      result = svc.search(query: "nonexistent")
+      assert_empty result["documents"]
+      assert_equal 0, result["total"]
+    end
+  end
+
+  class Ooda50EntitiesTest < Minitest::Test
+    def test_list_with_pagination_ooda50
+      mock = MockHttpHelper.new('{"items":[],"total":0}')
+      svc = EntityService.new(mock)
+      svc.list(page: 5, page_size: 100)
+      assert_includes mock.last_call[:path], "page=5"
+      assert_includes mock.last_call[:path], "page_size=100"
+    end
+
+    def test_create_success_ooda50
+      mock = MockHttpHelper.new('{"entity_name":"OODA50_ENTITY","entity_type":"concept"}')
+      svc = EntityService.new(mock)
+      result = svc.create(entity_name: "OODA50_ENTITY", entity_type: "concept", description: "Test entity", source_id: "src-50")
+      assert_equal "OODA50_ENTITY", result["entity_name"]
+      body = mock.last_call[:body]
+      assert_equal "concept", body[:entity_type]
+      assert_equal "src-50", body[:source_id]
+    end
+
+    def test_update_type_only_ooda50
+      mock = MockHttpHelper.new('{"entity_name":"ENT1","entity_type":"organization"}')
+      svc = EntityService.new(mock)
+      result = svc.update(name: "ENT1", entity_type: "organization")
+      assert_equal "organization", result["entity_type"]
+      body = mock.last_call[:body]
+      assert_equal "organization", body[:entity_type]
+      refute body.key?(:description)
+    end
+  end
+
+  class Ooda50PipelineTest < Minitest::Test
+    def test_status_idle_ooda50
+      mock = MockHttpHelper.new('{"is_busy":false,"pending_tasks":0}')
+      svc = PipelineService.new(mock)
+      result = svc.status
+      assert_equal false, result["is_busy"]
+      assert_equal 0, result["pending_tasks"]
+    end
+
+    def test_status_busy_ooda50
+      mock = MockHttpHelper.new('{"is_busy":true,"pending_tasks":25}')
+      svc = PipelineService.new(mock)
+      result = svc.status
+      assert_equal true, result["is_busy"]
+      assert_equal 25, result["pending_tasks"]
+    end
+
+    def test_health_with_workers_ooda50
+      mock = MockHttpHelper.new('{"healthy":true,"workers":8,"queue_depth":3}')
+      svc = PipelineService.new(mock)
+      result = svc.health
+      assert_equal 8, result["workers"]
+      assert_equal 3, result["queue_depth"]
+    end
+  end
+
+  class Ooda50TasksTest < Minitest::Test
+    def test_get_completed_ooda50
+      mock = MockHttpHelper.new('{"id":"task-50","status":"completed","result":{"entities_extracted":42}}')
+      svc = TaskService.new(mock)
+      result = svc.get(id: "task-50")
+      assert_equal "completed", result["status"]
+      assert_equal 42, result["result"]["entities_extracted"]
+    end
+
+    def test_cancel_success_ooda50
+      mock = MockHttpHelper.new('{"id":"task-50","status":"cancelled"}')
+      svc = TaskService.new(mock)
+      result = svc.cancel(id: "task-50")
+      assert_equal "cancelled", result["status"]
+      assert_equal :post, mock.last_call[:method]
+    end
+
+    def test_status_pending_ooda50
+      mock = MockHttpHelper.new('{"id":"task-50","status":"pending","progress":0}')
+      svc = TaskService.new(mock)
+      result = svc.status(id: "task-50")
+      assert_equal "pending", result["status"]
+      assert_equal 0, result["progress"]
+    end
+  end
+
+  class Ooda50ModelsTest < Minitest::Test
+    def test_catalog_empty_ooda50
+      mock = MockHttpHelper.new('{"providers":[]}')
+      svc = ModelService.new(mock)
+      result = svc.catalog
+      assert_empty result["providers"]
+    end
+
+    def test_get_model_ooda50
+      mock = MockHttpHelper.new('{"id":"model-50","name":"gpt-4o","provider":"openai"}')
+      svc = ModelService.new(mock)
+      result = svc.get_model(id: "model-50")
+      assert_equal "model-50", result["id"]
+      assert_equal "gpt-4o", result["name"]
+    end
+
+    def test_set_active_ooda50
+      mock = MockHttpHelper.new('{"id":"model-50","active":true}')
+      svc = ModelService.new(mock)
+      result = svc.set_active(id: "model-50")
+      assert_equal true, result["active"]
+      assert_includes mock.last_call[:path], "/activate"
+    end
+  end
+
+  class Ooda50CostsTest < Minitest::Test
+    def test_summary_ooda50
+      mock = MockHttpHelper.new('{"total_cost_usd":42.50}')
+      svc = CostService.new(mock)
+      result = svc.summary
+      assert_equal 42.50, result["total_cost_usd"]
+    end
+
+    def test_breakdown_date_range_ooda50
+      mock = MockHttpHelper.new('{"breakdown":[{"category":"embedding","cost":5.0}]}')
+      svc = CostService.new(mock)
+      result = svc.breakdown(start_date: "2025-01-01", end_date: "2025-01-31")
+      path = mock.last_call[:path]
+      assert_includes path, "start_date=2025-01-01"
+      assert_includes path, "end_date=2025-01-31"
+    end
+
+    def test_history_custom_days_ooda50
+      mock = MockHttpHelper.new('{"history":[]}')
+      svc = CostService.new(mock)
+      svc.history(days: 90)
+      assert_includes mock.last_call[:path], "days=90"
+    end
+  end
+
+  class Ooda50GraphTest < Minitest::Test
+    def test_stats_ooda50
+      mock = MockHttpHelper.new('{"node_count":500,"edge_count":1200,"density":0.05}')
+      svc = GraphService.new(mock)
+      result = svc.stats
+      assert_equal 500, result["node_count"]
+      assert_equal 1200, result["edge_count"]
+    end
+
+    def test_subgraph_ooda50
+      mock = MockHttpHelper.new('{"nodes":[{"name":"A"},{"name":"B"}],"edges":[{"source":"A","target":"B"}]}')
+      svc = GraphService.new(mock)
+      result = svc.subgraph(entity_names: %w[A B C])
+      assert_equal 2, result["nodes"].size
+      body = mock.last_call[:body]
+      assert_equal %w[A B C], body[:entity_names]
+    end
+  end
+
+  class Ooda50ApiKeysTest < Minitest::Test
+    def test_list_empty_ooda50
+      mock = MockHttpHelper.new('[]')
+      svc = ApiKeyService.new(mock)
+      result = svc.list
+      assert_empty result
+    end
+
+    def test_create_with_permissions_ooda50
+      mock = MockHttpHelper.new('{"id":"ak-50","name":"Test Key","permissions":["read","write","delete"]}')
+      svc = ApiKeyService.new(mock)
+      result = svc.create(name: "Test Key", permissions: %w[read write delete])
+      assert_equal "ak-50", result["id"]
+      body = mock.last_call[:body]
+      assert_equal %w[read write delete], body[:permissions]
+    end
+
+    def test_revoke_ooda50
+      mock = MockHttpHelper.new('{}')
+      svc = ApiKeyService.new(mock)
+      svc.revoke(id: "ak-50")
+      assert_equal :delete, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/api-keys/ak-50"
+    end
+  end
+
+  class Ooda50UsersTest < Minitest::Test
+    def test_list_empty_ooda50
+      mock = MockHttpHelper.new('[]')
+      svc = UserService.new(mock)
+      result = svc.list
+      assert_empty result
+    end
+
+    def test_create_minimal_ooda50
+      mock = MockHttpHelper.new('{"id":"u-50","email":"test@ooda50.com"}')
+      svc = UserService.new(mock)
+      result = svc.create(email: "test@ooda50.com")
+      assert_equal "u-50", result["id"]
+      body = mock.last_call[:body]
+      assert_equal "user", body[:role]
+    end
+
+    def test_update_role_ooda50
+      mock = MockHttpHelper.new('{"id":"u-50","role":"admin"}')
+      svc = UserService.new(mock)
+      result = svc.update(id: "u-50", role: "admin")
+      assert_equal "admin", result["role"]
+      body = mock.last_call[:body]
+      assert_equal "admin", body[:role]
+    end
+  end
+
+  class Ooda50TenantsTest < Minitest::Test
+    def test_create_with_settings_ooda50
+      mock = MockHttpHelper.new('{"id":"t-50","name":"OODA50 Tenant","settings":{"max_users":10}}')
+      svc = TenantService.new(mock)
+      result = svc.create(name: "OODA50 Tenant", settings: { max_users: 10 })
+      assert_equal "t-50", result["id"]
+      body = mock.last_call[:body]
+      assert_equal({ max_users: 10 }, body[:settings])
+    end
+
+    def test_update_settings_ooda50
+      mock = MockHttpHelper.new('{"id":"t-50","settings":{"max_users":20}}')
+      svc = TenantService.new(mock)
+      result = svc.update(id: "t-50", settings: { max_users: 20 })
+      body = mock.last_call[:body]
+      assert_equal({ max_users: 20 }, body[:settings])
+    end
+  end
+
+  class Ooda50LinageTest < Minitest::Test
+    def test_entity_lineage_with_history_ooda50
+      mock = MockHttpHelper.new('{"entity_name":"OODA50","description_history":[{"version":1,"description":"First"},{"version":2,"description":"Updated"}]}')
+      svc = LineageService.new(mock)
+      result = svc.entity_lineage(name: "OODA50")
+      assert_equal 2, result["description_history"].size
+      assert_equal "Updated", result["description_history"][1]["description"]
+    end
+
+    def test_document_lineage_with_stats_ooda50
+      mock = MockHttpHelper.new('{"document_id":"d-50","entities":[{"name":"E1"}],"relationships":[{"source":"E1","target":"E2"}],"extraction_stats":{"total_entities":1}}')
+      svc = LineageService.new(mock)
+      result = svc.document_lineage(id: "d-50")
+      assert_equal 1, result["entities"].size
+      assert_equal 1, result["relationships"].size
+      assert_equal 1, result["extraction_stats"]["total_entities"]
+    end
+
+    def test_chunk_lineage_with_parents_ooda50
+      mock = MockHttpHelper.new('{"chunk_id":"c-50","document_id":"d-50","line_start":100,"line_end":150,"entities":["E1","E2"]}')
+      svc = LineageService.new(mock)
+      result = svc.chunk_lineage(id: "c-50")
+      assert_equal "c-50", result["chunk_id"]
+      assert_equal 100, result["line_start"]
+      assert_equal 150, result["line_end"]
+    end
+  end
 end
