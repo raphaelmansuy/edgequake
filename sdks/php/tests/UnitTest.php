@@ -2126,4 +2126,186 @@ class UnitTest extends TestCase
         $this->expectException(ApiError::class);
         $svc->setMetadata('d1', ['invalid' => null]);
     }
+
+    // ── OODA-48: Additional Edge Case Tests ─────────────────────────────
+
+    public function testDocumentsListEmptyOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"documents":[],"pagination":{}}');
+        $svc = new DocumentService($mock);
+        $result = $svc->list();
+        $this->assertEquals('GET', $mock->lastCall()['method']);
+        $this->assertArrayHasKey('documents', $result);
+    }
+
+    public function testEntitiesListEmptyOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"items":[],"total":0}');
+        $svc = new EntityService($mock);
+        $result = $svc->list();
+        $this->assertStringContainsString('/entities', $mock->lastCall()['path']);
+        $this->assertSame(0, $result['total']);
+    }
+
+    public function testEntitiesCreateSuccessOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"id":"e1","name":"Test","type":"PERSON"}');
+        $svc = new EntityService($mock);
+        $result = $svc->create('Test', 'PERSON', 'desc', 'doc-1');
+        $this->assertEquals('POST', $mock->lastCall()['method']);
+        $this->assertSame('e1', $result['id']);
+    }
+
+    public function testPipelineStatusIdleOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"is_busy":false,"pending_tasks":0}');
+        $svc = new PipelineService($mock);
+        $result = $svc->status();
+        $this->assertStringContainsString('/status', $mock->lastCall()['path']);
+        $this->assertFalse($result['is_busy']);
+    }
+
+    public function testPipelineStatusBusyOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"is_busy":true,"pending_tasks":10}');
+        $svc = new PipelineService($mock);
+        $result = $svc->status();
+        $this->assertTrue($result['is_busy']);
+        $this->assertSame(10, $result['pending_tasks']);
+    }
+
+    public function testTasksGetCompletedOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"track_id":"t1","status":"completed"}');
+        $svc = new TaskService($mock);
+        $result = $svc->get('t1');
+        $this->assertStringContainsString('/tasks/t1', $mock->lastCall()['path']);
+        $this->assertSame('completed', $result['status']);
+    }
+
+    public function testTasksCancelSuccessOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"success":true}');
+        $svc = new TaskService($mock);
+        $result = $svc->cancel('t1');
+        $this->assertStringContainsString('/cancel', $mock->lastCall()['path']);
+        $this->assertTrue($result['success']);
+    }
+
+    public function testModelsCatalogEmptyOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"providers":[]}');
+        $svc = new ModelService($mock);
+        $result = $svc->catalog();
+        $this->assertStringContainsString('/models', $mock->lastCall()['path']);
+        $this->assertEmpty($result['providers']);
+    }
+
+    public function testModelsHealthOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('[{"provider":"ollama","healthy":true}]');
+        $svc = new ModelService($mock);
+        $result = $svc->health();
+        $this->assertStringContainsString('/health', $mock->lastCall()['path']);
+        $this->assertIsArray($result);
+    }
+
+    public function testCostsSummaryOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"total_cost_usd":100.50,"document_count":50}');
+        $svc = new CostService($mock);
+        $result = $svc->summary();
+        $this->assertStringContainsString('/summary', $mock->lastCall()['path']);
+        $this->assertSame(50, $result['document_count']);
+    }
+
+    public function testFoldersListEmptyOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('[]');
+        $svc = new FolderService($mock);
+        $result = $svc->list();
+        $this->assertEquals('GET', $mock->lastCall()['method']);
+        $this->assertEmpty($result);
+    }
+
+    public function testFoldersCreateSuccessOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"id":"f1","name":"TestFolder"}');
+        $svc = new FolderService($mock);
+        $result = $svc->create('TestFolder');
+        $this->assertEquals('POST', $mock->lastCall()['method']);
+        $this->assertSame('f1', $result['id']);
+    }
+
+    public function testConversationsGetOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"id":"c1","title":"Test Conv"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->get('c1');
+        $this->assertStringContainsString('/conversations/c1', $mock->lastCall()['path']);
+        $this->assertSame('Test Conv', $result['title']);
+    }
+
+    public function testRelationshipsListEmptyOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"items":[],"total":0}');
+        $svc = new RelationshipService($mock);
+        $result = $svc->list();
+        $this->assertStringContainsString('/relationships', $mock->lastCall()['path']);
+        $this->assertSame(0, $result['total']);
+    }
+
+    public function testRelationshipsTypesOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"types":["WORKS_AT","KNOWS"]}');
+        $svc = new RelationshipService($mock);
+        $result = $svc->types();
+        $this->assertStringContainsString('/types', $mock->lastCall()['path']);
+        $this->assertSame('GET', $mock->lastCall()['method']);
+    }
+
+    public function testUsersListEmptyOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"users":[]}');
+        $svc = new UserService($mock);
+        $result = $svc->list();
+        $this->assertStringContainsString('/users', $mock->lastCall()['path']);
+        $this->assertEmpty($result['users']);
+    }
+
+    public function testTenantsGetOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"id":"t1","name":"Test Tenant"}');
+        $svc = new TenantService($mock);
+        $result = $svc->get('t1');
+        $this->assertStringContainsString('/tenants/t1', $mock->lastCall()['path']);
+        $this->assertSame('Test Tenant', $result['name']);
+    }
+
+    public function testGraphStatsOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"node_count":100,"edge_count":250}');
+        $svc = new GraphService($mock);
+        $result = $svc->stats();
+        $this->assertStringContainsString('/stats', $mock->lastCall()['path']);
+        $this->assertSame(100, $result['node_count']);
+    }
+
+    public function testApiKeysListEmptyOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"keys":[]}');
+        $svc = new ApiKeyService($mock);
+        $result = $svc->list();
+        $this->assertStringContainsString('/api-keys', $mock->lastCall()['path']);
+        $this->assertEmpty($result['keys']);
+    }
+
+    public function testApiKeysRevokeOODA48(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"revoked":true}');
+        $svc = new ApiKeyService($mock);
+        $svc->revoke('key-1');
+        $this->assertEquals('POST', $mock->lastCall()['method']);
+        $this->assertStringContainsString('key-1/revoke', $mock->lastCall()['path']);
+    }
 }
