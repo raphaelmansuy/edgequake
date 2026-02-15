@@ -253,10 +253,10 @@ async fn e2e_document_lineage() {
         match c.documents().get_lineage(&doc.id).await {
             Ok(lineage) => {
                 println!(
-                    "Document lineage: doc={} chunks={} entities={}",
+                    "Document lineage: doc={} metadata={:?} lineage={:?}",
                     lineage.document_id,
-                    lineage.chunks.len(),
-                    lineage.entities.len()
+                    lineage.metadata.is_some(),
+                    lineage.lineage.is_some()
                 );
                 assert_eq!(lineage.document_id, doc.id);
             }
@@ -295,11 +295,11 @@ async fn e2e_chunk_lineage() {
         match c.chunks().get_lineage(&chunk_id).await {
             Ok(lineage) => {
                 println!(
-                    "Chunk lineage: chunk={} doc={} entities={:?}",
+                    "Chunk lineage: chunk={} doc={:?} entities={}",
                     lineage.chunk_id, lineage.document_id,
-                    lineage.entity_names.as_ref().map(|e| e.len())
+                    lineage.entity_names.len()
                 );
-                assert_eq!(lineage.document_id, doc.id);
+                assert_eq!(lineage.document_id, Some(doc.id.clone()));
             }
             Err(e) => println!("Chunk lineage: error (chunk may not exist): {e}"),
         }
