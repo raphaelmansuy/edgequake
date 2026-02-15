@@ -2146,4 +2146,278 @@ class UnitTest {
         assertNotNull(client.lineage)
         assertNotNull(client.shared)
     }
+
+    // ── OODA-49: Additional Edge Case Tests ─────────────────────────────
+
+    @Test
+    fun `documents list empty OODA-49`() {
+        fake.respondWith("""{"documents":[],"total":0,"page":1,"page_size":20}""")
+        val svc = DocumentService(http)
+        val result = svc.list()
+        assertEquals(0, result.total)
+        assertTrue(fake.lastRequest().uri.contains("/documents"))
+    }
+
+    @Test
+    fun `entities list empty OODA-49`() {
+        fake.respondWith("""{"items":[],"total":0,"page":1,"page_size":20}""")
+        val svc = EntityService(http)
+        val result = svc.list()
+        assertEquals(0, result.total)
+        assertTrue(result.items?.isEmpty() == true)
+    }
+
+    @Test
+    fun `entities create success OODA-49`() {
+        fake.respondWith("""{"status":"success","message":"Created","entity":{"entity_name":"TEST","entity_type":"PERSON"}}""")
+        val svc = EntityService(http)
+        val result = svc.create(CreateEntityRequest("TEST", "PERSON", "desc", "doc-1"))
+        assertEquals("success", result.status)
+        assertEquals("POST", fake.lastRequest().method)
+    }
+
+    @Test
+    fun `pipeline status idle OODA-49`() {
+        fake.respondWith("""{"is_busy":false,"pending_tasks":0,"processing_tasks":0}""")
+        val svc = PipelineService(http)
+        val result = svc.status()
+        assertEquals(false, result.isBusy)
+        assertEquals(0, result.pendingTasks)
+    }
+
+    @Test
+    fun `pipeline status busy OODA-49`() {
+        fake.respondWith("""{"is_busy":true,"pending_tasks":10,"processing_tasks":2}""")
+        val svc = PipelineService(http)
+        val result = svc.status()
+        assertEquals(true, result.isBusy)
+        assertEquals(10, result.pendingTasks)
+    }
+
+    @Test
+    fun `tasks get completed OODA-49`() {
+        fake.respondWith("""{"id":"t1","status":"completed","task_type":"extraction","progress":1.0}""")
+        val svc = TaskService(http)
+        val result = svc.get("t1")
+        assertEquals("completed", result.status)
+    }
+
+    @Test
+    fun `tasks cancel OODA-49`() {
+        fake.respondWith("""{"status":"cancelled","message":"Task cancelled"}""")
+        val svc = TaskService(http)
+        val result = svc.cancel("t1")
+        assertEquals("cancelled", result.status)
+        assertTrue(fake.lastRequest().uri.contains("/cancel"))
+    }
+
+    @Test
+    fun `models catalog empty OODA-49`() {
+        fake.respondWith("""{"providers":[]}""")
+        val svc = ModelService(http)
+        val result = svc.catalog()
+        assertTrue(result.providers?.isEmpty() == true)
+    }
+
+    @Test
+    fun `models health all healthy OODA-49`() {
+        fake.respondWith("""[{"name":"ollama","enabled":true},{"name":"openai","enabled":true}]""")
+        val svc = ModelService(http)
+        val result = svc.health()
+        assertEquals(2, result.size)
+        assertTrue(result.all { it.enabled == true })
+    }
+
+    @Test
+    fun `costs summary OODA-49`() {
+        fake.respondWith("""{"total_cost":125.50,"document_count":100,"query_count":500}""")
+        val svc = CostService(http)
+        val result = svc.summary()
+        assertEquals(125.50, result.totalCost)
+        assertEquals(100, result.documentCount)
+    }
+
+    @Test
+    fun `folders list empty OODA-49`() {
+        fake.respondWith("""[]""")
+        val svc = FolderService(http)
+        val result = svc.list()
+        assertEquals(0, result.size)
+    }
+
+    @Test
+    fun `folders create OODA-49`() {
+        fake.respondWith("""{"id":"f1","name":"TestFolder"}""")
+        val svc = FolderService(http)
+        val result = svc.create("TestFolder")
+        assertEquals("f1", result.id)
+        assertEquals("POST", fake.lastRequest().method)
+    }
+
+    @Test
+    fun `conversations get OODA-49`() {
+        fake.respondWith("""{"conversation":{"id":"c1","title":"Test Conversation"},"messages":[]}""")
+        val svc = ConversationService(http)
+        val result = svc.get("c1")
+        assertEquals("Test Conversation", result.conversation?.title)
+        assertTrue(fake.lastRequest().uri.contains("/conversations/c1"))
+    }
+
+    @Test
+    fun `relationships list empty OODA-49`() {
+        fake.respondWith("""{"items":[],"total":0,"page":1,"page_size":20}""")
+        val svc = RelationshipService(http)
+        val result = svc.list()
+        assertEquals(0, result.total)
+    }
+
+    @Test
+    fun `relationships types OODA-49`() {
+        fake.respondWith("""{"types":["WORKS_AT","KNOWS","COLLABORATES"],"total":3}""")
+        val svc = RelationshipService(http)
+        val result = svc.types()
+        assertEquals(3, result.total)
+        assertTrue(result.types?.contains("KNOWS") == true)
+    }
+
+    @Test
+    fun `users list empty OODA-49`() {
+        fake.respondWith("""{"users":[]}""")
+        val svc = UserService(http)
+        val result = svc.list()
+        assertTrue(result.users?.isEmpty() == true)
+    }
+
+    @Test
+    fun `tenants get OODA-49`() {
+        fake.respondWith("""{"id":"t1","name":"Test Tenant"}""")
+        val svc = TenantService(http)
+        val result = svc.get("t1")
+        assertEquals("Test Tenant", result.name)
+    }
+
+    @Test
+    fun `graph stats OODA-49`() {
+        fake.respondWith("""{"node_count":500,"edge_count":1200}""")
+        val svc = GraphService(http)
+        val result = svc.stats()
+        assertEquals(500, result.nodeCount)
+        assertEquals(1200, result.edgeCount)
+    }
+
+    @Test
+    fun `api keys list empty OODA-49`() {
+        fake.respondWith("""{"keys":[]}""")
+        val svc = ApiKeyService(http)
+        val result = svc.list()
+        assertTrue(result.keys?.isEmpty() == true)
+    }
+
+    @Test
+    fun `api keys revoke OODA-49`() {
+        fake.respondWith("")
+        val svc = ApiKeyService(http)
+        svc.revoke("key-1")
+        assertTrue(fake.lastRequest().uri.contains("key-1"))
+    }
+
+    @Test
+    fun `workspaces list OODA-49`() {
+        fake.respondWith("""[{"id":"w1","name":"Default","slug":"default"}]""")
+        val svc = WorkspaceService(http)
+        val result = svc.list()
+        assertEquals(1, result.size)
+    }
+
+    @Test
+    fun `pdf content OODA-49`() {
+        fake.respondWith("""{"content":"# Title\n\nHello world","page_count":5}""")
+        val svc = PdfService(http)
+        val result = svc.content("pdf-1")
+        assertTrue(result.content?.contains("Title") == true)
+        assertEquals(5, result.pageCount)
+    }
+
+    @Test
+    fun `pdf progress OODA-49`() {
+        fake.respondWith("""{"track_id":"tk-1","status":"completed","progress":1.0}""")
+        val svc = PdfService(http)
+        val result = svc.progress("tk-1")
+        assertEquals("completed", result.status)
+    }
+
+    @Test
+    fun `lineage entity OODA-49`() {
+        fake.respondWith("""{"entity_name":"ALICE","entity_type":"PERSON","source_documents":[],"source_count":0}""")
+        val svc = LineageService(http)
+        val result = svc.entityLineage("ALICE")
+        assertEquals("ALICE", result.entityName)
+        assertTrue(fake.lastRequest().uri.contains("/lineage/entities/ALICE"))
+    }
+
+    @Test
+    fun `lineage document OODA-49`() {
+        fake.respondWith("""{"document_id":"d1","chunk_count":5,"entities":[],"relationships":[]}""")
+        val svc = LineageService(http)
+        val result = svc.documentLineage("d1")
+        assertEquals("d1", result.documentId)
+    }
+
+    @Test
+    fun `health ready OODA-49`() {
+        fake.respondWith("""{"status":"ready","checks":{"db":"ok"}}""")
+        val svc = HealthService(http)
+        val result = svc.ready()
+        assertNotNull(result)
+        assertTrue(fake.lastRequest().uri.contains("/ready"))
+    }
+
+    @Test
+    fun `auth logout OODA-49`() {
+        fake.respondWith("""{"status":"logged_out"}""")
+        val svc = AuthService(http)
+        val result = svc.logout()
+        assertNotNull(result)
+        assertEquals("POST", fake.lastRequest().method)
+    }
+
+    @Test
+    fun `query with hybrid mode OODA-49`() {
+        fake.respondWith("""{"answer":"Test answer","mode":"hybrid","sources":[]}""")
+        val svc = QueryService(http)
+        val result = svc.execute("test query", mode = "hybrid")
+        assertEquals("hybrid", result.mode)
+    }
+
+    @Test
+    fun `chat completions OODA-49`() {
+        fake.respondWith("""{"conversation_id":"c1","content":"Hello!","sources":[]}""")
+        val svc = ChatService(http)
+        val result = svc.completions(ChatCompletionRequest(message = "Hello"))
+        assertEquals("c1", result.conversationId)
+    }
+
+    @Test
+    fun `graph search OODA-49`() {
+        fake.respondWith("""{"nodes":[],"edges":[],"total_nodes":0}""")
+        val svc = GraphService(http)
+        val result = svc.search("ALICE")
+        assertTrue(fake.lastRequest().uri.contains("q=ALICE"))
+    }
+
+    @Test
+    fun `graph popular labels OODA-49`() {
+        fake.respondWith("""{"labels":[{"name":"PERSON","count":50}]}""")
+        val svc = GraphService(http)
+        val result = svc.popularLabels(10)
+        assertTrue(result.labels?.isNotEmpty() == true)
+    }
+
+    @Test
+    fun `shared listLinks empty OODA-49`() {
+        fake.respondWith("""{"links":[],"total":0}""")
+        val svc = SharedService(http)
+        val result = svc.listLinks()
+        assertEquals(0, result.total)
+    }
 }
