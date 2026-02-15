@@ -31,7 +31,10 @@ import type {
   UploadDocumentResponse,
   UploadFileResponse,
 } from "../types/documents.js";
-import type { DocumentFullLineageResponse, LineageExportOptions } from "../types/lineage.js";
+import type {
+  DocumentFullLineageResponse,
+  LineageExportOptions,
+} from "../types/lineage.js";
 import { Resource } from "./base.js";
 
 /** PDF sub-resource accessed via `client.documents.pdf`. */

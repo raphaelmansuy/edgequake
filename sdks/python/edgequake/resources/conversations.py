@@ -8,7 +8,8 @@ WHY OODA-06: Aliased built-in `list` to `_list` to avoid shadowing by method nam
 
 from __future__ import annotations
 
-from typing import Any, List as _list
+from typing import Any
+from typing import List as _list
 
 from edgequake.resources._base import AsyncResource, SyncResource
 from edgequake.types.conversations import (

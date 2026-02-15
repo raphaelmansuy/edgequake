@@ -9,7 +9,8 @@ WHY OODA-06: Aliased built-in `list` to `_list` to avoid shadowing by method nam
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, BinaryIO, List as _list
+from typing import Any, BinaryIO
+from typing import List as _list
 
 from edgequake.resources._base import AsyncResource, SyncResource
 from edgequake.types.documents import (
@@ -254,9 +255,7 @@ class DocumentsResource(SyncResource):
         """
         return self._get(f"/api/v1/documents/{document_id}/metadata")
 
-    def export_lineage(
-        self, document_id: str, *, format: str = "json"
-    ) -> bytes:
+    def export_lineage(self, document_id: str, *, format: str = "json") -> bytes:
         """Export document lineage as a downloadable file.
 
         GET /api/v1/documents/{document_id}/lineage/export?format={format}
@@ -506,9 +505,7 @@ class AsyncDocumentsResource(AsyncResource):
         """
         return await self._get(f"/api/v1/documents/{document_id}/metadata")
 
-    async def export_lineage(
-        self, document_id: str, *, format: str = "json"
-    ) -> bytes:
+    async def export_lineage(self, document_id: str, *, format: str = "json") -> bytes:
         """Export document lineage as a downloadable file.
 
         GET /api/v1/documents/{document_id}/lineage/export?format={format}

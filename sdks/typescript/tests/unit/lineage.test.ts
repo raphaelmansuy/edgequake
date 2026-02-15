@@ -22,6 +22,13 @@ import { ProvenanceResource } from "../../src/resources/provenance.js";
 
 // Type imports for type-level checks
 import type {
+  CreateEntityRequest,
+  CreateRelationshipRequest,
+  GraphEdge,
+  GraphNode,
+  MergeEntitiesRequest,
+} from "../../src/types/graph.js";
+import type {
   ChunkDetailResponse,
   ChunkLineageResponse,
   ChunkSourceInfo,
@@ -37,15 +44,6 @@ import type {
   RelatedEntityInfo,
   SourceDocumentInfo,
 } from "../../src/types/lineage.js";
-import type {
-  CreateEntityRequest,
-  CreateRelationshipRequest,
-  EntityResponse,
-  GraphNode,
-  GraphEdge,
-  MergeEntitiesRequest,
-  NeighborhoodResponse,
-} from "../../src/types/graph.js";
 
 // ─────────────────────── Entity Lineage (rich data) ───────────────────────
 
@@ -123,9 +121,7 @@ describe("LineageResource — entity lineage with full data", () => {
     expect(res.description_versions[0].description).toBe("A researcher");
     expect(res.description_versions[0].source_chunk_id).toBe("chunk-a");
     expect(res.description_versions[1].version).toBe(2);
-    expect(res.description_versions[1].created_at).toBe(
-      "2026-01-16T12:00:00Z",
-    );
+    expect(res.description_versions[1].created_at).toBe("2026-01-16T12:00:00Z");
   });
 });
 
@@ -303,7 +299,9 @@ describe("DocumentsResource.exportLineage — lineage export (OODA-07)", () => {
       "GET /api/v1/documents/doc-1/lineage/export?format=json": {
         blob: jsonBlob,
       },
-      "GET /api/v1/documents/doc-1/lineage/export?format=csv": { blob: csvBlob },
+      "GET /api/v1/documents/doc-1/lineage/export?format=csv": {
+        blob: csvBlob,
+      },
       "GET /api/v1/documents": { body: { documents: [], total: 0 } },
     });
     docs = new DocumentsResource(mock as unknown as HttpTransport);
@@ -311,7 +309,9 @@ describe("DocumentsResource.exportLineage — lineage export (OODA-07)", () => {
 
   it("exportLineage (default) → GET /api/v1/documents/:id/lineage/export", async () => {
     const blob = await docs.exportLineage("doc-1");
-    expect(mock.lastRequest?.path).toBe("/api/v1/documents/doc-1/lineage/export");
+    expect(mock.lastRequest?.path).toBe(
+      "/api/v1/documents/doc-1/lineage/export",
+    );
     expect(blob).toBeInstanceOf(Blob);
   });
 
@@ -440,7 +440,12 @@ describe("ChunksResource — chunk detail with extraction metadata", () => {
     char_range: { start: 0, end: 47 },
     token_count: 10,
     entities: [
-      { id: "e1", name: "ALICE", entity_type: "PERSON", description: "A researcher" },
+      {
+        id: "e1",
+        name: "ALICE",
+        entity_type: "PERSON",
+        description: "A researcher",
+      },
       { id: "e2", name: "BOB", entity_type: "PERSON" },
       { id: "e3", name: "MIT", entity_type: "ORGANIZATION" },
     ],
@@ -594,9 +599,7 @@ describe("ProvenanceResource — entity provenance with full sources", () => {
     const res = await prov.get("e1");
     expect(res.related_entities).toHaveLength(2);
     expect(res.related_entities[0].entity_name).toBe("BOB");
-    expect(res.related_entities[0].relationship_type).toBe(
-      "COLLABORATES_WITH",
-    );
+    expect(res.related_entities[0].relationship_type).toBe("COLLABORATES_WITH");
     expect(res.related_entities[0].shared_documents).toBe(2);
     expect(res.related_entities[1].entity_name).toBe("MIT");
   });
