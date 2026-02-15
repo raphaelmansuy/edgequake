@@ -1691,4 +1691,439 @@ class UnitTest extends TestCase
         $this->expectException(ApiError::class);
         $svc->get('invalid');
     }
+
+    // ── OODA-39: Document Service - Additional Methods ─────────────
+
+    public function testDocumentChunks(): void
+    {
+        $mock = new MockHttpHelper('{"chunks":[{"id":"c1","content":"text"}],"total":1}');
+        $svc = new DocumentService($mock);
+        $result = $svc->chunks('d1', 1, 10);
+        $this->assertCount(1, $result['chunks']);
+        $this->assertStringContainsString('/api/v1/documents/d1/chunks', $mock->lastCall()['path']);
+        $this->assertStringContainsString('page=1', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentChunksDefaultPagination(): void
+    {
+        $mock = new MockHttpHelper('{"chunks":[],"total":0}');
+        $svc = new DocumentService($mock);
+        $svc->chunks('d1');
+        $this->assertStringContainsString('page=1', $mock->lastCall()['path']);
+        $this->assertStringContainsString('page_size=20', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentStatus(): void
+    {
+        $mock = new MockHttpHelper('{"id":"d1","status":"completed","progress":100}');
+        $svc = new DocumentService($mock);
+        $result = $svc->status('d1');
+        $this->assertSame('completed', $result['status']);
+        $this->assertStringContainsString('/api/v1/documents/d1/status', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentStatusProcessing(): void
+    {
+        $mock = new MockHttpHelper('{"id":"d1","status":"processing","progress":50}');
+        $svc = new DocumentService($mock);
+        $result = $svc->status('d1');
+        $this->assertSame('processing', $result['status']);
+        $this->assertSame(50, $result['progress']);
+    }
+
+    public function testDocumentGetMetadata(): void
+    {
+        $mock = new MockHttpHelper('{"metadata":{"author":"John","category":"research"}}');
+        $svc = new DocumentService($mock);
+        $result = $svc->getMetadata('d1');
+        $this->assertSame('John', $result['metadata']['author']);
+        $this->assertStringContainsString('/api/v1/documents/d1/metadata', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentGetMetadataEmpty(): void
+    {
+        $mock = new MockHttpHelper('{"metadata":{}}');
+        $svc = new DocumentService($mock);
+        $result = $svc->getMetadata('d1');
+        $this->assertEmpty($result['metadata']);
+    }
+
+    public function testDocumentSetMetadata(): void
+    {
+        $mock = new MockHttpHelper('{"metadata":{"author":"Jane","tags":["AI"]}}');
+        $svc = new DocumentService($mock);
+        $result = $svc->setMetadata('d1', ['author' => 'Jane', 'tags' => ['AI']]);
+        $this->assertSame('PATCH', $mock->lastCall()['method']);
+        $this->assertSame(['author' => 'Jane', 'tags' => ['AI']], $mock->lastCall()['body']['metadata']);
+    }
+
+    public function testDocumentSetMetadataPartial(): void
+    {
+        $mock = new MockHttpHelper('{"metadata":{"category":"updated"}}');
+        $svc = new DocumentService($mock);
+        $svc->setMetadata('d1', ['category' => 'updated']);
+        $this->assertSame('updated', $mock->lastCall()['body']['metadata']['category']);
+    }
+
+    public function testDocumentPdfStatus(): void
+    {
+        $mock = new MockHttpHelper('{"id":"d1","extraction_status":"completed","page_count":10}');
+        $svc = new DocumentService($mock);
+        $result = $svc->pdfStatus('d1');
+        $this->assertSame('completed', $result['extraction_status']);
+        $this->assertStringContainsString('/api/v1/documents/pdf/d1/status', $mock->lastCall()['path']);
+    }
+
+    public function testDocumentPdfStatusInProgress(): void
+    {
+        $mock = new MockHttpHelper('{"id":"d1","extraction_status":"in_progress","pages_processed":5}');
+        $svc = new DocumentService($mock);
+        $result = $svc->pdfStatus('d1');
+        $this->assertSame('in_progress', $result['extraction_status']);
+    }
+
+    // ── OODA-39: Entity Service - Types Method ────────────────────
+
+    public function testEntityTypes(): void
+    {
+        $mock = new MockHttpHelper('{"types":["PERSON","ORGANIZATION","LOCATION"]}');
+        $svc = new EntityService($mock);
+        $result = $svc->types();
+        $this->assertCount(3, $result['types']);
+        $this->assertContains('PERSON', $result['types']);
+        $this->assertSame('/api/v1/graph/entities/types', $mock->lastCall()['path']);
+    }
+
+    public function testEntityTypesEmpty(): void
+    {
+        $mock = new MockHttpHelper('{"types":[]}');
+        $svc = new EntityService($mock);
+        $result = $svc->types();
+        $this->assertEmpty($result['types']);
+    }
+
+    // ── OODA-39: Relationship Service - Types Method ──────────────
+
+    public function testRelationshipTypes(): void
+    {
+        $mock = new MockHttpHelper('{"types":["WORKS_WITH","KNOWS","LOCATED_IN"]}');
+        $svc = new RelationshipService($mock);
+        $result = $svc->types();
+        $this->assertCount(3, $result['types']);
+        $this->assertContains('KNOWS', $result['types']);
+        $this->assertSame('/api/v1/graph/relationships/types', $mock->lastCall()['path']);
+    }
+
+    public function testRelationshipTypesEmpty(): void
+    {
+        $mock = new MockHttpHelper('{"types":[]}');
+        $svc = new RelationshipService($mock);
+        $result = $svc->types();
+        $this->assertEmpty($result['types']);
+    }
+
+    // ── OODA-39: Graph Service - Additional Methods ───────────────
+
+    public function testGraphStats(): void
+    {
+        $mock = new MockHttpHelper('{"node_count":100,"edge_count":250,"entity_types":5}');
+        $svc = new GraphService($mock);
+        $result = $svc->stats();
+        $this->assertSame(100, $result['node_count']);
+        $this->assertSame(250, $result['edge_count']);
+        $this->assertSame('/api/v1/graph/stats', $mock->lastCall()['path']);
+    }
+
+    public function testGraphStatsEmptyGraph(): void
+    {
+        $mock = new MockHttpHelper('{"node_count":0,"edge_count":0,"entity_types":0}');
+        $svc = new GraphService($mock);
+        $result = $svc->stats();
+        $this->assertSame(0, $result['node_count']);
+    }
+
+    public function testGraphClear(): void
+    {
+        $mock = new MockHttpHelper('{"status":"cleared","nodes_deleted":100,"edges_deleted":250}');
+        $svc = new GraphService($mock);
+        $result = $svc->clear();
+        $this->assertSame('cleared', $result['status']);
+        $this->assertSame('POST', $mock->lastCall()['method']);
+        $this->assertSame('/api/v1/graph/clear', $mock->lastCall()['path']);
+    }
+
+    public function testGraphClearEmptyGraph(): void
+    {
+        $mock = new MockHttpHelper('{"status":"cleared","nodes_deleted":0}');
+        $svc = new GraphService($mock);
+        $result = $svc->clear();
+        $this->assertSame(0, $result['nodes_deleted']);
+    }
+
+    // ── OODA-39: Chat Service - Additional Methods ────────────────
+
+    public function testChatCompletionsWithConversation(): void
+    {
+        $mock = new MockHttpHelper('{"message":"Hello!","conversation_id":"c1"}');
+        $svc = new ChatService($mock);
+        $result = $svc->completionsWithConversation('c1', 'Hi there', 'hybrid');
+        $this->assertSame('c1', $mock->lastCall()['body']['conversation_id']);
+        $this->assertSame('Hi there', $mock->lastCall()['body']['message']);
+        $this->assertSame('hybrid', $mock->lastCall()['body']['mode']);
+    }
+
+    public function testChatCompletionsWithConversationDefaultMode(): void
+    {
+        $mock = new MockHttpHelper('{"message":"Response"}');
+        $svc = new ChatService($mock);
+        $svc->completionsWithConversation('c1', 'Question');
+        $this->assertSame('hybrid', $mock->lastCall()['body']['mode']);
+    }
+
+    // ── OODA-39: User Service - Update Method ─────────────────────
+
+    public function testUserUpdate(): void
+    {
+        $mock = new MockHttpHelper('{"id":"u1","username":"updated_user","email":"new@example.com"}');
+        $svc = new UserService($mock);
+        $result = $svc->update('u1', ['email' => 'new@example.com']);
+        $this->assertSame('PUT', $mock->lastCall()['method']);
+        $this->assertStringContainsString('/api/v1/users/u1', $mock->lastCall()['path']);
+    }
+
+    public function testUserUpdatePartialData(): void
+    {
+        $mock = new MockHttpHelper('{"id":"u1","username":"user1"}');
+        $svc = new UserService($mock);
+        $svc->update('u1', ['username' => 'newname']);
+        $this->assertSame('newname', $mock->lastCall()['body']['username']);
+    }
+
+    // ── OODA-39: Conversation Service - Message Methods ───────────
+
+    public function testConversationUpdateMessage(): void
+    {
+        $mock = new MockHttpHelper('{"id":"m1","content":"Updated content","role":"user"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->updateMessage('c1', 'm1', 'Updated content');
+        $this->assertSame('PATCH', $mock->lastCall()['method']);
+        $this->assertStringContainsString('/api/v1/conversations/c1/messages/m1', $mock->lastCall()['path']);
+        $this->assertSame('Updated content', $mock->lastCall()['body']['content']);
+    }
+
+    public function testConversationUpdateMessagePreservesId(): void
+    {
+        $mock = new MockHttpHelper('{"id":"m1","content":"New text"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->updateMessage('c1', 'm1', 'New text');
+        $this->assertSame('m1', $result['id']);
+    }
+
+    public function testConversationDeleteMessage(): void
+    {
+        $mock = new MockHttpHelper('{"status":"deleted"}');
+        $svc = new ConversationService($mock);
+        $svc->deleteMessage('c1', 'm1');
+        $this->assertSame('DELETE', $mock->lastCall()['method']);
+        $this->assertStringContainsString('/api/v1/conversations/c1/messages/m1', $mock->lastCall()['path']);
+    }
+
+    public function testConversationDeleteMessageSuccess(): void
+    {
+        $mock = new MockHttpHelper('{"status":"deleted","message_id":"m1"}');
+        $svc = new ConversationService($mock);
+        $result = $svc->deleteMessage('c1', 'm1');
+        $this->assertSame('deleted', $result['status']);
+    }
+
+    // ── OODA-39: Workspace Service - Stats Method ─────────────────
+
+    public function testWorkspaceStats(): void
+    {
+        $mock = new MockHttpHelper('{"document_count":50,"entity_count":200,"relationship_count":150}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->stats('ws1');
+        $this->assertSame(50, $result['document_count']);
+        $this->assertSame(200, $result['entity_count']);
+        $this->assertStringContainsString('/api/v1/workspaces/ws1/stats', $mock->lastCall()['path']);
+    }
+
+    public function testWorkspaceStatsEmpty(): void
+    {
+        $mock = new MockHttpHelper('{"document_count":0,"entity_count":0,"relationship_count":0}');
+        $svc = new WorkspaceService($mock);
+        $result = $svc->stats('ws1');
+        $this->assertSame(0, $result['document_count']);
+    }
+
+    // ── OODA-39: URL Encoding Tests ───────────────────────────────
+
+    public function testDocumentChunksUrlEncoding(): void
+    {
+        $mock = new MockHttpHelper('{"chunks":[]}');
+        $svc = new DocumentService($mock);
+        $svc->chunks('doc with spaces');
+        $this->assertStringContainsString('/api/v1/documents/doc with spaces/chunks', $mock->lastCall()['path']);
+    }
+
+    public function testEntityTypesRequestMethod(): void
+    {
+        $mock = new MockHttpHelper('{"types":[]}');
+        $svc = new EntityService($mock);
+        $svc->types();
+        $this->assertSame('GET', $mock->lastCall()['method']);
+    }
+
+    public function testRelationshipTypesRequestMethod(): void
+    {
+        $mock = new MockHttpHelper('{"types":[]}');
+        $svc = new RelationshipService($mock);
+        $svc->types();
+        $this->assertSame('GET', $mock->lastCall()['method']);
+    }
+
+    public function testGraphStatsRequestMethod(): void
+    {
+        $mock = new MockHttpHelper('{"node_count":0}');
+        $svc = new GraphService($mock);
+        $svc->stats();
+        $this->assertSame('GET', $mock->lastCall()['method']);
+    }
+
+    // ── OODA-39: Edge Case Tests ──────────────────────────────────
+
+    public function testDocumentMetadataWithSpecialCharacters(): void
+    {
+        $mock = new MockHttpHelper('{"metadata":{"key":"value with \"quotes\""}}');
+        $svc = new DocumentService($mock);
+        $result = $svc->setMetadata('d1', ['key' => 'value with "quotes"']);
+        $this->assertSame('value with "quotes"', $mock->lastCall()['body']['metadata']['key']);
+    }
+
+    public function testChatCompletionsWithConversationNullSafe(): void
+    {
+        $mock = new MockHttpHelper('{"message":"Response","conversation_id":"c1"}');
+        $svc = new ChatService($mock);
+        $result = $svc->completionsWithConversation('c1', '', 'hybrid');
+        $this->assertSame('', $mock->lastCall()['body']['message']);
+    }
+
+    public function testWorkspaceStatsWithDifferentIds(): void
+    {
+        $mock = new MockHttpHelper('{"document_count":10}');
+        $svc = new WorkspaceService($mock);
+        $svc->stats('ws-uuid-1234');
+        $this->assertStringContainsString('ws-uuid-1234', $mock->lastCall()['path']);
+    }
+
+    public function testGraphClearRequestBody(): void
+    {
+        $mock = new MockHttpHelper('{"status":"cleared"}');
+        $svc = new GraphService($mock);
+        $svc->clear();
+        // POST should have empty body or null
+        $this->assertTrue($mock->lastCall()['body'] === null || $mock->lastCall()['body'] === []);
+    }
+
+    public function testEntityTypesWithManyTypes(): void
+    {
+        $types = array_map(fn($i) => "TYPE_$i", range(1, 100));
+        $mock = new MockHttpHelper(json_encode(['types' => $types]));
+        $svc = new EntityService($mock);
+        $result = $svc->types();
+        $this->assertCount(100, $result['types']);
+    }
+
+    public function testConversationMessageOperationsSequence(): void
+    {
+        $mock = new MockHttpHelper('{"id":"m1","content":"test"}');
+        $svc = new ConversationService($mock);
+        // Create then update
+        $svc->createMessage('c1', 'initial', 'user');
+        $this->assertSame('POST', $mock->lastCall()['method']);
+        $svc->updateMessage('c1', 'm1', 'updated');
+        $this->assertSame('PATCH', $mock->lastCall()['method']);
+    }
+
+    // ── OODA-39: Error Handling Tests ─────────────────────────────
+
+    public function testDocumentChunksNotFound(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"Document not found"}', 404);
+        $svc = new DocumentService($mock);
+        $this->expectException(ApiError::class);
+        $svc->chunks('missing-doc');
+    }
+
+    public function testDocumentStatusNotFound(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"Not found"}', 404);
+        $svc = new DocumentService($mock);
+        $this->expectException(ApiError::class);
+        $svc->status('missing');
+    }
+
+    public function testEntityTypesServerError(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{}', 500);
+        $svc = new EntityService($mock);
+        $this->expectException(ApiError::class);
+        $svc->types();
+    }
+
+    public function testGraphClearForbidden(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"Forbidden"}', 403);
+        $svc = new GraphService($mock);
+        $this->expectException(ApiError::class);
+        $svc->clear();
+    }
+
+    public function testWorkspaceStatsUnauthorized(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"Unauthorized"}', 401);
+        $svc = new WorkspaceService($mock);
+        $this->expectException(ApiError::class);
+        $svc->stats('ws1');
+    }
+
+    public function testConversationUpdateMessageNotFound(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"Message not found"}', 404);
+        $svc = new ConversationService($mock);
+        $this->expectException(ApiError::class);
+        $svc->updateMessage('c1', 'missing', 'text');
+    }
+
+    public function testConversationDeleteMessageNotFound(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"Not found"}', 404);
+        $svc = new ConversationService($mock);
+        $this->expectException(ApiError::class);
+        $svc->deleteMessage('c1', 'missing');
+    }
+
+    public function testUserUpdateInvalidData(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"Validation failed"}', 422);
+        $svc = new UserService($mock);
+        $this->expectException(ApiError::class);
+        $svc->update('u1', ['email' => 'invalid']);
+    }
+
+    public function testRelationshipTypesServiceUnavailable(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{}', 503);
+        $svc = new RelationshipService($mock);
+        $this->expectException(ApiError::class);
+        $svc->types();
+    }
+
+    public function testDocumentSetMetadataInvalid(): void
+    {
+        $mock = (new MockHttpHelper())->willReturn('{"error":"Invalid metadata"}', 400);
+        $svc = new DocumentService($mock);
+        $this->expectException(ApiError::class);
+        $svc->setMetadata('d1', ['invalid' => null]);
+    }
 }

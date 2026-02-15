@@ -107,4 +107,123 @@ class HttpHelper
 
         return $response;
     }
+
+    // OODA-39: File upload support.
+
+    /**
+     * Upload a file via multipart/form-data.
+     *
+     * @param string $path API endpoint
+     * @param string $filePath Local file path
+     * @param string $fieldName Form field name (default: 'file')
+     * @param array $extraFields Additional form fields
+     * @return array Decoded JSON response
+     */
+    public function upload(string $path, string $filePath, string $fieldName = 'file', array $extraFields = []): array
+    {
+        if (!file_exists($filePath)) {
+            throw new ApiError("File not found: {$filePath}");
+        }
+
+        $url = rtrim($this->config->baseUrl, '/') . $path;
+        $ch = curl_init($url);
+
+        $headers = ['Accept: application/json'];
+        if ($this->config->apiKey !== null) {
+            $headers[] = 'X-API-Key: ' . $this->config->apiKey;
+        }
+        if ($this->config->tenantId !== null) {
+            $headers[] = 'X-Tenant-ID: ' . $this->config->tenantId;
+        }
+        if ($this->config->workspaceId !== null) {
+            $headers[] = 'X-Workspace-ID: ' . $this->config->workspaceId;
+        }
+
+        $postData = array_merge([
+            $fieldName => new \CURLFile($filePath),
+        ], $extraFields);
+
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_POSTFIELDS => $postData,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $this->config->timeout,
+        ]);
+
+        $response = curl_exec($ch);
+        $statusCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($response === false) {
+            throw new ApiError("cURL error during upload");
+        }
+
+        if ($statusCode < 200 || $statusCode >= 300) {
+            throw new ApiError("HTTP {$statusCode}: {$response}", statusCode: $statusCode, responseBody: $response);
+        }
+
+        return json_decode($response, true) ?? [];
+    }
+
+    // OODA-39: Streaming POST support.
+
+    /**
+     * Execute streaming POST and yield chunks.
+     *
+     * @param string $path API endpoint
+     * @param array $body Request body
+     * @return \Generator Yields string chunks as Server-Sent Events
+     */
+    public function streamPost(string $path, array $body): \Generator
+    {
+        $url = rtrim($this->config->baseUrl, '/') . $path;
+        $ch = curl_init($url);
+
+        $headers = [
+            'Content-Type: application/json',
+            'Accept: text/event-stream',
+        ];
+
+        if ($this->config->apiKey !== null) {
+            $headers[] = 'X-API-Key: ' . $this->config->apiKey;
+        }
+        if ($this->config->workspaceId !== null) {
+            $headers[] = 'X-Workspace-ID: ' . $this->config->workspaceId;
+        }
+
+        $buffer = '';
+
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_POSTFIELDS => json_encode($body),
+            CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_TIMEOUT => 0, // No timeout for streaming
+            CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$buffer) {
+                $buffer .= $data;
+                return strlen($data);
+            },
+        ]);
+
+        curl_exec($ch);
+        $statusCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($statusCode < 200 || $statusCode >= 300) {
+            throw new ApiError("HTTP {$statusCode}: {$buffer}", statusCode: $statusCode, responseBody: $buffer);
+        }
+
+        // Parse SSE chunks
+        $lines = explode("\n", $buffer);
+        foreach ($lines as $line) {
+            if (str_starts_with($line, 'data: ')) {
+                $data = substr($line, 6);
+                if ($data === '[DONE]') {
+                    return;
+                }
+                yield $data;
+            }
+        }
+    }
 }

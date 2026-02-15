@@ -65,6 +65,50 @@ class DocumentService
     {
         return $this->http->get("/api/v1/documents/{$id}/failed-chunks");
     }
+
+    // OODA-39: Additional document methods.
+
+    /** Get document chunks with pagination. */
+    public function chunks(string $id, int $page = 1, int $pageSize = 20): array
+    {
+        return $this->http->get("/api/v1/documents/{$id}/chunks?page={$page}&page_size={$pageSize}");
+    }
+
+    /** Get document processing status. */
+    public function status(string $id): array
+    {
+        return $this->http->get("/api/v1/documents/{$id}/status");
+    }
+
+    /** Get document metadata. */
+    public function getMetadata(string $id): array
+    {
+        return $this->http->get("/api/v1/documents/{$id}/metadata");
+    }
+
+    /** Update document metadata. */
+    public function setMetadata(string $id, array $metadata): array
+    {
+        return $this->http->patch("/api/v1/documents/{$id}/metadata", ['metadata' => $metadata]);
+    }
+
+    /** Upload PDF document. */
+    public function uploadPdf(string $filePath, ?string $title = null): array
+    {
+        return $this->http->upload('/api/v1/documents/pdf/upload', $filePath, 'file', $title ? ['title' => $title] : []);
+    }
+
+    /** Get PDF extraction status. */
+    public function pdfStatus(string $id): array
+    {
+        return $this->http->get("/api/v1/documents/pdf/{$id}/status");
+    }
+
+    /** Download extracted PDF markdown. */
+    public function pdfDownload(string $id): string
+    {
+        return $this->http->getRaw("/api/v1/documents/pdf/{$id}/download");
+    }
 }
 
 class EntityService
@@ -113,6 +157,14 @@ class EntityService
         $encoded = rawurlencode($name);
         return $this->http->get("/api/v1/graph/entities/{$encoded}/neighborhood?depth={$depth}");
     }
+
+    // OODA-39: Get available entity types.
+
+    /** Get list of entity types. */
+    public function types(): array
+    {
+        return $this->http->get('/api/v1/graph/entities/types');
+    }
 }
 
 class RelationshipService
@@ -140,6 +192,14 @@ class RelationshipService
     {
         $encoded = rawurlencode($id);
         return $this->http->delete("/api/v1/graph/relationships/{$encoded}");
+    }
+
+    // OODA-39: Get relationship types.
+
+    /** Get list of relationship types. */
+    public function types(): array
+    {
+        return $this->http->get('/api/v1/graph/relationships/types');
     }
 }
 
@@ -179,6 +239,20 @@ class GraphService
     {
         return $this->http->post('/api/v1/graph/degrees/batch', ['node_ids' => $nodeIds]);
     }
+
+    // OODA-39: Additional graph methods.
+
+    /** Get graph statistics. */
+    public function stats(): array
+    {
+        return $this->http->get('/api/v1/graph/stats');
+    }
+
+    /** Clear all graph data. */
+    public function clear(): array
+    {
+        return $this->http->post('/api/v1/graph/clear');
+    }
 }
 
 class QueryService
@@ -188,6 +262,14 @@ class QueryService
     public function execute(string $query, string $mode = 'hybrid'): array
     {
         return $this->http->post('/api/v1/query', ['query' => $query, 'mode' => $mode]);
+    }
+
+    // OODA-39: Streaming query.
+
+    /** Execute streaming query. Returns generator of chunks. */
+    public function stream(string $query, string $mode = 'hybrid'): \Generator
+    {
+        return $this->http->streamPost('/api/v1/query/stream', ['query' => $query, 'mode' => $mode]);
     }
 }
 
@@ -199,6 +281,24 @@ class ChatService
     {
         return $this->http->post('/api/v1/chat/completions', [
             'message' => $message, 'mode' => $mode, 'stream' => $stream,
+        ]);
+    }
+
+    // OODA-39: Streaming chat and conversation support.
+
+    /** Streaming chat completions. Returns generator of chunks. */
+    public function stream(string $message, string $mode = 'hybrid'): \Generator
+    {
+        return $this->http->streamPost('/api/v1/chat/completions/stream', [
+            'message' => $message, 'mode' => $mode,
+        ]);
+    }
+
+    /** Chat completions with conversation context. */
+    public function completionsWithConversation(string $conversationId, string $message, string $mode = 'hybrid'): array
+    {
+        return $this->http->post('/api/v1/chat/completions', [
+            'conversation_id' => $conversationId, 'message' => $message, 'mode' => $mode,
         ]);
     }
 }
@@ -222,6 +322,8 @@ class UserService
     {
         return $this->http->post('/api/v1/users', ['username' => $username, 'email' => $email]);
     }
+    // OODA-39: Update user.
+    public function update(string $id, array $data): array { return $this->http->put("/api/v1/users/{$id}", $data); }
     public function delete(string $id): array { return $this->http->delete("/api/v1/users/{$id}"); }
 }
 
@@ -402,6 +504,22 @@ class ConversationService
         ]);
     }
 
+    // OODA-39: Update and delete messages.
+
+    /** Update a message in conversation. */
+    public function updateMessage(string $id, string $messageId, string $content): array
+    {
+        return $this->http->patch("/api/v1/conversations/{$id}/messages/{$messageId}", [
+            'content' => $content,
+        ]);
+    }
+
+    /** Delete a message from conversation. */
+    public function deleteMessage(string $id, string $messageId): array
+    {
+        return $this->http->delete("/api/v1/conversations/{$id}/messages/{$messageId}");
+    }
+
     public function bulkArchive(array $ids): array
     {
         return $this->http->post('/api/v1/conversations/bulk/archive', ['ids' => $ids]);
@@ -529,6 +647,14 @@ class WorkspaceService
     public function reprocessDocuments(string $id): array
     {
         return $this->http->post("/api/v1/workspaces/{$id}/reprocess-documents");
+    }
+
+    // OODA-39: Workspace stats.
+
+    /** Get workspace statistics. */
+    public function stats(string $id): array
+    {
+        return $this->http->get("/api/v1/workspaces/{$id}/stats");
     }
 }
 
