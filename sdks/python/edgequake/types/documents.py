@@ -6,7 +6,6 @@ matching the Rust API types in edgequake-api/src/handlers/documents_types.rs.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field

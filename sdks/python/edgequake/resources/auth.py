@@ -6,8 +6,6 @@ and /api/v1/tenants/* endpoints.
 
 from __future__ import annotations
 
-from typing import Any
-
 from edgequake.resources._base import AsyncResource, SyncResource
 from edgequake.types.auth import (
     ApiKeyCreateRequest,

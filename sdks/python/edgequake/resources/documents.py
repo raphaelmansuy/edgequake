@@ -25,7 +25,7 @@ from edgequake.types.documents import (
     TrackStatusResponse,
     UploadDocumentResponse,
 )
-from edgequake.types.operations import ChunkLineageInfo, DocumentFullLineage
+from edgequake.types.operations import DocumentFullLineage
 
 
 class DocumentsResource(SyncResource):

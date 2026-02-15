@@ -21,7 +21,6 @@ from edgequake.types.conversations import (
     FolderCreate,
     FolderInfo,
     FolderUpdate,
-    ImportConversationsRequest,
     ImportConversationsResponse,
     Message,
     MessageCreate,

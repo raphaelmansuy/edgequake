@@ -10,7 +10,7 @@ This is NOT OpenAI-compatible — it is EdgeQuake's native RAG-aware chat format
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
