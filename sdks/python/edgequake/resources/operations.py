@@ -2,11 +2,13 @@
 
 WHY: Groups ancillary API resources that support the core document/query/graph
 workflow. Keeps ancillary resources in one file for simplicity (SRP per resource class).
+
+WHY OODA-06: Aliased built-in `list` to `_list` to avoid shadowing by method name.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, List as _list
 
 from edgequake.resources._base import AsyncResource, SyncResource
 from edgequake.types.operations import (
@@ -57,7 +59,7 @@ class WorkspacesResource(SyncResource):
             response_type=WorkspaceInfo,
         )
 
-    def list(self, tenant_id: str) -> list[WorkspaceInfo]:
+    def list(self, tenant_id: str) -> _list[WorkspaceInfo]:
         """List workspaces for a tenant.
 
         GET /api/v1/tenants/{tenant_id}/workspaces
@@ -262,7 +264,7 @@ class CostsResource(SyncResource):
         """
         return self._get("/api/v1/costs/summary", response_type=CostSummary)
 
-    def history(self, *, days: int = 30) -> list[CostEntry]:
+    def history(self, *, days: int = 30) -> _list[CostEntry]:
         """Get cost history.
 
         GET /api/v1/costs/history
@@ -346,7 +348,7 @@ class ChunksResource(SyncResource):
 class ProvenanceResource(SyncResource):
     """Entity provenance operations."""
 
-    def get(self, entity_id: str) -> list[ProvenanceRecord]:
+    def get(self, entity_id: str) -> _list[ProvenanceRecord]:
         """Get entity provenance.
 
         GET /api/v1/entities/{entity_id}/provenance
@@ -387,7 +389,7 @@ class SettingsResource(SyncResource):
 class ModelsResource(SyncResource):
     """Models configuration API."""
 
-    def list(self) -> list[ModelInfo]:
+    def list(self) -> _list[ModelInfo]:
         """List all models.
 
         GET /api/v1/models
@@ -400,7 +402,7 @@ class ModelsResource(SyncResource):
         )
         return [ModelInfo.model_validate(m) for m in items]
 
-    def list_llm(self) -> list[ModelInfo]:
+    def list_llm(self) -> _list[ModelInfo]:
         """List LLM models.
 
         GET /api/v1/models/llm
@@ -413,7 +415,7 @@ class ModelsResource(SyncResource):
         )
         return [ModelInfo.model_validate(m) for m in items]
 
-    def list_embedding(self) -> list[ModelInfo]:
+    def list_embedding(self) -> _list[ModelInfo]:
         """List embedding models.
 
         GET /api/v1/models/embedding
@@ -471,7 +473,7 @@ class AsyncWorkspacesResource(AsyncResource):
             response_type=WorkspaceInfo,
         )
 
-    async def list(self, tenant_id: str) -> list[WorkspaceInfo]:
+    async def list(self, tenant_id: str) -> _list[WorkspaceInfo]:
         data = await self._get(f"/api/v1/tenants/{tenant_id}/workspaces")
         if isinstance(data, list):
             return [WorkspaceInfo.model_validate(w) for w in data]
@@ -544,7 +546,7 @@ class AsyncCostsResource(AsyncResource):
     async def summary(self) -> CostSummary:
         return await self._get("/api/v1/costs/summary", response_type=CostSummary)
 
-    async def history(self, *, days: int = 30) -> list[CostEntry]:
+    async def history(self, *, days: int = 30) -> _list[CostEntry]:
         data = await self._get("/api/v1/costs/history", params={"days": days})
         if isinstance(data, list):
             return [CostEntry.model_validate(e) for e in data]
@@ -616,7 +618,7 @@ class AsyncChunksResource(AsyncResource):
 class AsyncProvenanceResource(AsyncResource):
     """Async entity provenance operations."""
 
-    async def get(self, entity_id: str) -> list[ProvenanceRecord]:
+    async def get(self, entity_id: str) -> _list[ProvenanceRecord]:
         """Get entity provenance.
 
         GET /api/v1/entities/{entity_id}/provenance
@@ -633,7 +635,7 @@ class AsyncProvenanceResource(AsyncResource):
 class AsyncModelsResource(AsyncResource):
     """Async models API."""
 
-    async def list(self) -> list[ModelInfo]:
+    async def list(self) -> _list[ModelInfo]:
         data = await self._get("/api/v1/models")
         if isinstance(data, list):
             return [ModelInfo.model_validate(m) for m in data]
@@ -642,7 +644,7 @@ class AsyncModelsResource(AsyncResource):
         )
         return [ModelInfo.model_validate(m) for m in items]
 
-    async def list_llm(self) -> list[ModelInfo]:
+    async def list_llm(self) -> _list[ModelInfo]:
         data = await self._get("/api/v1/models/llm")
         if isinstance(data, list):
             return [ModelInfo.model_validate(m) for m in data]

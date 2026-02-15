@@ -5,12 +5,15 @@ API endpoints (e.g. DocumentsResource → /api/v1/documents/*). The base class
 provides shared HTTP method helpers (_get, _post, _put, _delete) that delegate
 to the transport layer.
 
+WHY OODA-06: Added @overload typing to eliminate mypy "Returning Any" errors.
+When response_type is provided, return type is T; otherwise Any.
+
 SyncResource uses SyncTransport; AsyncResource uses AsyncTransport.
 """
 
 from __future__ import annotations
 
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
 from pydantic import BaseModel
 
@@ -29,18 +32,56 @@ class SyncResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
+    @overload
+    def _get(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        response_type: type[T],
+    ) -> T: ...
+
+    @overload
+    def _get(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        response_type: None = None,
+    ) -> Any: ...
+
     def _get(
         self,
         path: str,
         *,
         params: dict[str, Any] | None = None,
         response_type: type[T] | None = None,
-    ) -> Any:
+    ) -> T | Any:
         """Execute GET request and optionally deserialize to Pydantic model."""
         response = self._transport.request("GET", path, params=params)
         if response_type is not None:
             return response_type.model_validate(response.json())
         return response.json()
+
+    @overload
+    def _post(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        params: dict[str, Any] | None = None,
+        response_type: type[T],
+    ) -> T: ...
+
+    @overload
+    def _post(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        params: dict[str, Any] | None = None,
+        response_type: None = None,
+    ) -> Any: ...
 
     def _post(
         self,
@@ -49,12 +90,30 @@ class SyncResource:
         json: Any = None,
         params: dict[str, Any] | None = None,
         response_type: type[T] | None = None,
-    ) -> Any:
+    ) -> T | Any:
         """Execute POST request and optionally deserialize to Pydantic model."""
         response = self._transport.request("POST", path, json=json, params=params)
         if response_type is not None:
             return response_type.model_validate(response.json())
         return response.json()
+
+    @overload
+    def _put(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        response_type: type[T],
+    ) -> T: ...
+
+    @overload
+    def _put(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        response_type: None = None,
+    ) -> Any: ...
 
     def _put(
         self,
@@ -62,7 +121,7 @@ class SyncResource:
         *,
         json: Any = None,
         response_type: type[T] | None = None,
-    ) -> Any:
+    ) -> T | Any:
         """Execute PUT request and optionally deserialize to Pydantic model."""
         response = self._transport.request("PUT", path, json=json)
         if response_type is not None:
@@ -94,18 +153,56 @@ class AsyncResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
+    @overload
+    async def _get(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        response_type: type[T],
+    ) -> T: ...
+
+    @overload
+    async def _get(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        response_type: None = None,
+    ) -> Any: ...
+
     async def _get(
         self,
         path: str,
         *,
         params: dict[str, Any] | None = None,
         response_type: type[T] | None = None,
-    ) -> Any:
+    ) -> T | Any:
         """Execute async GET request."""
         response = await self._transport.request("GET", path, params=params)
         if response_type is not None:
             return response_type.model_validate(response.json())
         return response.json()
+
+    @overload
+    async def _post(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        params: dict[str, Any] | None = None,
+        response_type: type[T],
+    ) -> T: ...
+
+    @overload
+    async def _post(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        params: dict[str, Any] | None = None,
+        response_type: None = None,
+    ) -> Any: ...
 
     async def _post(
         self,
@@ -114,12 +211,30 @@ class AsyncResource:
         json: Any = None,
         params: dict[str, Any] | None = None,
         response_type: type[T] | None = None,
-    ) -> Any:
+    ) -> T | Any:
         """Execute async POST request."""
         response = await self._transport.request("POST", path, json=json, params=params)
         if response_type is not None:
             return response_type.model_validate(response.json())
         return response.json()
+
+    @overload
+    async def _put(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        response_type: type[T],
+    ) -> T: ...
+
+    @overload
+    async def _put(
+        self,
+        path: str,
+        *,
+        json: Any = None,
+        response_type: None = None,
+    ) -> Any: ...
 
     async def _put(
         self,
@@ -127,7 +242,7 @@ class AsyncResource:
         *,
         json: Any = None,
         response_type: type[T] | None = None,
-    ) -> Any:
+    ) -> T | Any:
         """Execute async PUT request."""
         response = await self._transport.request("PUT", path, json=json)
         if response_type is not None:

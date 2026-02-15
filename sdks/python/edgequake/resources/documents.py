@@ -2,12 +2,14 @@
 
 WHY: Maps to /api/v1/documents/* endpoints. Supports text upload, file upload,
 batch upload, PDF operations, and document lifecycle management.
+
+WHY OODA-06: Aliased built-in `list` to `_list` to avoid shadowing by method name.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, List as _list
 
 from edgequake.resources._base import AsyncResource, SyncResource
 from edgequake.types.documents import (
@@ -140,7 +142,7 @@ class DocumentsResource(SyncResource):
 
     def upload_batch(
         self,
-        files: list[Path | BinaryIO],
+        files: _list[Path | BinaryIO],
         *,
         metadata: dict[str, str] | None = None,
     ) -> BatchUploadResponse:
@@ -170,7 +172,7 @@ class DocumentsResource(SyncResource):
         path: str,
         *,
         recursive: bool = True,
-        extensions: list[str] | None = None,
+        extensions: _list[str] | None = None,
     ) -> ScanResponse:
         """Scan a directory for documents to ingest.
 
@@ -214,7 +216,7 @@ class DocumentsResource(SyncResource):
         """
         return self._post(f"/api/v1/documents/{document_id}/retry-chunks")
 
-    def failed_chunks(self, document_id: str) -> list[FailedChunkInfo]:
+    def failed_chunks(self, document_id: str) -> _list[FailedChunkInfo]:
         """List failed chunks for a document.
 
         GET /api/v1/documents/{document_id}/failed-chunks
@@ -311,7 +313,7 @@ class PdfResource(SyncResource):
         )
         return PdfUploadResponse.model_validate(response.json())
 
-    def list(self) -> list[PdfInfo]:
+    def list(self) -> _list[PdfInfo]:
         """List all PDF documents.
 
         GET /api/v1/documents/pdf
@@ -468,7 +470,7 @@ class AsyncDocumentsResource(AsyncResource):
         path: str,
         *,
         recursive: bool = True,
-        extensions: list[str] | None = None,
+        extensions: _list[str] | None = None,
     ) -> ScanResponse:
         body: dict[str, Any] = {"path": path, "recursive": recursive}
         if extensions:
@@ -541,7 +543,7 @@ class AsyncPdfResource(AsyncResource):
         )
         return PdfUploadResponse.model_validate(response.json())
 
-    async def list(self) -> list[PdfInfo]:
+    async def list(self) -> _list[PdfInfo]:
         data = await self._get("/api/v1/documents/pdf")
         if isinstance(data, list):
             return [PdfInfo.model_validate(p) for p in data]

@@ -6,6 +6,8 @@ and /api/v1/tenants/* endpoints.
 
 from __future__ import annotations
 
+from typing import Any
+
 from edgequake.resources._base import AsyncResource, SyncResource
 from edgequake.types.auth import (
     ApiKeyCreateRequest,
@@ -258,7 +260,7 @@ class AsyncApiKeysResource(AsyncResource):
     async def create(
         self, name: str, *, expires_in: int | None = None
     ) -> ApiKeyResponse:
-        body = {"name": name}
+        body: dict[str, Any] = {"name": name}
         if expires_in is not None:
             body["expires_in"] = expires_in
         return await self._post(
