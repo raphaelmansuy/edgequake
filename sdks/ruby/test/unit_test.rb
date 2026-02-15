@@ -243,6 +243,57 @@ module EdgeQuake
       svc = DocumentService.new(mock)
       assert_raises(ApiError) { svc.get(id: "missing") }
     end
+
+    # OODA-42: New document tests
+    def test_get_metadata
+      mock = MockHttpHelper.new('{"author":"John Doe","category":"research"}')
+      svc = DocumentService.new(mock)
+      result = svc.get_metadata(id: "d1")
+      assert_equal "John Doe", result["author"]
+      assert_includes mock.last_call[:path], "/api/v1/documents/d1/metadata"
+    end
+
+    def test_set_metadata
+      mock = MockHttpHelper.new('{"success":true}')
+      svc = DocumentService.new(mock)
+      result = svc.set_metadata(id: "d1", metadata: { author: "Jane Doe" })
+      assert_equal true, result["success"]
+      assert_equal :put, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/documents/d1/metadata"
+    end
+
+    def test_failed_chunks
+      mock = MockHttpHelper.new('[{"chunk_id":"c1","error":"timeout"}]')
+      svc = DocumentService.new(mock)
+      result = svc.failed_chunks(id: "d1")
+      assert_equal 1, result.size
+      assert_includes mock.last_call[:path], "/api/v1/documents/d1/failed-chunks"
+    end
+
+    def test_retry_chunks
+      mock = MockHttpHelper.new('{"retried":3}')
+      svc = DocumentService.new(mock)
+      result = svc.retry_chunks(id: "d1")
+      assert_equal 3, result["retried"]
+      assert_equal :post, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/documents/d1/retry-chunks"
+    end
+
+    def test_deletion_impact
+      mock = MockHttpHelper.new('{"chunk_count":10,"entity_count":5}')
+      svc = DocumentService.new(mock)
+      result = svc.deletion_impact(id: "d1")
+      assert_equal 10, result["chunk_count"]
+      assert_includes mock.last_call[:path], "/api/v1/documents/d1/deletion-impact"
+    end
+
+    def test_lineage
+      mock = MockHttpHelper.new('{"document_id":"d1","chunks":[],"entities":[]}')
+      svc = DocumentService.new(mock)
+      result = svc.lineage(id: "d1")
+      assert_equal "d1", result["document_id"]
+      assert_includes mock.last_call[:path], "/api/v1/documents/d1/lineage"
+    end
   end
 
   class EntityServiceTest < Minitest::Test
@@ -464,6 +515,24 @@ module EdgeQuake
       svc = QueryService.new(mock)
       assert_raises(ApiError) { svc.execute(query: "test") }
     end
+
+    # OODA-42: New query tests
+    def test_execute_with_context
+      mock = MockHttpHelper.new('{"answer":"yes","sources":[{"id":"d1"}]}')
+      svc = QueryService.new(mock)
+      result = svc.execute_with_context(query: "test", top_k: 10, only_need_context: true)
+      assert_equal "yes", result["answer"]
+      body = mock.last_call[:body]
+      assert_equal 10, body[:top_k]
+      assert_equal true, body[:only_need_context]
+    end
+
+    def test_stream_returns_enumerator
+      mock = MockHttpHelper.new("{}")
+      svc = QueryService.new(mock)
+      result = svc.stream(query: "Test")
+      assert_kind_of Enumerator, result
+    end
   end
 
   class ChatServiceTest < Minitest::Test
@@ -489,6 +558,24 @@ module EdgeQuake
       mock = MockHttpHelper.new.will_return("{}", 500)
       svc = ChatService.new(mock)
       assert_raises(ApiError) { svc.completions(message: "test") }
+    end
+
+    # OODA-42: New chat tests
+    def test_completions_with_conversation
+      mock = MockHttpHelper.new('{"choices":[{"message":{"content":"Response"}}]}')
+      svc = ChatService.new(mock)
+      result = svc.completions_with_conversation(message: "Hi", conversation_id: "conv-1")
+      assert_equal 1, result["choices"].size
+      body = mock.last_call[:body]
+      assert_equal "Hi", body[:message]
+      assert_equal "conv-1", body[:conversation_id]
+    end
+
+    def test_stream_returns_enumerator
+      mock = MockHttpHelper.new("{}")
+      svc = ChatService.new(mock)
+      result = svc.stream(message: "Test")
+      assert_kind_of Enumerator, result
     end
   end
 
@@ -1003,6 +1090,78 @@ module EdgeQuake
       mock = MockHttpHelper.new.will_return("{}", 422)
       svc = ConversationService.new(mock)
       assert_raises(ApiError) { svc.create(title: "Bad") }
+    end
+
+    # OODA-42: New conversation tests
+    def test_share
+      mock = MockHttpHelper.new('{"share_id":"sh-1","url":"https://app.co/share/sh-1"}')
+      svc = ConversationService.new(mock)
+      result = svc.share(id: "c1")
+      assert_equal "sh-1", result["share_id"]
+      assert_equal :post, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/conversations/c1/share"
+    end
+
+    def test_unshare
+      mock = MockHttpHelper.new('{}')
+      svc = ConversationService.new(mock)
+      svc.unshare(id: "c1")
+      assert_equal :delete, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/conversations/c1/share"
+    end
+
+    def test_pin
+      mock = MockHttpHelper.new('{}')
+      svc = ConversationService.new(mock)
+      svc.pin(id: "c1")
+      assert_equal :post, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/conversations/c1/pin"
+    end
+
+    def test_unpin
+      mock = MockHttpHelper.new('{}')
+      svc = ConversationService.new(mock)
+      svc.unpin(id: "c1")
+      assert_equal :delete, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/conversations/c1/pin"
+    end
+
+    def test_bulk_delete
+      mock = MockHttpHelper.new('{"deleted_count":3}')
+      svc = ConversationService.new(mock)
+      result = svc.bulk_delete(ids: %w[c1 c2 c3])
+      assert_equal 3, result["deleted_count"]
+      assert_equal :post, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/conversations/bulk/delete"
+      assert_equal %w[c1 c2 c3], mock.last_call[:body][:ids]
+    end
+
+    def test_bulk_archive
+      mock = MockHttpHelper.new('{"archived_count":2}')
+      svc = ConversationService.new(mock)
+      result = svc.bulk_archive(ids: %w[c1 c2])
+      assert_equal 2, result["archived_count"]
+      assert_includes mock.last_call[:path], "/api/v1/conversations/bulk/archive"
+    end
+
+    def test_bulk_move
+      mock = MockHttpHelper.new('{"moved_count":2}')
+      svc = ConversationService.new(mock)
+      result = svc.bulk_move(ids: %w[c1 c2], folder_id: "f1")
+      assert_equal 2, result["moved_count"]
+      assert_includes mock.last_call[:path], "/api/v1/conversations/bulk/move"
+      body = mock.last_call[:body]
+      assert_equal %w[c1 c2], body[:ids]
+      assert_equal "f1", body[:folder_id]
+    end
+
+    def test_import_conversation
+      mock = MockHttpHelper.new('{"id":"c-import","title":"Imported"}')
+      svc = ConversationService.new(mock)
+      result = svc.import_conversation(data: { title: "Imported", messages: [] })
+      assert_equal "c-import", result["id"]
+      assert_equal :post, mock.last_call[:method]
+      assert_includes mock.last_call[:path], "/api/v1/conversations/import"
     end
   end
 

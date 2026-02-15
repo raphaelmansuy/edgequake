@@ -54,6 +54,31 @@ module EdgeQuake
     def reprocess(id:)
       @http.post("/api/v1/documents/#{id}/reprocess", {})
     end
+
+    # OODA-42: Additional document methods
+    def get_metadata(id:)
+      @http.get("/api/v1/documents/#{id}/metadata")
+    end
+
+    def set_metadata(id:, metadata:)
+      @http.put("/api/v1/documents/#{id}/metadata", metadata)
+    end
+
+    def failed_chunks(id:)
+      @http.get("/api/v1/documents/#{id}/failed-chunks")
+    end
+
+    def retry_chunks(id:)
+      @http.post("/api/v1/documents/#{id}/retry-chunks", {})
+    end
+
+    def deletion_impact(id:)
+      @http.get("/api/v1/documents/#{id}/deletion-impact")
+    end
+
+    def lineage(id:)
+      @http.get("/api/v1/documents/#{id}/lineage")
+    end
   end
 
   class EntityService
@@ -164,6 +189,24 @@ module EdgeQuake
     def execute(query:, mode: "hybrid")
       @http.post("/api/v1/query", { query: query, mode: mode })
     end
+
+    # OODA-42: Additional query methods
+    def execute_with_context(query:, mode: "hybrid", top_k: 5, only_need_context: false)
+      @http.post("/api/v1/query", {
+        query: query,
+        mode: mode,
+        top_k: top_k,
+        only_need_context: only_need_context
+      })
+    end
+
+    def stream(query:, mode: "hybrid", &block)
+      Enumerator.new do |yielder|
+        @http.stream_post("/api/v1/query/stream", { query: query, mode: mode, stream: true }) do |chunk|
+          yielder << chunk
+        end
+      end
+    end
   end
 
   class ChatService
@@ -173,6 +216,26 @@ module EdgeQuake
       @http.post("/api/v1/chat/completions", {
         message: message, mode: mode, stream: stream
       })
+    end
+
+    # OODA-42: Additional chat methods
+    def completions_with_conversation(message:, conversation_id:, mode: "hybrid", stream: false)
+      @http.post("/api/v1/chat/completions", {
+        message: message,
+        conversation_id: conversation_id,
+        mode: mode,
+        stream: stream
+      })
+    end
+
+    def stream(message:, mode: "hybrid", conversation_id: nil, &block)
+      body = { message: message, mode: mode, stream: true }
+      body[:conversation_id] = conversation_id if conversation_id
+      Enumerator.new do |yielder|
+        @http.stream_post("/api/v1/chat/completions/stream", body) do |chunk|
+          yielder << chunk
+        end
+      end
     end
   end
 
@@ -364,6 +427,39 @@ module EdgeQuake
 
     def clear_messages(id:)
       @http.delete("/api/v1/conversations/#{id}/messages")
+    end
+
+    # OODA-42: Additional conversation methods
+    def share(id:)
+      @http.post("/api/v1/conversations/#{id}/share", {})
+    end
+
+    def unshare(id:)
+      @http.delete("/api/v1/conversations/#{id}/share")
+    end
+
+    def pin(id:)
+      @http.post("/api/v1/conversations/#{id}/pin", {})
+    end
+
+    def unpin(id:)
+      @http.delete("/api/v1/conversations/#{id}/pin")
+    end
+
+    def bulk_delete(ids:)
+      @http.post("/api/v1/conversations/bulk/delete", { ids: ids })
+    end
+
+    def bulk_archive(ids:)
+      @http.post("/api/v1/conversations/bulk/archive", { ids: ids })
+    end
+
+    def bulk_move(ids:, folder_id:)
+      @http.post("/api/v1/conversations/bulk/move", { ids: ids, folder_id: folder_id })
+    end
+
+    def import_conversation(data:)
+      @http.post("/api/v1/conversations/import", data)
     end
   end
 
