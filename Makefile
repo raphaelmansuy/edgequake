@@ -1,3 +1,117 @@
+.PHONY: sdk-rust-build sdk-rust-publish sdk-rust-version
+.PHONY: sdk-python-build sdk-python-publish sdk-python-version
+.PHONY: sdk-typescript-build sdk-typescript-publish sdk-typescript-version
+.PHONY: sdk-java-build sdk-java-publish sdk-java-version
+.PHONY: sdk-kotlin-build sdk-kotlin-publish sdk-kotlin-version
+
+sdk-rust-version: ## Update the version of the Rust SDK (sdks/rust). Usage: make sdk-rust-version VERSION=0.2.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make sdk-rust-version VERSION=<new_version>"; \
+		exit 1; \
+	fi
+	sed -i '' -E 's/^version = ".*"/version = "$(VERSION)"/' sdks/rust/Cargo.toml
+	@echo "$(GREEN)✓ Updated Rust SDK version to $(VERSION) in sdks/rust/Cargo.toml$(RESET)"
+
+# Python SDK targets
+.PHONY: sdk-python-build sdk-python-publish sdk-python-version
+
+sdk-python-build: ## Build the Python SDK (sdks/python)
+	@echo "$(BOLD)$(BLUE)🔨 Building Python SDK (sdks/python)$(RESET)"
+	cd sdks/python && rm -rf dist build && python3 -m pip install --upgrade build > /dev/null && python3 -m build
+
+sdk-python-publish: ## Publish the Python SDK (sdks/python) to PyPI
+	@echo "$(BOLD)$(BLUE)🚀 Publishing Python SDK (sdks/python) to PyPI$(RESET)"
+	cd sdks/python && python3 -m pip install --upgrade twine > /dev/null && python3 -m twine upload dist/*
+
+sdk-python-version: ## Update the version of the Python SDK (sdks/python). Usage: make sdk-python-version VERSION=0.2.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make sdk-python-version VERSION=<new_version>"; \
+		exit 1; \
+	fi
+	sed -i '' -E 's/^version = ".*"/version = "$(VERSION)"/' sdks/python/pyproject.toml
+	@echo "$(GREEN)✓ Updated Python SDK version to $(VERSION) in sdks/python/pyproject.toml$(RESET)"
+
+# TypeScript SDK targets
+sdk-typescript-build: ## Build the TypeScript SDK (sdks/typescript)
+	@echo "$(BOLD)$(BLUE)🔨 Building TypeScript SDK (sdks/typescript)$(RESET)"
+	cd sdks/typescript && npm run build
+
+sdk-typescript-publish: ## Publish the TypeScript SDK (sdks/typescript) to npm
+	@echo "$(BOLD)$(BLUE)🚀 Publishing TypeScript SDK (sdks/typescript) to npm$(RESET)"
+	cd sdks/typescript && npm publish
+
+sdk-typescript-version: ## Update the version of the TypeScript SDK (sdks/typescript). Usage: make sdk-typescript-version VERSION=0.2.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make sdk-typescript-version VERSION=<new_version>"; \
+		exit 1; \
+	fi
+	sed -i '' -E 's/"version": ".*"/"version": "$(VERSION)"/' sdks/typescript/package.json
+	@echo "$(GREEN)✓ Updated TypeScript SDK version to $(VERSION) in sdks/typescript/package.json$(RESET)"
+
+# Java SDK targets
+sdk-java-build: ## Build the Java SDK (sdks/java)
+	@echo "$(BOLD)$(BLUE)🔨 Building Java SDK (sdks/java)$(RESET)"
+	cd sdks/java && JAVA_HOME=$$(java_home -v 17) mvn clean package -DskipTests
+
+sdk-java-publish: ## Publish the Java SDK (sdks/java) to Maven Central
+	@echo "$(BOLD)$(BLUE)🚀 Publishing Java SDK (sdks/java) to Maven Central$(RESET)"
+	cd sdks/java && JAVA_HOME=$$(java_home -v 17) mvn clean deploy -P ossrh
+
+sdk-java-version: ## Update the version of the Java SDK (sdks/java). Usage: make sdk-java-version VERSION=0.2.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make sdk-java-version VERSION=<new_version>"; \
+		exit 1; \
+	fi
+	sed -i '' -E 's/<version>.*<\/version>/<version>$(VERSION)<\/version>/' sdks/java/pom.xml
+	@echo "$(GREEN)✓ Updated Java SDK version to $(VERSION) in sdks/java/pom.xml$(RESET)"
+
+# Kotlin SDK targets
+sdk-kotlin-build: ## Build the Kotlin SDK (sdks/kotlin)
+	@echo "$(BOLD)$(BLUE)🔨 Building Kotlin SDK (sdks/kotlin)$(RESET)"
+	cd sdks/kotlin && JAVA_HOME=$$(java_home -v 17) mvn clean package -DskipTests
+
+sdk-kotlin-publish: ## Publish the Kotlin SDK (sdks/kotlin) to Maven Central
+	@echo "$(BOLD)$(BLUE)🚀 Publishing Kotlin SDK (sdks/kotlin) to Maven Central$(RESET)"
+	cd sdks/kotlin && JAVA_HOME=$$(java_home -v 17) mvn clean deploy -P ossrh
+
+sdk-kotlin-version: ## Update the version of the Kotlin SDK (sdks/kotlin). Usage: make sdk-kotlin-version VERSION=0.2.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make sdk-kotlin-version VERSION=<new_version>"; \
+		exit 1; \
+	fi
+	sed -i '' -E 's/<version>.*<\/version>/<version>$(VERSION)<\/version>/' sdks/kotlin/pom.xml
+	@echo "$(GREEN)✓ Updated Kotlin SDK version to $(VERSION) in sdks/kotlin/pom.xml$(RESET)"
+
+sdk-java-publish: ## Publish the Java SDK (sdks/java) to Maven Central (requires Maven credentials in ~/.m2/settings.xml)
+	@echo "$(BOLD)$(BLUE)🚀 Publishing Java SDK (sdks/java) to Maven Central$(RESET)"
+	@echo "$(YELLOW)Note: Requires Maven Central credentials and GPG key setup$(RESET)"
+	cd sdks/java && mvn deploy -DskipTests
+
+sdk-java-version: ## Update the version of the Java SDK (sdks/java). Usage: make sdk-java-version VERSION=0.2.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make sdk-java-version VERSION=<new_version>"; \
+		exit 1; \
+	fi
+	sed -i '' -E 's/<version>.*<\/version>/<version>$(VERSION)<\/version>/' sdks/java/pom.xml
+	@echo "$(GREEN)✓ Updated Java SDK version to $(VERSION) in sdks/java/pom.xml$(RESET)"
+
+# Kotlin SDK targets
+sdk-kotlin-build: ## Build the Kotlin SDK (sdks/kotlin)
+	@echo "$(BOLD)$(BLUE)🔨 Building Kotlin SDK (sdks/kotlin)$(RESET)"
+	cd sdks/kotlin && mvn clean package -DskipTests
+
+sdk-kotlin-publish: ## Publish the Kotlin SDK (sdks/kotlin) to Maven Central (requires Maven credentials in ~/.m2/settings.xml)
+	@echo "$(BOLD)$(BLUE)🚀 Publishing Kotlin SDK (sdks/kotlin) to Maven Central$(RESET)"
+	@echo "$(YELLOW)Note: Requires Maven Central credentials and GPG key setup$(RESET)"
+	cd sdks/kotlin && mvn deploy -DskipTests
+
+sdk-kotlin-version: ## Update the version of the Kotlin SDK (sdks/kotlin). Usage: make sdk-kotlin-version VERSION=0.2.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make sdk-kotlin-version VERSION=<new_version>"; \
+		exit 1; \
+	fi
+	sed -i '' -E 's/<version>.*<\/version>/<version>$(VERSION)<\/version>/' sdks/kotlin/pom.xml
+	@echo "$(GREEN)✓ Updated Kotlin SDK version to $(VERSION) in sdks/kotlin/pom.xml$(RESET)"
 # ============================================================================
 # EdgeQuake - Full Stack Development Makefile
 # ============================================================================
@@ -171,6 +285,23 @@ help: ## Show this help message
 	@echo "  $(GREEN)make docker-logs$(RESET)  View Docker logs"
 	@echo "  $(GREEN)make docker-ps$(RESET)    Show Docker container status"
 	@echo ""
+	@echo "$(BOLD)$(BLUE)📦 SDKs$(RESET)"
+	@echo "  $(GREEN)make sdk-rust-build$(RESET)    Build Rust SDK (sdks/rust)"
+	@echo "  $(GREEN)make sdk-rust-publish$(RESET)  Publish Rust SDK (sdks/rust) to crates.io"
+	@echo "  $(GREEN)make sdk-rust-version$(RESET)  Update Rust SDK version (VERSION=...)"
+	@echo "  $(GREEN)make sdk-python-build$(RESET)    Build Python SDK (sdks/python)"
+	@echo "  $(GREEN)make sdk-python-publish$(RESET)  Publish Python SDK (sdks/python) to PyPI"
+	@echo "  $(GREEN)make sdk-python-version$(RESET)  Update Python SDK version (VERSION=...)"
+	@echo "  $(GREEN)make sdk-typescript-build$(RESET)    Build TypeScript SDK (sdks/typescript)"
+	@echo "  $(GREEN)make sdk-typescript-publish$(RESET)  Publish TypeScript SDK (sdks/typescript) to npm"
+	@echo "  $(GREEN)make sdk-typescript-version$(RESET)  Update TypeScript SDK version (VERSION=...)"
+	@echo "  $(GREEN)make sdk-java-build$(RESET)         Build Java SDK (sdks/java)"
+	@echo "  $(GREEN)make sdk-java-publish$(RESET)       Publish Java SDK (sdks/java) to Maven Central"
+	@echo "  $(GREEN)make sdk-java-version$(RESET)       Update Java SDK version (VERSION=...)"
+	@echo "  $(GREEN)make sdk-kotlin-build$(RESET)       Build Kotlin SDK (sdks/kotlin)"
+	@echo "  $(GREEN)make sdk-kotlin-publish$(RESET)     Publish Kotlin SDK (sdks/kotlin) to Maven Central"
+	@echo "  $(GREEN)make sdk-kotlin-version$(RESET)     Update Kotlin SDK version (VERSION=...)"
+	@echo ""
 	@echo "$(BOLD)$(BLUE)🧹 Maintenance$(RESET)"
 	@echo "  $(GREEN)make clean$(RESET)        Clean build artifacts"
 	@echo "  $(GREEN)make lint$(RESET)         Lint all code"
@@ -190,6 +321,21 @@ help: ## Show this help message
 # ============================================================================
 # Dependency Checks
 # ============================================================================
+
+# ============================================================================
+# SDKs (Language-specific)
+# ============================================================================
+
+.PHONY: sdk-rust-build sdk-rust-publish
+
+sdk-rust-build: ## Build the Rust SDK (sdks/rust)
+	@echo "$(BOLD)$(BLUE)🔨 Building Rust SDK (sdks/rust)$(RESET)"
+	cd sdks/rust && cargo build --release
+
+sdk-rust-publish: ## Publish the Rust SDK (sdks/rust) to crates.io
+	@echo "$(BOLD)$(BLUE)🚀 Publishing Rust SDK (sdks/rust) to crates.io$(RESET)"
+	cd sdks/rust && cargo publish
+
 
 
 check-deps: ## Check that required dependencies are installed

@@ -1,5 +1,5 @@
 {
-  "name": "@edgequake/sdk",
+  "name": "edgequake-sdk",
   "version": "0.1.0",
   "description": "Official TypeScript/JavaScript SDK for EdgeQuake RAG API",
   "type": "module",
@@ -46,8 +46,15 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/raphaelmansuy/edgequake",
+    "url": "git+https://github.com/raphaelmansuy/edgequake.git",
     "directory": "sdks/typescript"
+  },
+  "bugs": {
+    "url": "https://github.com/raphaelmansuy/edgequake/issues"
+  },
+  "homepage": "https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/sdks/typescript#readme",
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=18.0.0"

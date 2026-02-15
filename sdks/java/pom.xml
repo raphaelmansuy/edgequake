@@ -20,6 +20,30 @@
         </license>
     </licenses>
 
+    <developers>
+        <developer>
+            <name>EdgeQuake Contributors</name>
+            <url>https://github.com/edgequake</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <url>https://github.com/edgequake/edgequake</url>
+        <connection>scm:git:https://github.com/edgequake/edgequake.git</connection>
+        <developerConnection>scm:git:git@github.com:edgequake/edgequake.git</developerConnection>
+    </scm>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh</id>
+            <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>ossrh</id>
+            <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
+
     <properties>
         <!-- WHY: Java 17 LTS for broad compatibility (OODA-01) -->
         <maven.compiler.source>17</maven.compiler.source>

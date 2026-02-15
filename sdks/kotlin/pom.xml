@@ -11,6 +11,38 @@
 
     <name>EdgeQuake Kotlin SDK</name>
     <description>Kotlin SDK for the EdgeQuake RAG API</description>
+    <url>https://github.com/edgequake/edgequake</url>
+
+    <licenses>
+        <license>
+            <name>Apache License 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>EdgeQuake Contributors</name>
+            <url>https://github.com/edgequake</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <url>https://github.com/edgequake/edgequake</url>
+        <connection>scm:git:https://github.com/edgequake/edgequake.git</connection>
+        <developerConnection>scm:git:git@github.com:edgequake/edgequake.git</developerConnection>
+    </scm>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh</id>
+            <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>ossrh</id>
+            <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
 
     <properties>
         <kotlin.version>2.1.10</kotlin.version>
