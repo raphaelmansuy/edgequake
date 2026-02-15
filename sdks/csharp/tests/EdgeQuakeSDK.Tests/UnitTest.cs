@@ -1833,3 +1833,252 @@ public class StreamingTests
         Assert.Contains("conversation_id", mock.LastCall!.Body!);
     }
 }
+
+/// <summary>OODA-47: Additional edge case tests for comprehensive coverage.</summary>
+public class OODA47EdgeCaseTests
+{
+    private static (HttpHelper http, MockHttpMessageHandler mock) MockHelperWithCalls(
+        string json = "{}", HttpStatusCode status = HttpStatusCode.OK)
+    {
+        var handler = new MockHttpMessageHandler(json, status);
+        var http = new HttpHelper(new EdgeQuakeConfig(), handler);
+        return (http, handler);
+    }
+
+    [Fact]
+    public async Task Documents_Get_NotFound()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""error"":""not found""}", HttpStatusCode.NotFound);
+        var svc = new DocumentService(http);
+        await Assert.ThrowsAsync<EdgeQuakeException>(() => svc.GetAsync("nonexistent"));
+    }
+
+    [Fact]
+    public async Task Entities_Create_Success()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""id"":""e1"",""name"":""Test Entity"",""type"":""PERSON""}");
+        var svc = new EntityService(http);
+        await svc.CreateAsync("Test Entity", "PERSON", "A test entity", "doc-1");
+        Assert.Equal(HttpMethod.Post, mock.LastCall!.Method);
+    }
+
+    [Fact]
+    public async Task Entities_List_Paginated()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""items"":[{""id"":""e1""}]}");
+        var svc = new EntityService(http);
+        await svc.ListAsync(page: 2, pageSize: 50);
+        Assert.Contains("page=2", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Graph_Get_Success()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""nodes"":[],""edges"":[]}");
+        var svc = new GraphService(http);
+        await svc.GetAsync();
+        Assert.Contains("/graph", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Pipeline_Status_Idle()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""is_busy"":false,""pending_tasks"":0}");
+        var svc = new PipelineService(http);
+        var status = await svc.StatusAsync();
+        Assert.NotNull(status);
+    }
+
+    [Fact]
+    public async Task Pipeline_Status_Busy()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""is_busy"":true,""pending_tasks"":5}");
+        var svc = new PipelineService(http);
+        var status = await svc.StatusAsync();
+        Assert.NotNull(status);
+    }
+
+    [Fact]
+    public async Task Tasks_Get_Completed()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""track_id"":""t1"",""status"":""completed""}");
+        var svc = new TaskService(http);
+        var task = await svc.GetAsync("t1");
+        Assert.NotNull(task);
+    }
+
+    [Fact]
+    public async Task Tasks_Cancel_Success()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""success"":true}");
+        var svc = new TaskService(http);
+        await svc.CancelAsync("t1");
+        Assert.Contains("/cancel", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Models_List_Empty()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""models"":[]}");
+        var svc = new ModelService(http);
+        await svc.ListAsync();
+        Assert.Contains("/models/list", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Models_HealthAsync()
+    {
+        var (http, mock) = MockHelperWithCalls(@"[{""provider"":""ollama"",""healthy"":true}]");
+        var svc = new ModelService(http);
+        await svc.HealthAsync();
+        Assert.Contains("/health", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Costs_Summary_Monthly()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""total_cost_usd"":100.50,""document_count"":50}");
+        var svc = new CostService(http);
+        await svc.SummaryAsync();
+        Assert.Contains("/summary", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Folders_List_Empty()
+    {
+        var (http, mock) = MockHelperWithCalls(@"[]");
+        var svc = new FolderService(http);
+        await svc.ListAsync();
+        Assert.Equal(HttpMethod.Get, mock.LastCall!.Method);
+    }
+
+    [Fact]
+    public async Task Folders_Create_Success()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""id"":""f1"",""name"":""TestFolder""}");
+        var svc = new FolderService(http);
+        await svc.CreateAsync("TestFolder");
+        Assert.Contains("name", mock.LastCall!.Body!);
+    }
+
+    [Fact]
+    public async Task Conversations_Search()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""conversations"":[]}");
+        var svc = new ConversationService(http);
+        await svc.SearchAsync("query");
+        Assert.Contains("/search", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Tenants_Get_Success()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""id"":""t1"",""name"":""Test Tenant""}");
+        var svc = new TenantService(http);
+        await svc.GetAsync("t1");
+        Assert.Contains("/tenants/t1", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Users_List_Empty()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""users"":[]}");
+        var svc = new UserService(http);
+        await svc.ListAsync();
+        Assert.Equal(HttpMethod.Get, mock.LastCall!.Method);
+    }
+}
+
+/// <summary>OODA-47: Data validation tests.</summary>
+public class OODA47ValidationTests
+{
+    private static (HttpHelper http, MockHttpMessageHandler mock) MockHelperWithCalls(
+        string json = "{}", HttpStatusCode status = HttpStatusCode.OK)
+    {
+        var handler = new MockHttpMessageHandler(json, status);
+        var http = new HttpHelper(new EdgeQuakeConfig(), handler);
+        return (http, handler);
+    }
+
+    [Fact]
+    public async Task Document_Upload_ValidatesContent()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""id"":""d1"",""title"":""Test""}");
+        var svc = new DocumentService(http);
+        await svc.UploadTextAsync("Test content", "Test Document");
+        Assert.Contains("content", mock.LastCall!.Body!);
+    }
+
+    [Fact]
+    public async Task Entity_Merge_TwoEntities()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""id"":""merged-1""}");
+        var svc = new EntityService(http);
+        await svc.MergeAsync("e1", "e2");
+        Assert.Contains("/merge", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Relationships_Create_Success()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""id"":""r1""}");
+        var svc = new RelationshipService(http);
+        await svc.CreateAsync("e1", "e2", new[] { "works" }, "Employment relation");
+        Assert.Equal(HttpMethod.Post, mock.LastCall!.Method);
+    }
+
+    [Fact]
+    public async Task Relationships_ListPaginated()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""items"":[]}");
+        var svc = new RelationshipService(http);
+        await svc.ListAsync(page: 2, pageSize: 50);
+        Assert.Contains("page=2", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task ApiKeys_List_Empty()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""keys"":[]}");
+        var svc = new ApiKeyService(http);
+        await svc.ListAsync();
+        Assert.Contains("/api-keys", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task ApiKeys_Revoke()
+    {
+        var (http, mock) = MockHelperWithCalls(@"", HttpStatusCode.NoContent);
+        var svc = new ApiKeyService(http);
+        await svc.RevokeAsync("key-1");
+        Assert.Equal(HttpMethod.Delete, mock.LastCall!.Method);
+        Assert.Contains("/api-keys/key-1", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Graph_Stats_Success()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""node_count"":100,""edge_count"":250}");
+        var svc = new GraphService(http);
+        await svc.StatsAsync();
+        Assert.Contains("/stats", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Graph_SearchNodes()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""nodes"":[]}");
+        var svc = new GraphService(http);
+        await svc.SearchAsync("test query");
+        Assert.Contains("/search", mock.LastCall!.Url);
+    }
+
+    [Fact]
+    public async Task Relationships_Types()
+    {
+        var (http, mock) = MockHelperWithCalls(@"{""types"":[""WORKS_FOR"",""LOCATED_IN""]}");
+        var svc = new RelationshipService(http);
+        await svc.TypesAsync();
+        Assert.Contains("/types", mock.LastCall!.Url);
+    }
+}
