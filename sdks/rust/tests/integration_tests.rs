@@ -2017,4 +2017,369 @@ mod tests {
         let val = client.workspaces().reprocess_documents("ws1").await.unwrap();
         assert_eq!(val["reprocessed"], 5);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OODA-41: Additional Test Coverage (22 new tests)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ── Users (missing: list, get, delete) ─────────────────────────────
+
+    #[tokio::test]
+    async fn test_users_list() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/users"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"id": "u1", "username": "alice", "email": "a@b.com", "role": "user"},
+                {"id": "u2", "username": "bob", "email": "b@c.com", "role": "admin"}
+            ])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let users = client.users().list().await.unwrap();
+        assert_eq!(users.len(), 2);
+        assert_eq!(users[0].username, Some("alice".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_users_get() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/users/u1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "u1", "username": "alice", "email": "a@b.com", "role": "user"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let user = client.users().get("u1").await.unwrap();
+        assert_eq!(user.id, "u1");
+        assert_eq!(user.username, Some("alice".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_users_delete() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/users/u1"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        assert!(client.users().delete("u1").await.is_ok());
+    }
+
+    // ── API Keys (missing: list) ───────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_api_keys_list() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/api-keys"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"id": "ak1", "name": "prod-key", "created_at": "2026-01-01"},
+                {"id": "ak2", "name": "dev-key", "created_at": "2026-01-02"}
+            ])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let keys = client.api_keys().list().await.unwrap();
+        assert_eq!(keys.len(), 2);
+        assert_eq!(keys[0].name, Some("prod-key".to_string()));
+    }
+
+    // ── Tenants (missing: get, delete) ─────────────────────────────────
+
+    #[tokio::test]
+    async fn test_tenants_get() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/tenants/t1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "t1", "name": "Acme Corp", "slug": "acme", "plan": "enterprise"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let tenant = client.tenants().get("t1").await.unwrap();
+        assert_eq!(tenant.id, "t1");
+        assert_eq!(tenant.name, "Acme Corp");
+    }
+
+    #[tokio::test]
+    async fn test_tenants_delete() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/tenants/t1"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        assert!(client.tenants().delete("t1").await.is_ok());
+    }
+
+    // ── Folders (missing: list, delete) ────────────────────────────────
+
+    #[tokio::test]
+    async fn test_folders_list() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/folders"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"id": "f1", "name": "Projects", "color": "#ff0000"},
+                {"id": "f2", "name": "Archive", "color": "#00ff00"}
+            ])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let folders = client.folders().list().await.unwrap();
+        assert_eq!(folders.len(), 2);
+        assert_eq!(folders[0].name, "Projects");
+    }
+
+    #[tokio::test]
+    async fn test_folders_delete() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/folders/f1"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        assert!(client.folders().delete("f1").await.is_ok());
+    }
+
+    // ── Chunks (missing: get, get_lineage) ─────────────────────────────
+
+    #[tokio::test]
+    async fn test_chunks_get() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/chunks/ch1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "ch1", "document_id": "doc1", "index": 0, "content": "Hello world"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let chunk = client.chunks().get("ch1").await.unwrap();
+        assert_eq!(chunk.id, "ch1");
+        assert_eq!(chunk.content.as_deref(), Some("Hello world"));
+    }
+
+    #[tokio::test]
+    async fn test_chunks_get_lineage() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/chunks/ch1/lineage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "chunk_id": "ch1",
+                "document_id": "doc1",
+                "start_line": 10,
+                "end_line": 20
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let lineage = client.chunks().get_lineage("ch1").await.unwrap();
+        assert_eq!(lineage.chunk_id, "ch1");
+        assert_eq!(lineage.document_id.as_deref(), Some("doc1"));
+    }
+
+    // ── Documents (missing: status, scan, deletion_impact, get_lineage, get_metadata) ─
+
+    #[tokio::test]
+    async fn test_documents_status() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/doc1/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "track_id": "trk1", "status": "completed", "progress": 1.0
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let status = client.documents().status("doc1").await.unwrap();
+        assert_eq!(status.status, "completed");
+    }
+
+    #[tokio::test]
+    async fn test_documents_scan() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/documents/scan"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "files_found": 5, "files_queued": 3, "files_skipped": 2
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let req = types::documents::ScanRequest {
+            path: "/data/docs".into(),
+            recursive: Some(true),
+            extensions: None,
+        };
+        let resp = client.documents().scan(&req).await.unwrap();
+        assert_eq!(resp.files_found, 5);
+    }
+
+    #[tokio::test]
+    async fn test_documents_deletion_impact() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/doc1/deletion-impact"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "chunk_count": 10,
+                "entity_count": 5,
+                "relationship_count": 3
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let impact = client.documents().deletion_impact("doc1").await.unwrap();
+        assert_eq!(impact.chunk_count, 10);
+    }
+
+    #[tokio::test]
+    async fn test_documents_get_lineage() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/doc1/lineage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "document_id": "doc1",
+                "chunks": [{"id": "ch1", "index": 0}],
+                "entities": [{"name": "ALICE", "type": "person"}],
+                "relationships": []
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let lineage = client.documents().get_lineage("doc1").await.unwrap();
+        assert_eq!(lineage.document_id, "doc1");
+    }
+
+    #[tokio::test]
+    async fn test_documents_get_metadata() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/doc1/metadata"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "author": "John Doe",
+                "category": "research",
+                "tags": ["AI", "ML"]
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let meta = client.documents().get_metadata("doc1").await.unwrap();
+        assert_eq!(meta["author"], "John Doe");
+    }
+
+    // ── Conversations (missing: list, get, delete, list_messages, pin, unpin) ─
+
+    #[tokio::test]
+    async fn test_conversations_list() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/conversations"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"id": "c1", "title": "Chat 1"},
+                {"id": "c2", "title": "Chat 2"}
+            ])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let convos = client.conversations().list().await.unwrap();
+        assert_eq!(convos.len(), 2);
+        assert_eq!(convos[0].title, Some("Chat 1".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_conversations_get() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/conversations/c1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "c1", "title": "My Chat", "messages": [], "created_at": "2026-01-01"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let convo = client.conversations().get("c1").await.unwrap();
+        assert_eq!(convo.id, "c1");
+    }
+
+    #[tokio::test]
+    async fn test_conversations_delete() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/conversations/c1"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        assert!(client.conversations().delete("c1").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_conversations_list_messages() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/conversations/c1/messages"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"id": "m1", "role": "user", "content": "Hello"},
+                {"id": "m2", "role": "assistant", "content": "Hi!"}
+            ])))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let msgs = client.conversations().list_messages("c1").await.unwrap();
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].content, "Hello");
+    }
+
+    #[tokio::test]
+    async fn test_conversations_pin() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/conversations/c1/pin"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        assert!(client.conversations().pin("c1").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_conversations_unpin() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/conversations/c1/pin"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        assert!(client.conversations().unpin("c1").await.is_ok());
+    }
+
+    // ── Auth (missing: refresh) ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_auth_refresh() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/refresh"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": "new-tok-123",
+                "refresh_token": "new-ref-456"
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let req = types::auth::RefreshRequest {
+            refresh_token: "old-ref-token".into(),
+        };
+        let token = client.auth().refresh(&req).await.unwrap();
+        assert_eq!(token.access_token, "new-tok-123");
+    }
 }
