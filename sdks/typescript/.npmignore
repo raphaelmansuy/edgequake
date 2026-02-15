@@ -1,0 +1,15 @@
+# Ignore test, config, and dev files
+src/
+tests/
+node_modules/
+tsconfig.json	tsup.config.ts
+vitest.config.ts
+*.test.ts
+*.spec.ts
+coverage/
+.git/
+.github/
+.vscode/
+.env
+*.log
+package-lock.json
