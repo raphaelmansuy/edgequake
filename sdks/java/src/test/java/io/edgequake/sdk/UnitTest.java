@@ -14,6 +14,7 @@ import org.junit.jupiter.api.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Comprehensive unit tests for all Java SDK services.
@@ -1977,4 +1978,313 @@ class UnitTest {
         var result = svc.completionsWithConversation("c1", "Hello");
         assertEquals("Response", result.content);
     }
+
+    // ── OODA-40: Document Extended Tests ────────────────────────────
+
+    @Test
+    void documentGetMetadata() {
+        fake.respondWith("{\"document_id\":\"d1\",\"metadata\":{\"author\":\"John\",\"category\":\"research\"}}");
+        var svc = new DocumentService(http);
+        var result = svc.getMetadata("d1");
+        assertEquals("d1", result.documentId);
+        assertEquals("John", result.metadata.get("author"));
+    }
+
+    @Test
+    void documentGetMetadataEmpty() {
+        fake.respondWith("{\"document_id\":\"d1\",\"metadata\":{}}");
+        var svc = new DocumentService(http);
+        var result = svc.getMetadata("d1");
+        assertTrue(result.metadata.isEmpty());
+    }
+
+    @Test
+    void documentSetMetadata() {
+        fake.respondWith("{\"document_id\":\"d1\",\"metadata\":{\"tags\":[\"AI\"]}}");
+        var svc = new DocumentService(http);
+        var result = svc.setMetadata("d1", Map.of("tags", List.of("AI")));
+        assertTrue(fake.lastRequest().uri().contains("/metadata"));
+    }
+
+    @Test
+    void documentSetMetadataPartial() {
+        fake.respondWith("{\"document_id\":\"d1\",\"metadata\":{\"category\":\"updated\"}}");
+        var svc = new DocumentService(http);
+        svc.setMetadata("d1", Map.of("category", "updated"));
+        assertEquals("PATCH", fake.lastRequest().method());
+    }
+
+    @Test
+    void documentFailedChunks() {
+        fake.respondWith("{\"document_id\":\"d1\",\"chunks\":[{\"id\":\"c1\",\"error\":\"timeout\"}],\"total\":1}");
+        var svc = new DocumentService(http);
+        var result = svc.failedChunks("d1");
+        assertEquals(1, result.total);
+        assertEquals("timeout", result.chunks.get(0).error);
+    }
+
+    @Test
+    void documentFailedChunksEmpty() {
+        fake.respondWith("{\"document_id\":\"d1\",\"chunks\":[],\"total\":0}");
+        var svc = new DocumentService(http);
+        var result = svc.failedChunks("d1");
+        assertEquals(0, result.total);
+    }
+
+    @Test
+    void documentRetryChunks() {
+        fake.respondWith("{\"status\":\"queued\",\"message\":\"Retrying 5 chunks\"}");
+        var svc = new DocumentService(http);
+        var result = svc.retryChunks("d1");
+        assertEquals("queued", result.status);
+    }
+
+    @Test
+    void documentRetryChunksNone() {
+        fake.respondWith("{\"status\":\"completed\",\"message\":\"No failed chunks\"}");
+        var svc = new DocumentService(http);
+        var result = svc.retryChunks("d1");
+        assertEquals("completed", result.status);
+    }
+
+    // ── OODA-40: User Extended Tests ────────────────────────────────
+
+    @Test
+    void userUpdate() {
+        fake.respondWith("{\"id\":\"u1\",\"username\":\"updated_user\",\"email\":\"new@example.com\"}");
+        var svc = new UserService(http);
+        var result = svc.update("u1", Map.of("email", "new@example.com"));
+        assertEquals("PUT", fake.lastRequest().method());
+        assertEquals("updated_user", result.username);
+    }
+
+    @Test
+    void userUpdatePartial() {
+        fake.respondWith("{\"id\":\"u1\",\"username\":\"newname\"}");
+        var svc = new UserService(http);
+        svc.update("u1", Map.of("username", "newname"));
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/users/u1"));
+    }
+
+    @Test
+    void userDelete() {
+        fake.respondWith("");
+        var svc = new UserService(http);
+        svc.delete("u1");
+        assertEquals("DELETE", fake.lastRequest().method());
+    }
+
+    @Test
+    void userDeleteNotFound() {
+        fake.respondWithError(404, "{\"error\":\"not found\"}");
+        var svc = new UserService(http);
+        assertThrows(RuntimeException.class, () -> svc.delete("missing"));
+    }
+
+    // ── OODA-40: Conversation Extended Tests ────────────────────────
+
+    @Test
+    void conversationUpdate() {
+        fake.respondWith("{\"id\":\"c1\",\"title\":\"Updated Title\"}");
+        var svc = new ConversationService(http);
+        var result = svc.update("c1", Map.of("title", "Updated Title"));
+        assertEquals("c1", result.id);
+    }
+
+    @Test
+    void conversationUpdatePinned() {
+        fake.respondWith("{\"id\":\"c1\",\"is_pinned\":true}");
+        var svc = new ConversationService(http);
+        svc.update("c1", Map.of("is_pinned", true));
+        assertEquals("PATCH", fake.lastRequest().method());
+    }
+
+    @Test
+    void conversationListMessages() {
+        fake.respondWith("{\"messages\":[{\"id\":\"m1\",\"content\":\"Hello\"}],\"total\":1}");
+        var svc = new ConversationService(http);
+        var result = svc.listMessages("c1");
+        assertEquals(1, result.total);
+        assertEquals("Hello", result.messages.get(0).content);
+    }
+
+    @Test
+    void conversationListMessagesEmpty() {
+        fake.respondWith("{\"messages\":[],\"total\":0}");
+        var svc = new ConversationService(http);
+        var result = svc.listMessages("c1");
+        assertTrue(result.messages.isEmpty());
+    }
+
+    @Test
+    void conversationUpdateMessage() {
+        fake.respondWith("{\"id\":\"m1\",\"content\":\"Updated\",\"role\":\"user\"}");
+        var svc = new ConversationService(http);
+        var result = svc.updateMessage("c1", "m1", "Updated");
+        assertEquals("Updated", result.content);
+    }
+
+    @Test
+    void conversationUpdateMessagePreservesRole() {
+        fake.respondWith("{\"id\":\"m1\",\"content\":\"New text\",\"role\":\"assistant\"}");
+        var svc = new ConversationService(http);
+        var result = svc.updateMessage("c1", "m1", "New text");
+        assertEquals("assistant", result.role);
+    }
+
+    @Test
+    void conversationDeleteMessage() {
+        fake.respondWith("");
+        var svc = new ConversationService(http);
+        svc.deleteMessage("c1", "m1");
+        assertTrue(fake.lastRequest().uri().contains("/messages/m1"));
+    }
+
+    @Test
+    void conversationDeleteMessagePath() {
+        fake.respondWith("");
+        var svc = new ConversationService(http);
+        svc.deleteMessage("c1", "m1");
+        assertEquals("DELETE", fake.lastRequest().method());
+    }
+
+    @Test
+    void conversationUnshare() {
+        fake.respondWith("");
+        var svc = new ConversationService(http);
+        svc.unshare("c1");
+        assertTrue(fake.lastRequest().uri().contains("/share"));
+    }
+
+    @Test
+    void conversationBulkArchive() {
+        fake.respondWith("{\"deleted_count\":3}");
+        var svc = new ConversationService(http);
+        var result = svc.bulkArchive(List.of("c1", "c2", "c3"));
+        assertEquals(3, result.deletedCount);
+    }
+
+    @Test
+    void conversationBulkArchiveEmpty() {
+        fake.respondWith("{\"deleted_count\":0}");
+        var svc = new ConversationService(http);
+        var result = svc.bulkArchive(List.of());
+        assertEquals(0, result.deletedCount);
+    }
+
+    @Test
+    void conversationBulkMove() {
+        fake.respondWith("{\"deleted_count\":2}");
+        var svc = new ConversationService(http);
+        var result = svc.bulkMove(List.of("c1", "c2"), "folder1");
+        assertEquals(2, result.deletedCount);
+    }
+
+    @Test
+    void conversationBulkMoveEndpoint() {
+        fake.respondWith("{\"deleted_count\":1}");
+        var svc = new ConversationService(http);
+        svc.bulkMove(List.of("c1"), "f1");
+        assertTrue(fake.lastRequest().uri().contains("/bulk/move"));
+    }
+
+    @Test
+    void conversationImport() {
+        fake.respondWith("{\"id\":\"c-new\",\"title\":\"Imported\"}");
+        var svc = new ConversationService(http);
+        var result = svc.importConversation(Map.of("title", "Imported", "messages", List.of()));
+        assertEquals("Imported", result.title);
+    }
+
+    @Test
+    void conversationImportEndpoint() {
+        fake.respondWith("{\"id\":\"c1\"}");
+        var svc = new ConversationService(http);
+        svc.importConversation(Map.of());
+        assertTrue(fake.lastRequest().uri().contains("/import"));
+    }
+
+    // ── OODA-40: Workspace Extended Tests ────────────────────────────
+
+    @Test
+    void workspaceUpdate() {
+        fake.respondWith("{\"id\":\"ws1\",\"name\":\"Updated\"}");
+        var svc = new WorkspaceService(http);
+        var result = svc.update("ws1", Map.of("name", "Updated"));
+        assertEquals("PUT", fake.lastRequest().method());
+    }
+
+    @Test
+    void workspaceUpdateFields() {
+        fake.respondWith("{\"id\":\"ws1\",\"description\":\"New desc\"}");
+        var svc = new WorkspaceService(http);
+        svc.update("ws1", Map.of("description", "New desc"));
+        assertTrue(fake.lastRequest().uri().contains("/api/v1/workspaces/ws1"));
+    }
+
+    @Test
+    void workspaceDelete() {
+        fake.respondWith("");
+        var svc = new WorkspaceService(http);
+        svc.delete("ws1");
+        assertEquals("DELETE", fake.lastRequest().method());
+    }
+
+    @Test
+    void workspaceDeletePath() {
+        fake.respondWith("");
+        var svc = new WorkspaceService(http);
+        svc.delete("ws-uuid-1234");
+        assertTrue(fake.lastRequest().uri().contains("ws-uuid-1234"));
+    }
+
+    @Test
+    void workspaceMetricsHistory() {
+        fake.respondWith("{\"metrics\":[{\"date\":\"2026-01-15\",\"documents\":100,\"entities\":500}]}");
+        var svc = new WorkspaceService(http);
+        var result = svc.metricsHistory("ws1");
+        assertEquals(1, result.metrics.size());
+        assertEquals(100, result.metrics.get(0).documents);
+    }
+
+    @Test
+    void workspaceMetricsHistoryEmpty() {
+        fake.respondWith("{\"metrics\":[]}");
+        var svc = new WorkspaceService(http);
+        var result = svc.metricsHistory("ws1");
+        assertTrue(result.metrics.isEmpty());
+    }
+
+    @Test
+    void workspaceRebuildKnowledgeGraph() {
+        fake.respondWith("{\"status\":\"queued\",\"track_id\":\"t-123\"}");
+        var svc = new WorkspaceService(http);
+        var result = svc.rebuildKnowledgeGraph("ws1");
+        assertEquals("t-123", result.trackId);
+    }
+
+    @Test
+    void workspaceRebuildKnowledgeGraphPath() {
+        fake.respondWith("{\"status\":\"queued\"}");
+        var svc = new WorkspaceService(http);
+        svc.rebuildKnowledgeGraph("ws1");
+        assertTrue(fake.lastRequest().uri().contains("/rebuild-knowledge-graph"));
+    }
+
+    @Test
+    void workspaceReprocessDocuments() {
+        fake.respondWith("{\"status\":\"queued\",\"message\":\"Reprocessing 10 documents\"}");
+        var svc = new WorkspaceService(http);
+        var result = svc.reprocessDocuments("ws1");
+        assertEquals("queued", result.status);
+    }
+
+    @Test
+    void workspaceReprocessDocumentsPath() {
+        fake.respondWith("{\"status\":\"started\"}");
+        var svc = new WorkspaceService(http);
+        svc.reprocessDocuments("ws1");
+        assertTrue(fake.lastRequest().uri().contains("/reprocess-documents"));
+    }
 }
+

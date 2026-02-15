@@ -239,4 +239,25 @@ public class AuthModels {
         @JsonProperty("message") public String message;
         @JsonProperty("track_id") public String trackId;
     }
+
+    // ── OODA-40: Additional models ───────────────────────────────────
+
+    /** Message list response. */
+    public static class MessageListResponse {
+        @JsonProperty("messages") public List<Message> messages;
+        @JsonProperty("total") public int total;
+    }
+
+    /** Workspace metrics history response. */
+    public static class MetricsHistoryResponse {
+        @JsonProperty("metrics") public List<WorkspaceMetric> metrics;
+    }
+
+    /** Workspace metric. */
+    public static class WorkspaceMetric {
+        @JsonProperty("date") public String date;
+        @JsonProperty("documents") public int documents;
+        @JsonProperty("entities") public int entities;
+        @JsonProperty("queries") public int queries;
+    }
 }

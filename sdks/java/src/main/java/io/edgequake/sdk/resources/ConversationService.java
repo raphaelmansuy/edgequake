@@ -61,4 +61,49 @@ public class ConversationService {
     public void unpin(String id) {
         http.patch("/api/v1/conversations/" + id, Map.of("is_pinned", false));
     }
+
+    // ── OODA-40: Additional conversation methods ─────────────────────
+
+    /** Update conversation. */
+    public ConversationInfo update(String id, Map<String, Object> data) {
+        return http.patch("/api/v1/conversations/" + id, data, ConversationInfo.class);
+    }
+
+    /** List messages in conversation. */
+    public MessageListResponse listMessages(String conversationId) {
+        return http.get("/api/v1/conversations/" + conversationId + "/messages", null, MessageListResponse.class);
+    }
+
+    /** Update a message. */
+    public Message updateMessage(String conversationId, String messageId, String content) {
+        return http.patch("/api/v1/conversations/" + conversationId + "/messages/" + messageId,
+                Map.of("content", content), Message.class);
+    }
+
+    /** Delete a message. */
+    public void deleteMessage(String conversationId, String messageId) {
+        http.delete("/api/v1/conversations/" + conversationId + "/messages/" + messageId);
+    }
+
+    /** Unshare a conversation. */
+    public void unshare(String id) {
+        http.delete("/api/v1/conversations/" + id + "/share");
+    }
+
+    /** Bulk archive conversations. */
+    public BulkDeleteResponse bulkArchive(List<String> ids) {
+        return http.post("/api/v1/conversations/bulk/archive",
+                Map.of("ids", ids), BulkDeleteResponse.class);
+    }
+
+    /** Bulk move conversations to folder. */
+    public BulkDeleteResponse bulkMove(List<String> ids, String folderId) {
+        return http.post("/api/v1/conversations/bulk/move",
+                Map.of("ids", ids, "folder_id", folderId), BulkDeleteResponse.class);
+    }
+
+    /** Import a conversation. */
+    public ConversationInfo importConversation(Map<String, Object> data) {
+        return http.post("/api/v1/conversations/import", data, ConversationInfo.class);
+    }
 }

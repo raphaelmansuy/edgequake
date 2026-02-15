@@ -112,4 +112,27 @@ public class DocumentModels {
         @JsonProperty("status") public String status;
         @JsonProperty("message") public String message;
     }
+
+    // ── OODA-40: Additional document models ─────────────────────────
+
+    /** Document metadata response. */
+    public static class DocumentMetadataResponse {
+        @JsonProperty("document_id") public String documentId;
+        @JsonProperty("metadata") public Map<String, Object> metadata;
+    }
+
+    /** Failed chunks response. */
+    public static class FailedChunksResponse {
+        @JsonProperty("document_id") public String documentId;
+        @JsonProperty("chunks") public List<FailedChunkInfo> chunks;
+        @JsonProperty("total") public int total;
+    }
+
+    /** Failed chunk info. */
+    public static class FailedChunkInfo {
+        @JsonProperty("id") public String id;
+        @JsonProperty("index") public Integer index;
+        @JsonProperty("error") public String error;
+        @JsonProperty("retries") public Integer retries;
+    }
 }

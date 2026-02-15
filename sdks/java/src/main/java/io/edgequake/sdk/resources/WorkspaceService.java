@@ -5,6 +5,7 @@ import io.edgequake.sdk.internal.HttpHelper;
 import io.edgequake.sdk.models.AuthModels.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Workspace operations.
@@ -36,5 +37,32 @@ public class WorkspaceService {
 
     public RebuildResponse rebuildEmbeddings(String id) {
         return http.post("/api/v1/workspaces/" + id + "/rebuild-embeddings", null, RebuildResponse.class);
+    }
+
+    // ── OODA-40: Additional workspace methods ────────────────────────
+
+    /** Update workspace. */
+    public WorkspaceInfo update(String id, Map<String, Object> data) {
+        return http.put("/api/v1/workspaces/" + id, data, WorkspaceInfo.class);
+    }
+
+    /** Delete workspace. */
+    public void delete(String id) {
+        http.delete("/api/v1/workspaces/" + id);
+    }
+
+    /** Get workspace metrics history. */
+    public MetricsHistoryResponse metricsHistory(String id) {
+        return http.get("/api/v1/workspaces/" + id + "/metrics-history", null, MetricsHistoryResponse.class);
+    }
+
+    /** Rebuild knowledge graph. */
+    public RebuildResponse rebuildKnowledgeGraph(String id) {
+        return http.post("/api/v1/workspaces/" + id + "/rebuild-knowledge-graph", null, RebuildResponse.class);
+    }
+
+    /** Reprocess all documents. */
+    public RebuildResponse reprocessDocuments(String id) {
+        return http.post("/api/v1/workspaces/" + id + "/reprocess-documents", null, RebuildResponse.class);
     }
 }

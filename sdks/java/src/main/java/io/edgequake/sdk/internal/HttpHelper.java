@@ -51,6 +51,11 @@ public class HttpHelper {
         return deserialize(body, type);
     }
 
+    // OODA-40: Add getRaw for raw string responses (e.g., metrics).
+    public String getRaw(String path, Map<String, String> params) {
+        return doRequest(buildGet(url(path, params)));
+    }
+
     // ── POST ─────────────────────────────────────────────────────────────
 
     public <T> T post(String path, Object payload, Class<T> type) {
@@ -60,6 +65,11 @@ public class HttpHelper {
 
     public void postNoContent(String path, Object payload) {
         doRequest(buildPost(url(path, null), serialize(payload)));
+    }
+
+    // OODA-40: Add postRaw for raw string responses (e.g., streaming).
+    public String postRaw(String path, Object payload) {
+        return doRequest(buildPost(url(path, null), serialize(payload)));
     }
 
     // ── DELETE ───────────────────────────────────────────────────────────
@@ -79,6 +89,20 @@ public class HttpHelper {
 
     public void patch(String path, Object payload) {
         doRequest(buildPatch(url(path, null), serialize(payload)));
+    }
+
+    // OODA-40: Added patch with response type.
+    public <T> T patch(String path, Object payload, Class<T> type) {
+        var body = doRequest(buildPatch(url(path, null), serialize(payload)));
+        return deserialize(body, type);
+    }
+
+    // ── PUT ──────────────────────────────────────────────────────────────
+
+    // OODA-40: Added PUT method.
+    public <T> T put(String path, Object payload, Class<T> type) {
+        var body = doRequest(buildPut(url(path, null), serialize(payload)));
+        return deserialize(body, type);
     }
 
     // ── Internal ─────────────────────────────────────────────────────────
@@ -140,6 +164,14 @@ public class HttpHelper {
         return baseRequest(url)
                 .header("Content-Type", "application/json")
                 .method("PATCH", HttpRequest.BodyPublishers.ofString(json != null ? json : "{}"))
+                .build();
+    }
+
+    // OODA-40: Added buildPut method.
+    private HttpRequest buildPut(String url, String json) {
+        return baseRequest(url)
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(json != null ? json : "{}"))
                 .build();
     }
 
