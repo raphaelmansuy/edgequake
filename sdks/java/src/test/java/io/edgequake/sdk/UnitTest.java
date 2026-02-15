@@ -2286,5 +2286,155 @@ class UnitTest {
         svc.reprocessDocuments("ws1");
         assertTrue(fake.lastRequest().uri().contains("/reprocess-documents"));
     }
+
+    // ── OODA-44: Additional Edge Case & Model Tests ──────────────────
+
+    @Test
+    void entityListEmptyResult() {
+        fake.respondWith("{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"total_pages\":0}");
+        var svc = new EntityService(http);
+        var result = svc.list(1, 20, null);
+        assertTrue(result.items.isEmpty());
+        assertEquals(0, result.total);
+    }
+
+    @Test
+    void entityListWithFilter() {
+        fake.respondWith("{\"items\":[],\"total\":0}");
+        var svc = new EntityService(http);
+        svc.list(0, 0, "PERSON");
+        assertTrue(fake.lastRequest().uri().contains("entity_type=PERSON"));
+    }
+
+    @Test
+    void entityExistsTrue() {
+        fake.respondWith("{\"exists\":true,\"entity_id\":\"e-123\",\"entity_type\":\"PERSON\"}");
+        var svc = new EntityService(http);
+        var result = svc.exists("TEST_ENTITY");
+        assertTrue(result.exists);
+        assertEquals("e-123", result.entityId);
+    }
+
+    @Test
+    void entityExistsFalse() {
+        fake.respondWith("{\"exists\":false}");
+        var svc = new EntityService(http);
+        var result = svc.exists("MISSING_ENTITY");
+        assertFalse(result.exists);
+        assertNull(result.entityId);
+    }
+
+    @Test
+    void graphGetWithLimit() {
+        fake.respondWith("{\"nodes\":[],\"edges\":[]}");
+        var svc = new GraphService(http);
+        svc.get(50);
+        assertTrue(fake.lastRequest().uri().contains("limit=50"));
+    }
+
+    @Test
+    void graphGetNoLimit() {
+        fake.respondWith("{\"nodes\":[],\"edges\":[]}");
+        var svc = new GraphService(http);
+        svc.get(0);
+        assertFalse(fake.lastRequest().uri().contains("limit"));
+    }
+
+    @Test
+    void documentScanRecursive() {
+        fake.respondWith("{\"files_found\":10,\"files_queued\":8}");
+        var svc = new DocumentService(http);
+        var req = new DocumentModels.ScanRequest();
+        req.path = "/data";
+        req.recursive = true;
+        var result = svc.scan(req);
+        assertEquals(10, result.filesFound);
+    }
+
+    @Test
+    void documentTrackProcessing() {
+        fake.respondWith("{\"track_id\":\"t-abc\",\"status\":\"processing\",\"progress\":45.5}");
+        var svc = new DocumentService(http);
+        var result = svc.track("t-abc");
+        assertEquals("processing", result.status);
+    }
+
+    @Test
+    void documentTrackCompleted() {
+        fake.respondWith("{\"track_id\":\"t-xyz\",\"status\":\"completed\",\"document_id\":\"d-123\"}");
+        var svc = new DocumentService(http);
+        var result = svc.track("t-xyz");
+        assertEquals("completed", result.status);
+        assertEquals("d-123", result.documentId);
+    }
+
+    @Test
+    void modelProviderHealthMultiple() {
+        fake.respondWith("[{\"name\":\"openai\",\"enabled\":true},{\"name\":\"ollama\",\"enabled\":true},{\"name\":\"anthropic\",\"enabled\":false}]");
+        var svc = new ModelService(http);
+        var result = svc.providerHealth();
+        assertEquals(3, result.size());
+        assertTrue(result.get(0).enabled);
+        assertFalse(result.get(2).enabled);
+    }
+
+    @Test
+    void modelProviderHealthEmpty() {
+        fake.respondWith("[]");
+        var svc = new ModelService(http);
+        var result = svc.providerHealth();
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void pipelineStatusRunning() {
+        fake.respondWith("{\"is_busy\":true,\"pending_tasks\":5,\"processing_tasks\":12}");
+        var svc = new PipelineService(http);
+        var result = svc.status();
+        assertTrue(result.isBusy);
+        assertEquals(5, result.pendingTasks);
+    }
+
+    @Test
+    void pipelineStatusIdle() {
+        fake.respondWith("{\"is_busy\":false,\"pending_tasks\":0,\"processing_tasks\":0}");
+        var svc = new PipelineService(http);
+        var result = svc.status();
+        assertFalse(result.isBusy);
+        assertEquals(0, result.pendingTasks);
+    }
+
+    @Test
+    void costHistoryWithDates() {
+        fake.respondWith("[{\"date\":\"2026-01-01\",\"cost_usd\":10.5},{\"date\":\"2026-01-02\",\"cost_usd\":12.3}]");
+        var svc = new CostService(http);
+        var result = svc.history("2026-01-01", "2026-01-02");
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void costHistoryEmpty() {
+        fake.respondWith("[]");
+        var svc = new CostService(http);
+        var result = svc.history(null, null);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void taskListWithStatus() {
+        fake.respondWith("{\"tasks\":[],\"total\":0}");
+        var svc = new TaskService(http);
+        svc.list("completed", 0, 0);
+        assertTrue(fake.lastRequest().uri().contains("status=completed"));
+    }
+
+    @Test
+    void taskCancelSuccess() {
+        fake.respondWith("");
+        var svc = new TaskService(http);
+        svc.cancel("t-cancel");
+        assertEquals("POST", fake.lastRequest().method());
+        assertTrue(fake.lastRequest().uri().contains("/t-cancel/cancel"));
+    }
 }
 
