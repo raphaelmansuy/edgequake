@@ -2,6 +2,8 @@
  * Document management tools.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { readFile } from "fs/promises";
+import { basename, extname } from "path";
 import { z } from "zod";
 import { getClient } from "../client.js";
 import { formatError } from "../errors.js";
@@ -57,6 +59,159 @@ export function registerDocumentTools(server: McpServer): void {
           ],
         };
       } catch (error) {
+        return formatError(error);
+      }
+    },
+  );
+
+  // document_upload_file
+  server.tool(
+    "document_upload_file",
+    "Upload a file from a file path to EdgeQuake for knowledge graph extraction. Supports text files (.txt, .md) and PDFs (.pdf). The file will be read, uploaded, chunked, and entities extracted.",
+    {
+      file_path: z.string().describe("Absolute path to the file to upload"),
+      title: z
+        .string()
+        .optional()
+        .describe("Document title (defaults to filename)"),
+      metadata: z
+        .record(z.unknown())
+        .optional()
+        .describe("Custom metadata key-value pairs"),
+      enable_gleaning: z
+        .boolean()
+        .optional()
+        .describe(
+          "Enable multi-pass extraction for better recall (default: true)",
+        ),
+    },
+    async (params) => {
+      try {
+        const client = await getClient();
+        const fileExt = extname(params.file_path).toLowerCase();
+        const fileName = basename(params.file_path);
+        const title = params.title || fileName;
+
+        // Read file from filesystem
+        const fileBuffer = await readFile(params.file_path);
+
+        // Determine file type and upload accordingly
+        if (fileExt === ".pdf") {
+          // Upload as PDF using pdf.upload
+          const blob = new Blob([fileBuffer], { type: "application/pdf" });
+          // Create a File-like object
+          const file = Object.assign(blob, {
+            name: fileName,
+            lastModified: Date.now(),
+          }) as File;
+
+          const result = await client.documents.pdf.upload(
+            file,
+            params.metadata as Record<string, string> | undefined,
+          );
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  {
+                    document_id: result.pdf_id,
+                    file_name: fileName,
+                    file_type: "pdf",
+                    status: result.status,
+                    track_id: result.track_id,
+                    message:
+                      result.message ||
+                      "PDF uploaded successfully. Use document_status to track processing.",
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } else if (
+          fileExt === ".txt" ||
+          fileExt === ".md" ||
+          fileExt === ".markdown"
+        ) {
+          // Upload as text file using uploadFile
+          const textContent = fileBuffer.toString("utf-8");
+          const blob = new Blob([textContent], { type: "text/plain" });
+          const file = Object.assign(blob, {
+            name: fileName,
+            lastModified: Date.now(),
+          }) as File;
+
+          const result = await client.documents.uploadFile(file);
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  {
+                    document_id: result.document_id,
+                    file_name: fileName,
+                    file_type: fileExt.substring(1),
+                    status: result.status,
+                    track_id: result.track_id,
+                    chunk_count: result.chunk_count,
+                    entity_count: result.entity_count,
+                    relationship_count: result.relationship_count,
+                    message: "File uploaded successfully.",
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  {
+                    error: "Unsupported file type",
+                    message: `File extension '${fileExt}' is not supported. Please use .txt, .md, .markdown, or .pdf files.`,
+                    file_path: params.file_path,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
+      } catch (error) {
+        // Check if it's a file read error
+        if (
+          error instanceof Error &&
+          (error.message.includes("ENOENT") ||
+            error.message.includes("no such file"))
+        ) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  {
+                    error: "File not found",
+                    message: `The file at path '${params.file_path}' does not exist or cannot be accessed.`,
+                    file_path: params.file_path,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
         return formatError(error);
       }
     },

@@ -31,6 +31,16 @@ export async function getClient(): Promise<EdgeQuake> {
         const tenants = await bootstrap.tenants.list();
         if (tenants.length > 0) {
           _config.defaultTenant = tenants[0].id;
+
+          // Security warning: Multi-tenant auto-discovery
+          if (tenants.length > 1) {
+            console.warn(
+              "[EdgeQuake MCP] ⚠️  WARNING: Multiple tenants detected. Auto-selected first tenant.\n" +
+                `  Using tenant: ${_config.defaultTenant}\n` +
+                "  To avoid data isolation issues, explicitly set EDGEQUAKE_DEFAULT_TENANT.\n" +
+                "  See: https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/mcp#multi-tenant-isolation",
+            );
+          }
         }
       } catch {
         // Ignore — will fail later with a clear error when tools are called
@@ -45,6 +55,16 @@ export async function getClient(): Promise<EdgeQuake> {
         );
         if (workspaces.length > 0) {
           _config.defaultWorkspace = workspaces[0].id;
+
+          // Security warning: Multi-workspace auto-discovery
+          if (workspaces.length > 1) {
+            console.warn(
+              "[EdgeQuake MCP] ⚠️  WARNING: Multiple workspaces detected. Auto-selected first workspace.\n" +
+                `  Using workspace: ${_config.defaultWorkspace}\n` +
+                "  To avoid data isolation issues, explicitly set EDGEQUAKE_DEFAULT_WORKSPACE.\n" +
+                "  See: https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/mcp#multi-tenant-isolation",
+            );
+          }
         }
       } catch {
         // Ignore
