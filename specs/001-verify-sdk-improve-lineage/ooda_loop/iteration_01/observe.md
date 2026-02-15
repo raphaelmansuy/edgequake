@@ -9,6 +9,7 @@
 ## 1. Environment Verification
 
 ### Java Version Check
+
 ```text
 Installed: Java 17.0.18 (OpenJDK Homebrew)
 Required by Java SDK: Java 21 (maven.compiler.source=21)
@@ -19,35 +20,35 @@ Required by Java SDK: Java 21 (maven.compiler.source=21)
 
 ## 2. SDK Test File Count
 
-| SDK        | Test Files | Notes                           |
-|------------|------------|-------------------------------- |
-| Python     | 49         | ✅ Comprehensive test suite     |
-| TypeScript | 22         | ✅ Good coverage                |
-| Rust       | 0          | ⚠️ Tests may be inline          |
-| C#         | 0          | ❌ No test files found          |
-| Go         | 3          | ⚠️ Limited test coverage        |
-| Java       | 2          | ⚠️ Minimal tests                |
-| Kotlin     | 4          | ⚠️ Minimal tests                |
-| PHP        | 9          | ⚠️ Some coverage                |
-| Ruby       | 0          | ❌ No test files found          |
-| Swift      | 0          | ❌ No test files found          |
+| SDK        | Test Files | Notes                       |
+| ---------- | ---------- | --------------------------- |
+| Python     | 49         | ✅ Comprehensive test suite |
+| TypeScript | 22         | ✅ Good coverage            |
+| Rust       | 0          | ⚠️ Tests may be inline      |
+| C#         | 0          | ❌ No test files found      |
+| Go         | 3          | ⚠️ Limited test coverage    |
+| Java       | 2          | ⚠️ Minimal tests            |
+| Kotlin     | 4          | ⚠️ Minimal tests            |
+| PHP        | 9          | ⚠️ Some coverage            |
+| Ruby       | 0          | ❌ No test files found      |
+| Swift      | 0          | ❌ No test files found      |
 
 ---
 
 ## 3. SDK Source File Count
 
-| SDK        | Source Files | Directory Structure      |
-|------------|--------------|--------------------------|
-| Python     | 27           | `edgequake/` module      |
-| TypeScript | 48           | `src/` directory         |
-| Rust       | 38           | `src/` directory         |
-| C#         | 11           | `src/` directory         |
-| Go         | ~10          | Root level `.go` files   |
-| Java       | 36           | `src/main/java/io/...`   |
-| Kotlin     | 11           | `src/` directory         |
-| PHP        | 5            | `src/` directory         |
-| Ruby       | N/A          | `lib/` directory         |
-| Swift      | N/A          | `Sources/` directory     |
+| SDK        | Source Files | Directory Structure    |
+| ---------- | ------------ | ---------------------- |
+| Python     | 27           | `edgequake/` module    |
+| TypeScript | 48           | `src/` directory       |
+| Rust       | 38           | `src/` directory       |
+| C#         | 11           | `src/` directory       |
+| Go         | ~10          | Root level `.go` files |
+| Java       | 36           | `src/main/java/io/...` |
+| Kotlin     | 11           | `src/` directory       |
+| PHP        | 5            | `src/` directory       |
+| Ruby       | N/A          | `lib/` directory       |
+| Swift      | N/A          | `Sources/` directory   |
 
 ---
 
@@ -56,6 +57,7 @@ Required by Java SDK: Java 21 (maven.compiler.source=21)
 **Total Routes: 131+ endpoints**
 
 ### Route Categories Identified:
+
 ```text
 Health (4)      : /health, /ready, /live, /metrics
 WebSocket (2)   : /ws/pipeline/progress, /ws/progress/{track_id}
@@ -83,6 +85,7 @@ Models (6)      : list, llm, embedding, health, provider
 ## 5. Java SDK Structure Analysis
 
 ### Directory Structure:
+
 ```
 sdks/java/
 ├── pom.xml                    # Maven build (Java 21 requirement)
@@ -101,6 +104,7 @@ sdks/java/
 ```
 
 ### Critical Issue: Java Version Mismatch
+
 - **pom.xml line 24-25**: `<maven.compiler.source>21</maven.compiler.source>`
 - **Installed JDK**: Java 17.0.18
 - **Action Required**: Downgrade to Java 17 or install Java 21
@@ -110,6 +114,7 @@ sdks/java/
 ## 6. Python SDK Structure (Reference Model)
 
 ### Directory Structure:
+
 ```
 sdks/python/
 ├── edgequake/
@@ -142,6 +147,7 @@ sdks/python/
 ## 7. TypeScript SDK Structure
 
 ### Directory Structure:
+
 ```
 sdks/typescript/
 ├── src/
@@ -159,7 +165,7 @@ sdks/typescript/
 ## 8. Initial SDK Status Summary
 
 | SDK        | Compiles | Tests Run | API Coverage | Metadata | Priority |
-|------------|----------|-----------|--------------|----------|----------|
+| ---------- | -------- | --------- | ------------ | -------- | -------- |
 | Python     | ✅       | ✅ 49     | ~80%         | ✅ Full  | High     |
 | TypeScript | ✅       | ✅ 22     | ~90%         | ✅ Full  | High     |
 | Rust       | ✅       | ⚠️ 0      | ~85%         | ✅ Full  | High     |
@@ -176,17 +182,20 @@ sdks/typescript/
 ## 9. Critical Findings
 
 ### 🚨 BLOCKER: Java SDK Incompatibility
+
 - Java SDK requires JDK 21, but JDK 17 is installed
 - Must resolve before any Java SDK testing/development
 - Options: (1) Upgrade JDK to 21, (2) Downgrade pom.xml to 17
 
 ### ⚠️ Test Coverage Gaps
+
 - Rust: 0 visible test files (may be inline #[test])
 - C#: No test files found
-- Ruby: No test files found  
+- Ruby: No test files found
 - Swift: No test files found
 
 ### ⚠️ Metadata/Lineage Support Missing
+
 - Java: No lineage support
 - Kotlin: No lineage support
 - Swift: No lineage support
@@ -195,13 +204,13 @@ sdks/typescript/
 
 ## 10. Files Examined
 
-| File | Purpose |
-|------|---------|
-| `sdks/java/pom.xml:24-25` | Java version requirement |
-| `edgequake/crates/edgequake-api/src/routes.rs` | 486 lines, 131+ routes |
-| `sdks/python/edgequake/resources/` | Reference SDK structure |
-| `sdks/python/tests/` | 17 test files |
-| `sdks/typescript/` | 48 src, 22 test files |
+| File                                           | Purpose                  |
+| ---------------------------------------------- | ------------------------ |
+| `sdks/java/pom.xml:24-25`                      | Java version requirement |
+| `edgequake/crates/edgequake-api/src/routes.rs` | 486 lines, 131+ routes   |
+| `sdks/python/edgequake/resources/`             | Reference SDK structure  |
+| `sdks/python/tests/`                           | 17 test files            |
+| `sdks/typescript/`                             | 48 src, 22 test files    |
 
 ---
 

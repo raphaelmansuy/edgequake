@@ -29,6 +29,7 @@
 ### 2. Test File Updates
 
 **Files**:
+
 - `sdks/java/src/test/java/io/edgequake/sdk/UnitTest.java`
 - `sdks/java/src/test/java/io/edgequake/sdk/E2ETest.java`
 - `sdks/java/src/test/java/io/edgequake/sdk/FakeHttpClient.java`
@@ -50,6 +51,7 @@
 ## Build Verification
 
 ### Environment
+
 ```text
 JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 Java Version: 17.0.18 (OpenJDK Homebrew)
@@ -57,6 +59,7 @@ Maven Version: 3.9.11
 ```
 
 ### Compile Result
+
 ```text
 [INFO] Compiling 33 source files with javac [debug release 17] to target/classes
 [INFO] BUILD SUCCESS
@@ -64,6 +67,7 @@ Total time: 0.637 s
 ```
 
 ### Test Result
+
 ```text
 [INFO] Running io.edgequake.sdk.UnitTest
 [INFO] Tests run: 230, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.130 s
@@ -80,6 +84,7 @@ Total time: 2.785 s
 **Message**: `OODA-01: Downgrade Java SDK to Java 17 LTS`
 
 **Files Changed**:
+
 1. `sdks/java/pom.xml`
 2. `sdks/java/src/test/java/io/edgequake/sdk/UnitTest.java`
 3. `sdks/java/src/test/java/io/edgequake/sdk/E2ETest.java`
@@ -89,12 +94,12 @@ Total time: 2.785 s
 
 ## Impact Assessment
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Java Version | 21 | 17 |
-| Compilation | ❌ Failed | ✅ Success |
-| Unit Tests | N/A | ✅ 230 pass |
-| E2E Tests | Skipped | Skipped (require backend) |
+| Metric       | Before    | After                     |
+| ------------ | --------- | ------------------------- |
+| Java Version | 21        | 17                        |
+| Compilation  | ❌ Failed | ✅ Success                |
+| Unit Tests   | N/A       | ✅ 230 pass               |
+| E2E Tests    | Skipped   | Skipped (require backend) |
 
 ---
 
