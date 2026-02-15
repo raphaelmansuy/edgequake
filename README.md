@@ -91,6 +91,14 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Document Upload**: Drag-and-drop with progress tracking
 - **Configuration UI**: Visual PDF processing config builder
 
+### 🔌 MCP (Model Context Protocol)
+
+- **Agent Integration**: Expose EdgeQuake capabilities to AI agents via [MCP](https://modelcontextprotocol.io/)
+- **Tool Discovery**: Agents can query, upload, and explore knowledge graphs programmatically
+- **Interoperability**: Works with Claude, Cursor, and other MCP-compatible clients
+
+See [mcp/](mcp/) for server implementation details.
+
 ---
 
 ## Quick Start
@@ -364,6 +372,7 @@ See the [CHANGELOG.md](CHANGELOG.md) for SDK and core updates.
 
 | Integration                                           | Description                          |
 | ----------------------------------------------------- | ------------------------------------ |
+| [MCP Server](mcp/)                                    | Model Context Protocol for AI agents |
 | [OpenWebUI](docs/integrations/open-webui.md)          | Chat interface with Ollama emulation |
 | [LangChain](docs/integrations/langchain.md)           | Retriever and agent integration      |
 | [Custom Clients](docs/integrations/custom-clients.md) | Python, TypeScript, Rust, Go clients |
