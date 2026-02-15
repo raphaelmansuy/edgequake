@@ -284,6 +284,61 @@ describe("DocumentsResource.getMetadata — document metadata", () => {
   });
 });
 
+// ─────────────────────── Document Lineage Export ───────────────────────
+
+describe("DocumentsResource.exportLineage — lineage export (OODA-07)", () => {
+  let mock: ReturnType<typeof createMockTransport>;
+  let docs: DocumentsResource;
+
+  const jsonBlob = new Blob(['{"entities":[],"relationships":[]}'], {
+    type: "application/json",
+  });
+  const csvBlob = new Blob(["entity,type,source\nALICE,PERSON,doc-1"], {
+    type: "text/csv",
+  });
+
+  beforeEach(() => {
+    mock = createMockTransport({
+      "GET /api/v1/documents/doc-1/lineage/export": { blob: jsonBlob },
+      "GET /api/v1/documents/doc-1/lineage/export?format=json": {
+        blob: jsonBlob,
+      },
+      "GET /api/v1/documents/doc-1/lineage/export?format=csv": { blob: csvBlob },
+      "GET /api/v1/documents": { body: { documents: [], total: 0 } },
+    });
+    docs = new DocumentsResource(mock as unknown as HttpTransport);
+  });
+
+  it("exportLineage (default) → GET /api/v1/documents/:id/lineage/export", async () => {
+    const blob = await docs.exportLineage("doc-1");
+    expect(mock.lastRequest?.path).toBe("/api/v1/documents/doc-1/lineage/export");
+    expect(blob).toBeInstanceOf(Blob);
+  });
+
+  it("exportLineage (json) → includes format=json query param", async () => {
+    const blob = await docs.exportLineage("doc-1", { format: "json" });
+    expect(mock.lastRequest?.path).toBe(
+      "/api/v1/documents/doc-1/lineage/export?format=json",
+    );
+    expect(blob).toBeInstanceOf(Blob);
+  });
+
+  it("exportLineage (csv) → includes format=csv query param", async () => {
+    const blob = await docs.exportLineage("doc-1", { format: "csv" });
+    expect(mock.lastRequest?.path).toBe(
+      "/api/v1/documents/doc-1/lineage/export?format=csv",
+    );
+    expect(blob).toBeInstanceOf(Blob);
+  });
+
+  it("exportLineage returns blob that can be converted to text", async () => {
+    const blob = await docs.exportLineage("doc-1", { format: "csv" });
+    const text = await blob.text();
+    expect(text).toContain("entity,type,source");
+    expect(text).toContain("ALICE");
+  });
+});
+
 // ─────────────────────── Chunk Lineage ───────────────────────
 
 describe("ChunksResource.getLineage — chunk lineage", () => {

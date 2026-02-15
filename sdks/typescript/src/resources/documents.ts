@@ -31,7 +31,7 @@ import type {
   UploadDocumentResponse,
   UploadFileResponse,
 } from "../types/documents.js";
-import type { DocumentFullLineageResponse } from "../types/lineage.js";
+import type { DocumentFullLineageResponse, LineageExportOptions } from "../types/lineage.js";
 import { Resource } from "./base.js";
 
 /** PDF sub-resource accessed via `client.documents.pdf`. */
@@ -203,5 +203,43 @@ export class DocumentsResource extends Resource {
    */
   async getMetadata(documentId: string): Promise<Record<string, unknown>> {
     return this._get(`/api/v1/documents/${documentId}/metadata`);
+  }
+
+  /**
+   * Export document lineage as JSON or CSV file.
+   *
+   * WHY: Compliance and data portability — users need lineage exports
+   * for auditing, archival, and integration with external tools.
+   *
+   * @param documentId - The document to export lineage for
+   * @param options - Export options (format: 'json' | 'csv')
+   * @returns Blob containing the exported data (use .text() for string)
+   *
+   * @example
+   * ```typescript
+   * // Export as JSON
+   * const blob = await client.documents.exportLineage(docId);
+   * const json = await blob.text();
+   *
+   * // Export as CSV for spreadsheets
+   * const csvBlob = await client.documents.exportLineage(docId, { format: 'csv' });
+   * const csv = await csvBlob.text();
+   * ```
+   *
+   * @implements OODA-07 — Complete lineage endpoint coverage.
+   */
+  async exportLineage(
+    documentId: string,
+    options?: LineageExportOptions,
+  ): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (options?.format) {
+      params.set("format", options.format);
+    }
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.transport.requestBlob({
+      method: "GET",
+      path: `/api/v1/documents/${documentId}/lineage/export${query}`,
+    });
   }
 }

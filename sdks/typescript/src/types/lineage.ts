@@ -320,3 +320,21 @@ export interface ChunkLineageResponse {
   /** Additional document-level metadata from KV storage. */
   document_metadata?: Record<string, unknown>;
 }
+
+// ============================================================================
+// Lineage Export
+// ============================================================================
+
+/**
+ * Options for lineage export.
+ *
+ * WHY: Export supports multiple formats for different use cases:
+ * - JSON for programmatic access and integration
+ * - CSV for spreadsheet tools and compliance reports
+ *
+ * @see /api/v1/documents/{id}/lineage/export
+ */
+export interface LineageExportOptions {
+  /** Export format: 'json' (default) or 'csv'. */
+  format?: "json" | "csv";
+}
