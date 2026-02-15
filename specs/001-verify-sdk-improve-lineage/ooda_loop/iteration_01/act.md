@@ -1,44 +1,133 @@
-# OODA Iteration 01 — Act: Baseline Test Results & Fixes
+# OODA Iteration 01 - ACT
 
-**Date**: 2026-02-13  
-**Commit**: Pending
+**Date**: 2026-02-15  
+**Mission**: SDK Quality Assurance & Lineage Enhancement  
+**Focus**: Java SDK Java 17 Compatibility Fix
 
-## Actions Taken
+---
 
-### 1. Fixed Python SDK Import Error
-- **File**: `sdks/python/edgequake/types/chat.py` (added `ChatChoice`, `ChatUsage` classes)
-- **File**: `sdks/python/tests/test_types.py` (updated tests to match actual EdgeQuake-native API)
-- **File**: `sdks/python/tests/test_resources_query_chat.py` (fixed 9 tests using `messages=[]` → `message="string"`)
-- **Root Cause**: Tests were written for OpenAI-style API but SDK uses EdgeQuake-native `message` (singular)
+## Changes Implemented
 
-### 2. Test Results (Baseline)
+### 1. pom.xml Updates
 
-| SDK        | Total Tests | Passed | Failed | Skipped | Status |
-|------------|-------------|--------|--------|---------|--------|
-| Python     | 467         | 435    | 0      | 32      | ✅     |
-| TypeScript | 312         | 247    | 0      | 65      | ✅     |
-| Rust       | 55          | 55     | 0      | 0       | ✅     |
-| C#         | TBD         | TBD    | TBD    | TBD     | 🔄     |
-| Go         | TBD         | TBD    | TBD    | TBD     | 🔄     |
-| Java       | TBD         | TBD    | TBD    | TBD     | 🔄     |
-| Kotlin     | TBD         | TBD    | TBD    | TBD     | 🔄     |
-| PHP        | TBD         | TBD    | TBD    | TBD     | 🔄     |
-| Ruby       | TBD         | TBD    | TBD    | TBD     | 🔄     |
-| Swift      | TBD         | TBD    | TBD    | TBD     | 🔄     |
+**File**: `sdks/java/pom.xml`
 
-### 3. Key Findings
+```diff
+- <maven.compiler.source>21</maven.compiler.source>
+- <maven.compiler.target>21</maven.compiler.target>
++ <!-- WHY: Java 17 LTS for broad compatibility (OODA-01) -->
++ <maven.compiler.source>17</maven.compiler.source>
++ <maven.compiler.target>17</maven.compiler.target>
 
-- Python SDK: Most mature, 435 passing tests, comprehensive resource coverage
-- TypeScript SDK: 247 passing unit tests, 65 E2E tests skipped (need live backend)
-- Rust SDK: 55 passing tests, clean `cargo test` — smallest test count but well-structured
-- TypeScript has the most comprehensive resource file coverage (22 files)
-- Rust resources also have 22 files matching TypeScript
+- <release>21</release>
++ <!-- WHY: Java 17 LTS for broad compatibility (OODA-01) -->
++ <release>17</release>
+```
 
-### 4. Files Modified
-- `sdks/python/edgequake/types/chat.py:87-118` — Added `ChatChoice`, `ChatUsage` types
-- `sdks/python/tests/test_types.py:80-103` — Updated chat type tests
-- `sdks/python/tests/test_resources_query_chat.py:200-440` — Fixed 9 chat tests to use `message=`
+**Lines Changed**: 24-25, 62
+
+### 2. Test File Updates
+
+**Files**:
+- `sdks/java/src/test/java/io/edgequake/sdk/UnitTest.java`
+- `sdks/java/src/test/java/io/edgequake/sdk/E2ETest.java`
+- `sdks/java/src/test/java/io/edgequake/sdk/FakeHttpClient.java`
+
+**Change**: Replaced Java 21 SequencedCollection methods with Java 17 alternatives
+
+```diff
+- list.getFirst()
++ list.get(0)
+
+- captured.getLast()
++ captured.get(captured.size() - 1)
+```
+
+**Total Replacements**: 28 occurrences across 3 files
+
+---
+
+## Build Verification
+
+### Environment
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+Java Version: 17.0.18 (OpenJDK Homebrew)
+Maven Version: 3.9.11
+```
+
+### Compile Result
+```text
+[INFO] Compiling 33 source files with javac [debug release 17] to target/classes
+[INFO] BUILD SUCCESS
+Total time: 0.637 s
+```
+
+### Test Result
+```text
+[INFO] Running io.edgequake.sdk.UnitTest
+[INFO] Tests run: 230, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.130 s
+[INFO] BUILD SUCCESS
+Total time: 2.785 s
+```
+
+**Status**: ✅ All 230 unit tests pass
+
+---
+
+## Commit
+
+**Message**: `OODA-01: Downgrade Java SDK to Java 17 LTS`
+
+**Files Changed**:
+1. `sdks/java/pom.xml`
+2. `sdks/java/src/test/java/io/edgequake/sdk/UnitTest.java`
+3. `sdks/java/src/test/java/io/edgequake/sdk/E2ETest.java`
+4. `sdks/java/src/test/java/io/edgequake/sdk/FakeHttpClient.java`
+
+---
+
+## Impact Assessment
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Java Version | 21 | 17 |
+| Compilation | ❌ Failed | ✅ Success |
+| Unit Tests | N/A | ✅ 230 pass |
+| E2E Tests | Skipped | Skipped (require backend) |
+
+---
 
 ## Next Iteration Focus
-- Run tests for remaining 7 SDKs (C#, Go, Java, Kotlin, PHP, Ruby, Swift)
-- Count endpoint coverage per SDK
+
+1. Create SDK coverage matrix for all 131+ API endpoints
+2. Identify missing lineage/metadata APIs in Java SDK
+3. Add lineage resource to Java SDK
+4. Verify Java 17 compatibility in GitHub Actions workflow
+
+---
+
+## Lessons Learned
+
+1. **Java 21 `getFirst()`/`getLast()`**: These SequencedCollection methods are new in Java 21. For Java 17 compatibility, use `get(0)` and `get(size()-1)`.
+
+2. **Maven JAVA_HOME**: Maven uses JAVA_HOME, not necessarily the `java` on PATH. Always verify with `mvn -v`.
+
+3. **LTS Preference**: Java 17 LTS is widely deployed; targeting it increases SDK adoption.
+
+---
+
+## Verification Commands
+
+```bash
+# Set Java 17
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+
+# Compile
+cd sdks/java && mvn clean compile
+
+# Test
+mvn test
+
+# Expected: BUILD SUCCESS, 230 tests pass
+```

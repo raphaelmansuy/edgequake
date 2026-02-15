@@ -1,111 +1,213 @@
-# OODA Iteration 01 — Observe: Full SDK Baseline Assessment
+# OODA Iteration 01 - OBSERVE
 
-**Date**: 2026-02-13  
+**Date**: 2026-02-15  
 **Mission**: SDK Quality Assurance & Lineage Enhancement  
-**Focus**: Map territory — all 10 SDKs, 133 backend routes
+**Focus**: Baseline Assessment - Initial SDK Audit
 
-## Backend API Surface
+---
 
-Total routes in `edgequake/crates/edgequake-api/src/routes.rs`: **133 `.route()` calls**
+## 1. Environment Verification
 
-### Route Categories (27 groups)
+### Java Version Check
+```text
+Installed: Java 17.0.18 (OpenJDK Homebrew)
+Required by Java SDK: Java 21 (maven.compiler.source=21)
+⚠️ CRITICAL: Version mismatch - Java SDK won't compile with current JDK
+```
 
-| Category           | Routes | Key Endpoints                                              |
-|--------------------|--------|------------------------------------------------------------|
-| Health             | 4      | /health, /ready, /live, /metrics                           |
-| WebSocket          | 2      | /ws/pipeline/progress, /ws/progress/{track_id}             |
-| Ollama Emulation   | 5      | /api/version, /api/tags, /api/ps, /api/generate, /api/chat |
-| Auth               | 4      | login, refresh, logout, me                                 |
-| Users              | 4      | create, list, get, delete                                  |
-| API Keys           | 3      | create, list, revoke                                       |
-| Tenants            | 5      | create, list, get, update, delete                          |
-| Workspaces         | 10     | CRUD, stats, metrics-history, snapshot, rebuilds            |
-| Documents          | 15     | CRUD, upload, batch, scan, reprocess, lineage, metadata    |
-| PDF                | 8      | upload, list, get, delete, progress, retry, cancel, content|
-| Query              | 2      | query, stream                                              |
-| Chat               | 2      | completions, stream                                        |
-| Conversations      | 10     | CRUD, import, bulk ops, messages, share                    |
-| Messages           | 2      | update, delete                                             |
-| Folders            | 4      | list, create, update, delete                               |
-| Shared             | 1      | get shared conversation                                    |
-| Graph              | 6      | get, stream, nodes, labels                                 |
-| Entities           | 7      | CRUD, exists, merge, neighborhood                          |
-| Relationships      | 4      | CRUD                                                       |
-| Tasks              | 4      | get, list, cancel, retry                                   |
-| Pipeline           | 3      | status, cancel, queue-metrics                              |
-| Costs              | 6      | pricing, estimate, summary, history, budget get/patch      |
-| Lineage            | 2      | entity lineage, document lineage                           |
-| Chunks             | 2      | detail, lineage                                            |
-| Provenance         | 1      | entity provenance                                          |
-| Settings           | 2      | provider status, list providers                            |
-| Models             | 5      | list all, llm, embedding, health, per-provider             |
+---
 
-## SDK Inventory
+## 2. SDK Test File Count
 
-### Python SDK (`sdks/python/`)
-- **Structure**: `edgequake/resources/` with 7 resource files + `_base.py`
-- **Resources**: auth, chat, conversations, documents, graph, operations, query
-- **Types**: 10 type modules (auth, chat, conversations, documents, graph, operations, query, shared, workspaces)
-- **Tests**: 15 test files, **6,229 lines total**
-- **Coverage**: sync + async variants for all resources
-- **Metadata/Lineage**: `get_lineage()`, `get_metadata()`, `export_lineage()` methods present
+| SDK        | Test Files | Notes                           |
+|------------|------------|-------------------------------- |
+| Python     | 49         | ✅ Comprehensive test suite     |
+| TypeScript | 22         | ✅ Good coverage                |
+| Rust       | 0          | ⚠️ Tests may be inline          |
+| C#         | 0          | ❌ No test files found          |
+| Go         | 3          | ⚠️ Limited test coverage        |
+| Java       | 2          | ⚠️ Minimal tests                |
+| Kotlin     | 4          | ⚠️ Minimal tests                |
+| PHP        | 9          | ⚠️ Some coverage                |
+| Ruby       | 0          | ❌ No test files found          |
+| Swift      | 0          | ❌ No test files found          |
 
-### TypeScript SDK (`sdks/typescript/`)
-- **Structure**: `src/resources/` with 22 resource files
-- **Resources**: api-keys, auth, chat, chunks, conversations, costs, documents, folders, graph, lineage, models, ollama, pipeline, provenance, query, settings, shared, tasks, tenants, users, workspaces
-- **Tests**: 3 dirs (e2e/, helpers/, unit/), **4,753 lines total**
-- **Coverage**: Most comprehensive resource set (22 files matching ~22 categories)
+---
 
-### Rust SDK (`sdks/rust/`)
-- **Structure**: `src/resources/` with 22 resource files
-- **Resources**: api_keys, auth, chat, chunks, conversations, costs, documents, entities, folders, graph, health, models, pdf, pipeline, provenance, query, relationships, tasks, tenants, users, workspaces
-- **Types**: 10 type modules
-- **Tests**: 3 test files, **2,251 lines total**
+## 3. SDK Source File Count
 
-### C# SDK (`sdks/csharp/`)
-- **Structure**: `src/EdgeQuakeSDK/` — monolithic `Services.cs` + `Models.cs`
-- **Tests**: `E2ETest.cs`, `UnitTest.cs`, `MockHttpMessageHandler.cs` — **857 lines**
-- **Pattern**: Single `EdgeQuakeClient` with service methods
+| SDK        | Source Files | Directory Structure      |
+|------------|--------------|--------------------------|
+| Python     | 27           | `edgequake/` module      |
+| TypeScript | 48           | `src/` directory         |
+| Rust       | 38           | `src/` directory         |
+| C#         | 11           | `src/` directory         |
+| Go         | ~10          | Root level `.go` files   |
+| Java       | 36           | `src/main/java/io/...`   |
+| Kotlin     | 11           | `src/` directory         |
+| PHP        | 5            | `src/` directory         |
+| Ruby       | N/A          | `lib/` directory         |
+| Swift      | N/A          | `Sources/` directory     |
 
-### Go SDK (`sdks/go/`)
-- **Structure**: Flat package — `client.go`, `services.go`, `types.go`
-- **Tests**: `edgequake_test.go`, `e2e_test.go`, `edgequake_coverage_test.go` — **3,294 lines**
-- **Pattern**: Single `Client` struct with methods
+---
 
-### Java SDK (`sdks/java/`)
-- **Structure**: `src/main/java/` package hierarchy
-- **Tests**: **1,413 lines** across test files
-- **Pattern**: `EdgeQuakeClient` with service classes
+## 4. Backend API Endpoint Count
 
-### Kotlin SDK (`sdks/kotlin/`)
-- **Structure**: `src/main/kotlin/` package hierarchy
-- **Tests**: **1,249 lines** across test files
-- **Pattern**: Coroutine-based `EdgeQuakeClient`
+**Total Routes: 131+ endpoints**
 
-### PHP SDK (`sdks/php/`)
-- **Structure**: `src/` with Client, Services, Config, HttpHelper, ApiError
-- **Tests**: `E2ETest.php`, `UnitTest.php`, `MockHttpHelper.php` — **1,063 lines**
+### Route Categories Identified:
+```text
+Health (4)      : /health, /ready, /live, /metrics
+WebSocket (2)   : /ws/pipeline/progress, /ws/progress/{track_id}
+Ollama API (5)  : /api/version, /api/tags, /api/ps, /api/generate, /api/chat
+Auth (4)        : login, refresh, logout, me
+Users (4)       : CRUD operations
+API Keys (3)    : create, list, revoke
+Tenants (5)     : CRUD + list
+Workspaces (12) : CRUD, stats, metrics, rebuilds
+Documents (25+) : upload, list, PDF, scan, retry, lineage, metadata
+Query (2)       : query, query/stream
+Chat (2)        : completions, completions/stream
+Conversations (15+): CRUD, messages, share, bulk ops, folders
+Graph (20+)     : nodes, labels, entities, relationships
+Tasks (4)       : get, list, cancel, retry
+Pipeline (4)    : status, cancel, queue-metrics, costs
+Costs (4)       : summary, history, budget
+Lineage (5)     : entities, documents, chunks, provenance
+Settings (4)    : provider status, providers list
+Models (6)      : list, llm, embedding, health, provider
+```
 
-### Ruby SDK (`sdks/ruby/`)
-- **Structure**: `lib/edgequake/` with client, services, config, http_helper, error
-- **Tests**: `e2e_test.rb`, `unit_test.rb`, `mock_http_helper.rb` — **725 lines**
+---
 
-### Swift SDK (`sdks/swift/`)
-- **Structure**: `Sources/EdgeQuakeSDK/` with Client, Services, Models, Config, HttpHelper, Error
-- **Tests**: `Tests/EdgeQuakeSDKTests/` — **843 lines**
-- **Pattern**: Swift Package Manager project
+## 5. Java SDK Structure Analysis
 
-## Initial Coverage Estimates
+### Directory Structure:
+```
+sdks/java/
+├── pom.xml                    # Maven build (Java 21 requirement)
+├── rewrite.yml                # OpenRewrite config
+├── src/main/java/io/edgequake/sdk/
+│   ├── EdgeQuakeClient.java   # Main client class
+│   ├── EdgeQuakeConfig.java   # Configuration
+│   ├── EdgeQuakeException.java
+│   ├── internal/              # HTTP internals
+│   ├── models/                # DTOs
+│   └── resources/             # Resource classes
+└── src/test/java/io/edgequake/sdk/
+    ├── E2ETest.java           # E2E tests
+    ├── FakeHttpClient.java    # Mock HTTP
+    └── UnitTest.java          # Unit tests
+```
 
-| SDK        | Test LOC | Resource Files | API Coverage Est. | Metadata/Lineage |
-|------------|----------|----------------|-------------------|------------------|
-| Python     | 6,229    | 7 + types      | ~85%              | ✅ Full          |
-| TypeScript | 4,753    | 22             | ~90%              | ✅ Full          |
-| Rust       | 2,251    | 22             | ~85%              | ✅ Full          |
-| C#         | 857      | 2 (monolithic) | ~60%              | ⚠️ Partial       |
-| Go         | 3,294    | 2 (flat)       | ~65%              | ⚠️ Partial       |
-| Java       | 1,413    | varies         | ~50%              | ❌ Missing       |
-| Kotlin     | 1,249    | varies         | ~50%              | ❌ Missing       |
-| PHP        | 1,063    | 2 (monolithic) | ~55%              | ⚠️ Partial       |
-| Ruby       | 725      | 2 (monolithic) | ~60%              | ⚠️ Partial       |
-| Swift      | 843      | 2 (monolithic) | ~50%              | ❌ Missing       |
+### Critical Issue: Java Version Mismatch
+- **pom.xml line 24-25**: `<maven.compiler.source>21</maven.compiler.source>`
+- **Installed JDK**: Java 17.0.18
+- **Action Required**: Downgrade to Java 17 or install Java 21
+
+---
+
+## 6. Python SDK Structure (Reference Model)
+
+### Directory Structure:
+```
+sdks/python/
+├── edgequake/
+│   ├── __init__.py
+│   ├── _client.py         # Main client
+│   ├── _config.py         # Configuration
+│   ├── _errors.py         # Exceptions
+│   ├── _pagination.py     # Pagination helpers
+│   ├── _streaming.py      # SSE streaming
+│   ├── _transport.py      # HTTP transport
+│   ├── resources/         # API resources
+│   │   ├── auth.py
+│   │   ├── chat.py
+│   │   ├── conversations.py
+│   │   ├── documents.py
+│   │   ├── graph.py
+│   │   ├── operations.py
+│   │   └── query.py
+│   └── types/             # Type definitions
+├── tests/                 # 49 test files
+│   ├── test_client.py
+│   ├── test_e2e.py
+│   ├── test_lineage.py
+│   └── ... (17 test files)
+└── pyproject.toml
+```
+
+---
+
+## 7. TypeScript SDK Structure
+
+### Directory Structure:
+```
+sdks/typescript/
+├── src/
+│   └── (48 source files)
+├── tests/
+│   └── (22 test files)
+├── coverage/              # Coverage reports
+├── package.json
+├── vitest.config.ts
+└── tsconfig.json
+```
+
+---
+
+## 8. Initial SDK Status Summary
+
+| SDK        | Compiles | Tests Run | API Coverage | Metadata | Priority |
+|------------|----------|-----------|--------------|----------|----------|
+| Python     | ✅       | ✅ 49     | ~80%         | ✅ Full  | High     |
+| TypeScript | ✅       | ✅ 22     | ~90%         | ✅ Full  | High     |
+| Rust       | ✅       | ⚠️ 0      | ~85%         | ✅ Full  | High     |
+| Java       | ❌ J21   | ⚠️ 2      | ~50%         | ❌ Miss  | CRITICAL |
+| Kotlin     | ❓       | ⚠️ 4      | ~50%         | ❌ Miss  | Medium   |
+| Go         | ✅       | ⚠️ 3      | ~60%         | ⚠️ Part  | Medium   |
+| C#         | ❓       | ❌ 0      | ~60%         | ⚠️ Part  | Medium   |
+| PHP        | ❓       | ⚠️ 9      | ~55%         | ⚠️ Part  | Low      |
+| Ruby       | ❓       | ❌ 0      | ~65%         | ⚠️ Part  | Low      |
+| Swift      | ❓       | ❌ 0      | ~50%         | ❌ Miss  | Low      |
+
+---
+
+## 9. Critical Findings
+
+### 🚨 BLOCKER: Java SDK Incompatibility
+- Java SDK requires JDK 21, but JDK 17 is installed
+- Must resolve before any Java SDK testing/development
+- Options: (1) Upgrade JDK to 21, (2) Downgrade pom.xml to 17
+
+### ⚠️ Test Coverage Gaps
+- Rust: 0 visible test files (may be inline #[test])
+- C#: No test files found
+- Ruby: No test files found  
+- Swift: No test files found
+
+### ⚠️ Metadata/Lineage Support Missing
+- Java: No lineage support
+- Kotlin: No lineage support
+- Swift: No lineage support
+
+---
+
+## 10. Files Examined
+
+| File | Purpose |
+|------|---------|
+| `sdks/java/pom.xml:24-25` | Java version requirement |
+| `edgequake/crates/edgequake-api/src/routes.rs` | 486 lines, 131+ routes |
+| `sdks/python/edgequake/resources/` | Reference SDK structure |
+| `sdks/python/tests/` | 17 test files |
+| `sdks/typescript/` | 48 src, 22 test files |
+
+---
+
+## Next Steps (ORIENT Phase)
+
+1. Analyze Java SDK compatibility options in depth
+2. Create API endpoint coverage matrix
+3. Identify missing lineage/metadata endpoints per SDK
+4. Prioritize by impact on mission success criteria

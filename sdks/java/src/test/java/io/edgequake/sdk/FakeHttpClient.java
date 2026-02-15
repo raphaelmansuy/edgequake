@@ -69,7 +69,7 @@ public class FakeHttpClient extends HttpClient {
     }
 
     public CapturedRequest lastRequest() {
-        return captured.getLast();
+        return captured.get(captured.size() - 1);
     }
 
     public List<CapturedRequest> allRequests() {

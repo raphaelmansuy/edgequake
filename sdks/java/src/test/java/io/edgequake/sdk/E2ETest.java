@@ -264,7 +264,7 @@ class E2ETest {
         var health = client.models().providerHealth();
         assertNotNull(health);
         assertTrue(health.size() > 0, "Should have provider health entries");
-        var first = health.getFirst();
+        var first = health.get(0);
         assertNotNull(first.name);
         System.out.printf("Provider Health: %d providers, first=%s enabled=%s%n",
                 health.size(), first.name, first.enabled);

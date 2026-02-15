@@ -176,7 +176,7 @@ class UnitTest {
         var svc = new DocumentService(http);
         var result = svc.list(1, 20);
         assertEquals(1, result.pagination.total);
-        assertEquals("d1", result.documents.getFirst().id);
+        assertEquals("d1", result.documents.get(0).id);
     }
 
     @Test
@@ -264,7 +264,7 @@ class UnitTest {
         var svc = new EntityService(http);
         var result = svc.list(1, 20, null);
         assertEquals(1, result.total);
-        assertEquals("ALICE", result.items.getFirst().entityName);
+        assertEquals("ALICE", result.items.get(0).entityName);
     }
 
     @Test
@@ -358,7 +358,7 @@ class UnitTest {
         var svc = new RelationshipService(http);
         var result = svc.list(1, 20);
         assertEquals(1, result.total);
-        assertEquals("A", result.items.getFirst().source);
+        assertEquals("A", result.items.get(0).source);
     }
 
     @Test
@@ -382,7 +382,7 @@ class UnitTest {
         var svc = new GraphService(http);
         var result = svc.get(0);
         assertEquals(1, result.nodes.size());
-        assertEquals("Alice", result.nodes.getFirst().label);
+        assertEquals("Alice", result.nodes.get(0).label);
         assertEquals(1, result.edges.size());
     }
 
@@ -503,7 +503,7 @@ class UnitTest {
         var svc = new UserService(http);
         var result = svc.list();
         assertEquals(1, result.total);
-        assertEquals("admin", result.users.getFirst().username);
+        assertEquals("admin", result.users.get(0).username);
     }
 
     @Test
@@ -532,7 +532,7 @@ class UnitTest {
         var svc = new ApiKeyService(http);
         var result = svc.list();
         assertEquals(1, result.total);
-        assertEquals("my-key", result.keys.getFirst().name);
+        assertEquals("my-key", result.keys.get(0).name);
     }
 
     @Test
@@ -564,7 +564,7 @@ class UnitTest {
         var svc = new TenantService(http);
         var result = svc.list();
         assertEquals(1, result.total);
-        assertEquals("Default", result.items.getFirst().name);
+        assertEquals("Default", result.items.get(0).name);
     }
 
     @Test
@@ -587,7 +587,7 @@ class UnitTest {
         var svc = new ConversationService(http);
         var result = svc.list();
         assertEquals(1, result.size());
-        assertEquals("Test Chat", result.getFirst().title);
+        assertEquals("Test Chat", result.get(0).title);
     }
 
     @Test
@@ -683,7 +683,7 @@ class UnitTest {
         var svc = new FolderService(http);
         var result = svc.list();
         assertEquals(1, result.size());
-        assertEquals("My Folder", result.getFirst().name);
+        assertEquals("My Folder", result.get(0).name);
     }
 
     @Test
@@ -724,7 +724,7 @@ class UnitTest {
         var svc = new TaskService(http);
         var result = svc.list(null, 0, 0);
         assertEquals(1, result.total);
-        assertEquals("completed", result.tasks.getFirst().status);
+        assertEquals("completed", result.tasks.get(0).status);
     }
 
     @Test
@@ -798,7 +798,7 @@ class UnitTest {
         var svc = new ModelService(http);
         var result = svc.list();
         assertEquals(1, result.providers.size());
-        assertEquals("ollama", result.providers.getFirst().name);
+        assertEquals("ollama", result.providers.get(0).name);
     }
 
     @Test
@@ -809,7 +809,7 @@ class UnitTest {
         var svc = new ModelService(http);
         var result = svc.providerHealth();
         assertEquals(1, result.size());
-        assertTrue(result.getFirst().enabled);
+        assertTrue(result.get(0).enabled);
     }
 
     @Test
@@ -838,7 +838,7 @@ class UnitTest {
         var svc = new WorkspaceService(http);
         var result = svc.listForTenant("t1");
         assertEquals(1, result.size());
-        assertEquals("Default", result.getFirst().name);
+        assertEquals("Default", result.get(0).name);
     }
 
     @Test
@@ -938,7 +938,7 @@ class UnitTest {
         var svc = new CostService(http);
         var result = svc.history("2024-01-01", "2024-01-31");
         assertEquals(1, result.size());
-        assertEquals("2024-01-01", result.getFirst().date);
+        assertEquals("2024-01-01", result.get(0).date);
     }
 
     @Test
@@ -1060,7 +1060,7 @@ class UnitTest {
         new QueryService(http).execute(new QueryRequest("q", "hybrid"));
 
         assertEquals(2, fake.allRequests().size());
-        assertEquals("GET", fake.allRequests().getFirst().method());
+        assertEquals("GET", fake.allRequests().get(0).method());
         assertEquals("POST", fake.allRequests().get(1).method());
     }
 
@@ -1355,14 +1355,14 @@ class UnitTest {
         assertEquals("PERSON", result.entityType);
         assertEquals(1, result.sourceCount);
         assertEquals(1, result.sourceDocuments.size());
-        assertEquals("d1", result.sourceDocuments.getFirst().documentId);
-        assertEquals(2, result.sourceDocuments.getFirst().chunkIds.size());
-        assertEquals(1, result.sourceDocuments.getFirst().lineRanges.size());
-        assertEquals(10, result.sourceDocuments.getFirst().lineRanges.getFirst().startLine);
-        assertEquals(15, result.sourceDocuments.getFirst().lineRanges.getFirst().endLine);
+        assertEquals("d1", result.sourceDocuments.get(0).documentId);
+        assertEquals(2, result.sourceDocuments.get(0).chunkIds.size());
+        assertEquals(1, result.sourceDocuments.get(0).lineRanges.size());
+        assertEquals(10, result.sourceDocuments.get(0).lineRanges.get(0).startLine);
+        assertEquals(15, result.sourceDocuments.get(0).lineRanges.get(0).endLine);
         assertEquals(1, result.descriptionVersions.size());
-        assertEquals(1, result.descriptionVersions.getFirst().version);
-        assertEquals("A researcher", result.descriptionVersions.getFirst().description);
+        assertEquals(1, result.descriptionVersions.get(0).version);
+        assertEquals("A researcher", result.descriptionVersions.get(0).description);
         assertTrue(fake.lastRequest().uri().contains("/api/v1/lineage/entities/ALICE"));
     }
 
@@ -1376,10 +1376,10 @@ class UnitTest {
         assertEquals("doc-1", result.documentId);
         assertEquals(5, result.chunkCount);
         assertEquals(1, result.entities.size());
-        assertEquals("BOB", result.entities.getFirst().name);
-        assertFalse(result.entities.getFirst().isShared);
+        assertEquals("BOB", result.entities.get(0).name);
+        assertFalse(result.entities.get(0).isShared);
         assertEquals(1, result.relationships.size());
-        assertEquals("KNOWS", result.relationships.getFirst().keywords);
+        assertEquals("KNOWS", result.relationships.get(0).keywords);
         assertEquals(10, result.extractionStats.totalEntities);
         assertEquals(8, result.extractionStats.uniqueEntities);
         assertEquals(1500L, result.extractionStats.processingTimeMs);
@@ -1445,10 +1445,10 @@ class UnitTest {
         assertEquals(100, result.charRange.end);
         assertEquals(25, result.tokenCount);
         assertEquals(1, result.entities.size());
-        assertEquals("ALICE", result.entities.getFirst().name);
+        assertEquals("ALICE", result.entities.get(0).name);
         assertEquals(1, result.relationships.size());
-        assertEquals("ALICE", result.relationships.getFirst().sourceName);
-        assertEquals("BOB", result.relationships.getFirst().targetName);
+        assertEquals("ALICE", result.relationships.get(0).sourceName);
+        assertEquals("BOB", result.relationships.get(0).targetName);
         assertNotNull(result.extractionMetadata);
         assertEquals("gpt-4o", result.extractionMetadata.model);
         assertEquals(2, result.extractionMetadata.gleaningIterations);
@@ -1496,16 +1496,16 @@ class UnitTest {
         assertEquals("A researcher", result.description);
         assertEquals(3, result.totalExtractionCount);
         assertEquals(1, result.sources.size());
-        assertEquals("d1", result.sources.getFirst().documentId);
-        assertEquals("Paper", result.sources.getFirst().documentName);
-        assertEquals(1, result.sources.getFirst().chunks.size());
-        assertEquals("c1", result.sources.getFirst().chunks.getFirst().chunkId);
-        assertEquals(10, result.sources.getFirst().chunks.getFirst().startLine);
-        assertEquals("Alice is...", result.sources.getFirst().chunks.getFirst().sourceText);
+        assertEquals("d1", result.sources.get(0).documentId);
+        assertEquals("Paper", result.sources.get(0).documentName);
+        assertEquals(1, result.sources.get(0).chunks.size());
+        assertEquals("c1", result.sources.get(0).chunks.get(0).chunkId);
+        assertEquals(10, result.sources.get(0).chunks.get(0).startLine);
+        assertEquals("Alice is...", result.sources.get(0).chunks.get(0).sourceText);
         assertEquals(1, result.relatedEntities.size());
-        assertEquals("BOB", result.relatedEntities.getFirst().entityName);
-        assertEquals("COLLABORATES", result.relatedEntities.getFirst().relationshipType);
-        assertEquals(2, result.relatedEntities.getFirst().sharedDocuments);
+        assertEquals("BOB", result.relatedEntities.get(0).entityName);
+        assertEquals("COLLABORATES", result.relatedEntities.get(0).relationshipType);
+        assertEquals(2, result.relatedEntities.get(0).sharedDocuments);
         assertTrue(fake.lastRequest().uri().contains("/api/v1/entities/e1/provenance"));
     }
 

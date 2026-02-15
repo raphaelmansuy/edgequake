@@ -21,8 +21,9 @@
     </licenses>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <!-- WHY: Java 17 LTS for broad compatibility (OODA-01) -->
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jackson.version>2.18.3</jackson.version>
         <junit.version>5.11.3</junit.version>
@@ -55,7 +56,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.15.0</version>
                 <configuration>
-                    <release>21</release>
+                    <!-- WHY: Java 17 LTS for broad compatibility (OODA-01) -->
+                    <release>17</release>
                 </configuration>
             </plugin>
             <plugin>
