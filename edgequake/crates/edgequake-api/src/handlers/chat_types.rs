@@ -154,6 +154,13 @@ pub enum ChatStreamEvent {
         llm_model: Option<String>,
     },
 
+    /// Conversation title was auto-generated from first message.
+    /// @implements FEAT0505: Auto-generated conversation titles
+    TitleUpdate {
+        conversation_id: Uuid,
+        title: String,
+    },
+
     /// Error occurred.
     Error { message: String, code: String },
 }
@@ -252,6 +259,17 @@ mod tests {
         // Provider fields should be absent when None (skip_serializing_if)
         assert!(json.get("llm_provider").is_none());
         assert!(json.get("llm_model").is_none());
+    }
+
+    #[test]
+    fn test_chat_stream_event_title_update() {
+        let event = ChatStreamEvent::TitleUpdate {
+            conversation_id: Uuid::nil(),
+            title: "Knowledge Graph Architecture".to_string(),
+        };
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "title_update");
+        assert_eq!(json["title"], "Knowledge Graph Architecture");
     }
 
     #[test]

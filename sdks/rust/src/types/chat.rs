@@ -79,6 +79,9 @@ pub struct ChatCompletionResponse {
 }
 
 /// Stream chunk event for streaming chat completions.
+///
+/// The server sends tagged events with `{type: "...", ...}` format.
+/// Consumers should check `r#type` to determine which fields are populated.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ChatStreamChunk {
     #[serde(default)]
@@ -91,4 +94,26 @@ pub struct ChatStreamChunk {
     pub sources: Option<Vec<SourceReference>>,
     #[serde(default)]
     pub done: Option<bool>,
+    /// Auto-generated conversation title (present in title_update events).
+    /// @implements FEAT0505
+    #[serde(default)]
+    pub title: Option<String>,
+    /// User message ID (present in conversation event).
+    #[serde(default)]
+    pub user_message_id: Option<String>,
+    /// Assistant message ID (present in done event).
+    #[serde(default)]
+    pub assistant_message_id: Option<String>,
+    /// Tokens used (present in done event).
+    #[serde(default)]
+    pub tokens_used: Option<u32>,
+    /// Duration in milliseconds (present in done event).
+    #[serde(default)]
+    pub duration_ms: Option<u64>,
+    /// LLM provider used (present in done event, lineage tracking).
+    #[serde(default)]
+    pub llm_provider: Option<String>,
+    /// LLM model used (present in done event, lineage tracking).
+    #[serde(default)]
+    pub llm_model: Option<String>,
 }

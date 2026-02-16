@@ -30,9 +30,7 @@ export function useMoveConversation() {
     }) => updateConversation(conversationId, { folder_id: folderId }),
     onSuccess: (_data, { folderId }) => {
       queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
-      toast.success(
-        folderId ? "Moved to folder" : "Moved to Unfiled",
-      );
+      toast.success(folderId ? "Moved to folder" : "Moved to Unfiled");
     },
     onError: () => {
       toast.error("Failed to move conversation");

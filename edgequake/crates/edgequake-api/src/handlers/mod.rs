@@ -85,6 +85,7 @@ pub mod relationships_types;
 pub mod settings;
 pub mod tasks;
 pub mod tasks_types;
+pub mod title_generator;
 pub mod websocket;
 pub mod websocket_types;
 pub mod workspaces;

@@ -356,6 +356,9 @@ pub async fn chat_completion(
     let mode = parse_mode(&request.mode);
     let query_mode = parse_query_mode(&request.mode);
 
+    // FEAT0505: Track whether this is a new conversation for auto-title generation
+    let is_new_conversation = request.conversation_id.is_none();
+
     // 1. Get or create conversation
     let conversation_id = if let Some(id) = request.conversation_id {
         // Verify conversation exists and belongs to user
@@ -632,6 +635,49 @@ pub async fn chat_completion(
             None
         };
 
+    // FEAT0505: Auto-generate conversation title for new conversations (fire-and-forget)
+    if is_new_conversation {
+        let title_llm = llm_override.unwrap_or_else(|| state.llm_provider.clone());
+        let title_conv_service = state.conversation_service.clone();
+        let title_conv_id = conversation_id;
+        let title_first_msg = request.message.clone();
+        let title_tenant_id = tenant_id;
+        let title_user_id = user_id;
+
+        tokio::spawn(async move {
+            let title =
+                crate::handlers::title_generator::generate_title(title_llm, &title_first_msg).await;
+
+            match title_conv_service
+                .update_conversation(
+                    title_tenant_id,
+                    title_user_id,
+                    title_conv_id,
+                    edgequake_core::types::UpdateConversationRequest {
+                        title: Some(title.clone()),
+                        ..Default::default()
+                    },
+                )
+                .await
+            {
+                Ok(_) => {
+                    info!(
+                        conversation_id = %title_conv_id,
+                        title = %title,
+                        "Auto-generated conversation title (non-streaming)"
+                    );
+                }
+                Err(e) => {
+                    warn!(
+                        conversation_id = %title_conv_id,
+                        error = %e,
+                        "Failed to update conversation title (non-streaming)"
+                    );
+                }
+            }
+        });
+    }
+
     Ok(Json(ChatCompletionResponse {
         conversation_id,
         user_message_id: user_message.message_id,
@@ -759,6 +805,9 @@ pub async fn chat_completion_stream(
     let mode = parse_mode(&request.mode);
     let query_mode = parse_query_mode(&request.mode);
 
+    // FEAT0505: Track whether this is a new conversation for auto-title generation
+    let is_new_conversation = request.conversation_id.is_none();
+
     // 1. Get or create conversation (BEFORE streaming)
     let conversation_id = if let Some(id) = request.conversation_id {
         let conv = state
@@ -820,6 +869,8 @@ pub async fn chat_completion_stream(
     let request_provider = request.provider.clone();
     let request_model = request.model.clone();
     let workspace_clone = workspace.clone();
+    // FEAT0505: Clone for auto-title generation
+    let first_message_for_title = request.message.clone();
 
     // 5. Send initial conversation event
     let initial_event = ChatStreamEvent::Conversation {
@@ -1175,6 +1226,61 @@ pub async fn chat_completion_stream(
                         llm_model: used_model.clone(),
                     })
                     .await;
+
+                // FEAT0505: Auto-generate conversation title for new conversations
+                if is_new_conversation {
+                    let title_llm =
+                        llm_override.unwrap_or_else(|| state_clone.llm_provider.clone());
+                    let title_conv_service = state_clone.conversation_service.clone();
+                    let title_conv_id = conversation_id;
+                    let title_first_msg = first_message_for_title.clone();
+                    let title_tx = tx.clone();
+                    let title_tenant_id = tenant_id;
+                    let title_user_id = user_id;
+
+                    tokio::spawn(async move {
+                        let title = crate::handlers::title_generator::generate_title(
+                            title_llm,
+                            &title_first_msg,
+                        )
+                        .await;
+
+                        match title_conv_service
+                            .update_conversation(
+                                title_tenant_id,
+                                title_user_id,
+                                title_conv_id,
+                                edgequake_core::types::UpdateConversationRequest {
+                                    title: Some(title.clone()),
+                                    ..Default::default()
+                                },
+                            )
+                            .await
+                        {
+                            Ok(_) => {
+                                info!(
+                                    conversation_id = %title_conv_id,
+                                    title = %title,
+                                    "Auto-generated conversation title"
+                                );
+                                // Send title update event to frontend via SSE
+                                let _ = title_tx
+                                    .send(ChatStreamEvent::TitleUpdate {
+                                        conversation_id: title_conv_id,
+                                        title,
+                                    })
+                                    .await;
+                            }
+                            Err(e) => {
+                                warn!(
+                                    conversation_id = %title_conv_id,
+                                    error = %e,
+                                    "Failed to update conversation title"
+                                );
+                            }
+                        }
+                    });
+                }
             }
             Err(e) => {
                 error!("Failed to save assistant message: {}", e);

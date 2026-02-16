@@ -273,8 +273,8 @@ export const useQueryUIStore = create<QueryUIStore>()(
         filters: state.filters,
         sort: state.sort,
       }),
-    }
-  )
+    },
+  ),
 );
 
 // ============================================================================

@@ -80,4 +80,10 @@ export type ChatStreamEvent =
       llm_provider?: string;
       llm_model?: string;
     }
-  | { type: "error"; message: string; code: string };
+  | { type: "error"; message: string; code: string }
+  | {
+      /** Auto-generated conversation title. @implements FEAT0505 */
+      type: "title_update";
+      conversation_id: string;
+      title: string;
+    };
