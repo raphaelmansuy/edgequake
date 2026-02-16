@@ -37,7 +37,7 @@ import { api } from "./client";
  * List conversations with pagination and filtering.
  */
 export async function listConversations(
-  params?: CursorPaginationParams & ConversationFilterParams
+  params?: CursorPaginationParams & ConversationFilterParams,
 ): Promise<PaginatedConversations> {
   const searchParams = new URLSearchParams();
 
@@ -65,7 +65,7 @@ export async function listConversations(
 
   const query = searchParams.toString();
   return api.get<PaginatedConversations>(
-    `/conversations${query ? `?${query}` : ""}`
+    `/conversations${query ? `?${query}` : ""}`,
   );
 }
 
@@ -73,7 +73,7 @@ export async function listConversations(
  * Get a single conversation by ID (includes messages).
  */
 export async function getConversation(
-  conversationId: string
+  conversationId: string,
 ): Promise<ConversationWithMessages> {
   return api.get<ConversationWithMessages>(`/conversations/${conversationId}`);
 }
@@ -82,7 +82,7 @@ export async function getConversation(
  * Create a new conversation.
  */
 export async function createConversation(
-  data: CreateConversationRequest
+  data: CreateConversationRequest,
 ): Promise<ServerConversation> {
   return api.post<ServerConversation>("/conversations", data);
 }
@@ -92,11 +92,11 @@ export async function createConversation(
  */
 export async function updateConversation(
   conversationId: string,
-  data: UpdateConversationRequest
+  data: UpdateConversationRequest,
 ): Promise<ServerConversation> {
   return api.patch<ServerConversation>(
     `/conversations/${conversationId}`,
-    data
+    data,
   );
 }
 
@@ -104,7 +104,7 @@ export async function updateConversation(
  * Delete a conversation.
  */
 export async function deleteConversation(
-  conversationId: string
+  conversationId: string,
 ): Promise<void> {
   return api.delete(`/conversations/${conversationId}`);
 }
@@ -125,7 +125,7 @@ export async function deleteConversations(ids: string[]): Promise<void> {
  */
 export async function listMessages(
   conversationId: string,
-  params?: CursorPaginationParams
+  params?: CursorPaginationParams,
 ): Promise<PaginatedMessages> {
   const searchParams = new URLSearchParams();
   if (params?.cursor) searchParams.set("cursor", params.cursor);
@@ -133,7 +133,7 @@ export async function listMessages(
 
   const query = searchParams.toString();
   return api.get<PaginatedMessages>(
-    `/conversations/${conversationId}/messages${query ? `?${query}` : ""}`
+    `/conversations/${conversationId}/messages${query ? `?${query}` : ""}`,
   );
 }
 
@@ -143,11 +143,11 @@ export async function listMessages(
  */
 export async function createMessage(
   conversationId: string,
-  data: CreateMessageRequest
+  data: CreateMessageRequest,
 ): Promise<ServerMessage> {
   return api.post<ServerMessage>(
     `/conversations/${conversationId}/messages`,
-    data
+    data,
   );
 }
 
@@ -157,11 +157,11 @@ export async function createMessage(
 export async function updateMessage(
   conversationId: string,
   messageId: string,
-  data: UpdateMessageRequest
+  data: UpdateMessageRequest,
 ): Promise<ServerMessage> {
   return api.patch<ServerMessage>(
     `/conversations/${conversationId}/messages/${messageId}`,
-    data
+    data,
   );
 }
 
@@ -181,10 +181,10 @@ export async function deleteMessage(messageId: string): Promise<void> {
  * Generate a shareable link for a conversation.
  */
 export async function shareConversation(
-  conversationId: string
+  conversationId: string,
 ): Promise<ShareConversationResponse> {
   return api.post<ShareConversationResponse>(
-    `/conversations/${conversationId}/share`
+    `/conversations/${conversationId}/share`,
   );
 }
 
@@ -192,7 +192,7 @@ export async function shareConversation(
  * Remove the shareable link from a conversation.
  */
 export async function unshareConversation(
-  conversationId: string
+  conversationId: string,
 ): Promise<void> {
   return api.delete(`/conversations/${conversationId}/share`);
 }
@@ -205,7 +205,7 @@ export async function unshareConversation(
  * Import conversations from localStorage.
  */
 export async function importConversations(
-  data: ImportConversationsRequest
+  data: ImportConversationsRequest,
 ): Promise<ImportConversationsResponse> {
   return api.post<ImportConversationsResponse>("/conversations/import", data);
 }

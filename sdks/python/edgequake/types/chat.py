@@ -60,7 +60,12 @@ class ChatCompletionResponse(BaseModel):
 
 
 class ChatCompletionChunk(BaseModel):
-    """SSE chunk event for streaming chat completions."""
+    """SSE chunk event for streaming chat completions.
+
+    WHY: EdgeQuake server sends tagged events with ``{type: "...", ...}`` format.
+    This model can deserialize any event type; consumers should check ``type``
+    to determine which fields are populated.
+    """
 
     id: str | None = None
     object: str = "chat.completion.chunk"
@@ -70,6 +75,41 @@ class ChatCompletionChunk(BaseModel):
     sources: list[SourceReference] | None = None
     done: bool = False
     error: str | None = None
+
+    # EdgeQuake-native tagged event fields (server sends {type: "...", ...})
+    # @implements FEAT0505: Auto-generated conversation titles
+
+    #: Event type discriminator.
+    #: Values: "conversation", "context", "token", "thinking", "done",
+    #: "title_update", "error"
+    type: str | None = None
+
+    #: Token or thinking content (present in token/thinking events).
+    content: str | None = None
+
+    #: Conversation ID (present in conversation, title_update events).
+    conversation_id: str | None = None
+
+    #: Auto-generated conversation title (present in title_update events).
+    title: str | None = None
+
+    #: User message ID (present in conversation event).
+    user_message_id: str | None = None
+
+    #: Assistant message ID (present in done event).
+    assistant_message_id: str | None = None
+
+    #: Tokens used (present in done event).
+    tokens_used: int | None = None
+
+    #: Duration in milliseconds (present in done event).
+    duration_ms: int | None = None
+
+    #: LLM provider used (present in done event, lineage tracking).
+    llm_provider: str | None = None
+
+    #: LLM model used (present in done event, lineage tracking).
+    llm_model: str | None = None
 
 
 class ChatStreamChoice(BaseModel):

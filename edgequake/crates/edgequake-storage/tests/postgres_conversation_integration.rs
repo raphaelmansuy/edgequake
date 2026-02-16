@@ -813,6 +813,7 @@ mod full_workflow_tests {
                 Some(false), // not archived
                 None,
                 None,
+                None, // unfiled
                 None,
                 "updated_at",
                 true,
@@ -831,6 +832,7 @@ mod full_workflow_tests {
                 None,
                 Some(true), // pinned
                 None,
+                None, // unfiled
                 None,
                 "updated_at",
                 true,
@@ -850,6 +852,7 @@ mod full_workflow_tests {
                 Some(true), // archived
                 None,
                 None,
+                None, // unfiled
                 None,
                 "updated_at",
                 true,

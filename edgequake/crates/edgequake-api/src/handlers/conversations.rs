@@ -77,6 +77,7 @@ pub async fn list_conversations(
         archived: params.filter_archived,
         pinned: params.filter_pinned,
         folder_id: params.filter_folder_id,
+        unfiled: params.filter_unfiled,
         search: params.filter_search,
         date_from: None,
         date_to: None,
@@ -226,10 +227,16 @@ pub async fn get_conversation(
 )]
 pub async fn update_conversation(
     State(state): State<AppState>,
-    _tenant_ctx: TenantContext,
+    tenant_ctx: TenantContext,
     Path(id): Path<Uuid>,
     Json(request): Json<UpdateConversationApiRequest>,
 ) -> ApiResult<Json<ConversationResponse>> {
+    let tenant_id = tenant_ctx
+        .tenant_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
+
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+
     let mode = request
         .mode
         .as_ref()
@@ -238,6 +245,8 @@ pub async fn update_conversation(
     let conversation = state
         .conversation_service
         .update_conversation(
+            tenant_id,
+            user_id,
             id,
             UpdateConversationRequest {
                 title: request.title,
@@ -708,13 +717,26 @@ pub async fn create_folder(
 )]
 pub async fn update_folder(
     State(state): State<AppState>,
-    _tenant_ctx: TenantContext,
+    tenant_ctx: TenantContext,
     Path(folder_id): Path<Uuid>,
     Json(request): Json<UpdateFolderApiRequest>,
 ) -> ApiResult<Json<FolderResponse>> {
+    let tenant_id = tenant_ctx
+        .tenant_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
+
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+
     let folder = state
         .conversation_service
-        .update_folder(folder_id, request.name, request.parent_id, request.position)
+        .update_folder(
+            tenant_id,
+            user_id,
+            folder_id,
+            request.name,
+            request.parent_id,
+            request.position,
+        )
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
@@ -735,12 +757,18 @@ pub async fn update_folder(
 )]
 pub async fn delete_folder(
     State(state): State<AppState>,
-    _tenant_ctx: TenantContext,
+    tenant_ctx: TenantContext,
     Path(folder_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
+    let tenant_id = tenant_ctx
+        .tenant_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
+
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+
     state
         .conversation_service
-        .delete_folder(folder_id)
+        .delete_folder(tenant_id, user_id, folder_id)
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 

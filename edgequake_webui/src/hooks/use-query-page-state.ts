@@ -142,7 +142,7 @@ export function useQueryPageState(): QueryPageState {
         stream: true,
       });
     },
-    [activeId, createNewConversation, createMessageMutation]
+    [activeId, createNewConversation, createMessageMutation],
   );
 
   const switchConversation = useCallback(
@@ -152,7 +152,7 @@ export function useQueryPageState(): QueryPageState {
       }
       store.setActiveConversation(id);
     },
-    [store, streamingState.isStreaming]
+    [store, streamingState.isStreaming],
   );
 
   return {

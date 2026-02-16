@@ -180,12 +180,16 @@ impl ConversationService for ConversationServiceImpl {
 
     async fn update_conversation(
         &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
         conversation_id: Uuid,
         request: UpdateConversationRequest,
     ) -> Result<Conversation> {
         let row = self
             .storage
             .update_conversation(
+                tenant_id,
+                user_id,
                 conversation_id,
                 request.title,
                 request.mode.map(|m| m.to_string()),
@@ -230,6 +234,7 @@ impl ConversationService for ConversationServiceImpl {
                 filter.archived,
                 filter.pinned,
                 filter.folder_id,
+                filter.unfiled,
                 filter.search.as_deref(),
                 sort_field,
                 sort_desc,
@@ -387,6 +392,8 @@ impl ConversationService for ConversationServiceImpl {
 
     async fn update_folder(
         &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
         folder_id: Uuid,
         name: Option<String>,
         parent_id: Option<Uuid>,
@@ -394,16 +401,23 @@ impl ConversationService for ConversationServiceImpl {
     ) -> Result<Folder> {
         let row = self
             .storage
-            .update_folder(folder_id, name.as_deref(), parent_id, position)
+            .update_folder(
+                tenant_id,
+                user_id,
+                folder_id,
+                name.as_deref(),
+                parent_id,
+                position,
+            )
             .await
             .map_err(Self::map_error)?;
 
         Ok(Self::row_to_folder(row))
     }
 
-    async fn delete_folder(&self, folder_id: Uuid) -> Result<()> {
+    async fn delete_folder(&self, tenant_id: Uuid, user_id: Uuid, folder_id: Uuid) -> Result<()> {
         self.storage
-            .delete_folder(folder_id)
+            .delete_folder(tenant_id, user_id, folder_id)
             .await
             .map_err(Self::map_error)
     }
