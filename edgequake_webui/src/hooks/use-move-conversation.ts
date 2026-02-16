@@ -31,7 +31,7 @@ export function useMoveConversation() {
     onSuccess: (_data, { folderId }) => {
       queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
       toast.success(
-        folderId ? "Moved to folder" : "Moved to All Conversations",
+        folderId ? "Moved to folder" : "Moved to Unfiled",
       );
     },
     onError: () => {
@@ -66,7 +66,7 @@ export function useMoveConversations() {
       toast.success(
         folderId
           ? `Moved ${conversationIds.length} conversations to folder`
-          : `Moved ${conversationIds.length} conversations to All Conversations`,
+          : `Moved ${conversationIds.length} conversations to Unfiled`,
       );
     },
     onError: () => {

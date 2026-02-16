@@ -511,7 +511,13 @@ pub struct UpdateConversationRequest {
     /// Archive state.
     pub is_archived: Option<bool>,
     /// New folder.
-    pub folder_id: Option<Uuid>,
+    /// - `None`: don't change folder assignment
+    /// - `Some(None)`: remove from folder (set folder_id to null)
+    /// - `Some(Some(uuid))`: move to folder with this UUID
+    ///
+    /// WHY: Double-option pattern required to distinguish between
+    /// "no change" and "explicitly remove from folder" in PATCH semantics.
+    pub folder_id: Option<Option<Uuid>>,
 }
 
 /// Request to create a new message.
@@ -580,6 +586,9 @@ pub struct ConversationFilter {
     pub pinned: Option<bool>,
     /// Filter by folder.
     pub folder_id: Option<Uuid>,
+    /// Filter for conversations without any folder (unfiled).
+    /// When true, returns only conversations where folder_id IS NULL.
+    pub unfiled: Option<bool>,
     /// Full-text search in title.
     pub search: Option<String>,
     /// Filter by date range (from).

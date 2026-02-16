@@ -201,6 +201,7 @@ export function MobileHistoryPanel({ className }: MobileHistoryPanelProps) {
     archived: store.filters.archived,
     pinned: store.filters.pinned ?? undefined,
     folder_id: store.filters.folderId ?? undefined,
+    unfiled: store.filters.unfiled || undefined,
     search: store.filters.search || undefined,
   });
 

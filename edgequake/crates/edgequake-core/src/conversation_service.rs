@@ -57,6 +57,8 @@ pub trait ConversationService: Send + Sync {
     /// Update a conversation.
     async fn update_conversation(
         &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
         conversation_id: Uuid,
         request: UpdateConversationRequest,
     ) -> Result<Conversation>;
@@ -129,6 +131,8 @@ pub trait ConversationService: Send + Sync {
     /// Update a folder.
     async fn update_folder(
         &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
         folder_id: Uuid,
         name: Option<String>,
         parent_id: Option<Uuid>,
@@ -136,7 +140,7 @@ pub trait ConversationService: Send + Sync {
     ) -> Result<Folder>;
 
     /// Delete a folder.
-    async fn delete_folder(&self, folder_id: Uuid) -> Result<()>;
+    async fn delete_folder(&self, tenant_id: Uuid, user_id: Uuid, folder_id: Uuid) -> Result<()>;
 
     // ============ Bulk Operations ============
 
@@ -244,6 +248,8 @@ impl ConversationService for InMemoryConversationService {
 
     async fn update_conversation(
         &self,
+        _tenant_id: Uuid,
+        _user_id: Uuid,
         conversation_id: Uuid,
         request: UpdateConversationRequest,
     ) -> Result<Conversation> {
@@ -264,8 +270,10 @@ impl ConversationService for InMemoryConversationService {
         if let Some(is_archived) = request.is_archived {
             conv.is_archived = is_archived;
         }
-        if let Some(folder_id) = request.folder_id {
-            conv.folder_id = Some(folder_id);
+        // WHY: Double-option pattern - Some(inner) means "update folder_id",
+        // where inner can be None (remove from folder) or Some(uuid) (move to folder)
+        if let Some(folder_id_update) = request.folder_id {
+            conv.folder_id = folder_id_update;
         }
         conv.updated_at = chrono::Utc::now();
 
@@ -313,6 +321,12 @@ impl ConversationService for InMemoryConversationService {
                 }
                 if let Some(folder_id) = filter.folder_id {
                     if c.folder_id != Some(folder_id) {
+                        return false;
+                    }
+                }
+                // WHY: unfiled filter returns only conversations without any folder
+                if filter.unfiled == Some(true) {
+                    if c.folder_id.is_some() {
                         return false;
                     }
                 }
@@ -521,6 +535,8 @@ impl ConversationService for InMemoryConversationService {
 
     async fn update_folder(
         &self,
+        _tenant_id: Uuid,
+        _user_id: Uuid,
         folder_id: Uuid,
         name: Option<String>,
         parent_id: Option<Uuid>,
@@ -545,7 +561,7 @@ impl ConversationService for InMemoryConversationService {
         Ok(folder.clone())
     }
 
-    async fn delete_folder(&self, folder_id: Uuid) -> Result<()> {
+    async fn delete_folder(&self, _tenant_id: Uuid, _user_id: Uuid, folder_id: Uuid) -> Result<()> {
         self.folders.write().unwrap().remove(&folder_id);
         // Move conversations out of folder
         let mut convs = self.conversations.write().unwrap();

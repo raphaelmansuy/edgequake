@@ -43,6 +43,8 @@ export interface ConversationFilters {
   archived: boolean;
   pinned: boolean | null;
   folderId: string | null;
+  /** When true, filter for conversations without any folder (unfiled/root). */
+  unfiled: boolean;
   search: string;
   dateFrom: string | null;
   dateTo: string | null;
@@ -121,6 +123,7 @@ const defaultFilters: ConversationFilters = {
   archived: false,
   pinned: null,
   folderId: null,
+  unfiled: true, // WHY: By default show unfiled conversations (not in any folder)
   search: "",
   dateFrom: null,
   dateTo: null,
