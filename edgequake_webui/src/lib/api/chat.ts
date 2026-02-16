@@ -144,6 +144,12 @@ export type ChatStreamEvent =
       llm_model?: string;
     }
   | {
+      /** Auto-generated conversation title. @implements FEAT0505 */
+      type: "title_update";
+      conversation_id: string;
+      title: string;
+    }
+  | {
       type: "error";
       message: string;
       code: string;
@@ -160,7 +166,7 @@ export type ChatStreamEvent =
  * @returns Chat completion response with all IDs and content
  */
 export async function chatCompletion(
-  request: ChatCompletionRequest
+  request: ChatCompletionRequest,
 ): Promise<ChatCompletionResponse> {
   return apiClient<ChatCompletionResponse>("/chat/completions", {
     method: "POST",
@@ -195,7 +201,7 @@ export async function chatCompletion(
  * @yields ChatStreamEvent objects as they arrive
  */
 export async function* chatCompletionStream(
-  request: ChatCompletionRequest
+  request: ChatCompletionRequest,
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
   yield* streamClient<ChatStreamEvent>("/chat/completions/stream", {
     method: "POST",
@@ -242,7 +248,7 @@ export interface StreamingState {
  */
 export function reduceStreamingEvent(
   event: ChatStreamEvent,
-  currentState: StreamingState
+  currentState: StreamingState,
 ): StreamingState {
   switch (event.type) {
     case "conversation":
@@ -279,6 +285,9 @@ export function reduceStreamingEvent(
         status: "error",
         error: event.message,
       };
+    case "title_update":
+      // Title updates don't affect streaming state
+      return currentState;
     default:
       return currentState;
   }

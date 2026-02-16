@@ -198,6 +198,7 @@ export function QueryInterface() {
   const [streamingState, setStreamingState] = useState<StreamingState>('idle');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
+  const [optimisticUserMessage, setOptimisticUserMessage] = useState<Message | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -351,16 +352,30 @@ export function QueryInterface() {
     };
   }, []);
 
-  // Combine real messages with pending message (only when it has content)
+  // Combine real messages with optimistic user message and pending assistant message
   const messages = useMemo(() => {
     const serverMessages = (activeConversation?.messages ?? []).map(convertServerMessage);
-    // Only include pendingMessage when it has actual content to avoid two bubbles
+    const result = [...serverMessages];
+
+    // Add optimistic user message (visible immediately while streaming)
+    // Skip if server already has the user message (avoid duplicate)
+    if (optimisticUserMessage) {
+      const alreadyFromServer = serverMessages.some(
+        m => m.role === 'user' && m.content === optimisticUserMessage.content
+      );
+      if (!alreadyFromServer) {
+        result.push(optimisticUserMessage);
+      }
+    }
+
+    // Add pending assistant message when it has actual content
     // (LoadingMessage handles the empty "thinking" state)
     if (pendingMessage && pendingMessage.content) {
-      return [...serverMessages, pendingMessage];
+      result.push(pendingMessage);
     }
-    return serverMessages;
-  }, [activeConversation?.messages, pendingMessage, convertServerMessage, activeConversationId]);
+
+    return result;
+  }, [activeConversation?.messages, pendingMessage, optimisticUserMessage, convertServerMessage, activeConversationId]);
 
   // Handle tenant/workspace change - start fresh
   useEffect(() => {
@@ -418,6 +433,7 @@ export function QueryInterface() {
   // Stop generation
   const handleStop = useCallback(() => {
     abortControllerRef.current?.abort();
+    setOptimisticUserMessage(null);
     setStreamingState('idle');
   }, []);
 
@@ -474,6 +490,8 @@ export function QueryInterface() {
             if (!conversationId && newConversationId) {
               // New conversation was created - update UI
               store.setActiveConversation(newConversationId);
+              // Refresh sidebar so new conversation appears immediately
+              queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
             }
             break;
 
@@ -517,13 +535,25 @@ export function QueryInterface() {
             llmModel = chunk.llm_model;
             break;
 
+          case 'title_update':
+            // FEAT0505: Server auto-generated a conversation title
+            // Invalidate queries to refresh the sidebar with the new title
+            queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
+            if (chunk.conversation_id) {
+              queryClient.invalidateQueries({
+                queryKey: conversationKeys.detail(chunk.conversation_id),
+              });
+            }
+            break;
+
           case 'error':
             throw new Error(chunk.message || 'Streaming failed');
         }
       }
 
-      // Clear pending message
+      // Clear pending message and optimistic user message
       setPendingMessage(null);
+      setOptimisticUserMessage(null);
       
       // Server already saved both user and assistant messages!
       // Just refresh the conversation data from server
@@ -544,6 +574,7 @@ export function QueryInterface() {
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         setPendingMessage(null);
+        setOptimisticUserMessage(null);
         setStreamingState('idle');
         return;
       }
@@ -558,6 +589,7 @@ export function QueryInterface() {
         // Clear the stale conversation and retry with a new one
         store.setActiveConversation(null);
         setPendingMessage(null);
+        setOptimisticUserMessage(null);
         setStreamingState('idle');
         
         toast.warning(t('query.conversationExpired', 'Conversation expired'), {
@@ -603,11 +635,19 @@ export function QueryInterface() {
 
     const queryText = input.trim();
     setInput('');
-    
+
     // Reset textarea height
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
     }
+
+    // Show user message immediately (optimistic) so it's visible during streaming
+    setOptimisticUserMessage({
+      id: `optimistic-user-${Date.now()}`,
+      role: 'user',
+      content: queryText,
+      timestamp: Date.now(),
+    });
 
     // The unified chat API handles conversation creation and message persistence
     // We just pass the current conversation ID (or null for a new one)
@@ -647,6 +687,7 @@ export function QueryInterface() {
         await queryClient.invalidateQueries({
           queryKey: conversationKeys.all,
         });
+        setOptimisticUserMessage(null);
         setStreamingState('complete');
       } catch (error) {
         // Handle stale conversation ID (404 - Conversation not found)
@@ -656,13 +697,15 @@ export function QueryInterface() {
         
         if (isConversationNotFound && conversationId) {
           store.setActiveConversation(null);
+          setOptimisticUserMessage(null);
           toast.warning(t('query.conversationExpired', 'Conversation expired'), {
             description: t('query.startingNewConversation', 'Starting a new conversation. Please submit your query again.'),
           });
           setStreamingState('idle');
           return;
         }
-        
+
+        setOptimisticUserMessage(null);
         toast.error(t('query.failed', 'Query failed'), {
           description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
         });
@@ -724,6 +767,7 @@ export function QueryInterface() {
   const handleNewConversation = useCallback(() => {
     store.setActiveConversation(null);
     setPendingMessage(null);
+    setOptimisticUserMessage(null);
     setInput('');
     setStreamingState('idle');
   }, [store]);

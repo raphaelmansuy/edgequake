@@ -596,7 +596,7 @@ export function ConversationHistoryPanelV2({ className }: ConversationHistoryPan
     >
       <aside
         className={cn(
-          "flex flex-col w-full border-l bg-card/50 backdrop-blur-sm transition-all duration-200",
+          "flex flex-col w-full h-full min-h-0 border-l bg-card/50 backdrop-blur-sm transition-all duration-200",
           className
         )}
         aria-label={t("query.history.title", "Conversation history")}
