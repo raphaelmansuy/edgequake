@@ -15,6 +15,9 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -27,6 +30,8 @@ import {
     useDeleteConversations,
     useUpdateConversation,
 } from "@/hooks/use-conversations";
+import { useFolders } from "@/hooks/use-folders";
+import { useMoveConversation, useMoveConversations } from "@/hooks/use-move-conversation";
 import { cn } from "@/lib/utils";
 import { useQueryUIStore } from "@/stores/use-query-ui-store";
 import { useTenantStore } from "@/stores/use-tenant-store";
@@ -38,6 +43,9 @@ import {
     ChevronRight,
     Download,
     Edit2,
+    Folder,
+    FolderInput,
+    Inbox,
     Loader2,
     MessageSquare,
     MoreVertical,
@@ -53,7 +61,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInView } from "react-intersection-observer";
 import { ExportDialog } from "./export-dialog";
-import { FolderSidebar } from "./folder-sidebar";
+import { DND_CONVERSATION_TYPE, FolderSidebar } from "./folder-sidebar";
 import { MigrationBanner } from "./migration-banner";
 import { ShareDialog } from "./share-dialog";
 
@@ -66,6 +74,8 @@ interface ConversationItemProps {
   isActive: boolean;
   isSelected: boolean;
   isSelectionMode: boolean;
+  /** All selected conversation IDs (for batch drag) */
+  selectedIds: Set<string>;
   onSelect: () => void;
   onToggleSelection: () => void;
   onRename: (title: string) => void;
@@ -74,6 +84,9 @@ interface ConversationItemProps {
   onExport: () => void;
   onShare: () => void;
   onDelete: () => void;
+  onMoveToFolder: (folderId: string | null) => void;
+  /** Available folders for "Move to Folder" submenu */
+  folders: { id: string; name: string }[];
 }
 
 const ConversationItem = memo(function ConversationItem({
@@ -81,6 +94,7 @@ const ConversationItem = memo(function ConversationItem({
   isActive,
   isSelected,
   isSelectionMode,
+  selectedIds,
   onSelect,
   onToggleSelection,
   onRename,
@@ -89,6 +103,8 @@ const ConversationItem = memo(function ConversationItem({
   onExport,
   onShare,
   onDelete,
+  onMoveToFolder,
+  folders,
 }: ConversationItemProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
@@ -141,6 +157,19 @@ const ConversationItem = memo(function ConversationItem({
     }
   }, [isSelectionMode, onToggleSelection, onSelect]);
 
+  // Drag start: include all selected IDs if in selection mode, otherwise just this one
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      const ids =
+        isSelectionMode && isSelected && selectedIds.size > 0
+          ? Array.from(selectedIds)
+          : [conversation.id];
+      e.dataTransfer.setData(DND_CONVERSATION_TYPE, JSON.stringify(ids));
+      e.dataTransfer.effectAllowed = "move";
+    },
+    [conversation.id, isSelectionMode, isSelected, selectedIds],
+  );
+
   return (
     <div
       className={cn(
@@ -154,6 +183,8 @@ const ConversationItem = memo(function ConversationItem({
       onClick={handleClick}
       role="button"
       tabIndex={0}
+      draggable
+      onDragStart={handleDragStart}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -285,6 +316,49 @@ const ConversationItem = memo(function ConversationItem({
                 ? t("common.unarchive", "Unarchive")
                 : t("common.archive", "Archive")}
             </DropdownMenuItem>
+
+            {/* Move to Folder Submenu */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <FolderInput className="h-3 w-3 mr-2" />
+                {t("query.moveToFolder", "Move to Folder")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-40">
+                {/* "All Conversations" (root / no folder) */}
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveToFolder(null);
+                  }}
+                  disabled={!conversation.folder_id}
+                >
+                  <Inbox className="h-3 w-3 mr-2" />
+                  {t("query.folders.all", "All Conversations")}
+                </DropdownMenuItem>
+                {folders.length > 0 && <DropdownMenuSeparator />}
+                {folders.map((folder) => (
+                  <DropdownMenuItem
+                    key={folder.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMoveToFolder(folder.id);
+                    }}
+                    disabled={conversation.folder_id === folder.id}
+                  >
+                    <Folder className="h-3 w-3 mr-2" />
+                    <span className="truncate">{folder.name}</span>
+                  </DropdownMenuItem>
+                ))}
+                {folders.length === 0 && (
+                  <DropdownMenuItem disabled>
+                    <span className="text-xs text-muted-foreground italic">
+                      {t("query.folders.noFolders", "No folders yet")}
+                    </span>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={(e) => {
@@ -396,9 +470,11 @@ interface SelectionToolbarProps {
   selectedCount: number;
   onDelete: () => void;
   onClear: () => void;
+  onMoveToFolder: (folderId: string | null) => void;
+  folders: { id: string; name: string }[];
 }
 
-function SelectionToolbar({ selectedCount, onDelete, onClear }: SelectionToolbarProps) {
+function SelectionToolbar({ selectedCount, onDelete, onClear, onMoveToFolder, folders }: SelectionToolbarProps) {
   const { t } = useTranslation();
 
   return (
@@ -407,6 +483,35 @@ function SelectionToolbar({ selectedCount, onDelete, onClear }: SelectionToolbar
         {selectedCount} {t("common.selected", "selected")}
       </span>
       <div className="flex items-center gap-1">
+        {/* Move to Folder */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+            >
+              <FolderInput className="h-3 w-3 mr-1" />
+              {t("query.moveToFolder", "Move")}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onClick={() => onMoveToFolder(null)}>
+              <Inbox className="h-3 w-3 mr-2" />
+              {t("query.folders.all", "All Conversations")}
+            </DropdownMenuItem>
+            {folders.length > 0 && <DropdownMenuSeparator />}
+            {folders.map((folder) => (
+              <DropdownMenuItem
+                key={folder.id}
+                onClick={() => onMoveToFolder(folder.id)}
+              >
+                <Folder className="h-3 w-3 mr-2" />
+                <span className="truncate">{folder.name}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           variant="ghost"
           size="sm"
@@ -489,6 +594,17 @@ export function ConversationHistoryPanelV2({ className }: ConversationHistoryPan
   const updateConversation = useUpdateConversation();
   const deleteConversation = useDeleteConversation();
   const deleteConversationsBatch = useDeleteConversations();
+  const moveConversation = useMoveConversation();
+  const moveConversations = useMoveConversations();
+
+  // Folder data for "Move to Folder" submenu
+  const { data: folders } = useFolders();
+  const folderList = useMemo(() => {
+    if (!folders) return [];
+    return folders
+      .sort((a, b) => a.position - b.position)
+      .map((f) => ({ id: f.id, name: f.name }));
+  }, [folders]);
 
   // Fetch full conversation data for export/share
   const { data: conversationForAction } = useConversation(selectedConversationForAction);
@@ -640,6 +756,13 @@ export function ConversationHistoryPanelV2({ className }: ConversationHistoryPan
             store.clearSelection();
             store.setSelectionMode(false);
           }}
+          onMoveToFolder={(folderId) =>
+            moveConversations.mutate({
+              conversationIds: Array.from(store.selectedIds),
+              folderId,
+            })
+          }
+          folders={folderList}
         />
       )}
 
@@ -749,6 +872,7 @@ export function ConversationHistoryPanelV2({ className }: ConversationHistoryPan
                     isActive={conversation.id === store.activeConversationId}
                     isSelected={store.selectedIds.has(conversation.id)}
                     isSelectionMode={store.isSelectionMode}
+                    selectedIds={store.selectedIds}
                     onSelect={() => store.setActiveConversation(conversation.id)}
                     onToggleSelection={() => store.toggleSelection(conversation.id)}
                     onRename={(title) =>
@@ -781,6 +905,13 @@ export function ConversationHistoryPanelV2({ className }: ConversationHistoryPan
                       setConversationToDelete(conversation.id);
                       setDeleteDialogOpen(true);
                     }}
+                    onMoveToFolder={(folderId) =>
+                      moveConversation.mutate({
+                        conversationId: conversation.id,
+                        folderId,
+                      })
+                    }
+                    folders={folderList}
                   />
                 </div>
               );
