@@ -325,7 +325,9 @@ data class ChatSourceReference(
     @JsonProperty("source_type") val sourceType: String? = null,
     val id: String? = null,
     val score: Double? = null,
-    val snippet: String? = null
+    val snippet: String? = null,
+    @JsonProperty("document_id") val documentId: String? = null,
+    @JsonProperty("file_path") val filePath: String? = null
 )
 
 data class ChatCompletionResponse(

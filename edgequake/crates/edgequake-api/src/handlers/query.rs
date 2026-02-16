@@ -52,6 +52,8 @@
 //!   Format response + sources
 //! ```
 
+use std::collections::{HashMap, HashSet};
+
 use axum::{extract::State, Json};
 use tracing::{debug, error, warn};
 
@@ -67,6 +69,83 @@ pub use crate::handlers::query_types::{
     ConversationMessage, QueryRequest, QueryResponse, QueryStats, SourceReference,
     StreamQueryRequest,
 };
+
+/// Resolve document IDs to document titles from KV metadata.
+///
+/// Looks up `"{document_id}-metadata"` in KV storage for each unique document ID,
+/// extracting the `"title"` field (falling back to `"file_name"`).
+/// Returns a HashMap mapping document_id → document title.
+async fn resolve_document_names(
+    kv_storage: &dyn edgequake_storage::traits::KVStorage,
+    document_ids: &[String],
+) -> HashMap<String, String> {
+    if document_ids.is_empty() {
+        return HashMap::new();
+    }
+
+    // Deduplicate — multiple chunks often reference the same document
+    let unique_ids: Vec<String> = document_ids
+        .iter()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .cloned()
+        .collect();
+
+    let mut doc_names = HashMap::new();
+
+    for doc_id in &unique_ids {
+        let metadata_key = format!("{}-metadata", doc_id);
+        match kv_storage.get_by_id(&metadata_key).await {
+            Ok(Some(metadata)) => {
+                if let Some(title) = metadata
+                    .get("title")
+                    .or_else(|| metadata.get("file_name"))
+                    .and_then(|v| v.as_str())
+                {
+                    doc_names.insert(doc_id.clone(), title.to_string());
+                }
+            }
+            Ok(None) => {
+                debug!(document_id = %doc_id, "No metadata found for document");
+            }
+            Err(e) => {
+                warn!(document_id = %doc_id, error = %e, "Failed to fetch document metadata");
+            }
+        }
+    }
+
+    doc_names
+}
+
+/// Resolve `file_path` for chunk sources that are missing it.
+///
+/// Collects unique document IDs from chunk sources, performs a batched KV lookup
+/// for document metadata, and patches `file_path` with the resolved document title.
+/// Non-chunk sources and sources that already have `file_path` are left unchanged.
+pub(crate) async fn resolve_chunk_file_paths(
+    kv_storage: &dyn edgequake_storage::traits::KVStorage,
+    sources: &mut [SourceReference],
+) {
+    let chunk_doc_ids: Vec<String> = sources
+        .iter()
+        .filter(|s| s.source_type == "chunk" && s.file_path.is_none())
+        .filter_map(|s| s.document_id.clone())
+        .collect();
+
+    if chunk_doc_ids.is_empty() {
+        return;
+    }
+
+    let doc_names = resolve_document_names(kv_storage, &chunk_doc_ids).await;
+
+    for source in sources.iter_mut() {
+        if source.source_type == "chunk" && source.file_path.is_none() {
+            if let Some(ref doc_id) = source.document_id {
+                source.file_path = doc_names.get(doc_id).cloned();
+            }
+        }
+    }
+}
 
 /// Execute a RAG query with multi-mode retrieval.
 ///
@@ -328,13 +407,16 @@ pub async fn execute_query(
                 snippet: Some(chunk.content.chars().take(200).collect()),
                 reference_id: Some(ref_id),
                 document_id: chunk.document_id.clone(),
-                file_path: None, // TODO: Resolve document_id to file_path
+                file_path: None, // Resolved below via KV metadata lookup
                 start_line: chunk.start_line,
                 end_line: chunk.end_line,
                 chunk_index: chunk.chunk_index,
             }
         })
         .collect();
+
+    // Resolve document_id → file_path (document title) for chunk sources
+    resolve_chunk_file_paths(state.kv_storage.as_ref(), &mut chunk_sources).await;
 
     // Sort by rerank score if reranking is enabled
     if reranked {

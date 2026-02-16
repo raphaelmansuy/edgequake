@@ -93,7 +93,8 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::query::{
-    get_workspace_embedding_provider, get_workspace_vector_storage, QueryStats, SourceReference,
+    get_workspace_embedding_provider, get_workspace_vector_storage, resolve_chunk_file_paths,
+    QueryStats, SourceReference,
 };
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
@@ -201,7 +202,7 @@ fn sources_to_message_context(sources: &[SourceReference]) -> MessageContext {
             .filter(|s| s.source_type == "chunk")
             .map(|s| MessageSource {
                 id: s.id.clone(),
-                title: Some(s.source_type.clone()),
+                title: s.file_path.clone().or_else(|| s.document_id.clone()),
                 content: Some(s.snippet.clone().unwrap_or_default()),
                 score: s.score,
                 document_id: s.document_id.clone(),
@@ -576,8 +577,9 @@ pub async fn chat_completion(
         }
     };
 
-    // 4. Build sources and context
-    let sources = build_sources(&result.context);
+    // 4. Build sources and resolve document names for chunk sources
+    let mut sources = build_sources(&result.context);
+    resolve_chunk_file_paths(state.kv_storage.as_ref(), &mut sources).await;
     let context = sources_to_message_context(&sources);
 
     // 5. Save assistant message
@@ -1050,7 +1052,10 @@ pub async fn chat_completion_stream(
         match stream_result {
             Ok((context, _mode, mut stream)) => {
                 // Send context event BEFORE streaming tokens (for source citations)
-                let sources = build_sources(&context);
+                let mut sources = build_sources(&context);
+
+                // Resolve document names for chunk sources
+                resolve_chunk_file_paths(state_clone.kv_storage.as_ref(), &mut sources).await;
 
                 // Save message context for later persistence
                 saved_message_context = Some(sources_to_message_context(&sources));
@@ -1306,5 +1311,75 @@ mod tests {
         assert!(json.contains("\"type\":\"error\""));
         assert!(json.contains("Something went wrong"));
         assert!(json.contains("INTERNAL_ERROR"));
+    }
+
+    #[test]
+    fn test_sources_to_message_context_uses_file_path_for_title() {
+        let sources = vec![SourceReference {
+            source_type: "chunk".to_string(),
+            id: "doc-123-chunk-0".to_string(),
+            score: 0.95,
+            rerank_score: None,
+            snippet: Some("Test content".to_string()),
+            reference_id: Some(1),
+            document_id: Some("doc-123".to_string()),
+            file_path: Some("research_paper.pdf".to_string()),
+            start_line: None,
+            end_line: None,
+            chunk_index: Some(0),
+        }];
+
+        let context = sources_to_message_context(&sources);
+        assert_eq!(context.sources.len(), 1);
+        // Title should be the file_path, NOT "chunk"
+        assert_eq!(
+            context.sources[0].title,
+            Some("research_paper.pdf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_sources_to_message_context_fallback_to_document_id() {
+        let sources = vec![SourceReference {
+            source_type: "chunk".to_string(),
+            id: "doc-456-chunk-0".to_string(),
+            score: 0.8,
+            rerank_score: None,
+            snippet: Some("Content".to_string()),
+            reference_id: Some(1),
+            document_id: Some("doc-456".to_string()),
+            file_path: None,
+            start_line: None,
+            end_line: None,
+            chunk_index: Some(0),
+        }];
+
+        let context = sources_to_message_context(&sources);
+        assert_eq!(context.sources.len(), 1);
+        // Should fall back to document_id, NOT "chunk"
+        assert_eq!(context.sources[0].title, Some("doc-456".to_string()));
+    }
+
+    #[test]
+    fn test_sources_to_message_context_no_chunk_title() {
+        // Verify the old bug is fixed - source_type should never be used as title
+        let sources = vec![SourceReference {
+            source_type: "chunk".to_string(),
+            id: "doc-789-chunk-0".to_string(),
+            score: 0.7,
+            rerank_score: None,
+            snippet: Some("Some text".to_string()),
+            reference_id: Some(1),
+            document_id: None,
+            file_path: None,
+            start_line: None,
+            end_line: None,
+            chunk_index: Some(0),
+        }];
+
+        let context = sources_to_message_context(&sources);
+        assert_eq!(context.sources.len(), 1);
+        // With no file_path or document_id, title should be None (not "chunk")
+        assert_eq!(context.sources[0].title, None);
     }
 }

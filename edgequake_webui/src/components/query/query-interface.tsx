@@ -290,7 +290,8 @@ export function QueryInterface() {
           // Use document_id if provided, otherwise extract from chunk ID
           document_id: s.document_id ?? extractDocId(s.id),
           score: s.score,
-          file_path: s.file_path,
+          // Use file_path if available, fall back to title (contains document name for stored messages)
+          file_path: s.file_path ?? s.title,
         })),
         entities: msg.context.entities?.map(e => {
           // Handle both string[] and ServerContextEntity[] formats

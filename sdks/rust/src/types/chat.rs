@@ -50,6 +50,12 @@ pub struct SourceReference {
     pub score: Option<f64>,
     #[serde(default)]
     pub snippet: Option<String>,
+    /// Document ID this source came from.
+    #[serde(default)]
+    pub document_id: Option<String>,
+    /// Original file path or title of the source document.
+    #[serde(default)]
+    pub file_path: Option<String>,
 }
 
 /// Chat completion response from POST /api/v1/chat/completions.

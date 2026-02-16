@@ -42,6 +42,9 @@ pub struct SourceReference {
     pub score: Option<f64>,
     #[serde(default)]
     pub metadata: Option<HashMap<String, serde_json::Value>>,
+    /// Original file path or title of the source document.
+    #[serde(default)]
+    pub file_path: Option<String>,
 }
 
 /// Query response.

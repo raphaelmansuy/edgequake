@@ -1,7 +1,8 @@
 package io.edgequake.sdk.models;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /** Query and Chat model classes. */
 public class QueryModels {
@@ -31,6 +32,7 @@ public class QueryModels {
         @JsonProperty("chunk_id") public String chunkId;
         @JsonProperty("content") public String content;
         @JsonProperty("score") public Double score;
+        @JsonProperty("file_path") public String filePath;
     }
 
     // ── Chat ─────────────────────────────────────────────────────────
@@ -72,6 +74,8 @@ public class QueryModels {
         @JsonProperty("id") public String id;
         @JsonProperty("score") public Double score;
         @JsonProperty("snippet") public String snippet;
+        @JsonProperty("document_id") public String documentId;
+        @JsonProperty("file_path") public String filePath;
     }
 
     public static class ChatCompletionResponse {

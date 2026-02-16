@@ -4,21 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Query/Chat source references show "chunk" instead of document name**: `sources_to_message_context()` was using `source_type` (always `"chunk"`) as the title. Now resolves `document_id` to actual document title from KV metadata. Affects `/api/v1/query`, `/api/v1/chat/completions`, and streaming endpoints.
+- **WebUI stored conversations**: Frontend `convertServerMessage` now uses `title` as fallback for `file_path` when displaying source citations from persisted conversations.
+
+### Changed
+
+- `sources_to_message_context()` uses `file_path` (then `document_id`) for source title instead of `source_type`.
+- Added `resolve_chunk_file_paths()` helper in query handler for reusable document name resolution from KV metadata.
+- **SDK updates**: Added `file_path` field to Rust, Java, and Kotlin SDK source reference types (Python and TypeScript already had it).
+
 ### Added — Lineage Tracking & Metadata (OODA-01 through OODA-25)
 
 #### Core Types
+
 - Chunk position metadata: `start_line`, `end_line`, `start_offset`, `end_offset` fields (OODA-01)
 - Chunk model tracking: `llm_model`, `embedding_model`, `embedding_dimension` fields (OODA-02)
 - Document lineage metadata: `document_type`, `file_size`, `sha256_checksum`, `pdf_id`, `processed_at` fields (OODA-03)
 - All new fields are `Option<T>` with `serde(default)` for backward compatibility (T5)
 
 #### Pipeline & Storage
+
 - PDF↔Document bidirectional linking with `pdf_id` in document metadata (OODA-04)
 - Chunk metadata propagation to KV and vector storage (OODA-05)
 - Lineage persistence to KV storage under `{document_id}-lineage` key (OODA-06)
 - Lineage tracking enabled by default (`enable_lineage_tracking = true`)
 
 #### API Endpoints
+
 - `GET /api/v1/documents/{id}/lineage` — Complete document lineage tree (OODA-07)
 - `GET /api/v1/documents/{id}/metadata` — All metadata in single response (OODA-07)
 - `GET /api/v1/chunks/{id}/lineage` — Chunk lineage with parent refs (OODA-08)
@@ -27,6 +41,7 @@ All notable changes to this project will be documented in this file.
 - OpenAPI/utoipa annotations for all new endpoints
 
 #### WebUI
+
 - TypeScript types for full lineage responses (OODA-10)
 - React Query hooks: `useDocumentFullLineage`, `useDocumentMetadata` (OODA-11)
 - Enhanced metadata component with KV storage fields (OODA-12)
@@ -34,12 +49,14 @@ All notable changes to this project will be documented in this file.
 - Lineage export buttons (JSON/CSV download) in metadata sidebar (OODA-24)
 
 #### SDKs
+
 - **Rust SDK**: `documents().get_lineage()`, `get_metadata()`, `chunks().get_lineage()` (OODA-14)
 - **TypeScript SDK**: `documents.getLineage()`, `getMetadata()`, `chunks.getLineage()` (OODA-15)
 - **Python SDK**: Same methods on sync and async resource classes (OODA-16)
 - E2E tests for lineage/metadata in all 3 SDKs (OODA-21)
 
 #### Documentation
+
 - `docs/architecture/lineage-tracking.md` — Complete lineage architecture (~280 lines) (OODA-17)
 - `docs/api-reference/lineage-endpoints.md` — API reference for 7 endpoints (~360 lines) (OODA-18)
 - `docs/tutorials/tracing-entity-sources.md` — Step-by-step tracing tutorial (~230 lines) (OODA-19)
@@ -48,6 +65,7 @@ All notable changes to this project will be documented in this file.
 ### Migration Notes
 
 All changes are **additive and backward compatible**:
+
 - New fields use `Option<T>` with `serde(default)` — old documents read fine
 - New API endpoints don't change existing ones
 - Lineage/metadata KV keys (`{id}-lineage`, `{id}-metadata`) only populated for newly processed documents
