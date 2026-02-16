@@ -324,7 +324,7 @@ const ConversationItem = memo(function ConversationItem({
                 {t("query.moveToFolder", "Move to Folder")}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-40">
-                {/* "All Conversations" (root / no folder) */}
+                {/* "Unfiled" (root / no folder) */}
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
@@ -333,7 +333,7 @@ const ConversationItem = memo(function ConversationItem({
                   disabled={!conversation.folder_id}
                 >
                   <Inbox className="h-3 w-3 mr-2" />
-                  {t("query.folders.all", "All Conversations")}
+                  {t("query.folders.unfiled", "Unfiled")}
                 </DropdownMenuItem>
                 {folders.length > 0 && <DropdownMenuSeparator />}
                 {folders.map((folder) => (
@@ -498,7 +498,7 @@ function SelectionToolbar({ selectedCount, onDelete, onClear, onMoveToFolder, fo
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem onClick={() => onMoveToFolder(null)}>
               <Inbox className="h-3 w-3 mr-2" />
-              {t("query.folders.all", "All Conversations")}
+              {t("query.folders.unfiled", "Unfiled")}
             </DropdownMenuItem>
             {folders.length > 0 && <DropdownMenuSeparator />}
             {folders.map((folder) => (
@@ -583,6 +583,7 @@ export function ConversationHistoryPanelV2({ className }: ConversationHistoryPan
     archived: store.filters.archived,
     pinned: store.filters.pinned ?? undefined,
     folder_id: store.filters.folderId ?? undefined,
+    unfiled: store.filters.unfiled || undefined,
     search: store.filters.search || undefined,
     date_from: store.filters.dateFrom ?? undefined,
     date_to: store.filters.dateTo ?? undefined,

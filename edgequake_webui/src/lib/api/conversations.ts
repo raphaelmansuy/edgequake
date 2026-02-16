@@ -54,6 +54,8 @@ export async function listConversations(
   }
   if (params?.folder_id)
     searchParams.set("filter[folder_id]", params.folder_id);
+  if (params?.unfiled !== undefined)
+    searchParams.set("filter[unfiled]", String(params.unfiled));
   if (params?.search) searchParams.set("filter[search]", params.search);
   if (params?.date_from)
     searchParams.set("filter[date_from]", params.date_from);

@@ -14,43 +14,43 @@
 
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  useCreateFolder,
-  useDeleteFolder,
-  useFolders,
-  useUpdateFolder,
+    useCreateFolder,
+    useDeleteFolder,
+    useFolders,
+    useUpdateFolder,
 } from "@/hooks/use-folders";
 import {
-  useMoveConversation,
-  useMoveConversations,
+    useMoveConversation,
+    useMoveConversations,
 } from "@/hooks/use-move-conversation";
 import { cn } from "@/lib/utils";
 import { useQueryUIStore } from "@/stores/use-query-ui-store";
 import type { ConversationFolder } from "@/types";
 import {
-  Edit2,
-  Folder,
-  FolderOpen,
-  FolderPlus,
-  Inbox,
-  Loader2,
-  MoreVertical,
-  Trash2,
+    Edit2,
+    Folder,
+    FolderOpen,
+    FolderPlus,
+    Inbox,
+    Loader2,
+    MoreVertical,
+    Trash2,
 } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -352,17 +352,17 @@ export function FolderSidebar({ className }: FolderSidebarProps) {
 
   return (
     <div className={cn("space-y-1", className)}>
-      {/* All Conversations - also a drop target for removing from folder */}
+      {/* Unfiled - shows conversations without any folder, also a drop target */}
       <div
         className={cn(
           "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-all duration-150",
           isRootDragOver
             ? "bg-primary/20 border-2 border-dashed border-primary ring-1 ring-primary/30"
-            : !store.filters.folderId
+            : store.filters.unfiled && !store.filters.folderId
               ? "bg-primary/10 text-primary"
               : "hover:bg-muted/60 text-muted-foreground hover:text-foreground",
         )}
-        onClick={() => store.setFilters({ folderId: null })}
+        onClick={() => store.setFilters({ folderId: null, unfiled: true })}
         role="button"
         tabIndex={0}
         onDragOver={handleRootDragOver}
@@ -370,7 +370,7 @@ export function FolderSidebar({ className }: FolderSidebarProps) {
         onDrop={handleRootDrop}
       >
         <Inbox className="h-3.5 w-3.5 shrink-0" />
-        <span className="text-xs font-medium">{t("query.folders.all", "All Conversations")}</span>
+        <span className="text-xs font-medium">{t("query.folders.unfiled", "Unfiled")}</span>
       </div>
 
       {/* Folders List */}
@@ -387,7 +387,7 @@ export function FolderSidebar({ className }: FolderSidebarProps) {
               key={folder.id}
               folder={folder}
               isActive={store.filters.folderId === folder.id}
-              onSelect={() => store.setFilters({ folderId: folder.id })}
+              onSelect={() => store.setFilters({ folderId: folder.id, unfiled: false })}
               onRename={(name) =>
                 updateFolder.mutate({ id: folder.id, data: { name } })
               }

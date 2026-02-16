@@ -77,6 +77,7 @@ export function useQueryPageState(): QueryPageState {
     mode: store.filters.mode ?? undefined,
     pinned: store.filters.pinned ?? undefined,
     folder_id: store.filters.folderId ?? undefined,
+    unfiled: store.filters.unfiled || undefined,
     search: store.filters.search || undefined,
     date_from: store.filters.dateFrom ?? undefined,
     date_to: store.filters.dateTo ?? undefined,

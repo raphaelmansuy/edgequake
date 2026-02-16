@@ -3,9 +3,34 @@
 //! This module contains all Data Transfer Objects for the conversations API.
 //! Extracted from conversations.rs for modularity and single responsibility.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+// ============================================================================
+// Nullable field helpers
+// ============================================================================
+
+/// Deserializes an `Option<Option<T>>` to support explicit null values in JSON.
+///
+/// - If the field is absent in JSON -> `None` (don't update)
+/// - If the field is `null` in JSON -> `Some(None)` (set to null)
+/// - If the field has a value in JSON -> `Some(Some(value))` (set to value)
+///
+/// WHY: Standard `Option<T>` cannot distinguish between "field absent" and
+/// "field present but null" in JSON. This pattern enables explicit null assignment,
+/// required for operations like "remove conversation from folder".
+pub fn deserialize_nullable<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    // Deserialize Option<T> first, then wrap in Some
+    // When the field is present but null, serde gives us Some(None)
+    // When the field has a value, serde gives us Some(Some(value))
+    let opt: Option<T> = Option::deserialize(deserializer)?;
+    Ok(Some(opt))
+}
 
 // ============================================================================
 // Default value helper functions
@@ -60,6 +85,10 @@ pub struct ListConversationsParams {
     /// Filter by folder ID.
     #[serde(rename = "filter[folder_id]")]
     pub filter_folder_id: Option<Uuid>,
+    /// Filter for conversations without a folder (unfiled).
+    /// When true, returns only conversations where folder_id IS NULL.
+    #[serde(rename = "filter[unfiled]")]
+    pub filter_unfiled: Option<bool>,
     /// Search in title.
     #[serde(rename = "filter[search]")]
     pub filter_search: Option<String>,
@@ -300,8 +329,13 @@ pub struct UpdateConversationApiRequest {
     pub is_pinned: Option<bool>,
     /// Archived state.
     pub is_archived: Option<bool>,
-    /// Folder ID.
-    pub folder_id: Option<Uuid>,
+    /// Folder ID - supports explicit null to remove from folder.
+    /// - Absent in JSON: don't update (None)
+    /// - `null` in JSON: remove from folder (Some(None))
+    /// - UUID in JSON: move to folder (Some(Some(uuid)))
+    #[serde(default, deserialize_with = "deserialize_nullable")]
+    #[schema(value_type = Option<Uuid>)]
+    pub folder_id: Option<Option<Uuid>>,
 }
 
 /// Create message request DTO.

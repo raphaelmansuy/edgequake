@@ -184,15 +184,26 @@ impl PostgresConversationStorage {
     }
 
     /// Update a conversation.
+    ///
+    /// # Arguments
+    /// * `folder_id` - Double option for folder assignment:
+    ///   - `None`: don't change folder
+    ///   - `Some(None)`: remove from folder (set folder_id to NULL)
+    ///   - `Some(Some(uuid))`: move to folder with this UUID
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_conversation(
         &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
         conversation_id: Uuid,
         title: Option<String>,
         mode: Option<String>,
         is_pinned: Option<bool>,
         is_archived: Option<bool>,
-        folder_id: Option<Uuid>,
+        folder_id: Option<Option<Uuid>>,
     ) -> Result<ConversationRow> {
+        self.set_context(tenant_id, Some(user_id)).await?;
+
         // Build dynamic update query
         let mut updates = Vec::new();
         let mut param_count = 1;
@@ -213,6 +224,8 @@ impl PostgresConversationStorage {
             param_count += 1;
             updates.push(format!("is_archived = ${}", param_count));
         }
+        // WHY: Double option pattern - Some(x) means "update folder_id",
+        // where x can be None (remove from folder) or Some(uuid) (move to folder)
         if folder_id.is_some() {
             param_count += 1;
             updates.push(format!("folder_id = ${}", param_count));
@@ -228,9 +241,15 @@ impl PostgresConversationStorage {
                 });
         }
 
+        // Add tenant/user filtering for RLS enforcement
+        let tenant_param = param_count + 1;
+        let user_param = param_count + 2;
+
         let query = format!(
-            "UPDATE conversations SET {} WHERE conversation_id = $1 RETURNING *",
-            updates.join(", ")
+            "UPDATE conversations SET {} WHERE conversation_id = $1 AND tenant_id = ${} AND user_id = ${} RETURNING *",
+            updates.join(", "),
+            tenant_param,
+            user_param
         );
 
         let mut query_builder = sqlx::query_as::<_, ConversationRow>(&query).bind(conversation_id);
@@ -247,9 +266,14 @@ impl PostgresConversationStorage {
         if let Some(a) = is_archived {
             query_builder = query_builder.bind(a);
         }
-        if let Some(f) = folder_id {
-            query_builder = query_builder.bind(f);
+        // WHY: When folder_id is Some(inner), bind inner (which can be None or Some(uuid))
+        // This allows setting folder_id to NULL (removing from folder)
+        if let Some(inner_folder) = &folder_id {
+            query_builder = query_builder.bind(inner_folder);
         }
+
+        // Bind tenant/user for WHERE clause
+        query_builder = query_builder.bind(tenant_id).bind(user_id);
 
         let row = query_builder
             .fetch_one(&*self.pool)
@@ -281,7 +305,7 @@ impl PostgresConversationStorage {
     ///
     /// WHY: This function has many parameters because it implements a comprehensive
     /// filtering/pagination API that must support tenant_id, user_id, archived, pinned,
-    /// folder_id, search, sorting, and pagination - all semantically distinct concerns.
+    /// folder_id, unfiled, search, sorting, and pagination - all semantically distinct concerns.
     #[allow(clippy::too_many_arguments)]
     pub async fn list_conversations(
         &self,
@@ -290,6 +314,7 @@ impl PostgresConversationStorage {
         archived: Option<bool>,
         pinned: Option<bool>,
         folder_id: Option<Uuid>,
+        unfiled: Option<bool>,
         search: Option<&str>,
         sort_field: &str,
         sort_desc: bool,
@@ -313,6 +338,10 @@ impl PostgresConversationStorage {
         if folder_id.is_some() {
             param_count += 1;
             where_clauses.push(format!("folder_id = ${}", param_count));
+        }
+        // WHY: unfiled filter returns only conversations without any folder assignment
+        if unfiled == Some(true) {
+            where_clauses.push("folder_id IS NULL".to_string());
         }
         if search.is_some() {
             param_count += 1;
@@ -712,13 +741,18 @@ impl PostgresConversationStorage {
     }
 
     /// Update a folder.
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_folder(
         &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
         folder_id: Uuid,
         name: Option<&str>,
         parent_id: Option<Uuid>,
         position: Option<i32>,
     ) -> Result<FolderRow> {
+        self.set_context(tenant_id, Some(user_id)).await?;
+
         let mut updates = Vec::new();
         let mut param_count = 1;
 
@@ -742,9 +776,15 @@ impl PostgresConversationStorage {
                 .ok_or_else(|| StorageError::NotFound(format!("Folder {} not found", folder_id)));
         }
 
+        // Add tenant/user filtering for RLS enforcement
+        let tenant_param = param_count + 1;
+        let user_param = param_count + 2;
+
         let query = format!(
-            "UPDATE folders SET {} WHERE folder_id = $1 RETURNING *",
-            updates.join(", ")
+            "UPDATE folders SET {} WHERE folder_id = $1 AND tenant_id = ${} AND user_id = ${} RETURNING *",
+            updates.join(", "),
+            tenant_param,
+            user_param
         );
 
         let mut query_builder = sqlx::query_as::<_, FolderRow>(&query).bind(folder_id);
@@ -758,6 +798,9 @@ impl PostgresConversationStorage {
         if let Some(pos) = position {
             query_builder = query_builder.bind(pos);
         }
+
+        // Bind tenant/user for WHERE clause
+        query_builder = query_builder.bind(tenant_id).bind(user_id);
 
         let row = query_builder
             .fetch_one(&*self.pool)
@@ -779,21 +822,34 @@ impl PostgresConversationStorage {
     }
 
     /// Delete a folder.
-    pub async fn delete_folder(&self, folder_id: Uuid) -> Result<()> {
-        // Move conversations out of folder first
-        sqlx::query("UPDATE conversations SET folder_id = NULL WHERE folder_id = $1")
+    pub async fn delete_folder(
+        &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
+        folder_id: Uuid,
+    ) -> Result<()> {
+        self.set_context(tenant_id, Some(user_id)).await?;
+
+        // Move conversations out of folder first (scoped to tenant/user)
+        sqlx::query("UPDATE conversations SET folder_id = NULL WHERE folder_id = $1 AND tenant_id = $2 AND user_id = $3")
             .bind(folder_id)
+            .bind(tenant_id)
+            .bind(user_id)
             .execute(&*self.pool)
             .await
             .map_err(|e| {
                 StorageError::Database(format!("Failed to update conversations: {}", e))
             })?;
 
-        let result = sqlx::query("DELETE FROM folders WHERE folder_id = $1")
-            .bind(folder_id)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| StorageError::Database(format!("Failed to delete folder: {}", e)))?;
+        let result = sqlx::query(
+            "DELETE FROM folders WHERE folder_id = $1 AND tenant_id = $2 AND user_id = $3",
+        )
+        .bind(folder_id)
+        .bind(tenant_id)
+        .bind(user_id)
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("Failed to delete folder: {}", e)))?;
 
         if result.rows_affected() == 0 {
             return Err(StorageError::NotFound(format!(

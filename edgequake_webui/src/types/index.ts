@@ -1106,6 +1106,8 @@ export interface ConversationFilterParams {
   archived?: boolean;
   pinned?: boolean;
   folder_id?: string;
+  /** When true, returns only conversations without any folder (unfiled). */
+  unfiled?: boolean;
   search?: string;
   date_from?: string;
   date_to?: string;
