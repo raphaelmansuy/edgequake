@@ -1,6 +1,6 @@
 {
   "name": "edgequake-sdk",
-  "version": "0.1.0",
+  "version": "0.2.3",
   "description": "Official TypeScript/JavaScript SDK for EdgeQuake RAG API",
   "type": "module",
   "main": "./dist/index.cjs",
