@@ -994,7 +994,7 @@ impl AppState {
     /// let result = workspace_pipeline.process(&doc_id, &content).await?;
     /// ```
     pub async fn create_workspace_pipeline(&self, workspace_id: &str) -> Arc<Pipeline> {
-        use edgequake_llm::ProviderFactory;
+        use crate::safety_limits::{create_safe_embedding_provider, create_safe_llm_provider};
         use edgequake_pipeline::LLMExtractor;
 
         // Parse workspace_id to UUID
@@ -1019,11 +1019,10 @@ impl AppState {
                 // @implements FEAT0779: Safety limits for LLM calls (AppState)
                 // @implements BR0777: Hard max_tokens limit enforcement
                 // @implements BR0778: Request timeout enforcement
-                let llm_provider =
-                    ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
+                let llm_provider = create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
 
                 // Try to create workspace-specific embedding provider with safety limits
-                let embedding_provider = ProviderFactory::create_safe_embedding_provider(
+                let embedding_provider = create_safe_embedding_provider(
                     &ws.embedding_provider,
                     &ws.embedding_model,
                     ws.embedding_dimension,

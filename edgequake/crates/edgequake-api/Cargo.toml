@@ -16,7 +16,7 @@ vision = ["edgequake-pdf/vision"]
 [dependencies]
 edgequake-core = { path = "../edgequake-core" }
 edgequake-storage = { path = "../edgequake-storage" }
-edgequake-llm = { path = "../edgequake-llm" }
+edgequake-llm = { workspace = true }
 edgequake-pipeline = { path = "../edgequake-pipeline" }
 edgequake-query = { path = "../edgequake-query" }
 edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }

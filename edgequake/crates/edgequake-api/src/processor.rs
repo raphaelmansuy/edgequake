@@ -294,7 +294,7 @@ impl DocumentTaskProcessor {
     /// Kept for backward compatibility in test/memory mode where strict workspace
     /// isolation isn't required. Production (PostgreSQL mode) always uses strict.
     async fn get_workspace_pipeline(&self, workspace_id: Option<&str>) -> Arc<Pipeline> {
-        use edgequake_llm::ProviderFactory;
+        use crate::safety_limits::{create_safe_embedding_provider, create_safe_llm_provider};
 
         info!(
             workspace_id = ?workspace_id,
@@ -344,11 +344,10 @@ impl DocumentTaskProcessor {
                 // Try to create workspace-specific LLM provider with safety limits
                 // @implements OODA-189: Explicit error logging for provider failures
                 // @implements FEAT0780: Safety limits for LLM calls (DocumentTaskProcessor)
-                let llm_provider_result =
-                    ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
+                let llm_provider_result = create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
 
                 // Try to create workspace-specific embedding provider with safety limits
-                let embedding_provider_result = ProviderFactory::create_safe_embedding_provider(
+                let embedding_provider_result = create_safe_embedding_provider(
                     &ws.embedding_provider,
                     &ws.embedding_model,
                     ws.embedding_dimension,
@@ -452,7 +451,7 @@ impl DocumentTaskProcessor {
         &self,
         workspace_id: Option<&str>,
     ) -> Result<Arc<Pipeline>, String> {
-        use edgequake_llm::ProviderFactory;
+        use crate::safety_limits::{create_safe_embedding_provider, create_safe_llm_provider};
 
         info!(
             workspace_id = ?workspace_id,
@@ -508,18 +507,16 @@ impl DocumentTaskProcessor {
 
         // Create workspace-specific LLM provider - FAIL on error
         let llm_provider =
-            ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model).map_err(
-                |e| {
-                    format!(
-                        "OODA-16: Failed to create LLM provider '{}' with model '{}': {}. \
+            create_safe_llm_provider(&ws.llm_provider, &ws.llm_model).map_err(|e| {
+                format!(
+                    "OODA-16: Failed to create LLM provider '{}' with model '{}': {}. \
                      Check if OPENAI_API_KEY is set for OpenAI providers.",
-                        ws.llm_provider, ws.llm_model, e
-                    )
-                },
-            )?;
+                    ws.llm_provider, ws.llm_model, e
+                )
+            })?;
 
         // Create workspace-specific embedding provider - FAIL on error
-        let embedding_provider = ProviderFactory::create_safe_embedding_provider(
+        let embedding_provider = create_safe_embedding_provider(
             &ws.embedding_provider,
             &ws.embedding_model,
             ws.embedding_dimension,

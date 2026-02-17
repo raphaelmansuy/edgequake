@@ -9,12 +9,12 @@
 //! @implements BR0777: Hard max_tokens limit enforcement
 //! @implements BR0778: Request timeout enforcement
 
-use edgequake_core::types::CreateWorkspaceRequest;
-use edgequake_core::Tenant;
-use edgequake_llm::{
-    ProviderFactory, SafetyLimitsConfig, ABSOLUTE_MAX_TOKENS, DEFAULT_MAX_TOKENS,
+use edgequake_api::safety_limits::{
+    create_safe_llm_provider, SafetyLimitsConfig, ABSOLUTE_MAX_TOKENS, DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT_SECS,
 };
+use edgequake_core::types::CreateWorkspaceRequest;
+use edgequake_core::Tenant;
 use serial_test::serial;
 use uuid::Uuid;
 
@@ -71,7 +71,7 @@ async fn test_safety_limits_enforce_max_tokens() {
     clean_provider_env();
 
     // Create a safe provider via factory
-    let result = ProviderFactory::create_safe_llm_provider("mock", "test-model");
+    let result = create_safe_llm_provider("mock", "test-model");
     assert!(result.is_ok(), "Should create safe mock provider");
 
     let provider = result.unwrap();
@@ -94,7 +94,7 @@ fn test_factory_creates_safe_providers() {
     clean_provider_env();
 
     // Should work with mock provider
-    let result = ProviderFactory::create_safe_llm_provider("mock", "test-model");
+    let result = create_safe_llm_provider("mock", "test-model");
     assert!(result.is_ok(), "Should create safe mock provider");
 
     let provider = result.unwrap();
