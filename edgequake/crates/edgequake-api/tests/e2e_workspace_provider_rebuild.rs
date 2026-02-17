@@ -15,6 +15,7 @@
 
 use edgequake_core::types::{CreateWorkspaceRequest, UpdateWorkspaceRequest};
 use edgequake_core::Tenant;
+use edgequake_api::safety_limits::create_safe_embedding_provider;
 use edgequake_llm::ProviderFactory;
 use serial_test::serial;
 use uuid::Uuid;
@@ -221,7 +222,7 @@ async fn test_safe_embedding_provider_accepts_dimension_param() {
     clean_provider_env();
 
     // Create safe embedding provider with 768 dimension (Mock ignores it)
-    let result_768 = ProviderFactory::create_safe_embedding_provider("mock", "mock-embed", 768);
+    let result_768 = create_safe_embedding_provider("mock", "mock-embed", 768);
     assert!(result_768.is_ok());
     let provider_768 = result_768.unwrap();
     // Mock provider always uses default dimension (1536)
@@ -232,7 +233,7 @@ async fn test_safe_embedding_provider_accepts_dimension_param() {
     );
 
     // Create safe embedding provider with 1536 dimension
-    let result_1536 = ProviderFactory::create_safe_embedding_provider("mock", "mock-embed", 1536);
+    let result_1536 = create_safe_embedding_provider("mock", "mock-embed", 1536);
     assert!(result_1536.is_ok());
     let provider_1536 = result_1536.unwrap();
     assert_eq!(provider_1536.dimension(), 1536);

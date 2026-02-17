@@ -20,6 +20,7 @@
 //! - Rebuild operations use updated workspace provider
 //! - Different workspaces can use different providers simultaneously
 
+use edgequake_api::safety_limits::create_safe_llm_provider;
 use edgequake_core::types::CreateWorkspaceRequest;
 use edgequake_core::Tenant;
 use edgequake_llm::ProviderFactory;
@@ -412,7 +413,7 @@ async fn test_provider_factory_ollama_creation() {
 async fn test_safe_provider_factory_mock() {
     clean_provider_env();
 
-    let result = ProviderFactory::create_safe_llm_provider("mock", "test-model");
+    let result = create_safe_llm_provider("mock", "test-model");
     assert!(result.is_ok());
 
     let provider = result.unwrap();
@@ -429,7 +430,7 @@ async fn test_safe_provider_factory_openai_fails_without_key() {
     clean_provider_env();
     std::env::remove_var("OPENAI_API_KEY");
 
-    let result = ProviderFactory::create_safe_llm_provider("openai", "gpt-4o-mini");
+    let result = create_safe_llm_provider("openai", "gpt-4o-mini");
     assert!(result.is_err());
 
     clean_provider_env();

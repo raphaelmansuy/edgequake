@@ -9,7 +9,7 @@ description = "Document processing pipeline for EdgeQuake"
 
 [dependencies]
 edgequake-storage = { path = "../edgequake-storage" }
-edgequake-llm = { path = "../edgequake-llm" }
+edgequake-llm = { workspace = true }
 
 async-trait.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
