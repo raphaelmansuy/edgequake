@@ -308,10 +308,7 @@ impl EmbeddingProvider for SafetyLimitedEmbeddingProviderWrapper {
 }
 
 /// Create a safety-limited LLM provider from workspace configuration.
-pub fn create_safe_llm_provider(
-    provider_name: &str,
-    model: &str,
-) -> Result<Arc<dyn LLMProvider>> {
+pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<dyn LLMProvider>> {
     let inner = ProviderFactory::create_llm_provider(provider_name, model)?;
     let config = SafetyLimitsConfig::from_env();
 

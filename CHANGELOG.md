@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 #### Multi-Provider Support Expansion
+
 - **9 Active Providers**: OpenAI, Anthropic, Google Gemini, xAI, OpenRouter, Ollama, LM Studio, Azure OpenAI, Mock
 - **26 Model Configurations**: Comprehensive pricing data across all providers
 - **Latest Model Support**:
@@ -18,18 +19,21 @@ All notable changes to this project will be documented in this file.
   - OpenAI: o4-mini (reasoning model), o4, o1-2024-12-17
 
 #### Cost Tracking Enhancements
+
 - Updated pricing for 26 models (Feb 2025 verified rates)
 - Expanded `default_model_pricing()` from 10 to 26 entries
 - Added pricing for embedding models: text-embedding-3-small, gemini-embedding-001
 - Cost tracking infrastructure fully seeded with latest pricing data
 
 #### Provider Configuration
+
 - Updated default models for all providers in safety limits
 - Enhanced provider metadata with latest model information
 - Improved WebUI configuration snippets with current models
 - Auto-detection priority order for cloud providers
 
 #### Lineage Tracking & Metadata (OODA-01 through OODA-25)
+
 - Chunk position metadata: `start_line`, `end_line`, `start_offset`, `end_offset` fields (OODA-01)
 - Chunk model tracking: `llm_model`, `embedding_model`, `embedding_dimension` fields (OODA-02)
 - Document lineage metadata: `document_type`, `file_size`, `sha256_checksum`, `pdf_id`, `processed_at` fields (OODA-03)
@@ -51,6 +55,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 #### Model Catalog Updates
+
 - **Anthropic**: Updated to Claude 4.x series (Opus 4.6, Sonnet 4.5, Haiku 4.5)
 - **xAI**: Updated to Grok 4.x/3.x series with 2M context models
 - **Gemini**: Updated to 2.5 series with thinking capabilities
@@ -59,12 +64,14 @@ All notable changes to this project will be documented in this file.
 - **OpenRouter**: Updated model references to latest versions
 
 #### Default Model Changes
+
 - Anthropic: claude-3-5-sonnet-20241022 → claude-sonnet-4-5-20250929
 - xAI: grok-beta → grok-4-1-fast
 - Gemini: gemini-1.5-pro → gemini-2.5-flash
 - LM Studio: gemma2-9b-it → gemma-3n-e4b-it
 
 #### Other Changes
+
 - `sources_to_message_context()` uses `file_path` (then `document_id`) for source title instead of `source_type`
 - Added `resolve_chunk_file_paths()` helper in query handler for reusable document name resolution from KV metadata
 - **SDK updates**: Added `file_path` field to Rust, Java, and Kotlin SDK source reference types (Python and TypeScript already had it)
@@ -74,6 +81,7 @@ All notable changes to this project will be documented in this file.
 - Fixed consecutive `str::replace` calls in build scripts (clippy compliance)
 
 ### Fixed
+
 - **Query/Chat source references show "chunk" instead of document name**: `sources_to_message_context()` was using `source_type` (always `"chunk"`) as the title. Now resolves `document_id` to actual document title from KV metadata. Affects `/api/v1/query`, `/api/v1/chat/completions`, and streaming endpoints
 - **WebUI stored conversations**: Frontend `convertServerMessage` now uses `title` as fallback for `file_path` when displaying source citations from persisted conversations
 - PATCH API for conversations now correctly distinguishes between "no change", "set to null", and "set to value" for folder assignment using `Option<Option<Uuid>>` pattern
@@ -85,13 +93,16 @@ All notable changes to this project will be documented in this file.
 - Visual feedback for tenant/workspace switching in the knowledge graph view
 
 ### Deprecated
+
 - **gpt-4-turbo**: Superseded by gpt-4o and o4-mini (still functional, marked deprecated)
 - **gpt-3.5-turbo**: Superseded by gpt-4o-mini (still functional, marked deprecated)
 
 ### Removed
+
 - **gpt-oss:20b**: Removed from default model catalog
 
 ### Migration Notes
+
 - No database migrations required for multi-provider support - cost tracking infrastructure already in place
 - Existing cost data remains valid
 - New pricing automatically applies to future operations
@@ -100,24 +111,30 @@ All notable changes to this project will be documented in this file.
 - Existing documents continue to work; lineage data appears after reprocessing
 
 ### Breaking Changes
+
 None - all changes are additive or deprecations with backwards compatibility
+
 ## [v0.2.1] - 2026-02-12
 
 ### Fixed
 
 - Fixed TypeScript build error in dashboard: removed non-existent `entity_type_count` property reference
 - Visual feedback for tenant/workspace switching in the knowledge graph view
+
 ## [v0.2.4] - 2026-02-17
 
 ### Added
+
 - "Unfiled" filter for conversations: displays all conversations not assigned to a folder
 - Frontend and backend support for filtering by unfiled conversations
 
 ### Fixed
+
 - PATCH API for conversations now correctly distinguishes between "no change", "set to null", and "set to value" for folder assignment using `Option<Option<Uuid>>` pattern
 - Moving conversations to/from folders now works reliably (E2E tested)
 
 ### Changed
+
 - Updated workspace version to 0.2.4
 - Improved PATCH semantics for nullable fields in API and storage layers
 

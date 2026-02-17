@@ -103,11 +103,8 @@ async fn cached_kv_get(
             cache.retain(|_, entry| entry.cached_at.elapsed() < LINEAGE_CACHE_TTL);
             // If still too full, clear half the cache
             if cache.len() >= LINEAGE_CACHE_MAX_ENTRIES {
-                let keys_to_remove: Vec<String> = cache
-                    .keys()
-                    .take(cache.len() / 2)
-                    .cloned()
-                    .collect();
+                let keys_to_remove: Vec<String> =
+                    cache.keys().take(cache.len() / 2).cloned().collect();
                 for k in keys_to_remove {
                     cache.remove(&k);
                 }
@@ -395,16 +392,15 @@ pub async fn get_entity_provenance(
     for (doc_id, mut chunks) in doc_map {
         // Resolve document name from metadata
         let metadata_key = format!("{}-metadata", doc_id);
-        let doc_name = if let Ok(Some(meta)) =
-            cached_kv_get(state.kv_storage.as_ref(), &metadata_key).await
-        {
-            meta.get("title")
-                .or_else(|| meta.get("file_name"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-        } else {
-            None
-        };
+        let doc_name =
+            if let Ok(Some(meta)) = cached_kv_get(state.kv_storage.as_ref(), &metadata_key).await {
+                meta.get("title")
+                    .or_else(|| meta.get("file_name"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            } else {
+                None
+            };
 
         // Resolve chunk line positions from KV storage
         for chunk in &mut chunks {
@@ -1032,10 +1028,7 @@ fn lineage_to_csv(document_id: &str, lineage: &serde_json::Value) -> String {
                 .or_else(|| chunk.get("index"))
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
-            let content = chunk
-                .get("content")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let content = chunk.get("content").and_then(|v| v.as_str()).unwrap_or("");
             let preview = if content.len() > 100 {
                 &content[..100]
             } else {
@@ -1244,8 +1237,14 @@ mod tests {
     #[test]
     fn test_lineage_cache_ttl_is_reasonable() {
         // WHY: TTL must be long enough to absorb polling but short enough for freshness
-        assert!(LINEAGE_CACHE_TTL.as_secs() >= 30, "TTL too short for dashboard polling");
-        assert!(LINEAGE_CACHE_TTL.as_secs() <= 300, "TTL too long for freshness");
+        assert!(
+            LINEAGE_CACHE_TTL.as_secs() >= 30,
+            "TTL too short for dashboard polling"
+        );
+        assert!(
+            LINEAGE_CACHE_TTL.as_secs() <= 300,
+            "TTL too long for freshness"
+        );
     }
 
     #[test]

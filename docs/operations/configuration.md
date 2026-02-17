@@ -90,39 +90,39 @@ DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
 
 #### Anthropic
 
-| Variable            | Type   | Default                       | Description                  |
-| ------------------- | ------ | ----------------------------- | ---------------------------- |
-| `ANTHROPIC_API_KEY` | String | None                          | Anthropic API key (required) |
-| `ANTHROPIC_BASE_URL`| String | `https://api.anthropic.com`   | API endpoint                 |
+| Variable             | Type   | Default                     | Description                  |
+| -------------------- | ------ | --------------------------- | ---------------------------- |
+| `ANTHROPIC_API_KEY`  | String | None                        | Anthropic API key (required) |
+| `ANTHROPIC_BASE_URL` | String | `https://api.anthropic.com` | API endpoint                 |
 
 #### Google Gemini
 
-| Variable           | Type   | Default                                    | Description            |
-| ------------------ | ------ | ------------------------------------------ | ---------------------- |
-| `GEMINI_API_KEY`   | String | None                                       | Google AI API key      |
-| `GEMINI_BASE_URL`  | String | `https://generativelanguage.googleapis.com`| API endpoint           |
+| Variable          | Type   | Default                                     | Description       |
+| ----------------- | ------ | ------------------------------------------- | ----------------- |
+| `GEMINI_API_KEY`  | String | None                                        | Google AI API key |
+| `GEMINI_BASE_URL` | String | `https://generativelanguage.googleapis.com` | API endpoint      |
 
 #### xAI (Grok)
 
-| Variable       | Type   | Default                  | Description         |
-| -------------- | ------ | ------------------------ | ------------------- |
-| `XAI_API_KEY`  | String | None                     | xAI API key         |
-| `XAI_BASE_URL` | String | `https://api.x.ai/v1`    | API endpoint        |
+| Variable       | Type   | Default               | Description  |
+| -------------- | ------ | --------------------- | ------------ |
+| `XAI_API_KEY`  | String | None                  | xAI API key  |
+| `XAI_BASE_URL` | String | `https://api.x.ai/v1` | API endpoint |
 
 #### OpenRouter
 
-| Variable              | Type   | Default                     | Description                      |
-| --------------------- | ------ | --------------------------- | -------------------------------- |
-| `OPENROUTER_API_KEY`  | String | None                        | OpenRouter API key (required)    |
-| `OPENROUTER_BASE_URL` | String | `https://openrouter.ai/api` | API endpoint                     |
+| Variable              | Type   | Default                     | Description                   |
+| --------------------- | ------ | --------------------------- | ----------------------------- |
+| `OPENROUTER_API_KEY`  | String | None                        | OpenRouter API key (required) |
+| `OPENROUTER_BASE_URL` | String | `https://openrouter.ai/api` | API endpoint                  |
 
 #### Azure OpenAI
 
-| Variable                | Type   | Default | Description                      |
-| ----------------------- | ------ | ------- | -------------------------------- |
-| `AZURE_OPENAI_API_KEY`  | String | None    | Azure OpenAI key (required)      |
-| `AZURE_OPENAI_ENDPOINT` | String | None    | Azure resource endpoint          |
-| `AZURE_OPENAI_API_VERSION` | String | `2024-02-15-preview` | API version |
+| Variable                   | Type   | Default              | Description                 |
+| -------------------------- | ------ | -------------------- | --------------------------- |
+| `AZURE_OPENAI_API_KEY`     | String | None                 | Azure OpenAI key (required) |
+| `AZURE_OPENAI_ENDPOINT`    | String | None                 | Azure resource endpoint     |
+| `AZURE_OPENAI_API_VERSION` | String | `2024-02-15-preview` | API version                 |
 
 ### Models Configuration
 
@@ -194,17 +194,17 @@ image_per_unit = 0.0
 
 ### Provider Types
 
-| Type        | Description                | API Key Variable         |
-| ----------- | -------------------------- | ------------------------ |
-| `openai`    | OpenAI API compatible      | `OPENAI_API_KEY`         |
-| `anthropic` | Anthropic Claude models    | `ANTHROPIC_API_KEY`      |
-| `gemini`    | Google Gemini models       | `GEMINI_API_KEY`         |
-| `xai`       | xAI Grok models            | `XAI_API_KEY`            |
-| `openrouter`| OpenRouter aggregator      | `OPENROUTER_API_KEY`     |
-| `azure`     | Azure OpenAI              | `AZURE_OPENAI_API_KEY`   |
-| `ollama`    | Ollama local models        | None (local)             |
-| `lm_studio` | LM Studio local            | None (local)             |
-| `mock`      | Testing without costs      | None                     |
+| Type         | Description             | API Key Variable       |
+| ------------ | ----------------------- | ---------------------- |
+| `openai`     | OpenAI API compatible   | `OPENAI_API_KEY`       |
+| `anthropic`  | Anthropic Claude models | `ANTHROPIC_API_KEY`    |
+| `gemini`     | Google Gemini models    | `GEMINI_API_KEY`       |
+| `xai`        | xAI Grok models         | `XAI_API_KEY`          |
+| `openrouter` | OpenRouter aggregator   | `OPENROUTER_API_KEY`   |
+| `azure`      | Azure OpenAI            | `AZURE_OPENAI_API_KEY` |
+| `ollama`     | Ollama local models     | None (local)           |
+| `lm_studio`  | LM Studio local         | None (local)           |
+| `mock`       | Testing without costs   | None                   |
 
 ### Model Types
 
@@ -597,9 +597,9 @@ EdgeQuake validates configuration at startup:
 ║                                                              ║
 ║   ⚡ EdgeQuake v0.1.0                                         ║
 ║                                                              ║
-║   🐘 Storage: POSTGRESQL (persistent)                         
-║   🌐 Server:  http://0.0.0.0:8080                             
-║   📚 Swagger: http://0.0.0.0:8080/swagger-ui/                
+║   🐘 Storage: POSTGRESQL (persistent)
+║   🌐 Server:  http://0.0.0.0:8080
+║   📚 Swagger: http://0.0.0.0:8080/swagger-ui/
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
