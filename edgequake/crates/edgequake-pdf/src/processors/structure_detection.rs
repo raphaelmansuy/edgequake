@@ -152,7 +152,7 @@ pub fn starts_with_bullet(text: &str) -> bool {
 /// **WHY font ratios, not keywords:**
 /// Academic papers vary in section naming. Font metrics are universal.
 /// @implements FEAT1022
-/// @implements FEAT0505
+/// @implements FEAT1023 - PDF header detection
 pub struct HeaderDetectionProcessor {}
 
 impl HeaderDetectionProcessor {

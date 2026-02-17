@@ -325,10 +325,8 @@ impl ConversationService for InMemoryConversationService {
                     }
                 }
                 // WHY: unfiled filter returns only conversations without any folder
-                if filter.unfiled == Some(true) {
-                    if c.folder_id.is_some() {
-                        return false;
-                    }
+                if filter.unfiled == Some(true) && c.folder_id.is_some() {
+                    return false;
                 }
                 if let Some(ref search) = filter.search {
                     if !c.title.to_lowercase().contains(&search.to_lowercase()) {
