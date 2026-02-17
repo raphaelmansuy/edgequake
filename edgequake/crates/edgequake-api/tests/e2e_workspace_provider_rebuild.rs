@@ -13,9 +13,9 @@
 //! @implements SPEC-032: Workspace provider switching for rebuild
 //! @implements OODA-190: Rebuild Operation Provider Verification
 
+use edgequake_api::safety_limits::create_safe_embedding_provider;
 use edgequake_core::types::{CreateWorkspaceRequest, UpdateWorkspaceRequest};
 use edgequake_core::Tenant;
-use edgequake_api::safety_limits::create_safe_embedding_provider;
 use edgequake_llm::ProviderFactory;
 use serial_test::serial;
 use uuid::Uuid;

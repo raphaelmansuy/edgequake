@@ -46,10 +46,10 @@ use std::sync::Arc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use edgequake_core::{Workspace, WorkspaceService};
 use crate::safety_limits::{
     create_safe_embedding_provider, create_safe_llm_provider, default_model_for_provider,
 };
+use edgequake_core::{Workspace, WorkspaceService};
 use edgequake_query::{EmbeddingProvider, LLMProvider};
 
 use crate::providers::error::ProviderResolutionError;
@@ -479,10 +479,9 @@ impl WorkspaceProviderResolver {
             "Creating LLM provider"
         );
 
-        let provider_arc =
-            create_safe_llm_provider(provider, model).map_err(|e| {
-                ProviderResolutionError::from_creation_error(provider, model, &e.to_string())
-            })?;
+        let provider_arc = create_safe_llm_provider(provider, model).map_err(|e| {
+            ProviderResolutionError::from_creation_error(provider, model, &e.to_string())
+        })?;
 
         info!(
             provider = provider,

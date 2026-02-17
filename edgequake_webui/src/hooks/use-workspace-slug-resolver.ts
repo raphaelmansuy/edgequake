@@ -6,8 +6,8 @@
  * Eliminates duplicated workspace resolution logic across deeplink pages.
  *
  * @implements SPEC-032: Focus 6 - Deeplinks to workspace
- * @implements FEAT0651 - Workspace slug in URL
- * @implements FEAT0652 - URL-driven workspace selection
+ * @implements FEAT0653 - Workspace slug resolution hook
+ * @implements FEAT0654 - Auto-tenant selection for workspace deeplinks
  *
  * @enforces BR0636 - Invalid slug handled gracefully
  * @enforces BR0504 - Tenant/workspace context set on resolution

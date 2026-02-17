@@ -29,6 +29,7 @@ EdgeQuake MCP Server provides:
 EdgeQuake now supports **9 LLM providers** out of the box, giving you flexibility in model selection:
 
 **Cloud Providers**:
+
 - **Anthropic**: Claude Opus 4.6, Sonnet 4.5, Haiku 4.5 (200K context)
 - **OpenAI**: GPT-4o, o4-mini reasoning, o1-2024-12-17
 - **Google Gemini**: 2.5 Pro, 2.5 Flash with thinking capabilities
@@ -37,6 +38,7 @@ EdgeQuake now supports **9 LLM providers** out of the box, giving you flexibilit
 - **Azure OpenAI**: Enterprise deployments
 
 **Local Providers**:
+
 - **Ollama**: Privacy-first local inference
 - **LM Studio**: Local model serving
 - **Mock**: Testing without API costs
