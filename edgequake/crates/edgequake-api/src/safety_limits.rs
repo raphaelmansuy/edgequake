@@ -352,12 +352,12 @@ pub fn create_safe_embedding_provider(
 pub fn default_model_for_provider(provider_name: &str) -> &'static str {
     match provider_name.to_lowercase().as_str() {
         "openai" => "gpt-4.1-nano",
-        "anthropic" => "claude-sonnet-4-20250514",
-        "gemini" => "gemini-2.0-flash",
-        "xai" => "grok-2",
+        "anthropic" => "claude-sonnet-4-5-20250929",
+        "gemini" => "gemini-2.5-flash",
+        "xai" => "grok-4-1-fast",
         "openrouter" => "openai/gpt-4o-mini",
         "ollama" => "gemma3:12b",
-        "lmstudio" | "lm-studio" | "lm_studio" => "gemma2-9b-it",
+        "lmstudio" | "lm-studio" | "lm_studio" => "gemma-3n-e4b-it",
         "mock" => "mock-model",
         _ => "gpt-4.1-nano",
     }

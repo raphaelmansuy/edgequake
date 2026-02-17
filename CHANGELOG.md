@@ -4,94 +4,123 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed
+## [0.3.0] - 2025-02-17
 
-- **Query/Chat source references show "chunk" instead of document name**: `sources_to_message_context()` was using `source_type` (always `"chunk"`) as the title. Now resolves `document_id` to actual document title from KV metadata. Affects `/api/v1/query`, `/api/v1/chat/completions`, and streaming endpoints.
-- **WebUI stored conversations**: Frontend `convertServerMessage` now uses `title` as fallback for `file_path` when displaying source citations from persisted conversations.
+### Added
 
-### Changed
+#### Multi-Provider Support Expansion
+- **9 Active Providers**: OpenAI, Anthropic, Google Gemini, xAI, OpenRouter, Ollama, LM Studio, Azure OpenAI, Mock
+- **26 Model Configurations**: Comprehensive pricing data across all providers
+- **Latest Model Support**:
+  - Anthropic: Claude Opus 4.6, Sonnet 4.5, Haiku 4.5 (200K context, 128K max output)
+  - xAI: Grok 4.1 Fast, Grok 4.0, Grok 3, Grok 3 Mini (up to 2M context)
+  - Google Gemini: 2.5 Pro, 2.5 Flash, 2.5 Flash Lite, 2.0 Experimental (thinking capabilities)
+  - OpenAI: o4-mini (reasoning model), o4, o1-2024-12-17
 
-- `sources_to_message_context()` uses `file_path` (then `document_id`) for source title instead of `source_type`.
-- Added `resolve_chunk_file_paths()` helper in query handler for reusable document name resolution from KV metadata.
-- **SDK updates**: Added `file_path` field to Rust, Java, and Kotlin SDK source reference types (Python and TypeScript already had it).
+#### Cost Tracking Enhancements
+- Updated pricing for 26 models (Feb 2025 verified rates)
+- Expanded `default_model_pricing()` from 10 to 26 entries
+- Added pricing for embedding models: text-embedding-3-small, gemini-embedding-001
+- Cost tracking infrastructure fully seeded with latest pricing data
 
-### Added — Lineage Tracking & Metadata (OODA-01 through OODA-25)
+#### Provider Configuration
+- Updated default models for all providers in safety limits
+- Enhanced provider metadata with latest model information
+- Improved WebUI configuration snippets with current models
+- Auto-detection priority order for cloud providers
 
-#### Core Types
-
+#### Lineage Tracking & Metadata (OODA-01 through OODA-25)
 - Chunk position metadata: `start_line`, `end_line`, `start_offset`, `end_offset` fields (OODA-01)
 - Chunk model tracking: `llm_model`, `embedding_model`, `embedding_dimension` fields (OODA-02)
 - Document lineage metadata: `document_type`, `file_size`, `sha256_checksum`, `pdf_id`, `processed_at` fields (OODA-03)
-- All new fields are `Option<T>` with `serde(default)` for backward compatibility (T5)
-
-#### Pipeline & Storage
-
 - PDF↔Document bidirectional linking with `pdf_id` in document metadata (OODA-04)
-- Chunk metadata propagation to KV and vector storage (OODA-05)
-- Lineage persistence to KV storage under `{document_id}-lineage` key (OODA-06)
 - Lineage tracking enabled by default (`enable_lineage_tracking = true`)
-
-#### API Endpoints
-
-- `GET /api/v1/documents/{id}/lineage` — Complete document lineage tree (OODA-07)
-- `GET /api/v1/documents/{id}/metadata` — All metadata in single response (OODA-07)
 - `GET /api/v1/chunks/{id}/lineage` — Chunk lineage with parent refs (OODA-08)
 - `GET /api/v1/documents/{id}/lineage/export?format=json|csv` — Download lineage as file (OODA-22)
 - In-memory TTL cache (120s, 500 entries max) for lineage queries (OODA-23)
-- OpenAPI/utoipa annotations for all new endpoints
-
-#### WebUI
-
-- TypeScript types for full lineage responses (OODA-10)
-- React Query hooks: `useDocumentFullLineage`, `useDocumentMetadata` (OODA-11)
 - Enhanced metadata component with KV storage fields (OODA-12)
 - Document hierarchy tree: Document → Chunks → Entities (OODA-13)
 - Lineage export buttons (JSON/CSV download) in metadata sidebar (OODA-24)
-
-#### SDKs
-
-- **Rust SDK**: `documents().get_lineage()`, `get_metadata()`, `chunks().get_lineage()` (OODA-14)
 - **TypeScript SDK**: `documents.getLineage()`, `getMetadata()`, `chunks.getLineage()` (OODA-15)
 - **Python SDK**: Same methods on sync and async resource classes (OODA-16)
 - E2E tests for lineage/metadata in all 3 SDKs (OODA-21)
-
-#### Documentation
-
-- `docs/architecture/lineage-tracking.md` — Complete lineage architecture (~280 lines) (OODA-17)
-- `docs/api-reference/lineage-endpoints.md` — API reference for 7 endpoints (~360 lines) (OODA-18)
-- `docs/tutorials/tracing-entity-sources.md` — Step-by-step tracing tutorial (~230 lines) (OODA-19)
 - `docs/operations/metadata-debugging.md` — Diagnostics & repair guide (~260 lines) (OODA-20)
-
-### Migration Notes
-
-All changes are **additive and backward compatible**:
-
-- New fields use `Option<T>` with `serde(default)` — old documents read fine
-- New API endpoints don't change existing ones
-- Lineage/metadata KV keys (`{id}-lineage`, `{id}-metadata`) only populated for newly processed documents
-- Existing documents continue to work; lineage data appears after reprocessing
-
-## [v0.2.2] - 2026-02-13
+- "Unfiled" filter for conversations: displays all conversations not assigned to a folder
+- Frontend and backend support for filtering by unfiled conversations
 
 ### Changed
 
-- Updated workspace version to 0.2.2
+#### Model Catalog Updates
+- **Anthropic**: Updated to Claude 4.x series (Opus 4.6, Sonnet 4.5, Haiku 4.5)
+- **xAI**: Updated to Grok 4.x/3.x series with 2M context models
+- **Gemini**: Updated to 2.5 series with thinking capabilities
+- **OpenAI**: Added o4-mini reasoning model, updated context limits
+- **LM Studio**: Changed default from gemma2-9b-it to gemma-3n-e4b-it
+- **OpenRouter**: Updated model references to latest versions
+
+#### Default Model Changes
+- Anthropic: claude-3-5-sonnet-20241022 → claude-sonnet-4-5-20250929
+- xAI: grok-beta → grok-4-1-fast
+- Gemini: gemini-1.5-pro → gemini-2.5-flash
+- LM Studio: gemma2-9b-it → gemma-3n-e4b-it
+
+#### Other Changes
+- `sources_to_message_context()` uses `file_path` (then `document_id`) for source title instead of `source_type`
+- Added `resolve_chunk_file_paths()` helper in query handler for reusable document name resolution from KV metadata
+- **SDK updates**: Added `file_path` field to Rust, Java, and Kotlin SDK source reference types (Python and TypeScript already had it)
+- Updated workspace version to 0.2.4
+- Improved PATCH semantics for nullable fields in API and storage layers
 - Refactored embedding batch calculation to use `.div_ceil()` (clippy compliance)
 - Fixed consecutive `str::replace` calls in build scripts (clippy compliance)
-- Feature gating improvements for minimal builds (query, core, storage)
-- All clippy warnings resolved; workspace is clean
-- Full test suite run: all tests passing
 
+### Fixed
+- **Query/Chat source references show "chunk" instead of document name**: `sources_to_message_context()` was using `source_type` (always `"chunk"`) as the title. Now resolves `document_id` to actual document title from KV metadata. Affects `/api/v1/query`, `/api/v1/chat/completions`, and streaming endpoints
+- **WebUI stored conversations**: Frontend `convertServerMessage` now uses `title` as fallback for `file_path` when displaying source citations from persisted conversations
+- PATCH API for conversations now correctly distinguishes between "no change", "set to null", and "set to value" for folder assignment using `Option<Option<Uuid>>` pattern
+- Moving conversations to/from folders now works reliably (E2E tested)
+- Test assertions for LM Studio default model
+- Provider status card configuration snippets
+- Cost tracking consistency across all providers
+- TypeScript build error in dashboard: removed non-existent `entity_type_count` property reference
+- Visual feedback for tenant/workspace switching in the knowledge graph view
+
+### Deprecated
+- **gpt-4-turbo**: Superseded by gpt-4o and o4-mini (still functional, marked deprecated)
+- **gpt-3.5-turbo**: Superseded by gpt-4o-mini (still functional, marked deprecated)
+
+### Removed
+- **gpt-oss:20b**: Removed from default model catalog
+
+### Migration Notes
+- No database migrations required for multi-provider support - cost tracking infrastructure already in place
+- Existing cost data remains valid
+- New pricing automatically applies to future operations
+- Provider configurations are backwards compatible
+- Lineage/metadata KV keys (`{id}-lineage`, `{id}-metadata`) only populated for newly processed documents
+- Existing documents continue to work; lineage data appears after reprocessing
+
+### Breaking Changes
+None - all changes are additive or deprecations with backwards compatibility
 ## [v0.2.1] - 2026-02-12
 
 ### Fixed
 
 - Fixed TypeScript build error in dashboard: removed non-existent `entity_type_count` property reference
-- Set entity types count to 0 as placeholder until backend implementation is complete
-
-## [v0.2.0] - 2026-02-12
-
 - Visual feedback for tenant/workspace switching in the knowledge graph view
+## [v0.2.4] - 2026-02-17
+
+### Added
+- "Unfiled" filter for conversations: displays all conversations not assigned to a folder
+- Frontend and backend support for filtering by unfiled conversations
+
+### Fixed
+- PATCH API for conversations now correctly distinguishes between "no change", "set to null", and "set to value" for folder assignment using `Option<Option<Uuid>>` pattern
+- Moving conversations to/from folders now works reliably (E2E tested)
+
+### Changed
+- Updated workspace version to 0.2.4
+- Improved PATCH semantics for nullable fields in API and storage layers
+
 - Loading overlay with minimum 800ms duration during workspace/tenant transitions
 - Toast notifications for tenant and workspace switch confirmation
 - Early return guard for same tenant/workspace selection (no-op)

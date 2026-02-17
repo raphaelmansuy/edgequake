@@ -10,13 +10,13 @@
 
 import { SERVER_BASE_URL } from "@/lib/api/client";
 import type {
+  EmbeddingModelsResponse,
+  LlmModelsResponse,
+} from "@/lib/api/models";
+import type {
   AvailableProvidersResponse,
   ProviderStatusResponse,
 } from "@/types/provider";
-import type {
-  LlmModelsResponse,
-  EmbeddingModelsResponse,
-} from "@/lib/api/models";
 import { useQuery } from "@tanstack/react-query";
 
 const getApiUrl = () => SERVER_BASE_URL || "http://localhost:8080";
@@ -26,7 +26,7 @@ const getApiUrl = () => SERVER_BASE_URL || "http://localhost:8080";
  */
 async function fetchProviderStatus(): Promise<ProviderStatusResponse> {
   const response = await fetch(
-    `${getApiUrl()}/api/v1/settings/provider/status`
+    `${getApiUrl()}/api/v1/settings/provider/status`,
   );
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -124,6 +124,11 @@ export function getProviderDisplayName(providerId: string): string {
     openai: "OpenAI",
     ollama: "Ollama",
     lmstudio: "LM Studio",
+    anthropic: "Anthropic",
+    gemini: "Google Gemini",
+    xai: "xAI",
+    openrouter: "OpenRouter",
+    azure: "Azure OpenAI",
     mock: "Mock (Dev)",
   };
   return names[providerId.toLowerCase()] || providerId;
@@ -137,6 +142,11 @@ export function getProviderIconClass(providerId: string): string {
     openai: "text-green-600",
     ollama: "text-blue-600",
     lmstudio: "text-purple-600",
+    anthropic: "text-orange-600",
+    gemini: "text-blue-500",
+    xai: "text-slate-700",
+    openrouter: "text-indigo-600",
+    azure: "text-sky-600",
     mock: "text-gray-500",
   };
   return icons[providerId.toLowerCase()] || "text-gray-500";

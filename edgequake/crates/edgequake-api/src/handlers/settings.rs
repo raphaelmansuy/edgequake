@@ -148,7 +148,7 @@ mod tests {
             .iter()
             .find(|p| p.id == "lmstudio")
             .unwrap();
-        assert_eq!(lmstudio.default_models.chat_model, "gemma2-9b-it");
+        assert_eq!(lmstudio.default_models.chat_model, "gemma-3n-e4b-it");
         assert_eq!(
             lmstudio.default_models.embedding_model,
             "nomic-embed-text-v1.5"

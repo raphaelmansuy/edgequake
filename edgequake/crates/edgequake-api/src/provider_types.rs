@@ -178,6 +178,74 @@ impl AvailableProvidersResponse {
                 },
             },
             ProviderInfo {
+                id: "anthropic".to_string(),
+                name: "Anthropic".to_string(),
+                description: "Anthropic Claude (Opus 4.6, Sonnet 4.5, Haiku 4.5)".to_string(),
+                available: std::env::var("ANTHROPIC_API_KEY").is_ok(),
+                config_requirements: vec![ConfigRequirement {
+                    env_var: "ANTHROPIC_API_KEY".to_string(),
+                    required: true,
+                    description: "Anthropic API key".to_string(),
+                    satisfied: std::env::var("ANTHROPIC_API_KEY").is_ok(),
+                }],
+                default_models: DefaultModels {
+                    chat_model: "claude-sonnet-4-5-20250929".to_string(),
+                    embedding_model: "".to_string(),
+                    embedding_dimension: 0,
+                },
+            },
+            ProviderInfo {
+                id: "gemini".to_string(),
+                name: "Google Gemini".to_string(),
+                description: "Google Gemini (2.5 Pro, 2.5 Flash)".to_string(),
+                available: std::env::var("GEMINI_API_KEY").is_ok(),
+                config_requirements: vec![ConfigRequirement {
+                    env_var: "GEMINI_API_KEY".to_string(),
+                    required: true,
+                    description: "Google Gemini API key".to_string(),
+                    satisfied: std::env::var("GEMINI_API_KEY").is_ok(),
+                }],
+                default_models: DefaultModels {
+                    chat_model: "gemini-2.5-flash".to_string(),
+                    embedding_model: "gemini-embedding-001".to_string(),
+                    embedding_dimension: 3072,
+                },
+            },
+            ProviderInfo {
+                id: "xai".to_string(),
+                name: "xAI".to_string(),
+                description: "xAI Grok models (Grok-4.1, Grok-3)".to_string(),
+                available: std::env::var("XAI_API_KEY").is_ok(),
+                config_requirements: vec![ConfigRequirement {
+                    env_var: "XAI_API_KEY".to_string(),
+                    required: true,
+                    description: "xAI API key".to_string(),
+                    satisfied: std::env::var("XAI_API_KEY").is_ok(),
+                }],
+                default_models: DefaultModels {
+                    chat_model: "grok-4-1-fast".to_string(),
+                    embedding_model: "".to_string(),
+                    embedding_dimension: 0,
+                },
+            },
+            ProviderInfo {
+                id: "openrouter".to_string(),
+                name: "OpenRouter".to_string(),
+                description: "OpenRouter - Unified access to 616+ models".to_string(),
+                available: std::env::var("OPENROUTER_API_KEY").is_ok(),
+                config_requirements: vec![ConfigRequirement {
+                    env_var: "OPENROUTER_API_KEY".to_string(),
+                    required: true,
+                    description: "OpenRouter API key".to_string(),
+                    satisfied: std::env::var("OPENROUTER_API_KEY").is_ok(),
+                }],
+                default_models: DefaultModels {
+                    chat_model: "openai/gpt-4o-mini".to_string(),
+                    embedding_model: "".to_string(),
+                    embedding_dimension: 0,
+                },
+            },
+            ProviderInfo {
                 id: "ollama".to_string(),
                 name: "Ollama".to_string(),
                 description: "Local/remote Ollama instance".to_string(),
@@ -226,9 +294,34 @@ impl AvailableProvidersResponse {
                     },
                 ],
                 default_models: DefaultModels {
-                    chat_model: "gemma2-9b-it".to_string(),
+                    chat_model: "gemma-3n-e4b-it".to_string(),
                     embedding_model: "nomic-embed-text-v1.5".to_string(),
                     embedding_dimension: 768,
+                },
+            },
+            ProviderInfo {
+                id: "azure".to_string(),
+                name: "Azure OpenAI".to_string(),
+                description: "Azure-hosted OpenAI models (enterprise)".to_string(),
+                available: std::env::var("AZURE_OPENAI_API_KEY").is_ok(),
+                config_requirements: vec![
+                    ConfigRequirement {
+                        env_var: "AZURE_OPENAI_API_KEY".to_string(),
+                        required: true,
+                        description: "Azure OpenAI API key".to_string(),
+                        satisfied: std::env::var("AZURE_OPENAI_API_KEY").is_ok(),
+                    },
+                    ConfigRequirement {
+                        env_var: "AZURE_OPENAI_ENDPOINT".to_string(),
+                        required: true,
+                        description: "Azure OpenAI endpoint URL".to_string(),
+                        satisfied: std::env::var("AZURE_OPENAI_ENDPOINT").is_ok(),
+                    },
+                ],
+                default_models: DefaultModels {
+                    chat_model: "gpt-4o".to_string(),
+                    embedding_model: "text-embedding-3-small".to_string(),
+                    embedding_dimension: 1536,
                 },
             },
             ProviderInfo {
