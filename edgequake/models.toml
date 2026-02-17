@@ -21,7 +21,11 @@
 # These are used when no explicit provider/model is specified in API calls.
 #
 # Supported default configurations:
-#   - OpenAI: gpt-5-nano (LLM), text-embedding-3-small (embedding)
+#   - OpenAI: gpt-4.1-nano (LLM), text-embedding-3-small (embedding)
+#   - Anthropic: claude-sonnet-4-5-20250929 (LLM)
+#   - Gemini: gemini-2.5-flash (LLM), gemini-embedding-001 (embedding)
+#   - xAI: grok-4-1-fast (LLM)
+#   - OpenRouter: openai/gpt-4o-mini (LLM)
 #   - Ollama: gemma3:12b (LLM), embeddinggemma (embedding)
 #   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
 
@@ -74,8 +78,8 @@ embedding_per_1k = 0.0
 image_per_unit = 0.0
 
 [[providers.models]]
-name = "gpt-5-nano"
-display_name = "GPT-5 Nano"
+name = "gpt-4o-mini"
+display_name = "GPT-4o Mini"
 model_type = "llm"
 description = "Cost-effective model with excellent performance, ideal for high-volume tasks"
 deprecated = false
@@ -94,6 +98,30 @@ embedding_dimension = 0
 [providers.models.cost]
 input_per_1k = 0.00015
 output_per_1k = 0.0006
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "o4-mini"
+display_name = "o4-mini"
+model_type = "llm"
+description = "OpenAI reasoning model with chain-of-thought, ideal for complex tasks"
+deprecated = false
+tags = ["reasoning", "chain-of-thought"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 100000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0011
+output_per_1k = 0.0044
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 
@@ -176,9 +204,10 @@ image_per_unit = 0.0
 name = "gpt-4-turbo"
 display_name = "GPT-4 Turbo"
 model_type = "llm"
-description = "High-capability model with vision, good for complex reasoning"
-deprecated = false
-tags = ["vision", "reasoning"]
+description = "Legacy model, use GPT-4.1 or GPT-4o instead"
+deprecated = true
+replacement = "gpt-4.1"
+tags = ["legacy"]
 
 [providers.models.capabilities]
 context_length = 128000
@@ -200,9 +229,10 @@ image_per_unit = 0.0
 name = "gpt-3.5-turbo"
 display_name = "GPT-3.5 Turbo"
 model_type = "llm"
-description = "Fast and efficient model for simpler tasks"
-deprecated = false
-tags = ["fast", "legacy"]
+description = "Legacy model, use GPT-4o Mini or GPT-4.1 Nano instead"
+deprecated = true
+replacement = "gpt-4o-mini"
+tags = ["legacy"]
 
 [providers.models.capabilities]
 context_length = 16385
@@ -521,32 +551,6 @@ context_length = 128000
 max_output_tokens = 4096
 supports_vision = false
 supports_function_calling = true
-supports_json_mode = true
-supports_streaming = true
-supports_system_message = true
-embedding_dimension = 0
-
-[providers.models.cost]
-input_per_1k = 0.0
-output_per_1k = 0.0
-embedding_per_1k = 0.0
-image_per_unit = 0.0
-
-# --- GPT-OSS (Open Source GPT-style) ---
-
-[[providers.models]]
-name = "gpt-oss:20b"
-display_name = "GPT-OSS 20B"
-model_type = "llm"
-description = "Open-source GPT-style 20B parameter model"
-deprecated = false
-tags = ["free", "local", "large"]
-
-[providers.models.capabilities]
-context_length = 16384
-max_output_tokens = 4096
-supports_vision = false
-supports_function_calling = false
 supports_json_mode = true
 supports_streaming = true
 supports_system_message = true
@@ -1027,6 +1031,7 @@ image_per_unit = 0.0
 # =============================================================================
 # Claude models from Anthropic
 # Requires: ANTHROPIC_API_KEY environment variable
+# Pricing verified: February 2025 (platform.claude.com)
 
 [[providers]]
 name = "anthropic"
@@ -1034,21 +1039,45 @@ display_name = "Anthropic"
 type = "anthropic"
 api_base = "https://api.anthropic.com"
 api_key_env = "ANTHROPIC_API_KEY"
-enabled = false
+enabled = true
 priority = 15
 description = "Anthropic Claude models - Excellent for analysis and long-form content"
 
 [[providers.models]]
-name = "claude-sonnet-4-20250514"
-display_name = "Claude Sonnet 4"
+name = "claude-opus-4-6"
+display_name = "Claude Opus 4.6"
 model_type = "llm"
-description = "Anthropic's latest Claude Sonnet 4 with excellent reasoning"
+description = "Anthropic's most capable model with 200K context and 128K max output"
 deprecated = false
-tags = ["recommended", "reasoning", "latest"]
+tags = ["flagship", "reasoning", "latest"]
 
 [providers.models.capabilities]
 context_length = 200000
-max_output_tokens = 8192
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.005
+output_per_1k = 0.025
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "claude-sonnet-4-5-20250929"
+display_name = "Claude Sonnet 4.5"
+model_type = "llm"
+description = "Balanced performance and cost, excellent for coding and analysis"
+deprecated = false
+tags = ["recommended", "balanced", "code"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 64000
 supports_vision = true
 supports_function_calling = true
 supports_json_mode = true
@@ -1063,40 +1092,16 @@ embedding_per_1k = 0.0
 image_per_unit = 0.0
 
 [[providers.models]]
-name = "claude-3-5-sonnet-20241022"
-display_name = "Claude 3.5 Sonnet"
+name = "claude-haiku-4-5-20251001"
+display_name = "Claude Haiku 4.5"
 model_type = "llm"
-description = "Balanced performance and cost, great for coding"
-deprecated = false
-tags = ["balanced", "code"]
-
-[providers.models.capabilities]
-context_length = 200000
-max_output_tokens = 8192
-supports_vision = true
-supports_function_calling = true
-supports_json_mode = true
-supports_streaming = true
-supports_system_message = true
-embedding_dimension = 0
-
-[providers.models.cost]
-input_per_1k = 0.003
-output_per_1k = 0.015
-embedding_per_1k = 0.0
-image_per_unit = 0.0
-
-[[providers.models]]
-name = "claude-3-5-haiku-20241022"
-display_name = "Claude 3.5 Haiku"
-model_type = "llm"
-description = "Fast and cost-effective Claude model"
+description = "Fast and cost-effective Claude model for high-volume tasks"
 deprecated = false
 tags = ["fast", "cost-effective"]
 
 [providers.models.capabilities]
 context_length = 200000
-max_output_tokens = 8192
+max_output_tokens = 64000
 supports_vision = true
 supports_function_calling = true
 supports_json_mode = true
@@ -1173,6 +1178,368 @@ embedding_dimension = 1536
 input_per_1k = 0.0
 output_per_1k = 0.0
 embedding_per_1k = 0.00002
+image_per_unit = 0.0
+
+# =============================================================================
+# XAI PROVIDER
+# =============================================================================
+# xAI Grok models via OpenAI-compatible API
+# Requires: XAI_API_KEY environment variable
+# Pricing verified: February 2025 (docs.x.ai)
+
+[[providers]]
+name = "xai"
+display_name = "xAI"
+type = "openaicompatible"
+api_base = "https://api.x.ai/v1"
+api_key_env = "XAI_API_KEY"
+enabled = true
+priority = 16
+description = "xAI Grok models - High-performance reasoning and real-time knowledge"
+
+[[providers.models]]
+name = "grok-4-1-fast"
+display_name = "Grok 4.1 Fast"
+model_type = "llm"
+description = "xAI's fastest model with 2M context, excellent price-performance"
+deprecated = false
+tags = ["recommended", "fast", "latest"]
+
+[providers.models.capabilities]
+context_length = 2000000
+max_output_tokens = 131072
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0002
+output_per_1k = 0.0005
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "grok-4-0709"
+display_name = "Grok 4"
+model_type = "llm"
+description = "xAI's most capable reasoning model (256K context)"
+deprecated = false
+tags = ["flagship", "reasoning"]
+
+[providers.models.capabilities]
+context_length = 256000
+max_output_tokens = 131072
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.003
+output_per_1k = 0.015
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "grok-3"
+display_name = "Grok 3"
+model_type = "llm"
+description = "xAI's balanced model with strong reasoning (131K context)"
+deprecated = false
+tags = ["balanced", "reasoning"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 8192
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.003
+output_per_1k = 0.015
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "grok-3-mini"
+display_name = "Grok 3 Mini"
+model_type = "llm"
+description = "xAI's cost-effective model for simpler tasks (131K context)"
+deprecated = false
+tags = ["cost-effective", "fast"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 8192
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0003
+output_per_1k = 0.0005
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# =============================================================================
+# OPENROUTER PROVIDER
+# =============================================================================
+# Access 616+ models through a single API key
+# Requires: OPENROUTER_API_KEY environment variable
+
+[[providers]]
+name = "openrouter"
+display_name = "OpenRouter"
+type = "openrouter"
+api_base = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+enabled = true
+priority = 17
+description = "OpenRouter - Unified access to 616+ models from multiple providers"
+
+[[providers.models]]
+name = "openai/gpt-4o"
+display_name = "GPT-4o (via OpenRouter)"
+model_type = "llm"
+description = "OpenAI GPT-4o accessed via OpenRouter"
+deprecated = false
+tags = ["multimodal", "reasoning"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 16384
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0025
+output_per_1k = 0.01
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "openai/gpt-4o-mini"
+display_name = "GPT-4o Mini (via OpenRouter)"
+model_type = "llm"
+description = "Cost-effective GPT-4o Mini via OpenRouter"
+deprecated = false
+tags = ["cost-effective", "fast"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 16384
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.00015
+output_per_1k = 0.0006
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "anthropic/claude-sonnet-4-5-20250929"
+display_name = "Claude Sonnet 4.5 (via OpenRouter)"
+model_type = "llm"
+description = "Anthropic Claude Sonnet 4.5 via OpenRouter"
+deprecated = false
+tags = ["reasoning", "analysis"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.003
+output_per_1k = 0.015
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "meta-llama/llama-3.1-405b-instruct"
+display_name = "Llama 3.1 405B (via OpenRouter)"
+model_type = "llm"
+description = "Meta's largest open Llama model via OpenRouter"
+deprecated = false
+tags = ["large", "open-source"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.003
+output_per_1k = 0.003
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# =============================================================================
+# GEMINI PROVIDER
+# =============================================================================
+# Google Gemini models via OpenAI-compatible API
+# Requires: GEMINI_API_KEY environment variable
+# Pricing verified: February 2025 (ai.google.dev/gemini-api/docs/pricing)
+
+[[providers]]
+name = "gemini"
+display_name = "Google Gemini"
+type = "openaicompatible"
+api_base = "https://generativelanguage.googleapis.com/v1beta/openai"
+api_key_env = "GEMINI_API_KEY"
+enabled = true
+priority = 18
+description = "Google Gemini models - Multimodal AI with massive context windows"
+
+[[providers.models]]
+name = "gemini-2.5-pro"
+display_name = "Gemini 2.5 Pro"
+model_type = "llm"
+description = "Google's most capable model with 1M context and advanced reasoning"
+deprecated = false
+tags = ["flagship", "reasoning", "long-context"]
+
+[providers.models.capabilities]
+context_length = 1048576
+max_output_tokens = 65536
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.00125
+output_per_1k = 0.01
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemini-2.5-flash"
+display_name = "Gemini 2.5 Flash"
+model_type = "llm"
+description = "Fast and efficient Gemini with thinking capabilities (1M context)"
+deprecated = false
+tags = ["recommended", "fast", "thinking"]
+
+[providers.models.capabilities]
+context_length = 1048576
+max_output_tokens = 65536
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.00015
+output_per_1k = 0.0006
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemini-2.5-flash-lite"
+display_name = "Gemini 2.5 Flash Lite"
+model_type = "llm"
+description = "Ultra-fast, lowest-cost Gemini model for high-volume tasks"
+deprecated = false
+tags = ["fast", "lowest-cost"]
+
+[providers.models.capabilities]
+context_length = 1048576
+max_output_tokens = 65536
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0001
+output_per_1k = 0.0004
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemini-2.0-flash"
+display_name = "Gemini 2.0 Flash"
+model_type = "llm"
+description = "Budget-friendly multimodal model with 1M context"
+deprecated = false
+tags = ["budget", "multimodal"]
+
+[providers.models.capabilities]
+context_length = 1048576
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0001
+output_per_1k = 0.0004
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemini-embedding-001"
+display_name = "Gemini Embedding"
+model_type = "embedding"
+description = "Google's latest text embedding model (3072 dimensions)"
+deprecated = false
+tags = ["recommended", "embedding"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 3072
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.00015
 image_per_unit = 0.0
 
 # =============================================================================

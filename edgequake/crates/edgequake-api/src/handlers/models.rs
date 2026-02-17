@@ -335,57 +335,36 @@ pub async fn check_providers_health(
 
 /// Check health of a single provider.
 ///
-/// WHY: Simplified health check that returns basic status.
-/// Full health checking with HTTP calls would require async HTTP client
-/// setup and error handling. For now, we check local providers via TCP
-/// and assume cloud providers are available if configured.
+/// Local providers (Ollama, LM Studio) are checked via TCP connection.
+/// Cloud providers are verified by checking their API key environment variable.
+/// Mock provider is always available.
 async fn check_provider_health(
     provider: &edgequake_llm::ProviderConfig,
     checked_at: &str,
 ) -> ProviderHealthResponse {
     use std::time::Instant;
 
-    let start = Instant::now();
-
-    // Get the base URL to check
-    let base_url = match &provider.base_url {
-        Some(url) => url.clone(),
-        None => {
-            // Use default URLs based on provider type
-            match provider.provider_type {
-                ProviderType::Ollama => "http://localhost:11434".to_string(),
-                ProviderType::LMStudio => "http://localhost:1234".to_string(),
-                ProviderType::OpenAI => "https://api.openai.com/v1".to_string(),
-                _ => {
-                    return ProviderHealthResponse {
-                        available: false,
-                        latency_ms: 0,
-                        error: Some("No base URL configured".to_string()),
-                        checked_at: checked_at.to_string(),
-                    };
-                }
-            }
-        }
-    };
-
-    // Check based on provider type
     match provider.provider_type {
-        ProviderType::Mock => {
-            // Mock provider is always available
-            ProviderHealthResponse {
-                available: true,
-                latency_ms: 0,
-                error: None,
-                checked_at: checked_at.to_string(),
-            }
-        }
+        ProviderType::Mock => ProviderHealthResponse {
+            available: true,
+            latency_ms: 0,
+            error: None,
+            checked_at: checked_at.to_string(),
+        },
         ProviderType::Ollama | ProviderType::LMStudio => {
-            // For local providers, try TCP connection
+            // Local providers: TCP connection check
+            let start = Instant::now();
+            let default_url = if provider.provider_type == ProviderType::Ollama {
+                "http://localhost:11434"
+            } else {
+                "http://localhost:1234"
+            };
+            let base_url = provider.base_url.as_deref().unwrap_or(default_url);
             let host_port = base_url
                 .strip_prefix("http://")
-                .unwrap_or(&base_url)
+                .unwrap_or(base_url)
                 .strip_prefix("https://")
-                .unwrap_or(&base_url);
+                .unwrap_or(base_url);
 
             match std::net::TcpStream::connect_timeout(
                 &host_port
@@ -408,12 +387,26 @@ async fn check_provider_health(
             }
         }
         _ => {
-            // For cloud providers, assume available if configured
-            // Full validation would require API key checks
+            // Cloud providers: check if API key is configured
+            let api_key_set = provider
+                .api_key_env
+                .as_deref()
+                .map(|env| !env.is_empty() && std::env::var(env).is_ok())
+                .unwrap_or(false);
+
             ProviderHealthResponse {
-                available: true,
+                available: api_key_set,
                 latency_ms: 0,
-                error: None,
+                error: if api_key_set {
+                    None
+                } else {
+                    let env_hint = provider
+                        .api_key_env
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or("API key");
+                    Some(format!("{} not configured", env_hint))
+                },
                 checked_at: checked_at.to_string(),
             }
         }

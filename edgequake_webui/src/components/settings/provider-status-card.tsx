@@ -73,6 +73,11 @@ export function ProviderStatusCard() {
       'ollama': 'Ollama',
       'openai': 'OpenAI',
       'lmstudio': 'LM Studio',
+      'anthropic': 'Anthropic',
+      'gemini': 'Google Gemini',
+      'xai': 'xAI',
+      'openrouter': 'OpenRouter',
+      'azure': 'Azure OpenAI',
       'mock': 'Mock (Development)',
     };
     return names[name.toLowerCase()] || name;
@@ -107,6 +112,36 @@ export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"`,
         code: `export EDGEQUAKE_LLM_PROVIDER="lmstudio"
 export OPENAI_BASE_URL="http://localhost:1234/v1"
 export OPENAI_API_KEY="lm-studio"`,
+      },
+      'anthropic': {
+        label: 'Anthropic Configuration',
+        code: `export ANTHROPIC_API_KEY="sk-ant-..."
+export EDGEQUAKE_LLM_PROVIDER="anthropic"
+export EDGEQUAKE_LLM_MODEL="claude-sonnet-4-5-20250929"`,
+      },
+      'gemini': {
+        label: 'Google Gemini Configuration',
+        code: `export GEMINI_API_KEY="..."
+export EDGEQUAKE_LLM_PROVIDER="gemini"
+export EDGEQUAKE_LLM_MODEL="gemini-2.5-flash"`,
+      },
+      'xai': {
+        label: 'xAI Configuration',
+        code: `export XAI_API_KEY="xai-..."
+export EDGEQUAKE_LLM_PROVIDER="xai"
+export EDGEQUAKE_LLM_MODEL="grok-4-1-fast"`,
+      },
+      'openrouter': {
+        label: 'OpenRouter Configuration',
+        code: `export OPENROUTER_API_KEY="sk-or-..."
+export EDGEQUAKE_LLM_PROVIDER="openrouter"
+export EDGEQUAKE_LLM_MODEL="openai/gpt-4o-mini"`,
+      },
+      'azure': {
+        label: 'Azure OpenAI Configuration',
+        code: `export AZURE_OPENAI_API_KEY="..."
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+export EDGEQUAKE_LLM_PROVIDER="azure"`,
       },
     };
     return configs[providerName.toLowerCase()] || { label: 'Configuration', code: '' };

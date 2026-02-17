@@ -123,6 +123,8 @@ How you communicate your thoughts
 
 EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework implemented in Rust, designed to enhance information retrieval and generation through graph-based knowledge representation.
 
+You must respect SRP and DRY principles, and keep functions small and focused. Always look for opportunities to refactor and improve code quality as you work.
+
 ## Project Structure & Module Organization
 
 - `edgequake/crates/`: Core Rust crates

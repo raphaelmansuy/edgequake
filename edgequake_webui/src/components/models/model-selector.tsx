@@ -47,6 +47,7 @@ import {
     Eye,
     FileText,
     FlaskConical,
+    Globe,
     Loader2,
     Ruler,
     Sparkles,
@@ -105,8 +106,14 @@ function getProviderIcon(providerId: string, className?: string) {
       return <Brain className={cn(iconClass, 'text-purple-600')} />;
     case 'anthropic':
       return <Sparkles className={cn(iconClass, 'text-orange-600')} />;
+    case 'gemini':
+      return <Zap className={cn(iconClass, 'text-blue-500')} />;
+    case 'xai':
+      return <Sparkles className={cn(iconClass, 'text-slate-700 dark:text-slate-300')} />;
+    case 'openrouter':
+      return <Globe className={cn(iconClass, 'text-indigo-600')} />;
     case 'azure':
-      return <Cloud className={cn(iconClass, 'text-blue-500')} />;
+      return <Cloud className={cn(iconClass, 'text-sky-600')} />;
     case 'mock':
       return <FlaskConical className={cn(iconClass, 'text-gray-500')} />;
     default:

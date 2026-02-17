@@ -603,7 +603,7 @@ impl CostTracker {
 
     /// Create with default gpt-4.1-nano pricing (recommended cost-effective model).
     pub fn new_gpt5_nano(job_id: impl Into<String>) -> Self {
-        let pricing = ModelPricing::new("gpt-4.1-nano", 0.00015, 0.0006);
+        let pricing = ModelPricing::new("gpt-4.1-nano", 0.0001, 0.0004);
         Self::new(job_id, "gpt-4.1-nano", pricing)
     }
 
@@ -658,10 +658,18 @@ impl Clone for CostTracker {
 pub fn default_model_pricing() -> HashMap<String, ModelPricing> {
     let mut pricing = HashMap::new();
 
-    // OpenAI models
+    // === OpenAI Models ===
     pricing.insert(
         "gpt-4.1-nano".to_string(),
-        ModelPricing::new("gpt-4.1-nano", 0.00015, 0.0006),
+        ModelPricing::new("gpt-4.1-nano", 0.0001, 0.0004),
+    );
+    pricing.insert(
+        "gpt-4.1-mini".to_string(),
+        ModelPricing::new("gpt-4.1-mini", 0.0004, 0.0016),
+    );
+    pricing.insert(
+        "gpt-4.1".to_string(),
+        ModelPricing::new("gpt-4.1", 0.002, 0.008),
     );
     pricing.insert(
         "gpt-4o-mini".to_string(),
@@ -669,7 +677,11 @@ pub fn default_model_pricing() -> HashMap<String, ModelPricing> {
     );
     pricing.insert(
         "gpt-4o".to_string(),
-        ModelPricing::new("gpt-4o", 0.005, 0.015),
+        ModelPricing::new("gpt-4o", 0.0025, 0.01),
+    );
+    pricing.insert(
+        "o4-mini".to_string(),
+        ModelPricing::new("o4-mini", 0.0011, 0.0044),
     );
     pricing.insert(
         "gpt-4-turbo".to_string(),
@@ -680,7 +692,71 @@ pub fn default_model_pricing() -> HashMap<String, ModelPricing> {
         ModelPricing::new("gpt-3.5-turbo", 0.0005, 0.0015),
     );
 
-    // Anthropic models
+    // === Anthropic Models ===
+    pricing.insert(
+        "claude-opus-4-6".to_string(),
+        ModelPricing::new("claude-opus-4-6", 0.005, 0.025),
+    );
+    pricing.insert(
+        "claude-sonnet-4-5-20250929".to_string(),
+        ModelPricing::new("claude-sonnet-4-5-20250929", 0.003, 0.015),
+    );
+    pricing.insert(
+        "claude-haiku-4-5-20251001".to_string(),
+        ModelPricing::new("claude-haiku-4-5-20251001", 0.001, 0.005),
+    );
+
+    // === Google Gemini Models ===
+    pricing.insert(
+        "gemini-2.5-pro".to_string(),
+        ModelPricing::new("gemini-2.5-pro", 0.00125, 0.01),
+    );
+    pricing.insert(
+        "gemini-2.5-flash".to_string(),
+        ModelPricing::new("gemini-2.5-flash", 0.00015, 0.0006),
+    );
+    pricing.insert(
+        "gemini-2.5-flash-lite".to_string(),
+        ModelPricing::new("gemini-2.5-flash-lite", 0.0001, 0.0004),
+    );
+    pricing.insert(
+        "gemini-2.0-flash".to_string(),
+        ModelPricing::new("gemini-2.0-flash", 0.0001, 0.0004),
+    );
+
+    // === xAI Models ===
+    pricing.insert(
+        "grok-4-1-fast".to_string(),
+        ModelPricing::new("grok-4-1-fast", 0.0002, 0.0005),
+    );
+    pricing.insert(
+        "grok-4-0709".to_string(),
+        ModelPricing::new("grok-4-0709", 0.003, 0.015),
+    );
+    pricing.insert(
+        "grok-3".to_string(),
+        ModelPricing::new("grok-3", 0.003, 0.015),
+    );
+    pricing.insert(
+        "grok-3-mini".to_string(),
+        ModelPricing::new("grok-3-mini", 0.0003, 0.0005),
+    );
+
+    // === Embedding Models ===
+    pricing.insert(
+        "text-embedding-3-small".to_string(),
+        ModelPricing::new("text-embedding-3-small", 0.00002, 0.0),
+    );
+    pricing.insert(
+        "text-embedding-3-large".to_string(),
+        ModelPricing::new("text-embedding-3-large", 0.00013, 0.0),
+    );
+    pricing.insert(
+        "gemini-embedding-001".to_string(),
+        ModelPricing::new("gemini-embedding-001", 0.00015, 0.0),
+    );
+
+    // === Legacy compatibility aliases ===
     pricing.insert(
         "claude-3-haiku".to_string(),
         ModelPricing::new("claude-3-haiku", 0.00025, 0.00125),
@@ -692,16 +768,6 @@ pub fn default_model_pricing() -> HashMap<String, ModelPricing> {
     pricing.insert(
         "claude-3-opus".to_string(),
         ModelPricing::new("claude-3-opus", 0.015, 0.075),
-    );
-
-    // Embedding models
-    pricing.insert(
-        "text-embedding-3-small".to_string(),
-        ModelPricing::new("text-embedding-3-small", 0.00002, 0.0),
-    );
-    pricing.insert(
-        "text-embedding-3-large".to_string(),
-        ModelPricing::new("text-embedding-3-large", 0.00013, 0.0),
     );
 
     pricing

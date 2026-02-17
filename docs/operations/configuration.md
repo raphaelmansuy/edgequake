@@ -88,6 +88,42 @@ DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
 | -------------------- | ------ | ----------------------- | -------------------- |
 | `LM_STUDIO_BASE_URL` | String | `http://localhost:1234` | LM Studio server URL |
 
+#### Anthropic
+
+| Variable            | Type   | Default                       | Description                  |
+| ------------------- | ------ | ----------------------------- | ---------------------------- |
+| `ANTHROPIC_API_KEY` | String | None                          | Anthropic API key (required) |
+| `ANTHROPIC_BASE_URL`| String | `https://api.anthropic.com`   | API endpoint                 |
+
+#### Google Gemini
+
+| Variable           | Type   | Default                                    | Description            |
+| ------------------ | ------ | ------------------------------------------ | ---------------------- |
+| `GEMINI_API_KEY`   | String | None                                       | Google AI API key      |
+| `GEMINI_BASE_URL`  | String | `https://generativelanguage.googleapis.com`| API endpoint           |
+
+#### xAI (Grok)
+
+| Variable       | Type   | Default                  | Description         |
+| -------------- | ------ | ------------------------ | ------------------- |
+| `XAI_API_KEY`  | String | None                     | xAI API key         |
+| `XAI_BASE_URL` | String | `https://api.x.ai/v1`    | API endpoint        |
+
+#### OpenRouter
+
+| Variable              | Type   | Default                     | Description                      |
+| --------------------- | ------ | --------------------------- | -------------------------------- |
+| `OPENROUTER_API_KEY`  | String | None                        | OpenRouter API key (required)    |
+| `OPENROUTER_BASE_URL` | String | `https://openrouter.ai/api` | API endpoint                     |
+
+#### Azure OpenAI
+
+| Variable                | Type   | Default | Description                      |
+| ----------------------- | ------ | ------- | -------------------------------- |
+| `AZURE_OPENAI_API_KEY`  | String | None    | Azure OpenAI key (required)      |
+| `AZURE_OPENAI_ENDPOINT` | String | None    | Azure resource endpoint          |
+| `AZURE_OPENAI_API_VERSION` | String | `2024-02-15-preview` | API version |
+
 ### Models Configuration
 
 | Variable                       | Type   | Default  | Description                |
@@ -158,11 +194,17 @@ image_per_unit = 0.0
 
 ### Provider Types
 
-| Type        | Description           | API Key Variable |
-| ----------- | --------------------- | ---------------- |
-| `openai`    | OpenAI API compatible | `OPENAI_API_KEY` |
-| `ollama`    | Ollama local models   | None (local)     |
-| `lm_studio` | LM Studio local       | None (local)     |
+| Type        | Description                | API Key Variable         |
+| ----------- | -------------------------- | ------------------------ |
+| `openai`    | OpenAI API compatible      | `OPENAI_API_KEY`         |
+| `anthropic` | Anthropic Claude models    | `ANTHROPIC_API_KEY`      |
+| `gemini`    | Google Gemini models       | `GEMINI_API_KEY`         |
+| `xai`       | xAI Grok models            | `XAI_API_KEY`            |
+| `openrouter`| OpenRouter aggregator      | `OPENROUTER_API_KEY`     |
+| `azure`     | Azure OpenAI              | `AZURE_OPENAI_API_KEY`   |
+| `ollama`    | Ollama local models        | None (local)             |
+| `lm_studio` | LM Studio local            | None (local)             |
+| `mock`      | Testing without costs      | None                     |
 
 ### Model Types
 
@@ -268,6 +310,135 @@ max_output_tokens = 16384
 supports_function_calling = true
 supports_json_mode = true
 supports_streaming = true
+```
+
+### Anthropic Claude
+
+```toml
+[[providers]]
+name = "anthropic"
+display_name = "Anthropic"
+type = "anthropic"
+api_base = "https://api.anthropic.com"
+api_key_env = "ANTHROPIC_API_KEY"
+enabled = true
+priority = 8
+
+[[providers.models]]
+name = "claude-sonnet-4-5-20250929"
+display_name = "Claude Sonnet 4.5"
+model_type = "llm"
+tags = ["recommended", "fast"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 128000
+supports_vision = true
+supports_streaming = true
+supports_system_message = true
+
+[providers.models.cost]
+input_per_1k = 0.003
+output_per_1k = 0.015
+```
+
+### Google Gemini
+
+```toml
+[[providers]]
+name = "gemini"
+display_name = "Google Gemini"
+type = "gemini"
+api_base = "https://generativelanguage.googleapis.com"
+api_key_env = "GEMINI_API_KEY"
+enabled = true
+priority = 9
+
+[[providers.models]]
+name = "gemini-2.5-flash"
+display_name = "Gemini 2.5 Flash"
+model_type = "llm"
+tags = ["recommended", "fast", "thinking"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 8192
+supports_vision = true
+supports_streaming = true
+
+[providers.models.cost]
+input_per_1k = 0.00015
+output_per_1k = 0.0006
+
+[[providers.models]]
+name = "gemini-embedding-001"
+display_name = "Gemini Embedding"
+model_type = "embedding"
+
+[providers.models.capabilities]
+context_length = 10000
+embedding_dimension = 3072
+
+[providers.models.cost]
+input_per_1k = 0.00015
+```
+
+### xAI (Grok)
+
+```toml
+[[providers]]
+name = "xai"
+display_name = "xAI"
+type = "xai"
+api_base = "https://api.x.ai/v1"
+api_key_env = "XAI_API_KEY"
+enabled = true
+priority = 7
+
+[[providers.models]]
+name = "grok-4-1-fast"
+display_name = "Grok 4.1 Fast"
+model_type = "llm"
+tags = ["recommended", "fast", "large-context"]
+
+[providers.models.capabilities]
+context_length = 2000000
+max_output_tokens = 16384
+supports_vision = false
+supports_streaming = true
+
+[providers.models.cost]
+input_per_1k = 0.0002
+output_per_1k = 0.0005
+```
+
+### OpenRouter
+
+```toml
+[[providers]]
+name = "openrouter"
+display_name = "OpenRouter"
+type = "openrouter"
+api_base = "https://openrouter.ai/api"
+api_key_env = "OPENROUTER_API_KEY"
+enabled = true
+priority = 6
+
+[[providers.models]]
+name = "openai/gpt-4o-mini"
+display_name = "OpenRouter GPT-4o Mini"
+model_type = "llm"
+tags = ["recommended"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 16384
+supports_vision = true
+supports_streaming = true
+
+[providers.models.cost]
+input_per_1k = 0.00015
+output_per_1k = 0.0006
 ```
 
 ---
