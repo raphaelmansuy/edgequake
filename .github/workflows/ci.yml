@@ -33,7 +33,7 @@ jobs:
 
       - name: Check clippy
         working-directory: edgequake
-        run: cargo clippy --workspace --lib --no-default-features -- -D warnings
+        run: cargo clippy --workspace --lib --no-default-features --locked -- -D warnings
 
   test:
     name: Test
@@ -51,7 +51,7 @@ jobs:
 
       - name: Run tests
         working-directory: edgequake
-        run: cargo test --workspace --lib --no-default-features --no-fail-fast
+        run: cargo test --workspace --lib --no-default-features --locked --no-fail-fast
         env:
           # Use mock LLM provider for tests (no API key needed)
           RUST_LOG: warn
@@ -72,7 +72,7 @@ jobs:
 
       - name: Build release
         working-directory: edgequake
-        run: cargo build --workspace --release --lib --no-default-features
+        run: cargo build --workspace --release --lib --no-default-features --locked
 
       # Note: Examples and binaries require postgres feature, tested in postgres-integration.yml
 
@@ -103,7 +103,7 @@ jobs:
 
       - name: Generate coverage
         working-directory: edgequake
-        run: cargo tarpaulin --workspace --no-default-features --timeout 300 --out xml
+        run: cargo tarpaulin --workspace --no-default-features --locked --timeout 300 --out xml
         # WHY: continue-on-error - Coverage generation can run out of disk space on GitHub runners
         continue-on-error: true
 
@@ -146,7 +146,7 @@ jobs:
 
       - name: Build docs
         working-directory: edgequake
-        run: cargo doc --workspace --no-deps --no-default-features
+        run: cargo doc --workspace --no-deps --no-default-features --locked
         env:
           # Allow unresolved links (FEAT/BR/UC references) but error on other doc warnings
           RUSTDOCFLAGS: -A rustdoc::broken_intra_doc_links -D warnings
