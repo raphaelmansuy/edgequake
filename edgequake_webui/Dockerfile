@@ -38,7 +38,6 @@ COPY edgequake_webui/package.json ./
 COPY edgequake_webui/pnpm-lock.yaml ./
 COPY edgequake_webui/next.config.ts ./
 COPY edgequake_webui/tsconfig.json ./
-COPY edgequake_webui/next-env.d.ts ./
 COPY edgequake_webui/postcss.config.mjs ./
 COPY edgequake_webui/components.json ./
 COPY edgequake_webui/eslint.config.mjs ./
