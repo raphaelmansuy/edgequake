@@ -170,10 +170,13 @@ function PhaseIndicator({
             <p className="font-medium">{phase.label}</p>
             <p className="text-muted-foreground">{phase.description}</p>
             {phase.status.type === "active" && (
-              <p className="mt-1 text-blue-600">
-                Processing: {phase.status.current} of {phase.status.total} (
-                {Math.round(phase.status.percent)}%)
-              </p>
+              <>
+                <p className="mt-1 text-blue-600">
+                  Processing: {phase.status.current} of {phase.status.total} (
+                  {Math.round(phase.status.percent)}%)
+                </p>
+                <p className="mt-1 text-blue-500 text-xs italic">{phase.message}</p>
+              </>
             )}
             {phase.status.type === "failed" && (
               <p className="mt-1 text-red-600">Error: {phase.status.error}</p>
@@ -439,6 +442,13 @@ export function PdfUploadProgress({
             </div>
           ))}
         </div>
+
+        {/* Live progress message for active phase */}
+        {isProcessing && (
+          <p className="text-xs text-center text-muted-foreground min-h-[1rem]">
+            {phases.find((p) => p.status.type === "active")?.message ?? "Processing..."}
+          </p>
+        )}
 
         {/* OODA-29: Enhanced error display using ErrorBanner */}
         {isFailed && progress?.error && (

@@ -581,24 +581,73 @@ export async function uploadPdfDocument(
 
 /**
  * Response type for PDF progress endpoint.
- * Matches backend PdfUploadProgress struct.
+ * Matches backend PdfUploadProgress struct (edgequake-tasks/src/progress.rs).
+ *
+ * WHY: The backend serializes is_complete/is_failed booleans (not a status
+ * string), and phases as PhaseProgress objects (not a tagged union).
+ * The hook computes a normalized `status` string from these fields.
  *
  * @implements OODA-19: PDF progress API integration
  */
 export interface PdfProgressResponse {
   track_id: string;
   pdf_id: string;
+  document_id?: string | null;
   filename: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  phases: PhaseStatus[];
+  /** Computed by usePdfProgress hook from is_complete / is_failed */
+  status?: "pending" | "processing" | "completed" | "failed";
+  phases: PhaseProgressData[];
+  overall_percentage: number;
+  is_complete: boolean;
+  is_failed: boolean;
   started_at: string;
-  completed_at?: string;
+  updated_at: string;
+  completed_at?: string | null;
+  eta_seconds?: number | null;
+  /** Top-level error (set from the first failed phase message) */
   error?: string;
-  eta_seconds?: number;
 }
 
 /**
- * Phase status within PdfProgressResponse.
+ * Phase progress data from the backend PhaseProgress struct.
+ *
+ * WHY: Backend serializes phase status as `status: "active" | "complete" | ...`
+ * (not a tagged union `type`), and uses `percentage` (not `percent`).
+ * A `message` field carries real-time human-readable progress text.
+ */
+export interface PhaseProgressData {
+  /** Phase identifier: "upload" | "pdf_conversion" | "chunking" | "embedding" | "extraction" | "graph_storage" */
+  phase: string;
+  /** Phase status: "pending" | "active" | "complete" | "failed" | "skipped" */
+  status: "pending" | "active" | "complete" | "failed" | "skipped";
+  current: number;
+  total: number;
+  /** Completion percentage 0–100 */
+  percentage: number;
+  /** Human-readable progress message, e.g. "Converting PDF: page 5/23 (22%)" */
+  message: string;
+  eta_seconds?: number | null;
+  error?: PhaseErrorData | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+/**
+ * Error details for a failed phase.
+ */
+export interface PhaseErrorData {
+  message: string;
+  code: string;
+  retryable: boolean;
+  suggestion: string;
+  affected_item?: string | null;
+}
+
+/**
+ * Legacy PhaseStatus discriminated union kept for backward compatibility
+ * with components that haven't been updated yet.
+ *
+ * @deprecated Use PhaseProgressData instead.
  */
 export type PhaseStatus =
   | { type: "pending" }
