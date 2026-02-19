@@ -130,6 +130,9 @@ fn workspace_to_response(workspace: &Workspace) -> WorkspaceResponse {
         embedding_provider: workspace.embedding_provider.clone(),
         embedding_dimension: workspace.embedding_dimension,
         embedding_full_id: workspace.embedding_full_id(),
+        // SPEC-040: Vision configuration
+        vision_provider: workspace.vision_provider.clone(),
+        vision_model: workspace.vision_model.clone(),
         created_at: workspace.created_at.to_rfc3339(),
         updated_at: workspace.updated_at.to_rfc3339(),
     }
@@ -573,6 +576,9 @@ pub async fn create_workspace(
         embedding_model,
         embedding_provider,
         embedding_dimension,
+        // SPEC-040: Vision configuration (workspace-level override)
+        vision_provider: request.vision_provider.clone(),
+        vision_model: request.vision_model.clone(),
     };
 
     // Store workspace via workspace service
@@ -743,6 +749,9 @@ pub async fn update_workspace(
         embedding_model: request.embedding_model,
         embedding_provider: request.embedding_provider,
         embedding_dimension: request.embedding_dimension,
+        // SPEC-040: Vision configuration
+        vision_provider: request.vision_provider,
+        vision_model: request.vision_model,
     };
 
     let workspace = state

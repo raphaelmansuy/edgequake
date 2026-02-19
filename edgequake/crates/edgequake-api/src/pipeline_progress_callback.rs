@@ -13,14 +13,14 @@
 //!
 //! ## WHY This Module?
 //!
-//! This adapter bridges `edgequake_pdf::ProgressCallback` to both event systems:
+//! This adapter bridges `edgequake_pdf2md::ConversionProgressCallback` to both event systems:
 //!
 //! ```text
 //! ┌─────────────────────┐    ┌──────────────────────────┐    ┌─────────────────┐
-//! │   PdfExtractor      │───►│ PipelineProgressCallback │───►│  PipelineState  │
+//! │  edgequake-pdf2md   │───►│ PipelineProgressCallback │───►│  PipelineState  │
 //! │                     │    │                          │    │ (internal)      │
-//! │ extract_with_       │    │ on_page_complete(5, 2048)│    └─────────────────┘
-//! │   progress(callback)│    │   ───────────────────►   │            │
+//! │ convert_from_bytes()│    │ on_page_complete(5,10,..)│    └─────────────────┘
+//! │                     │    │   ───────────────────►   │            │
 //! └─────────────────────┘    │                          │            ▼
 //!                            │                          │    ┌─────────────────┐
 //!                            │                          │───►│ ProgressBroad-  │
@@ -36,7 +36,7 @@
 
 use crate::handlers::websocket_types::ProgressEvent;
 use crate::handlers::ProgressBroadcaster;
-use edgequake_pdf::ProgressCallback;
+use edgequake_pdf2md::ConversionProgressCallback;
 use edgequake_storage::traits::KVStorage;
 use edgequake_tasks::progress::PipelinePhase;
 use edgequake_tasks::PipelineState;
@@ -57,7 +57,6 @@ use tokio::runtime::Handle;
 /// ```rust,ignore
 /// use std::sync::Arc;
 /// use edgequake_api::PipelineProgressCallback;
-/// use edgequake_pdf::PdfExtractor;
 ///
 /// let callback = Arc::new(PipelineProgressCallback::new(
 ///     pipeline_state.clone(),
@@ -65,7 +64,7 @@ use tokio::runtime::Handle;
 ///     task_id.clone(),
 /// ).with_broadcaster(progress_broadcaster.clone()));
 ///
-/// extractor.extract_to_markdown_with_progress(&pdf_bytes, callback).await?;
+/// edgequake_pdf2md::convert_from_bytes(&pdf_bytes, &config).await?;
 /// ```
 pub struct PipelineProgressCallback {
     /// Pipeline state for emitting internal events.
@@ -208,8 +207,8 @@ impl PipelineProgressCallback {
     }
 }
 
-impl ProgressCallback for PipelineProgressCallback {
-    fn on_extraction_start(&self, total_pages: usize) {
+impl ConversionProgressCallback for PipelineProgressCallback {
+    fn on_conversion_start(&self, total_pages: usize) {
         self.total_pages.store(total_pages, Ordering::SeqCst);
 
         // Emit start event to PipelineState (internal)
@@ -282,8 +281,10 @@ impl ProgressCallback for PipelineProgressCallback {
         });
     }
 
-    fn on_page_complete(&self, page_num: usize, markdown_len: usize) {
-        let total = self.total_pages.load(Ordering::SeqCst);
+    fn on_page_complete(&self, page_num: usize, total_pages: usize, markdown_len: usize) {
+        // Store total_pages for use in debounce logic
+        self.total_pages.store(total_pages, Ordering::SeqCst);
+        let total = total_pages;
 
         // Emit to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
@@ -361,8 +362,10 @@ impl ProgressCallback for PipelineProgressCallback {
         });
     }
 
-    fn on_page_error(&self, page_num: usize, error: &str) {
-        let total = self.total_pages.load(Ordering::SeqCst);
+    fn on_page_error(&self, page_num: usize, total_pages: usize, error: &str) {
+        // Store total_pages for consistency
+        self.total_pages.store(total_pages, Ordering::SeqCst);
+        let total = total_pages;
 
         // Emit to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
@@ -407,7 +410,7 @@ impl ProgressCallback for PipelineProgressCallback {
         });
     }
 
-    fn on_extraction_complete(&self, total_pages: usize, success_count: usize) {
+    fn on_conversion_complete(&self, total_pages: usize, success_count: usize) {
         // Emit completion event
         let phase = if success_count == total_pages {
             "complete".to_string()
@@ -470,36 +473,6 @@ impl ProgressCallback for PipelineProgressCallback {
                 .await;
         });
     }
-
-    fn on_progress(&self, phase: &str, percent: f32) {
-        // Convert percentage to approximate page number
-        let total = self.total_pages.load(Ordering::SeqCst);
-        let approx_page = ((percent / 100.0) * total as f32).ceil() as u32;
-
-        // Emit to PipelineState
-        self.pipeline_state.emit_pdf_page_progress(
-            self.pdf_id.clone(),
-            self.task_id.clone(),
-            approx_page,
-            total as u32,
-            phase.to_string(),
-            0,
-            true,
-            None,
-        );
-
-        // OODA-10: Also broadcast to WebSocket clients
-        self.broadcast_event(ProgressEvent::PdfPageProgress {
-            pdf_id: self.pdf_id.clone(),
-            task_id: self.task_id.clone(),
-            page_num: approx_page,
-            total_pages: total as u32,
-            phase: phase.to_string(),
-            markdown_len: 0,
-            success: true,
-            error: None,
-        });
-    }
 }
 
 #[cfg(test)]
@@ -519,8 +492,8 @@ mod tests {
         );
 
         // Simulate extraction flow
-        callback.on_extraction_start(10);
-        callback.on_page_complete(5, 2048);
+        callback.on_conversion_start(10);
+        callback.on_page_complete(5, 10, 2048);
 
         // Skip the start event
         let _ = rx.try_recv();
@@ -559,8 +532,8 @@ mod tests {
             "task-err".to_string(),
         );
 
-        callback.on_extraction_start(5);
-        callback.on_page_error(3, "Corrupt image data");
+        callback.on_conversion_start(5);
+        callback.on_page_error(3, 5, "Corrupt image data");
 
         // Skip start event
         let _ = rx.try_recv();
@@ -594,8 +567,8 @@ mod tests {
             "task-done".to_string(),
         );
 
-        callback.on_extraction_start(10);
-        callback.on_extraction_complete(10, 10);
+        callback.on_conversion_start(10);
+        callback.on_conversion_complete(10, 10);
 
         // Skip start event
         let _ = rx.try_recv();
@@ -627,8 +600,8 @@ mod tests {
             "task-partial".to_string(),
         );
 
-        callback.on_extraction_start(10);
-        callback.on_extraction_complete(10, 8); // 2 pages failed
+        callback.on_conversion_start(10);
+        callback.on_conversion_complete(10, 8); // 2 pages failed
 
         // Skip start event
         let _ = rx.try_recv();
@@ -667,7 +640,7 @@ mod tests {
         .with_broadcaster(broadcaster);
 
         // Fire an event
-        callback.on_extraction_start(5);
+        callback.on_conversion_start(5);
 
         // Verify WebSocket subscriber received the event
         let ws_event = ws_rx.try_recv().unwrap();
@@ -708,8 +681,8 @@ mod tests {
         .with_filename("test_document.pdf".to_string());
 
         // Fire extraction start and page complete
-        callback.on_extraction_start(10);
-        callback.on_page_complete(5, 2048);
+        callback.on_conversion_start(10);
+        callback.on_page_complete(5, 10, 2048);
 
         // Wait for spawned tasks to complete
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -746,13 +719,13 @@ mod tests {
         .with_filename("completed.pdf".to_string());
 
         // Full extraction flow
-        callback.on_extraction_start(5);
-        callback.on_page_complete(1, 1000);
-        callback.on_page_complete(2, 1000);
-        callback.on_page_complete(3, 1000);
-        callback.on_page_complete(4, 1000);
-        callback.on_page_complete(5, 1000);
-        callback.on_extraction_complete(5, 5);
+        callback.on_conversion_start(5);
+        callback.on_page_complete(1, 5, 1000);
+        callback.on_page_complete(2, 5, 1000);
+        callback.on_page_complete(3, 5, 1000);
+        callback.on_page_complete(4, 5, 1000);
+        callback.on_page_complete(5, 5, 1000);
+        callback.on_conversion_complete(5, 5);
 
         // Wait for spawned tasks to complete
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;

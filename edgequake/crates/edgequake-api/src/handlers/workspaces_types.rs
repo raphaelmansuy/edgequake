@@ -148,6 +148,17 @@ pub struct CreateWorkspaceApiRequest {
     /// If not provided, auto-detected from embedding_model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding_dimension: Option<usize>,
+
+    // === Vision Configuration (SPEC-040) ===
+    /// Vision LLM provider for PDF-to-Markdown conversion (e.g., "openai", "anthropic").
+    /// If not provided, falls back to EDGEQUAKE_VISION_PROVIDER env var, then "openai".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_provider: Option<String>,
+
+    /// Vision LLM model for PDF-to-Markdown conversion (e.g., "gpt-4.1-nano").
+    /// If not provided, falls back to EDGEQUAKE_VISION_MODEL env var, then "gpt-4.1-nano".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_model: Option<String>,
 }
 
 /// Request to update a workspace.
@@ -189,6 +200,15 @@ pub struct UpdateWorkspaceApiRequest {
     /// Update embedding dimension.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding_dimension: Option<usize>,
+
+    // === Vision Configuration (SPEC-040) ===
+    /// Update vision LLM provider for PDF-to-Markdown conversion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_provider: Option<String>,
+
+    /// Update vision LLM model for PDF-to-Markdown conversion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_model: Option<String>,
 }
 
 // ============================================================================
@@ -274,6 +294,15 @@ pub struct WorkspaceResponse {
     pub embedding_dimension: usize,
     /// Fully qualified embedding model ID (provider/model format).
     pub embedding_full_id: String,
+
+    // === Vision Configuration (SPEC-040) ===
+    /// Vision LLM provider for PDF-to-Markdown conversion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_provider: Option<String>,
+
+    /// Vision LLM model for PDF-to-Markdown conversion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_model: Option<String>,
 
     /// Creation timestamp.
     pub created_at: String,
@@ -647,6 +676,8 @@ mod tests {
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,
+            vision_provider: None,
+            vision_model: None,
         };
 
         let json = serde_json::to_string(&req).unwrap();
@@ -666,6 +697,8 @@ mod tests {
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,
+            vision_provider: None,
+            vision_model: None,
         };
 
         let json = serde_json::to_string(&req).unwrap();
@@ -719,6 +752,9 @@ mod tests {
             embedding_provider: "openai".to_string(),
             embedding_dimension: 1536,
             embedding_full_id: "openai/text-embedding-3-small".to_string(),
+            // SPEC-040: Vision configuration
+            vision_provider: None,
+            vision_model: None,
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };

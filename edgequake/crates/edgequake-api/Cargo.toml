@@ -10,8 +10,8 @@ description = "REST API server for EdgeQuake"
 [features]
 default = []
 postgres = ["edgequake-storage/postgres", "edgequake-core/postgres", "dep:sqlx"]
-# Vision mode for PDF extraction using multimodal LLM (requires poppler-utils system package)
-vision = ["edgequake-pdf/vision"]
+# Vision mode is always enabled via edgequake-pdf2md (SPEC-040)
+vision = []
 
 [dependencies]
 edgequake-core = { path = "../edgequake-core" }
@@ -23,8 +23,8 @@ edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
 edgequake-auth = { path = "../edgequake-auth" }
 edgequake-rate-limiter = { path = "../edgequake-rate-limiter" }
 edgequake-audit = { path = "../edgequake-audit" }
-# PDF processing with vision LLM support (SPEC-007)
-edgequake-pdf = { path = "../edgequake-pdf" }
+# PDF processing with VLM vision pipeline (SPEC-040: replaced edgequake-pdf)
+edgequake-pdf2md = { workspace = true }
 
 axum.workspace = true
 axum-extra = { version = "0.10", features = ["multipart"] }
