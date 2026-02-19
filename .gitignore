@@ -1,6 +1,8 @@
 # Rust build artifacts
 target/
-Cargo.lock
+# WHY: Cargo.lock is committed for the application binary (edgequake/) to ensure
+# reproducible CI builds. SDK libraries ignore their Cargo.lock (standard practice).
+sdks/*/Cargo.lock
 **/*.rs.bk
 *.pdb
 
