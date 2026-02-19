@@ -42,8 +42,9 @@ name = "multi_tenant"
 path = "examples/multi_tenant.rs"
 
 [features]
-default = ["postgres"]
+default = ["postgres", "vision"]
 postgres = ["edgequake-api/postgres", "edgequake-storage/postgres"]
+vision = ["edgequake-api/vision"]
 
 [dependencies]
 edgequake-core = { workspace = true, features = ["pipeline"] }
@@ -144,7 +145,7 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 edgequake-api = { path = "crates/edgequake-api" }
 edgequake-auth = { path = "crates/edgequake-auth" }
 edgequake-core = { path = "crates/edgequake-core" }
-edgequake-llm = "0.2.1"
+edgequake-llm = "0.2.3"
 edgequake-pdf = { path = "crates/edgequake-pdf" }
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }

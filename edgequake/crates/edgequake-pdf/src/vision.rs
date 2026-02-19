@@ -23,7 +23,7 @@ use crate::schema::{Block, BlockType, BoundingBox, Document, ExtractionMethod, P
 use crate::Result;
 use async_trait::async_trait;
 use base64::Engine;
-use edgequake_llm::traits::{ChatMessage, CompletionOptions, LLMProvider};
+use edgequake_llm::traits::{ChatMessage, CompletionOptions, ImageData, LLMProvider};
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -264,7 +264,7 @@ impl VisionExtractor {
         progress: Arc<P>,
     ) -> Result<Document>
     where
-        P: ProgressCallback,
+        P: ProgressCallback + ?Sized,
     {
         info!("Extracting document from PDF using vision mode with progress");
 
@@ -292,7 +292,7 @@ impl VisionExtractor {
         _progress: Arc<P>,
     ) -> Result<Document>
     where
-        P: ProgressCallback,
+        P: ProgressCallback + ?Sized,
     {
         Err(PdfError::Unsupported(
             "Vision mode requires the 'vision' feature flag. \
@@ -334,7 +334,7 @@ impl VisionExtractor {
         progress: Arc<P>,
     ) -> Result<Document>
     where
-        P: ProgressCallback,
+        P: ProgressCallback + ?Sized,
     {
         info!(
             "Extracting document from {} page images with progress",
@@ -392,12 +392,16 @@ impl VisionExtractor {
             .as_deref()
             .unwrap_or(DEFAULT_VISION_PROMPT);
 
-        // Build the message with the image
-        let image_url = image.to_data_url();
+        // Build the multimodal message with proper ImageData (OODA-51).
+        // WHY: edgequake-llm 0.2.3 supports ChatMessage::user_with_images() which
+        // sends images as structured multipart content blocks via the OpenAI image_url
+        // API — required for vision-capable models (gpt-4o, gpt-4.1, etc.).
+        // Embedding the data-URL as plain text was silently ignored by non-vision models.
+        let image_data = ImageData::new(image.to_base64(), image.format.mime_type());
 
         let messages = vec![
             ChatMessage::system(VISION_SYSTEM_PROMPT.to_string()),
-            ChatMessage::user(format!("[Image: {}]\n\n{}", image_url, prompt)),
+            ChatMessage::user_with_images(prompt, vec![image_data]),
         ];
 
         let options = CompletionOptions {

@@ -1413,9 +1413,7 @@ export async function getDocumentFullLineage(
 export async function getDocumentMetadata(
   documentId: string,
 ): Promise<Record<string, unknown>> {
-  return api.get<Record<string, unknown>>(
-    `/documents/${documentId}/metadata`,
-  );
+  return api.get<Record<string, unknown>>(`/documents/${documentId}/metadata`);
 }
 
 /**
