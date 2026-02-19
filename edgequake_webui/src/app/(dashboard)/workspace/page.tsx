@@ -83,6 +83,7 @@ export default function WorkspacePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedLLM, setSelectedLLM] = useState<LLMSelection | undefined>(undefined);
   const [selectedEmbedding, setSelectedEmbedding] = useState<EmbeddingSelection | undefined>(undefined);
+  const [selectedVisionLLM, setSelectedVisionLLM] = useState<LLMSelection | undefined>(undefined);
 
   // Fetch workspace data
   const {
@@ -157,6 +158,13 @@ export default function WorkspacePage() {
           dimension: workspace.embedding_dimension ?? 768,
         });
       }
+      if (workspace.vision_llm_provider && workspace.vision_llm_model) {
+        setSelectedVisionLLM({
+          model: workspace.vision_llm_model,
+          provider: workspace.vision_llm_provider,
+          fullId: `${workspace.vision_llm_provider}/${workspace.vision_llm_model}`,
+        });
+      }
     }
   }, [workspace, isEditing]);
 
@@ -168,6 +176,8 @@ export default function WorkspacePage() {
       embedding_model?: string;
       embedding_provider?: string;
       embedding_dimension?: number;
+      vision_llm_provider?: string;
+      vision_llm_model?: string;
       _embeddingChanged?: boolean;
       _llmChanged?: boolean;
     }) =>
@@ -177,6 +187,8 @@ export default function WorkspacePage() {
         embedding_model: data.embedding_model,
         embedding_provider: data.embedding_provider,
         embedding_dimension: data.embedding_dimension,
+        vision_llm_provider: data.vision_llm_provider,
+        vision_llm_model: data.vision_llm_model,
       }),
     onSuccess: (_result, variables) => {
       toast.success(t('workspace.updateSuccess', 'Workspace updated successfully'));
@@ -250,6 +262,10 @@ export default function WorkspacePage() {
       data.embedding_dimension = selectedEmbedding.dimension;
     }
 
+    // Vision LLM config (SPEC-040: empty string clears workspace override)
+    data.vision_llm_provider = selectedVisionLLM?.provider ?? '';
+    data.vision_llm_model = selectedVisionLLM?.model ?? '';
+
     // Track which models changed for post-save rebuild notification
     data._embeddingChanged = embeddingModelChanged ?? false;
     data._llmChanged = llmModelChanged ?? false;
@@ -279,6 +295,15 @@ export default function WorkspacePage() {
       } else {
         setSelectedEmbedding(undefined);
       }
+      if (workspace.vision_llm_provider && workspace.vision_llm_model) {
+        setSelectedVisionLLM({
+          model: workspace.vision_llm_model,
+          provider: workspace.vision_llm_provider,
+          fullId: `${workspace.vision_llm_provider}/${workspace.vision_llm_model}`,
+        });
+      } else {
+        setSelectedVisionLLM(undefined);
+      }
     }
   };
 
@@ -292,6 +317,12 @@ export default function WorkspacePage() {
   const llmModelChanged = workspace && selectedLLM && (
     workspace.llm_model !== selectedLLM.model ||
     workspace.llm_provider !== selectedLLM.provider
+  );
+
+  // Check if Vision LLM changed (informational only — affects next PDF upload)
+  const visionLLMChanged = workspace && selectedVisionLLM && (
+    workspace.vision_llm_model !== selectedVisionLLM.model ||
+    workspace.vision_llm_provider !== selectedVisionLLM.provider
   );
 
   // Track if rebuild is needed after save
@@ -626,6 +657,55 @@ export default function WorkspacePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Vision LLM Configuration - SPEC-040: PDF-to-Markdown vision model */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-orange-600" />
+            {t('workspace.visionLlmConfig', 'Vision LLM (PDF Extraction)')}
+          </CardTitle>
+          <CardDescription>
+            {t('workspace.visionLlmConfigDesc', 'Multimodal model used for PDF page rendering and text extraction. Overrides server default for this workspace.')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isEditing ? (
+            <>
+              <LLMModelSelector
+                value={selectedVisionLLM}
+                onChange={setSelectedVisionLLM}
+                showUsageHint
+              />
+              {visionLLMChanged && (
+                <div className="flex items-center gap-2 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm text-orange-700 dark:text-orange-300">
+                    {t('workspace.visionLlmChangeWarning', 'New Vision LLM will be used for all subsequent PDF uploads.')}
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+              {getProviderIcon(workspace.vision_llm_provider)}
+              <div>
+                <div className="font-medium">
+                  {workspace.vision_llm_model || t('workspace.serverDefault', 'Server Default')}
+                </div>
+                <div className="text-sm text-muted-foreground capitalize">
+                  {workspace.vision_llm_provider || t('workspace.autoDetect', 'Auto-detected')}
+                </div>
+              </div>
+              {workspace.vision_llm_provider && workspace.vision_llm_model && (
+                <Badge variant="outline" className="ml-auto">
+                  {`${workspace.vision_llm_provider}/${workspace.vision_llm_model}`}
+                </Badge>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Provider Health Status - SPEC-032: OODA 201-210 */}
       <Card>

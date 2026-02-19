@@ -130,6 +130,9 @@ fn workspace_to_response(workspace: &Workspace) -> WorkspaceResponse {
         embedding_provider: workspace.embedding_provider.clone(),
         embedding_dimension: workspace.embedding_dimension,
         embedding_full_id: workspace.embedding_full_id(),
+        // SPEC-040: Vision LLM configuration
+        vision_llm_provider: workspace.vision_llm_provider.clone(),
+        vision_llm_model: workspace.vision_llm_model.clone(),
         created_at: workspace.created_at.to_rfc3339(),
         updated_at: workspace.updated_at.to_rfc3339(),
     }
@@ -743,6 +746,9 @@ pub async fn update_workspace(
         embedding_model: request.embedding_model,
         embedding_provider: request.embedding_provider,
         embedding_dimension: request.embedding_dimension,
+        // SPEC-040: Vision LLM configuration
+        vision_llm_provider: request.vision_llm_provider,
+        vision_llm_model: request.vision_llm_model,
     };
 
     let workspace = state
