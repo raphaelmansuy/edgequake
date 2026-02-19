@@ -3,10 +3,13 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.78+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
+
+> **v0.4.0** — PDF → LLM Vision Pipeline: multimodal LLMs now read PDF pages as images, enabling accurate extraction of scanned documents, complex layouts, and tables. Zero-config pdfium embedded.
 
 ---
 
@@ -25,7 +28,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Knowledge Graphs**: LLM-powered entity extraction and relationship mapping create a structured understanding of your documents — not just keyword matching
 - **6 Query Modes**: From fast naive vector search to graph-traversing hybrid queries, each mode optimizes for different question types
 - **Rust Performance**: Async-first Tokio architecture with zero-copy operations — handles thousands of concurrent requests
-- **Planned Advanced PDF Processing ⚠️ Available Soon**: Table detection, multi-column layout, OCR with quality-based mode fallback
+- **PDF LLM Vision Pipeline ✅ NEW in 0.4.0**: Multimodal LLMs (GPT-4o, Claude, Gemini) read PDF pages as images — handles scanned documents, complex tables, and multi-column layouts out of the box
 - **Production Ready**: OpenAPI 3.0 REST API, SSE streaming, health checks, multi-tenant workspace isolation
 - **Modern Frontend**: React 19 with interactive Sigma.js graph visualizations
 
@@ -39,7 +42,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 | Concurrent Users       | 1000+            | ~100            | 10x         |
 | Memory Usage (per doc) | 2MB              | ~8MB            | 4x better   |
 
-⚠️ **Experimental Feature — PDF Ingestion**: PDF-to-Markdown extraction is currently in **experimental/early prototype** stage. For comprehensive testing and evaluation of EdgeQuake's core functionality (entity extraction, knowledge graphs, query modes, etc.), we recommend using **Markdown documents** in your initial setup. This ensures you can fully explore the stable features while we continue to refine the PDF processing pipeline.
+> **v0.4.0 — PDF is now Production Ready**: The PDF pipeline ships with embedded pdfium (zero-config) and an opt-in LLM vision mode. Text-mode extraction works for all standard PDFs; enable `use_vision_llm = true` (or send `X-Use-Vision: true`) to route pages through your vision-capable LLM for scanned documents and complex layouts.
 
 ---
 
@@ -60,13 +63,14 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Community Detection**: Louvain modularity optimization clusters related entities for thematic queries
 - **Graph Visualization**: Interactive Sigma.js-powered frontend with zoom/pan
 
-### 📄 Advanced PDF Processing (⚠️ Available Soon)
+### 📄 PDF Processing (Production Ready in v0.4.0)
 
-- **Text Mode**: Fast extraction for text-based PDFs
-- **Vision Mode**: OCR for scanned documents and images
-- **Hybrid Mode**: Automatic quality assessment and fallback
-- **Table Detection**: Enhanced detection for complex tables
-- **Multi-Column Layout**: Accurate reading order detection
+- **Text Mode**: Fast pdfium-based extraction for standard PDFs (default, zero-config)
+- **Vision Mode** ✨: LLM reads each page as an image — GPT-4o, Claude 3.5+, Gemini 2.5 supported
+- **Automatic Fallback**: Vision failures gracefully fall back to text extraction (BR1010)
+- **Table Reconstruction**: Vision mode recovers complex tables that text parsers mangle
+- **Multi-Column Layout**: LLM understands reading order across multi-column pages
+- **Embedded pdfium**: No `PDFIUM_DYNAMIC_LIB_PATH` env var needed — binary ships inside the binary
 
 ### 🔍 6 Query Modes
 
