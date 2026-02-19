@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-19
+
+### Added
+
+#### PDF → LLM Vision Pipeline (SPEC-040)
+
+- **Vision-Based PDF Extraction** (FEAT1010): Multimodal LLM reads PDF page images directly — handles scanned docs, complex layouts, and tables where text extraction fails
+- **Multi-Page Image Extraction** (FEAT1011): Each PDF page rendered to high-resolution images (up to 2048px), encoded as base64 and streamed to the vision LLM
+- **LLM-Powered Layout Understanding** (FEAT1012): GPT-4o / Claude / Gemini vision models interpret page structure, resolve multi-column text, reconstruct tables
+- **Automatic Fallback** (BR1010): If vision extraction fails (quota, timeout, no vision model), the pipeline gracefully falls back to pdfium text extraction
+- **Resolution Capping** (BR1011): Image DPI capped at 300 / max-side 2048px to balance quality vs. token cost
+- **Zero-Config pdfium**: Switched to `edgequake-pdf2md` 0.4.1 – pdfium binary now embedded; no `PDFIUM_DYNAMIC_LIB_PATH` env var required
+- **ExtractionMethod field on Block**: Each extracted block carries `vision`, `text`, or `ocr` metadata for traceability
+- **Config flag `use_vision_llm`**: Opt-in per-request; set on `PdfExtractConfig` or pass `X-Use-Vision: true` HTTP header
+
+#### Improved Developer Experience
+
+- `cargo build` now works out-of-the-box without downloading pdfium — CI shaved ~40 s
+- `vision`, `image_ocr`, and `formula` sub-modules extracted into focused files for maintainability
+- `ProgressCallback` wired through vision pipeline for live extraction progress in WebUI
+
+### Changed
+
+- Workspace version bumped to `0.4.0` across all crates
+- `edgequake-pdf` crate internal refactor: layout, processors, renderers grouped into sub-modules
+- Default extraction mode is still text (`use_vision_llm = false`); vision is opt-in to avoid unexpected LLM cost
+- README "Experimental" PDF warning upgraded to "Production Ready (vision mode optional)"
+
+### Fixed
+
+- PDF pipeline `block_in_place` / `spawn` issues that caused `Send` bound errors with async trait are fully resolved in 0.4.0
+- PDFIUM path resolution in Docker images now works without manual env var
+
 ## [0.3.0] - 2025-02-17
 
 ### Added
