@@ -57,9 +57,11 @@
 //! @implements OODA-226: Unified provider resolution module
 
 mod error;
+mod gemini;
 mod resolver;
 
 pub use error::ProviderResolutionError;
+pub use gemini::GeminiProvider;
 pub use resolver::{
     LlmResolutionRequest, ProviderSource, ResolvedEmbeddingProvider, ResolvedLlmProvider,
     WorkspaceProviderResolver,

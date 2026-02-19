@@ -30,10 +30,10 @@
 #   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
 
 [defaults]
-llm_provider = "ollama"              # Default LLM provider
-llm_model = "gemma3:12b"             # Default LLM model (128K context, vision support)
-embedding_provider = "ollama"        # Default embedding provider
-embedding_model = "embeddinggemma"   # Default embedding model (768 dimensions, 2K context)
+llm_provider = "gemini"               # Default LLM provider
+llm_model = "gemini-2.5-flash"        # Default LLM model (1M context)
+embedding_provider = "gemini"         # Default embedding provider
+embedding_model = "gemini-embedding-001" # Default embedding model (768 dimensions)
 
 # =============================================================================
 # OPENAI PROVIDER
@@ -1415,8 +1415,7 @@ image_per_unit = 0.0
 [[providers]]
 name = "gemini"
 display_name = "Google Gemini"
-type = "openaicompatible"
-api_base = "https://generativelanguage.googleapis.com/v1beta/openai"
+type = "gemini"
 api_key_env = "GEMINI_API_KEY"
 enabled = true
 priority = 18

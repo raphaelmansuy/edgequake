@@ -17,6 +17,8 @@ use edgequake_llm::{
 };
 use futures::stream::BoxStream;
 
+use crate::providers::GeminiProvider;
+
 /// Default maximum tokens for generation (8192).
 pub const DEFAULT_MAX_TOKENS: usize = 8192;
 
@@ -191,7 +193,7 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
                         "Safety limit: LLM request timed out"
                     );
                 }
-                Err(LlmError::Timeout)
+                Err(LlmError::ApiError("LLM request timed out".to_string()))
             }
         }
     }
@@ -227,7 +229,7 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
                         "Safety limit: LLM chat request timed out"
                     );
                 }
-                Err(LlmError::Timeout)
+                Err(LlmError::ApiError("LLM chat request timed out".to_string()))
             }
         }
     }
@@ -244,7 +246,9 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
                         "Safety limit: LLM stream request timed out"
                     );
                 }
-                Err(LlmError::Timeout)
+                Err(LlmError::ApiError(
+                    "LLM stream request timed out".to_string(),
+                ))
             }
         }
     }
@@ -301,7 +305,9 @@ impl EmbeddingProvider for SafetyLimitedEmbeddingProviderWrapper {
                         "Safety limit: Embedding request timed out"
                     );
                 }
-                Err(LlmError::Timeout)
+                Err(LlmError::ApiError(
+                    "Embedding request timed out".to_string(),
+                ))
             }
         }
     }
@@ -309,17 +315,19 @@ impl EmbeddingProvider for SafetyLimitedEmbeddingProviderWrapper {
 
 /// Create a safety-limited LLM provider from workspace configuration.
 pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<dyn LLMProvider>> {
-    let inner = ProviderFactory::create_llm_provider(provider_name, model)?;
+    let inner: Arc<dyn LLMProvider> = if provider_name.to_lowercase() == "gemini" {
+        let api_key = std::env::var("GEMINI_API_KEY")
+            .or_else(|_| std::env::var("GOOGLE_API_KEY"))
+            .map_err(|_| {
+                LlmError::ApiError("GEMINI_API_KEY or GOOGLE_API_KEY not found".to_string())
+            })?;
+        Arc::new(GeminiProvider::new(model.to_string(), api_key))
+    } else {
+        ProviderFactory::create_llm_provider(provider_name, model)?
+    };
+
     let config = SafetyLimitsConfig::from_env();
-
-    tracing::info!(
-        provider = provider_name,
-        model = model,
-        max_tokens = config.max_tokens,
-        timeout_secs = config.timeout.as_secs(),
-        "Creating safety-limited LLM provider"
-    );
-
+    // ...
     Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
 }
 
@@ -329,7 +337,17 @@ pub fn create_safe_embedding_provider(
     model: &str,
     dimension: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>> {
-    let inner = ProviderFactory::create_embedding_provider(provider_name, model, dimension)?;
+    let inner: Arc<dyn EmbeddingProvider> = if provider_name.to_lowercase() == "gemini" {
+        let api_key = std::env::var("GEMINI_API_KEY")
+            .or_else(|_| std::env::var("GOOGLE_API_KEY"))
+            .map_err(|_| {
+                LlmError::ApiError("GEMINI_API_KEY or GOOGLE_API_KEY not found".to_string())
+            })?;
+        Arc::new(GeminiProvider::new(model.to_string(), api_key))
+    } else {
+        ProviderFactory::create_embedding_provider(provider_name, model, dimension)?
+    };
+
     let config = SafetyLimitsConfig::from_env();
 
     tracing::info!(

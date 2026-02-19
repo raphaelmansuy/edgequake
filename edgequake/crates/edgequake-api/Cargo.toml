@@ -51,6 +51,7 @@ async-trait.workspace = true
 sqlx = { workspace = true, optional = true }
 url = "2.5"
 lazy_static = "1.5"
+reqwest = { version = "0.12", features = ["json", "stream"] }
 
 # File handling
 sha2 = "0.10"
@@ -67,7 +68,7 @@ sqlx = { workspace = true, features = [
     "uuid",
     "chrono",
 ] }
-reqwest = { version = "0.12", features = ["blocking", "json"] }
+reqwest = { version = "0.12", features = ["json", "stream", "blocking"] }
 serial_test = "3.2"
 tempfile = "3"
 urlencoding = "2.1"
