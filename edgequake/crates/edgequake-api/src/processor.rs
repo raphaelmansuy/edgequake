@@ -2151,20 +2151,18 @@ impl DocumentTaskProcessor {
                 ))
             })?;
 
-        // SPEC-040 / async_trait Send fix: move owned bytes + config into a spawned
-        // task so the future produced by `convert_from_bytes(&[u8], &config)` does not
-        // borrow locals across the async_trait await boundary (which requires Send + 'static).
+        // SPEC-040 / async_trait Send fix: edgequake_pdf2md v0.2 internal concurrent
+        // closures are not Send-general, so the future cannot satisfy async_trait's
+        // `Send + 'static` bound whether called directly or via tokio::task::spawn.
+        // Solution: use block_in_place to step off the Tokio executor thread, then
+        // block_on the conversion — this removes all Send/'static requirements on the
+        // future while still correctly driving async HTTP calls inside the library.
         let pdf_bytes_owned = pdf.pdf_data.clone();
-        let pdf2md_output = tokio::task::spawn(async move {
-            edgequake_pdf2md::convert_from_bytes(&pdf_bytes_owned, &pdf2md_config).await
+        let pdf2md_output = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                edgequake_pdf2md::convert_from_bytes(&pdf_bytes_owned, &pdf2md_config).await
+            })
         })
-        .await
-        .map_err(|e| {
-            edgequake_tasks::TaskError::Processing(format!(
-                "PDF conversion task panicked: {}",
-                e
-            ))
-        })?
         .map_err(|e| {
             edgequake_tasks::TaskError::Processing(format!("Pipeline processing failed: {}", e))
         })?;
