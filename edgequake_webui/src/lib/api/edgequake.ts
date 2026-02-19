@@ -258,6 +258,16 @@ export interface UpdateWorkspaceRequest {
   embedding_dimension?: number;
   /** Whether workspace is active (optional) */
   is_active?: boolean;
+  /**
+   * Vision LLM provider for PDF-to-Markdown extraction (e.g., "openai", "ollama").
+   * @implements SPEC-040: Workspace-scoped Vision LLM for PDF processing
+   */
+  vision_llm_provider?: string;
+  /**
+   * Vision LLM model for PDF-to-Markdown extraction (e.g., "gpt-4o", "gemma3:12b").
+   * @implements SPEC-040: Workspace-scoped Vision LLM for PDF processing
+   */
+  vision_llm_model?: string;
 }
 
 /**

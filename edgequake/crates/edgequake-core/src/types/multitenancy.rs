@@ -311,6 +311,17 @@ pub struct Workspace {
     /// Embedding dimension (e.g., 1536 for OpenAI, 768 for Ollama).
     /// Must match the stored vector dimensions in this workspace.
     pub embedding_dimension: usize,
+
+    // === Vision LLM Configuration (SPEC-040) ===
+    /// Vision LLM provider for PDF → Markdown extraction (e.g., "openai", "ollama").
+    /// When set, overrides the per-request vision_provider in PDF uploads.
+    /// If None, falls back to per-request value or server default ("openai").
+    pub vision_llm_provider: Option<String>,
+
+    /// Vision LLM model for PDF page image extraction (e.g., "gpt-4o", "gemma3:latest").
+    /// When set, overrides the per-request vision_model in PDF uploads.
+    /// If None, uses the default for the configured vision provider.
+    pub vision_llm_model: Option<String>,
 }
 
 // ============================================================================
@@ -375,6 +386,8 @@ impl Workspace {
             embedding_model,
             embedding_provider,
             embedding_dimension,
+            vision_llm_provider: None,
+            vision_llm_model: None,
         }
     }
 
@@ -1046,6 +1059,12 @@ pub struct UpdateWorkspaceRequest {
     pub embedding_provider: Option<String>,
     /// New embedding dimension (optional).
     pub embedding_dimension: Option<usize>,
+    /// New Vision LLM provider for PDF extraction (optional).
+    /// Set to Some("") or Some("none") to clear it.
+    pub vision_llm_provider: Option<String>,
+    /// New Vision LLM model for PDF extraction (optional).
+    /// Set to Some("") or Some("none") to clear it.
+    pub vision_llm_model: Option<String>,
 }
 
 /// Statistics for a workspace.

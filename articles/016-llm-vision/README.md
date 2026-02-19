@@ -20,7 +20,7 @@ This is not an LLM problem. It's a data ingestion problem.
 
 Instead of trusting a text parser blindly, EdgeQuake now renders each PDF page to a high-resolution image and sends it to your vision-capable LLM (GPT-4o, Claude 3.5+, Gemini 2.5).
 
-The model *sees* the page. It reconstructs tables, respects multi-column flow, reads handwritten annotations, and understands diagram captions — exactly as a human would.
+The model _sees_ the page. It reconstructs tables, respects multi-column flow, reads handwritten annotations, and understands diagram captions — exactly as a human would.
 
 Three things that make this production-ready:
 
@@ -57,4 +57,4 @@ If you're building document intelligence systems and tired of PDF extraction bei
 
 ---
 
-*#RAG #LLM #Rust #OpenSource #PDFProcessing #AIEngineering #KnowledgeGraph*
+_#RAG #LLM #Rust #OpenSource #PDFProcessing #AIEngineering #KnowledgeGraph_

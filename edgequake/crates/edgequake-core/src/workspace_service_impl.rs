@@ -564,6 +564,31 @@ impl WorkspaceService for WorkspaceServiceImpl {
                 serde_json::json!(embedding_dimension),
             );
         }
+        // SPEC-040: Vision LLM configuration updates
+        if let Some(vision_provider) = request.vision_llm_provider {
+            if vision_provider.is_empty() || vision_provider == "none" {
+                workspace.vision_llm_provider = None;
+                workspace.metadata.remove("vision_llm_provider");
+            } else {
+                workspace.metadata.insert(
+                    "vision_llm_provider".to_string(),
+                    serde_json::json!(vision_provider.clone()),
+                );
+                workspace.vision_llm_provider = Some(vision_provider);
+            }
+        }
+        if let Some(vision_model) = request.vision_llm_model {
+            if vision_model.is_empty() || vision_model == "none" {
+                workspace.vision_llm_model = None;
+                workspace.metadata.remove("vision_llm_model");
+            } else {
+                workspace.metadata.insert(
+                    "vision_llm_model".to_string(),
+                    serde_json::json!(vision_model.clone()),
+                );
+                workspace.vision_llm_model = Some(vision_model);
+            }
+        }
         workspace.updated_at = chrono::Utc::now();
 
         // Store all config in metadata JSONB column (database schema uses metadata, not separate columns)
@@ -1117,6 +1142,18 @@ impl WorkspaceRow {
             .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64)
             as usize;
 
+        // SPEC-040: Extract vision LLM config from metadata
+        let vision_llm_provider = metadata
+            .get("vision_llm_provider")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        let vision_llm_model = metadata
+            .get("vision_llm_model")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+
         Workspace {
             workspace_id: self.workspace_id,
             tenant_id: self.tenant_id,
@@ -1132,6 +1169,8 @@ impl WorkspaceRow {
             embedding_model,
             embedding_provider,
             embedding_dimension,
+            vision_llm_provider,
+            vision_llm_model,
         }
     }
 }

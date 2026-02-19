@@ -189,6 +189,18 @@ pub struct UpdateWorkspaceApiRequest {
     /// Update embedding dimension.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding_dimension: Option<usize>,
+
+    // === Vision LLM Configuration (SPEC-040) ===
+    /// Vision LLM model for PDF page image extraction (e.g., "gpt-4o", "gemma3:latest").
+    /// When set, this workspace will use this model for PDF → Markdown vision extraction.
+    /// Pass empty string or "none" to clear the workspace override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_llm_model: Option<String>,
+
+    /// Vision LLM provider for PDF extraction ("openai", "ollama", "lmstudio").
+    /// Pass empty string or "none" to clear the workspace override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_llm_provider: Option<String>,
 }
 
 // ============================================================================
@@ -274,6 +286,14 @@ pub struct WorkspaceResponse {
     pub embedding_dimension: usize,
     /// Fully qualified embedding model ID (provider/model format).
     pub embedding_full_id: String,
+
+    // === Vision LLM Configuration (SPEC-040) ===
+    /// Vision LLM provider for PDF → Markdown extraction (None if not configured).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_llm_provider: Option<String>,
+    /// Vision LLM model for PDF page image extraction (None if not configured).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_llm_model: Option<String>,
 
     /// Creation timestamp.
     pub created_at: String,
@@ -666,6 +686,8 @@ mod tests {
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,
+            vision_llm_provider: None,
+            vision_llm_model: None,
         };
 
         let json = serde_json::to_string(&req).unwrap();
@@ -719,6 +741,8 @@ mod tests {
             embedding_provider: "openai".to_string(),
             embedding_dimension: 1536,
             embedding_full_id: "openai/text-embedding-3-small".to_string(),
+            vision_llm_provider: None,
+            vision_llm_model: None,
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };

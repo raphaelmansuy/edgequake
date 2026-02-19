@@ -58,9 +58,11 @@ use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
 pub struct PdfUploadOptions {
     /// Enable vision LLM processing (default: true).
     pub enable_vision: bool,
-    /// Vision provider to use (default: "openai").
-    pub vision_provider: String,
-    /// Vision model override (optional).
+    /// Vision provider to use. None = use workspace config then server default.
+    /// Explicitly set by form field `vision_provider`.
+    pub vision_provider: Option<String>,
+    /// Vision model override. None = use workspace config then provider default.
+    /// Explicitly set by form field `vision_model`.
     pub vision_model: Option<String>,
     /// Document title (optional).
     pub title: Option<String>,
@@ -75,11 +77,16 @@ pub struct PdfUploadOptions {
 }
 
 impl PdfUploadOptions {
-    /// Get the vision model to use (with fallback).
+    /// Get the resolved vision provider (with fallback to server default).
+    pub fn resolved_vision_provider(&self) -> &str {
+        self.vision_provider.as_deref().unwrap_or("openai")
+    }
+
+    /// Get the vision model to use (with fallback from provider).
     pub fn vision_model(&self) -> String {
         self.vision_model
             .clone()
-            .unwrap_or_else(|| match self.vision_provider.as_str() {
+            .unwrap_or_else(|| match self.resolved_vision_provider() {
                 "ollama" => "gemma3:latest".to_string(),
                 _ => "gpt-4.1-nano".to_string(),
             })
@@ -319,7 +326,7 @@ pub async fn upload_pdf_document(
     let mut filename = String::from("document.pdf");
     let mut options = PdfUploadOptions {
         enable_vision: true,
-        vision_provider: "openai".to_string(),
+        vision_provider: None, // None = apply workspace config then server default
         vision_model: None,
         title: None,
         metadata: None,
@@ -350,7 +357,7 @@ pub async fn upload_pdf_document(
             }
             Some("vision_provider") => {
                 if let Ok(text) = field.text().await {
-                    options.vision_provider = text;
+                    options.vision_provider = Some(text);
                 }
             }
             Some("vision_model") => {
@@ -410,6 +417,33 @@ pub async fn upload_pdf_document(
     let workspace_id = context
         .workspace_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
+
+    // 5b. SPEC-040: Apply workspace-level vision LLM config as defaults.
+    // Priority: form explicit > workspace config > server default.
+    // WHY: Workspace can pin a specific vision provider/model for all PDF uploads,
+    // avoiding the need for callers to pass vision_provider/vision_model every time.
+    if options.vision_provider.is_none() || options.vision_model.is_none() {
+        if let Ok(Some(ws)) = state.workspace_service.get_workspace(workspace_id).await {
+            if options.vision_provider.is_none() {
+                if let Some(ref wp) = ws.vision_llm_provider {
+                    debug!(
+                        "SPEC-040: Applying workspace vision_provider={} from workspace config",
+                        wp
+                    );
+                    options.vision_provider = Some(wp.clone());
+                }
+            }
+            if options.vision_model.is_none() {
+                if let Some(ref wm) = ws.vision_llm_model {
+                    debug!(
+                        "SPEC-040: Applying workspace vision_model={} from workspace config",
+                        wm
+                    );
+                    options.vision_model = Some(wm.clone());
+                }
+            }
+        }
+    }
 
     // 6. Check for duplicates
     if let Some(existing) = pdf_storage
@@ -1090,7 +1124,7 @@ async fn create_pdf_processing_task(
         tenant_id,
         workspace_id,
         enable_vision: options.enable_vision,
-        vision_provider: options.vision_provider.clone(),
+        vision_provider: options.resolved_vision_provider().to_string(),
         vision_model: options.vision_model.clone(),
     };
 
@@ -1369,7 +1403,7 @@ pub async fn retry_pdf_processing(
         // OODA-17: Create new processing task
         let options = PdfUploadOptions {
             enable_vision: true,
-            vision_provider: "openai".to_string(),
+            vision_provider: None, // will be resolved from workspace config or server default
             vision_model: None,
             ..Default::default()
         };
@@ -1520,15 +1554,19 @@ mod tests {
     #[test]
     fn test_pdf_upload_options_vision_model() {
         let mut opts = PdfUploadOptions::default();
-        opts.vision_provider = "openai".to_string();
+        opts.vision_provider = Some("openai".to_string());
         // OODA-04: Updated from gpt-4o-mini to gpt-4.1-nano per mission directive
         assert_eq!(opts.vision_model(), "gpt-4.1-nano");
 
-        opts.vision_provider = "ollama".to_string();
+        opts.vision_provider = Some("ollama".to_string());
         assert_eq!(opts.vision_model(), "gemma3:latest");
 
         opts.vision_model = Some("custom-model".to_string());
         assert_eq!(opts.vision_model(), "custom-model");
+
+        // Test default (None provider = "openai" default)
+        let default_opts = PdfUploadOptions::default();
+        assert_eq!(default_opts.vision_model(), "gpt-4.1-nano");
     }
 
     /// OODA-17: Test PdfOperationResponse serialization

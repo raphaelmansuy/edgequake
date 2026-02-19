@@ -593,6 +593,16 @@ export interface Workspace {
    * @implements SPEC-032: Combined model ID format
    */
   embedding_full_id?: string;
+  /**
+   * Vision LLM provider for PDF-to-Markdown extraction (e.g., "openai", "ollama").
+   * @implements SPEC-040: Workspace-scoped Vision LLM for PDF processing
+   */
+  vision_llm_provider?: string;
+  /**
+   * Vision LLM model for PDF-to-Markdown extraction (e.g., "gpt-4o", "gemma3:12b").
+   * @implements SPEC-040: Workspace-scoped Vision LLM for PDF processing
+   */
+  vision_llm_model?: string;
   /** Creation timestamp. */
   created_at: string;
   /** Last update timestamp. */
