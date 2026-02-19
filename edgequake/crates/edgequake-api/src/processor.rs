@@ -2127,8 +2127,7 @@ impl DocumentTaskProcessor {
         let vision_provider_name = if !data.vision_provider.is_empty() {
             data.vision_provider.clone()
         } else {
-            std::env::var("EDGEQUAKE_VISION_PROVIDER")
-                .unwrap_or_else(|_| "openai".to_string())
+            std::env::var("EDGEQUAKE_VISION_PROVIDER").unwrap_or_else(|_| "openai".to_string())
         };
 
         info!(
@@ -2152,14 +2151,23 @@ impl DocumentTaskProcessor {
                 ))
             })?;
 
-        let pdf2md_output = edgequake_pdf2md::convert_from_bytes(&pdf.pdf_data, &pdf2md_config)
-            .await
-            .map_err(|e| {
-                edgequake_tasks::TaskError::Processing(format!(
-                    "Pipeline processing failed: {}",
-                    e
-                ))
-            })?;
+        // SPEC-040 / async_trait Send fix: move owned bytes + config into a spawned
+        // task so the future produced by `convert_from_bytes(&[u8], &config)` does not
+        // borrow locals across the async_trait await boundary (which requires Send + 'static).
+        let pdf_bytes_owned = pdf.pdf_data.clone();
+        let pdf2md_output = tokio::task::spawn(async move {
+            edgequake_pdf2md::convert_from_bytes(&pdf_bytes_owned, &pdf2md_config).await
+        })
+        .await
+        .map_err(|e| {
+            edgequake_tasks::TaskError::Processing(format!(
+                "PDF conversion task panicked: {}",
+                e
+            ))
+        })?
+        .map_err(|e| {
+            edgequake_tasks::TaskError::Processing(format!("Pipeline processing failed: {}", e))
+        })?;
 
         let (markdown, extraction_method, used_vision_model) = (
             pdf2md_output.markdown,
