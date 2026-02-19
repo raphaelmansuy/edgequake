@@ -589,10 +589,9 @@ impl WorkspaceService for WorkspaceServiceImpl {
         }
         if let Some(vision_model) = request.vision_model {
             workspace.vision_model = Some(vision_model.clone());
-            workspace.metadata.insert(
-                "vision_model".to_string(),
-                serde_json::json!(vision_model),
-            );
+            workspace
+                .metadata
+                .insert("vision_model".to_string(), serde_json::json!(vision_model));
         }
         workspace.updated_at = chrono::Utc::now();
 
