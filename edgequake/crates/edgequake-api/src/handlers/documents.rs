@@ -4133,6 +4133,111 @@ pub async fn reprocess_failed(
         }
     }
 
+    // SPEC-040: Retry failed PDF documents from the documents DB table.
+    // WHY: PDF docs are stored in the `documents` DB table, not in KV store.
+    // The KV-based reprocess loop above cannot find them.
+    #[cfg(feature = "postgres")]
+    if let Some(ref pdf_storage) = state.pdf_storage {
+        use edgequake_storage::{ListPdfFilter, PdfProcessingStatus};
+        use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
+
+        let filter_workspace = tenant_ctx
+            .workspace_id
+            .as_deref()
+            .and_then(|s| Uuid::parse_str(s).ok());
+
+        let remaining = request
+            .max_documents
+            .saturating_sub(docs_to_reprocess.len());
+        if remaining > 0 {
+            let failed_pdfs = pdf_storage
+                .list_pdfs(ListPdfFilter {
+                    workspace_id: filter_workspace,
+                    processing_status: Some(PdfProcessingStatus::Failed),
+                    page: Some(1),
+                    page_size: Some(remaining),
+                })
+                .await
+                .map_err(|e| ApiError::Internal(format!("Failed to list failed PDFs: {}", e)))?;
+
+            let vision_provider =
+                std::env::var("EDGEQUAKE_VISION_PROVIDER").unwrap_or_else(|_| "openai".to_string());
+            let vision_model = std::env::var("EDGEQUAKE_VISION_MODEL").ok();
+
+            for pdf in failed_pdfs.items {
+                // Determine tenant_id: prefer from context, fall back to a
+                // workspace-scoped default (workspace_id itself as tenant proxy).
+                let tenant_uuid = tenant_ctx
+                    .tenant_id
+                    .as_deref()
+                    .and_then(|s| Uuid::parse_str(s).ok())
+                    .unwrap_or(pdf.workspace_id);
+
+                // Reset PDF status so the worker will process it.
+                pdf_storage
+                    .update_pdf_status(&pdf.pdf_id, PdfProcessingStatus::Pending)
+                    .await
+                    .map_err(|e| {
+                        ApiError::Internal(format!("Failed to reset PDF status: {}", e))
+                    })?;
+
+                let task_data = PdfProcessingData {
+                    pdf_id: pdf.pdf_id,
+                    tenant_id: tenant_uuid,
+                    workspace_id: pdf.workspace_id,
+                    enable_vision: true,
+                    vision_provider: vision_provider.clone(),
+                    vision_model: vision_model.clone(),
+                };
+
+                let track_id = format!("pdf-{}", Uuid::new_v4());
+
+                let task = Task {
+                    track_id: track_id.clone(),
+                    tenant_id: tenant_uuid,
+                    workspace_id: pdf.workspace_id,
+                    task_type: TaskType::PdfProcessing,
+                    status: TaskStatus::Pending,
+                    created_at: Utc::now(),
+                    updated_at: Utc::now(),
+                    started_at: None,
+                    completed_at: None,
+                    error_message: None,
+                    error: None,
+                    retry_count: 0,
+                    max_retries: 3,
+                    consecutive_timeout_failures: 0,
+                    circuit_breaker_tripped: false,
+                    task_data: serde_json::to_value(&task_data).map_err(|e| {
+                        ApiError::Internal(format!("Failed to serialize PDF task data: {}", e))
+                    })?,
+                    metadata: None,
+                    progress: None,
+                    result: None,
+                };
+
+                state
+                    .task_storage
+                    .create_task(&task)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Failed to create PDF task: {}", e)))?;
+
+                state
+                    .task_queue
+                    .send(task)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Failed to queue PDF task: {}", e)))?;
+
+                requeued_ids.push(pdf.pdf_id.to_string());
+                tracing::info!(
+                    pdf_id = %pdf.pdf_id,
+                    track_id = %track_id,
+                    "Re-enqueued failed PDF for reprocessing"
+                );
+            }
+        }
+    }
+
     Ok(Json(ReprocessFailedResponse {
         track_id: new_track_id,
         failed_found: docs_to_reprocess.len(),

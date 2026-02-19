@@ -49,24 +49,24 @@ import { DocumentToolbarSection } from './document-toolbar-section';
 export function DocumentManager() {
   const { t } = useTranslation();
   const router = useRouter();
-  
+
   // Get tenant context for query key
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
-  
+
   // Selected document for preview panel
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
-  
+
   // SPEC-002: Document viewer dialog state for PDF/Markdown side-by-side view
   const [viewerDialogOpen, setViewerDialogOpen] = useState(false);
   const [viewerPdfId, setViewerPdfId] = useState<string | null>(null);
-  
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   // OODA-17: Filter, sort, and pagination preferences with localStorage persistence
   const {
     pageSize, setPageSize,
@@ -74,7 +74,7 @@ export function DocumentManager() {
     sortField, setSortField,
     sortDirection, setSortDirection,
   } = useDocumentPreferences();
-  
+
   // Pipeline status dialog state
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
 
@@ -98,6 +98,7 @@ export function DocumentManager() {
     deleteAllMutation,
     reprocessMutation,
     cancelMutation,
+    retryTaskMutation,
   } = useDocumentMutations({
     onReprocessSuccess: () => setPipelineDialogOpen(true),
   });
@@ -212,7 +213,7 @@ export function DocumentManager() {
             tenantId={selectedTenantId ?? undefined}
             workspaceId={selectedWorkspaceId ?? undefined}
           />
-      
+
           {/* OODA-30: Toolbar section extracted to DocumentToolbarSection */}
           <DocumentToolbarSection
             searchQuery={searchQuery}
@@ -242,37 +243,46 @@ export function DocumentManager() {
             onUploadFailed={handleUploadFailed}
           />
 
-      </div>
+        </div>
 
-      {/* OODA-26: Table section extracted to DocumentTableSection */}
-      <DocumentTableSection
-        documents={documents}
-        totalCount={totalCount}
-        isLoading={isLoading}
-        selectedIds={selectedIds}
-        selectedDocument={selectedDocument}
-        searchQuery={searchQuery}
-        statusFilter={statusFilter}
-        isAllSelected={isAllSelected}
-        onSelectAll={handleSelectAll}
-        onSelectOne={handleSelectOne}
-        onRowClick={handleDocumentClick}
-        onRowDoubleClick={handleDocumentDoubleClick}
-        onViewDetails={handleViewDetails}
-        onViewInGraph={handleViewInGraph}
-        onViewPdf={handleViewPdf}
-        onRetry={(id) => reprocessMutation.mutate(id)}
-        onCancel={(trackId) => cancelMutation.mutate(trackId)}
-        onDelete={(id) => deleteMutation.mutate(id)}
-        isRetrying={reprocessMutation.isPending}
-        isCancelling={cancelMutation.isPending}
-        onUploadClick={openFileDialog}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={setPageSize}
-      />
+        {/* OODA-26: Table section extracted to DocumentTableSection */}
+        <DocumentTableSection
+          documents={documents}
+          totalCount={totalCount}
+          isLoading={isLoading}
+          selectedIds={selectedIds}
+          selectedDocument={selectedDocument}
+          searchQuery={searchQuery}
+          statusFilter={statusFilter}
+          isAllSelected={isAllSelected}
+          onSelectAll={handleSelectAll}
+          onSelectOne={handleSelectOne}
+          onRowClick={handleDocumentClick}
+          onRowDoubleClick={handleDocumentDoubleClick}
+          onViewDetails={handleViewDetails}
+          onViewInGraph={handleViewInGraph}
+          onViewPdf={handleViewPdf}
+          onRetry={(id) => {
+            // WHY: PDF docs stuck in conversion have no KV content, so reprocessDocument
+            // is a no-op. They must use /tasks/{track_id}/retry to re-enqueue the task.
+            const doc = documents.find((d) => d.id === id);
+            if (doc?.track_id) {
+              retryTaskMutation.mutate(doc.track_id);
+            } else {
+              reprocessMutation.mutate(id);
+            }
+          }}
+          onCancel={(trackId) => cancelMutation.mutate(trackId)}
+          onDelete={(id) => deleteMutation.mutate(id)}
+          isRetrying={reprocessMutation.isPending || retryTaskMutation.isPending}
+          isCancelling={cancelMutation.isPending}
+          onUploadClick={openFileDialog}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* OODA-27: Right panel extracted to DocumentPreviewRightPanel */}

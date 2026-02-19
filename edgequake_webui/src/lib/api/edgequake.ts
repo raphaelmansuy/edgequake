@@ -754,10 +754,13 @@ export interface ReprocessFailedResponse {
  * Reprocess all failed documents.
  * Retries processing of documents that previously failed.
  *
+ * Sends an empty JSON body `{}` so Axum's Json<T> extractor does not
+ * reject the request with 400 (empty body is not valid JSON).
+ *
  * @returns ReprocessFailedResponse with track_id, counts, and document_ids
  */
 export async function reprocessFailedDocuments(): Promise<ReprocessFailedResponse> {
-  return api.post<ReprocessFailedResponse>("/documents/reprocess");
+  return api.post<ReprocessFailedResponse>("/documents/reprocess", {});
 }
 
 // ============================================================================
@@ -1403,9 +1406,7 @@ export async function getDocumentFullLineage(
 export async function getDocumentMetadata(
   documentId: string,
 ): Promise<Record<string, unknown>> {
-  return api.get<Record<string, unknown>>(
-    `/documents/${documentId}/metadata`,
-  );
+  return api.get<Record<string, unknown>>(`/documents/${documentId}/metadata`);
 }
 
 /**

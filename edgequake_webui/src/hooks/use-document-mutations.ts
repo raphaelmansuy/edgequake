@@ -22,6 +22,7 @@ import {
   deleteAllDocuments,
   deleteDocument,
   reprocessDocument,
+  retryTask,
 } from "@/lib/api/edgequake";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -77,6 +78,13 @@ export interface UseDocumentMutationsReturn {
    * Stops the extraction pipeline.
    */
   cancelMutation: UseMutationResult<void, Error, string, unknown>;
+
+  /**
+   * Retry a failed task by its track_id.
+   * Uses the correct /tasks/{track_id}/retry endpoint.
+   * WHY: PDF documents stuck in conversion must use this path, not reprocessDocument.
+   */
+  retryTaskMutation: UseMutationResult<import("@/types").TaskResponse, Error, string, unknown>;
 
   /**
    * Convenience flag: true if any mutation is currently pending.
@@ -247,18 +255,53 @@ export function useDocumentMutations(
     },
   });
 
+  /**
+   * WHY: Retry a failed task by track_id.
+   * PDF documents stuck in conversion must use POST /tasks/{id}/retry.
+   * The reprocessDocument path only works for docs with text content in KV store.
+   */
+  const retryTaskMutation = useMutation({
+    mutationFn: (trackId: string) => retryTask(trackId),
+    onSuccess: () => {
+      toast.success(
+        t("documents.retry.success", "Document queued for reprocessing"),
+        {
+          duration: 4000,
+          action: onReprocessSuccess
+            ? {
+                label: t("documents.viewStatus", "View Status"),
+                onClick: onReprocessSuccess,
+              }
+            : undefined,
+        },
+      );
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (error: Error) => {
+      toast.error(t("documents.retry.failed", "Retry failed"), {
+        description:
+          error instanceof Error
+            ? error.message
+            : t("common.unknownError", "Unknown error"),
+      });
+    },
+  });
+
   // WHY: Convenience flag for disabling UI during any mutation
   const isAnyMutationPending =
     deleteMutation.isPending ||
     deleteAllMutation.isPending ||
     reprocessMutation.isPending ||
-    cancelMutation.isPending;
+    cancelMutation.isPending ||
+    retryTaskMutation.isPending;
 
   return {
     deleteMutation,
     deleteAllMutation,
     reprocessMutation,
     cancelMutation,
+    retryTaskMutation,
     isAnyMutationPending,
   };
 }

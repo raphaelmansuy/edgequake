@@ -424,6 +424,7 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 		(cd $(BACKEND_DIR) && \
 			DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
 			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			DYLD_LIBRARY_PATH="$(PDFIUM_LIB_DIR)" \
 			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 			cargo run 2>&1 | sed 's/^/[backend] /') & \
 		BACKEND_PID=$$!; \
@@ -431,6 +432,7 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 		(cd $(BACKEND_DIR) && \
 			DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
 			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			DYLD_LIBRARY_PATH="$(PDFIUM_LIB_DIR)" \
 			OLLAMA_HOST="http://localhost:11434" \
 			OLLAMA_MODEL="gemma3:latest" \
 			OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
@@ -488,6 +490,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 		cd $(BACKEND_DIR) && \
 			DATABASE_URL="$(DATABASE_URL)" \
 			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			DYLD_LIBRARY_PATH="$(PDFIUM_LIB_DIR)" \
 			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 			EDGEQUAKE_LLM_PROVIDER="openai" \
 			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
@@ -495,6 +498,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 		cd $(BACKEND_DIR) && \
 			DATABASE_URL="$(DATABASE_URL)" \
 			PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+			DYLD_LIBRARY_PATH="$(PDFIUM_LIB_DIR)" \
 			EDGEQUAKE_LLM_PROVIDER="ollama" \
 			OLLAMA_HOST="http://localhost:11434" \
 			OLLAMA_MODEL="gemma3:latest" \
@@ -556,9 +560,14 @@ stop: ## Stop all development services
 # Database URL for PostgreSQL mode
 DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
 
-# SPEC-040: PDFIUM path retained for legacy reference only.
-# edgequake-pdf2md handles PDF rendering internally via the vision LLM pipeline.
-PDFIUM_LIB_PATH := $(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpdfium.dylib
+# SPEC-040: pdfium is still required by edgequake-pdf2md (used internally by
+# pdfium-render to rasterize PDF pages to images before sending to the VLM).
+# The library lives in legacy/ after archiving the standalone edgequake-pdf crate.
+PDFIUM_LIB_PATH := $(ROOT_DIR)/legacy/edgequake-pdf/lib/lib/libpdfium.dylib
+# WHY: pdfium-render uses Pdfium::default() which calls dlopen("libpdfium.dylib")
+# WITHOUT a full path. PDFIUM_DYNAMIC_LIB_PATH alone is not enough — we must also
+# add the library directory to DYLD_LIBRARY_PATH so macOS linker can find it by name.
+PDFIUM_LIB_DIR := $(ROOT_DIR)/legacy/edgequake-pdf/lib/lib
 
 backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .env configuration)
 	@echo "$(BLUE)Starting backend with PostgreSQL storage...$(RESET)"
@@ -568,6 +577,7 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
 		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+		DYLD_LIBRARY_PATH="$(PDFIUM_LIB_DIR)" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
 		EDGEQUAKE_DEFAULT_LLM_MODEL="$(EDGEQUAKE_DEFAULT_LLM_MODEL)" \
@@ -589,6 +599,7 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
 		PDFIUM_DYNAMIC_LIB_PATH="$(PDFIUM_LIB_PATH)" \
+		DYLD_LIBRARY_PATH="$(PDFIUM_LIB_DIR)" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
 		EDGEQUAKE_DEFAULT_LLM_MODEL="$(EDGEQUAKE_DEFAULT_LLM_MODEL)" \
