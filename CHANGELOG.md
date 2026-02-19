@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-19
+
+### Added
+
+#### Zero-Config PDF Processing (SPEC-040 v0.4.1)
+
+- **Embedded pdfium**: Upgraded to `edgequake-pdf2md v0.4.1` which bundles pdfium via
+  `pdfium-auto` at compile time. No external `libpdfium.dylib`, no `PDFIUM_DYNAMIC_LIB_PATH`,
+  no `DYLD_LIBRARY_PATH` required.
+- **Cross-platform binary**: pdfium-auto downloads and embeds the correct pdfium binary for
+  each target platform automatically: macOS arm64/amd64, Linux x64/aarch64, Windows x64/arm64.
+- **Multi-platform Docker**: Dockerfile updated with `ARG TARGETPLATFORM`/`ARG BUILDPLATFORM`
+  BuildKit support for `linux/amd64` and `linux/arm64` (Apple Silicon, AWS Graviton, etc.).
+- **Multi-platform docker-compose**: Added documentation for platform override, fixed `EDGEQUAKE_PORT`
+  typo (`80 80` → `8080`), added `DOCKER_DEFAULT_PLATFORM` usage instructions.
+
+### Changed
+
+- Removed all `PDFIUM_LIB_PATH`, `PDFIUM_DYNAMIC_LIB_PATH`, `DYLD_LIBRARY_PATH` environment
+  variable references from `Makefile` — no longer needed, simplifies local development setup.
+- `edgequake-pdf2md` dependency changed from `"0.2"` (with `default-features = false`) to
+  `"0.4.1"` (bundled feature is now default, no flag needed).
+- Version bumped to `0.4.0` across all crates, `VERSION` file, and frontend `package.json`.
+
+### Fixed
+
+- Docker `EDGEQUAKE_PORT` typo in docker-compose.yml corrected from `"80 80"` to `"8080"`.
+
 ## [0.3.0] - 2025-02-17
 
 ### Added

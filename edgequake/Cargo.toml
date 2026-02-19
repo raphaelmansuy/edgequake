@@ -67,7 +67,7 @@ criterion = { workspace = true }
 tokio-test = { workspace = true }
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.78"
 license = "MIT OR Apache-2.0"
@@ -144,7 +144,10 @@ edgequake-api = { path = "crates/edgequake-api" }
 edgequake-auth = { path = "crates/edgequake-auth" }
 edgequake-core = { path = "crates/edgequake-core" }
 edgequake-llm = "0.2.2"
-edgequake-pdf2md = { version = "0.2", default-features = false }
+# SPEC-040 v0.4.1: pdfium is now embedded at compile time via pdfium-auto.
+# No external libpdfium.dylib, no PDFIUM_DYNAMIC_LIB_PATH, no DYLD_LIBRARY_PATH needed.
+# The `bundled` feature is the default — do NOT set default-features = false.
+edgequake-pdf2md = { version = "0.4.1" }
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }

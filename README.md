@@ -25,7 +25,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Knowledge Graphs**: LLM-powered entity extraction and relationship mapping create a structured understanding of your documents — not just keyword matching
 - **6 Query Modes**: From fast naive vector search to graph-traversing hybrid queries, each mode optimizes for different question types
 - **Rust Performance**: Async-first Tokio architecture with zero-copy operations — handles thousands of concurrent requests
-- **Planned Advanced PDF Processing ⚠️ Available Soon**: Table detection, multi-column layout, OCR with quality-based mode fallback
+- **Zero-Config PDF Processing**: Vision-LLM PDF pipeline with embedded pdfium — no external library needed, works out of the box on macOS, Linux, and Windows across arm64 and x86_64
 - **Production Ready**: OpenAPI 3.0 REST API, SSE streaming, health checks, multi-tenant workspace isolation
 - **Modern Frontend**: React 19 with interactive Sigma.js graph visualizations
 
@@ -40,6 +40,8 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 | Memory Usage (per doc) | 2MB              | ~8MB            | 4x better   |
 
 ⚠️ **Experimental Feature — PDF Ingestion**: PDF-to-Markdown extraction is currently in **experimental/early prototype** stage. For comprehensive testing and evaluation of EdgeQuake's core functionality (entity extraction, knowledge graphs, query modes, etc.), we recommend using **Markdown documents** in your initial setup. This ensures you can fully explore the stable features while we continue to refine the PDF processing pipeline.
+
+> **v0.4.0 Update**: PDF processing is now **production-ready** with embedded pdfium via `edgequake-pdf2md v0.4.1`. No external library setup required — just upload your PDFs!
 
 ---
 
@@ -60,13 +62,13 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Community Detection**: Louvain modularity optimization clusters related entities for thematic queries
 - **Graph Visualization**: Interactive Sigma.js-powered frontend with zoom/pan
 
-### 📄 Advanced PDF Processing (⚠️ Available Soon)
+### 📄 PDF Processing (Vision-LLM Pipeline)
 
-- **Text Mode**: Fast extraction for text-based PDFs
-- **Vision Mode**: OCR for scanned documents and images
-- **Hybrid Mode**: Automatic quality assessment and fallback
-- **Table Detection**: Enhanced detection for complex tables
-- **Multi-Column Layout**: Accurate reading order detection
+- **Zero-Config**: pdfium is embedded in the binary via `edgequake-pdf2md v0.4.1` — no external library setup on any platform
+- **Vision-LLM**: Each PDF page is rasterised and sent to a configurable vision model (default: `gpt-4.1-nano`) for accurate extraction
+- **Cross-Platform**: Works on macOS (arm64/x86_64), Linux (amd64/aarch64), Windows (x64/arm64) — same binary, no steps
+- **Table & Layout**: Vision model handles tables, multi-column layouts, and images with excellent fidelity
+- **Configurable**: Override vision model/provider via `EDGEQUAKE_VISION_MODEL` / `EDGEQUAKE_VISION_PROVIDER` env vars
 
 ### 🔍 6 Query Modes
 
