@@ -2151,12 +2151,13 @@ impl DocumentTaskProcessor {
                 ))
             })?;
 
-        // SPEC-040 / async_trait Send fix: edgequake_pdf2md v0.2 internal concurrent
-        // closures are not Send-general, so the future cannot satisfy async_trait's
-        // `Send + 'static` bound whether called directly or via tokio::task::spawn.
-        // Solution: use block_in_place to step off the Tokio executor thread, then
-        // block_on the conversion — this removes all Send/'static requirements on the
-        // future while still correctly driving async HTTP calls inside the library.
+        // 4. Extract content via edgequake-pdf2md (always VLM vision pipeline)
+        // SPEC-040 v0.4.1: edgequake-pdf2md v0.4.1 embeds pdfium via pdfium-auto — no
+        // external dylib or PDFIUM_DYNAMIC_LIB_PATH needed. However the async future
+        // returned by convert_from_bytes is still not Send-general (internal Rc/RefCell
+        // used by pdfium-render). We use block_in_place + block_on to drive the non-Send
+        // future off the Tokio executor thread while still correctly running all
+        // async HTTP calls inside the library.
         let pdf_bytes_owned = pdf.pdf_data.clone();
         let pdf2md_output = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
