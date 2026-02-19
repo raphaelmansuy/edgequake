@@ -131,8 +131,8 @@ async fn test_workspace_pipeline_uses_workspace_provider() {
         embedding_provider: Some("mock".to_string()),
         embedding_dimension: Some(1536),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = state
@@ -181,8 +181,8 @@ async fn test_multiple_workspaces_different_providers() {
         embedding_provider: Some("mock".to_string()),
         embedding_dimension: Some(768),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     // Create workspace 2 with different configuration
@@ -197,8 +197,8 @@ async fn test_multiple_workspaces_different_providers() {
         embedding_provider: Some("mock".to_string()),
         embedding_dimension: Some(1536),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     let ws1 = state

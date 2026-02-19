@@ -48,8 +48,8 @@ async fn create_workspace_with_providers(
         embedding_provider: Some(embedding_provider.to_string()),
         embedding_dimension: Some(embedding_dimension),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     state
@@ -159,8 +159,8 @@ async fn test_llm_provider_switch_updates_config() {
         embedding_provider: None,
         embedding_dimension: None,
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     state

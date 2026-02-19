@@ -674,7 +674,7 @@ make backend-bg
 | `EDGEQUAKE_EMBEDDING_PROVIDER` | Optional | Hybrid mode: separate embedding | `ollama` (use with `EDGEQUAKE_LLM_PROVIDER=openai`)  |
 | `OLLAMA_HOST`                  | Optional | Ollama server URL               | `http://localhost:11434`                             |
 | `OLLAMA_EMBEDDING_MODEL`       | Optional | Ollama embedding model          | `embeddinggemma:latest`                              |
-| `RUST_LOG`                     | Optional | Logging level                   | `debug`, `info`, `warn`                             |
+| `RUST_LOG`                     | Optional | Logging level                   | `debug`, `info`, `warn`                              |
 
 ### Hybrid Provider Mode (SPEC-033)
 

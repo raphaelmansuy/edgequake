@@ -74,8 +74,8 @@ async fn create_test_workspace(
         embedding_provider: Some(embedding_provider.to_string()),
         embedding_dimension: Some(embedding_dimension),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     state

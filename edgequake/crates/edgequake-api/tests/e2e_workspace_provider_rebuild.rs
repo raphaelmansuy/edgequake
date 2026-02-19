@@ -62,8 +62,8 @@ async fn test_workspace_update_changes_provider_config() {
         embedding_provider: Some("mock".to_string()),
         embedding_dimension: Some(768),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = state
@@ -143,8 +143,8 @@ async fn test_pipeline_uses_updated_workspace_config() {
         embedding_provider: Some("mock".to_string()),
         embedding_dimension: Some(768),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = state
@@ -358,8 +358,8 @@ async fn test_invalid_provider_logs_error_and_falls_back() {
         embedding_provider: Some("openai".to_string()),
         embedding_dimension: Some(1536),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = state

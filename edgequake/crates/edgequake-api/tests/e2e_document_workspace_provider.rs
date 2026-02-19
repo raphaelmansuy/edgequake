@@ -77,8 +77,8 @@ async fn create_test_workspace_with_config(
         embedding_provider: Some(embedding_provider.to_string()),
         embedding_dimension: Some(embedding_dimension),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     state
@@ -250,8 +250,8 @@ async fn test_document_provider_switch_config() {
         embedding_provider: Some("openai".to_string()),
         embedding_dimension: Some(1536),
 
-            vision_provider: None,
-            vision_model: None,
+        vision_provider: None,
+        vision_model: None,
     };
 
     state

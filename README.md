@@ -10,8 +10,6 @@
 
 ---
 
-
-
 ![Screenshot of EdgeQuake Frontend](docs/assets/01-screenshot.png)
 
 ## Why EdgeQuake?
@@ -250,6 +248,7 @@ curl -X POST http://localhost:8080/api/v1/query \
 EdgeQuake implements the [LightRAG algorithm](https://arxiv.org/abs/2410.05779) in Rust. The core insight: **extract a knowledge graph during indexing, then traverse it during querying**.
 
 **Indexing Pipeline** (per document):
+
 1. **Chunk** — Split document into ~1200-token segments with 100-token overlap
 2. **Extract** — LLM parses each chunk into `(entity, type, description)` and `(source, target, keywords, description)` tuples
 3. **Glean** — Optional second pass catches missed entities (improves recall by ~18%)
@@ -258,6 +257,7 @@ EdgeQuake implements the [LightRAG algorithm](https://arxiv.org/abs/2410.05779) 
 6. **Store** — Write to PostgreSQL: chunks to pgvector, entities/relationships to Apache AGE graph
 
 **Query Flow** (6 modes):
+
 - **Naive** — Vector similarity on chunks only (fast, no graph)
 - **Local** — Find relevant entities via vector search, then traverse their local graph neighborhood
 - **Global** — Use Louvain community detection to find thematic clusters, retrieve community summaries
@@ -270,7 +270,6 @@ See [LightRAG Algorithm Deep Dive](docs/deep-dives/lightrag-algorithm.md) for th
 ---
 
 ## Documentation
-
 
 ### 📚 Complete Documentation Index
 
@@ -297,13 +296,13 @@ See the [CHANGELOG.md](CHANGELOG.md) for SDK and core updates.
 
 ### 📖 Tutorials (Hands-On)
 
-| Tutorial                                                               | Description                     |
-| ---------------------------------------------------------------------- | ------------------------------- |
-| [Building Your First RAG App](docs/tutorials/first-rag-app.md)         | End-to-end tutorial             |
-| [PDF Ingestion](docs/tutorials/pdf-ingestion.md)                       | PDF upload and configuration    |
-| [Multi-Tenant Setup](docs/tutorials/multi-tenant.md)                   | Workspace isolation             |
-| [Document Ingestion](docs/tutorials/document-ingestion.md)             | Upload and processing workflows |
-| [Migration from LightRAG](docs/tutorials/migration-from-lightrag.md)   | Python to Rust migration guide  |
+| Tutorial                                                             | Description                     |
+| -------------------------------------------------------------------- | ------------------------------- |
+| [Building Your First RAG App](docs/tutorials/first-rag-app.md)       | End-to-end tutorial             |
+| [PDF Ingestion](docs/tutorials/pdf-ingestion.md)                     | PDF upload and configuration    |
+| [Multi-Tenant Setup](docs/tutorials/multi-tenant.md)                 | Workspace isolation             |
+| [Document Ingestion](docs/tutorials/document-ingestion.md)           | Upload and processing workflows |
+| [Migration from LightRAG](docs/tutorials/migration-from-lightrag.md) | Python to Rust migration guide  |
 
 ### 🏗️ Architecture (How It Works)
 
@@ -349,19 +348,19 @@ See the [CHANGELOG.md](CHANGELOG.md) for SDK and core updates.
 
 ### API Reference
 
-| API                                                    | Description              |
-| ------------------------------------------------------ | ------------------------ |
-| [REST API](docs/api-reference/rest-api.md)             | HTTP endpoints           |
-| [Extended API](docs/api-reference/extended-api.md)     | Advanced API features    |
+| API                                                | Description           |
+| -------------------------------------------------- | --------------------- |
+| [REST API](docs/api-reference/rest-api.md)         | HTTP endpoints        |
+| [Extended API](docs/api-reference/extended-api.md) | Advanced API features |
 
 ### Operations (Production)
 
-| Guide                                                           | Description            |
-| --------------------------------------------------------------- | ---------------------- |
-| [Deployment](docs/operations/deployment.md)                     | Production deployment  |
-| [Configuration](docs/operations/configuration.md)               | All config options     |
-| [Monitoring](docs/operations/monitoring.md)                     | Observability setup    |
-| [Performance Tuning](docs/operations/performance-tuning.md)     | Optimization guide     |
+| Guide                                                       | Description           |
+| ----------------------------------------------------------- | --------------------- |
+| [Deployment](docs/operations/deployment.md)                 | Production deployment |
+| [Configuration](docs/operations/configuration.md)           | All config options    |
+| [Monitoring](docs/operations/monitoring.md)                 | Observability setup   |
+| [Performance Tuning](docs/operations/performance-tuning.md) | Optimization guide    |
 
 ### 🐛 Troubleshooting
 
@@ -550,7 +549,6 @@ EdgeQuake is inspired by and builds upon the excellent work of:
 ---
 
 **Ready to build intelligent document retrieval?** [Get started now!](docs/getting-started/quick-start.md)
-
 
 ## Star History
 
