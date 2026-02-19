@@ -81,37 +81,6 @@ sdk-kotlin-version: ## Update the version of the Kotlin SDK (sdks/kotlin). Usage
 	fi
 	sed -i '' -E 's/<version>.*<\/version>/<version>$(VERSION)<\/version>/' sdks/kotlin/pom.xml
 	@echo "$(GREEN)✓ Updated Kotlin SDK version to $(VERSION) in sdks/kotlin/pom.xml$(RESET)"
-
-sdk-java-publish: ## Publish the Java SDK (sdks/java) to Maven Central (requires Maven credentials in ~/.m2/settings.xml)
-	@echo "$(BOLD)$(BLUE)🚀 Publishing Java SDK (sdks/java) to Maven Central$(RESET)"
-	@echo "$(YELLOW)Note: Requires Maven Central credentials and GPG key setup$(RESET)"
-	cd sdks/java && mvn deploy -DskipTests
-
-sdk-java-version: ## Update the version of the Java SDK (sdks/java). Usage: make sdk-java-version VERSION=0.2.0
-	@if [ -z "$(VERSION)" ]; then \
-		echo "Usage: make sdk-java-version VERSION=<new_version>"; \
-		exit 1; \
-	fi
-	sed -i '' -E 's/<version>.*<\/version>/<version>$(VERSION)<\/version>/' sdks/java/pom.xml
-	@echo "$(GREEN)✓ Updated Java SDK version to $(VERSION) in sdks/java/pom.xml$(RESET)"
-
-# Kotlin SDK targets
-sdk-kotlin-build: ## Build the Kotlin SDK (sdks/kotlin)
-	@echo "$(BOLD)$(BLUE)🔨 Building Kotlin SDK (sdks/kotlin)$(RESET)"
-	cd sdks/kotlin && mvn clean package -DskipTests
-
-sdk-kotlin-publish: ## Publish the Kotlin SDK (sdks/kotlin) to Maven Central (requires Maven credentials in ~/.m2/settings.xml)
-	@echo "$(BOLD)$(BLUE)🚀 Publishing Kotlin SDK (sdks/kotlin) to Maven Central$(RESET)"
-	@echo "$(YELLOW)Note: Requires Maven Central credentials and GPG key setup$(RESET)"
-	cd sdks/kotlin && mvn deploy -DskipTests
-
-sdk-kotlin-version: ## Update the version of the Kotlin SDK (sdks/kotlin). Usage: make sdk-kotlin-version VERSION=0.2.0
-	@if [ -z "$(VERSION)" ]; then \
-		echo "Usage: make sdk-kotlin-version VERSION=<new_version>"; \
-		exit 1; \
-	fi
-	sed -i '' -E 's/<version>.*<\/version>/<version>$(VERSION)<\/version>/' sdks/kotlin/pom.xml
-	@echo "$(GREEN)✓ Updated Kotlin SDK version to $(VERSION) in sdks/kotlin/pom.xml$(RESET)"
 # ============================================================================
 # EdgeQuake - Full Stack Development Makefile
 # ============================================================================
