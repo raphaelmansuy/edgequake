@@ -21,7 +21,7 @@ import {
   getPdfProgress,
   type PdfOperationResponse,
   type PdfProgressResponse,
-  type PhaseStatus,
+  type PhaseProgressData,
   retryPdfProcessing,
 } from "@/lib/api/edgequake";
 import { getWebSocketClient } from "@/lib/websocket";
@@ -45,14 +45,27 @@ export type PipelinePhase =
   | "graph_storage";
 
 /**
+ * Normalized phase status for the UI (discriminated union).
+ * Mapped from the backend PhaseProgressData.status field.
+ */
+export type NormalizedPhaseStatus =
+  | { type: "pending" }
+  | { type: "active"; current: number; total: number; percent: number; message: string }
+  | { type: "completed" }
+  | { type: "failed"; error: string };
+
+/**
  * Phase display information for UI rendering.
  */
 export interface PhaseInfo {
   phase: PipelinePhase;
   label: string;
   description: string;
-  status: PhaseStatus;
+  /** Normalized status for the UI */
+  status: NormalizedPhaseStatus;
   index: number;
+  /** Raw progress message from backend (e.g. "Converting PDF: page 5/23 (22%)") */
+  message: string;
 }
 
 /**
@@ -268,7 +281,8 @@ export function usePdfProgress(
       if (!trackId) return false;
       const data = query.state.data;
       if (stopOnComplete && data) {
-        if (data.status === "completed" || data.status === "failed") {
+        // Backend sends is_complete / is_failed booleans (not a status string)
+        if (data.is_complete || data.is_failed) {
           return false; // Stop polling
         }
       }
@@ -307,6 +321,42 @@ export function usePdfProgress(
     },
   });
 
+  /**
+   * Map a backend PhaseProgressData to the normalized NormalizedPhaseStatus
+   * discriminated union expected by the UI.
+   *
+   * WHY: Backend sends { status: "active", percentage: 21.7, current, total }
+   * but the component reads { type: "active", percent, current, total }.
+   */
+  const mapPhaseStatus = useCallback(
+    (phaseData: PhaseProgressData | undefined): NormalizedPhaseStatus => {
+      if (!phaseData) return { type: "pending" };
+      switch (phaseData.status) {
+        case "active":
+          return {
+            type: "active",
+            current: phaseData.current,
+            total: phaseData.total,
+            percent: phaseData.percentage,
+            message: phaseData.message,
+          };
+        case "complete":
+          return { type: "completed" };
+        case "failed":
+          return {
+            type: "failed",
+            error: phaseData.error?.message ?? phaseData.message ?? "Unknown error",
+          };
+        case "skipped":
+          // Treat skipped as completed for display purposes
+          return { type: "completed" };
+        default:
+          return { type: "pending" };
+      }
+    },
+    [],
+  );
+
   // Compute enriched phase information
   const phases = useMemo((): PhaseInfo[] => {
     if (!progress) {
@@ -316,49 +366,55 @@ export function usePdfProgress(
         label: PHASE_LABELS[phase].label,
         description: PHASE_LABELS[phase].description,
         status: { type: "pending" as const },
+        message: `Waiting for ${PHASE_LABELS[phase].label}...`,
         index,
       }));
     }
 
     return PHASE_ORDER.map((phase, index) => {
-      const status = progress.phases[index] || { type: "pending" as const };
+      const phaseData = progress.phases[index];
       return {
         phase,
         label: PHASE_LABELS[phase].label,
         description: PHASE_LABELS[phase].description,
-        status,
+        status: mapPhaseStatus(phaseData),
+        message: phaseData?.message ?? `Waiting for ${PHASE_LABELS[phase].label}...`,
         index,
       };
     });
-  }, [progress]);
+  }, [progress, mapPhaseStatus]);
 
   // Find current active phase
   const currentPhaseIndex = useMemo(() => {
     if (!progress?.phases) return 0;
     for (let i = 0; i < progress.phases.length; i++) {
       const phase = progress.phases[i];
-      if (phase.type === "active") return i;
-      if (phase.type === "pending") return Math.max(0, i - 1);
+      // Backend uses "active" (not "type") as the status field
+      if (phase.status === "active") return i;
+      if (phase.status === "pending") return Math.max(0, i - 1);
     }
     return progress.phases.length - 1; // All complete
   }, [progress]);
 
-  // Calculate overall percentage
+  // Calculate overall percentage: prefer backend's pre-computed value
   const overallPercent = useMemo(() => {
-    if (!progress?.phases) return 0;
+    if (!progress) return 0;
+    // Backend computes overall_percentage as weighted avg of phase percentages
+    if (progress.overall_percentage != null) {
+      return Math.round(progress.overall_percentage);
+    }
+    // Fallback: compute from phases
+    if (!progress.phases?.length) return 0;
     const totalPhases = PHASE_ORDER.length;
     let completed = 0;
     let activeProgress = 0;
-
-    for (let i = 0; i < progress.phases.length; i++) {
-      const phase = progress.phases[i];
-      if (phase.type === "completed") {
+    for (const phase of progress.phases) {
+      if (phase.status === "complete" || phase.status === "skipped") {
         completed++;
-      } else if (phase.type === "active") {
-        activeProgress = phase.percent / 100;
+      } else if (phase.status === "active") {
+        activeProgress = (phase.percentage ?? 0) / 100;
       }
     }
-
     return Math.round(((completed + activeProgress) / totalPhases) * 100);
   }, [progress]);
 
@@ -375,15 +431,29 @@ export function usePdfProgress(
     refetch();
   }, [refetch]);
 
+  // Normalize progress with computed status string for components that check progress.status
+  const normalizedProgress = useMemo(() => {
+    if (!progress) return null;
+    const status: PdfProgressResponse["status"] = progress.is_complete
+      ? "completed"
+      : progress.is_failed
+        ? "failed"
+        : (progress.phases?.some((p) => p.status === "active") ? "processing" : "pending");
+    // Derive error string from first failed phase
+    const failedPhase = progress.phases?.find((p) => p.status === "failed");
+    const error = failedPhase?.error?.message ?? failedPhase?.message ?? progress.error;
+    return { ...progress, status, error };
+  }, [progress]);
+
   return {
-    progress: progress ?? null,
+    progress: normalizedProgress,
     isLoading,
     isPolling: isFetching && !isLoading,
     error: error as Error | null,
     phases,
     currentPhaseIndex,
     overallPercent,
-    etaSeconds: progress?.eta_seconds ?? null,
+    etaSeconds: normalizedProgress?.eta_seconds ?? null,
     retry,
     cancel,
     refetch: handleRefetch,
