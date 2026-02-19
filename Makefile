@@ -232,6 +232,11 @@ else
   EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION ?= 768
 endif
 
+# SPEC-040: Vision/VLM provider defaults for PDF-to-Markdown conversion
+# Vision always uses OpenAI by default (requires vision-capable model)
+EDGEQUAKE_VISION_PROVIDER ?= openai
+EDGEQUAKE_VISION_MODEL ?= gpt-4.1-nano
+
 # Default target
 .DEFAULT_GOAL := help
 
@@ -551,9 +556,8 @@ stop: ## Stop all development services
 # Database URL for PostgreSQL mode
 DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
 
-# OODA-E2E-01: Path to bundled libpdfium for PDF extraction
-# WHY: Without this, PdfiumBackend fails to initialize and falls back to MockBackend,
-# which produces empty markdown from PDF uploads (critical production bug).
+# SPEC-040: PDFIUM path retained for legacy reference only.
+# edgequake-pdf2md handles PDF rendering internally via the vision LLM pipeline.
 PDFIUM_LIB_PATH := $(BACKEND_DIR)/crates/edgequake-pdf/lib/lib/libpdfium.dylib
 
 backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .env configuration)
@@ -570,6 +574,8 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 		EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER="$(EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER)" \
 		EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="$(EDGEQUAKE_DEFAULT_EMBEDDING_MODEL)" \
 		EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION="$(EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION)" \
+		EDGEQUAKE_VISION_PROVIDER="$(EDGEQUAKE_VISION_PROVIDER)" \
+		EDGEQUAKE_VISION_MODEL="$(EDGEQUAKE_VISION_MODEL)" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
@@ -589,6 +595,8 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 		EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER="$(EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER)" \
 		EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="$(EDGEQUAKE_DEFAULT_EMBEDDING_MODEL)" \
 		EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION="$(EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION)" \
+		EDGEQUAKE_VISION_PROVIDER="$(EDGEQUAKE_VISION_PROVIDER)" \
+		EDGEQUAKE_VISION_MODEL="$(EDGEQUAKE_VISION_MODEL)" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \

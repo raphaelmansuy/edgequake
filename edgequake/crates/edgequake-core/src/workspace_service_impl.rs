@@ -379,6 +379,14 @@ impl WorkspaceService for WorkspaceServiceImpl {
             }
         }
 
+        // SPEC-040: Apply vision configuration from request
+        if let Some(provider) = request.vision_provider {
+            workspace = workspace.with_vision_provider(provider);
+        }
+        if let Some(model) = request.vision_model {
+            workspace = workspace.with_vision_model(model);
+        }
+
         sqlx::query(
             r#"
             INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at)
@@ -391,7 +399,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .bind(&workspace.slug)
         .bind(&workspace.description)
         .bind(workspace.is_active)
-        // SPEC-032: Store LLM and embedding config in metadata until migration adds dedicated columns
+        // SPEC-032/SPEC-040: Store LLM, embedding, and vision config in metadata
         .bind({
             let mut metadata = workspace.metadata.clone();
             // LLM configuration
@@ -401,6 +409,13 @@ impl WorkspaceService for WorkspaceServiceImpl {
             metadata.insert("embedding_model".to_string(), serde_json::Value::String(workspace.embedding_model.clone()));
             metadata.insert("embedding_provider".to_string(), serde_json::Value::String(workspace.embedding_provider.clone()));
             metadata.insert("embedding_dimension".to_string(), serde_json::Value::Number(workspace.embedding_dimension.into()));
+            // Vision configuration (SPEC-040)
+            if let Some(ref vp) = workspace.vision_provider {
+                metadata.insert("vision_provider".to_string(), serde_json::Value::String(vp.clone()));
+            }
+            if let Some(ref vm) = workspace.vision_model {
+                metadata.insert("vision_model".to_string(), serde_json::Value::String(vm.clone()));
+            }
             serde_json::json!(metadata)
         })
         .bind(workspace.created_at)
@@ -562,6 +577,21 @@ impl WorkspaceService for WorkspaceServiceImpl {
             workspace.metadata.insert(
                 "embedding_dimension".to_string(),
                 serde_json::json!(embedding_dimension),
+            );
+        }
+        // SPEC-040: Vision configuration updates
+        if let Some(vision_provider) = request.vision_provider {
+            workspace.vision_provider = Some(vision_provider.clone());
+            workspace.metadata.insert(
+                "vision_provider".to_string(),
+                serde_json::json!(vision_provider),
+            );
+        }
+        if let Some(vision_model) = request.vision_model {
+            workspace.vision_model = Some(vision_model.clone());
+            workspace.metadata.insert(
+                "vision_model".to_string(),
+                serde_json::json!(vision_model),
             );
         }
         workspace.updated_at = chrono::Utc::now();
@@ -1117,6 +1147,16 @@ impl WorkspaceRow {
             .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64)
             as usize;
 
+        // SPEC-040: Extract vision config from metadata
+        let vision_provider = metadata
+            .get("vision_provider")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let vision_model = metadata
+            .get("vision_model")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+
         Workspace {
             workspace_id: self.workspace_id,
             tenant_id: self.tenant_id,
@@ -1132,6 +1172,8 @@ impl WorkspaceRow {
             embedding_model,
             embedding_provider,
             embedding_dimension,
+            vision_provider,
+            vision_model,
         }
     }
 }

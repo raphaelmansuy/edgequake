@@ -575,6 +575,8 @@ mod tests {
                 embedding_provider: Some("mock".to_string()),
                 embedding_model: Some("mock-embedding".to_string()),
                 embedding_dimension: Some(1536),
+                vision_provider: None,
+                vision_model: None,
             };
 
             let workspace = service

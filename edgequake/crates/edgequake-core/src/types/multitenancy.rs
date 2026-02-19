@@ -311,6 +311,15 @@ pub struct Workspace {
     /// Embedding dimension (e.g., 1536 for OpenAI, 768 for Ollama).
     /// Must match the stored vector dimensions in this workspace.
     pub embedding_dimension: usize,
+
+    // === Vision Configuration (SPEC-040) ===
+    /// Vision LLM provider for PDF-to-Markdown conversion (e.g., "openai", "anthropic").
+    /// If None, falls back to EDGEQUAKE_VISION_PROVIDER env var, then "openai".
+    pub vision_provider: Option<String>,
+
+    /// Vision LLM model for PDF-to-Markdown conversion (e.g., "gpt-4.1-nano").
+    /// If None, falls back to EDGEQUAKE_VISION_MODEL env var, then "gpt-4.1-nano".
+    pub vision_model: Option<String>,
 }
 
 // ============================================================================
@@ -375,6 +384,8 @@ impl Workspace {
             embedding_model,
             embedding_provider,
             embedding_dimension,
+            vision_provider: None,
+            vision_model: None,
         }
     }
 
@@ -644,6 +655,20 @@ impl Workspace {
             None
         }
     }
+
+    // === Vision Configuration Builder Methods (SPEC-040) ===
+
+    /// Set the vision LLM provider for PDF-to-Markdown conversion.
+    pub fn with_vision_provider(mut self, provider: impl Into<String>) -> Self {
+        self.vision_provider = Some(provider.into());
+        self
+    }
+
+    /// Set the vision LLM model for PDF-to-Markdown conversion.
+    pub fn with_vision_model(mut self, model: impl Into<String>) -> Self {
+        self.vision_model = Some(model.into());
+        self
+    }
 }
 
 /// A user's membership in a tenant/workspace.
@@ -874,6 +899,15 @@ pub struct CreateWorkspaceRequest {
     /// Embedding dimension override.
     /// If None, auto-detected from embedding_model.
     pub embedding_dimension: Option<usize>,
+
+    // === Vision Configuration (SPEC-040) ===
+    /// Vision LLM provider for PDF-to-Markdown conversion (e.g., "openai", "anthropic").
+    /// If None, falls back to EDGEQUAKE_VISION_PROVIDER env var, then "openai".
+    pub vision_provider: Option<String>,
+
+    /// Vision LLM model for PDF-to-Markdown conversion (e.g., "gpt-4.1-nano").
+    /// If None, falls back to EDGEQUAKE_VISION_MODEL env var, then "gpt-4.1-nano".
+    pub vision_model: Option<String>,
 }
 
 impl CreateWorkspaceRequest {
@@ -1046,6 +1080,10 @@ pub struct UpdateWorkspaceRequest {
     pub embedding_provider: Option<String>,
     /// New embedding dimension (optional).
     pub embedding_dimension: Option<usize>,
+    /// New vision provider for PDF-to-Markdown conversion (SPEC-040).
+    pub vision_provider: Option<String>,
+    /// New vision model for PDF-to-Markdown conversion (SPEC-040).
+    pub vision_model: Option<String>,
 }
 
 /// Statistics for a workspace.
