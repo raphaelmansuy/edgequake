@@ -104,12 +104,15 @@ export function ResetDocumentStatusButton({
   });
 
   // Full reprocess mutation
+  // WHY: reprocessDocument() sends { document_id } to the backend, which expects the
+  // document's `id` field (KV metadata key) — NOT the track_id.  Passing track_id
+  // caused the backend to silently find zero matching documents to reprocess.
   const reprocessMutation = useMutation({
     mutationFn: () => {
-      if (!document.track_id) {
-        throw new Error('No track_id available for reprocessing');
+      if (!document.id) {
+        throw new Error('No document id available for reprocessing');
       }
-      return reprocessDocument(document.track_id);
+      return reprocessDocument(document.id);
     },
     onSuccess: () => {
       toast.success(
