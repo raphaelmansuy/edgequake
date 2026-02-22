@@ -3,6 +3,8 @@
  *
  * @fileoverview Extracted from DocumentManager (OODA-12)
  * WHY: SRP - Table state displays are distinct from data rendering
+ * WHY: Filter-aware empty state prevents confusing "no documents" message
+ *      when documents exist but are hidden by an active filter/search.
  *
  * @module edgequake_webui/components/documents/document-table-states
  */
@@ -10,7 +12,8 @@
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileText, Upload } from 'lucide-react';
+import { FileText, Search, Upload } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export interface DocumentTableStatesProps {
   /** Whether data is currently loading */
@@ -21,6 +24,12 @@ export interface DocumentTableStatesProps {
   onUploadClick: () => void;
   /** Number of skeleton rows to show (default: 5) */
   rowCount?: number;
+  /** Active status filter — used to decide between no-docs vs filter-empty state */
+  statusFilter?: string;
+  /** Active search query — used to decide between no-docs vs filter-empty state */
+  searchQuery?: string;
+  /** Callback to clear all active filters/search */
+  onClearFilter?: () => void;
 }
 
 /**
@@ -48,20 +57,52 @@ function LoadingSkeleton({ rowCount = 5 }: { rowCount?: number }) {
 }
 
 /**
- * Empty state with upload CTA
+ * Empty state shown when a filter/search is active but yields no results.
+ * WHY: Distinguishes "no documents in workspace" from "filter hides all docs".
+ */
+function FilteredEmptyState({ onClearFilter }: { onClearFilter?: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="text-center py-16 text-muted-foreground border rounded-lg bg-muted/5">
+      <Search className="h-12 w-12 mx-auto mb-4 opacity-40" />
+      <p className="font-medium text-lg text-foreground">
+        {t('documents.noFilterResults', 'No matching documents')}
+      </p>
+      <p className="text-sm mt-2 max-w-sm mx-auto">
+        {t(
+          'documents.noFilterResultsSubtitle',
+          'No documents match the current filter.',
+        )}
+      </p>
+      {onClearFilter && (
+        <Button variant="outline" className="mt-4" onClick={onClearFilter}>
+          {t('documents.clearFilter', 'Clear filter')}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Empty state with upload CTA — shown only when no documents exist at all.
  */
 function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="text-center py-16 text-muted-foreground border rounded-lg bg-muted/5">
       <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
-      <p className="font-medium text-lg text-foreground">No documents yet</p>
+      <p className="font-medium text-lg text-foreground">
+        {t('documents.noDocuments', 'No documents yet')}
+      </p>
       <p className="text-sm mt-2 max-w-sm mx-auto">
-        Drag & drop files above or click to upload. Build your knowledge graph
-        from documents.
+        {t(
+          'documents.noDocumentsSubtitle',
+          'Upload documents to build your knowledge graph',
+        )}
       </p>
       <Button variant="outline" className="mt-4" onClick={onUploadClick}>
         <Upload className="h-4 w-4 mr-2" />
-        Upload Documents
+        {t('documents.uploadDocuments', 'Upload Documents')}
       </Button>
     </div>
   );
@@ -72,20 +113,29 @@ function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
  *
  * Returns:
  * - Loading skeleton when isLoading
- * - Empty state when isEmpty and not loading
- * - null when neither (table should render)
+ * - FilteredEmptyState when isEmpty AND a filter/search is active (docs exist but hidden)
+ * - EmptyState when isEmpty and no filter is active (workspace has no docs)
+ * - null when table data is available (table should render)
  */
 export function DocumentTableStates({
   isLoading,
   isEmpty,
   onUploadClick,
   rowCount = 5,
+  statusFilter,
+  searchQuery,
+  onClearFilter,
 }: DocumentTableStatesProps) {
   if (isLoading) {
     return <LoadingSkeleton rowCount={rowCount} />;
   }
 
   if (isEmpty) {
+    // WHY: Only show filter-empty state when a filter/search is actively hiding results.
+    const hasActiveFilter = (statusFilter && statusFilter !== 'all') || !!searchQuery;
+    if (hasActiveFilter) {
+      return <FilteredEmptyState onClearFilter={onClearFilter} />;
+    }
     return <EmptyState onUploadClick={onUploadClick} />;
   }
 

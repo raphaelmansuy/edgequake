@@ -114,6 +114,10 @@
     "refresh": "Rafraîchir",
     "noDocuments": "Aucun document",
     "noDocumentsSubtitle": "Téléchargez des documents pour construire votre graphe de connaissances",
+    "noFilterResults": "Aucun document correspondant",
+    "noFilterResultsSubtitle": "Aucun document ne correspond au filtre actuel.",
+    "clearFilter": "Effacer le filtre",
+    "uploadDocuments": "Télécharger des documents",
     "deleteConfirm": "Supprimer tous les documents ?",
     "deleteConfirmDescription": "Cela supprimera définitivement les {{count}} documents et leurs entités extraites. Cette action est irréversible.",
     "documentCount": "Documents ({{count}})",
@@ -121,6 +125,7 @@
       "title": "Titre",
       "status": "Statut",
       "entities": "Entités",
+      "cost": "Coût",
       "created": "Créé",
       "actions": "Actions"
     },
@@ -154,7 +159,9 @@
       "status": "Filtrer par statut",
       "sortBy": "Trier par :",
       "created": "Créé",
-      "updated": "Mis à jour"
+      "updated": "Mis à jour",
+      "showing": "Affichage de {{count}} sur {{total}} documents",
+      "matching": "correspondant à \"{{query}}\""
     },
     "details": {
       "overview": "Aperçu",
@@ -321,6 +328,17 @@
       "importError": "Échec de l'importation : {{error}}",
       "invalidFile": "Format de fichier de paramètres invalide"
     }
+  },
+  "websocket": {
+    "connectionRestored": "Connexion rétablie",
+    "connectionRestoredDesc": "Les mises à jour en temps réel sont de nouveau disponibles.",
+    "connectionLost": "Connexion perdue",
+    "connectionLostDesc": "Tentative de reconnexion...",
+    "unableToReconnect": "Impossible de se reconnecter",
+    "unableToReconnectDesc": "Mises à jour en temps réel indisponibles. Cliquez pour réessayer.",
+    "retry": "Réessayer",
+    "ingestionFailed": "Traitement du document échoué",
+    "ingestionFailedDesc": "Étape : {{stage}}"
   },
   "errors": {
     "loadDocuments": "Erreur lors du chargement des documents",

@@ -272,6 +272,10 @@ export function DocumentManager() {
         pageSize={pageSize}
         onPageChange={setCurrentPage}
         onPageSizeChange={setPageSize}
+        onClearFilter={() => {
+          setStatusFilter('all');
+          setSearchQuery('');
+        }}
       />
       </div>
 
