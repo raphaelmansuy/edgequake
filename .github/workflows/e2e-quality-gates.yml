@@ -292,7 +292,10 @@ jobs:
   # E2E summary
   e2e-summary:
     name: E2E Quality Summary
-    needs: [e2e-critical, e2e-dialogs, e2e-full]
+    # WHY: e2e-full is informational only; timeouts mark it "cancelled" not
+    # "failure", which bypasses continue-on-error and poisons the workflow.
+    # Critical Path and Dialog Tests are the only blocking quality gates.
+    needs: [e2e-critical, e2e-dialogs]
     runs-on: ubuntu-latest
     if: always()
     steps:
