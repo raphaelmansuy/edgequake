@@ -1806,6 +1806,53 @@ pub async fn get_document(
             .map(|s| s.to_string())
     });
 
+    // SPEC-040: Async fallback PDF vision model lookup for backward compatibility.
+    // WHY: Documents processed before pdf_vision_model was written to KV metadata JSON
+    // don't have that field. We query the pdf_documents table as fallback using the
+    // pdf_id that IS stored in all document metadata records.
+    let (fallback_pdf_vision_model, fallback_pdf_extraction_method): (
+        Option<String>,
+        Option<String>,
+    ) = {
+        let needs_fallback = meta_obj
+            .and_then(|obj| obj.get("pdf_vision_model"))
+            .is_none();
+        let pdf_uuid_opt = if needs_fallback {
+            meta_obj
+                .and_then(|obj| obj.get("pdf_id"))
+                .and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+        } else {
+            None
+        };
+        if let Some(pdf_uuid) = pdf_uuid_opt {
+            #[cfg(feature = "postgres")]
+            {
+                if let Some(ref pool) = state.pg_pool {
+                    match sqlx::query_as::<_, (Option<String>, Option<String>)>(
+                        "SELECT vision_model, extraction_method FROM pdf_documents WHERE pdf_id = $1",
+                    )
+                    .bind(pdf_uuid)
+                    .fetch_optional(pool)
+                    .await
+                    {
+                        Ok(Some((vision_model, extraction_method))) => (vision_model, extraction_method),
+                        _ => (None, None),
+                    }
+                } else {
+                    (None, None)
+                }
+            }
+            #[cfg(not(feature = "postgres"))]
+            {
+                let _ = pdf_uuid;
+                (None, None)
+            }
+        } else {
+            (None, None)
+        }
+    };
+
     // Build response from metadata
     let (
         title,
@@ -1890,6 +1937,22 @@ pub async fn get_document(
                 .map(|n| n as usize);
             let cost_usd = obj.get("cost_usd").and_then(|v| v.as_f64());
 
+            // SPEC-040: PDF extraction lineage fields
+            // WHY: vision_model and extraction_method are stored in metadata JSON by the PDF
+            // processor so the document detail view can show what model was used for extraction.
+            // For documents processed before this field was added, fall back to the values
+            // looked up from the pdf_documents table (fallback_pdf_vision_model).
+            let pdf_vision_model = obj
+                .get("pdf_vision_model")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| fallback_pdf_vision_model.clone());
+            let pdf_extraction_method = obj
+                .get("pdf_extraction_method")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| fallback_pdf_extraction_method.clone());
+
             // Only include lineage if we have at least one field
             if llm_model.is_some()
                 || embedding_model.is_some()
@@ -1900,6 +1963,7 @@ pub async fn get_document(
                 || processing_duration_ms.is_some()
                 || input_tokens.is_some()
                 || cost_usd.is_some()
+                || pdf_vision_model.is_some()
             {
                 Some(DocumentLineage {
                     llm_model,
@@ -1915,6 +1979,8 @@ pub async fn get_document(
                     output_tokens,
                     total_tokens,
                     cost_usd,
+                    pdf_vision_model,
+                    pdf_extraction_method,
                 })
             } else {
                 None
@@ -3957,8 +4023,12 @@ fn collect_files(
 pub async fn reprocess_failed(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
-    Json(request): Json<ReprocessFailedRequest>,
+    // WHY: Body is optional - frontend may omit body entirely, which would cause
+    // "EOF while parsing a value" 400 error. Using Option<Json<>> with .unwrap_or_default()
+    // makes this endpoint resilient to missing or empty request body.
+    body: Option<Json<ReprocessFailedRequest>>,
 ) -> ApiResult<Json<ReprocessFailedResponse>> {
+    let request = body.map(|b| b.0).unwrap_or_default();
     debug!(
         "reprocess_failed called with tenant context: tenant_id={:?}, workspace_id={:?}, document_id={:?}, force={}",
         tenant_ctx.tenant_id, tenant_ctx.workspace_id, request.document_id, request.force
