@@ -753,7 +753,18 @@ impl AppState {
         // Initialize storage backends to establish connections
         kv_storage.initialize().await?;
         vector_storage.initialize().await?;
-        graph_storage.initialize().await?;
+        // WHY: Apache AGE (graph extension) may not be available in all PostgreSQL deployments
+        // (e.g., pgvector-only images used in CI). Graph storage failure is non-fatal;
+        // graph-dependent features (entity extraction, Cypher queries) will degrade gracefully
+        // by returning errors, while the server continues to serve all other endpoints.
+        if let Err(e) = graph_storage.initialize().await {
+            tracing::warn!(
+                "⚠ Graph storage (Apache AGE) not available: {} \
+                - graph features will be degraded. \
+                Install Apache AGE extension for full functionality.",
+                e
+            );
+        }
 
         tracing::info!("PostgreSQL storage backends initialized successfully");
 
