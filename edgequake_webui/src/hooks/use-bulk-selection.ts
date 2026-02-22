@@ -238,11 +238,13 @@ export function useBulkSelection({
       for (const id of idsToReprocess) {
         try {
           const doc = documents.find((d) => d.id === id);
-          if (!doc?.track_id) {
+          if (!doc?.id) {
             errorCount++;
             continue;
           }
-          await reprocessDocument(doc.track_id);
+          // WHY: reprocessDocument expects the document's `id` (KV metadata key),
+          // not its track_id.  Using track_id caused silent no-ops on the backend.
+          await reprocessDocument(doc.id);
           successCount++;
         } catch {
           errorCount++;
