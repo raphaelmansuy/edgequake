@@ -60,11 +60,17 @@ interface FullLineageEntity {
 interface DocumentHierarchyTreeProps {
   documentId: string;
   documentName?: string;
+  /** Called when a chunk is clicked; provides line range for content highlighting. */
+  onChunkSelect?: (chunkId: string, startLine?: number, endLine?: number) => void;
+  /** ID of the currently selected chunk (controls visual highlight in tree). */
+  selectedChunkId?: string;
 }
 
 export function DocumentHierarchyTree({
   documentId,
   documentName,
+  onChunkSelect,
+  selectedChunkId,
 }: DocumentHierarchyTreeProps) {
   // WHY: useDocumentFullLineage calls /documents/:id/lineage which returns
   // persisted KV lineage with actual chunks and entity data.
@@ -96,10 +102,16 @@ export function DocumentHierarchyTree({
       extraction_count: e.extraction_count ?? 1,
     }));
 
-    // Build chunk_id → entities lookup
+    // Build chunk_id → entities lookup.
+    // WHY: Deduplicate per-chunk to avoid duplicate React keys.
+    // source_chunks can contain repeated chunkId entries (backend bug or
+    // extraction retry), which would generate sibling nodes with identical keys.
     const byChunk = new Map<string, EntityLineage[]>();
     for (const entity of entityArray) {
+      const seenChunks = new Set<string>();
       for (const chunkId of entity.source_chunks) {
+        if (seenChunks.has(chunkId)) continue; // skip duplicate chunk references
+        seenChunks.add(chunkId);
         const list = byChunk.get(chunkId) ?? [];
         list.push(entity);
         byChunk.set(chunkId, list);
@@ -152,6 +164,8 @@ export function DocumentHierarchyTree({
               chunk={chunk}
               entities={entitiesByChunk.get(chunk.chunk_id) ?? []}
               depth={1}
+              isSelected={selectedChunkId === chunk.chunk_id}
+              onSelect={onChunkSelect}
             />
           ))
         )}
@@ -168,14 +182,22 @@ interface ChunkTreeNodeProps {
   chunk: FullLineageChunk;
   entities: EntityLineage[];
   depth: number;
+  /** Whether this chunk is currently selected (highlighted in content panel). */
+  isSelected?: boolean;
+  /** Callback fired when the chunk row is clicked. */
+  onSelect?: (chunkId: string, startLine?: number, endLine?: number) => void;
 }
 
-function ChunkTreeNode({ chunk, entities, depth }: ChunkTreeNodeProps) {
+function ChunkTreeNode({ chunk, entities, depth, isSelected, onSelect }: ChunkTreeNodeProps) {
   const lineInfo = chunk.start_line
     ? `L${chunk.start_line}–${chunk.end_line ?? '?'}`
     : `#${chunk.chunk_index}`;
 
   const entityCount = chunk.entity_ids?.length ?? entities.length;
+
+  const handleSelect = useCallback(() => {
+    onSelect?.(chunk.chunk_id, chunk.start_line, chunk.end_line);
+  }, [onSelect, chunk.chunk_id, chunk.start_line, chunk.end_line]);
 
   return (
     <TreeNode
@@ -183,14 +205,18 @@ function ChunkTreeNode({ chunk, entities, depth }: ChunkTreeNodeProps) {
       label={`Chunk ${chunk.chunk_index}`}
       badge={`${lineInfo} • ${entityCount} ent`}
       depth={depth}
+      isSelected={isSelected}
+      onSelect={handleSelect}
     >
       {entities.length === 0 ? (
         <p className="text-xs text-muted-foreground pl-6 py-0.5">
           No entities
         </p>
       ) : (
-        entities.map((ent) => (
-          <EntityLeafNode key={ent.id ?? ent.name} entity={ent} depth={depth + 1} />
+        entities.map((ent, idx) => (
+          // WHY: Use both ent.id and idx to guarantee uniqueness when the backend
+          // returns duplicate entity_ids in the same chunk's entity list.
+          <EntityLeafNode key={`${ent.id ?? ent.name}_${idx}`} entity={ent} depth={depth + 1} />
         ))
       )}
     </TreeNode>
@@ -241,6 +267,10 @@ interface TreeNodeProps {
   defaultOpen?: boolean;
   depth: number;
   children?: React.ReactNode;
+  /** Highlight this node as selected (chunk highlight feature). */
+  isSelected?: boolean;
+  /** Extra action fired when the node row is clicked (in addition to toggle). */
+  onSelect?: () => void;
 }
 
 function TreeNode({
@@ -250,9 +280,14 @@ function TreeNode({
   defaultOpen = false,
   depth,
   children,
+  isSelected,
+  onSelect,
 }: TreeNodeProps) {
   const [open, setOpen] = useState(defaultOpen);
-  const toggle = useCallback(() => setOpen((p) => !p), []);
+  const toggle = useCallback(() => {
+    setOpen((p) => !p);
+    onSelect?.();
+  }, [onSelect]);
 
   return (
     <div>
@@ -261,7 +296,8 @@ function TreeNode({
         onClick={toggle}
         className={cn(
           'flex items-center gap-1.5 w-full text-left py-1.5 px-2 rounded text-sm',
-          'hover:bg-muted/50 transition-colors'
+          'hover:bg-muted/50 transition-colors',
+          isSelected && 'bg-primary/10 border-l-2 border-primary font-semibold text-primary',
         )}
         style={{ paddingLeft: `${depth * 16}px` }}
       >

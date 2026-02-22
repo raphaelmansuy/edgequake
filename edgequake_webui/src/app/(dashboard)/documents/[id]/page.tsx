@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -65,6 +65,36 @@ export default function DocumentViewPage() {
   const endLine = searchParams.get('end_line') 
     ? parseInt(searchParams.get('end_line')!) 
     : undefined;
+
+  // OODA-chunk-select: Local chunk selection state for sidebar → content highlighting.
+  // WHY: Using local state (not URL) avoids router updates on each click
+  // while still supporting URL-based deep-linking for external citations.
+  const [selectedChunkId, setSelectedChunkId] = useState<string | undefined>();
+  const [chunkStartLine, setChunkStartLine] = useState<number | undefined>();
+  const [chunkEndLine, setChunkEndLine] = useState<number | undefined>();
+
+  /**
+   * Called when user clicks a chunk in the Data Hierarchy tree.
+   * Updates local state so ContentRenderer highlights the correct line range.
+   * Clicking the same chunk again deselects it (toggle behaviour).
+   */
+  const handleChunkSelect = useCallback(
+    (chunkId: string, start?: number, end?: number) => {
+      setSelectedChunkId((prev) => {
+        const isDeselecting = prev === chunkId;
+        // Update line ranges inside the functional updater for correct synchronisation
+        setChunkStartLine(isDeselecting ? undefined : start);
+        setChunkEndLine(isDeselecting ? undefined : end);
+        return isDeselecting ? undefined : chunkId;
+      });
+    },
+    [],
+  );
+
+  // Active line range: chunk selection overrides URL params.
+  // WHY: Sidebar interaction should take precedence over deep-link defaults.
+  const activeStartLine = chunkStartLine ?? startLine;
+  const activeEndLine = chunkEndLine ?? endLine;
 
   // Fetch document details
   const { data: document, isLoading, isError, error, refetch } = useQuery({
@@ -262,8 +292,8 @@ export default function DocumentViewPage() {
                     <ContentRenderer 
                       document={documentWithContent} 
                       highlightText={highlightText}
-                      startLine={startLine}
-                      endLine={endLine}
+                      startLine={activeStartLine}
+                      endLine={activeEndLine}
                     />
                   )
                 }
@@ -273,8 +303,8 @@ export default function DocumentViewPage() {
               <ContentRenderer 
                 document={documentWithContent} 
                 highlightText={highlightText}
-                startLine={startLine}
-                endLine={endLine}
+                startLine={activeStartLine}
+                endLine={activeEndLine}
               />
             )}
           </div>
@@ -292,7 +322,11 @@ export default function DocumentViewPage() {
             storageKey="document-detail-sidebar-width"
             ariaLabel="Resize metadata sidebar"
           >
-            <MetadataSidebar document={document} />
+            <MetadataSidebar
+              document={document}
+              onChunkSelect={handleChunkSelect}
+              selectedChunkId={selectedChunkId}
+            />
           </ResizablePanel>
         </div>
 
@@ -322,13 +356,17 @@ export default function DocumentViewPage() {
                 <ContentRenderer 
                   document={documentWithContent} 
                   highlightText={highlightText}
-                  startLine={startLine}
-                  endLine={endLine}
+                  startLine={activeStartLine}
+                  endLine={activeEndLine}
                 />
               )}
             </TabsContent>
             <TabsContent value="metadata" className="flex-1 overflow-hidden m-0 mt-0">
-              <MetadataSidebar document={document} />
+              <MetadataSidebar
+                document={document}
+                onChunkSelect={handleChunkSelect}
+                selectedChunkId={selectedChunkId}
+              />
             </TabsContent>
           </Tabs>
         </div>
