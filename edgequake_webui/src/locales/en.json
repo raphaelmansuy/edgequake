@@ -184,6 +184,10 @@
     "refresh": "Refresh",
     "noDocuments": "No documents yet",
     "noDocumentsSubtitle": "Upload documents to build your knowledge graph",
+    "noFilterResults": "No matching documents",
+    "noFilterResultsSubtitle": "No documents match the current filter.",
+    "clearFilter": "Clear filter",
+    "uploadDocuments": "Upload Documents",
     "deleteConfirm": "Delete all documents?",
     "deleteConfirmDescription": "This will permanently delete all {{count}} documents and their extracted entities. This action cannot be undone.",
     "documentCount": "Documents ({{count}})",
@@ -191,6 +195,7 @@
       "title": "Title",
       "status": "Status",
       "entities": "Entities",
+      "cost": "Cost",
       "created": "Created",
       "actions": "Actions"
     },
@@ -224,7 +229,9 @@
       "status": "Filter by status",
       "sortBy": "Sort by:",
       "created": "Created",
-      "updated": "Updated"
+      "updated": "Updated",
+      "showing": "Showing {{count}} of {{total}} documents",
+      "matching": "matching \"{{query}}\""
     },
     "details": {
       "overview": "Overview",
@@ -547,6 +554,17 @@
     "noChanges": "No changes to save",
     "updateSuccess": "Relationship updated successfully",
     "updateFailed": "Failed to update relationship"
+  },
+  "websocket": {
+    "connectionRestored": "Connection restored",
+    "connectionRestoredDesc": "Real-time updates are back online.",
+    "connectionLost": "Connection lost",
+    "connectionLostDesc": "Attempting to reconnect...",
+    "unableToReconnect": "Unable to reconnect",
+    "unableToReconnectDesc": "Real-time updates unavailable. Click to retry.",
+    "retry": "Retry",
+    "ingestionFailed": "Document processing failed",
+    "ingestionFailedDesc": "Stage: {{stage}}"
   },
   "errors": {
     "loadDocuments": "Error loading documents",

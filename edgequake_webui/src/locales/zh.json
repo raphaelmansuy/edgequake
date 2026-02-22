@@ -114,6 +114,10 @@
     "refresh": "刷新",
     "noDocuments": "暂无文档",
     "noDocumentsSubtitle": "上传文档以构建您的知识图谱",
+    "noFilterResults": "没有匹配的文档",
+    "noFilterResultsSubtitle": "没有文档匹配当前筛选条件。",
+    "clearFilter": "清除筛选",
+    "uploadDocuments": "上传文档",
     "deleteConfirm": "删除所有文档？",
     "deleteConfirmDescription": "这将永久删除所有 {{count}} 个文档及其提取的实体。此操作无法撤销。",
     "documentCount": "文档 ({{count}})",
@@ -121,6 +125,7 @@
       "title": "标题",
       "status": "状态",
       "entities": "实体",
+      "cost": "费用",
       "created": "创建时间",
       "actions": "操作"
     },
@@ -154,7 +159,9 @@
       "status": "按状态筛选",
       "sortBy": "排序方式：",
       "created": "创建时间",
-      "updated": "更新时间"
+      "updated": "更新时间",
+      "showing": "显示 {{count}} 个（共 {{total}} 个）文档",
+      "matching": "匹配 \"{{query}}\""
     },
     "details": {
       "overview": "概览",
@@ -321,6 +328,17 @@
       "importError": "导入失败：{{error}}",
       "invalidFile": "无效的设置文件格式"
     }
+  },
+  "websocket": {
+    "connectionRestored": "连接已恢复",
+    "connectionRestoredDesc": "实时更新已重新联机。",
+    "connectionLost": "连接中断",
+    "connectionLostDesc": "正在尝试重新连接...",
+    "unableToReconnect": "无法重新连接",
+    "unableToReconnectDesc": "实时更新不可用。点击重试。",
+    "retry": "重试",
+    "ingestionFailed": "文档处理失败",
+    "ingestionFailedDesc": "阶段：{{stage}}"
   },
   "errors": {
     "loadDocuments": "加载文档时出错",

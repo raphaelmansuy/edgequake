@@ -18,6 +18,7 @@ import { useIngestionStore } from '@/stores/use-ingestion-store';
 import type { CostUpdateEvent } from '@/types/cost';
 import type { IngestionFailedEvent, WebSocketProgressMessage } from '@/types/ingestion';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 // ============================================================================
@@ -61,6 +62,7 @@ export function WebSocketProvider({
   enabled = true,
 }: WebSocketProviderProps) {
   const clientRef = useRef<ProgressWebSocket | null>(null);
+  const { t } = useTranslation();
   
   // Get store actions
   const { updateFromMessage, setWsConnected, setWsReconnecting, setWsMaxReconnectsReached } = useIngestionStore();
@@ -85,12 +87,12 @@ export function WebSocketProvider({
         
         // Show error toast to user
         toast.error(
-          `Document processing failed: ${failedEvent.error.message}`,
+          t('websocket.ingestionFailed', 'Document processing failed'),
           {
             duration: 10000, // 10 seconds
-            description: `Stage: ${failedEvent.stage}`,
+            description: t('websocket.ingestionFailedDesc', 'Stage: {{stage}}', { stage: failedEvent.stage }),
             action: failedEvent.error.recoverable ? {
-              label: 'Retry',
+              label: t('websocket.retry', 'Retry'),
               onClick: () => {
                 // Track ID is available for retry logic
                 console.log('[WebSocket] Retry requested for:', failedEvent.track_id);
@@ -109,7 +111,7 @@ export function WebSocketProvider({
         updateIngestionCost(costMessage.track_id, costMessage.cumulative_cost_usd);
       }
     },
-    [updateFromMessage, updateIngestionCost]
+    [updateFromMessage, updateIngestionCost, t]
   );
 
   // Initialize WebSocket client
@@ -127,8 +129,8 @@ export function WebSocketProvider({
       // OODA-02: Show reconnection success toast if we were disconnected
       if (useIngestionStore.getState().wsMaxReconnectsReached) {
         setWsMaxReconnectsReached(false);
-        toast.success('Connection restored', {
-          description: 'Real-time updates are back online.',
+        toast.success(t('websocket.connectionRestored', 'Connection restored'), {
+          description: t('websocket.connectionRestoredDesc', 'Real-time updates are back online.'),
           duration: 3000,
         });
       }
@@ -138,8 +140,8 @@ export function WebSocketProvider({
       connectedRef.current = false;
       setWsConnected(false);
       // OODA-02: Notify user of disconnection
-      toast.warning('Connection lost', {
-        description: 'Attempting to reconnect...',
+      toast.warning(t('websocket.connectionLost', 'Connection lost'), {
+        description: t('websocket.connectionLostDesc', 'Attempting to reconnect...'),
         duration: 5000,
       });
     });
@@ -155,11 +157,11 @@ export function WebSocketProvider({
       setWsMaxReconnectsReached(true);
       console.warn('[WebSocketProvider] Max reconnection attempts reached');
       // OODA-02: Show persistent error toast with retry option
-      toast.error('Unable to reconnect', {
-        description: 'Real-time updates unavailable. Click to retry.',
+      toast.error(t('websocket.unableToReconnect', 'Unable to reconnect'), {
+        description: t('websocket.unableToReconnectDesc', 'Real-time updates unavailable. Click to retry.'),
         duration: Infinity,
         action: {
-          label: 'Retry',
+          label: t('websocket.retry', 'Retry'),
           onClick: () => {
             setWsMaxReconnectsReached(false);
             clientRef.current?.connect();
@@ -195,7 +197,7 @@ export function WebSocketProvider({
       unsubPdfProgress();
       unsubStatusSnapshot();
     };
-  }, [enabled, autoConnect, handleMessage, setWsConnected, setWsReconnecting, setWsMaxReconnectsReached]);
+  }, [enabled, autoConnect, handleMessage, setWsConnected, setWsReconnecting, setWsMaxReconnectsReached, t]);
 
   // Cleanup on unmount
   useEffect(() => {
