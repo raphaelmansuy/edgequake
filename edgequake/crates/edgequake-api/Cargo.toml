@@ -23,8 +23,6 @@ edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
 edgequake-auth = { path = "../edgequake-auth" }
 edgequake-rate-limiter = { path = "../edgequake-rate-limiter" }
 edgequake-audit = { path = "../edgequake-audit" }
-# PDF text extraction (non-vision path)
-edgequake-pdf = { path = "../edgequake-pdf" }
 # PDF vision extraction via VLM — bundled pdfium, multi-provider, 10-rule post-processing
 # WHY: edgequake-pdf2md provides higher quality vision extraction than internal implementation
 # v0.4.6: latest stable release with improvements

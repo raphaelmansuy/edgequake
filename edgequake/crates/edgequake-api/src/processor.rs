@@ -2151,7 +2151,10 @@ impl DocumentTaskProcessor {
         }
         let progress_callback = Arc::new(callback);
         // SPEC-040: Coerce to ConversionProgressCallback (edgequake-pdf2md)
-        let progress_callback: Arc<dyn edgequake_pdf2md::ConversionProgressCallback> =
+        // WHY: The PipelineProgressCallback implements ConversionProgressCallback.
+        // The spawn_blocking vision path doesn't capture this directly due to Send
+        // constraints; progress is emitted via broadcaster. Keep for future re-use.
+        let _progress_callback: Arc<dyn edgequake_pdf2md::ConversionProgressCallback> =
             progress_callback;
 
         // 4. Extract content (vision or text mode)
@@ -2234,60 +2237,13 @@ impl DocumentTaskProcessor {
                 ));
             }
         } else {
-            // Text extraction with progress callback
-            let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
-            let md = extractor
-                .extract_to_markdown_with_progress(&pdf.pdf_data, Arc::clone(&progress_callback))
-                .await
-                .map_err(|e| {
-                    edgequake_tasks::TaskError::Processing(format!("PDF extraction failed: {e}"))
-                })?;
-            (md, ExtractionMethod::Text, None)
+            // Text-only extraction removed: edgequake-pdf crate moved to legacy/ (SPEC-040).
+            // All callers set enable_vision=true; this branch is unreachable in practice.
+            return Err(edgequake_tasks::TaskError::UnsupportedOperation(
+                "Text-only PDF extraction is no longer supported. Use vision mode (enable_vision=true)."
+                    .to_string(),
+            ));
         };
-
-        info!(
-            pdf_id = %data.pdf_id,
-            vision_provider = %vision_provider_name,
-            vision_model = %vision_model,
-            "Starting VLM-based PDF extraction via edgequake-pdf2md"
-        );
-
-        let pdf2md_config = edgequake_pdf2md::ConversionConfig::builder()
-            .dpi(150)
-            .temperature(0.1)
-            .model(vision_model.clone())
-            .provider_name(vision_provider_name)
-            .progress_callback(Arc::clone(&progress_callback))
-            .build()
-            .map_err(|e| {
-                edgequake_tasks::TaskError::Processing(format!(
-                    "PDF conversion config error: {}",
-                    e
-                ))
-            })?;
-
-        // 4. Extract content via edgequake-pdf2md (always VLM vision pipeline)
-        // SPEC-040 v0.4.1: edgequake-pdf2md v0.4.1 embeds pdfium via pdfium-auto — no
-        // external dylib or PDFIUM_DYNAMIC_LIB_PATH needed. However the async future
-        // returned by convert_from_bytes is still not Send-general (internal Rc/RefCell
-        // used by pdfium-render). We use block_in_place + block_on to drive the non-Send
-        // future off the Tokio executor thread while still correctly running all
-        // async HTTP calls inside the library.
-        let pdf_bytes_owned = pdf.pdf_data.clone();
-        let pdf2md_output = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                edgequake_pdf2md::convert_from_bytes(&pdf_bytes_owned, &pdf2md_config).await
-            })
-        })
-        .map_err(|e| {
-            edgequake_tasks::TaskError::Processing(format!("Pipeline processing failed: {}", e))
-        })?;
-
-        let (markdown, extraction_method, used_vision_model) = (
-            pdf2md_output.markdown,
-            ExtractionMethod::Vision,
-            Some(vision_model),
-        );
 
         info!(
             pdf_id = %data.pdf_id,
