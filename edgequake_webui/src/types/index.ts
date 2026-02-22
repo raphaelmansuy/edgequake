@@ -560,6 +560,20 @@ export interface Tenant {
    */
   default_embedding_full_id?: string;
 
+  // === Default Vision LLM Configuration (SPEC-041) ===
+
+  /**
+   * Default vision LLM model for new workspaces (e.g., "gpt-4o", "gemma3:12b").
+   * Used for PDF vision extraction. Workspaces inherit this if not overridden.
+   * @implements SPEC-041: Tenant-level vision LLM configuration defaults
+   */
+  default_vision_llm_model?: string;
+  /**
+   * Default vision LLM provider for new workspaces (e.g., "openai", "ollama").
+   * @implements SPEC-041: Tenant-level vision LLM configuration defaults
+   */
+  default_vision_llm_provider?: string;
+
   /** Creation timestamp. */
   created_at: string;
   /** Last update timestamp. */

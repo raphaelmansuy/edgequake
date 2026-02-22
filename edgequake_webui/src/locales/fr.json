@@ -609,17 +609,19 @@
     "weightHint": "Un poids plus élevé indique une relation plus forte (0.0 - 1.0)"
   },
   "tenant": {
-    "createDescription": "Créez un nouveau locataire pour organiser vos espaces de travail.",
-    "createFailed": "Échec de la création du locataire",
-    "createNew": "Créer un nouveau locataire",
-    "createSuccess": "Locataire créé avec succès",
+    "createDescription": "Créez un nouveau Tenant pour organiser vos espaces de travail.",
+    "createFailed": "Échec de la création du Tenant",
+    "createNew": "Créer un nouveau Tenant",
+    "createSuccess": "Tenant créé avec succès",
     "description": "Description",
     "descriptionPlaceholder": "Une brève description...",
-    "name": "Nom du locataire",
+    "name": "Nom du Tenant",
     "namePlaceholder": "Mon Organisation",
     "selectContext": "Sélectionner le contexte",
-    "selectTenant": "Sélectionnez un locataire...",
-    "tenant": "Locataire"
+    "selectTenant": "Sélectionnez un Tenant...",
+    "tenant": "Tenant",
+    "defaultVisionLlmModel": "Modèle Vision LLM par défaut",
+    "defaultVisionLlmHint": "Utilisé pour l'extraction PDF par vision. Les espaces de travail héritent de cette valeur si aucun modèle n'est défini."
   },
   "workspace": {
     "actions": "Actions de l'espace de travail",

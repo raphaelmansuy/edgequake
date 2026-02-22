@@ -106,6 +106,8 @@ export function TenantWorkspaceSelector({
   // Tenant default model selection (SPEC-032: for tenant creation)
   const [tenantDefaultLLM, setTenantDefaultLLM] = useState<LLMSelection | undefined>(undefined);
   const [tenantDefaultEmbedding, setTenantDefaultEmbedding] = useState<EmbeddingSelection | undefined>(undefined);
+  // Tenant default vision LLM (SPEC-041: vision model selection)
+  const [tenantDefaultVision, setTenantDefaultVision] = useState<LLMSelection | undefined>(undefined);
 
   // Initialize from storage on mount
   useEffect(() => {
@@ -168,6 +170,9 @@ export function TenantWorkspaceSelector({
       default_embedding_model?: string;
       default_embedding_provider?: string;
       default_embedding_dimension?: number;
+      // SPEC-041: Vision LLM defaults
+      default_vision_llm_model?: string;
+      default_vision_llm_provider?: string;
     }) =>
       createTenant(data),
     onSuccess: (newTenant) => {
@@ -179,6 +184,7 @@ export function TenantWorkspaceSelector({
       setNewTenantDescription('');
       setTenantDefaultLLM(undefined);
       setTenantDefaultEmbedding(undefined);
+      setTenantDefaultVision(undefined);
     },
     onError: (error) => {
       toast.error(
@@ -552,6 +558,21 @@ export function TenantWorkspaceSelector({
                 {t('tenant.defaultEmbeddingHint', 'New workspaces will inherit this default')}
               </p>
             </div>
+
+            {/* Default Vision LLM Model Selection - SPEC-041 */}
+            <div className="space-y-2">
+              <Label>
+                {t('tenant.defaultVisionLlmModel', 'Default Vision LLM Model')} ({t('common.optional', 'Optional')})
+              </Label>
+              <LLMModelSelector
+                value={tenantDefaultVision}
+                onChange={setTenantDefaultVision}
+                showUsageHint
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('tenant.defaultVisionLlmHint', 'Used for PDF vision extraction. Workspaces inherit this if not overridden.')}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -570,6 +591,9 @@ export function TenantWorkspaceSelector({
                   default_embedding_model: tenantDefaultEmbedding?.model,
                   default_embedding_provider: tenantDefaultEmbedding?.provider,
                   default_embedding_dimension: tenantDefaultEmbedding?.dimension,
+                  // SPEC-041: Vision LLM defaults
+                  default_vision_llm_model: tenantDefaultVision?.model,
+                  default_vision_llm_provider: tenantDefaultVision?.provider,
                 })
               }
               disabled={!newTenantName.trim() || createTenantMutation.isPending}

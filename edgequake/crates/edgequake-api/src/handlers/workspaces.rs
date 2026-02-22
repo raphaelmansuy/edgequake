@@ -213,6 +213,18 @@ pub async fn create_tenant(
         tenant = tenant.with_embedding_config(model, final_provider, final_dimension);
     }
 
+    // SPEC-041: Apply default vision LLM configuration if provided
+    if let (Some(model), Some(provider)) = (
+        &request.default_vision_llm_model,
+        &request.default_vision_llm_provider,
+    ) {
+        tenant = tenant.with_vision_config(model, provider);
+    } else if let Some(model) = &request.default_vision_llm_model {
+        // Auto-detect provider from model name
+        let provider = edgequake_core::Workspace::detect_provider_from_model(model);
+        tenant = tenant.with_vision_config(model, provider);
+    }
+
     // Store tenant via workspace service
     let created_tenant = state
         .workspace_service
@@ -223,7 +235,7 @@ pub async fn create_tenant(
     // Auto-create a default workspace for the new tenant (R004)
     // This ensures users always have at least one workspace available
     // SPEC-032: Workspace inherits tenant's default model configuration
-    let default_workspace_request =
+    let mut default_workspace_request =
         edgequake_core::CreateWorkspaceRequest::new("Default Workspace")
             .with_llm_config(
                 &created_tenant.default_llm_model,
@@ -234,6 +246,14 @@ pub async fn create_tenant(
                 &created_tenant.default_embedding_provider,
                 created_tenant.default_embedding_dimension,
             );
+    // SPEC-041: Inherit vision LLM config if set on tenant
+    if let (Some(ref model), Some(ref provider)) = (
+        created_tenant.default_vision_llm_model.as_ref(),
+        created_tenant.default_vision_llm_provider.as_ref(),
+    ) {
+        default_workspace_request.vision_llm_model = Some((*model).clone());
+        default_workspace_request.vision_llm_provider = Some((*provider).clone());
+    }
 
     if let Err(e) = state
         .workspace_service
@@ -275,6 +295,8 @@ pub async fn create_tenant(
             "{}/{}",
             created_tenant.default_embedding_provider, created_tenant.default_embedding_model
         ),
+        default_vision_llm_model: created_tenant.default_vision_llm_model.clone(),
+        default_vision_llm_provider: created_tenant.default_vision_llm_provider.clone(),
         created_at: created_tenant.created_at.to_rfc3339(),
         updated_at: created_tenant.updated_at.to_rfc3339(),
     };
@@ -331,6 +353,8 @@ pub async fn list_tenants(
                 "{}/{}",
                 t.default_embedding_provider, t.default_embedding_model
             ),
+            default_vision_llm_model: t.default_vision_llm_model.clone(),
+            default_vision_llm_provider: t.default_vision_llm_provider.clone(),
             created_at: t.created_at.to_rfc3339(),
             updated_at: t.updated_at.to_rfc3339(),
         })
@@ -394,6 +418,8 @@ pub async fn get_tenant(
             "{}/{}",
             tenant.default_embedding_provider, tenant.default_embedding_model
         ),
+        default_vision_llm_model: tenant.default_vision_llm_model.clone(),
+        default_vision_llm_provider: tenant.default_vision_llm_provider.clone(),
         created_at: tenant.created_at.to_rfc3339(),
         updated_at: tenant.updated_at.to_rfc3339(),
     };
@@ -472,6 +498,8 @@ pub async fn update_tenant(
             "{}/{}",
             updated.default_embedding_provider, updated.default_embedding_model
         ),
+        default_vision_llm_model: updated.default_vision_llm_model.clone(),
+        default_vision_llm_provider: updated.default_vision_llm_provider.clone(),
         created_at: updated.created_at.to_rfc3339(),
         updated_at: updated.updated_at.to_rfc3339(),
     };
@@ -565,6 +593,16 @@ pub async fn create_workspace(
         .embedding_dimension
         .or(Some(tenant.default_embedding_dimension));
 
+    // SPEC-041: Inherit default vision LLM from tenant if workspace doesn't specify one
+    let vision_llm_model = request
+        .vision_llm_model
+        .clone()
+        .or_else(|| tenant.default_vision_llm_model.clone());
+    let vision_llm_provider = request
+        .vision_llm_provider
+        .clone()
+        .or_else(|| tenant.default_vision_llm_provider.clone());
+
     // SPEC-032: Include LLM and embedding configuration in create request
     let create_request = CreateWorkspaceRequest {
         name: request.name.clone(),
@@ -576,6 +614,8 @@ pub async fn create_workspace(
         embedding_model,
         embedding_provider,
         embedding_dimension,
+        vision_llm_model,
+        vision_llm_provider,
     };
 
     // Store workspace via workspace service
@@ -2400,6 +2440,8 @@ mod tests {
             default_embedding_provider: "openai".to_string(),
             default_embedding_dimension: 1536,
             default_embedding_full_id: "openai/text-embedding-3-small".to_string(),
+            default_vision_llm_model: None,
+            default_vision_llm_provider: None,
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };

@@ -75,6 +75,17 @@ pub struct Tenant {
     /// Default embedding dimension for new workspaces (e.g., 1536 for OpenAI, 768 for Ollama).
     /// Workspaces inherit this if not explicitly configured.
     pub default_embedding_dimension: usize,
+
+    // === Default Vision LLM Configuration (SPEC-041) ===
+    /// Default Vision LLM provider for PDF-to-Markdown extraction.
+    /// Workspaces inherit this if not explicitly configured.
+    /// Falls back automatically when workspace has no vision LLM set.
+    pub default_vision_llm_provider: Option<String>,
+
+    /// Default Vision LLM model for PDF-to-Markdown extraction.
+    /// Workspaces inherit this if not explicitly configured.
+    /// Falls back automatically when workspace has no vision LLM set.
+    pub default_vision_llm_model: Option<String>,
 }
 
 impl Tenant {
@@ -109,6 +120,8 @@ impl Tenant {
             default_embedding_model,
             default_embedding_provider,
             default_embedding_dimension,
+            default_vision_llm_provider: None,
+            default_vision_llm_model: None,
         }
     }
 
@@ -170,6 +183,31 @@ impl Tenant {
         self.default_embedding_model = model.into();
         self.default_embedding_provider = provider.into();
         self.default_embedding_dimension = dimension;
+        self
+    }
+
+    /// Set the default Vision LLM configuration for new workspaces.
+    ///
+    /// Used as fallback when a workspace has no vision LLM configured.
+    /// Applied automatically during PDF-to-Markdown extraction (SPEC-041).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_core::Tenant;
+    ///
+    /// let tenant = Tenant::new("Acme Corp", "acme")
+    ///     .with_vision_config("gpt-4o", "openai");
+    /// assert_eq!(tenant.default_vision_llm_model, Some("gpt-4o".to_string()));
+    /// assert_eq!(tenant.default_vision_llm_provider, Some("openai".to_string()));
+    /// ```
+    pub fn with_vision_config(
+        mut self,
+        model: impl Into<String>,
+        provider: impl Into<String>,
+    ) -> Self {
+        self.default_vision_llm_model = Some(model.into());
+        self.default_vision_llm_provider = Some(provider.into());
         self
     }
 }
@@ -887,6 +925,15 @@ pub struct CreateWorkspaceRequest {
     /// Embedding dimension override.
     /// If None, auto-detected from embedding_model.
     pub embedding_dimension: Option<usize>,
+
+    // === Vision LLM Configuration (SPEC-041) ===
+    /// Vision LLM model for PDF-to-Markdown extraction (e.g., "gpt-4o", "gemma3:12b").
+    /// If None, falls back to tenant default then server default.
+    pub vision_llm_model: Option<String>,
+
+    /// Vision LLM provider for PDF-to-Markdown extraction (e.g., "openai", "ollama").
+    /// If None, auto-detected from vision_llm_model.
+    pub vision_llm_provider: Option<String>,
 }
 
 impl CreateWorkspaceRequest {
