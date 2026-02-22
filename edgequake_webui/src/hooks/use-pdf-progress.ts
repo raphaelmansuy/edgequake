@@ -50,7 +50,13 @@ export type PipelinePhase =
  */
 export type NormalizedPhaseStatus =
   | { type: "pending" }
-  | { type: "active"; current: number; total: number; percent: number; message: string }
+  | {
+      type: "active";
+      current: number;
+      total: number;
+      percent: number;
+      message: string;
+    }
   | { type: "completed" }
   | { type: "failed"; error: string };
 
@@ -345,7 +351,8 @@ export function usePdfProgress(
         case "failed":
           return {
             type: "failed",
-            error: phaseData.error?.message ?? phaseData.message ?? "Unknown error",
+            error:
+              phaseData.error?.message ?? phaseData.message ?? "Unknown error",
           };
         case "skipped":
           // Treat skipped as completed for display purposes
@@ -378,7 +385,8 @@ export function usePdfProgress(
         label: PHASE_LABELS[phase].label,
         description: PHASE_LABELS[phase].description,
         status: mapPhaseStatus(phaseData),
-        message: phaseData?.message ?? `Waiting for ${PHASE_LABELS[phase].label}...`,
+        message:
+          phaseData?.message ?? `Waiting for ${PHASE_LABELS[phase].label}...`,
         index,
       };
     });
@@ -438,10 +446,13 @@ export function usePdfProgress(
       ? "completed"
       : progress.is_failed
         ? "failed"
-        : (progress.phases?.some((p) => p.status === "active") ? "processing" : "pending");
+        : progress.phases?.some((p) => p.status === "active")
+          ? "processing"
+          : "pending";
     // Derive error string from first failed phase
     const failedPhase = progress.phases?.find((p) => p.status === "failed");
-    const error = failedPhase?.error?.message ?? failedPhase?.message ?? progress.error;
+    const error =
+      failedPhase?.error?.message ?? failedPhase?.message ?? progress.error;
     return { ...progress, status, error };
   }, [progress]);
 

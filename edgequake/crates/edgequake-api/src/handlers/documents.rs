@@ -4082,8 +4082,10 @@ pub async fn reprocess_failed(
                     }
                 }
 
-                // Default behavior: only reprocess failed documents
-                if status == Some("failed") {
+                // Default behavior: reprocess failed and cancelled documents
+                // WHY: Cancelled documents should be retryable just like failed ones.
+                // Users may cancel a document during processing and want to retry later.
+                if status == Some("failed") || status == Some("cancelled") {
                     if let Some(id) = doc_id {
                         docs_to_reprocess.push((id.to_string(), key.replace("-metadata", "")));
                     }

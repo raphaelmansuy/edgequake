@@ -27,9 +27,9 @@ const GRAPH_VIEWABLE_STATUSES: readonly string[] = ['completed', 'indexed'];
 
 /**
  * Statuses that show "Retry" action
- * WHY: Only failed documents can be retried
+ * WHY: Failed and cancelled documents can be retried/reprocessed
  */
-const RETRYABLE_STATUSES: readonly string[] = ['failed', 'partial_failure'];
+const RETRYABLE_STATUSES: readonly string[] = ['failed', 'partial_failure', 'cancelled'];
 
 export interface QuickActionButtonsProps {
   /** Document to show actions for */

@@ -207,19 +207,33 @@ export function DocumentDetailDialog({
               />
             </div>
 
-            {/* Error message if failed */}
-            {document.status === 'failed' && document.error_message && (
-              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <h4 className="text-sm font-medium text-destructive mb-1">
-                  {t('documents.details.error', 'Error')}
+            {/* Error message if failed or cancelled */}
+            {(document.status === 'failed' || document.status === 'partial_failure' || document.status === 'cancelled') && document.error_message && (
+              <div className={`p-4 ${document.status === 'cancelled' ? 'bg-gray-500/10 border-gray-200' : 'bg-destructive/10 border-destructive/20'} border rounded-lg`}>
+                <h4 className={`text-sm font-medium ${document.status === 'cancelled' ? 'text-gray-600 dark:text-gray-400' : 'text-destructive'} mb-1`}>
+                  {document.status === 'cancelled' 
+                    ? t('documents.details.cancelled', 'Cancelled')
+                    : t('documents.details.error', 'Error')}
                 </h4>
-                <p className="text-xs text-destructive/80">{document.error_message}</p>
+                <p className={`text-xs ${document.status === 'cancelled' ? 'text-gray-500' : 'text-destructive/80'}`}>{document.error_message}</p>
+              </div>
+            )}
+
+            {/* Cancelled banner when no error message */}
+            {document.status === 'cancelled' && !document.error_message && (
+              <div className="p-4 bg-gray-500/10 border border-gray-200 rounded-lg">
+                <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  {t('documents.details.cancelled', 'Cancelled')}
+                </h4>
+                <p className="text-xs text-gray-500">
+                  {t('documents.cancelled.hint', 'You can reprocess this document to resume extraction.')}
+                </p>
               </div>
             )}
 
             {/* Actions */}
             <div className="flex gap-2 pt-2">
-              {document.status === 'failed' && onReprocess && (
+              {(document.status === 'failed' || document.status === 'partial_failure' || document.status === 'cancelled') && onReprocess && (
                 <Button
                   variant="outline"
                   size="sm"

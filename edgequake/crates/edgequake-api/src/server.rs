@@ -87,7 +87,7 @@ impl Server {
 
         // Add middleware
         app = app
-            .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB limit for file uploads
+            .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100 MB limit for file uploads
             .layer(middleware::from_fn(request_logging))
             .layer(middleware::from_fn(request_id))
             .layer(TraceLayer::new_for_http());

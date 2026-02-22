@@ -201,6 +201,25 @@ export interface DocumentLineage {
   graph_indexing_ms?: number;
   /** Vector embedding duration in milliseconds. */
   vector_embedding_ms?: number;
+  /**
+   * Vision LLM model used for PDF→Markdown extraction (PDF documents only).
+   * Populated from pdf_vision_model metadata field set by the PDF processor.
+   * @implements SPEC-040 - Workspace-level Vision LLM config
+   */
+  pdf_vision_model?: string;
+  /**
+   * PDF extraction method used: "vision" | "text" | "hybrid" (PDF documents only).
+   * @implements SPEC-040
+   */
+  pdf_extraction_method?: string;
+  /** Total tokens consumed. */
+  total_tokens?: number;
+  /** Input tokens consumed. */
+  input_tokens?: number;
+  /** Output tokens generated. */
+  output_tokens?: number;
+  /** Estimated cost in USD. */
+  cost_usd?: number;
 }
 
 /** Status counts for document filtering. */

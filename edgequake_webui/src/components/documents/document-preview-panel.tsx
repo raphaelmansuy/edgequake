@@ -51,6 +51,7 @@ import {
     Loader2,
     Network,
     RefreshCw,
+    StopCircle,
     Trash2,
     Wifi,
     XCircle,
@@ -67,6 +68,7 @@ const statusConfig = {
   indexed: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', label: 'Indexed' },
   failed: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', label: 'Failed' },
   partial_failure: { icon: XCircle, color: 'text-orange-500', bg: 'bg-orange-500/10', label: 'Partial Failure' },
+  cancelled: { icon: StopCircle, color: 'text-gray-500', bg: 'bg-gray-500/10', label: 'Cancelled' },
 } as const;
 
 type DocumentStatus = keyof typeof statusConfig;
@@ -201,6 +203,7 @@ export function DocumentPreviewPanel({
   const StatusIcon = statusInfo.icon;
   const isProcessing = status === 'processing';
   const isFailed = status === 'failed' || status === 'partial_failure';
+  const isCancelled = status === 'cancelled';
 
   const contentPreview = fullDocument?.content || document?.content_summary || '';
   const previewLength = 500;
@@ -490,7 +493,8 @@ export function DocumentPreviewPanel({
       </div>
 
       {/* Error Info - OODA-21: Enhanced with categorization */}
-      {isFailed && errorInfo && (
+      {/* WHY: Show error details for failed, partial_failure, and cancelled documents */}
+      {(isFailed || isCancelled) && errorInfo && (
         (() => {
           const CategoryIcon = getCategoryIconComponent(errorInfo.category);
           const categoryColors = getCategoryColor(errorInfo.category);
@@ -540,7 +544,7 @@ export function DocumentPreviewPanel({
                     variant="outline"
                     size="sm"
                     className="w-full"
-                    onClick={() => document?.track_id && onReprocess(document.track_id)}
+                    onClick={() => document?.id && onReprocess(document.id)}
                     disabled={isReprocessing}
                   >
                     {isReprocessing ? (
@@ -555,6 +559,42 @@ export function DocumentPreviewPanel({
             </>
           );
         })()
+      )}
+
+      {/* Cancelled info banner - shows when cancelled without error details */}
+      {isCancelled && !errorInfo && (
+        <>
+          <Separator />
+          <Card className="bg-gray-500/10 border-gray-200 border">
+            <CardContent className="p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <StopCircle className="h-4 w-4 text-gray-500" />
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('documents.cancelled.title', 'Processing was cancelled')}
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('documents.cancelled.hint', 'You can reprocess this document to resume extraction.')}
+              </p>
+              {onReprocess && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => onReprocess(document.id)}
+                  disabled={isReprocessing}
+                >
+                  {isReprocessing ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  {t('documents.actions.retryNow', 'Retry Now')}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </>
       )}
 
       <Separator />

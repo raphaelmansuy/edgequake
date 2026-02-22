@@ -9,6 +9,7 @@
 use crate::config::ImageOcrConfig;
 use crate::image_ocr::{ImageData, ImageOcrProcessor};
 use crate::schema::{Block, BlockType, Document};
+use crate::vision::model_requires_default_temperature;
 use crate::Result;
 use async_trait::async_trait;
 use base64::Engine;
@@ -509,7 +510,14 @@ Output:"#,
         ];
 
         let options = CompletionOptions {
-            temperature: Some(self.config.temperature),
+            // WHY: Some models (gpt-4.1-nano, gpt-4.1-mini) only accept the default
+            // temperature value and return an API error for any other value.
+            // We check the model name and skip temperature for those models.
+            temperature: if model_requires_default_temperature(&self.config.model) {
+                None
+            } else {
+                Some(self.config.temperature)
+            },
             max_tokens: Some(self.config.max_tokens),
             ..Default::default()
         };

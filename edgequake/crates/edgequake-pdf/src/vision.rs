@@ -172,6 +172,36 @@ impl VisionConfig {
         self.temperature = temperature;
         self
     }
+
+    /// Returns the temperature to pass to the LLM, or None if the model
+    /// requires only the default temperature (e.g., gpt-4.1-nano, gpt-4.1-mini).
+    ///
+    /// WHY: Some OpenAI models (gpt-4.1-nano, gpt-4.1-mini) reject any temperature
+    /// value other than the default (1.0), returning API error
+    /// "'temperature' does not support X with this model. Only the default (1) value is supported."
+    pub fn effective_temperature(&self) -> Option<f32> {
+        if model_requires_default_temperature(&self.model) {
+            None
+        } else {
+            Some(self.temperature)
+        }
+    }
+}
+
+/// Returns true if the model only accepts the default temperature (1.0).
+///
+/// WHY: OpenAI's gpt-4.1-nano and gpt-4.1-mini series reject custom temperature
+/// values. Sending temperature=0.1 causes an API error. We detect these models
+/// by name and skip the temperature parameter entirely.
+pub fn model_requires_default_temperature(model: &str) -> bool {
+    let lower = model.to_lowercase();
+    // gpt-4.1-nano and gpt-4.1-mini only accept default temperature
+    lower.contains("gpt-4.1-nano")
+        || lower.contains("gpt-4.1-mini")
+        || lower.contains("o1-")
+        || lower.starts_with("o1")
+        || lower.contains("o4-")
+        || lower.starts_with("o4")
 }
 
 /// Vision-based document extractor.
@@ -405,7 +435,11 @@ impl VisionExtractor {
         ];
 
         let options = CompletionOptions {
-            temperature: Some(self.config.temperature),
+            // WHY: Some models (gpt-4.1-nano, gpt-4.1-mini) only accept the default
+            // temperature (1.0) and will return an API error if a different value is sent.
+            // effective_temperature() returns None for those models so no temperature
+            // parameter is sent in the request.
+            temperature: self.config.effective_temperature(),
             max_tokens: Some(self.config.max_tokens),
             ..Default::default()
         };

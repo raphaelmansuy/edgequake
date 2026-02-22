@@ -167,11 +167,13 @@ export const DocumentTableRow = memo(function DocumentTableRow({
     'hover:bg-primary/5 dark:hover:bg-primary/10',
     isActive && 'bg-primary/10 dark:bg-primary/15 ring-1 ring-primary/20',
     index % 2 === 0 ? 'bg-background' : 'bg-muted/20',
-    // OODA-25: Failed documents highlight
+    // OODA-25: Failed/cancelled documents highlight
     doc.status === 'failed' &&
       'bg-red-50/50 dark:bg-red-950/20 border-l-4 border-l-red-500',
     doc.status === 'partial_failure' &&
-      'bg-orange-50/50 dark:bg-orange-950/20 border-l-4 border-l-orange-500'
+      'bg-orange-50/50 dark:bg-orange-950/20 border-l-4 border-l-orange-500',
+    doc.status === 'cancelled' &&
+      'bg-gray-50/50 dark:bg-gray-950/20 border-l-4 border-l-gray-400'
   );
 
   const { icon: FileIcon, color } = getFileTypeIcon(doc.file_name);
@@ -207,8 +209,8 @@ export const DocumentTableRow = memo(function DocumentTableRow({
               {highlightMatches(displayTitle, searchQuery)}
             </span>
           </div>
-          {/* Error message for failed documents */}
-          {(doc.status === 'failed' || doc.status === 'partial_failure') &&
+          {/* Error message for failed/cancelled documents */}
+          {(doc.status === 'failed' || doc.status === 'partial_failure' || doc.status === 'cancelled') &&
             doc.error_message && (
               <ErrorMessagePopover
                 message={doc.error_message}
@@ -217,6 +219,12 @@ export const DocumentTableRow = memo(function DocumentTableRow({
                 isRetrying={isRetrying}
               />
             )}
+          {/* Cancelled indicator when no error message */}
+          {doc.status === 'cancelled' && !doc.error_message && (
+            <span className="text-xs text-muted-foreground">
+              {t('documents.cancelled.subtitle', 'Processing was cancelled')}
+            </span>
+          )}
         </div>
       </TableCell>
 

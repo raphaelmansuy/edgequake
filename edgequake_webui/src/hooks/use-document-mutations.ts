@@ -23,6 +23,7 @@ import {
   deleteDocument,
   reprocessDocument,
 } from "@/lib/api/edgequake";
+import type { Document } from "@/types";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -177,11 +178,47 @@ export function useDocumentMutations(
   });
 
   /**
-   * WHY: Reprocess mutation for retrying failed documents.
+   * WHY: Reprocess mutation for retrying failed/cancelled documents.
+   * Uses optimistic update to immediately reflect "pending" status in the UI,
+   * giving instant feedback that the retry was accepted. Falls back on error.
    * Calls onReprocessSuccess callback to allow parent to show pipeline dialog.
    */
   const reprocessMutation = useMutation({
     mutationFn: (documentId: string) => reprocessDocument(documentId, true),
+    onMutate: async (documentId: string) => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["documents"] });
+
+      // Snapshot the previous value for rollback
+      const previousDocuments = queryClient.getQueriesData({
+        queryKey: ["documents"],
+      });
+
+      // Optimistically update the document status to "pending" in all matching queries
+      // WHY: This gives immediate visual feedback — the document row changes from
+      // Failed/Cancelled badge to Pending badge, so the user knows their retry was accepted.
+      queryClient.setQueriesData(
+        { queryKey: ["documents"] },
+        (oldData: { items?: Document[] } | undefined) => {
+          if (!oldData?.items) return oldData;
+          return {
+            ...oldData,
+            items: oldData.items.map((doc: Document) =>
+              doc.id === documentId
+                ? {
+                    ...doc,
+                    status: "pending",
+                    error_message: undefined,
+                    current_stage: undefined,
+                  }
+                : doc,
+            ),
+          };
+        },
+      );
+
+      return { previousDocuments };
+    },
     onSuccess: () => {
       toast.success(
         t("documents.reprocess.success", "Document queued for reprocessing"),
@@ -195,9 +232,17 @@ export function useDocumentMutations(
             : undefined,
         },
       );
+      // Refetch to get server-confirmed state
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["pipeline-status"] });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _documentId, context) => {
+      // Roll back to the previous value on error
+      if (context?.previousDocuments) {
+        for (const [queryKey, data] of context.previousDocuments) {
+          queryClient.setQueryData(queryKey, data);
+        }
+      }
       toast.error(t("documents.reprocess.failed", "Reprocess failed"), {
         description:
           error instanceof Error

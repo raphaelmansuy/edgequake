@@ -225,6 +225,7 @@ export function useBulkSelection({
   /**
    * Reprocess all selected documents.
    * WHY: Bulk reprocess is more efficient than one-by-one.
+   * Uses optimistic update to immediately show "pending" status for all selected docs.
    */
   const handleBulkReprocess = useCallback(async () => {
     const idsToReprocess = Array.from(selectedIds);
@@ -233,6 +234,34 @@ export function useBulkSelection({
     setIsBulkReprocessing(true);
     let successCount = 0;
     let errorCount = 0;
+
+    // Cancel outgoing refetches and snapshot for rollback
+    await queryClient.cancelQueries({ queryKey: ["documents"] });
+    const previousDocuments = queryClient.getQueriesData({
+      queryKey: ["documents"],
+    });
+
+    // Optimistically update all selected documents to "pending"
+    const idsSet = new Set(idsToReprocess);
+    queryClient.setQueriesData(
+      { queryKey: ["documents"] },
+      (oldData: { items?: Document[] } | undefined) => {
+        if (!oldData?.items) return oldData;
+        return {
+          ...oldData,
+          items: oldData.items.map((doc: Document) =>
+            idsSet.has(doc.id)
+              ? {
+                  ...doc,
+                  status: "pending",
+                  error_message: undefined,
+                  current_stage: undefined,
+                }
+              : doc,
+          ),
+        };
+      },
+    );
 
     try {
       for (const id of idsToReprocess) {
@@ -257,12 +286,21 @@ export function useBulkSelection({
             `Queued ${successCount} document(s) for reprocessing`,
         );
         queryClient.invalidateQueries({ queryKey: ["documents"] });
+        queryClient.invalidateQueries({ queryKey: ["pipeline-status"] });
       }
       if (errorCount > 0) {
+        // Partial failure: rollback optimistic update for failed ones
+        // and refetch to get accurate state
         toast.error(
           t("documents.bulk.reprocessFailed", { count: errorCount }) ||
             `Failed to queue ${errorCount} document(s)`,
         );
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
+      }
+    } catch {
+      // Full failure: rollback all optimistic updates
+      for (const [queryKey, data] of previousDocuments) {
+        queryClient.setQueryData(queryKey, data);
       }
     } finally {
       setIsBulkReprocessing(false);

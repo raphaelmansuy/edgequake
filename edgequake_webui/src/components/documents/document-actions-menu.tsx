@@ -68,7 +68,8 @@ export function DocumentActionsMenu({
     doc.track_id;
 
   const showViewPdf = doc.source_type === 'pdf' || doc.pdf_id;
-  const showReset = doc.status === 'failed' || doc.status === 'partial_failure';
+  // WHY: Cancelled documents should also show the reset/reprocess option
+  const showReset = doc.status === 'failed' || doc.status === 'partial_failure' || doc.status === 'cancelled';
 
   return (
     <DropdownMenu>

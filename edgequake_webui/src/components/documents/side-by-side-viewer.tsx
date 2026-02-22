@@ -65,7 +65,7 @@ export function SideBySideViewer({
   leftPanel,
   rightPanel,
   className,
-  height = 600,
+  height,
   initialMode = 'side-by-side',
   leftTitle = 'PDF Document',
   rightTitle = 'Extracted Markdown',
@@ -129,7 +129,7 @@ export function SideBySideViewer({
   });
 
   return (
-    <div className={cn('flex flex-col', className)}>
+    <div className={cn('flex flex-col min-h-0', className)}>
       {/* Minimal View Mode Toggle */}
       <div className="flex items-center justify-end gap-1 px-2 py-1 border-b bg-muted/20">
         <TooltipProvider>
@@ -182,8 +182,8 @@ export function SideBySideViewer({
       {/* Content Panels */}
       <div
         ref={containerRef}
-        className="flex flex-1"
-        style={{ height: `${height}px` }}
+        className="flex flex-1 min-h-0"
+        style={height ? { height: `${height}px` } : undefined}
       >
         {/* Left Panel (PDF) */}
         {(mode === 'pdf-only' || mode === 'side-by-side') && (
@@ -222,7 +222,10 @@ export function SideBySideViewer({
               mode === 'markdown-only' ? 'w-full' : 'flex-1'
             )}
           >
-            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            {/* WHY: py-0 outer container; inner ContentRenderer provides p-8 padding.
+                 pt-0 here avoids double top padding since ContentRenderer has p-8 already.
+                 pb-8 ensures content doesn't stick to the bottom edge on scroll. */}
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
               {rightPanel}
             </div>
           </div>

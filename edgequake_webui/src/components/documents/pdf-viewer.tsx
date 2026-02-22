@@ -24,14 +24,15 @@ import {
     Loader2,
     Maximize2,
     Minimize2,
+    XCircle,
     ZoomIn,
     ZoomOut,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
 
 // PDF file source type - matches react-pdf File type
 // Can be: URL string, object with url, object with data (ArrayBuffer/TypedArray)
@@ -86,10 +87,32 @@ function PDFLoadingSkeleton() {
 
 function PDFErrorState({ error, onRetry }: { error: string; onRetry?: () => void }) {
   const { t } = useTranslation();
+  
+  // WHY: Detect specific error types to show actionable messages instead of raw errors.
+  // react-pdf throws "ResponseException: Unexpected server response (404)" when PDF is not found.
+  const is404 = error.includes('404') || error.includes('not found');
+  const isNetworkError = error.includes('NetworkError') || error.includes('Failed to fetch') || error.includes('network');
+  
+  const displayMessage = is404
+    ? t('documents.viewer.pdfNotFound', 'PDF file is not available. The file may have been removed or processing may not be complete.')
+    : isNetworkError
+      ? t('documents.viewer.pdfNetworkError', 'Unable to connect to the server. Please check your connection and try again.')
+      : error;
+
   return (
     <div className="flex flex-col items-center justify-center p-8 space-y-4 text-center">
-      <div className="text-destructive text-sm">{error}</div>
-      {onRetry && (
+      <div className="rounded-full bg-muted p-3">
+        <XCircle className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-muted-foreground">
+          {is404 
+            ? t('documents.viewer.pdfUnavailable', 'PDF Unavailable')
+            : t('documents.viewer.loadError', 'Failed to Load PDF')}
+        </p>
+        <p className="text-xs text-muted-foreground/70 max-w-sm">{displayMessage}</p>
+      </div>
+      {onRetry && !is404 && (
         <Button variant="outline" size="sm" onClick={onRetry}>
           {t('common.retry', 'Retry')}
         </Button>
@@ -169,7 +192,7 @@ export function PDFViewer({
   }
 
   return (
-    <div className={cn('flex flex-col', className)}>
+    <div className={cn('flex flex-col h-full min-h-0', className)}>
       {/* Toolbar */}
       {showToolbar && (
         <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
@@ -238,14 +261,17 @@ export function PDFViewer({
         </div>
       )}
 
-      {/* PDF Content - mousewheel scrollable */}
+      {/* PDF Content - mousewheel scrollable
+         WHY: flex-1 + min-h-0 lets the scroll area shrink to fit the parent.
+         An explicit height is only set when the height prop is provided;
+         otherwise flex handles it so the PDF page is fully scrollable. */}
       <div
         className={cn(
-          'flex-1 overflow-y-auto overflow-x-hidden',
+          'flex-1 min-h-0 overflow-y-auto overflow-x-hidden',
           'scroll-smooth bg-muted/10'
         )}
         style={{ 
-          height: height ? `${height}px` : 'auto',
+          ...(height ? { height: `${height}px` } : {}),
           WebkitOverflowScrolling: 'touch'
         }}
       >

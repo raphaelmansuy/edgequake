@@ -324,7 +324,10 @@ Respond ONLY with valid JSON in this exact structure:
         ];
 
         let options = CompletionOptions {
-            temperature: Some(0.1), // Low temperature for accurate extraction
+            // WHY: Do not set temperature – some models (e.g. gpt-4.1-nano) reject
+            // any non-default temperature value. Omitting it uses the model's default,
+            // which still produces deterministic-enough results for OCR.
+            temperature: None,
             max_tokens: Some(4096),
             ..Default::default()
         };
