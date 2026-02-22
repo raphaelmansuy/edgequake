@@ -53,13 +53,13 @@ futures.workspace = true
 # WHY: PDFium provides character-level bounding boxes and accurate positions
 # that lopdf cannot match. License: MIT OR Apache-2.0 (permissive).
 # Requires libpdfium.dylib/so at runtime from bblanchon/pdfium-binaries
-# WHY image_024 (OODA-35): We depend on `image = "0.24"`. pdfium-render defaults
-# to image 0.25 (via image_latest). Using image_024 unifies the image crate version
-# so DynamicImage types from get_raw_image() are compatible with our code.
+# WHY image_025 (OODA-35 update): edgequake-pdf2md requires image ^0.25, so we
+# align edgequake-pdf to image_025 to avoid pdfium-render feature conflicts
+# (image_024 + image_025 cannot both be enabled in the same crate instance).
 # WHY pdfium_latest: Provides the bindgen definitions for the Pdfium C API.
 pdfium-render = { version = "0.8", optional = true, default-features = false, features = [
     "thread_safe",
-    "image_024",
+    "image_025",
     "pdfium_latest",
 ] }
 
@@ -75,8 +75,8 @@ rayon = "1.10"
 # R-tree spatial indexing for O(n log n) spatial queries
 rstar = "0.12"
 
-# Image processing (match pdf_oxide's version)
-image = "0.24"
+# Image processing (aligned with edgequake-pdf2md's image ^0.25)
+image = "0.25"
 base64 = "0.22"
 regex = "1.10"
 

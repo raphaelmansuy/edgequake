@@ -27,6 +27,14 @@ export function ProcessingDetails({ lineage }: ProcessingDetailsProps) {
     <div className="space-y-4">
       {/* Model Information */}
       <div className="grid gap-y-3 text-sm">
+        {/* SPEC-040: Vision LLM used for PDF→Markdown extraction */}
+        {lineage.pdf_vision_model && (
+          <DetailRow
+            label="Vision LLM (PDF)"
+            value={`${lineage.pdf_vision_model}${lineage.pdf_extraction_method ? ` · ${lineage.pdf_extraction_method}` : ''}`}
+            mono
+          />
+        )}
         {lineage.llm_model && (
           <DetailRow label="LLM Model" value={lineage.llm_model} mono />
         )}

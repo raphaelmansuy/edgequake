@@ -204,7 +204,7 @@ export function DocumentManager() {
         <div className="shrink-0 px-4 pt-4 space-y-3 bg-background">
           <DocumentHeader
             totalCount={totalCount}
-            failedCount={statusCounts.failed}
+            failedCount={statusCounts.failed + statusCounts.cancelled}
             pipelineIsBusy={!!pipelineStatus?.is_busy}
             pipelineDialogOpen={pipelineDialogOpen}
             onPipelineDialogChange={setPipelineDialogOpen}

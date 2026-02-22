@@ -18,7 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Document } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
-import { CheckCircle, Clock, FileText, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, FileText, Loader2, StopCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 
@@ -33,6 +33,8 @@ const statusConfig = {
   completed: { icon: CheckCircle, color: 'text-green-500', label: 'Completed', animate: false },
   indexed: { icon: CheckCircle, color: 'text-green-500', label: 'Indexed', animate: false },
   failed: { icon: XCircle, color: 'text-red-500', label: 'Failed', animate: false },
+  partial_failure: { icon: XCircle, color: 'text-orange-500', label: 'Partial Failure', animate: false },
+  cancelled: { icon: StopCircle, color: 'text-gray-500', label: 'Cancelled', animate: false },
 } as const;
 
 export function RecentActivity({ documents, isLoading }: RecentActivityProps) {

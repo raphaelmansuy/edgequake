@@ -140,8 +140,9 @@ export function ResetDocumentStatusButton({
 
   const isLoading = retryMutation.isPending || reprocessMutation.isPending;
 
-  // Only show for failed or completed documents
-  const canReset = document.status === 'failed' || document.status === 'completed';
+  // Only show for failed, completed, or cancelled documents
+  // WHY: Cancelled documents should be retryable just like failed ones.
+  const canReset = document.status === 'failed' || document.status === 'completed' || document.status === 'cancelled';
 
   if (!canReset) {
     return null;
@@ -168,7 +169,7 @@ export function ResetDocumentStatusButton({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {document.status === 'failed'
+            {(document.status === 'failed' || document.status === 'cancelled')
               ? t('documents.reset.retryFailed', 'Retry failed document')
               : t('documents.reset.reprocess', 'Reprocess document')}
           </TooltipContent>
@@ -181,7 +182,7 @@ export function ResetDocumentStatusButton({
                 {t('documents.reset.confirmTitle', 'Reset Document Status?')}
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {document.status === 'failed'
+                {(document.status === 'failed' || document.status === 'cancelled')
                   ? t(
                       'documents.reset.confirmDescFailed',
                       'This will retry processing the failed document. Any existing error will be cleared.'
@@ -196,7 +197,7 @@ export function ResetDocumentStatusButton({
               <AlertDialogCancel>{t('common.cancel', 'Cancel')}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
-                  document.status === 'failed'
+                  (document.status === 'failed' || document.status === 'cancelled')
                     ? retryMutation.mutate()
                     : reprocessMutation.mutate();
                 }}
@@ -226,7 +227,7 @@ export function ResetDocumentStatusButton({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {document.status === 'failed' && document.track_id && (
+          {(document.status === 'failed' || document.status === 'cancelled') && document.track_id && (
             <DropdownMenuItem onClick={() => retryMutation.mutate()}>
               <RefreshCcw className="mr-2 h-4 w-4" />
               {t('documents.reset.retry', 'Retry Processing')}

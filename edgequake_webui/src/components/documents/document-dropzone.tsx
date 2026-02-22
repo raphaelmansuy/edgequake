@@ -74,7 +74,7 @@ export function DocumentDropzone({
           <p className="text-sm font-medium text-primary">Drop files here</p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Drag & drop or <span className="text-primary font-medium">click to upload</span> • TXT, MD, JSON, PDF (max 10MB)
+            Drag & drop or <span className="text-primary font-medium">click to upload</span> • TXT, MD, JSON, PDF (max 100MB)
           </p>
         )}
       </div>
