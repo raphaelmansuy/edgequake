@@ -1,0 +1,17 @@
+{
+  "route": "/graph",
+  "timestamp": "2026-02-22T09:36:37.996Z",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "elements": {
+    "header": false,
+    "sidebar": false,
+    "mainContent": false,
+    "breadcrumbs": false,
+    "rightPanel": false
+  },
+  "measurements": {},
+  "issues": []
+}

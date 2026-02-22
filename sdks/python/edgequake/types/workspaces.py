@@ -10,7 +10,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # ── Tenants ────────────────────────────────────────────────────────────────
 
 
@@ -136,7 +135,6 @@ class WorkspaceDetail(WorkspaceInfo):
     entity_count: int | None = None
     relationship_count: int | None = None
     storage_size_bytes: int | None = None
-
 
 
 class WorkspaceStats(BaseModel):

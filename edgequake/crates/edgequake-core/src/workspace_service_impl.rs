@@ -402,18 +402,30 @@ impl WorkspaceService for WorkspaceServiceImpl {
             if !vision_model.is_empty() {
                 if let Some(provider) = request.vision_llm_provider {
                     workspace.vision_llm_provider = Some(provider.clone());
-                    workspace.metadata.insert("vision_llm_provider".to_string(), serde_json::json!(provider));
+                    workspace.metadata.insert(
+                        "vision_llm_provider".to_string(),
+                        serde_json::json!(provider),
+                    );
                 } else {
                     let detected = Workspace::detect_provider_from_model(&vision_model);
                     workspace.vision_llm_provider = Some(detected.clone().to_string());
-                    workspace.metadata.insert("vision_llm_provider".to_string(), serde_json::json!(detected));
+                    workspace.metadata.insert(
+                        "vision_llm_provider".to_string(),
+                        serde_json::json!(detected),
+                    );
                 }
                 workspace.vision_llm_model = Some(vision_model.clone());
-                workspace.metadata.insert("vision_llm_model".to_string(), serde_json::json!(vision_model));
+                workspace.metadata.insert(
+                    "vision_llm_model".to_string(),
+                    serde_json::json!(vision_model),
+                );
             }
         } else if let Some(provider) = request.vision_llm_provider {
             workspace.vision_llm_provider = Some(provider.clone());
-            workspace.metadata.insert("vision_llm_provider".to_string(), serde_json::json!(provider));
+            workspace.metadata.insert(
+                "vision_llm_provider".to_string(),
+                serde_json::json!(provider),
+            );
         }
 
         sqlx::query(

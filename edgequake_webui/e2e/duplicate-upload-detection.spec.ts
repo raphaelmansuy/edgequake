@@ -427,14 +427,17 @@ test.describe("Duplicate Upload Detection", () => {
       // Ensure no DELETE call is made (force_reindex replaces delete+reupload).
       // WHY (OODA-08): Backend atomically clears old data on force_reindex.
       let deleteCallMade = false;
-      await page.route(`**/api/v1/documents/${EXISTING_DOC_ID}`, async (route) => {
-        if (route.request().method() === "DELETE") {
-          deleteCallMade = true;
-          await route.fulfill({ status: 204 });
-        } else {
-          await route.fallback();
-        }
-      });
+      await page.route(
+        `**/api/v1/documents/${EXISTING_DOC_ID}`,
+        async (route) => {
+          if (route.request().method() === "DELETE") {
+            deleteCallMade = true;
+            await route.fulfill({ status: 204 });
+          } else {
+            await route.fallback();
+          }
+        },
+      );
 
       const fileInput = page.locator('input[type="file"]');
 

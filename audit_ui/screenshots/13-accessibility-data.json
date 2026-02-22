@@ -1,0 +1,18 @@
+{
+  "skipLink": true,
+  "ariaLabels": 6,
+  "ariaDescriptions": 0,
+  "altTexts": 0,
+  "totalImages": 0,
+  "h1Count": 1,
+  "headingOrder": [
+    "H1"
+  ],
+  "focusableElements": 35,
+  "landmarkRoles": {
+    "main": 1,
+    "nav": 1,
+    "banner": 1,
+    "contentinfo": 0
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "/": {
+    "buttons": 8,
+    "cards": 0,
+    "inputs": 0,
+    "badges": 0,
+    "modals": 0,
+    "tooltips": 0,
+    "dropdowns": 0
+  },
+  "/documents": {
+    "buttons": 90,
+    "cards": 0,
+    "inputs": 2,
+    "badges": 0,
+    "modals": 0,
+    "tooltips": 0,
+    "dropdowns": 0
+  },
+  "/query": {
+    "buttons": 24,
+    "cards": 0,
+    "inputs": 2,
+    "badges": 0,
+    "modals": 0,
+    "tooltips": 0,
+    "dropdowns": 0
+  },
+  "/graph": {
+    "buttons": 14,
+    "cards": 0,
+    "inputs": 0,
+    "badges": 0,
+    "modals": 1,
+    "tooltips": 0,
+    "dropdowns": 0
+  },
+  "/settings": {
+    "buttons": 27,
+    "cards": 0,
+    "inputs": 1,
+    "badges": 0,
+    "modals": 0,
+    "tooltips": 0,
+    "dropdowns": 0
+  },
+  "/api-explorer": {
+    "buttons": 47,
+    "cards": 0,
+    "inputs": 0,
+    "badges": 0,
+    "modals": 0,
+    "tooltips": 0,
+    "dropdowns": 0
+  }
+}

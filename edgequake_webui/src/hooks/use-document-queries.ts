@@ -1,8 +1,8 @@
 "use client";
 
 import { getDocuments, getPipelineStatus } from "@/lib/api/edgequake";
-import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 /**
  * OODA-29: Document queries hook
@@ -110,14 +110,15 @@ export function useDocumentQueries({
   // CRITICAL: Pass tenant_id and workspace_id to getPipelineStatus for multi-tenancy isolation
   // WHY: Only poll pipeline status when there are actively processing documents.
   // Constant 2s polling regardless of state wastes API calls idle workspaces.
-  const hasProcessingDocuments = data?.items?.some(
-    (doc: any) =>
-      doc.status === "processing" ||
-      doc.status === "chunking" ||
-      doc.status === "extracting" ||
-      doc.status === "embedding" ||
-      doc.status === "indexing",
-  ) ?? false;
+  const hasProcessingDocuments =
+    data?.items?.some(
+      (doc: any) =>
+        doc.status === "processing" ||
+        doc.status === "chunking" ||
+        doc.status === "extracting" ||
+        doc.status === "embedding" ||
+        doc.status === "indexing",
+    ) ?? false;
 
   // WHY: When processing transitions from active → done, the pipelineStatus cache
   // may still hold a stale "is_busy: true" value for up to 10-30s (staleTime).
