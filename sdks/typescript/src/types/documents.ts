@@ -279,6 +279,27 @@ export interface FailedChunksResponse {
 
 // ── PDF ───────────────────────────────────────────────────────
 
+/**
+ * Options for PDF upload (v0.4.0+).
+ *
+ * Vision pipeline: renders each page to an image and sends it to a
+ * multimodal LLM for high-fidelity Markdown extraction.
+ */
+export interface PdfUploadOptions {
+  title?: string;
+  metadata?: Record<string, unknown>;
+  track_id?: string;
+  /** Enable LLM vision pipeline for high-fidelity extraction. Default: false. */
+  enable_vision?: boolean;
+  /** Override vision provider (e.g. "openai", "ollama"). */
+  vision_provider?: string;
+  /** Override vision model (e.g. "gpt-4o", "gemma3"). */
+  vision_model?: string;
+  /** Re-process even if document already exists. Default: false. */
+  force_reindex?: boolean;
+}
+
+/** @deprecated Use PdfUploadOptions — kept for backward compatibility. */
 export interface PdfUploadMetadata {
   title?: string;
   metadata?: Record<string, unknown>;
@@ -306,6 +327,8 @@ export interface PdfInfo {
   file_size: number;
   page_count?: number;
   created_at: Timestamp;
+  /** Extraction method used: "vision", "text", or "ocr" (0.4.0+). */
+  extraction_method?: string;
 }
 
 export interface PdfStatusResponse extends PdfInfo {

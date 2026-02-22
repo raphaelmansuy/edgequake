@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class UploadDocumentRequest(BaseModel):
@@ -204,21 +204,62 @@ class FailedChunkInfo(BaseModel):
     retry_count: int = 0
 
 
+class PdfUploadOptions(BaseModel):
+    """Options for PDF upload with vision extraction (POST /api/v1/documents/pdf).
+
+    WHY (0.4.0): Vision mode routes each PDF page through a multimodal LLM,
+    enabling accurate extraction of scanned documents, complex layouts, and
+    tables where text-layer extraction fails.
+    """
+
+    # Vision extraction settings
+    enable_vision: bool = False
+    """Enable LLM vision processing (default: False — opt-in to control costs)."""
+    vision_provider: str | None = None
+    """Vision LLM provider. None = use workspace config then server default."""
+    vision_model: str | None = None
+    """Vision model override. None = provider default (e.g. gpt-4.1-nano)."""
+
+    # Common upload options
+    title: str | None = None
+    """Document title (optional)."""
+    metadata: dict[str, str] | None = None
+    """Custom key-value metadata attached to the document."""
+    track_id: str | None = None
+    """Batch tracking ID for grouping related uploads."""
+    force_reindex: bool = False
+    """Force re-ingestion of a duplicate PDF (clears existing graph data)."""
+
+
 class PdfUploadResponse(BaseModel):
     """Response from POST /api/v1/documents/pdf."""
 
-    id: str
+    # WHY (0.4.0): API returns pdf_id; older servers returned id. Accept both.
+    pdf_id: str = Field(validation_alias=AliasChoices("pdf_id", "id"))
+    document_id: str | None = None
     status: str
+    task_id: str | None = None
     track_id: str | None = None
     message: str | None = None
-    file_name: str | None = None
+    estimated_time_seconds: int | None = None
+    # WHY: present when the uploaded PDF is a duplicate of an existing one
+    duplicate_of: str | None = None
+
+    @property
+    def id(self) -> str:
+        """Backward-compat alias for pdf_id."""
+        return self.pdf_id
+
+    model_config = {"populate_by_name": True}
 
 
 class PdfInfo(BaseModel):
-    """PDF document info from list endpoint."""
+    """PDF document info from list / status endpoints."""
 
-    id: str
-    file_name: str | None = None
+    # WHY (0.4.0): Accept both pdf_id and id for backward compat with older servers
+    pdf_id: str = Field(validation_alias=AliasChoices("pdf_id", "id"))
+    document_id: str | None = None
+    filename: str | None = Field(default=None, alias="file_name")
     status: str = "pending"
     page_count: int | None = None
     file_size: int | None = None
@@ -226,6 +267,16 @@ class PdfInfo(BaseModel):
     updated_at: str | None = None
     track_id: str | None = None
     error_message: str | None = None
+    # WHY (0.4.0): traceability — how each document was extracted
+    extraction_method: str | None = None
+    """Extraction method: 'vision', 'text', or 'ocr'."""
+
+    @property
+    def id(self) -> str:
+        """Backward-compat alias for pdf_id."""
+        return self.pdf_id
+
+    model_config = {"populate_by_name": True}
 
 
 class PdfProgressResponse(BaseModel):

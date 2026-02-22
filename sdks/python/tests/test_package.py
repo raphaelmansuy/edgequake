@@ -7,7 +7,7 @@ class TestPackageImports:
 
     def test_version(self) -> None:
         from edgequake import __version__
-        assert __version__ == "0.1.0"
+        assert __version__ == "0.4.0"
 
     def test_client_classes(self) -> None:
         from edgequake import AsyncEdgeQuake, EdgeQuake

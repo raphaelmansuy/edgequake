@@ -23,6 +23,7 @@ from edgequake.types.documents import (
     PdfContentResponse,
     PdfInfo,
     PdfProgressResponse,
+    PdfUploadOptions,
     PdfUploadResponse,
     ScanResponse,
     TrackStatusResponse,
@@ -299,16 +300,60 @@ class PdfResource(SyncResource):
         *,
         filename: str | None = None,
         metadata: dict[str, str] | None = None,
+        enable_vision: bool = False,
+        vision_provider: str | None = None,
+        vision_model: str | None = None,
+        title: str | None = None,
+        track_id: str | None = None,
+        force_reindex: bool = False,
+        options: PdfUploadOptions | None = None,
     ) -> PdfUploadResponse:
         """Upload a PDF file.
 
         POST /api/v1/documents/pdf
+
+        Args:
+            file: PDF file path or binary stream.
+            filename: Override filename sent to the server.
+            metadata: Key/value metadata fields.
+            enable_vision: Use LLM vision pipeline for extraction (0.4.0+).
+            vision_provider: Override vision LLM provider (e.g. "openai").
+            vision_model: Override vision LLM model (e.g. "gpt-4o").
+            title: Human-readable title.
+            track_id: Batch track ID.
+            force_reindex: Re-process even if document already exists.
+            options: PdfUploadOptions dataclass (overrides individual params).
         """
+        # WHY: PdfUploadOptions is a convenience wrapper; explicit params take
+        # precedence, then options, then defaults.
+        if options is not None:
+            enable_vision = options.enable_vision
+            vision_provider = options.vision_provider or vision_provider
+            vision_model = options.vision_model or vision_model
+            title = options.title or title
+            track_id = options.track_id or track_id
+            force_reindex = options.force_reindex
+
+        # Build merged form-data: metadata + vision fields (str-serialised)
+        form_data: dict[str, str] = dict(metadata or {})
+        if enable_vision:
+            form_data["enable_vision"] = "true"
+        if vision_provider:
+            form_data["vision_provider"] = vision_provider
+        if vision_model:
+            form_data["vision_model"] = vision_model
+        if title:
+            form_data["title"] = title
+        if track_id:
+            form_data["track_id"] = track_id
+        if force_reindex:
+            form_data["force_reindex"] = "true"
+
         response = self._transport.upload(
             "/api/v1/documents/pdf",
             file=file,
             filename=filename,
-            metadata=metadata,
+            metadata=form_data or None,
         )
         return PdfUploadResponse.model_validate(response.json())
 
@@ -531,12 +576,57 @@ class AsyncPdfResource(AsyncResource):
         *,
         filename: str | None = None,
         metadata: dict[str, str] | None = None,
+        enable_vision: bool = False,
+        vision_provider: str | None = None,
+        vision_model: str | None = None,
+        title: str | None = None,
+        track_id: str | None = None,
+        force_reindex: bool = False,
+        options: PdfUploadOptions | None = None,
     ) -> PdfUploadResponse:
+        """Upload a PDF file asynchronously.
+
+        POST /api/v1/documents/pdf
+
+        Args:
+            file: PDF file path or binary stream.
+            filename: Override filename sent to the server.
+            metadata: Key/value metadata fields.
+            enable_vision: Use LLM vision pipeline for extraction (0.4.0+).
+            vision_provider: Override vision LLM provider (e.g. "openai").
+            vision_model: Override vision LLM model (e.g. "gpt-4o").
+            title: Human-readable title.
+            track_id: Batch track ID.
+            force_reindex: Re-process even if document already exists.
+            options: PdfUploadOptions dataclass (overrides individual params).
+        """
+        if options is not None:
+            enable_vision = options.enable_vision
+            vision_provider = options.vision_provider or vision_provider
+            vision_model = options.vision_model or vision_model
+            title = options.title or title
+            track_id = options.track_id or track_id
+            force_reindex = options.force_reindex
+
+        form_data: dict[str, str] = dict(metadata or {})
+        if enable_vision:
+            form_data["enable_vision"] = "true"
+        if vision_provider:
+            form_data["vision_provider"] = vision_provider
+        if vision_model:
+            form_data["vision_model"] = vision_model
+        if title:
+            form_data["title"] = title
+        if track_id:
+            form_data["track_id"] = track_id
+        if force_reindex:
+            form_data["force_reindex"] = "true"
+
         response = await self._transport.upload(
             "/api/v1/documents/pdf",
             file=file,
             filename=filename,
-            metadata=metadata,
+            metadata=form_data or None,
         )
         return PdfUploadResponse.model_validate(response.json())
 

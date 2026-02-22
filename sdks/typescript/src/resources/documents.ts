@@ -20,6 +20,7 @@ import type {
   PdfInfo,
   PdfProgressResponse,
   PdfStatusResponse,
+  PdfUploadOptions,
   PdfUploadResponse,
   RecoverStuckResponse,
   ReprocessResponse,
@@ -39,12 +40,41 @@ import { Resource } from "./base.js";
 
 /** PDF sub-resource accessed via `client.documents.pdf`. */
 export class PdfResource extends Resource {
-  /** Upload a PDF for extraction. */
+  /** Upload a PDF for extraction.
+   *
+   * @param file - The PDF file (File or Blob).
+   * @param options - Upload options including vision pipeline settings (0.4.0+).
+   *
+   * Vision pipeline example:
+   * ```ts
+   * await client.documents.pdf.upload(pdfFile, {
+   *   enable_vision: true,
+   *   vision_model: "gpt-4o",
+   * });
+   * ```
+   */
   async upload(
     file: File | Blob,
-    metadata?: Record<string, string>,
+    options?: PdfUploadOptions,
   ): Promise<PdfUploadResponse> {
-    return this.transport.upload("/api/v1/documents/pdf", file, metadata);
+    // WHY: Convert PdfUploadOptions to flat string Record for multipart form-data.
+    // Vision fields are boolean flags serialised as "true" strings.
+    const formData: Record<string, string> = {};
+    if (options?.title) formData["title"] = options.title;
+    if (options?.track_id) formData["track_id"] = options.track_id;
+    if (options?.enable_vision) formData["enable_vision"] = "true";
+    if (options?.vision_provider)
+      formData["vision_provider"] = options.vision_provider;
+    if (options?.vision_model) formData["vision_model"] = options.vision_model;
+    if (options?.force_reindex) formData["force_reindex"] = "true";
+    if (options?.metadata) {
+      for (const [k, v] of Object.entries(options.metadata)) {
+        formData[k] = String(v);
+      }
+    }
+    const meta =
+      Object.keys(formData).length > 0 ? formData : undefined;
+    return this.transport.upload("/api/v1/documents/pdf", file, meta);
   }
 
   /** List uploaded PDFs. */
