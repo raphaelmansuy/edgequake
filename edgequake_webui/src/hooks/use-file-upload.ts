@@ -14,6 +14,7 @@ import type {
 } from "@/components/documents/duplicate-upload-dialog";
 import type { UploadingFile } from "@/components/documents/types";
 import {
+  deleteDocument,
   uploadDocument,
   uploadPdfDocument,
   type DocumentsListResult,
@@ -32,10 +33,6 @@ export interface UseFileUploadOptions {
   workspaceId?: string | null;
   /** Callback when upload starts (e.g., to switch filter) */
   onUploadStart?: () => void;
-  /** Called for each "replace" decision in the duplicate dialog.
-   *  WHY: The upload hook doesn't own the reprocess mutation; this
-   *  delegates the action to the parent (DocumentManager). */
-  onReplace?: (existingDocId: string) => void;
 }
 
 export interface UseFileUploadReturn {
@@ -55,8 +52,9 @@ export interface UseFileUploadReturn {
   pendingDuplicates: PendingDuplicate[];
   /**
    * Called when the user confirms decisions in DuplicateUploadDialog.
-   * Iterates resolutions: "replace" triggers onReplace callback;
-   * "skip" is a no-op. Clears pendingDuplicates afterwards.
+   * Iterates resolutions: "replace" deletes the old document then re-uploads
+   * the new file as a fresh document; "skip" is a no-op.
+   * Clears pendingDuplicates afterwards.
    */
   resolvePendingDuplicates: (resolutions: DuplicateResolutions) => void;
 }
@@ -74,7 +72,7 @@ export interface UseFileUploadReturn {
 export function useFileUpload(
   options: UseFileUploadOptions = {},
 ): UseFileUploadReturn {
-  const { tenantId, workspaceId, onUploadStart, onReplace } = options;
+  const { tenantId, workspaceId, onUploadStart } = options;
 
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -305,7 +303,11 @@ export function useFileUpload(
           if (response.duplicate_of) {
             setPendingDuplicates((prev) => [
               ...prev,
-              { fileName: file.name, existingDocId: response.duplicate_of! },
+              {
+                fileName: file.name,
+                existingDocId: response.duplicate_of!,
+                file,
+              },
             ]);
 
             // Mark the file entry as "duplicate/pending decision"
@@ -467,19 +469,73 @@ export function useFileUpload(
   /**
    * Resolve pending duplicate decisions.
    * WHY: Called by DuplicateUploadDialog after user clicks Confirm.
-   * "replace" decisions trigger the onReplace callback (reprocess existing doc).
+   *
+   * For PDF files: re-upload with force_reindex=true so the backend clears
+   * old graph/vector data and re-processes the PDF, without a separate DELETE.
+   * WHY (OODA-08): The backend's force_reindex flag atomically clears old data
+   * and triggers fresh extraction — safer than a frontend DELETE + re-upload
+   * which would race with the duplicate-hash check and 404 on pdf_id.
+   *
+   * For non-PDF files: the backend's text upload handler already auto-deletes
+   * on duplicate (FIX-4), so we just re-upload. A delete is attempted first
+   * for completeness but failures are non-fatal.
+   *
    * "skip" decisions are no-ops.
+   * @implements BR-dup-replace - Replace = force_reindex for PDFs
    */
   const resolvePendingDuplicates = useCallback(
     (resolutions: DuplicateResolutions) => {
-      for (const [existingDocId, decision] of Object.entries(resolutions)) {
-        if (decision === "replace") {
-          onReplace?.(existingDocId);
-        }
-      }
+      const replaceEntries = pendingDuplicates.filter(
+        (d) => resolutions[d.existingDocId] === "replace",
+      );
       setPendingDuplicates([]);
+
+      if (replaceEntries.length === 0) return;
+
+      // Close dialog immediately; async replace runs in the background.
+      const doReplaceAll = async () => {
+        for (const entry of replaceEntries) {
+          const isPdf = entry.file.type === "application/pdf";
+
+          if (isPdf) {
+            // PDF: re-upload with force_reindex=true so backend atomically
+            // clears old graph data and re-processes. No separate DELETE needed.
+            try {
+              const trackId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+              await uploadPdfDocument(entry.file, {
+                title: entry.file.name,
+                enable_vision: true,
+                track_id: trackId,
+                force_reindex: true,
+              });
+              // Invalidate documents cache so list refreshes
+              queryClient.invalidateQueries({ queryKey: ["documents"] });
+            } catch (err) {
+              console.warn(
+                `[useFileUpload] force_reindex re-upload failed for ${entry.fileName}:`,
+                err,
+              );
+            }
+          } else {
+            // Non-PDF: the backend auto-deletes duplicates on re-upload (FIX-4).
+            // Attempt a manual delete first for completeness but ignore failures.
+            try {
+              await deleteDocument(entry.existingDocId);
+            } catch (err) {
+              console.warn(
+                `[useFileUpload] Failed to delete ${entry.existingDocId}:`,
+                err,
+              );
+            }
+            // Re-upload the original file as a brand-new document.
+            await handleFilesUpload([entry.file]);
+          }
+        }
+      };
+
+      doReplaceAll();
     },
-    [onReplace],
+    [pendingDuplicates, handleFilesUpload, queryClient],
   );
 
   /**

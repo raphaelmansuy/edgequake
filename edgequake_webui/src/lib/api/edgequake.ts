@@ -570,6 +570,9 @@ export async function uploadPdfDocument(
   if (options?.track_id) {
     formData.append("track_id", options.track_id);
   }
+  if (options?.force_reindex !== undefined) {
+    formData.append("force_reindex", String(options.force_reindex));
+  }
 
   return api.post<PdfUploadResponse>("/documents/pdf", formData, {
     headers: {
