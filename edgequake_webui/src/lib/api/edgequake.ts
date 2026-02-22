@@ -119,7 +119,10 @@ export interface WorkspaceStats {
   document_count: number;
   entity_count: number;
   relationship_count: number;
+  /** Number of distinct entity types (e.g., PERSON, ORGANIZATION). */
+  entity_type_count: number;
   chunk_count: number;
+  embedding_count: number;
   storage_bytes: number;
 }
 
@@ -1306,28 +1309,12 @@ export async function getPipelineStatus(
   workspace_id?: string,
 ): Promise<PipelineStatus> {
   try {
-    // CRITICAL: Log tenant/workspace context for debugging isolation
-    console.log("[getPipelineStatus] DEBUG:", {
-      tenant_id,
-      workspace_id,
-      timestamp: new Date().toISOString(),
-    });
-
     // Use the tasks list endpoint to derive pipeline status
     // CRITICAL: Pass tenant_id and workspace_id for proper isolation
     const result = await getTasksList({
       tenant_id,
       workspace_id,
       page_size: 50,
-    });
-
-    console.log("[getPipelineStatus] Result:", {
-      is_busy: result.statistics.processing > 0,
-      running_tasks: result.statistics.processing,
-      queued_tasks: result.statistics.pending,
-      tasks_count: result.tasks.length,
-      first_task_tenant: result.tasks[0]?.tenant_id,
-      first_task_workspace: result.tasks[0]?.workspace_id,
     });
 
     return {

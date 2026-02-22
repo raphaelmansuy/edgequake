@@ -29,7 +29,7 @@ import {
     ZoomOut,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -145,6 +145,36 @@ export function PDFViewer({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isFullWidth, setIsFullWidth] = useState<boolean>(false);
+  // WHY: Pre-check the URL before mounting <Document> so that PDF.js never
+  // attempts to fetch a 404 URL. Without this guard, react-pdf's internal worker
+  // logs "ResponseException: Unexpected server response (404)" to the console even
+  // though we handle the error in onLoadError. The HEAD request is cheap (no body
+  // download) and prevents the noisy console warning entirely.
+  const [urlOk, setUrlOk] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // Only pre-check simple URL strings; data/object sources skip the check.
+    const url = typeof file === 'string' ? file : (file as { url?: string } | null)?.url;
+    if (!url) {
+      setUrlOk(true);
+      return;
+    }
+    setUrlOk(null); // reset on file change
+    let cancelled = false;
+    fetch(url, { method: 'HEAD' })
+      .then((res) => {
+        if (!cancelled) setUrlOk(res.ok);
+        if (!res.ok && !cancelled) {
+          setError(`ResponseException: Unexpected server response (${res.status})`);
+          setIsLoading(false);
+        }
+      })
+      .catch(() => {
+        // Network error — let react-pdf handle it via onLoadError
+        if (!cancelled) setUrlOk(true);
+      });
+    return () => { cancelled = true; };
+  }, [file]);
 
   const handleLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -188,7 +218,17 @@ export function PDFViewer({
   }
 
   if (error) {
-    return <PDFErrorState error={error} onRetry={() => setError(null)} />;
+    return <PDFErrorState error={error} onRetry={() => { setError(null); setUrlOk(null); }} />;
+  }
+
+  // WHY: Show loading skeleton while the HEAD pre-check is in flight or urlOk is false
+  // to avoid mounting <Document> prematurely which would trigger PDF.js console warnings.
+  if (urlOk === null) {
+    return (
+      <div className={cn('flex flex-col h-full min-h-0', className)}>
+        <PDFLoadingSkeleton />
+      </div>
+    );
   }
 
   return (

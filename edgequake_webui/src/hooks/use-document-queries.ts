@@ -107,11 +107,25 @@ export function useDocumentQueries({
   // Pipeline status query
   // OODA-37: Include workspace in queryKey for proper isolation
   // CRITICAL: Pass tenant_id and workspace_id to getPipelineStatus for multi-tenancy isolation
+  // WHY: Only poll pipeline status when there are actively processing documents.
+  // Constant 2s polling regardless of state wastes API calls idle workspaces.
+  const hasProcessingDocuments = data?.items?.some(
+    (doc: any) =>
+      doc.status === "processing" ||
+      doc.status === "chunking" ||
+      doc.status === "extracting" ||
+      doc.status === "embedding" ||
+      doc.status === "indexing",
+  ) ?? false;
+
   const { data: pipelineStatus } = useQuery({
     queryKey: ["pipeline-status", tenantId, workspaceId],
     queryFn: () =>
       getPipelineStatus(tenantId ?? undefined, workspaceId ?? undefined),
-    refetchInterval: 2000,
+    // Poll only when documents are processing; otherwise refresh every 30s
+    refetchInterval: hasProcessingDocuments ? 2000 : 30000,
+    // When not processing, data is stable – keep it fresh for 10s
+    staleTime: hasProcessingDocuments ? 0 : 10000,
   });
 
   return {

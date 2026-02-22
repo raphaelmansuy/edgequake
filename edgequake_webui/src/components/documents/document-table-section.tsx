@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table';
 import type { Document } from '@/types';
 import { FileText } from 'lucide-react';
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DocumentTableRow } from './document-table-row';
 import { DocumentTableStates } from './document-table-states';
@@ -90,8 +91,10 @@ export interface DocumentTableSectionProps {
 
 /**
  * Document table section with loading states and pagination.
+ * WHY: Wrapped in memo to prevent re-renders when DocumentManager state
+ * unrelated to the table (e.g., preview panel, dialog state) changes.
  */
-export function DocumentTableSection({
+export const DocumentTableSection = memo(function DocumentTableSection({
   documents,
   totalCount,
   isLoading,
@@ -213,6 +216,6 @@ export function DocumentTableSection({
       )}
     </>
   );
-}
+});
 
 export default DocumentTableSection;

@@ -73,32 +73,7 @@ export function WebSocketProvider({
   // Handle incoming messages
   const handleMessage = useCallback(
     (message: WebSocketProgressMessage | CostUpdateEvent) => {
-      // Log stage transitions for debugging phase gaps
-      if (message.type === 'stage_started') {
-        console.log('[WebSocket] Stage started:', {
-          track_id: (message as any).track_id,
-          stage: (message as any).stage,
-          document_id: (message as any).document_id,
-        });
-      } else if (message.type === 'stage_completed') {
-        console.log('[WebSocket] Stage completed:', {
-          track_id: (message as any).track_id,
-          stage: (message as any).stage,
-          duration_ms: (message as any).duration_ms,
-        });
-      } else if (message.type === 'stage_progress') {
-        // Only log high progress to avoid spam
-        const progress = (message as any).progress || 0;
-        if (progress >= 95) {
-          console.log('[WebSocket] Stage near completion:', {
-            track_id: (message as any).track_id,
-            stage: (message as any).stage,
-            progress: `${progress}%`,
-          });
-        }
-      }
-      
-      // Log pipeline events for debugging
+      // Log ingestion failures and completions — not high-frequency ticks
       if (message.type === 'ingestion_failed') {
         const failedEvent = message as IngestionFailedEvent;
         console.error('[WebSocket] Ingestion failed:', {
@@ -123,8 +98,6 @@ export function WebSocketProvider({
             } : undefined,
           }
         );
-      } else if (message.type === 'ingestion_completed') {
-        console.log('[WebSocket] Ingestion completed:', message);
       }
       
       // Update ingestion store
