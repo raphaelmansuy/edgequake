@@ -24,6 +24,10 @@ export interface CreateTenantRequest {
   default_embedding_provider?: string;
   /** Default embedding dimension for new workspaces. */
   default_embedding_dimension?: number;
+  /** Default vision LLM model for new workspaces (e.g., "gpt-4o"). Used for PDF image extraction. */
+  default_vision_llm_model?: string;
+  /** Default vision LLM provider for new workspaces ("openai", "ollama"). */
+  default_vision_llm_provider?: string;
 }
 
 export interface TenantInfo {
@@ -40,6 +44,10 @@ export interface TenantInfo {
   default_embedding_provider: string;
   default_embedding_dimension: number;
   default_embedding_full_id: string;
+  /** Default vision LLM model (optional – only set when configured). */
+  default_vision_llm_model?: string;
+  /** Default vision LLM provider (optional – only set when configured). */
+  default_vision_llm_provider?: string;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
@@ -74,6 +82,10 @@ export interface CreateWorkspaceRequest {
   embedding_provider?: string;
   /** Embedding vector dimension override. */
   embedding_dimension?: number;
+  /** Vision LLM model for PDF image extraction (e.g., "gpt-4o"). Inherits from tenant if not set. */
+  vision_llm_model?: string;
+  /** Vision LLM provider ("openai", "ollama"). Inherits from tenant if not set. */
+  vision_llm_provider?: string;
 }
 
 export interface WorkspaceInfo {
@@ -91,6 +103,10 @@ export interface WorkspaceInfo {
   embedding_provider: string;
   embedding_dimension: number;
   embedding_full_id: string;
+  /** Vision LLM model (optional – only set when configured or inherited from tenant). */
+  vision_llm_model?: string;
+  /** Vision LLM provider (optional – only set when configured or inherited from tenant). */
+  vision_llm_provider?: string;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
@@ -112,6 +128,10 @@ export interface UpdateWorkspaceRequest {
   embedding_model?: string;
   embedding_provider?: string;
   embedding_dimension?: number;
+  /** Vision LLM model for PDF image extraction. */
+  vision_llm_model?: string;
+  /** Vision LLM provider. */
+  vision_llm_provider?: string;
 }
 
 export interface WorkspaceStats {

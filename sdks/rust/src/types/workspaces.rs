@@ -10,6 +10,23 @@ pub struct CreateWorkspaceRequest {
     pub slug: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    // LLM configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_provider: Option<String>,
+    // Embedding configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_dimension: Option<u32>,
+    // Vision LLM for PDF image extraction (SPEC-041). Inherits from tenant if not set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_llm_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_llm_provider: Option<String>,
 }
 
 /// Workspace summary.
@@ -23,8 +40,31 @@ pub struct WorkspaceInfo {
     pub description: Option<String>,
     #[serde(default)]
     pub tenant_id: Option<String>,
+    // LLM configuration.
+    #[serde(default)]
+    pub llm_model: Option<String>,
+    #[serde(default)]
+    pub llm_provider: Option<String>,
+    #[serde(default)]
+    pub llm_full_id: Option<String>,
+    // Embedding configuration.
+    #[serde(default)]
+    pub embedding_model: Option<String>,
+    #[serde(default)]
+    pub embedding_provider: Option<String>,
+    #[serde(default)]
+    pub embedding_dimension: Option<u32>,
+    #[serde(default)]
+    pub embedding_full_id: Option<String>,
+    // Vision LLM (SPEC-041) – only present when configured or inherited from tenant.
+    #[serde(default)]
+    pub vision_llm_model: Option<String>,
+    #[serde(default)]
+    pub vision_llm_provider: Option<String>,
     #[serde(default)]
     pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 /// Workspace statistics.

@@ -236,8 +236,36 @@ public class TenantInfo
 {
     public string? Id { get; set; }
     public string? Name { get; set; }
-    public string? DisplayName { get; set; }
+    public string? Slug { get; set; }
+    public string? Plan { get; set; }
+    [JsonPropertyName("is_active")]
+    public bool? IsActive { get; set; }
+    [JsonPropertyName("max_workspaces")]
+    public int? MaxWorkspaces { get; set; }
+    // Default LLM configuration for new workspaces.
+    [JsonPropertyName("default_llm_model")]
+    public string? DefaultLlmModel { get; set; }
+    [JsonPropertyName("default_llm_provider")]
+    public string? DefaultLlmProvider { get; set; }
+    [JsonPropertyName("default_llm_full_id")]
+    public string? DefaultLlmFullId { get; set; }
+    // Default embedding configuration for new workspaces.
+    [JsonPropertyName("default_embedding_model")]
+    public string? DefaultEmbeddingModel { get; set; }
+    [JsonPropertyName("default_embedding_provider")]
+    public string? DefaultEmbeddingProvider { get; set; }
+    [JsonPropertyName("default_embedding_dimension")]
+    public int? DefaultEmbeddingDimension { get; set; }
+    [JsonPropertyName("default_embedding_full_id")]
+    public string? DefaultEmbeddingFullId { get; set; }
+    // Default vision LLM for PDF image extraction (SPEC-041).
+    [JsonPropertyName("default_vision_llm_model")]
+    public string? DefaultVisionLlmModel { get; set; }
+    [JsonPropertyName("default_vision_llm_provider")]
+    public string? DefaultVisionLlmProvider { get; set; }
+    [JsonPropertyName("created_at")]
     public string? CreatedAt { get; set; }
+    [JsonPropertyName("updated_at")]
     public string? UpdatedAt { get; set; }
 }
 
