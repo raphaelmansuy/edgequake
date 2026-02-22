@@ -1571,10 +1571,13 @@ pub async fn rebuild_embeddings(
     }
 
     // 7. Queue documents for re-embedding (SPEC-032 REQ-25)
-    // This triggers the actual re-embedding process using the new embedding model
+    // SPEC-041: PDF documents are re-queued as PdfProcessing tasks to re-extract
+    // from the original PDF using the workspace's current vision LLM, then rechunk
+    // and re-embed with the new embedding model.
+    // Text/Markdown documents fall back to stored content (TextInsert).
     let (documents_queued, chunks_to_process, track_id) = if stats.document_count > 0 {
         use chrono::Utc;
-        use edgequake_tasks::{Task, TaskType, TextInsertData};
+        use edgequake_tasks::{PdfProcessingData, Task, TaskType, TextInsertData};
 
         let track_id = format!(
             "rebuild_embed_{}_{}",
@@ -1614,21 +1617,42 @@ pub async fn rebuild_embeddings(
                     let doc_chunk_count =
                         obj.get("chunk_count").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
 
-                    let title = obj.get("title").and_then(|v| v.as_str());
+                    let doc_title = obj
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&doc_id)
+                        .to_string();
 
-                    // Get document content
-                    let content_key = format!("{}-content", doc_id);
-                    let content = match state.kv_storage.get_by_id(&content_key).await {
-                        Ok(Some(content_value)) => content_value
-                            .get("content")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        _ => None,
-                    };
+                    // SPEC-041: Route by source type BEFORE reading stored content.
+                    // PDF docs with valid pdf_id → re-process from original PDF bytes.
+                    // All others → re-process from stored content (require content present).
+                    let source_type = obj.get("source_type").and_then(|v| v.as_str());
+                    let pdf_id_str = obj.get("pdf_id").and_then(|v| v.as_str());
 
-                    let content = match content {
-                        Some(c) => c,
-                        None => continue,
+                    // Determine if we can use PDF reprocessing path
+                    let pdf_task_opt = if source_type == Some("pdf") {
+                        pdf_id_str
+                            .and_then(|pid| Uuid::parse_str(pid).ok())
+                            .map(|pdf_id_uuid| {
+                                let vision_provider = workspace
+                                    .vision_llm_provider
+                                    .as_deref()
+                                    .filter(|p| !p.is_empty())
+                                    .unwrap_or("ollama")
+                                    .to_string();
+                                let vision_model =
+                                    workspace.vision_llm_model.clone().filter(|m| !m.is_empty());
+                                PdfProcessingData {
+                                    pdf_id: pdf_id_uuid,
+                                    tenant_id: workspace.tenant_id,
+                                    workspace_id,
+                                    enable_vision: true,
+                                    vision_provider,
+                                    vision_model,
+                                }
+                            })
+                    } else {
+                        None
                     };
 
                     // Update document status to pending
@@ -1651,29 +1675,45 @@ pub async fn rebuild_embeddings(
                         }
                     }
 
-                    // Create processing task
-                    let doc_title = title.unwrap_or(&doc_id).to_string();
-                    let task_data = TextInsertData {
-                        text: content,
-                        file_source: doc_title.clone(),
-                        workspace_id: workspace_id.to_string(),
-                        metadata: Some(serde_json::json!({
-                            "document_id": doc_id,
-                            "title": doc_title,
-                            "track_id": track_id,
-                            "is_reprocess": true,
-                            "is_embedding_rebuild": true,
-                            "workspace_id": workspace_id.to_string(),
-                            "tenant_id": workspace.tenant_id.to_string(),
-                        })),
+                    let (task_type, task_value) = if let Some(pdf_task) = pdf_task_opt {
+                        // Re-extract from original PDF: new vision LLM + rechunk + re-embed.
+                        (
+                            TaskType::PdfProcessing,
+                            serde_json::to_value(&pdf_task).unwrap(),
+                        )
+                    } else {
+                        // Fallback: text/markdown or PDF without stored pdf_id.
+                        // Read stored content — skip doc if missing.
+                        let content_key = format!("{}-content", doc_id);
+                        let content = match state.kv_storage.get_by_id(&content_key).await {
+                            Ok(Some(cv)) => cv
+                                .get("content")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            _ => None,
+                        };
+                        let content = match content {
+                            Some(c) => c,
+                            None => continue,
+                        };
+                        let text_task = TextInsertData {
+                            text: content,
+                            file_source: doc_title.clone(),
+                            workspace_id: workspace_id.to_string(),
+                            metadata: Some(serde_json::json!({
+                                "document_id": doc_id,
+                                "title": doc_title,
+                                "track_id": track_id,
+                                "is_reprocess": true,
+                                "is_embedding_rebuild": true,
+                                "workspace_id": workspace_id.to_string(),
+                                "tenant_id": workspace.tenant_id.to_string(),
+                            })),
+                        };
+                        (TaskType::Insert, serde_json::to_value(&text_task).unwrap())
                     };
 
-                    let task = Task::new(
-                        workspace.tenant_id,
-                        workspace_id,
-                        TaskType::Insert,
-                        serde_json::to_value(&task_data).unwrap(),
-                    );
+                    let task = Task::new(workspace.tenant_id, workspace_id, task_type, task_value);
 
                     // Store and queue task
                     if state.task_storage.create_task(&task).await.is_ok()
@@ -1923,8 +1963,12 @@ pub async fn rebuild_knowledge_graph(
     }
 
     // 9. Queue all documents for reprocessing (SPEC-032 REQ-24)
+    // SPEC-041: PDF documents are re-queued as PdfProcessing tasks so the full
+    // pipeline runs from the original PDF bytes: vision extraction → chunking →
+    // embedding → entity extraction.  Only text/markdown documents fall back to
+    // the stored content (TextInsert).
     let (documents_queued, chunks_to_process) = if stats.document_count > 0 {
-        use edgequake_tasks::{Task, TaskType, TextInsertData};
+        use edgequake_tasks::{PdfProcessingData, Task, TaskType, TextInsertData};
 
         // Get all document metadata for this workspace
         let all_keys: Vec<String> = state
@@ -1958,24 +2002,13 @@ pub async fn rebuild_knowledge_graph(
                     let doc_chunk_count =
                         obj.get("chunk_count").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
 
-                    let title = obj.get("title").and_then(|v| v.as_str());
+                    let doc_title = obj
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&doc_id)
+                        .to_string();
 
-                    // Get document content
-                    let content_key = format!("{}-content", doc_id);
-                    let content = match state.kv_storage.get_by_id(&content_key).await {
-                        Ok(Some(content_value)) => content_value
-                            .get("content")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        _ => None,
-                    };
-
-                    let content = match content {
-                        Some(c) => c,
-                        None => continue,
-                    };
-
-                    // Update document status to pending
+                    // Update document status to pending before queuing
                     let metadata_key = format!("{}-metadata", doc_id);
                     if let Some(mut metadata) = state
                         .kv_storage
@@ -1995,29 +2028,126 @@ pub async fn rebuild_knowledge_graph(
                         }
                     }
 
-                    // Create processing task
-                    let doc_title = title.unwrap_or(&doc_id).to_string();
-                    let task_data = TextInsertData {
-                        text: content,
-                        file_source: doc_title.clone(),
-                        workspace_id: workspace_id.to_string(),
-                        metadata: Some(serde_json::json!({
-                            "document_id": doc_id,
-                            "title": doc_title,
-                            "track_id": track_id,
-                            "is_reprocess": true,
-                            "is_kg_rebuild": true,
-                            "workspace_id": workspace_id.to_string(),
-                            "tenant_id": workspace.tenant_id.to_string(),
-                        })),
+                    // SPEC-041: Route by source type.
+                    // PDF → re-extract from original bytes using workspace vision LLM.
+                    // Text/Markdown → re-process from stored content.
+                    let source_type = obj.get("source_type").and_then(|v| v.as_str());
+                    let pdf_id_str = obj.get("pdf_id").and_then(|v| v.as_str());
+
+                    let (task_type, task_value) = if source_type == Some("pdf") {
+                        if let Some(pid_str) = pdf_id_str {
+                            if let Ok(pdf_id_uuid) = Uuid::parse_str(pid_str) {
+                                // WHY: Re-process from original PDF so the new vision LLM,
+                                // LLM, and embedding model all apply to this document.
+                                // vision_provider/model come from the workspace config and
+                                // will override any previously used model.
+                                let vision_provider = workspace
+                                    .vision_llm_provider
+                                    .as_deref()
+                                    .filter(|p| !p.is_empty())
+                                    .unwrap_or("ollama")
+                                    .to_string();
+                                let vision_model =
+                                    workspace.vision_llm_model.clone().filter(|m| !m.is_empty());
+
+                                let pdf_task = PdfProcessingData {
+                                    pdf_id: pdf_id_uuid,
+                                    tenant_id: workspace.tenant_id,
+                                    workspace_id,
+                                    enable_vision: true,
+                                    vision_provider,
+                                    vision_model,
+                                };
+                                (
+                                    TaskType::PdfProcessing,
+                                    serde_json::to_value(&pdf_task).unwrap(),
+                                )
+                            } else {
+                                // Malformed pdf_id — fall back to stored content
+                                tracing::warn!(doc_id = %doc_id, pdf_id = %pid_str, "Malformed pdf_id, falling back to text reprocess");
+                                let content_key = format!("{}-content", doc_id);
+                                let content = match state.kv_storage.get_by_id(&content_key).await {
+                                    Ok(Some(cv)) => cv
+                                        .get("content")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string()),
+                                    _ => None,
+                                };
+                                match content {
+                                    Some(c) => {
+                                        let text_task = TextInsertData {
+                                            text: c,
+                                            file_source: doc_title.clone(),
+                                            workspace_id: workspace_id.to_string(),
+                                            metadata: Some(
+                                                serde_json::json!({ "document_id": doc_id, "title": doc_title, "track_id": track_id, "is_reprocess": true, "is_kg_rebuild": true, "workspace_id": workspace_id.to_string(), "tenant_id": workspace.tenant_id.to_string() }),
+                                            ),
+                                        };
+                                        (
+                                            TaskType::Insert,
+                                            serde_json::to_value(&text_task).unwrap(),
+                                        )
+                                    }
+                                    None => continue,
+                                }
+                            }
+                        } else {
+                            // PDF doc without pdf_id stored yet — fall back to text
+                            let content_key = format!("{}-content", doc_id);
+                            let content = match state.kv_storage.get_by_id(&content_key).await {
+                                Ok(Some(cv)) => cv
+                                    .get("content")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string()),
+                                _ => None,
+                            };
+                            match content {
+                                Some(c) => {
+                                    let text_task = TextInsertData {
+                                        text: c,
+                                        file_source: doc_title.clone(),
+                                        workspace_id: workspace_id.to_string(),
+                                        metadata: Some(
+                                            serde_json::json!({ "document_id": doc_id, "title": doc_title, "track_id": track_id, "is_reprocess": true, "is_kg_rebuild": true, "workspace_id": workspace_id.to_string(), "tenant_id": workspace.tenant_id.to_string() }),
+                                        ),
+                                    };
+                                    (TaskType::Insert, serde_json::to_value(&text_task).unwrap())
+                                }
+                                None => continue,
+                            }
+                        }
+                    } else {
+                        // Text/Markdown document — re-process from stored content.
+                        let content_key = format!("{}-content", doc_id);
+                        let content = match state.kv_storage.get_by_id(&content_key).await {
+                            Ok(Some(content_value)) => content_value
+                                .get("content")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            _ => None,
+                        };
+                        let content = match content {
+                            Some(c) => c,
+                            None => continue,
+                        };
+                        let text_task = TextInsertData {
+                            text: content,
+                            file_source: doc_title.clone(),
+                            workspace_id: workspace_id.to_string(),
+                            metadata: Some(serde_json::json!({
+                                "document_id": doc_id,
+                                "title": doc_title,
+                                "track_id": track_id,
+                                "is_reprocess": true,
+                                "is_kg_rebuild": true,
+                                "workspace_id": workspace_id.to_string(),
+                                "tenant_id": workspace.tenant_id.to_string(),
+                            })),
+                        };
+                        (TaskType::Insert, serde_json::to_value(&text_task).unwrap())
                     };
 
-                    let task = Task::new(
-                        workspace.tenant_id,
-                        workspace_id,
-                        TaskType::Insert,
-                        serde_json::to_value(&task_data).unwrap(),
-                    );
+                    let task = Task::new(workspace.tenant_id, workspace_id, task_type, task_value);
 
                     // Store and queue task
                     if state.task_storage.create_task(&task).await.is_ok()
@@ -2125,7 +2255,7 @@ pub async fn reprocess_all_documents(
     Json(request): Json<ReprocessAllRequest>,
 ) -> Result<Json<ReprocessAllResponse>, ApiError> {
     use chrono::Utc;
-    use edgequake_tasks::{Task, TaskType, TextInsertData};
+    use edgequake_tasks::{PdfProcessingData, Task, TaskType, TextInsertData};
     use tracing::info;
 
     // 1. Verify workspace exists
@@ -2225,24 +2355,57 @@ pub async fn reprocess_all_documents(
                     }
                 };
 
-                // Get document content
-                let content_key = format!("{}-content", doc_id);
-                let content = match state.kv_storage.get_by_id(&content_key).await {
-                    Ok(Some(content_value)) => content_value
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string()),
-                    _ => None,
+                // Get document content — deferred for PDFs (may not need it)
+                let source_type = obj.get("source_type").and_then(|v| v.as_str());
+                let pdf_id_str = obj.get("pdf_id").and_then(|v| v.as_str());
+                let doc_title = title.unwrap_or(&doc_id).to_string();
+
+                // Determine PDF reprocessing task (no content needed for valid PDFs)
+                let pdf_task_opt = if source_type == Some("pdf") {
+                    pdf_id_str
+                        .and_then(|pid| Uuid::parse_str(pid).ok())
+                        .map(|pdf_id_uuid| {
+                            let vision_provider = workspace
+                                .vision_llm_provider
+                                .as_deref()
+                                .filter(|p| !p.is_empty())
+                                .unwrap_or("ollama")
+                                .to_string();
+                            let vision_model =
+                                workspace.vision_llm_model.clone().filter(|m| !m.is_empty());
+                            PdfProcessingData {
+                                pdf_id: pdf_id_uuid,
+                                tenant_id: workspace.tenant_id,
+                                workspace_id,
+                                enable_vision: true,
+                                vision_provider,
+                                vision_model,
+                            }
+                        })
+                } else {
+                    None
                 };
 
-                let content = match content {
-                    Some(c) => c,
-                    None => {
-                        documents_skipped += 1;
-                        *skip_reasons.entry("no_content").or_insert(0) += 1;
-                        continue;
+                // For non-PDF fallback paths: read and require stored content
+                let text_content_opt = if pdf_task_opt.is_none() {
+                    let content_key = format!("{}-content", doc_id);
+                    match state.kv_storage.get_by_id(&content_key).await {
+                        Ok(Some(cv)) => cv
+                            .get("content")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        _ => None,
                     }
+                } else {
+                    None // Not needed for PDF reprocessing
                 };
+
+                // Skip text documents with no stored content
+                if pdf_task_opt.is_none() && text_content_opt.is_none() {
+                    documents_skipped += 1;
+                    *skip_reasons.entry("no_content").or_insert(0) += 1;
+                    continue;
+                }
 
                 // Update document status to pending
                 let metadata_key = format!("{}-metadata", doc_id);
@@ -2265,28 +2428,38 @@ pub async fn reprocess_all_documents(
                     }
                 }
 
-                // Create processing task
-                let doc_title = title.unwrap_or(&doc_id).to_string();
-                let task_data = TextInsertData {
-                    text: content,
-                    file_source: doc_title.clone(),
-                    workspace_id: workspace_id.to_string(),
-                    metadata: Some(serde_json::json!({
-                        "document_id": doc_id,
-                        "title": doc_title,
-                        "track_id": track_id,
-                        "is_reprocess": true,
-                        "workspace_id": workspace_id.to_string(),
-                        "tenant_id": workspace.tenant_id.to_string(),
-                    })),
+                // SPEC-041: Route by source type.
+                // PDF → re-extract from original PDF using workspace's current vision LLM.
+                // Text/Markdown → re-process from stored content.
+                let (task_type, task_value) = if let Some(pdf_task) = pdf_task_opt {
+                    // Re-extract from original PDF.
+                    (
+                        TaskType::PdfProcessing,
+                        serde_json::to_value(&pdf_task).unwrap(),
+                    )
+                } else {
+                    // Text/Markdown — re-process from stored content.
+                    let content = text_content_opt.unwrap_or_default();
+                    (
+                        TaskType::Insert,
+                        serde_json::to_value(&TextInsertData {
+                            text: content,
+                            file_source: doc_title.clone(),
+                            workspace_id: workspace_id.to_string(),
+                            metadata: Some(serde_json::json!({
+                                "document_id": doc_id,
+                                "title": doc_title,
+                                "track_id": track_id,
+                                "is_reprocess": true,
+                                "workspace_id": workspace_id.to_string(),
+                                "tenant_id": workspace.tenant_id.to_string(),
+                            })),
+                        })
+                        .unwrap(),
+                    )
                 };
 
-                let task = Task::new(
-                    workspace.tenant_id,
-                    workspace_id,
-                    TaskType::Insert,
-                    serde_json::to_value(&task_data).unwrap(),
-                );
+                let task = Task::new(workspace.tenant_id, workspace_id, task_type, task_value);
 
                 // Store and queue task
                 if let Err(e) = state.task_storage.create_task(&task).await {
