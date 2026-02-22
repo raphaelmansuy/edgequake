@@ -36,6 +36,13 @@ interface StreamingMarkdownRendererProps {
   className?: string;
   /** Callback for citation clicks */
   onCitationClick?: (citationId: string) => void;
+  /**
+   * Optional line range to highlight (1-based inclusive).
+   * WHY: Chunk selection in document detail needs to highlight
+   *      source lines WITHOUT injecting HTML into the raw markdown
+   *      (which would destroy heading/list/table parsing).
+   */
+  highlightLineRange?: { startLine: number; endLine: number };
 }
 
 /**
@@ -303,6 +310,7 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
   isStreaming = false,
   className,
   onCitationClick,
+  highlightLineRange,
 }: StreamingMarkdownRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRequestRef = useRef<number | null>(null);
@@ -325,6 +333,40 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
       : content;
     return tokenizeMarkdown(contentToRender, isStreaming);
   }, [content, isStreaming, streamingStatus.safeToRenderContent]);
+
+  // ---------------------------------------------------------------------------
+  // Compute which tokens overlap with the optional highlight line range.
+  //
+  // WHY: Chunk selection in document detail pages needs to highlight specific
+  //      source lines. Instead of injecting <mark> HTML into the raw markdown
+  //      (which destroys heading/list/table parsing), we compute which block
+  //      tokens overlap the line range and apply CSS highlight at render time.
+  // ---------------------------------------------------------------------------
+  const highlightedIndices = useMemo(() => {
+    if (!highlightLineRange) return undefined;
+    const { startLine, endLine } = highlightLineRange;
+    const indices = new Set<number>();
+    let offset = 0; // newline-count-based line tracker
+
+    for (let i = 0; i < tokens.length; i++) {
+      const raw = (tokens[i] as { raw?: string }).raw || '';
+      if (!raw) continue;
+
+      const tokenStartLine = offset + 1;
+      const newlines = (raw.match(/\n/g) || []).length;
+      // Token end line: for "# Heading\n" (1 newline, trailing), content is on 1 line.
+      // For "Para\nmore\n" (2 newlines), content is on 2 lines.
+      const tokenEndLine = tokenStartLine + Math.max(0, newlines - (raw.endsWith('\n') ? 1 : 0));
+
+      if (tokenEndLine >= startLine && tokenStartLine <= endLine && tokens[i].type !== 'space') {
+        indices.add(i);
+      }
+
+      offset += newlines;
+    }
+
+    return indices.size > 0 ? indices : undefined;
+  }, [tokens, highlightLineRange]);
 
   // Check if there's a pending table
   const hasPendingTable = isStreaming && streamingStatus.incompleteType === 'table';
@@ -424,6 +466,7 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
         tokens={tokens}
         isStreaming={isStreaming}
         onSourceClick={onCitationClick}
+        highlightedIndices={highlightedIndices}
       />
       
       {/* Show table skeleton when table is being streamed */}

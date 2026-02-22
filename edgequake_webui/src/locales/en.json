@@ -28,6 +28,7 @@
     "tryAgain": "Try again",
     "retry": "Retry",
     "unknownError": "Unknown error",
+    "waiting": "Waiting...",
     "failed": "Failed",
     "platform": "Graph-RAG Platform",
     "navigation": "Navigation",
@@ -116,7 +117,8 @@
       "fileTooLarge": "File \"{{name}}\" is too large ({{size}}MB). Maximum size is 10MB.",
       "invalidType": "File \"{{name}}\" has an unsupported format. Supported: TXT, MD, JSON.",
       "viewInGraph": "View in Graph",
-      "duplicateSkipped": "Duplicate (skipped)"
+      "duplicateSkipped": "Duplicate (skipped)",
+      "uploadFailed": "Upload failed"
     },
     "duplicateDialog": {
       "titleSingle": "Duplicate document detected",

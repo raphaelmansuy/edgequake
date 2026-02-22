@@ -38,7 +38,8 @@
     "failed": "Échoué",
     "optional": "Optionnel",
     "retry": "Réessayer",
-    "unknownError": "Erreur inconnue"
+    "unknownError": "Erreur inconnue",
+    "waiting": "En attente..."
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -116,7 +117,8 @@
       "allFailed": "Les {{count}} fichier(s) ont tous échoué",
       "partial": "{{success}} fichier(s) téléchargé(s), {{failed}} en échec",
       "viewInGraph": "Voir dans le graphe",
-      "duplicateSkipped": "Doublon (ignoré)"
+      "duplicateSkipped": "Doublon (ignoré)",
+      "uploadFailed": "Échec de l'envoi"
     },
     "duplicateDialog": {
       "titleSingle": "Document doublon détecté",

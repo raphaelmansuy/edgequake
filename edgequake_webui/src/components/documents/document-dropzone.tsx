@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { Upload } from 'lucide-react';
 import type React from 'react';
 import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Props for the DocumentDropzone component.
@@ -40,6 +41,7 @@ export function DocumentDropzone({
   isDragActive,
   openFileDialog,
 }: DocumentDropzoneProps) {
+  const { t } = useTranslation();
   return (
     <div
       {...getRootProps({
@@ -48,7 +50,7 @@ export function DocumentDropzone({
           openFileDialog();
         },
         role: 'button' as const,
-        'aria-label': 'Upload files by clicking or dragging',
+        'aria-label': t('documents.upload.uploadDrop', 'Upload files by clicking or dragging'),
         tabIndex: 0,
       })}
       className={cn(
@@ -71,10 +73,10 @@ export function DocumentDropzone({
       </div>
       <div className="flex-1 min-w-0">
         {isDragActive ? (
-          <p className="text-sm font-medium text-primary">Drop files here</p>
+          <p className="text-sm font-medium text-primary">{t('documents.upload.uploadDropActive', 'Drop files here')}</p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Drag & drop or <span className="text-primary font-medium">click to upload</span> • TXT, MD, JSON, PDF (max 100MB)
+            {t('documents.upload.uploadDrop', 'Drag & drop or click to upload')} • TXT, MD, JSON, PDF (max 100MB)
           </p>
         )}
       </div>

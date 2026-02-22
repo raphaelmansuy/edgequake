@@ -38,7 +38,8 @@
     "failed": "失败",
     "optional": "可选",
     "retry": "重试",
-    "unknownError": "未知错误"
+    "unknownError": "未知错误",
+    "waiting": "等待中..."
   },
   "nav": {
     "dashboard": "仪表板",
@@ -116,7 +117,8 @@
       "allFailed": "所有 {{count}} 个文件上传失败",
       "partial": "已上传 {{success}} 个文件，{{failed}} 个失败",
       "viewInGraph": "在图中查看",
-      "duplicateSkipped": "重复文件（已跳过）"
+      "duplicateSkipped": "重复文件（已跳过）",
+      "uploadFailed": "上传失败"
     },
     "duplicateDialog": {
       "titleSingle": "检测到重复文档",

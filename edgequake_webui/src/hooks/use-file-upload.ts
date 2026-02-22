@@ -8,11 +8,11 @@
  */
 "use client";
 
-import type { UploadingFile } from "@/components/documents/types";
 import type {
   DuplicateResolutions,
   PendingDuplicate,
 } from "@/components/documents/duplicate-upload-dialog";
+import type { UploadingFile } from "@/components/documents/types";
 import {
   uploadDocument,
   uploadPdfDocument,
@@ -80,7 +80,9 @@ export function useFileUpload(
   const [isUploading, setIsUploading] = useState(false);
   // WHY: Duplicates are collected during the upload loop and shown to the
   // user in a single DuplicateUploadDialog after all files are processed.
-  const [pendingDuplicates, setPendingDuplicates] = useState<PendingDuplicate[]>([]);
+  const [pendingDuplicates, setPendingDuplicates] = useState<
+    PendingDuplicate[]
+  >([]);
 
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -107,7 +109,7 @@ export function useFileUpload(
         file,
         progress: 0,
         status: "pending" as const,
-        phase: "Waiting...",
+        phase: t("common.waiting", "Waiting..."),
       }));
       setUploadingFiles(initialFiles);
 
@@ -179,7 +181,14 @@ export function useFileUpload(
             response = {
               document_id: pdfResponse.document_id,
               pdf_id: pdfResponse.pdf_id,
-              duplicate_of: pdfResponse.duplicate_of,
+              // WHY: Backend returns duplicate_of when status is "duplicate".
+              // Fallback to pdf_id when status==="duplicate" but duplicate_of is
+              // missing (backward-compat with older backend versions).
+              duplicate_of:
+                pdfResponse.duplicate_of ??
+                (pdfResponse.status === "duplicate"
+                  ? pdfResponse.pdf_id
+                  : undefined),
               task_id: pdfResponse.task_id,
               track_id: pdfResponse.track_id,
             };
@@ -187,7 +196,9 @@ export function useFileUpload(
             // Optimistic update for PDF upload
             // WHY: PDFs must appear immediately in documents panel
             // FIX: Use predicate-based filter for reliable query matching
-            if (pdfResponse.pdf_id && !pdfResponse.duplicate_of) {
+            const isPdfDuplicate =
+              !!pdfResponse.duplicate_of || pdfResponse.status === "duplicate";
+            if (pdfResponse.pdf_id && !isPdfDuplicate) {
               const optimisticDoc: Document = {
                 id: pdfResponse.pdf_id,
                 title: file.name,
@@ -359,7 +370,9 @@ export function useFileUpload(
           successCount++;
         } catch (error) {
           const errorMessage =
-            error instanceof Error ? error.message : "Upload failed";
+            error instanceof Error
+              ? error.message
+              : t("documents.upload.uploadFailed", "Upload failed");
           setUploadingFiles((prev) =>
             prev.map((f, idx) =>
               idx === i
@@ -429,11 +442,11 @@ export function useFileUpload(
       // even if WebSocket updates are delayed or miss the initial document
       await queryClient.invalidateQueries({ queryKey: ["documents"] });
       // Force immediate refetch of all documents queries
-      queryClient.refetchQueries({ 
+      queryClient.refetchQueries({
         queryKey: ["documents"],
         type: "active",
       });
-      
+
       setIsUploading(false);
 
       // Clear upload list after delay
@@ -460,7 +473,7 @@ export function useFileUpload(
   const resolvePendingDuplicates = useCallback(
     (resolutions: DuplicateResolutions) => {
       for (const [existingDocId, decision] of Object.entries(resolutions)) {
-        if (decision === 'replace') {
+        if (decision === "replace") {
           onReplace?.(existingDocId);
         }
       }
