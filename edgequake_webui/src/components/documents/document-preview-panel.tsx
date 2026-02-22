@@ -186,8 +186,12 @@ export function DocumentPreviewPanel({
 
   if (!document) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center p-6">
-        <div className="rounded-full bg-muted p-4 mb-4">
+      <div
+        className="flex flex-col items-center justify-center h-full text-center p-6"
+        role="status"
+        aria-label={t('documents.preview.noSelection', 'No Document Selected')}
+      >
+        <div className="rounded-full bg-muted p-4 mb-4" aria-hidden="true">
           <FileText className="h-8 w-8 text-muted-foreground" />
         </div>
         <h3 className="font-medium mb-2">{t('documents.preview.noSelection', 'No Document Selected')}</h3>
@@ -211,7 +215,10 @@ export function DocumentPreviewPanel({
   const displayContent = showFullContent ? contentPreview : contentPreview.slice(0, previewLength);
 
   return (
-    <div className="space-y-4">
+    <article
+      className="space-y-4"
+      aria-label={document.title || document.file_name || t('documents.preview.title', 'Document Preview')}
+    >
       {/* Document Header */}
       <div className="space-y-2">
         <div className="flex items-start gap-3">
@@ -368,7 +375,7 @@ export function DocumentPreviewPanel({
               <CardContent className="p-3 space-y-2">
                 {/* Total Cost */}
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Total Cost</span>
+                  <span className="text-sm text-muted-foreground">{t('documents.preview.totalCost', 'Total Cost')}</span>
                   <span className={`text-sm font-semibold ${getCostColor(document.cost_usd)}`}>
                     {formatCost(document.cost_usd)}
                   </span>
@@ -378,8 +385,8 @@ export function DocumentPreviewPanel({
                 {document.total_tokens !== undefined && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Zap className="h-3 w-3" />
-                      Total Tokens
+                      <Zap className="h-3 w-3" aria-hidden="true" />
+                      {t('documents.preview.totalTokens', 'Total Tokens')}
                     </span>
                     <span className="text-sm font-medium">
                       {formatTokens(document.total_tokens)}
@@ -392,36 +399,66 @@ export function DocumentPreviewPanel({
                   <div className="pt-1 border-t border-border/50 space-y-1">
                     {document.input_tokens !== undefined && (
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Input Tokens</span>
+                        <span className="text-muted-foreground">{t('documents.preview.inputTokens', 'Input Tokens')}</span>
                         <span className="font-mono">{formatTokens(document.input_tokens)}</span>
                       </div>
                     )}
                     {document.output_tokens !== undefined && (
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Output Tokens</span>
+                        <span className="text-muted-foreground">{t('documents.preview.outputTokens', 'Output Tokens')}</span>
                         <span className="font-mono">{formatTokens(document.output_tokens)}</span>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Model Info */}
+                {/* Model Info — LLM, Embedding */}
                 {(document.llm_model || document.embedding_model) && (
                   <div className="pt-1 border-t border-border/50 space-y-1">
                     {document.llm_model && (
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">LLM Model</span>
-                        <code className="bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                        <span className="text-muted-foreground">{t('documents.preview.llmModel', 'LLM Model')}</span>
+                        <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] max-w-[60%] truncate" title={document.llm_model}>
                           {document.llm_model}
                         </code>
                       </div>
                     )}
                     {document.embedding_model && (
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Embedding</span>
-                        <code className="bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                        <span className="text-muted-foreground">{t('documents.preview.embedding', 'Embedding')}</span>
+                        <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] max-w-[60%] truncate" title={document.embedding_model}>
                           {document.embedding_model}
                         </code>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Vision Model — shown when PDF was processed with vision LLM (SPEC-040) */}
+                {(document.lineage?.pdf_vision_model || document.lineage?.pdf_extraction_method) && (
+                  <div className="pt-1 border-t border-border/50 space-y-1">
+                    {document.lineage?.pdf_vision_model && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Eye className="h-3 w-3" aria-hidden="true" />
+                          {t('documents.preview.visionModel', 'Vision Model')}
+                        </span>
+                        <code
+                          className="bg-violet-500/10 text-violet-700 dark:text-violet-300 px-1.5 py-0.5 rounded text-[10px] max-w-[60%] truncate"
+                          title={document.lineage.pdf_vision_model}
+                        >
+                          {document.lineage.pdf_vision_model}
+                        </code>
+                      </div>
+                    )}
+                    {document.lineage?.pdf_extraction_method && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          {t('documents.preview.extractionMethod', 'Extraction Method')}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] h-4 capitalize">
+                          {document.lineage.pdf_extraction_method}
+                        </Badge>
                       </div>
                     )}
                   </div>
@@ -509,7 +546,7 @@ export function DocumentPreviewPanel({
                   </h4>
                   {errorInfo.isTransient && (
                     <Badge variant="outline" className="text-[10px] text-green-600 border-green-200">
-                      Retryable
+                      {t('documents.preview.retryable', 'Retryable')}
                     </Badge>
                   )}
                 </div>
@@ -528,8 +565,8 @@ export function DocumentPreviewPanel({
                     
                     {/* Technical Details (collapsed) */}
                     <details className="text-xs">
-                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                        Technical details
+                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground select-none">
+                        {t('documents.preview.technicalDetails', 'Technical details')}
                       </summary>
                       <code className="block mt-1 p-2 bg-muted/50 rounded text-[10px] break-all">
                         {errorInfo.originalMessage}
@@ -670,12 +707,13 @@ export function DocumentPreviewPanel({
           size="sm"
           className="w-full h-8 text-xs"
           onClick={() => window.open(`/documents/${document.id}`, '_blank')}
+          aria-label={t('documents.actions.openInNewTab', 'Open in New Tab')}
         >
-          <ExternalLink className="h-3 w-3 mr-1.5" />
+          <ExternalLink className="h-3 w-3 mr-1.5" aria-hidden="true" />
           {t('documents.actions.openInNewTab', 'Open in New Tab')}
         </Button>
       </div>
-    </div>
+    </article>
   );
 }
 

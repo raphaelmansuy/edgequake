@@ -182,9 +182,11 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
           </div>
         )}
 
-        {/* Content */}
+        {/* Content
+             WHY: pb-8 ensures bottom items clear the bottom gradient shadow (h-6 = 24px)
+             and provides breathing room at the end of the panel. */}
         <ScrollArea className="flex-1 min-h-0" showShadows>
-          <div className="p-4">{children}</div>
+          <div className="px-4 pt-4 pb-8">{children}</div>
         </ScrollArea>
       </aside>
     );
