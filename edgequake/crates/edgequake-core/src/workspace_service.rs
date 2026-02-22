@@ -734,6 +734,8 @@ mod tests {
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,
+            vision_llm_model: None,
+            vision_llm_provider: None,
         };
 
         let workspace = service
@@ -766,6 +768,8 @@ mod tests {
                 embedding_model: None,
                 embedding_provider: None,
                 embedding_dimension: None,
+                vision_llm_model: None,
+                vision_llm_provider: None,
             };
             service
                 .create_workspace(tenant.tenant_id, request)
@@ -784,6 +788,8 @@ mod tests {
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,
+            vision_llm_model: None,
+            vision_llm_provider: None,
         };
         let result = service.create_workspace(tenant.tenant_id, request).await;
         assert!(result.is_err());
