@@ -525,6 +525,15 @@ pub struct DocumentLineage {
     /// Estimated cost in USD.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_usd: Option<f64>,
+
+    /// Vision LLM model used for PDF extraction (PDF documents only).
+    /// Set when the document was extracted using Vision LLM (SPEC-040).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_vision_model: Option<String>,
+
+    /// PDF extraction method used: "vision" or "text" (PDF documents only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_extraction_method: Option<String>,
 }
 
 // ============================================================================
@@ -795,6 +804,19 @@ pub struct ReprocessFailedRequest {
     /// Force reprocess even if document is not failed. Default: false.
     #[serde(default)]
     pub force: bool,
+}
+
+/// WHY: Manual Default impl ensures max_documents defaults to 100 (same as serde default),
+/// not 0 (usize::default()). Used when handler receives missing/empty request body.
+impl Default for ReprocessFailedRequest {
+    fn default() -> Self {
+        Self {
+            document_id: None,
+            track_id: None,
+            max_documents: default_max_reprocess(),
+            force: false,
+        }
+    }
 }
 
 /// Response from reprocess operation.

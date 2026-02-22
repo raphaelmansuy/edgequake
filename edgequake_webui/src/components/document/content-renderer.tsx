@@ -69,7 +69,7 @@ export function ContentRenderer({ document, highlightText, startLine, endLine }:
   }, [highlightText, startLine, endLine]);
 
   return (
-    <div ref={contentRef} className="p-8 max-w-4xl mx-auto">
+    <div ref={contentRef} className="pt-12 px-8 pb-16 max-w-4xl mx-auto">
       <Suspense fallback={<ContentSkeleton />}>
         {renderer}
       </Suspense>

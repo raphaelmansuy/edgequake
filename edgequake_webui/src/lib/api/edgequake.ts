@@ -816,7 +816,9 @@ export interface ReprocessFailedResponse {
  * @returns ReprocessFailedResponse with track_id, counts, and document_ids
  */
 export async function reprocessFailedDocuments(): Promise<ReprocessFailedResponse> {
-  return api.post<ReprocessFailedResponse>("/documents/reprocess");
+  // WHY: Backend requires a JSON body (even empty {}); sending no body causes HTTP 400
+  // "EOF while parsing a value at line 1 column 0"
+  return api.post<ReprocessFailedResponse>("/documents/reprocess", {});
 }
 
 // ============================================================================
