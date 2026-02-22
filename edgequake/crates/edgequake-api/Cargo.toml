@@ -27,8 +27,8 @@ edgequake-audit = { path = "../edgequake-audit" }
 edgequake-pdf = { path = "../edgequake-pdf" }
 # PDF vision extraction via VLM — bundled pdfium, multi-provider, 10-rule post-processing
 # WHY: edgequake-pdf2md provides higher quality vision extraction than internal implementation
-# v0.4.4: max_tokens → max_completion_tokens fix (issue #13) for gpt-4.1-nano compatibility
-edgequake-pdf2md = "=0.4.4"
+# v0.4.6: latest stable release with improvements
+edgequake-pdf2md = "=0.4.6"
 
 axum.workspace = true
 axum-extra = { version = "0.10", features = ["multipart"] }
