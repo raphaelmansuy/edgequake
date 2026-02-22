@@ -2,12 +2,12 @@
  * @fileoverview Dialog for resolving duplicate document uploads.
  *
  * WHY: When the backend detects a duplicate (same SHA-256 per workspace),
- * we need user confirmation before deciding to reprocess the existing
- * document or skip the upload. This is especially important for batch
- * uploads where multiple files may be duplicates.
+ * we need user confirmation before deciding to replace the existing
+ * document (delete old + upload new) or skip the upload. This is especially
+ * important for batch uploads where multiple files may be duplicates.
  *
  * @implements FEAT-dup-detection - Duplicate upload resolution dialog
- * @implements BR-dup-replace    - Replace = reprocess existing document
+ * @implements BR-dup-replace    - Replace = force_reindex re-upload for PDFs
  * @implements BR-dup-skip       - Skip = silently discard duplicate upload
  */
 'use client';
@@ -39,6 +39,8 @@ export interface PendingDuplicate {
   fileName: string;
   /** Existing document ID that matches (short form shown to user) */
   existingDocId: string;
+  /** The original File object so it can be re-uploaded after replacing */
+  file: File;
 }
 
 /** User decision for a single duplicate. */

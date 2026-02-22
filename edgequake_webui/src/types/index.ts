@@ -379,6 +379,14 @@ export interface PdfUploadOptions {
   metadata?: Record<string, unknown>;
   /** Batch tracking ID (optional) - OODA-19 */
   track_id?: string;
+  /**
+   * Force re-indexing of duplicate PDF (default: false).
+   * WHY (OODA-08): When true, existing graph/vector data is cleared
+   * and the document is re-processed with current LLM/config.
+   * Used by duplicate Replace flow instead of DELETE + re-upload.
+   * @implements BR-dup-replace - Replace = force_reindex on existing PDF
+   */
+  force_reindex?: boolean;
 }
 
 export interface PdfMetadata {
