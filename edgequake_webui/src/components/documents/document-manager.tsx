@@ -50,24 +50,24 @@ import { DuplicateUploadDialog } from './duplicate-upload-dialog';
 export function DocumentManager() {
   const { t } = useTranslation();
   const router = useRouter();
-  
+
   // Get tenant context for query key
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
-  
+
   // Selected document for preview panel
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
-  
+
   // SPEC-002: Document viewer dialog state for PDF/Markdown side-by-side view
   const [viewerDialogOpen, setViewerDialogOpen] = useState(false);
   const [viewerPdfId, setViewerPdfId] = useState<string | null>(null);
-  
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   // OODA-17: Filter, sort, and pagination preferences with localStorage persistence
   const {
     pageSize, setPageSize,
@@ -75,7 +75,7 @@ export function DocumentManager() {
     sortField, setSortField,
     sortDirection, setSortDirection,
   } = useDocumentPreferences();
-  
+
   // Pipeline status dialog state
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
 
@@ -101,6 +101,7 @@ export function DocumentManager() {
     deleteAllMutation,
     reprocessMutation,
     cancelMutation,
+    retryTaskMutation,
   } = useDocumentMutations({
     onReprocessSuccess: () => setPipelineDialogOpen(true),
   });
@@ -215,7 +216,7 @@ export function DocumentManager() {
             tenantId={selectedTenantId ?? undefined}
             workspaceId={selectedWorkspaceId ?? undefined}
           />
-      
+
           {/* OODA-30: Toolbar section extracted to DocumentToolbarSection */}
           <DocumentToolbarSection
             searchQuery={searchQuery}
@@ -245,7 +246,7 @@ export function DocumentManager() {
             onUploadFailed={handleUploadFailed}
           />
 
-      </div>
+        </div>
 
       {/* OODA-26: Table section extracted to DocumentTableSection */}
       <DocumentTableSection

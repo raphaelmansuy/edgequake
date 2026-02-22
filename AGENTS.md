@@ -450,28 +450,30 @@ curl http://localhost:8080/health
 
 **Symptoms**:
 
-- Document status shows "Failed" with "Failed to load pdfium library"
+- Document status shows "Failed" with "Pipeline processing failed: ..."
 - Side-by-side viewer shows PDF but no markdown
 
-**Solution**:
+**Solution** (v0.4.0+):
+
+Since `v0.4.0`, pdfium is **embedded in the binary** via `edgequake-pdf2md v0.4.1`. No external
+library or environment variable setup is needed. If PDF extraction fails, check:
 
 ```bash
-# Verify libpdfium.dylib exists
-ls -lh edgequake/crates/edgequake-pdf/lib/lib/libpdfium.dylib
+# 1. Ensure the vision LLM provider is accessible
+curl http://localhost:8080/health | python3 -m json.tool
 
-# If missing, download it:
-cd edgequake/crates/edgequake-pdf
-./scripts/download-pdfium.sh
+# 2. Verify Ollama is running (if using Ollama vision)
+curl http://localhost:11434/api/tags
 
-# Set environment variable manually:
-export PDFIUM_DYNAMIC_LIB_PATH="$(pwd)/edgequake/crates/edgequake-pdf/lib/lib/libpdfium.dylib"
+# 3. Check backend logs for the specific error
+grep -i "Failed\|error" /tmp/edgequake-backend.log | tail -20
 
-# Restart backend
+# 4. Restart and retry
 make stop
 make dev-bg
 ```
 
-**Note**: `PDFIUM_DYNAMIC_LIB_PATH` is set automatically by Makefile since iteration 01 (commit b1611b45). This issue should not occur with current code.
+**Note**: There is no `PDFIUM_DYNAMIC_LIB_PATH` required since v0.4.0. The binary includes pdfium compiled for your platform via `pdfium-auto`.
 
 #### Problem: Entity Extraction Fails
 
@@ -672,7 +674,6 @@ make backend-bg
 | `EDGEQUAKE_EMBEDDING_PROVIDER` | Optional | Hybrid mode: separate embedding | `ollama` (use with `EDGEQUAKE_LLM_PROVIDER=openai`)  |
 | `OLLAMA_HOST`                  | Optional | Ollama server URL               | `http://localhost:11434`                             |
 | `OLLAMA_EMBEDDING_MODEL`       | Optional | Ollama embedding model          | `embeddinggemma:latest`                              |
-| `PDFIUM_DYNAMIC_LIB_PATH`      | Auto-set | PDF extraction library          | Set by Makefile                                      |
 | `RUST_LOG`                     | Optional | Logging level                   | `debug`, `info`, `warn`                              |
 
 ### Hybrid Provider Mode (SPEC-033)

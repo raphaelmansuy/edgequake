@@ -274,7 +274,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
+        # WHY: Use pre-built binary to avoid compiling native-tls v0.2.17 which fails on Rust 1.85+
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2

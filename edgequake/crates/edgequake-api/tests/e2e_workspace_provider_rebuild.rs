@@ -61,6 +61,9 @@ async fn test_workspace_update_changes_provider_config() {
         embedding_model: Some("mock-embed-v1".to_string()),
         embedding_provider: Some("mock".to_string()),
         embedding_dimension: Some(768),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = state
@@ -139,6 +142,9 @@ async fn test_pipeline_uses_updated_workspace_config() {
         embedding_model: Some("initial-embed".to_string()),
         embedding_provider: Some("mock".to_string()),
         embedding_dimension: Some(768),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = state
@@ -274,6 +280,9 @@ async fn test_concurrent_workspace_pipelines() {
             embedding_model: Some(format!("embed-{}", i)),
             embedding_provider: Some("mock".to_string()),
             embedding_dimension: Some(768 + (i * 256) as usize),
+
+            vision_provider: None,
+            vision_model: None,
         };
 
         let ws = state
@@ -348,6 +357,9 @@ async fn test_invalid_provider_logs_error_and_falls_back() {
         embedding_model: Some("text-embedding-3-small".to_string()),
         embedding_provider: Some("openai".to_string()),
         embedding_dimension: Some(1536),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = state

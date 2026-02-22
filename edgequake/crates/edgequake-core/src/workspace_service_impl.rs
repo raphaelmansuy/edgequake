@@ -440,7 +440,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .bind(&workspace.slug)
         .bind(&workspace.description)
         .bind(workspace.is_active)
-        // SPEC-032: Store LLM and embedding config in metadata until migration adds dedicated columns
+        // SPEC-032/SPEC-040: Store LLM, embedding, and vision config in metadata
         .bind({
             let mut metadata = workspace.metadata.clone();
             // LLM configuration

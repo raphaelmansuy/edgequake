@@ -2006,7 +2006,6 @@ impl DocumentTaskProcessor {
         task: &mut Task,
         data: edgequake_tasks::PdfProcessingData,
     ) -> TaskResult<serde_json::Value> {
-        use edgequake_pdf::PdfExtractor;
         use edgequake_storage::{
             ExtractionMethod, PdfProcessingStatus, UpdatePdfProcessingRequest,
         };
@@ -2151,8 +2150,9 @@ impl DocumentTaskProcessor {
             callback = callback.with_broadcaster(broadcaster.clone());
         }
         let progress_callback = Arc::new(callback);
-        // OODA-09: Coerce to trait object for use with extract_to_markdown_with_progress
-        let progress_callback: Arc<dyn edgequake_pdf::ProgressCallback> = progress_callback;
+        // SPEC-040: Coerce to ConversionProgressCallback (edgequake-pdf2md)
+        let progress_callback: Arc<dyn edgequake_pdf2md::ConversionProgressCallback> =
+            progress_callback;
 
         // 4. Extract content (vision or text mode)
         // SPEC-007: Vision → edgequake-pdf2md v0.4.2 (bundled pdfium, multi-provider,
@@ -2244,6 +2244,50 @@ impl DocumentTaskProcessor {
                 })?;
             (md, ExtractionMethod::Text, None)
         };
+
+        info!(
+            pdf_id = %data.pdf_id,
+            vision_provider = %vision_provider_name,
+            vision_model = %vision_model,
+            "Starting VLM-based PDF extraction via edgequake-pdf2md"
+        );
+
+        let pdf2md_config = edgequake_pdf2md::ConversionConfig::builder()
+            .dpi(150)
+            .temperature(0.1)
+            .model(vision_model.clone())
+            .provider_name(vision_provider_name)
+            .progress_callback(Arc::clone(&progress_callback))
+            .build()
+            .map_err(|e| {
+                edgequake_tasks::TaskError::Processing(format!(
+                    "PDF conversion config error: {}",
+                    e
+                ))
+            })?;
+
+        // 4. Extract content via edgequake-pdf2md (always VLM vision pipeline)
+        // SPEC-040 v0.4.1: edgequake-pdf2md v0.4.1 embeds pdfium via pdfium-auto — no
+        // external dylib or PDFIUM_DYNAMIC_LIB_PATH needed. However the async future
+        // returned by convert_from_bytes is still not Send-general (internal Rc/RefCell
+        // used by pdfium-render). We use block_in_place + block_on to drive the non-Send
+        // future off the Tokio executor thread while still correctly running all
+        // async HTTP calls inside the library.
+        let pdf_bytes_owned = pdf.pdf_data.clone();
+        let pdf2md_output = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                edgequake_pdf2md::convert_from_bytes(&pdf_bytes_owned, &pdf2md_config).await
+            })
+        })
+        .map_err(|e| {
+            edgequake_tasks::TaskError::Processing(format!("Pipeline processing failed: {}", e))
+        })?;
+
+        let (markdown, extraction_method, used_vision_model) = (
+            pdf2md_output.markdown,
+            ExtractionMethod::Vision,
+            Some(vision_model),
+        );
 
         info!(
             pdf_id = %data.pdf_id,

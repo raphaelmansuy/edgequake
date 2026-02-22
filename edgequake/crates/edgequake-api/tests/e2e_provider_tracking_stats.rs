@@ -54,6 +54,9 @@ async fn create_workspace_with_providers(
         embedding_provider: Some(embedding_provider.to_string()),
         embedding_model: Some(embedding_model.to_string()),
         embedding_dimension: Some(embedding_dimension),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     state
@@ -170,6 +173,9 @@ async fn test_provider_switch_updates_names() {
         embedding_provider: Some("lmstudio".to_string()),
         embedding_model: Some("text-embedding-nomic".to_string()),
         embedding_dimension: Some(384),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let updated = state

@@ -695,6 +695,20 @@ impl Workspace {
             None
         }
     }
+
+    // === Vision Configuration Builder Methods (SPEC-040) ===
+
+    /// Set the vision LLM provider for PDF-to-Markdown conversion.
+    pub fn with_vision_provider(mut self, provider: impl Into<String>) -> Self {
+        self.vision_provider = Some(provider.into());
+        self
+    }
+
+    /// Set the vision LLM model for PDF-to-Markdown conversion.
+    pub fn with_vision_model(mut self, model: impl Into<String>) -> Self {
+        self.vision_model = Some(model.into());
+        self
+    }
 }
 
 /// A user's membership in a tenant/workspace.

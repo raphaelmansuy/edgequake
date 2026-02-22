@@ -76,6 +76,9 @@ async fn create_test_workspace_with_config(
         embedding_model: Some(embedding_model.to_string()),
         embedding_provider: Some(embedding_provider.to_string()),
         embedding_dimension: Some(embedding_dimension),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     state
@@ -246,6 +249,9 @@ async fn test_document_provider_switch_config() {
         embedding_model: Some("text-embedding-3-small".to_string()),
         embedding_provider: Some("openai".to_string()),
         embedding_dimension: Some(1536),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     state
