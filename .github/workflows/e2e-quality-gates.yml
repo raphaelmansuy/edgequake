@@ -109,9 +109,9 @@ jobs:
         run: |
           chmod +x ./backend/edgequake
           DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edgequake_test" \
-          LLM_PROVIDER=mock \
+          EDGEQUAKE_LLM_PROVIDER=mock \
           ./backend/edgequake &
-          sleep 5
+          sleep 15
           curl -f http://localhost:8080/health || exit 1
         env:
           RUST_LOG: info
@@ -184,7 +184,7 @@ jobs:
         run: |
           chmod +x ./backend/edgequake
           DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edgequake_test" \
-          LLM_PROVIDER=mock \
+          EDGEQUAKE_LLM_PROVIDER=mock \
           ./backend/edgequake &
           cd edgequake_webui && pnpm dev &
           sleep 15
@@ -241,7 +241,7 @@ jobs:
         run: |
           chmod +x ./backend/edgequake
           DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edgequake_test" \
-          LLM_PROVIDER=mock \
+          EDGEQUAKE_LLM_PROVIDER=mock \
           ./backend/edgequake &
           cd edgequake_webui && pnpm dev &
           sleep 15
