@@ -32,6 +32,12 @@ interface MarkdownTokensProps {
   isStreaming?: boolean;
   className?: string;
   onSourceClick?: (sourceId: string) => void;
+  /**
+   * Set of token indices that should be visually highlighted.
+   * WHY: Supports chunk/line selection in document detail without
+   *      injecting HTML into raw markdown (preserves structure).
+   */
+  highlightedIndices?: Set<number>;
 }
 
 interface TokenRendererProps {
@@ -367,21 +373,39 @@ export const MarkdownTokens = memo(function MarkdownTokens({
   isStreaming = false,
   className,
   onSourceClick,
+  highlightedIndices,
 }: MarkdownTokensProps) {
   const baseId = useId();
   
   return (
     <div className={cn('markdown-content', className)}>
-      {tokens.map((token, index) => (
-        <TokenRenderer
-          key={index}
-          token={token}
-          tokenId={`${baseId}-${index}`}
-          isStreaming={isStreaming}
-          isLastToken={index === tokens.length - 1}
-          onSourceClick={onSourceClick}
-        />
-      ))}
+      {tokens.map((token, index) => {
+        const isHighlighted = highlightedIndices?.has(index) && token.type !== 'space';
+        const rendered = (
+          <TokenRenderer
+            key={isHighlighted ? `hl-${index}` : index}
+            token={token}
+            tokenId={`${baseId}-${index}`}
+            isStreaming={isStreaming}
+            isLastToken={index === tokens.length - 1}
+            onSourceClick={onSourceClick}
+          />
+        );
+
+        if (isHighlighted) {
+          return (
+            <div
+              key={index}
+              className="highlight-block -mx-4 px-4 border-l-[3px] border-yellow-500 dark:border-yellow-400 bg-yellow-500/10 dark:bg-yellow-400/10 rounded-r-md"
+              data-highlighted="true"
+            >
+              {rendered}
+            </div>
+          );
+        }
+
+        return rendered;
+      })}
     </div>
   );
 });

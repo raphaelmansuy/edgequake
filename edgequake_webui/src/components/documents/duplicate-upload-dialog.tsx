@@ -15,16 +15,16 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileText, RefreshCw, SkipForward } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 // ---------------------------------------------------------------------------
@@ -67,17 +67,25 @@ export function DuplicateUploadDialog({
 }: DuplicateUploadDialogProps) {
   const { t } = useTranslation();
 
-  // Per-file decision state: true = replace, false = skip
+  // Per-file decision state: 'replace' is the default (user expects reprocess)
   const [decisions, setDecisions] = useState<Record<string, DuplicateDecision>>(
-    () => Object.fromEntries(duplicates.map((d) => [d.existingDocId, 'skip'])),
+    () => Object.fromEntries(duplicates.map((d) => [d.existingDocId, 'replace'])),
   );
 
-  // Keep decisions in sync when duplicates change (e.g. new batch)
-  // We only add NEW entries; we don't reset existing choices.
+  // Reset decisions when a new batch of duplicates arrives
+  // WHY: useState initializer only runs on mount; if component stays mounted
+  //      while duplicates change, decisions must be re-initialized.
+  useEffect(() => {
+    setDecisions(
+      Object.fromEntries(duplicates.map((d) => [d.existingDocId, 'replace'])),
+    );
+  }, [duplicates]);
+
+  // Derived list with per-file decision for rendering
   const decisionEntries = useMemo(() => {
     return duplicates.map((d) => ({
       ...d,
-      decision: decisions[d.existingDocId] ?? 'skip',
+      decision: decisions[d.existingDocId] ?? 'replace',
     }));
   }, [duplicates, decisions]);
 

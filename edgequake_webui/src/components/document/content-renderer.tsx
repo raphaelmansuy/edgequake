@@ -43,19 +43,16 @@ export function ContentRenderer({ document, highlightText, startLine, endLine }:
       const container = contentRef.current;
       if (!container) return;
       
-      // Priority 1: Scroll to line numbers if provided
+      // Priority 1: Scroll to highlighted block (token-level highlighting)
       if (startLine !== undefined) {
-        const lineElements = container.querySelectorAll('[data-line-number]');
-        const targetLine = Array.from(lineElements).find(
-          el => parseInt(el.getAttribute('data-line-number') || '0') >= startLine
-        );
-        if (targetLine) {
-          targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const highlightedBlock = container.querySelector('[data-highlighted="true"]');
+        if (highlightedBlock) {
+          highlightedBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return;
         }
       }
       
-      // Priority 2: Find highlighted text element (fallback)
+      // Priority 2: Find highlighted text element (line-number or match fallback)
       const highlightedElements = container.querySelectorAll('mark.highlight-citation, mark.highlight-match');
       if (highlightedElements.length > 0) {
         highlightedElements[0].scrollIntoView({ 
@@ -80,25 +77,31 @@ export function ContentRenderer({ document, highlightText, startLine, endLine }:
 function getRendererForDocument(doc: Document, highlightText?: string, startLine?: number, endLine?: number) {
   const mimeType = doc.mime_type?.toLowerCase() || '';
   const fileName = doc.file_name?.toLowerCase() || '';
-  let content = doc.content || doc.content_summary || '';
+  const content = doc.content || doc.content_summary || '';
 
-  // Apply highlight to content
-  // Priority 1: Line-based highlighting (stabilo effect)
-  if (startLine !== undefined && endLine !== undefined) {
-    content = applyLineHighlight(content, startLine, endLine);
-  } 
-  // Priority 2: Text-based highlighting (fallback)
-  else if (highlightText && content) {
-    content = applyTextHighlight(content, highlightText);
-  }
-
-  // Markdown documents
+  // ---------------------------------------------------------------------------
+  // Markdown documents — use token-level highlighting (not HTML injection).
+  //
+  // WHY: applyLineHighlight wraps lines in <mark>/<span> HTML tags which
+  //      DESTROYS markdown structure (headings, lists, tables) because:
+  //      1. <mark># Heading</mark> is not a heading (# is inside HTML)
+  //      2. The inline HTML handler only renders <br>/<wbr>, not <mark>
+  //      3. All other inline HTML is rendered as literal text
+  //
+  // FIX: Pass highlightLineRange to StreamingMarkdownRenderer which computes
+  //      token-to-line mapping and wraps matching tokens in CSS-highlighted divs.
+  // ---------------------------------------------------------------------------
   if (
     isMarkdown(mimeType) ||
     fileName.endsWith('.md') ||
     fileName.endsWith('.markdown') ||
     hasMarkdownSignature(content)
   ) {
+    const highlightLineRange =
+      startLine !== undefined && endLine !== undefined
+        ? { startLine, endLine }
+        : undefined;
+
     return (
       <article className="
         prose prose-lg dark:prose-invert max-w-none
@@ -125,9 +128,20 @@ function getRendererForDocument(doc: Document, highlightText?: string, startLine
         <StreamingMarkdownRenderer
           content={content}
           className="text-sm leading-relaxed"
+          highlightLineRange={highlightLineRange}
         />
       </article>
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Non-markdown paths: apply HTML-based highlighting to content
+  // ---------------------------------------------------------------------------
+  let processedContent = content;
+  if (startLine !== undefined && endLine !== undefined) {
+    processedContent = applyLineHighlight(processedContent, startLine, endLine);
+  } else if (highlightText && processedContent) {
+    processedContent = applyTextHighlight(processedContent, highlightText);
   }
 
   // Code files
@@ -135,7 +149,7 @@ function getRendererForDocument(doc: Document, highlightText?: string, startLine
     const language = detectLanguage(mimeType, fileName);
     return (
       <CodeRenderer
-        content={content}
+        content={processedContent}
         language={language}
         showLineNumbers
       />
@@ -145,7 +159,7 @@ function getRendererForDocument(doc: Document, highlightText?: string, startLine
   // JSON/Structured data
   if (mimeType === 'application/json' || fileName.endsWith('.json')) {
     try {
-      const parsed = JSON.parse(content);
+      const parsed = JSON.parse(processedContent);
       return (
         <CodeRenderer
           content={JSON.stringify(parsed, null, 2)}
@@ -159,7 +173,7 @@ function getRendererForDocument(doc: Document, highlightText?: string, startLine
   }
 
   // Fallback: Plain text with smart formatting
-  return <PlainTextRenderer content={content} />;
+  return <PlainTextRenderer content={processedContent} />;
 }
 
 // Helper functions

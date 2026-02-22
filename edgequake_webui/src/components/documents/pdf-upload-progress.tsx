@@ -42,7 +42,7 @@ import {
     StopCircle,
     XCircle,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ErrorBanner } from "./error-banner";
 
 // ============================================================================
@@ -295,12 +295,20 @@ export function PdfUploadProgress({
     error,
   } = usePdfProgress(trackId);
 
-  // Handle completion/failure callbacks
-  useMemo(() => {
-    if (progress?.status === "completed" && onComplete) {
+  // WHY: useEffect (not useMemo) because calling parent setState during render
+  // causes "Cannot update a component while rendering a different component"
+  // and eventually "Maximum update depth exceeded".
+  // The ref prevents double-firing on re-renders with unstable callback refs.
+  const completionFiredRef = useRef(false);
+  const failureFiredRef = useRef(false);
+
+  useEffect(() => {
+    if (progress?.status === "completed" && onComplete && !completionFiredRef.current) {
+      completionFiredRef.current = true;
       onComplete();
     }
-    if (progress?.status === "failed" && onFailed && progress.error) {
+    if (progress?.status === "failed" && onFailed && progress.error && !failureFiredRef.current) {
+      failureFiredRef.current = true;
       onFailed(progress.error);
     }
   }, [progress?.status, progress?.error, onComplete, onFailed]);
