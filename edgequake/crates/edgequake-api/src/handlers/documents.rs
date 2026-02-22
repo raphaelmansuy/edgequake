@@ -4383,6 +4383,7 @@ pub async fn reprocess_failed(
                     enable_vision: true,
                     vision_provider: vision_provider.clone(),
                     vision_model: vision_model.clone(),
+                    existing_document_id: pdf.document_id.map(|id| id.to_string()),
                 };
 
                 let track_id = format!("pdf-{}", Uuid::new_v4());
