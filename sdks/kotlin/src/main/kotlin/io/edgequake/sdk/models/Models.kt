@@ -381,8 +381,43 @@ data class CreateApiKeyResponse(
 data class TenantInfo(
     val id: String? = null,
     val name: String? = null,
-    val slug: String? = null
+    val slug: String? = null,
+    val plan: String? = null,
+    @JsonProperty("is_active") val isActive: Boolean? = null,
+    @JsonProperty("max_workspaces") val maxWorkspaces: Int? = null,
+    // Default LLM configuration for new workspaces.
+    @JsonProperty("default_llm_model") val defaultLlmModel: String? = null,
+    @JsonProperty("default_llm_provider") val defaultLlmProvider: String? = null,
+    @JsonProperty("default_llm_full_id") val defaultLlmFullId: String? = null,
+    // Default embedding configuration for new workspaces.
+    @JsonProperty("default_embedding_model") val defaultEmbeddingModel: String? = null,
+    @JsonProperty("default_embedding_provider") val defaultEmbeddingProvider: String? = null,
+    @JsonProperty("default_embedding_dimension") val defaultEmbeddingDimension: Int? = null,
+    @JsonProperty("default_embedding_full_id") val defaultEmbeddingFullId: String? = null,
+    // Default vision LLM for PDF image extraction (SPEC-041).
+    @JsonProperty("default_vision_llm_model") val defaultVisionLlmModel: String? = null,
+    @JsonProperty("default_vision_llm_provider") val defaultVisionLlmProvider: String? = null,
+    @JsonProperty("created_at") val createdAt: String? = null,
+    @JsonProperty("updated_at") val updatedAt: String? = null
 )
+
+data class CreateTenantRequest(
+    val name: String,
+    val slug: String? = null,
+    val description: String? = null,
+    val plan: String? = null,
+    // Default LLM configuration.
+    @JsonProperty("default_llm_model") val defaultLlmModel: String? = null,
+    @JsonProperty("default_llm_provider") val defaultLlmProvider: String? = null,
+    // Default embedding configuration.
+    @JsonProperty("default_embedding_model") val defaultEmbeddingModel: String? = null,
+    @JsonProperty("default_embedding_provider") val defaultEmbeddingProvider: String? = null,
+    @JsonProperty("default_embedding_dimension") val defaultEmbeddingDimension: Int? = null,
+    // Default vision LLM (SPEC-041).
+    @JsonProperty("default_vision_llm_model") val defaultVisionLlmModel: String? = null,
+    @JsonProperty("default_vision_llm_provider") val defaultVisionLlmProvider: String? = null
+)
+
 data class TenantListResponse(val items: List<TenantInfo>? = null)
 
 // ── Conversations ───────────────────────────────────────────────────

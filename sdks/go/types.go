@@ -295,8 +295,20 @@ type APIKeyInfo struct {
 }
 
 type CreateTenantParams struct {
-	Name string `json:"name"`
-	Slug string `json:"slug,omitempty"`
+	Name        string `json:"name"`
+	Slug        string `json:"slug,omitempty"`
+	Description string `json:"description,omitempty"`
+	Plan        string `json:"plan,omitempty"`
+	// Default LLM configuration for new workspaces.
+	DefaultLLMModel        string `json:"default_llm_model,omitempty"`
+	DefaultLLMProvider     string `json:"default_llm_provider,omitempty"`
+	// Default embedding configuration for new workspaces.
+	DefaultEmbeddingModel     string `json:"default_embedding_model,omitempty"`
+	DefaultEmbeddingProvider  string `json:"default_embedding_provider,omitempty"`
+	DefaultEmbeddingDimension int    `json:"default_embedding_dimension,omitempty"`
+	// Default vision LLM for PDF image extraction (SPEC-041). Workspaces inherit this.
+	DefaultVisionLLMModel    string `json:"default_vision_llm_model,omitempty"`
+	DefaultVisionLLMProvider string `json:"default_vision_llm_provider,omitempty"`
 }
 
 type TenantInfo struct {
@@ -311,6 +323,9 @@ type TenantInfo struct {
 	DefaultEmbeddingModel     string `json:"default_embedding_model,omitempty"`
 	DefaultEmbeddingProvider  string `json:"default_embedding_provider,omitempty"`
 	DefaultEmbeddingDimension int    `json:"default_embedding_dimension,omitempty"`
+	// Vision LLM defaults (SPEC-041) – only present when configured.
+	DefaultVisionLLMModel    string `json:"default_vision_llm_model,omitempty"`
+	DefaultVisionLLMProvider string `json:"default_vision_llm_provider,omitempty"`
 	CreatedAt                 string `json:"created_at,omitempty"`
 	UpdatedAt                 string `json:"updated_at,omitempty"`
 }
@@ -591,6 +606,16 @@ type CreateWorkspaceParams struct {
 	Name        string `json:"name"`
 	Slug        string `json:"slug,omitempty"`
 	Description string `json:"description,omitempty"`
+	// LLM configuration for this workspace.
+	LLMModel    string `json:"llm_model,omitempty"`
+	LLMProvider string `json:"llm_provider,omitempty"`
+	// Embedding configuration for this workspace.
+	EmbeddingModel     string `json:"embedding_model,omitempty"`
+	EmbeddingProvider  string `json:"embedding_provider,omitempty"`
+	EmbeddingDimension int    `json:"embedding_dimension,omitempty"`
+	// Vision LLM for PDF image extraction (SPEC-041). Inherits from tenant if not set.
+	VisionLLMModel    string `json:"vision_llm_model,omitempty"`
+	VisionLLMProvider string `json:"vision_llm_provider,omitempty"`
 }
 
 type WorkspaceInfo struct {
@@ -599,7 +624,20 @@ type WorkspaceInfo struct {
 	Slug        string `json:"slug,omitempty"`
 	Description string `json:"description,omitempty"`
 	TenantID    string `json:"tenant_id,omitempty"`
+	// LLM model used for knowledge graph generation.
+	LLMModel    string `json:"llm_model,omitempty"`
+	LLMProvider string `json:"llm_provider,omitempty"`
+	LLMFullID   string `json:"llm_full_id,omitempty"`
+	// Embedding model used for vector storage.
+	EmbeddingModel     string `json:"embedding_model,omitempty"`
+	EmbeddingProvider  string `json:"embedding_provider,omitempty"`
+	EmbeddingDimension int    `json:"embedding_dimension,omitempty"`
+	EmbeddingFullID    string `json:"embedding_full_id,omitempty"`
+	// Vision LLM – only present when configured or inherited from tenant.
+	VisionLLMModel    string `json:"vision_llm_model,omitempty"`
+	VisionLLMProvider string `json:"vision_llm_provider,omitempty"`
 	CreatedAt   string `json:"created_at,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
 }
 
 type WorkspaceStats struct {

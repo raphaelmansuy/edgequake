@@ -76,6 +76,27 @@ pub struct CreateTenantRequest {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slug: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+    // Default LLM configuration for new workspaces.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_llm_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_llm_provider: Option<String>,
+    // Default embedding configuration for new workspaces.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_embedding_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_embedding_provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_embedding_dimension: Option<u32>,
+    // Default vision LLM for PDF image extraction (SPEC-041).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_vision_llm_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_vision_llm_provider: Option<String>,
 }
 
 /// Tenant info.
@@ -89,6 +110,29 @@ pub struct TenantInfo {
     pub plan: Option<String>,
     #[serde(default)]
     pub is_active: Option<bool>,
+    // Default LLM configuration.
+    #[serde(default)]
+    pub default_llm_model: Option<String>,
+    #[serde(default)]
+    pub default_llm_provider: Option<String>,
+    #[serde(default)]
+    pub default_llm_full_id: Option<String>,
+    // Default embedding configuration.
+    #[serde(default)]
+    pub default_embedding_model: Option<String>,
+    #[serde(default)]
+    pub default_embedding_provider: Option<String>,
+    #[serde(default)]
+    pub default_embedding_dimension: Option<u32>,
+    // Default vision LLM (SPEC-041) – only present when configured.
+    #[serde(default)]
+    pub default_vision_llm_model: Option<String>,
+    #[serde(default)]
+    pub default_vision_llm_provider: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 /// Tenant list response from GET /api/v1/tenants.

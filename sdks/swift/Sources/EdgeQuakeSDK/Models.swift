@@ -250,6 +250,40 @@ public struct TenantInfo: Codable, Sendable {
     public let id: String?
     public let name: String?
     public let slug: String?
+    public let plan: String?
+    public let isActive: Bool?
+    public let maxWorkspaces: Int?
+    // Default LLM configuration for new workspaces.
+    public let defaultLlmModel: String?
+    public let defaultLlmProvider: String?
+    public let defaultLlmFullId: String?
+    // Default embedding configuration for new workspaces.
+    public let defaultEmbeddingModel: String?
+    public let defaultEmbeddingProvider: String?
+    public let defaultEmbeddingDimension: Int?
+    public let defaultEmbeddingFullId: String?
+    // Default vision LLM for PDF image extraction (SPEC-041).
+    public let defaultVisionLlmModel: String?
+    public let defaultVisionLlmProvider: String?
+    public let createdAt: String?
+    public let updatedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, slug, plan
+        case isActive = "is_active"
+        case maxWorkspaces = "max_workspaces"
+        case defaultLlmModel = "default_llm_model"
+        case defaultLlmProvider = "default_llm_provider"
+        case defaultLlmFullId = "default_llm_full_id"
+        case defaultEmbeddingModel = "default_embedding_model"
+        case defaultEmbeddingProvider = "default_embedding_provider"
+        case defaultEmbeddingDimension = "default_embedding_dimension"
+        case defaultEmbeddingFullId = "default_embedding_full_id"
+        case defaultVisionLlmModel = "default_vision_llm_model"
+        case defaultVisionLlmProvider = "default_vision_llm_provider"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
 }
 
 public struct TenantListResponse: Codable, Sendable {

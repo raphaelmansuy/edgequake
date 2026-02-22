@@ -99,6 +99,18 @@ public class AuthModels {
         @JsonProperty("plan") public String plan;
         @JsonProperty("is_active") public boolean isActive;
         @JsonProperty("max_workspaces") public int maxWorkspaces;
+        // Default LLM configuration for new workspaces.
+        @JsonProperty("default_llm_model") public String defaultLlmModel;
+        @JsonProperty("default_llm_provider") public String defaultLlmProvider;
+        @JsonProperty("default_llm_full_id") public String defaultLlmFullId;
+        // Default embedding configuration for new workspaces.
+        @JsonProperty("default_embedding_model") public String defaultEmbeddingModel;
+        @JsonProperty("default_embedding_provider") public String defaultEmbeddingProvider;
+        @JsonProperty("default_embedding_dimension") public int defaultEmbeddingDimension;
+        @JsonProperty("default_embedding_full_id") public String defaultEmbeddingFullId;
+        // Default vision LLM for PDF image extraction (SPEC-041).
+        @JsonProperty("default_vision_llm_model") public String defaultVisionLlmModel;
+        @JsonProperty("default_vision_llm_provider") public String defaultVisionLlmProvider;
         @JsonProperty("created_at") public String createdAt;
         @JsonProperty("updated_at") public String updatedAt;
     }
@@ -106,6 +118,18 @@ public class AuthModels {
     public static class CreateTenantRequest {
         @JsonProperty("name") public String name;
         @JsonProperty("slug") public String slug;
+        @JsonProperty("description") public String description;
+        @JsonProperty("plan") public String plan;
+        // Default LLM configuration.
+        @JsonProperty("default_llm_model") public String defaultLlmModel;
+        @JsonProperty("default_llm_provider") public String defaultLlmProvider;
+        // Default embedding configuration.
+        @JsonProperty("default_embedding_model") public String defaultEmbeddingModel;
+        @JsonProperty("default_embedding_provider") public String defaultEmbeddingProvider;
+        @JsonProperty("default_embedding_dimension") public Integer defaultEmbeddingDimension;
+        // Default vision LLM (SPEC-041).
+        @JsonProperty("default_vision_llm_model") public String defaultVisionLlmModel;
+        @JsonProperty("default_vision_llm_provider") public String defaultVisionLlmProvider;
 
         public CreateTenantRequest() {}
         public CreateTenantRequest(String name, String slug) {
