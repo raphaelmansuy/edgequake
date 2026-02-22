@@ -20,19 +20,62 @@ interface MermaidBlockProps {
 // Mermaid is imported dynamically to reduce initial bundle size
 let mermaidPromise: Promise<typeof import('mermaid')> | null = null;
 let mermaidInstance: typeof import('mermaid').default | null = null;
+let currentTheme: 'dark' | 'default' | null = null;
 
-async function getMermaid() {
-  if (mermaidInstance) return mermaidInstance;
+/**
+ * Detect current theme from DOM.
+ * Returns 'dark' if documentElement has .dark class, else 'default'.
+ */
+function detectTheme(): 'dark' | 'default' {
+  if (typeof document === 'undefined') return 'dark';
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'default';
+}
+
+async function getMermaid(forceTheme?: 'dark' | 'default') {
+  const theme = forceTheme ?? detectTheme();
   
-  if (!mermaidPromise) {
+  if (mermaidInstance && currentTheme === theme) return mermaidInstance;
+  
+  if (!mermaidPromise || currentTheme !== theme) {
     mermaidPromise = import('mermaid').then((mod) => {
       mermaidInstance = mod.default;
-      // Initialize mermaid with dark theme
+      currentTheme = theme;
       mermaidInstance.initialize({
         startOnLoad: false,
-        theme: 'dark',
+        theme,
         securityLevel: 'loose',
         fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+        themeVariables: theme === 'dark' ? {
+          primaryColor: '#3b82f6',
+          primaryTextColor: '#e4e4e7',
+          primaryBorderColor: '#52525b',
+          lineColor: '#71717a',
+          secondaryColor: '#27272a',
+          tertiaryColor: '#18181b',
+          background: '#18181b',
+          mainBkg: '#27272a',
+          nodeBorder: '#52525b',
+          clusterBkg: '#1e1e24',
+          clusterBorder: '#3f3f46',
+          titleColor: '#e4e4e7',
+          edgeLabelBackground: '#27272a',
+          nodeTextColor: '#e4e4e7',
+        } : {
+          primaryColor: '#3b82f6',
+          primaryTextColor: '#18181b',
+          primaryBorderColor: '#d4d4d8',
+          lineColor: '#a1a1aa',
+          secondaryColor: '#f4f4f5',
+          tertiaryColor: '#fafafa',
+          background: '#ffffff',
+          mainBkg: '#f4f4f5',
+          nodeBorder: '#d4d4d8',
+          clusterBkg: '#fafafa',
+          clusterBorder: '#e4e4e7',
+          titleColor: '#18181b',
+          edgeLabelBackground: '#f4f4f5',
+          nodeTextColor: '#18181b',
+        },
         flowchart: {
           htmlLabels: true,
           curve: 'basis',
@@ -131,6 +174,26 @@ export const MermaidBlock = memo(function MermaidBlock({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sanitizedCode, setSanitizedCode] = useState<string>(code);
+  const [theme, setTheme] = useState<'dark' | 'default'>(() => detectTheme());
+
+  // Listen for theme changes
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const newTheme = detectTheme();
+      setTheme(prev => {
+        if (prev !== newTheme) {
+          // Reset mermaid instance so it reinitializes with new theme
+          mermaidPromise = null;
+          mermaidInstance = null;
+          currentTheme = null;
+          return newTheme;
+        }
+        return prev;
+      });
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     // Don't render while streaming - mermaid syntax is often incomplete
@@ -211,7 +274,7 @@ export const MermaidBlock = memo(function MermaidBlock({
     return () => {
       cancelled = true;
     };
-  }, [code, isStreaming, uniqueId]);
+  }, [code, isStreaming, uniqueId, theme]);
 
   const handleRetry = () => {
     setError(null);
@@ -225,12 +288,15 @@ export const MermaidBlock = memo(function MermaidBlock({
     return (
       <div
         className={cn(
-          'my-4 flex items-center justify-center rounded-lg border border-dashed border-zinc-600 bg-zinc-900/50 p-8',
+          'my-4 flex items-center justify-center rounded-lg border border-dashed',
+          'border-border bg-muted/30 p-8',
           className
         )}
+        role="status"
+        aria-label="Diagram loading"
       >
-        <div className="flex flex-col items-center gap-3 text-zinc-400">
-          <GitBranch className="h-8 w-8 animate-pulse" />
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <GitBranch className="h-8 w-8 animate-pulse" aria-hidden="true" />
           <span className="text-sm">Diagram loading...</span>
         </div>
       </div>
@@ -242,12 +308,14 @@ export const MermaidBlock = memo(function MermaidBlock({
     return (
       <div
         className={cn(
-          'my-4 flex items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 p-8',
+          'my-4 flex items-center justify-center rounded-lg border border-border bg-muted/20 p-8',
           className
         )}
+        role="status"
+        aria-label="Rendering diagram"
       >
-        <div className="flex flex-col items-center gap-3 text-zinc-400">
-          <RefreshCw className="h-6 w-6 animate-spin" />
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <RefreshCw className="h-6 w-6 animate-spin" aria-hidden="true" />
           <span className="text-sm">Rendering diagram...</span>
         </div>
       </div>
@@ -259,22 +327,23 @@ export const MermaidBlock = memo(function MermaidBlock({
     return (
       <div
         className={cn(
-          'my-4 rounded-lg border border-red-800 bg-red-950/30 p-4',
+          'my-4 rounded-lg border border-destructive/50 bg-destructive/5 p-4',
           className
         )}
+        role="alert"
       >
         <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-red-400">
+            <p className="text-sm font-medium text-destructive">
               Failed to render Mermaid diagram
             </p>
-            <p className="mt-1 text-xs text-red-400/70 break-words">{error}</p>
+            <p className="mt-1 text-xs text-destructive/70 wrap-break-word">{error}</p>
             <details className="mt-3">
-              <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-400">
+              <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors">
                 Show source
               </summary>
-              <pre className="mt-2 overflow-x-auto rounded bg-zinc-900 p-3 text-xs text-zinc-400">
+              <pre className="mt-2 overflow-x-auto rounded bg-muted p-3 text-xs text-muted-foreground">
                 <code>{code}</code>
               </pre>
             </details>
@@ -282,8 +351,9 @@ export const MermaidBlock = memo(function MermaidBlock({
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={handleRetry}
+            aria-label="Retry rendering diagram"
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
@@ -298,10 +368,12 @@ export const MermaidBlock = memo(function MermaidBlock({
       <div
         ref={containerRef}
         className={cn(
-          'my-4 overflow-x-auto rounded-lg border border-zinc-700 bg-zinc-900 p-4',
+          'my-4 overflow-x-auto rounded-lg border border-border bg-muted/20 p-4',
           '[&_svg]:mx-auto [&_svg]:max-w-full',
           className
         )}
+        role="img"
+        aria-label="Mermaid diagram"
         dangerouslySetInnerHTML={{ __html: svg }}
       />
     );

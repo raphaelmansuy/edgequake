@@ -175,10 +175,32 @@ export function TenantWorkspaceSelector({
       default_vision_llm_provider?: string;
     }) =>
       createTenant(data),
-    onSuccess: (newTenant) => {
+    onSuccess: async (newTenant) => {
       toast.success(t('tenant.createSuccess', 'Tenant created successfully'));
-      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      // Select the new tenant immediately (clears workspace selection)
       selectTenant(newTenant.id);
+      // Invalidate tenants cache so the list updates
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      // WHY: Explicitly fetch workspaces for the new tenant and auto-select
+      // the default workspace. The backend creates a "Default Workspace"
+      // when a tenant is created (R004), so we fetch and select it here
+      // instead of relying on the effect which may fire too late.
+      try {
+        const newWorkspaces = await getWorkspaces(newTenant.id);
+        if (newWorkspaces.length > 0) {
+          setWorkspaces(newWorkspaces);
+          selectWorkspace(newWorkspaces[0].id);
+          toast.info(
+            t('workspace.autoSelected', `Workspace "{{name}}" selected`, { name: newWorkspaces[0].name }),
+            { id: 'workspace-auto-select', duration: 2000 }
+          );
+        }
+        // Update the React Query cache with fetched workspaces
+        queryClient.setQueryData(['workspaces', newTenant.id], newWorkspaces);
+      } catch {
+        // Workspace fetch failed — the effect will retry on next render
+        console.warn('[TenantSelector] Failed to fetch workspaces for new tenant');
+      }
       setShowCreateTenant(false);
       setNewTenantName('');
       setNewTenantDescription('');
@@ -215,10 +237,17 @@ export function TenantWorkspaceSelector({
       toast.success(
         t('workspace.createSuccess', 'Workspace created successfully')
       );
+      // Select the newly created workspace immediately
+      selectWorkspace(newWorkspace.id);
+      // Invalidate workspace list and stats so the UI updates
       queryClient.invalidateQueries({
         queryKey: ['workspaces', selectedTenantId],
       });
-      selectWorkspace(newWorkspace.id);
+      queryClient.invalidateQueries({ queryKey: ['workspaceStats'] });
+      toast.info(
+        t('workspace.autoSelected', `Workspace "{{name}}" selected`, { name: newWorkspace.name }),
+        { id: 'workspace-auto-select', duration: 2000 }
+      );
       setShowCreateWorkspace(false);
       setNewWorkspaceName('');
       setNewWorkspaceDescription('');

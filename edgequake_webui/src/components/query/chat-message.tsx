@@ -39,6 +39,7 @@ import {
     User,
     Zap
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StreamingMarkdownRenderer } from './markdown';
@@ -85,13 +86,13 @@ const UserMessage = memo(function UserMessage({
         <div 
           className={cn(
             'rounded-2xl rounded-tr-sm px-4 py-3',
-            'bg-gradient-to-br from-primary to-primary/90',
+            'bg-linear-to-br from-primary to-primary/90',
             'text-primary-foreground',
             'shadow-[0_2px_8px_rgba(0,0,0,0.08)]',
             'dark:shadow-[0_2px_8px_rgba(0,0,0,0.2)]'
           )}
         >
-          <p className="whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed">
+          <p className="whitespace-pre-wrap wrap-break-word overflow-wrap-anywhere leading-relaxed">
             {message.content}
           </p>
         </div>
@@ -389,6 +390,7 @@ const AssistantMessage = memo(function AssistantMessage({
   showMetadata = true,
 }: ChatMessageProps) {
   const { t } = useTranslation();
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
@@ -416,7 +418,7 @@ const AssistantMessage = memo(function AssistantMessage({
 
   return (
     <div className="flex justify-start mb-6 group animate-slide-in-left">
-      <div className="flex items-start gap-3 max-w-[85%] min-w-0">
+      <div className="flex items-start gap-3 max-w-[92%] min-w-0">
         {/* Avatar */}
         <Avatar 
           className={cn(
@@ -426,7 +428,7 @@ const AssistantMessage = memo(function AssistantMessage({
         >
           <AvatarFallback 
             className={cn(
-              'bg-gradient-to-br from-primary/80 to-primary',
+              'bg-linear-to-br from-primary/80 to-primary',
               'text-primary-foreground'
             )}
           >
@@ -469,11 +471,11 @@ const AssistantMessage = memo(function AssistantMessage({
               )}
             >
               {message.isError ? (
-                <p className="text-destructive break-words overflow-wrap-anywhere">
+                <p className="text-destructive wrap-break-word overflow-wrap-anywhere">
                   {displayContent}
                 </p>
               ) : displayContent ? (
-                <div className="break-words overflow-wrap-anywhere hyphens-auto">
+                <div className="wrap-break-word overflow-wrap-anywhere hyphens-auto">
                   <StreamingMarkdownRenderer
                     content={displayContent}
                     isStreaming={message.isStreaming}
@@ -513,37 +515,42 @@ const AssistantMessage = memo(function AssistantMessage({
               <SourceCitations
                 context={message.context}
                 onEntityClick={(entityId) => {
-                  window.location.href = `/graph?entity=${encodeURIComponent(entityId)}`;
+                  router.push(`/graph?entity=${encodeURIComponent(entityId)}`);
                 }}
                 onDocumentClick={(documentId, chunkContent, chunkIndex, startLine, endLine) => {
-                  // Navigate to document detail page with line numbers and/or highlight
-                  const url = new URL(`/documents/${encodeURIComponent(documentId)}`, window.location.origin);
+                  // Navigate to document detail page with chunk deep-linking
+                  const params = new URLSearchParams();
                   
-                  // Priority 1: Use line numbers if available
+                  // Always include chunk_index for sidebar auto-selection
+                  if (chunkIndex !== undefined) {
+                    params.set('chunk_index', chunkIndex.toString());
+                  }
+                  
+                  // Priority 1: Use line numbers if available (yellow highlight)
                   if (startLine !== undefined && endLine !== undefined) {
-                    url.searchParams.set('start_line', startLine.toString());
-                    url.searchParams.set('end_line', endLine.toString());
+                    params.set('start_line', startLine.toString());
+                    params.set('end_line', endLine.toString());
                   }
                   
                   // Fallback: Use text highlight if no line numbers
                   if (chunkContent && startLine === undefined) {
                     // Use first 100 chars of chunk content as highlight search term
                     const searchTerm = chunkContent.slice(0, 100);
-                    url.searchParams.set('highlight', searchTerm);
+                    params.set('highlight', searchTerm);
                   }
                   
-                  window.location.href = url.toString();
+                  const qs = params.toString();
+                  router.push(`/documents/${documentId}${qs ? `?${qs}` : ''}`);
                 }}
                 onExploreGraph={(entityLabels) => {
                   // Navigate to graph page with entity filter
-                  const url = new URL('/graph', window.location.origin);
+                  const params = new URLSearchParams();
                   if (entityLabels.length > 0) {
-                    // Pass entities as comma-separated list for filtering
-                    url.searchParams.set('entities', entityLabels.join(','));
-                    // Use first entity as focus node
-                    url.searchParams.set('focus', entityLabels[0]);
+                    params.set('entities', entityLabels.join(','));
+                    params.set('focus', entityLabels[0]);
                   }
-                  window.location.href = url.toString();
+                  const qs = params.toString();
+                  router.push(`/graph${qs ? `?${qs}` : ''}`);
                 }}
               />
             </div>

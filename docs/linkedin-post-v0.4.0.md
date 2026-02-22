@@ -49,4 +49,5 @@ Happy to answer questions about the implementation — the interaction between R
 #RAG #LLM #AI #OpenSource #Rust #PDF #KnowledgeGraph #DocumentProcessing #GenAI
 
 ---
-*~2,450 characters — within LinkedIn 3,000 character limit*
+
+_~2,450 characters — within LinkedIn 3,000 character limit_

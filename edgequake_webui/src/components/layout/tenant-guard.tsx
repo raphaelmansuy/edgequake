@@ -60,6 +60,8 @@ export function TenantGuard({ children }: TenantGuardProps) {
   // SPEC-032: Model selection states for tenant creation
   const [tenantLlmModel, setTenantLlmModel] = useState<string>();
   const [tenantEmbeddingModel, setTenantEmbeddingModel] = useState<string>();
+  // SPEC-041: Vision LLM model selection for tenant creation
+  const [tenantVisionModel, setTenantVisionModel] = useState<string>();
   
   // SPEC-032: Model selection states for workspace creation
   const [workspaceLlmModel, setWorkspaceLlmModel] = useState<string>();
@@ -188,6 +190,8 @@ export function TenantGuard({ children }: TenantGuardProps) {
       // SPEC-032: Parse model selections and include in tenant creation
       const llmConfig = parseModelValue(tenantLlmModel);
       const embeddingConfig = parseModelValue(tenantEmbeddingModel);
+      // SPEC-041: Parse vision LLM model selection
+      const visionConfig = parseModelValue(tenantVisionModel);
       
       const tenantData = {
         name: newTenantName,
@@ -195,6 +199,8 @@ export function TenantGuard({ children }: TenantGuardProps) {
         ...(llmConfig.provider && { default_llm_provider: llmConfig.provider }),
         ...(embeddingConfig.model && { default_embedding_model: embeddingConfig.model }),
         ...(embeddingConfig.provider && { default_embedding_provider: embeddingConfig.provider }),
+        ...(visionConfig.model && { default_vision_llm_model: visionConfig.model }),
+        ...(visionConfig.provider && { default_vision_llm_provider: visionConfig.provider }),
       };
       
       const newTenant = await createTenantMutation.mutateAsync(tenantData);
@@ -214,13 +220,14 @@ export function TenantGuard({ children }: TenantGuardProps) {
       // Reset model selections
       setTenantLlmModel(undefined);
       setTenantEmbeddingModel(undefined);
+      setTenantVisionModel(undefined);
     } catch (error) {
       setIsSettingUpContext(false);
       toast.error(t('tenant.createFailed', 'Failed to create tenant'), {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
     }
-  }, [newTenantName, tenantLlmModel, tenantEmbeddingModel, parseModelValue, createTenantMutation, selectTenant, queryClient, t]);
+  }, [newTenantName, tenantLlmModel, tenantEmbeddingModel, tenantVisionModel, parseModelValue, createTenantMutation, selectTenant, queryClient, t]);
 
   // Handle workspace creation with proper async flow - SPEC-032: Now includes model config
   const handleCreateWorkspace = useCallback(async () => {
@@ -388,6 +395,25 @@ export function TenantGuard({ children }: TenantGuardProps) {
                 />
                 <p className="text-xs text-muted-foreground">
                   {t('tenant.embeddingModelHint', 'Used for document search and retrieval')}
+                </p>
+              </div>
+
+              {/* SPEC-041: Default Vision LLM Model Selection */}
+              <div className="grid gap-2">
+                <Label>
+                  {t('tenant.defaultVisionLlmModel', 'Default Vision LLM Model')}
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {t('common.optional', '(optional)')}
+                  </span>
+                </Label>
+                <ModelSelector
+                  type="llm"
+                  value={tenantVisionModel}
+                  onChange={(value) => setTenantVisionModel(value)}
+                  placeholder={t('tenant.selectVisionModel', 'Select vision LLM model...')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('tenant.visionModelHint', 'Used for PDF vision extraction. Workspaces inherit this if not overridden.')}
                 </p>
               </div>
             </div>

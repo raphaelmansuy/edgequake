@@ -72,8 +72,7 @@ export class PdfResource extends Resource {
         formData[k] = String(v);
       }
     }
-    const meta =
-      Object.keys(formData).length > 0 ? formData : undefined;
+    const meta = Object.keys(formData).length > 0 ? formData : undefined;
     return this.transport.upload("/api/v1/documents/pdf", file, meta);
   }
 

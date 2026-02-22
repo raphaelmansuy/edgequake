@@ -19,14 +19,14 @@ import { useDocumentFullLineage } from '@/hooks/use-lineage';
 import { cn } from '@/lib/utils';
 import type { EntityLineage } from '@/types/lineage';
 import {
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Layers,
-  Loader2,
-  Tag,
+    ChevronDown,
+    ChevronRight,
+    FileText,
+    Layers,
+    Loader2,
+    Tag,
 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  * Chunk shape from the /documents/:id/lineage endpoint.
@@ -64,6 +64,8 @@ interface DocumentHierarchyTreeProps {
   onChunkSelect?: (chunkId: string, startLine?: number, endLine?: number) => void;
   /** ID of the currently selected chunk (controls visual highlight in tree). */
   selectedChunkId?: string;
+  /** Deep-link: auto-select chunk by index when lineage loads. */
+  initialChunkIndex?: number;
 }
 
 export function DocumentHierarchyTree({
@@ -71,6 +73,7 @@ export function DocumentHierarchyTree({
   documentName,
   onChunkSelect,
   selectedChunkId,
+  initialChunkIndex,
 }: DocumentHierarchyTreeProps) {
   // WHY: useDocumentFullLineage calls /documents/:id/lineage which returns
   // persisted KV lineage with actual chunks and entity data.
@@ -125,6 +128,25 @@ export function DocumentHierarchyTree({
       docName: (lineage.document_name as string) ?? '',
     };
   }, [fullLineage?.lineage]);
+
+  // WHY: Auto-select a chunk by index when the page is loaded with a
+  // chunk_index deep-link URL parameter. Only fires once after lineage data
+  // arrives (prevents re-triggering on every render).
+  const didAutoSelect = useRef(false);
+  useEffect(() => {
+    if (
+      initialChunkIndex !== undefined &&
+      chunks.length > 0 &&
+      onChunkSelect &&
+      !didAutoSelect.current
+    ) {
+      const target = chunks.find((c) => c.chunk_index === initialChunkIndex);
+      if (target) {
+        didAutoSelect.current = true;
+        onChunkSelect(target.chunk_id, target.start_line, target.end_line);
+      }
+    }
+  }, [initialChunkIndex, chunks, onChunkSelect]);
 
   if (isLoading) {
     return (

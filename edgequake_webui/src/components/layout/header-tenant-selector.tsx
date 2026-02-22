@@ -99,6 +99,8 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   const [tenantDefaultLLM, setTenantDefaultLLM] = useState<LLMSelection | undefined>(undefined);
   // SPEC-032: Tenant default embedding configuration
   const [tenantDefaultEmbedding, setTenantDefaultEmbedding] = useState<EmbeddingSelection | undefined>(undefined);
+  // SPEC-041: Tenant default vision LLM configuration
+  const [tenantDefaultVision, setTenantDefaultVision] = useState<LLMSelection | undefined>(undefined);
 
 
   // Generate URL-safe slug from name
@@ -179,16 +181,31 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
       default_llm_provider?: string;
       default_embedding_model?: string;
       default_embedding_provider?: string;
+      default_vision_llm_model?: string;
+      default_vision_llm_provider?: string;
     }) => createTenant(data),
-    onSuccess: (newTenant) => {
+    onSuccess: async (newTenant) => {
       toast.success(t('tenant.createSuccess', 'Tenant created successfully'));
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       selectTenant(newTenant.id);
+      // Auto-select the default workspace created by the backend (R004)
+      try {
+        const newWorkspaces = await getWorkspaces(newTenant.id);
+        if (newWorkspaces.length > 0) {
+          setWorkspaces(newWorkspaces);
+          selectWorkspace(newWorkspaces[0].id);
+          queryClient.setQueryData(['workspaces', newTenant.id], newWorkspaces);
+          toast.success(t('workspace.autoSelected', `Workspace "${newWorkspaces[0].name}" selected`));
+        }
+      } catch {
+        // Workspace fetch may fail; tenant is still selected
+      }
       setShowCreateTenant(false);
       setNewTenantName('');
       setNewTenantDescription('');
       setTenantDefaultLLM(undefined);
       setTenantDefaultEmbedding(undefined);
+      setTenantDefaultVision(undefined);
     },
     onError: (error) => {
       toast.error(t('tenant.createFailed', 'Failed to create tenant'), {
@@ -429,7 +446,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
               {t('tenant.createDescription', 'Create a new tenant to organize your workspaces and documents.')}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
             <div className="grid gap-2">
               <Label htmlFor="tenant-name">{t('common.name', 'Name')}</Label>
               <Input
@@ -470,6 +487,17 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                 {t('tenant.defaultEmbeddingHint', 'Default embedding for new workspaces. Can be overridden per workspace.')}
               </p>
             </div>
+            {/* SPEC-041: Default vision LLM model selection for tenant */}
+            <div className="grid gap-2">
+              <Label>{t('tenant.defaultVisionLlm', 'Default Vision LLM Model')}</Label>
+              <LLMModelSelector
+                value={tenantDefaultVision}
+                onChange={setTenantDefaultVision}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('tenant.defaultVisionLlmHint', 'Used for PDF vision extraction. Workspaces inherit this if not overridden.')}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateTenant(false)}>
@@ -485,6 +513,9 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                 // SPEC-032: Include default embedding configuration
                 default_embedding_model: tenantDefaultEmbedding?.model,
                 default_embedding_provider: tenantDefaultEmbedding?.provider,
+                // SPEC-041: Include default vision LLM configuration
+                default_vision_llm_model: tenantDefaultVision?.model,
+                default_vision_llm_provider: tenantDefaultVision?.provider,
               })}
               disabled={!newTenantName.trim() || createTenantMutation.isPending}
             >

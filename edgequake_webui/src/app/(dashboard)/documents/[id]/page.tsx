@@ -65,6 +65,10 @@ export default function DocumentViewPage() {
   const endLine = searchParams.get('end_line') 
     ? parseInt(searchParams.get('end_line')!) 
     : undefined;
+  // Deep-link: chunk_index from citation panel for auto-selecting a chunk
+  const chunkIndexParam = searchParams.get('chunk_index') 
+    ? parseInt(searchParams.get('chunk_index')!) 
+    : undefined;
 
   // OODA-chunk-select: Local chunk selection state for sidebar → content highlighting.
   // WHY: Using local state (not URL) avoids router updates on each click
@@ -326,6 +330,7 @@ export default function DocumentViewPage() {
               document={document}
               onChunkSelect={handleChunkSelect}
               selectedChunkId={selectedChunkId}
+              initialChunkIndex={chunkIndexParam}
             />
           </ResizablePanel>
         </div>
@@ -366,6 +371,7 @@ export default function DocumentViewPage() {
                 document={document}
                 onChunkSelect={handleChunkSelect}
                 selectedChunkId={selectedChunkId}
+                initialChunkIndex={chunkIndexParam}
               />
             </TabsContent>
           </Tabs>

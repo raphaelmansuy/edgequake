@@ -115,6 +115,108 @@ export function isTableComplete(content: string): boolean {
 }
 
 /**
+ * Check if a table has enough structure to be rendered progressively.
+ * Returns true if the table has at least header + separator row,
+ * meaning we can render complete rows even if the last row is still being typed.
+ */
+export function isTableRenderable(content: string): boolean {
+  const lines = content.split("\n");
+  const tableLines = lines.filter((line) => line.trim().startsWith("|"));
+
+  if (tableLines.length < 2) return false;
+
+  // Must have a separator row (|---|...|)
+  return tableLines.some((line) => /^\s*\|[\s\-:]+\|/.test(line));
+}
+
+/**
+ * Trim incomplete last row from a table at the end of streaming content.
+ * Returns the full content with only complete table rows preserved.
+ *
+ * WHY: During streaming, the last row of a table may be partially typed
+ * (e.g. "| ALICE | PER" without a closing "|"). Instead of hiding the
+ * entire table behind a skeleton, we drop only the partial trailing row
+ * so that all previously complete rows render progressively.
+ *
+ * If the content has no table at the end, or the table's last row is
+ * already complete, the content is returned unchanged.
+ */
+export function trimIncompleteTableRow(content: string): string {
+  const lines = content.split("\n");
+
+  // Find the trailing table block (scan backwards)
+  let tableEndIdx = -1;
+  let tableStartIdx = -1;
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith("|")) {
+      if (tableEndIdx === -1) tableEndIdx = i;
+      tableStartIdx = i;
+    } else if (tableEndIdx !== -1 && trimmed === "") {
+      // blank line inside/above table area — keep scanning
+      continue;
+    } else if (tableEndIdx !== -1) {
+      // Non-table content above — stop
+      break;
+    }
+  }
+
+  // No table found at end of content
+  if (tableEndIdx === -1 || tableStartIdx === -1) return content;
+
+  // Collect only actual table lines (skip blanks in the middle)
+  const tableLines: string[] = [];
+  for (let i = tableStartIdx; i <= tableEndIdx; i++) {
+    if (lines[i].trim().startsWith("|")) {
+      tableLines.push(lines[i]);
+    }
+  }
+
+  // Need at least header + separator to have a renderable table
+  if (tableLines.length < 2) return content;
+
+  // Check if there's a separator
+  const hasSeparator = tableLines.some((l) => /^\s*\|[\s\-:]+\|/.test(l));
+  if (!hasSeparator) return content;
+
+  // Check the last table line
+  const lastTableLine = tableLines[tableLines.length - 1];
+  const headerPipeCount = (tableLines[0].match(/\|/g) || []).length;
+  const lastPipeCount = (lastTableLine.match(/\|/g) || []).length;
+  const lastLineComplete =
+    lastTableLine.trim().endsWith("|") && lastPipeCount === headerPipeCount;
+
+  // If last line is the separator row itself, table is still forming
+  if (
+    /^\s*\|[\s\-:]+\|$/.test(lastTableLine.trim()) &&
+    tableLines.length === 2
+  ) {
+    return content; // header + separator only, nothing to trim
+  }
+
+  if (lastLineComplete) return content; // all complete, nothing to trim
+
+  // Drop the incomplete last row by removing it from the original lines
+  // Find the actual line index of the last table line in the original array
+  let dropIdx = -1;
+  for (let i = tableEndIdx; i >= tableStartIdx; i--) {
+    if (lines[i].trim().startsWith("|")) {
+      dropIdx = i;
+      break;
+    }
+  }
+
+  if (dropIdx === -1) return content;
+
+  const trimmedLines = [
+    ...lines.slice(0, dropIdx),
+    ...lines.slice(dropIdx + 1),
+  ];
+  return trimmedLines.join("\n");
+}
+
+/**
  * Check if a code block is complete (has closing ```)
  */
 export function isCodeBlockComplete(content: string): boolean {
@@ -139,10 +241,19 @@ export function isMathBlockComplete(content: string): boolean {
 }
 
 /**
- * Detect if content has an incomplete table at the end
+ * Detect if content has an incomplete table at the end.
+ *
+ * KEY BEHAVIOR CHANGE: A table with header + separator but an incomplete
+ * last data row is no longer considered "incomplete". Instead, we trim
+ * the partial row and render the table progressively via
+ * `trimIncompleteTableRow`. This prevents the entire table from flickering
+ * behind a skeleton every time a new row starts streaming.
+ *
+ * Only returns true when the table is truly un-renderable:
+ * - Has pipe-starting lines but no separator row yet (header still forming)
+ * - Last line is the separator itself (no data rows yet, more coming)
  */
 export function hasIncompleteTable(content: string): boolean {
-  // Look for table pattern at the end of content
   const lines = content.split("\n");
   let foundTableStart = false;
   const tableLines: string[] = [];
@@ -155,19 +266,25 @@ export function hasIncompleteTable(content: string): boolean {
       tableLines.unshift(lines[i]);
       foundTableStart = true;
     } else if (foundTableStart && line === "") {
-      // Empty line before table content
       continue;
     } else if (foundTableStart) {
-      // Non-table line found, stop
       break;
     }
   }
 
   if (!foundTableStart || tableLines.length === 0) return false;
 
-  // Reconstruct table content and check completeness
+  // If we have a renderable table (header + separator), we handle partial
+  // rows via trimIncompleteTableRow instead of buffering  the whole table.
   const tableContent = tableLines.join("\n");
-  return !isTableComplete(tableContent);
+  if (isTableRenderable(tableContent)) {
+    // Table is renderable — NOT "incomplete" in the skeleton sense.
+    // The streaming renderer will just trim the partial last row.
+    return false;
+  }
+
+  // No separator yet → truly incomplete, show skeleton
+  return true;
 }
 
 /**
@@ -238,7 +355,7 @@ export interface StreamingCompletionStatus {
  * Analyze streaming content for completeness
  */
 export function analyzeStreamingContent(
-  content: string
+  content: string,
 ): StreamingCompletionStatus {
   // Check for incomplete code blocks first (most common)
   if (hasIncompleteCodeBlock(content)) {

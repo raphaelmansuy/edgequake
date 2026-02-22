@@ -286,32 +286,40 @@ const EntityTypeGroup = memo(function EntityTypeGroup({
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
-          className="w-full justify-between px-3 py-2 h-auto"
+          className="w-full justify-between px-3 py-2 h-auto rounded-lg hover:bg-muted/70 transition-colors"
           aria-expanded={isOpen}
           aria-controls={groupId}
         >
           <div className="flex items-center gap-2">
             <div
-              className="w-3 h-3 rounded-full"
+              className="w-2.5 h-2.5 rounded-full ring-1 ring-black/10 dark:ring-white/10"
               style={{ backgroundColor: getEntityTypeColor(type) }}
               aria-hidden="true"
             />
-            <span className="text-sm font-medium">{type}</span>
+            <span className="text-xs font-semibold uppercase tracking-wide">{type}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs" aria-label={t("graph.entityBrowser.entityCount", "{{count}} entities", { count: nodes.length })}>
+          <div className="flex items-center gap-1.5">
+            <Badge 
+              variant="secondary" 
+              className="text-[10px] h-5 min-w-6 flex items-center justify-center tabular-nums" 
+              aria-label={t("graph.entityBrowser.entityCount", "{{count}} entities", { count: nodes.length })}
+            >
               {nodes.length}
             </Badge>
             {isOpen ? (
-              <ChevronDown className="h-4 w-4" aria-hidden="true" />
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             ) : (
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             )}
           </div>
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pl-2 space-y-1" id={groupId}>
-        <div role="group" aria-label={`${type} ${t("graph.entityBrowser.entities", "entities")}`}>
+      <CollapsibleContent className="pl-1 pb-1" id={groupId}>
+        <div 
+          role="group" 
+          aria-label={`${type} ${t("graph.entityBrowser.entities", "entities")}`}
+          className="space-y-0.5 pl-2 border-l-2 border-muted/60 ml-4"
+        >
           {nodes.map((node) => (
             <EntityItem
               key={node.id}
@@ -766,7 +774,7 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
           </div>
         ) : viewMode === "grouped" ? (
           <ScrollArea className="h-full" showShadows>
-            <div className="py-2 px-1.5 space-y-0.5">
+            <div className="py-1.5 px-1.5 space-y-1" role="tree" aria-label={t("graph.entityBrowser.entityList", "Entity list")}>
               {groupedNodes.map(([type, typeNodes]) => (
                 <EntityTypeGroup
                   key={type}
@@ -794,16 +802,14 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
       </div>
 
       {/* Footer with stats */}
-      <div className="p-3 border-t shrink-0 bg-muted/20">
+      <div className="px-3 py-2 border-t shrink-0 bg-muted/10" role="status" aria-live="polite">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
-              {groupedNodes.length} {t("graph.entityBrowser.types", "types")}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Link2 className="h-3 w-3" />
-            <span className="font-medium">
+          <Badge variant="secondary" className="text-[10px] px-2 py-0.5 tabular-nums">
+            {groupedNodes.length} {t("graph.entityBrowser.types", "types")}
+          </Badge>
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Link2 className="h-3 w-3" aria-hidden="true" />
+            <span className="font-medium tabular-nums">
               {Math.floor(filteredNodes.reduce((acc, n) => acc + (n.degree ?? 0), 0) / 2)}
             </span>
             <span>{t("graph.entityBrowser.connections", "connections")}</span>

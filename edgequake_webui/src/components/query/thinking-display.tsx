@@ -33,6 +33,11 @@ interface ParsedContent {
  * - <think>...</think>
  * - <thinking>...</thinking>
  * - **Thinking:**...
+ *
+ * Also detects raw JSON tool-call responses from models like GPT-4.1 Nano
+ * that sometimes emit structured tool calls as plain text instead of using
+ * the API's `tool_calls` field. These are wrapped in a code block with a
+ * descriptive label so they render cleanly instead of as raw JSON.
  */
 export function parseCOTContent(content: string | undefined | null): ParsedContent {
   // Handle undefined/null content safely
@@ -65,10 +70,56 @@ export function parseCOTContent(content: string | undefined | null): ParsedConte
   }
   response = response.replace(thinkingBlockRegex, '').trim();
 
+  // Pattern 4: Detect raw JSON tool-call responses
+  // Some models (GPT-4.1 Nano) emit tool calls as plain text:
+  //   {"name": "add_search_node", "arguments": {"id": "...", "query": "..."}}
+  // Wrap these in a markdown code block so they render nicely.
+  response = formatRawToolCalls(response);
+
   return {
     thinking,
     response,
   };
+}
+
+/**
+ * Detect and format raw JSON tool-call output from LLM responses.
+ *
+ * When the entire response (or the entire response after thinking extraction)
+ * is a JSON object that looks like a tool/function call, wrap it in a
+ * descriptive markdown block so the user understands it's a tool invocation
+ * rather than an answer.
+ *
+ * Detection heuristic: the trimmed response starts with `{` and ends with `}`,
+ * parses as valid JSON, and contains a `name` field (OpenAI function-call
+ * convention) or `tool_calls` array.
+ */
+function formatRawToolCalls(response: string): string {
+  const trimmed = response.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return response;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    // Check for common tool-call shapes
+    const isToolCall =
+      (typeof parsed.name === 'string' && parsed.arguments !== undefined) ||
+      Array.isArray(parsed.tool_calls);
+
+    if (!isToolCall) return response;
+
+    const prettyJson = JSON.stringify(parsed, null, 2);
+    const toolName = parsed.name || 'tool_call';
+    return (
+      `> **🔧 Tool Call: \`${toolName}\`**\n` +
+      `> The model requested a tool invocation instead of providing a direct answer.\n\n` +
+      '```json\n' +
+      prettyJson +
+      '\n```'
+    );
+  } catch {
+    // Not valid JSON — return unchanged
+    return response;
+  }
 }
 
 /**

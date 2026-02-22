@@ -6,9 +6,9 @@
  */
 'use client';
 
-import { memo, useMemo } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { memo, useMemo } from 'react';
 
 interface KatexMathProps {
   math: string;
@@ -40,7 +40,9 @@ export const KatexMath = memo(function KatexMath({
     // Fallback to code display on error
     return (
       <code
-        className={`rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-red-500 ${className}`}
+        className={`rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-destructive ${className}`}
+        role="math"
+        aria-label={`Math expression: ${math}`}
       >
         {math}
       </code>
@@ -50,7 +52,9 @@ export const KatexMath = memo(function KatexMath({
   if (block) {
     return (
       <div
-        className={`my-4 overflow-x-auto ${className}`}
+        className={`my-4 overflow-x-auto text-foreground [&_.katex]:text-foreground ${className}`}
+        role="math"
+        aria-label={`Math expression: ${math}`}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
@@ -58,7 +62,9 @@ export const KatexMath = memo(function KatexMath({
 
   return (
     <span
-      className={`inline-block ${className}`}
+      className={`inline-block text-foreground [&_.katex]:text-foreground ${className}`}
+      role="math"
+      aria-label={`Math expression: ${math}`}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

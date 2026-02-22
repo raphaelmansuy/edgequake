@@ -19,7 +19,7 @@ import { marked, type Token } from 'marked';
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
 import { MarkdownTokens } from './MarkdownTokens';
 import { configureMarked } from './utils/configure-marked';
-import { analyzeStreamingContent } from './utils/streaming-utils';
+import { analyzeStreamingContent, trimIncompleteTableRow } from './utils/streaming-utils';
 
 // Lazy load table skeleton for streaming tables
 const TableSkeleton = lazy(() => import('./TableSkeleton'));
@@ -327,10 +327,18 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
 
   // Tokenize the safe content (excluding incomplete structures)
   // IMPORTANT: Pass isStreaming to control whether normalization is applied
+  // During streaming, trim incomplete table rows so the table renders
+  // progressively instead of flickering behind a skeleton on every row.
   const tokens = useMemo(() => {
-    const contentToRender = isStreaming 
+    let contentToRender = isStreaming 
       ? streamingStatus.safeToRenderContent || content
       : content;
+    
+    // Trim incomplete last row from any table being streamed
+    if (isStreaming) {
+      contentToRender = trimIncompleteTableRow(contentToRender);
+    }
+    
     return tokenizeMarkdown(contentToRender, isStreaming);
   }, [content, isStreaming, streamingStatus.safeToRenderContent]);
 
@@ -447,14 +455,14 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
     <div
       ref={containerRef}
       className={cn(
-        'prose prose-invert prose-zinc max-w-none',
-        // Override prose styles for better dark mode
-        'prose-headings:text-zinc-100',
-        'prose-p:text-zinc-300',
-        'prose-strong:text-zinc-100',
-        'prose-code:text-zinc-200',
-        'prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline',
-        'prose-blockquote:border-zinc-600 prose-blockquote:text-zinc-400',
+        'prose prose-zinc dark:prose-invert max-w-none',
+        // Light mode overrides
+        'prose-headings:text-foreground',
+        'prose-p:text-foreground/90',
+        'prose-strong:text-foreground',
+        'prose-code:text-foreground',
+        'prose-a:text-primary prose-a:no-underline hover:prose-a:underline',
+        'prose-blockquote:border-border prose-blockquote:text-muted-foreground',
         'prose-pre:bg-transparent prose-pre:p-0',
         // Streaming indicator
         isStreaming && 'streaming-content',
@@ -471,7 +479,7 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
       
       {/* Show table skeleton when table is being streamed */}
       {hasPendingTable && (
-        <Suspense fallback={<div className="animate-pulse h-32 bg-zinc-800/50 rounded-lg" />}>
+        <Suspense fallback={<div className="animate-pulse h-32 bg-muted/50 rounded-lg" />}>
           <TableSkeleton rows={3} columns={4} />
         </Suspense>
       )}

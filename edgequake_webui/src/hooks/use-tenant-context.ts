@@ -97,9 +97,22 @@ export function useTenantContext() {
   const createTenantMutation = useMutation({
     mutationFn: (data: { name: string; description?: string }) =>
       createTenant(data),
-    onSuccess: (newTenant) => {
-      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+    onSuccess: async (newTenant) => {
+      // Select the new tenant immediately
       selectTenant(newTenant.id);
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      // WHY: Explicitly fetch and select the default workspace.
+      // Backend creates a "Default Workspace" on tenant creation (R004).
+      try {
+        const newWorkspaces = await getWorkspaces(newTenant.id);
+        if (newWorkspaces.length > 0) {
+          setWorkspaces(newWorkspaces);
+          selectWorkspace(newWorkspaces[0].id);
+        }
+        queryClient.setQueryData(["workspaces", newTenant.id], newWorkspaces);
+      } catch {
+        // Workspace fetch failed — the effect will retry on next render
+      }
     },
   });
 
@@ -110,10 +123,12 @@ export function useTenantContext() {
         ? createWorkspace(selectedTenantId, data)
         : Promise.reject(new Error("No tenant selected")),
     onSuccess: (newWorkspace) => {
+      // Select the newly created workspace immediately
+      selectWorkspace(newWorkspace.id);
       queryClient.invalidateQueries({
         queryKey: ["workspaces", selectedTenantId],
       });
-      selectWorkspace(newWorkspace.id);
+      queryClient.invalidateQueries({ queryKey: ["workspaceStats"] });
     },
   });
 
@@ -122,14 +137,14 @@ export function useTenantContext() {
     (tenantId: string) => {
       selectTenant(tenantId);
     },
-    [selectTenant]
+    [selectTenant],
   );
 
   const handleWorkspaceSelect = useCallback(
     (workspaceId: string) => {
       selectWorkspace(workspaceId);
     },
-    [selectWorkspace]
+    [selectWorkspace],
   );
 
   const refetchAll = useCallback(() => {

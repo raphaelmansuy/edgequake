@@ -78,8 +78,20 @@ export const CodeBlock = memo(function CodeBlock({
   const [copied, setCopied] = useState(false);
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDark, setIsDark] = useState(true);
 
   const normalizedLang = normalizeLanguage(language);
+
+  // Detect theme
+  useEffect(() => {
+    const check = () => setIsDark(document.documentElement.classList.contains('dark'));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  const shikiTheme = isDark ? 'github-dark-dimmed' : 'github-light';
 
   // Highlight code with Shiki
   useEffect(() => {
@@ -90,7 +102,7 @@ export const CodeBlock = memo(function CodeBlock({
         setIsLoading(true);
         const html = await codeToHtml(code, {
           lang: normalizedLang,
-          theme: 'github-dark-dimmed',
+          theme: shikiTheme,
         });
         if (!cancelled) {
           setHighlightedHtml(html);
@@ -113,7 +125,7 @@ export const CodeBlock = memo(function CodeBlock({
     return () => {
       cancelled = true;
     };
-  }, [code, normalizedLang]);
+  }, [code, normalizedLang, shikiTheme]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -140,34 +152,58 @@ export const CodeBlock = memo(function CodeBlock({
   return (
     <div
       className={cn(
-        'group relative my-4 overflow-hidden rounded-lg border bg-zinc-900',
+        'group relative my-4 overflow-hidden rounded-lg border',
+        'bg-[#22272e] dark:bg-[#22272e]',
+        'border-border',
+        // Light mode: use light code theme background
+        !isDark && 'bg-white',
         className
       )}
     >
       {/* Header with language badge and actions */}
-      <div className="flex items-center justify-between border-b border-zinc-700 bg-zinc-800 px-4 py-2">
-        <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+      <div className={cn(
+        'flex items-center justify-between border-b px-4 py-2',
+        isDark 
+          ? 'border-zinc-700 bg-zinc-800' 
+          : 'border-zinc-200 bg-zinc-100'
+      )}>
+        <span className={cn(
+          'text-xs font-medium uppercase tracking-wider',
+          isDark ? 'text-zinc-400' : 'text-zinc-500'
+        )}>
           {language || 'text'}
         </span>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700"
+            className={cn(
+              'h-7 w-7',
+              isDark 
+                ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700' 
+                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200'
+            )}
             onClick={handleDownload}
             title="Download"
+            aria-label="Download code"
           >
             <Download className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700"
+            className={cn(
+              'h-7 w-7',
+              isDark 
+                ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700' 
+                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200'
+            )}
             onClick={handleCopy}
             title={copied ? 'Copied!' : 'Copy'}
+            aria-label={copied ? 'Copied to clipboard' : 'Copy code'}
           >
             {copied ? (
-              <Check className="h-3.5 w-3.5 text-green-400" />
+              <Check className="h-3.5 w-3.5 text-green-500" />
             ) : (
               <Copy className="h-3.5 w-3.5" />
             )}
@@ -178,19 +214,22 @@ export const CodeBlock = memo(function CodeBlock({
       {/* Code content */}
       <div className="overflow-x-auto p-4">
         {isLoading ? (
-          // Loading state - show plain code
-          <pre className="text-sm text-zinc-300 font-mono whitespace-pre">
+          <pre className={cn(
+            'text-sm font-mono whitespace-pre',
+            isDark ? 'text-zinc-300' : 'text-zinc-700'
+          )}>
             <code>{code}</code>
           </pre>
         ) : highlightedHtml ? (
-          // Shiki highlighted HTML
           <div
-            className="text-sm [&_pre]:!bg-transparent [&_pre]:!p-0 [&_code]:text-sm"
+            className="text-sm [&_pre]:bg-transparent! [&_pre]:p-0! [&_code]:text-sm"
             dangerouslySetInnerHTML={{ __html: highlightedHtml }}
           />
         ) : (
-          // Fallback to plain text
-          <pre className="text-sm text-zinc-300 font-mono whitespace-pre">
+          <pre className={cn(
+            'text-sm font-mono whitespace-pre',
+            isDark ? 'text-zinc-300' : 'text-zinc-700'
+          )}>
             <code>{code}</code>
           </pre>
         )}

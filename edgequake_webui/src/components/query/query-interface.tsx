@@ -47,6 +47,7 @@ import {
     Sparkles,
     StopCircle
 } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -125,8 +126,8 @@ const EmptyState = memo(function EmptyState({ onSuggestionClick, graphStats }: E
     <div className="flex flex-col items-center justify-center h-full py-12 px-4 animate-fade-in-up">
       {/* Animated icon */}
       <div className="relative mb-8">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/40 to-primary/60 rounded-2xl blur-2xl opacity-20 animate-pulse-soft" />
-        <div className="relative bg-gradient-to-br from-primary/80 to-primary rounded-2xl p-5 shadow-lg">
+        <div className="absolute inset-0 bg-linear-to-r from-primary/40 to-primary/60 rounded-2xl blur-2xl opacity-20 animate-pulse-soft" />
+        <div className="relative bg-linear-to-br from-primary/80 to-primary rounded-2xl p-5 shadow-lg">
           <Sparkles className="h-10 w-10 text-primary-foreground" />
         </div>
       </div>
@@ -194,6 +195,8 @@ const EmptyState = memo(function EmptyState({ onSuggestionClick, graphStats }: E
 
 export function QueryInterface() {
   const { t } = useTranslation();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [input, setInput] = useState('');
   const [streamingState, setStreamingState] = useState<StreamingState>('idle');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -205,6 +208,8 @@ export function QueryInterface() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const thinkingStartRef = useRef<number | null>(null);
   const hasInitializedRef = useRef(false);
+  // Track whether URL→store sync has run so we don't clobber URL-driven state
+  const urlSyncDoneRef = useRef(false);
 
   const queryClient = useQueryClient();
   const { querySettings, setQuerySettings } = useSettingsStore();
@@ -252,6 +257,20 @@ export function QueryInterface() {
     }
   }, [isConversationError, conversationError, activeConversationId, store, t]);
   
+  // Deep-link: read ?conversation=<id> from URL on first mount and set as active.
+  // This must run BEFORE the auto-load effect so the URL takes precedence.
+  useEffect(() => {
+    if (urlSyncDoneRef.current) return;
+    urlSyncDoneRef.current = true;
+
+    const urlConversationId = searchParams.get('conversation');
+    if (urlConversationId) {
+      store.setActiveConversation(urlConversationId);
+      hasInitializedRef.current = true; // Prevent auto-load from overwriting
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — run once on mount only
+
   // Auto-load most recent conversation on mount if none is active
   // Only do this once on initial mount, not when user clicks "New"
   useEffect(() => {
@@ -270,6 +289,25 @@ export function QueryInterface() {
       store.setActiveConversation(mostRecentConversation.id);
     }
   }, [activeConversationId, conversationsData, store]);
+
+  // Deep-link: keep URL in sync with active conversation using router.replace
+  // so that browser Back/Forward works and users can share links.
+  useEffect(() => {
+    // Only sync after the initial URL→store sync is done to avoid overwriting URL
+    if (!urlSyncDoneRef.current) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (activeConversationId) {
+      params.set('conversation', activeConversationId);
+    } else {
+      params.delete('conversation');
+    }
+    const newSearch = params.toString();
+    const currentSearch = searchParams.toString();
+    if (newSearch !== currentSearch) {
+      router.replace(`?${newSearch}`, { scroll: false });
+    }
+  }, [activeConversationId, router, searchParams]);
   
   // Convert ServerMessage to local Message format
   const convertServerMessage = useCallback((msg: ServerMessage): Message => {
@@ -369,9 +407,15 @@ export function QueryInterface() {
     }
 
     // Add pending assistant message when it has actual content
-    // (LoadingMessage handles the empty "thinking" state)
+    // Skip if server already has this message (avoid brief duplicate during
+    // the streaming→server transition that caused flicker).
     if (pendingMessage && pendingMessage.content) {
-      result.push(pendingMessage);
+      const serverAlreadyHasIt = serverMessages.some(
+        m => m.role === 'assistant' && m.content === pendingMessage.content
+      );
+      if (!serverAlreadyHasIt) {
+        result.push(pendingMessage);
+      }
     }
 
     return result;
@@ -391,14 +435,28 @@ export function QueryInterface() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTenantId, selectedWorkspaceId]);
 
-  // Smart scroll to bottom when messages change - only if user hasn't scrolled up
+  // Smooth scroll to bottom during streaming (on every new token) and on completion.
+  // Only auto-scrolls when the user is near the bottom (shouldAutoScroll guard).
   useEffect(() => {
     if (!shouldAutoScroll) return;
-    
     if (scrollAnchorRef.current) {
       scrollAnchorRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [messages, streamingState, shouldAutoScroll]);
+  // Depend on pendingMessage content so we scroll on every streaming token.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, streamingState, shouldAutoScroll, pendingMessage?.content]);
+
+  // Force-scroll when streaming completes so the full answer is always visible.
+  useEffect(() => {
+    if (streamingState !== 'complete') return;
+    // Brief delay to let the DOM settle after final message render
+    const id = setTimeout(() => {
+      if (scrollAnchorRef.current) {
+        scrollAnchorRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+    }, 80);
+    return () => clearTimeout(id);
+  }, [streamingState]);
 
   // Detect if user has scrolled up (to disable auto-scroll)
   useEffect(() => {
@@ -551,25 +609,34 @@ export function QueryInterface() {
         }
       }
 
-      // Clear pending message and optimistic user message
-      setPendingMessage(null);
+      // Mark pending message as "done streaming" with final metadata so it
+      // remains visible while the server refetch happens. The messages useMemo
+      // will auto-deduplicate once the server data arrives — no flicker.
+      setPendingMessage(prev => prev ? {
+        ...prev,
+        isStreaming: false,
+        tokensUsed,
+        durationMs,
+        context,
+        llmProvider,
+        llmModel,
+      } : null);
       setOptimisticUserMessage(null);
       
       // Server already saved both user and assistant messages!
-      // Just refresh the conversation data from server
+      // Refetch conversation data — the messages useMemo deduplicates
+      // the pending message once server data includes the same content.
       if (newConversationId) {
-        // Force refetch the conversation to get updated messages
         await queryClient.invalidateQueries({ 
           queryKey: conversationKeys.detail(newConversationId) 
         });
         await queryClient.invalidateQueries({ 
           queryKey: conversationKeys.lists() 
         });
-        
-        // Give React Query a moment to refetch
-        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
+      // Clear pending message only after server data has arrived
+      setPendingMessage(null);
       setStreamingState('complete');
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -788,7 +855,7 @@ export function QueryInterface() {
               {t('query.subtitle', 'Ask questions about your knowledge graph')}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
             {/* New Conversation Button */}
             <Button
               variant="outline"
@@ -798,7 +865,7 @@ export function QueryInterface() {
               className="gap-1"
             >
               <Plus className="h-4 w-4" />
-              {t('query.newConversation', 'New')}
+              <span className="hidden sm:inline">{t('query.newConversation', 'New')}</span>
             </Button>
 
             {/* Provider & Model Selector (SPEC-032) */}
@@ -845,7 +912,13 @@ export function QueryInterface() {
         {/* Messages - improved padding */}
         <div className="flex-1 min-h-0 overflow-hidden">
           <ScrollArea ref={scrollRef} className="h-full">
-            <div className="max-w-3xl mx-auto px-6 py-6">
+            <div
+              className="max-w-4xl mx-auto px-4 sm:px-6 py-6"
+              role="log"
+              aria-label={t('query.messagesRegion', 'Chat messages')}
+              aria-live="polite"
+              aria-relevant="additions"
+            >
               {messages.length === 0 && !isLoading ? (
                 <EmptyState onSuggestionClick={handleSuggestionClick} />
               ) : (
@@ -876,15 +949,15 @@ export function QueryInterface() {
         </div>
 
         {/* Input - Fixed at bottom with improved spacing */}
-        <div className="border-t px-6 py-4 bg-background flex-shrink-0" role="form" aria-label={t('query.form', 'Query form')}>
-          <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+        <div className="border-t px-6 py-4 bg-background shrink-0" role="form" aria-label={t('query.form', 'Query form')}>
+          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
             <div className="relative">
               <Textarea
                 ref={inputRef}
                 value={input}
                 onChange={handleInputChange}
                 placeholder={t('query.placeholder', 'Ask a question...')}
-                className="min-h-[56px] max-h-[200px] resize-none pr-24 py-4 text-base query-input focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200"
+                className="min-h-14 max-h-50 resize-none pr-24 py-4 text-base query-input focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200"
                 rows={1}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {

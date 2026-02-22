@@ -32,9 +32,11 @@ interface MetadataSidebarProps {
   onChunkSelect?: (chunkId: string, startLine?: number, endLine?: number) => void;
   /** ID of the currently selected chunk (controls visual highlight). */
   selectedChunkId?: string;
+  /** Deep-link: auto-select chunk by index when lineage loads. */
+  initialChunkIndex?: number;
 }
 
-export function MetadataSidebar({ document, onChunkSelect, selectedChunkId }: MetadataSidebarProps) {
+export function MetadataSidebar({ document, onChunkSelect, selectedChunkId, initialChunkIndex }: MetadataSidebarProps) {
   return (
     <div className="h-full flex flex-col border-l bg-background overflow-hidden">
       {/* Fixed Stats Header - Always visible, never compressed */}
@@ -81,6 +83,7 @@ export function MetadataSidebar({ document, onChunkSelect, selectedChunkId }: Me
               documentName={document.file_name ?? document.title ?? undefined}
               onChunkSelect={onChunkSelect}
               selectedChunkId={selectedChunkId}
+              initialChunkIndex={initialChunkIndex}
             />
           </CollapsibleSection>
 

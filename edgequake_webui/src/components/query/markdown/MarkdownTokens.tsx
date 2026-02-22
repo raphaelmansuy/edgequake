@@ -234,8 +234,8 @@ const TokenRenderer = memo(function TokenRenderer({
     case 'table': {
       const table = token as Tokens.Table;
       return (
-        <div className="my-4 overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
+        <div className="my-4 overflow-x-auto" role="region" aria-label="Data table" tabIndex={0}>
+          <table className="w-full border-collapse text-sm" role="table">
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 {table.header.map((cell, index) => (
@@ -291,7 +291,7 @@ const TokenRenderer = memo(function TokenRenderer({
     case 'hr':
       // Subtle divider that doesn't look like an artifact
       return (
-        <hr className="my-6 border-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+        <hr className="my-6 border-0 h-px bg-linear-to-r from-transparent via-border to-transparent" />
       );
 
     case 'space':
