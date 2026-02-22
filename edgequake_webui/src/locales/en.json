@@ -162,25 +162,11 @@
       "confirmDesc": "This will retry processing for {{count}} failed document(s). This may take some time depending on document size.",
       "confirm": "Retry All Failed"
     },
-    "clearAll": {
-      "button": "Clear All",
-      "title": "Delete All Documents",
-      "warning": "This action cannot be undone. This will permanently delete:",
-      "item1": "{{count}} document(s)",
-      "item2": "All extracted entities and relationships",
-      "item3": "All document chunks and embeddings",
-      "typeToConfirm": "Type {{text}} to confirm:",
-      "confirmButton": "Delete All Documents",
-      "deleting": "Deleting...",
-      "success": "Documents cleared",
-      "successDesc": "Successfully deleted {{count}} document(s) and their associated data.",
-      "failed": "Clear failed"
-    },
+    "clearAll": "Clear All",
     "viewStatus": "View Status",
     "uploadDrop": "Drag & drop files or click to upload",
     "uploadDropActive": "Drop files here...",
     "uploadSupports": "Supports TXT, MD, JSON files",
-    "clearAll": "Clear All",
     "refresh": "Refresh",
     "noDocuments": "No documents yet",
     "noDocumentsSubtitle": "Upload documents to build your knowledge graph",
@@ -433,7 +419,10 @@
       "themeLight": "Light",
       "themeDark": "Dark",
       "themeSystem": "System",
-      "language": "Language"
+      "language": "Language",
+      "subtitle": "Customize the look and feel of the application",
+      "themeDesc": "Select your preferred color scheme",
+      "languageDesc": "Select your preferred language"
     },
     "api": {
       "title": "API Configuration",
@@ -451,7 +440,20 @@
       "exported": "Settings exported successfully",
       "imported": "Settings imported successfully",
       "importError": "Import failed: {{error}}",
-      "invalidFile": "Invalid settings file format"
+      "invalidFile": "Invalid settings file format",
+      "subtitle": "Manage local data, import/export settings, and reset. Use caution with destructive actions.",
+      "clearHistory": "Clear History",
+      "clearHistoryTitle": "Clear query history?",
+      "clearHistoryDesc": "This will permanently delete all your saved queries and favorites. This action cannot be undone.",
+      "clearHistoryConfirm": "Clear",
+      "queryHistory": "Query History",
+      "queryHistoryDesc": "Clear all saved query history and conversations",
+      "resetAll": "Reset All Settings",
+      "resetAllDesc": "Reset all settings to their default values. Your data will not be affected.",
+      "resetButton": "Reset Settings",
+      "resetConfirmTitle": "Reset all settings?",
+      "resetConfirmDesc": "This will reset all settings to their default values. Your documents and knowledge graph data will not be affected. This action cannot be undone.",
+      "resetConfirm": "Reset"
     },
     "cache": {
       "clear": "Clear Cache",
@@ -464,6 +466,68 @@
       "cleared": "Cache cleared",
       "clearedDesc": "Application cache has been cleared. Data will be refreshed from the server.",
       "clearFailed": "Failed to clear cache"
+    },
+    "subtitle": "Customize your EdgeQuake experience",
+    "graph": {
+      "title": "Graph Visualization",
+      "subtitle": "Configure how the knowledge graph is displayed",
+      "showNodeLabels": "Show Node Labels",
+      "showNodeLabelsDesc": "Display labels on graph nodes",
+      "showEdgeLabels": "Show Edge Labels",
+      "showEdgeLabelsDesc": "Display relationship types on edges",
+      "nodeSize": "Node Size",
+      "nodeSizeDesc": "Size of nodes in the graph",
+      "nodeSizeSmall": "Small",
+      "nodeSizeMedium": "Medium",
+      "nodeSizeLarge": "Large",
+      "defaultLayout": "Default Layout",
+      "defaultLayoutDesc": "Initial graph layout algorithm",
+      "layoutForce": "ForceAtlas2 (FA2)",
+      "layoutForceDirected": "Force-Directed",
+      "layoutCircular": "Circular",
+      "layoutCirclePack": "Circle Pack",
+      "layoutRandom": "Random",
+      "layoutNoverlaps": "Noverlaps",
+      "layoutHierarchical": "Hierarchical"
+    },
+    "query": {
+      "title": "Query Defaults",
+      "subtitle": "Default settings for knowledge graph queries",
+      "defaultMode": "Default Query Mode",
+      "defaultModeDesc": "Default retrieval mode for queries",
+      "enableStreaming": "Enable Streaming",
+      "enableStreamingDesc": "Show responses as they are generated",
+      "enableReranking": "Enable Reranking",
+      "enableRerankingDesc": "Improve retrieval precision with semantic reranking",
+      "rerankTopK": "Rerank Top K",
+      "rerankTopKDesc": "Number of top results after reranking"
+    },
+    "ingestion": {
+      "title": "Ingestion Settings",
+      "subtitle": "Advanced settings for document ingestion quality",
+      "enableGleaning": "Enable Gleaning",
+      "enableGleaningDesc": "Multiple extraction passes for higher quality entities",
+      "maxGleaning": "Max Gleaning Passes",
+      "maxGleaningDesc": "Maximum number of extraction passes (1-3)",
+      "llmSummarization": "LLM Summarization",
+      "llmSummarizationDesc": "Use LLM to merge entity descriptions intelligently"
+    },
+    "toasts": {
+      "historyCleared": "Query history cleared",
+      "settingsReset": "Settings reset to defaults",
+      "themeChanged": "Theme changed to {{theme}}",
+      "languageChanged": "Language changed to {{language}}"
+    },
+    "vision": {
+      "title": "Vision LLM Default",
+      "subtitle": "Default Vision LLM model for document image analysis and PDF visual extraction",
+      "model": "Vision Model",
+      "modelDesc": "Model used for image understanding in document processing",
+      "noVisionModel": "No vision model configured",
+      "noVisionModelDesc": "Configure a vision model to enable image-aware document processing",
+      "serverDefault": "Server Default",
+      "updateSuccess": "Vision LLM configuration updated",
+      "updateFailed": "Failed to update vision LLM configuration"
     }
   },
   "tenant": {

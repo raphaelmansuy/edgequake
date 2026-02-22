@@ -33,7 +33,12 @@
     "pressEscToClose": "Appuyez sur Échap pour fermer",
     "skipToContent": "Aller au contenu principal",
     "show": "Afficher",
-    "hide": "Masquer"
+    "hide": "Masquer",
+    "create": "Créer",
+    "failed": "Échoué",
+    "optional": "Optionnel",
+    "retry": "Réessayer",
+    "unknownError": "Erreur inconnue"
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -43,7 +48,8 @@
     "workspace": "Espace de travail",
     "costs": "Coûts",
     "apiExplorer": "Explorateur API",
-    "settings": "Paramètres"
+    "settings": "Paramètres",
+    "pipeline": "Pipeline"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -105,7 +111,10 @@
       "error": "{{count}} fichier(s) ont échoué",
       "complete": "Téléchargé ! Traitement en cours...",
       "fileTooLarge": "Le fichier \"{{name}}\" est trop volumineux ({{size}}Mo). La taille maximale est de 10Mo.",
-      "invalidType": "Le fichier \"{{name}}\" a un format non supporté. Formats supportés : TXT, MD, JSON."
+      "invalidType": "Le fichier \"{{name}}\" a un format non supporté. Formats supportés : TXT, MD, JSON.",
+      "allFailed": "Les {{count}} fichier(s) ont tous échoué",
+      "partial": "{{success}} fichier(s) téléchargé(s), {{failed}} en échec",
+      "viewInGraph": "Voir dans le graphe"
     },
     "uploadDrop": "Glissez-déposez des fichiers ou cliquez pour télécharger",
     "uploadDropActive": "Déposez les fichiers ici...",
@@ -207,7 +216,54 @@
       "actions": "Actions",
       "technicalDetails": "Détails techniques",
       "retryable": "Réessayable"
-    }
+    },
+    "delete": {
+      "failed": "Échec de la suppression",
+      "success": "Document supprimé",
+      "successDesc": "Le document a été définitivement supprimé."
+    },
+    "deleteAll": {
+      "failed": "Échec de la suppression globale",
+      "success": "{{count}} documents supprimés"
+    },
+    "reprocess": {
+      "failed": "Échec du retraitement",
+      "success": "Document mis en file d'attente pour retraitement",
+      "successDesc": "Le document sera entièrement retraité."
+    },
+    "reprocessAll": {
+      "confirm": "Retenter tous les échecs",
+      "confirmDesc": "Cela relancera le traitement de {{count}} document(s) en échec.",
+      "confirmTitle": "Retraiter les documents en échec ?",
+      "failed": "Échec du retraitement",
+      "processing": "Réessai en cours...",
+      "retryFailed": "Réessayer les échecs ({{count}})",
+      "started": "Retraitement démarré",
+      "startedDesc": "Réessai de {{count}} document(s) en échec..."
+    },
+    "reset": {
+      "button": "Réinitialiser le statut",
+      "confirmDescCompleted": "Cela retraitera le document, pouvant mettre à jour les entités et relations extraites.",
+      "confirmDescFailed": "Cela relancera le traitement du document en échec. L'erreur existante sera effacée.",
+      "confirmTitle": "Réinitialiser le statut du document ?",
+      "failed": "Échec de la réinitialisation",
+      "fullReprocess": "Retraitement complet",
+      "reprocess": "Retraiter le document",
+      "reprocessDesc": "Cela retraitera entièrement le document depuis le début.",
+      "reprocessTitle": "Retraiter le document ?",
+      "retry": "Réessayer le traitement",
+      "retryFailed": "Réessayer le document en échec",
+      "success": "Document mis en file d'attente pour retraitement",
+      "successDesc": "Le document sera traité à nouveau sous peu."
+    },
+    "scan": {
+      "failed": "Échec de l'analyse",
+      "scanDirectory": "Analyser le répertoire",
+      "scanning": "Analyse en cours...",
+      "started": "Analyse démarrée",
+      "startedDesc": "Analyse du répertoire d'entrée pour de nouveaux documents..."
+    },
+    "viewStatus": "Voir le statut"
   },
   "graph": {
     "title": "Graphe de connaissances",
@@ -231,7 +287,11 @@
     },
     "search": {
       "placeholder": "Rechercher des nœuds...",
-      "noResults": "Aucun nœud trouvé"
+      "noResults": "Aucun nœud trouvé",
+      "navigate": "Naviguer",
+      "recent": "Noeuds",
+      "results": "Résultats",
+      "select": "Sélectionner"
     },
     "nodeDetails": {
       "title": "Détails du nœud",
@@ -272,7 +332,27 @@
       "svgComingSoon": "Export SVG bientôt disponible",
       "failed": "Échec de l'export",
       "noCanvas": "Canevas du graphe introuvable"
-    }
+    },
+    "collapseLegend": "Réduire",
+    "enterFullscreen": "Plein écran",
+    "exitFullscreen": "Quitter le plein écran",
+    "focusOnNode": "Centrer sur le noeud sélectionné",
+    "hidden": "masqué",
+    "nodeTypes": {
+      "concept": "Concept",
+      "default": "Autre",
+      "document": "Document",
+      "event": "Événement",
+      "location": "Lieu",
+      "organization": "Organisation",
+      "person": "Personne"
+    },
+    "resetZoom": "Réinitialiser la vue",
+    "rotateClockwise": "Rotation horaire",
+    "rotateCounterClockwise": "Rotation antihoraire",
+    "showAll": "Tout afficher",
+    "zoomIn": "Zoom avant",
+    "zoomOut": "Zoom arrière"
   },
   "query": {
     "title": "Requête",
@@ -317,7 +397,8 @@
       "favorites": "Favoris",
       "noHistory": "Pas d'historique de requêtes",
       "clear": "Effacer l'historique"
-    }
+    },
+    "failed": "Échec de la requête"
   },
   "pipeline": {
     "title": "État du pipeline",
@@ -338,7 +419,10 @@
       "themeLight": "Clair",
       "themeDark": "Sombre",
       "themeSystem": "Système",
-      "language": "Langue"
+      "language": "Langue",
+      "subtitle": "Personnalisez l'apparence de l'application",
+      "themeDesc": "Sélectionnez votre palette de couleurs préférée",
+      "languageDesc": "Sélectionnez votre langue préférée"
     },
     "api": {
       "title": "Configuration API",
@@ -356,7 +440,94 @@
       "exported": "Paramètres exportés avec succès",
       "imported": "Paramètres importés avec succès",
       "importError": "Échec de l'importation : {{error}}",
-      "invalidFile": "Format de fichier de paramètres invalide"
+      "invalidFile": "Format de fichier de paramètres invalide",
+      "subtitle": "Gérez les données locales, importez/exportez les paramètres et réinitialisez. Agissez avec prudence.",
+      "clearHistory": "Effacer l'historique",
+      "clearHistoryTitle": "Effacer l'historique des requêtes ?",
+      "clearHistoryDesc": "Cela supprimera définitivement toutes vos requêtes et favoris. Cette action est irréversible.",
+      "clearHistoryConfirm": "Effacer",
+      "queryHistory": "Historique des requêtes",
+      "queryHistoryDesc": "Effacer toutes les requêtes et conversations sauvegardées",
+      "resetAll": "Réinitialiser tous les paramètres",
+      "resetAllDesc": "Réinitialiser tous les paramètres à leurs valeurs par défaut. Vos données ne seront pas affectées.",
+      "resetButton": "Réinitialiser les paramètres",
+      "resetConfirmTitle": "Réinitialiser tous les paramètres ?",
+      "resetConfirmDesc": "Cela réinitialisera tous les paramètres à leurs valeurs par défaut. Vos documents et graphe ne seront pas affectés.",
+      "resetConfirm": "Réinitialiser"
+    },
+    "subtitle": "Personnalisez votre expérience EdgeQuake",
+    "graph": {
+      "title": "Visualisation du graphe",
+      "subtitle": "Configurez l'affichage du graphe de connaissances",
+      "showNodeLabels": "Afficher les étiquettes des noeuds",
+      "showNodeLabelsDesc": "Affiche les étiquettes sur les noeuds du graphe",
+      "showEdgeLabels": "Afficher les étiquettes des arêtes",
+      "showEdgeLabelsDesc": "Affiche les types de relations sur les arêtes",
+      "nodeSize": "Taille des noeuds",
+      "nodeSizeDesc": "Taille des noeuds dans le graphe",
+      "nodeSizeSmall": "Petit",
+      "nodeSizeMedium": "Moyen",
+      "nodeSizeLarge": "Grand",
+      "defaultLayout": "Mise en page par défaut",
+      "defaultLayoutDesc": "Algorithme de disposition initial du graphe",
+      "layoutForce": "ForceAtlas2 (FA2)",
+      "layoutForceDirected": "Dirigé par force",
+      "layoutCircular": "Circulaire",
+      "layoutCirclePack": "Cercles imbriqués",
+      "layoutRandom": "Aléatoire",
+      "layoutNoverlaps": "Sans chevauchements",
+      "layoutHierarchical": "Hiérarchique"
+    },
+    "query": {
+      "title": "Paramètres de requête",
+      "subtitle": "Paramètres par défaut pour les requêtes du graphe",
+      "defaultMode": "Mode de requête par défaut",
+      "defaultModeDesc": "Mode de récupération par défaut pour les requêtes",
+      "enableStreaming": "Activer le streaming",
+      "enableStreamingDesc": "Afficher les réponses au fur et à mesure de leur génération",
+      "enableReranking": "Activer le reclassement",
+      "enableRerankingDesc": "Améliorer la précision de récupération avec le reclassement sémantique",
+      "rerankTopK": "Top K après reclassement",
+      "rerankTopKDesc": "Nombre de meilleurs résultats après reclassement"
+    },
+    "ingestion": {
+      "title": "Paramètres d'ingestion",
+      "subtitle": "Paramètres avancés pour la qualité de l'ingestion de documents",
+      "enableGleaning": "Activer le glanage",
+      "enableGleaningDesc": "Plusieurs passes d'extraction pour des entités de meilleure qualité",
+      "maxGleaning": "Nombre max de passes",
+      "maxGleaningDesc": "Nombre maximum de passes d'extraction (1-3)",
+      "llmSummarization": "Résumé LLM",
+      "llmSummarizationDesc": "Utiliser le LLM pour fusionner intelligemment les descriptions d'entités"
+    },
+    "toasts": {
+      "historyCleared": "Historique des requêtes effacé",
+      "settingsReset": "Paramètres réinitialisés aux valeurs par défaut",
+      "themeChanged": "Thème changé en {{theme}}",
+      "languageChanged": "Langue changée en {{language}}"
+    },
+    "cache": {
+      "clear": "Vider le cache",
+      "clearTitle": "Vider le cache ?",
+      "clearDescription": "Cela effacera toutes les donnees en cache, notamment :",
+      "queryCache": "Cache des resultats de requetes",
+      "graphCache": "Cache de visualisation du graphe",
+      "historyCache": "Cache de l'historique des requetes",
+      "reloadNote": "Les donnees seront actualisees depuis le serveur.",
+      "cleared": "Cache vide",
+      "clearedDesc": "Le cache a ete vide. Les donnees seront actualisees depuis le serveur.",
+      "clearFailed": "Echec du vidage du cache"
+    },
+    "vision": {
+      "title": "LLM Vision par defaut",
+      "subtitle": "Modele Vision LLM par defaut pour l'analyse d'images et l'extraction visuelle PDF",
+      "model": "Modele Vision",
+      "modelDesc": "Modele utilise pour la comprehension d'images dans le traitement des documents",
+      "noVisionModel": "Aucun modele de vision configure",
+      "noVisionModelDesc": "Configurez un modele de vision pour activer le traitement de documents avec images",
+      "serverDefault": "Par defaut du serveur",
+      "updateSuccess": "Configuration Vision LLM mise a jour",
+      "updateFailed": "Echec de la mise a jour de la configuration Vision LLM"
     }
   },
   "websocket": {
@@ -377,5 +548,124 @@
     "deleteFailed": "Échec de la suppression : {{error}}",
     "queryFailed": "Échec de la requête : {{error}}",
     "connectionFailed": "Échec de la connexion"
+  },
+  "entity": {
+    "currentEntity": "Entité actuelle",
+    "description": "Description",
+    "descriptionPlaceholder": "Une brève description de cette entité...",
+    "edit": "Modifier l'entité",
+    "editDescription": "Modifiez les propriétés de l'entité.",
+    "existingEntity": "Entité existante",
+    "label": "Nom de l'entité",
+    "labelConflict": "Une entité avec ce nom existe déjà.",
+    "labelPlaceholder": "Nom de l'entité",
+    "merge": "Fusionner les entités",
+    "mergeConflict": "Conflit de fusion",
+    "mergeConflictDescription": "Une entité avec ce nom existe déjà. Voulez-vous les fusionner ?",
+    "mergeExplanation": "La fusion combinera toutes les relations des deux entités. Cette action est irréversible.",
+    "mergeFailed": "Échec de la fusion des entités",
+    "mergeSuccess": "Entités fusionnées avec succès",
+    "mergeSuccessDesc": "{{count}} entités fusionnées en une seule.",
+    "noChanges": "Aucune modification à enregistrer",
+    "properties": "Propriétés",
+    "renameWarning": "Le renommage peut déclencher une fusion si un doublon existe",
+    "selectType": "Sélectionnez un type...",
+    "type": "Type d'entité",
+    "updateFailed": "Échec de la mise à jour de l'entité",
+    "updateSuccess": "Entité mise à jour avec succès"
+  },
+  "relationship": {
+    "customType": "Type personnalisé",
+    "customTypePlaceholder": "TYPE_PERSONNALISE",
+    "description": "Description",
+    "descriptionPlaceholder": "Décrivez cette relation...",
+    "edit": "Modifier la relation",
+    "editDescription": "Modifiez les propriétés de la relation entre les entités.",
+    "noChanges": "Aucune modification à enregistrer",
+    "selectType": "Sélectionnez un type...",
+    "sourceDocuments": "Documents sources",
+    "type": "Type de relation",
+    "updateFailed": "Échec de la mise à jour de la relation",
+    "updateSuccess": "Relation mise à jour avec succès",
+    "weight": "Poids",
+    "weightHint": "Un poids plus élevé indique une relation plus forte (0.0 - 1.0)"
+  },
+  "tenant": {
+    "createDescription": "Créez un nouveau locataire pour organiser vos espaces de travail.",
+    "createFailed": "Échec de la création du locataire",
+    "createNew": "Créer un nouveau locataire",
+    "createSuccess": "Locataire créé avec succès",
+    "description": "Description",
+    "descriptionPlaceholder": "Une brève description...",
+    "name": "Nom du locataire",
+    "namePlaceholder": "Mon Organisation",
+    "selectContext": "Sélectionner le contexte",
+    "selectTenant": "Sélectionnez un locataire...",
+    "tenant": "Locataire"
+  },
+  "workspace": {
+    "actions": "Actions de l'espace de travail",
+    "actionsDesc": "Gérez les données de l'espace de travail et retraitez les documents.",
+    "autoDetect": "Détection automatique",
+    "chunks": "Segments",
+    "createDescription": "Créez un nouvel espace de travail pour organiser vos documents.",
+    "createFailed": "Échec de la création de l'espace de travail",
+    "createNew": "Créer un nouvel espace de travail",
+    "createSuccess": "Espace de travail créé avec succès",
+    "created": "Créé",
+    "description": "Description",
+    "descriptionPlaceholder": "Une brève description...",
+    "documents": "Documents",
+    "edit": "Modifier",
+    "embeddingChangeWarning": "La modification du modèle d'embeddings nécessite la reconstruction de tous les embeddings.",
+    "embeddingConfig": "Configuration des embeddings",
+    "embeddingConfigDesc": "Modèle utilisé pour les embeddings vectoriels des segments de documents.",
+    "embeddingRebuildHint": "Utilisez Reconstruire les embeddings pour regenerer les embeddings vectoriels.",
+    "embeddingRebuildRequired": "Modèle d'embeddings modifié",
+    "entities": "Entités",
+    "id": "ID de l'espace de travail",
+    "llmChangeWarning": "La modification du modèle LLM nécessite de ré-extraire les entités.",
+    "llmConfig": "Configuration LLM",
+    "llmConfigDesc": "Modèle utilisé pour l'extraction d'entités lors de l'ingestion.",
+    "llmRebuildHint": "Utilisez Reconstruire les embeddings pour ré-extraire les entités avec le nouveau modèle.",
+    "llmRebuildRequired": "Modèle LLM modifié",
+    "maxDocuments": "Max",
+    "name": "Nom de l'espace de travail",
+    "namePlaceholder": "Projet Alpha",
+    "noProvidersConfigured": "Aucun fournisseur configuré",
+    "noWorkspaceSelected": "Aucun espace de travail sélectionné",
+    "notFound": "Espace de travail introuvable",
+    "notFoundHint": "L'espace de travail sélectionné n'a pas pu être chargé.",
+    "providersStatus": "État des fournisseurs",
+    "providersStatusDesc": "État en temps réel des fournisseurs LLM et d'embeddings.",
+    "rebuild": {
+      "button": "Reconstruire les embeddings",
+      "rebuilding": "Reconstruction en cours...",
+      "confirm": {
+        "title": "Reconstruire les embeddings ?",
+        "description": "Cela effacera tous les embeddings vectoriels pour l'espace de travail :",
+        "warning": "Avertissement :",
+        "warning1": "Tous les embeddings existants seront supprimés",
+        "warning2": "Les documents seront automatiquement retraités",
+        "warning3": "Les requêtes peuvent retourner des résultats vides jusqu'à la fin",
+        "info": "Une boîte de dialogue de progression apparaîtra."
+      }
+    },
+    "rebuildBothHint": "LLM et embeddings ont changé. Utilisez Reconstruire les embeddings pour retraiter.",
+    "rebuildBothPending": "Vous avez modifié les modèles LLM et d'embeddings. Cliquez sur Reconstruire les embeddings.",
+    "rebuildEmbeddingsPending": "Vous avez modifié le modèle d'embeddings. Cliquez sur Reconstruire les embeddings.",
+    "rebuildExtractionPending": "Vous avez modifié le modèle LLM. Cliquez sur Reconstruire les embeddings.",
+    "rebuildPending": "Reconstruction requise",
+    "rebuildRequired": "Modifications de modèles détectées",
+    "relationships": "Relations",
+    "selectWorkspace": "Sélectionnez un espace de travail...",
+    "selectWorkspaceHint": "Veuillez sélectionner un espace de travail dans la barre latérale.",
+    "serverDefault": "Par défaut du serveur",
+    "slug": "Identifiant",
+    "statusReady": "Espace de travail prêt pour les requêtes et l'ingestion",
+    "updateFailed": "Échec de la mise à jour de l'espace de travail",
+    "updateSuccess": "Espace de travail mis à jour avec succès",
+    "updated": "Mis à jour",
+    "workspace": "Espace de travail"
   }
 }

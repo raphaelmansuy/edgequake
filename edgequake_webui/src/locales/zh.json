@@ -33,7 +33,12 @@
     "pressEscToClose": "按 Esc 关闭",
     "skipToContent": "跳转到主要内容",
     "show": "显示",
-    "hide": "隐藏"
+    "hide": "隐藏",
+    "create": "创建",
+    "failed": "失败",
+    "optional": "可选",
+    "retry": "重试",
+    "unknownError": "未知错误"
   },
   "nav": {
     "dashboard": "仪表板",
@@ -43,7 +48,8 @@
     "workspace": "工作区",
     "costs": "成本",
     "apiExplorer": "API浏览器",
-    "settings": "设置"
+    "settings": "设置",
+    "pipeline": "管道"
   },
   "dashboard": {
     "title": "仪表板",
@@ -105,7 +111,10 @@
       "error": "{{count}} 个文件上传失败",
       "complete": "已上传！正在后台处理...",
       "fileTooLarge": "文件 \"{{name}}\" 太大 ({{size}}MB)。最大限制为 10MB。",
-      "invalidType": "文件 \"{{name}}\" 格式不支持。支持格式：TXT、MD、JSON。"
+      "invalidType": "文件 \"{{name}}\" 格式不支持。支持格式：TXT、MD、JSON。",
+      "allFailed": "所有 {{count}} 个文件上传失败",
+      "partial": "已上传 {{success}} 个文件，{{failed}} 个失败",
+      "viewInGraph": "在图中查看"
     },
     "uploadDrop": "拖放文件或点击上传",
     "uploadDropActive": "将文件放在这里...",
@@ -207,7 +216,54 @@
       "actions": "操作",
       "technicalDetails": "技术详情",
       "retryable": "可重试"
-    }
+    },
+    "delete": {
+      "failed": "删除失败",
+      "success": "文档已删除",
+      "successDesc": "该文档已被永久删除。"
+    },
+    "deleteAll": {
+      "failed": "全部删除失败",
+      "success": "已删除 {{count}} 个文档"
+    },
+    "reprocess": {
+      "failed": "重新处理失败",
+      "success": "文档已加入重新处理队列",
+      "successDesc": "该文档将被完全重新处理。"
+    },
+    "reprocessAll": {
+      "confirm": "重试所有失败",
+      "confirmDesc": "这将重试处理 {{count}} 个失败文档。",
+      "confirmTitle": "重新处理失败的文档？",
+      "failed": "重新处理失败",
+      "processing": "正在重试...",
+      "retryFailed": "重试失败 ({{count}})",
+      "started": "重新处理已启动",
+      "startedDesc": "正在重试 {{count}} 个失败文档..."
+    },
+    "reset": {
+      "button": "重置状态",
+      "confirmDescCompleted": "这将重新处理文档，可能会更新已提取的实体和关系。",
+      "confirmDescFailed": "这将重试处理失败的文档。现有错误将被清除。",
+      "confirmTitle": "重置文档状态？",
+      "failed": "重置文档失败",
+      "fullReprocess": "完整重新处理",
+      "reprocess": "重新处理文档",
+      "reprocessDesc": "这将从头开始完整重新处理文档。",
+      "reprocessTitle": "重新处理文档？",
+      "retry": "重试处理",
+      "retryFailed": "重试失败的文档",
+      "success": "文档已加入重新处理队列",
+      "successDesc": "该文档将很快被重新处理。"
+    },
+    "scan": {
+      "failed": "扫描失败",
+      "scanDirectory": "扫描目录",
+      "scanning": "正在扫描...",
+      "started": "扫描已启动",
+      "startedDesc": "正在扫描输入目录以查找新文档..."
+    },
+    "viewStatus": "查看状态"
   },
   "graph": {
     "title": "知识图谱",
@@ -231,7 +287,11 @@
     },
     "search": {
       "placeholder": "搜索节点...",
-      "noResults": "未找到节点"
+      "noResults": "未找到节点",
+      "navigate": "导航",
+      "recent": "节点",
+      "results": "结果",
+      "select": "选择"
     },
     "nodeDetails": {
       "title": "节点详情",
@@ -272,7 +332,27 @@
       "svgComingSoon": "SVG 导出功能即将推出",
       "failed": "导出失败",
       "noCanvas": "未找到图谱画布"
-    }
+    },
+    "collapseLegend": "折叠",
+    "enterFullscreen": "全屏",
+    "exitFullscreen": "退出全屏",
+    "focusOnNode": "聚焦选中节点",
+    "hidden": "已隐藏",
+    "nodeTypes": {
+      "concept": "概念",
+      "default": "其他",
+      "document": "文档",
+      "event": "事件",
+      "location": "地点",
+      "organization": "组织",
+      "person": "人物"
+    },
+    "resetZoom": "重置视图",
+    "rotateClockwise": "顺时针旋转",
+    "rotateCounterClockwise": "逆时针旋转",
+    "showAll": "显示全部",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
   },
   "query": {
     "title": "查询",
@@ -317,7 +397,8 @@
       "favorites": "收藏",
       "noHistory": "无查询历史",
       "clear": "清除历史"
-    }
+    },
+    "failed": "查询失败"
   },
   "pipeline": {
     "title": "管道状态",
@@ -338,7 +419,10 @@
       "themeLight": "浅色",
       "themeDark": "深色",
       "themeSystem": "系统",
-      "language": "语言"
+      "language": "语言",
+      "subtitle": "自定义应用程序的外观",
+      "themeDesc": "选择您喜欢的配色方案",
+      "languageDesc": "选择您的首选语言"
     },
     "api": {
       "title": "API 配置",
@@ -356,7 +440,94 @@
       "exported": "设置导出成功",
       "imported": "设置导入成功",
       "importError": "导入失败：{{error}}",
-      "invalidFile": "无效的设置文件格式"
+      "invalidFile": "无效的设置文件格式",
+      "subtitle": "管理本地数据、导入/导出设置并重置。请谨慎操作。",
+      "clearHistory": "清除历史记录",
+      "clearHistoryTitle": "清除查询历史记录？",
+      "clearHistoryDesc": "这将永久删除您所有保存的查询和收藏。此操作不可撤销。",
+      "clearHistoryConfirm": "清除",
+      "queryHistory": "查询历史记录",
+      "queryHistoryDesc": "清除所有已保存的查询历史和对话",
+      "resetAll": "重置所有设置",
+      "resetAllDesc": "将所有设置重置为默认值。您的数据不会受到影响。",
+      "resetButton": "重置设置",
+      "resetConfirmTitle": "重置所有设置？",
+      "resetConfirmDesc": "这将把所有设置重置为默认值。您的文档和知识图数据不会受到影响。",
+      "resetConfirm": "重置"
+    },
+    "subtitle": "自定义您的 EdgeQuake 体验",
+    "graph": {
+      "title": "图可视化",
+      "subtitle": "配置知识图的显示方式",
+      "showNodeLabels": "显示节点标签",
+      "showNodeLabelsDesc": "在图节点上显示标签",
+      "showEdgeLabels": "显示边标签",
+      "showEdgeLabelsDesc": "在边上显示关系类型",
+      "nodeSize": "节点大小",
+      "nodeSizeDesc": "图中节点的大小",
+      "nodeSizeSmall": "小",
+      "nodeSizeMedium": "中",
+      "nodeSizeLarge": "大",
+      "defaultLayout": "默认布局",
+      "defaultLayoutDesc": "初始图布局算法",
+      "layoutForce": "ForceAtlas2 (FA2)",
+      "layoutForceDirected": "力导向",
+      "layoutCircular": "环形",
+      "layoutCirclePack": "圆形堆叠",
+      "layoutRandom": "随机",
+      "layoutNoverlaps": "无重叠",
+      "layoutHierarchical": "层次"
+    },
+    "query": {
+      "title": "查询设置",
+      "subtitle": "知识图查询的默认设置",
+      "defaultMode": "默认查询模式",
+      "defaultModeDesc": "查询的默认检索模式",
+      "enableStreaming": "启用流式传输",
+      "enableStreamingDesc": "在生成时显示响应",
+      "enableReranking": "启用重排序",
+      "enableRerankingDesc": "通过语义重排序提高检索精度",
+      "rerankTopK": "重排序 Top K",
+      "rerankTopKDesc": "重排序后的最大结果数"
+    },
+    "ingestion": {
+      "title": "摄取设置",
+      "subtitle": "文档摄取质量的高级设置",
+      "enableGleaning": "启用拾穗",
+      "enableGleaningDesc": "多次提取以获得更高质量的实体",
+      "maxGleaning": "最大拾穗次数",
+      "maxGleaningDesc": "最大提取次数 (1-3)",
+      "llmSummarization": "LLM 摘要",
+      "llmSummarizationDesc": "使用 LLM 智能合并实体描述"
+    },
+    "toasts": {
+      "historyCleared": "查询历史记录已清除",
+      "settingsReset": "设置已重置为默认值",
+      "themeChanged": "主题已更改为 {{theme}}",
+      "languageChanged": "语言已更改为 {{language}}"
+    },
+    "cache": {
+      "clear": "清除缓存",
+      "clearTitle": "清除缓存？",
+      "clearDescription": "这将清除应用程序中的所有缓存数据，包括：",
+      "queryCache": "查询结果缓存",
+      "graphCache": "图可视化缓存",
+      "historyCache": "查询历史缓存",
+      "reloadNote": "数据将从服务器刷新。",
+      "cleared": "缓存已清除",
+      "clearedDesc": "应用程序缓存已清除。数据将从服务器刷新。",
+      "clearFailed": "清除缓存失败"
+    },
+    "vision": {
+      "title": "默认视觉 LLM",
+      "subtitle": "用于文档图像分析和 PDF 视觉提取的默认视觉 LLM 模型",
+      "model": "视觉模型",
+      "modelDesc": "文档处理中用于图像理解的模型",
+      "noVisionModel": "未配置视觉模型",
+      "noVisionModelDesc": "配置视觉模型以启用图像感知文档处理",
+      "serverDefault": "服务器默认",
+      "updateSuccess": "视觉 LLM 配置已更新",
+      "updateFailed": "更新视觉 LLM 配置失败"
     }
   },
   "websocket": {
@@ -377,5 +548,124 @@
     "deleteFailed": "删除失败：{{error}}",
     "queryFailed": "查询失败：{{error}}",
     "connectionFailed": "连接失败"
+  },
+  "entity": {
+    "currentEntity": "当前实体",
+    "description": "描述",
+    "descriptionPlaceholder": "对该实体的简短描述...",
+    "edit": "编辑实体",
+    "editDescription": "修改实体属性。",
+    "existingEntity": "现有实体",
+    "label": "实体名称",
+    "labelConflict": "已存在同名实体。请考虑合并。",
+    "labelPlaceholder": "实体名称",
+    "merge": "合并实体",
+    "mergeConflict": "合并冲突",
+    "mergeConflictDescription": "已存在同名实体。您要合并它们吗？",
+    "mergeExplanation": "合并将把两个实体的所有关系合并为一个。此操作不可撤销。",
+    "mergeFailed": "合并实体失败",
+    "mergeSuccess": "实体合并成功",
+    "mergeSuccessDesc": "已将 {{count}} 个实体合并为一个。",
+    "noChanges": "没有需要保存的更改",
+    "properties": "属性",
+    "renameWarning": "如果存在重复项，重命名可能会触发合并",
+    "selectType": "选择类型...",
+    "type": "实体类型",
+    "updateFailed": "更新实体失败",
+    "updateSuccess": "实体已成功更新"
+  },
+  "relationship": {
+    "customType": "自定义类型",
+    "customTypePlaceholder": "自定义类型",
+    "description": "描述",
+    "descriptionPlaceholder": "描述这段关系...",
+    "edit": "编辑关系",
+    "editDescription": "修改实体之间关系的属性。",
+    "noChanges": "没有需要保存的更改",
+    "selectType": "选择类型...",
+    "sourceDocuments": "源文档",
+    "type": "关系类型",
+    "updateFailed": "更新关系失败",
+    "updateSuccess": "关系已成功更新",
+    "weight": "权重",
+    "weightHint": "权重越高表示关系越强 (0.0 - 1.0)"
+  },
+  "tenant": {
+    "createDescription": "创建一个新租户来组织您的工作区和数据。",
+    "createFailed": "创建租户失败",
+    "createNew": "创建新租户",
+    "createSuccess": "租户创建成功",
+    "description": "描述",
+    "descriptionPlaceholder": "简短描述...",
+    "name": "租户名称",
+    "namePlaceholder": "我的组织",
+    "selectContext": "选择上下文",
+    "selectTenant": "选择租户...",
+    "tenant": "租户"
+  },
+  "workspace": {
+    "actions": "工作区操作",
+    "actionsDesc": "管理工作区数据并重新处理文档。",
+    "autoDetect": "自动检测",
+    "chunks": "分块",
+    "createDescription": "在当前租户中创建一个新工作区来组织您的文档。",
+    "createFailed": "创建工作区失败",
+    "createNew": "创建新工作区",
+    "createSuccess": "工作区创建成功",
+    "created": "创建时间",
+    "description": "描述",
+    "descriptionPlaceholder": "简短描述...",
+    "documents": "文档",
+    "edit": "编辑",
+    "embeddingChangeWarning": "更改嵌入模型需要重建所有文档嵌入。",
+    "embeddingConfig": "嵌入配置",
+    "embeddingConfigDesc": "用于文档分块向量嵌入的模型。",
+    "embeddingRebuildHint": "使用重建嵌入以使用新模型重新生成向量嵌入。",
+    "embeddingRebuildRequired": "嵌入模型已更改",
+    "entities": "实体",
+    "id": "工作区 ID",
+    "llmChangeWarning": "更改 LLM 模型需要从所有文档中重新提取实体。",
+    "llmConfig": "LLM 配置",
+    "llmConfigDesc": "文档摄取期间用于实体提取和摘要的模型。",
+    "llmRebuildHint": "使用重建嵌入以使用新 LLM 模型重新提取实体。",
+    "llmRebuildRequired": "LLM 模型已更改",
+    "maxDocuments": "最大",
+    "name": "工作区名称",
+    "namePlaceholder": "项目 Alpha",
+    "noProvidersConfigured": "未配置提供商",
+    "noWorkspaceSelected": "未选择工作区",
+    "notFound": "工作区未找到",
+    "notFoundHint": "无法加载所选工作区。",
+    "providersStatus": "提供商状态",
+    "providersStatusDesc": "已配置的 LLM 和嵌入提供商的实时状态。",
+    "rebuild": {
+      "button": "重建嵌入",
+      "rebuilding": "正在重建...",
+      "confirm": {
+        "title": "重建嵌入？",
+        "description": "这将清除工作区的所有向量嵌入：",
+        "warning": "警告：",
+        "warning1": "所有现有嵌入将被删除",
+        "warning2": "文档将自动重新处理",
+        "warning3": "在重新处理完成之前，查询可能返回空结果",
+        "info": "将出现一个进度对话框。"
+      }
+    },
+    "rebuildBothHint": "LLM 和嵌入模型均已更改。使用重建嵌入以重新处理所有文档。",
+    "rebuildBothPending": "您同时更改了 LLM 和嵌入模型。点击重建嵌入以重新处理文档。",
+    "rebuildEmbeddingsPending": "您更改了嵌入模型。点击重建嵌入以重新生成向量嵌入。",
+    "rebuildExtractionPending": "您更改了 LLM 模型。点击重建嵌入以重新提取实体。",
+    "rebuildPending": "需要重建",
+    "rebuildRequired": "检测到模型更改",
+    "relationships": "关系",
+    "selectWorkspace": "选择工作区...",
+    "selectWorkspaceHint": "请从侧边栏选择一个工作区。",
+    "serverDefault": "服务器默认",
+    "slug": "标识符",
+    "statusReady": "工作区已准备好进行查询和文档摄取",
+    "updateFailed": "更新工作区失败",
+    "updateSuccess": "工作区已成功更新",
+    "updated": "更新时间",
+    "workspace": "工作区"
   }
 }
