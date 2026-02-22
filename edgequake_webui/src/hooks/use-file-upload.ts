@@ -9,6 +9,10 @@
 "use client";
 
 import type { UploadingFile } from "@/components/documents/types";
+import type {
+  DuplicateResolutions,
+  PendingDuplicate,
+} from "@/components/documents/duplicate-upload-dialog";
 import {
   uploadDocument,
   uploadPdfDocument,
@@ -28,6 +32,10 @@ export interface UseFileUploadOptions {
   workspaceId?: string | null;
   /** Callback when upload starts (e.g., to switch filter) */
   onUploadStart?: () => void;
+  /** Called for each "replace" decision in the duplicate dialog.
+   *  WHY: The upload hook doesn't own the reprocess mutation; this
+   *  delegates the action to the parent (DocumentManager). */
+  onReplace?: (existingDocId: string) => void;
 }
 
 export interface UseFileUploadReturn {
@@ -43,6 +51,14 @@ export interface UseFileUploadReturn {
   handleUploadComplete: (index: number) => void;
   /** Mark upload as failed (for PdfUploadProgress) */
   handleUploadFailed: (index: number, error: string) => void;
+  /** Duplicates that need user resolution (drives DuplicateUploadDialog). */
+  pendingDuplicates: PendingDuplicate[];
+  /**
+   * Called when the user confirms decisions in DuplicateUploadDialog.
+   * Iterates resolutions: "replace" triggers onReplace callback;
+   * "skip" is a no-op. Clears pendingDuplicates afterwards.
+   */
+  resolvePendingDuplicates: (resolutions: DuplicateResolutions) => void;
 }
 
 /**
@@ -58,10 +74,13 @@ export interface UseFileUploadReturn {
 export function useFileUpload(
   options: UseFileUploadOptions = {},
 ): UseFileUploadReturn {
-  const { tenantId, workspaceId, onUploadStart } = options;
+  const { tenantId, workspaceId, onUploadStart, onReplace } = options;
 
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  // WHY: Duplicates are collected during the upload loop and shown to the
+  // user in a single DuplicateUploadDialog after all files are processed.
+  const [pendingDuplicates, setPendingDuplicates] = useState<PendingDuplicate[]>([]);
 
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -269,21 +288,16 @@ export function useFileUpload(
             }
           }
 
-          // Check for duplicate
+          // Check for duplicate — collect for dialog instead of showing a toast.
+          // WHY: A dialog gives the user clear choices (replace / skip) and
+          // handles bulk uploads in one interaction rather than N toasts.
           if (response.duplicate_of) {
-            toast.warning(
-              t(
-                "documents.upload.duplicate",
-                "{{name}} is a duplicate (existing: {{id}})",
-                {
-                  name: file.name,
-                  id: response.duplicate_of.slice(0, 8),
-                },
-              ),
-              { duration: 4000 },
-            );
+            setPendingDuplicates((prev) => [
+              ...prev,
+              { fileName: file.name, existingDocId: response.duplicate_of! },
+            ]);
 
-            // Mark as duplicate (treat as success with warning)
+            // Mark the file entry as "duplicate/pending decision"
             setUploadingFiles((prev) =>
               prev.map((f, idx) =>
                 idx === i
@@ -438,6 +452,24 @@ export function useFileUpload(
   }, []);
 
   /**
+   * Resolve pending duplicate decisions.
+   * WHY: Called by DuplicateUploadDialog after user clicks Confirm.
+   * "replace" decisions trigger the onReplace callback (reprocess existing doc).
+   * "skip" decisions are no-ops.
+   */
+  const resolvePendingDuplicates = useCallback(
+    (resolutions: DuplicateResolutions) => {
+      for (const [existingDocId, decision] of Object.entries(resolutions)) {
+        if (decision === 'replace') {
+          onReplace?.(existingDocId);
+        }
+      }
+      setPendingDuplicates([]);
+    },
+    [onReplace],
+  );
+
+  /**
    * Mark PDF upload as successful (called by PdfUploadProgress)
    */
   const handleUploadComplete = useCallback((index: number) => {
@@ -466,6 +498,8 @@ export function useFileUpload(
     removeUploadingFile,
     handleUploadComplete,
     handleUploadFailed,
+    pendingDuplicates,
+    resolvePendingDuplicates,
   };
 }
 

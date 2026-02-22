@@ -107,6 +107,7 @@
       "reading": "Étape 1 : Lecture du fichier...",
       "uploading": "Étape 2 : Envoi vers le serveur...",
       "extracting": "Étape 3 : Pipeline de traitement...",
+      "queued": "En file d'attente pour extraction (Tâche : {{taskId}})",
       "success": "{{count}} fichier(s) téléchargé(s) avec succès",
       "error": "{{count}} fichier(s) ont échoué",
       "complete": "Téléchargé ! Traitement en cours...",
@@ -114,7 +115,22 @@
       "invalidType": "Le fichier \"{{name}}\" a un format non supporté. Formats supportés : TXT, MD, JSON.",
       "allFailed": "Les {{count}} fichier(s) ont tous échoué",
       "partial": "{{success}} fichier(s) téléchargé(s), {{failed}} en échec",
-      "viewInGraph": "Voir dans le graphe"
+      "viewInGraph": "Voir dans le graphe",
+      "duplicateSkipped": "Doublon (ignoré)"
+    },
+    "duplicateDialog": {
+      "titleSingle": "Document doublon détecté",
+      "titleMultiple": "{{count}} documents doublons détectés",
+      "descriptionSingle": "Ce fichier existe déjà dans l'espace de travail. Voulez-vous le remplacer (retraiter le document existant) ou ignorer cet envoi ?",
+      "descriptionMultiple": "Les fichiers suivants existent déjà dans l'espace de travail. Choisissez l'action pour chacun.",
+      "replaceAll": "Tout remplacer",
+      "skipAll": "Tout ignorer",
+      "summary": "{{replace}} seront remplacé(s) · {{skip}} seront ignoré(s)",
+      "cancelAll": "Tout ignorer & fermer",
+      "confirm": "Confirmer",
+      "existingId": "Existant : {{id}}",
+      "replace": "Remplacer",
+      "skip": "Ignorer"
     },
     "uploadDrop": "Glissez-déposez des fichiers ou cliquez pour télécharger",
     "uploadDropActive": "Déposez les fichiers ici...",

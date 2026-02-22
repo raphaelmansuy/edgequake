@@ -107,6 +107,7 @@
       "reading": "Step 1: Reading file...",
       "uploading": "Step 2: Uploading to server...",
       "extracting": "Step 3: Processing pipeline...",
+      "queued": "Queued for extraction (Task: {{taskId}})",
       "success": "{{count}} file(s) uploaded successfully",
       "error": "{{count}} file(s) failed to upload",
       "allFailed": "All {{count}} file(s) failed to upload",
@@ -114,7 +115,22 @@
       "complete": "Uploaded! Processing in background...",
       "fileTooLarge": "File \"{{name}}\" is too large ({{size}}MB). Maximum size is 10MB.",
       "invalidType": "File \"{{name}}\" has an unsupported format. Supported: TXT, MD, JSON.",
-      "viewInGraph": "View in Graph"
+      "viewInGraph": "View in Graph",
+      "duplicateSkipped": "Duplicate (skipped)"
+    },
+    "duplicateDialog": {
+      "titleSingle": "Duplicate document detected",
+      "titleMultiple": "{{count}} duplicate documents detected",
+      "descriptionSingle": "This file already exists in the workspace. Would you like to replace it (reprocess the existing document) or skip this upload?",
+      "descriptionMultiple": "The following files already exist in the workspace. Choose what to do with each one.",
+      "replaceAll": "Replace all",
+      "skipAll": "Skip all",
+      "summary": "{{replace}} will be replaced · {{skip}} will be skipped",
+      "cancelAll": "Skip all & close",
+      "confirm": "Confirm",
+      "existingId": "Existing: {{id}}",
+      "replace": "Replace",
+      "skip": "Skip"
     },
     "delete": {
       "success": "Document deleted",

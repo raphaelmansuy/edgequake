@@ -107,6 +107,7 @@
       "reading": "步骤 1: 读取文件...",
       "uploading": "步骤 2: 上传到服务器...",
       "extracting": "步骤 3: 处理管道...",
+      "queued": "已排队等待提取（任务：{{taskId}}）",
       "success": "{{count}} 个文件上传成功",
       "error": "{{count}} 个文件上传失败",
       "complete": "已上传！正在后台处理...",
@@ -114,7 +115,22 @@
       "invalidType": "文件 \"{{name}}\" 格式不支持。支持格式：TXT、MD、JSON。",
       "allFailed": "所有 {{count}} 个文件上传失败",
       "partial": "已上传 {{success}} 个文件，{{failed}} 个失败",
-      "viewInGraph": "在图中查看"
+      "viewInGraph": "在图中查看",
+      "duplicateSkipped": "重复文件（已跳过）"
+    },
+    "duplicateDialog": {
+      "titleSingle": "检测到重复文档",
+      "titleMultiple": "检测到 {{count}} 个重复文档",
+      "descriptionSingle": "此文件已存在于工作区中。您想替换它（重新处理现有文档）还是跳过此次上传？",
+      "descriptionMultiple": "以下文件已存在于工作区中。请为每个文件选择操作。",
+      "replaceAll": "全部替换",
+      "skipAll": "全部跳过",
+      "summary": "{{replace}} 个将被替换 · {{skip}} 个将被跳过",
+      "cancelAll": "全部跳过并关闭",
+      "confirm": "确认",
+      "existingId": "现有文件：{{id}}",
+      "replace": "替换",
+      "skip": "跳过"
     },
     "uploadDrop": "拖放文件或点击上传",
     "uploadDropActive": "将文件放在这里...",

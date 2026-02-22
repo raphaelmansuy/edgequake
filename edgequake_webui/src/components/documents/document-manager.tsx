@@ -45,6 +45,7 @@ import { DocumentHeader } from './document-header';
 import { DocumentPreviewRightPanel } from './document-preview-right-panel';
 import { DocumentTableSection } from './document-table-section';
 import { DocumentToolbarSection } from './document-toolbar-section';
+import { DuplicateUploadDialog } from './duplicate-upload-dialog';
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -86,10 +87,15 @@ export function DocumentManager() {
     removeUploadingFile,
     handleUploadComplete,
     handleUploadFailed,
+    pendingDuplicates,
+    resolvePendingDuplicates,
   } = useFileUpload({
     tenantId: selectedTenantId,
     workspaceId: selectedWorkspaceId,
     onUploadStart: () => setStatusFilter('all'),
+    // WHY: Reprocess mutation lives here (DocumentManager owns mutations).
+    // Passing callback keeps useFileUpload decoupled from mutations.
+    onReplace: (docId) => reprocessMutation.mutate(docId),
   });
 
   // OODA-14: Document mutations extracted to useDocumentMutations hook
@@ -294,6 +300,13 @@ export function DocumentManager() {
         viewerDialogOpen={viewerDialogOpen}
         onViewerDialogChange={setViewerDialogOpen}
         viewerPdfId={viewerPdfId}
+      />
+
+      {/* Duplicate upload dialog — shown when backend returns duplicate_of */}
+      <DuplicateUploadDialog
+        open={pendingDuplicates.length > 0}
+        duplicates={pendingDuplicates}
+        onResolve={resolvePendingDuplicates}
       />
     </div>
   );
