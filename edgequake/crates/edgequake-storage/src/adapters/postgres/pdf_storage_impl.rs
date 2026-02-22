@@ -235,6 +235,10 @@ impl PdfDocumentStorage for PostgresPdfStorage {
             None
         };
 
+        // FIX-REBUILD: Include vision_model in the UPDATE statement.
+        // WHY: When reprocessing with a different vision LLM (e.g. gpt-4o-mini → gemma3:12b),
+        // the vision_model column must be updated to reflect the model actually used.
+        // Previously this field was never written, leaving stale model info in the DB.
         sqlx::query!(
             r#"
             UPDATE pdf_documents
@@ -243,7 +247,8 @@ impl PdfDocumentStorage for PostgresPdfStorage {
                 markdown_content = COALESCE($3, markdown_content),
                 extraction_errors = COALESCE($4, extraction_errors),
                 document_id = COALESCE($5, document_id),
-                processed_at = COALESCE($6, processed_at)
+                processed_at = COALESCE($6, processed_at),
+                vision_model = COALESCE($8, vision_model)
             WHERE pdf_id = $7
             "#,
             status_str,
@@ -252,15 +257,16 @@ impl PdfDocumentStorage for PostgresPdfStorage {
             request.extraction_errors,
             request.document_id,
             processed_at,
-            request.pdf_id
+            request.pdf_id,
+            request.vision_model
         )
         .execute(&self.pool)
         .await
         .map_err(|e| StorageError::Database(format!("Failed to update PDF processing: {}", e)))?;
 
         debug!(
-            "Updated PDF processing: id={}, status={}, method={:?}",
-            request.pdf_id, status_str, method_str
+            "Updated PDF processing: id={}, status={}, method={:?}, vision_model={:?}",
+            request.pdf_id, status_str, method_str, request.vision_model
         );
 
         Ok(())

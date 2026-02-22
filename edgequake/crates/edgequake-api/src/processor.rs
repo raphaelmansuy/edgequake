@@ -2058,7 +2058,15 @@ impl DocumentTaskProcessor {
         // showing that PDF → Markdown conversion is happening.
         // OODA-ITERATION-03: Include track_id for cancel button support
         // WHY: Frontend cancel button requires doc.track_id to call POST /tasks/{track_id}/cancel
-        let early_doc_id = uuid::Uuid::new_v4().to_string();
+        // FIX-REBUILD: When rebuilding/reprocessing, reuse the existing document ID
+        // to avoid creating orphaned duplicates. Without this, the old document still
+        // references the same pdf_id whose markdown_content gets overwritten, causing
+        // it to display wrong/hallucinated content from the new extraction.
+        let early_doc_id = data
+            .existing_document_id
+            .clone()
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let is_reprocess = data.existing_document_id.is_some();
         let metadata_key = format!("{}-metadata", early_doc_id);
         // OODA-04: Include file_size_bytes and sha256_checksum in early metadata
         // WHY: Enables complete lineage from the moment the document appears in UI.
@@ -2089,10 +2097,42 @@ impl DocumentTaskProcessor {
             .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
+        // FIX-REBUILD: When reprocessing, clean up old content and chunk KV entries
+        // WHY: Old chunks with stale content must be removed before the pipeline
+        // creates new ones, otherwise the document ends up with a mix of old and new chunks.
+        if is_reprocess {
+            info!(
+                document_id = %early_doc_id,
+                pdf_id = %data.pdf_id,
+                "Reprocessing: cleaning up old content and chunks before re-extraction"
+            );
+            // Remove old content entry
+            let content_key = format!("{}-content", early_doc_id);
+            let _ = self.kv_storage.delete(&[content_key]).await;
+
+            // Remove old chunk entries
+            let all_keys = self.kv_storage.keys().await.unwrap_or_default();
+            let chunk_prefix = format!("{}-chunk-", early_doc_id);
+            let chunk_keys: Vec<String> = all_keys
+                .into_iter()
+                .filter(|k| k.starts_with(&chunk_prefix))
+                .collect();
+            if !chunk_keys.is_empty() {
+                info!(
+                    document_id = %early_doc_id,
+                    chunk_count = chunk_keys.len(),
+                    "Removing old chunk entries"
+                );
+                let _ = self.kv_storage.delete(&chunk_keys).await;
+            }
+        }
+
         info!(
             document_id = %early_doc_id,
             pdf_id = %data.pdf_id,
-            "Created early document metadata with 'converting' stage"
+            is_reprocess = is_reprocess,
+            "{}document metadata with 'converting' stage",
+            if is_reprocess { "Updated existing " } else { "Created early " }
         );
 
         // OODA-09: Create progress callback for real-time page-by-page feedback

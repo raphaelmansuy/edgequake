@@ -634,6 +634,15 @@ pub struct PdfProcessingData {
 
     /// Optional vision model override
     pub vision_model: Option<String>,
+
+    /// Existing document ID to reuse during rebuild/reprocessing.
+    /// WHY: When rebuilding knowledge graph or reprocessing PDF documents,
+    /// we must reuse the existing document ID so the old document is updated
+    /// in-place rather than creating an orphaned duplicate. Without this,
+    /// the old document still references the same pdf_id whose markdown_content
+    /// was overwritten, causing it to display wrong/hallucinated content.
+    #[serde(default)]
+    pub existing_document_id: Option<String>,
 }
 
 /// Text insert task payload

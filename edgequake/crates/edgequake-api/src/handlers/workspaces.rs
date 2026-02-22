@@ -1649,6 +1649,9 @@ pub async fn rebuild_embeddings(
                                     enable_vision: true,
                                     vision_provider,
                                     vision_model,
+                                    // FIX-REBUILD: Pass existing document ID so the
+                                    // processor updates the existing document in-place.
+                                    existing_document_id: Some(doc_id.clone()),
                                 }
                             })
                     } else {
@@ -2057,6 +2060,10 @@ pub async fn rebuild_knowledge_graph(
                                     enable_vision: true,
                                     vision_provider,
                                     vision_model,
+                                    // FIX-REBUILD: Pass existing document ID so the
+                                    // processor updates the existing document in-place
+                                    // instead of creating an orphaned duplicate.
+                                    existing_document_id: Some(doc_id.clone()),
                                 };
                                 (
                                     TaskType::PdfProcessing,
@@ -2380,6 +2387,9 @@ pub async fn reprocess_all_documents(
                                 enable_vision: true,
                                 vision_provider,
                                 vision_model,
+                                // FIX-REBUILD: Pass existing document ID so the
+                                // processor updates the existing document in-place.
+                                existing_document_id: Some(doc_id.clone()),
                             }
                         })
                 } else {

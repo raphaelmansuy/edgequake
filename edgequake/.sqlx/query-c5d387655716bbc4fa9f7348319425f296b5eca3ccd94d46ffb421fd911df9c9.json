@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE pdf_documents\n            SET processing_status = $1,\n                extraction_method = COALESCE($2, extraction_method),\n                markdown_content = COALESCE($3, markdown_content),\n                extraction_errors = COALESCE($4, extraction_errors),\n                document_id = COALESCE($5, document_id),\n                processed_at = COALESCE($6, processed_at),\n                vision_model = COALESCE($8, vision_model)\n            WHERE pdf_id = $7\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Jsonb",
+        "Uuid",
+        "Timestamptz",
+        "Uuid",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c5d387655716bbc4fa9f7348319425f296b5eca3ccd94d46ffb421fd911df9c9"
+}

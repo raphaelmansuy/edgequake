@@ -119,6 +119,12 @@ pub struct PdfUploadResponse {
 
     /// PDF metadata.
     pub metadata: PdfMetadata,
+
+    /// ID of the existing duplicate PDF, present when status is "duplicate".
+    /// WHY: Frontend uses this field to show the DuplicateUploadDialog and
+    /// offer the user a choice to reprocess or skip the duplicate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duplicate_of: Option<String>,
 }
 
 /// PDF metadata in response.
@@ -520,6 +526,7 @@ pub async fn upload_pdf_document(
                         None
                     },
                 },
+                duplicate_of: None, // Re-indexing = already decided to replace
             }));
         }
 
@@ -548,13 +555,14 @@ pub async fn upload_pdf_document(
                 .await;
         }
 
+        let existing_pdf_id = existing.pdf_id.to_string();
         return Ok(Json(PdfUploadResponse {
-            pdf_id: existing.pdf_id.to_string(),
+            pdf_id: existing_pdf_id.clone(),
             document_id: existing.document_id.map(|id| id.to_string()),
             status: "duplicate".to_string(),
             task_id: "".to_string(),
             track_id: options.track_id.clone(),
-            message: format!("PDF already uploaded with ID: {}", existing.pdf_id),
+            message: format!("PDF already uploaded with ID: {}", existing_pdf_id),
             estimated_time_seconds: 0,
             metadata: PdfMetadata {
                 filename: existing.filename,
@@ -564,6 +572,9 @@ pub async fn upload_pdf_document(
                 vision_enabled: options.enable_vision,
                 vision_model: existing.vision_model,
             },
+            // WHY: This field is what the frontend checks to trigger the
+            // DuplicateUploadDialog, enabling the user to reprocess or skip.
+            duplicate_of: Some(existing_pdf_id),
         }));
     }
 
@@ -638,6 +649,7 @@ pub async fn upload_pdf_document(
             vision_enabled: options.enable_vision,
             vision_model,
         },
+        duplicate_of: None,
     }))
 }
 
@@ -1126,6 +1138,7 @@ async fn create_pdf_processing_task(
         enable_vision: options.enable_vision,
         vision_provider: options.resolved_vision_provider().to_string(),
         vision_model: options.vision_model.clone(),
+        existing_document_id: None, // Fresh upload — create new document
     };
 
     let track_id = format!("pdf-{}", Uuid::new_v4());

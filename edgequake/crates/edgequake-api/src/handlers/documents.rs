@@ -4133,75 +4133,207 @@ pub async fn reprocess_failed(
         }
         // Get document content
         let content_key = format!("{}-content", doc_id);
-        if let Some(content_value) = state.kv_storage.get_by_id(&content_key).await? {
-            if let Some(content) = content_value.get("content").and_then(|v| v.as_str()) {
-                // Update status to pending
-                let metadata_key = format!("{}-metadata", doc_id);
-                if let Some(mut metadata) = state.kv_storage.get_by_id(&metadata_key).await? {
-                    if let Some(obj) = metadata.as_object_mut() {
-                        obj.insert("status".to_string(), serde_json::json!("pending"));
-                        obj.insert("track_id".to_string(), serde_json::json!(new_track_id));
-                        obj.insert(
-                            "retry_at".to_string(),
-                            serde_json::json!(Utc::now().to_rfc3339()),
-                        );
 
-                        state.kv_storage.upsert(&[(metadata_key, metadata)]).await?;
+        // FIX-REBUILD: Read metadata to check if this is a PDF document
+        // WHY: PDF documents must be routed through PdfProcessing tasks so the full
+        // pipeline runs from original PDF bytes (vision extraction → chunking →
+        // embedding → entity extraction). Using TaskType::Insert for PDFs would
+        // only re-ingest the previously extracted markdown, missing re-extraction
+        // with any new vision LLM model.
+        let metadata_key = format!("{}-metadata", doc_id);
+        let metadata_opt = state.kv_storage.get_by_id(&metadata_key).await?;
+
+        let source_type = metadata_opt
+            .as_ref()
+            .and_then(|m| m.as_object())
+            .and_then(|obj| obj.get("source_type"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let pdf_id_str = metadata_opt
+            .as_ref()
+            .and_then(|m| m.as_object())
+            .and_then(|obj| obj.get("pdf_id"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        // Use tenant context for workspace_id, fallback to "default"
+        let workspace_id = tenant_ctx
+            .workspace_id
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
+        let tenant_id = tenant_ctx
+            .tenant_id
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
+
+        // FIX-REBUILD: Route PDF documents through PdfProcessing for full re-extraction
+        let task_created = if source_type.as_deref() == Some("pdf") {
+            if let Some(ref pid_str) = pdf_id_str {
+                if let Ok(pdf_id_uuid) = uuid::Uuid::parse_str(pid_str) {
+                    // Update status to pending
+                    if let Some(mut metadata) = metadata_opt.clone() {
+                        if let Some(obj) = metadata.as_object_mut() {
+                            obj.insert("status".to_string(), serde_json::json!("pending"));
+                            obj.insert("track_id".to_string(), serde_json::json!(new_track_id));
+                            obj.insert(
+                                "retry_at".to_string(),
+                                serde_json::json!(Utc::now().to_rfc3339()),
+                            );
+                            state.kv_storage.upsert(&[(metadata_key.clone(), metadata)]).await?;
+                        }
                     }
+
+                    // Look up workspace to get vision provider/model settings
+                    let (vision_provider, vision_model) = if let Ok(ws_uuid) =
+                        uuid::Uuid::parse_str(&workspace_id)
+                    {
+                        if let Ok(Some(ws)) =
+                            state.workspace_service.get_workspace(ws_uuid).await
+                        {
+                            let vp = ws
+                                .vision_llm_provider
+                                .as_deref()
+                                .filter(|p| !p.is_empty())
+                                .unwrap_or("ollama")
+                                .to_string();
+                            let vm = ws.vision_llm_model.filter(|m| !m.is_empty());
+                            (vp, vm)
+                        } else {
+                            ("ollama".to_string(), None)
+                        }
+                    } else {
+                        ("ollama".to_string(), None)
+                    };
+
+                    use edgequake_tasks::{PdfProcessingData, Task, TaskType};
+
+                    let pdf_task = PdfProcessingData {
+                        pdf_id: pdf_id_uuid,
+                        tenant_id: uuid::Uuid::parse_str(&tenant_id).map_err(|_| {
+                            ApiError::ValidationError("Invalid tenant ID".to_string())
+                        })?,
+                        workspace_id: uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
+                            ApiError::ValidationError("Invalid workspace ID".to_string())
+                        })?,
+                        enable_vision: true,
+                        vision_provider,
+                        vision_model,
+                        // FIX-REBUILD: Reuse existing document ID
+                        existing_document_id: Some(doc_id.clone()),
+                    };
+
+                    let task = Task::new(
+                        uuid::Uuid::parse_str(&tenant_id).map_err(|_| {
+                            ApiError::ValidationError("Invalid tenant ID".to_string())
+                        })?,
+                        uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
+                            ApiError::ValidationError("Invalid workspace ID".to_string())
+                        })?,
+                        TaskType::PdfProcessing,
+                        serde_json::to_value(&pdf_task).unwrap(),
+                    );
+
+                    state
+                        .task_storage
+                        .create_task(&task)
+                        .await
+                        .map_err(|e| {
+                            ApiError::Internal(format!("Failed to create task: {}", e))
+                        })?;
+
+                    state.task_queue.send(task).await.map_err(|e| {
+                        ApiError::Internal(format!("Failed to queue task: {}", e))
+                    })?;
+
+                    tracing::info!(
+                        document_id = %doc_id,
+                        pdf_id = %pid_str,
+                        "Queued PDF reprocessing task (PdfProcessing) with existing document ID"
+                    );
+                    true
+                } else {
+                    false // Invalid pdf_id, fall through to text reprocess
                 }
-
-                // Create new task
-                use edgequake_tasks::{Task, TaskType, TextInsertData};
-
-                // Use tenant context for workspace_id, fallback to "default"
-                let workspace_id = tenant_ctx
-                    .workspace_id
-                    .clone()
-                    .unwrap_or_else(|| "default".to_string());
-                let tenant_id = tenant_ctx
-                    .tenant_id
-                    .clone()
-                    .unwrap_or_else(|| "default".to_string());
-
-                let title = doc_id.clone();
-                let task_data = TextInsertData {
-                    text: content.to_string(),
-                    file_source: title.clone(),
-                    workspace_id: workspace_id.clone(),
-                    metadata: Some(serde_json::json!({
-                        "document_id": doc_id,
-                        "title": title,
-                        "track_id": new_track_id,
-                        "is_retry": true,
-                        "tenant_id": tenant_id,
-                        "workspace_id": workspace_id,
-                    })),
-                };
-
-                let task = Task::new(
-                    uuid::Uuid::parse_str(&tenant_id)
-                        .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
-                    uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
-                        ApiError::ValidationError("Invalid workspace ID".to_string())
-                    })?,
-                    TaskType::Insert,
-                    serde_json::to_value(task_data).unwrap(),
-                );
-
-                state
-                    .task_storage
-                    .create_task(&task)
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
-
-                state
-                    .task_queue
-                    .send(task)
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
-
-                requeued_ids.push(doc_id.clone());
+            } else {
+                false // No pdf_id, fall through to text reprocess
             }
+        } else {
+            false // Not a PDF document
+        };
+
+        // Fallback: text/markdown documents or PDF without valid pdf_id
+        if !task_created {
+            if let Some(content_value) = state.kv_storage.get_by_id(&content_key).await? {
+                if let Some(content) = content_value.get("content").and_then(|v| v.as_str()) {
+                    // Update status to pending
+                    if let Some(mut metadata) =
+                        state.kv_storage.get_by_id(&metadata_key).await?
+                    {
+                        if let Some(obj) = metadata.as_object_mut() {
+                            obj.insert("status".to_string(), serde_json::json!("pending"));
+                            obj.insert(
+                                "track_id".to_string(),
+                                serde_json::json!(new_track_id),
+                            );
+                            obj.insert(
+                                "retry_at".to_string(),
+                                serde_json::json!(Utc::now().to_rfc3339()),
+                            );
+
+                            state
+                                .kv_storage
+                                .upsert(&[(metadata_key, metadata)])
+                                .await?;
+                        }
+                    }
+
+                    // Create new task
+                    use edgequake_tasks::{Task, TaskType, TextInsertData};
+
+                    let title = doc_id.clone();
+                    let task_data = TextInsertData {
+                        text: content.to_string(),
+                        file_source: title.clone(),
+                        workspace_id: workspace_id.clone(),
+                        metadata: Some(serde_json::json!({
+                            "document_id": doc_id,
+                            "title": title,
+                            "track_id": new_track_id,
+                            "is_retry": true,
+                            "tenant_id": tenant_id,
+                            "workspace_id": workspace_id,
+                        })),
+                    };
+
+                    let task = Task::new(
+                        uuid::Uuid::parse_str(&tenant_id).map_err(|_| {
+                            ApiError::ValidationError("Invalid tenant ID".to_string())
+                        })?,
+                        uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
+                            ApiError::ValidationError("Invalid workspace ID".to_string())
+                        })?,
+                        TaskType::Insert,
+                        serde_json::to_value(task_data).unwrap(),
+                    );
+
+                    state
+                        .task_storage
+                        .create_task(&task)
+                        .await
+                        .map_err(|e| {
+                            ApiError::Internal(format!("Failed to create task: {}", e))
+                        })?;
+
+                    state.task_queue.send(task).await.map_err(|e| {
+                        ApiError::Internal(format!("Failed to queue task: {}", e))
+                    })?;
+
+                    requeued_ids.push(doc_id.clone());
+                }
+            }
+        } else {
+            requeued_ids.push(doc_id.clone());
         }
     }
 
