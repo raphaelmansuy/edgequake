@@ -269,6 +269,17 @@ export const DocumentTableRow = memo(function DocumentTableRow({
         )}
       </TableCell>
 
+      {/* Last Updated Date — shows when doc was last reprocessed/rebuilt */}
+      <TableCell className="text-muted-foreground">
+        {(doc.updated_at || doc.processed_at) ? (
+          <span title={new Date(doc.updated_at ?? doc.processed_at!).toLocaleString()}>
+            {formatDistanceToNow(new Date(doc.updated_at ?? doc.processed_at!), { addSuffix: true })}
+          </span>
+        ) : (
+          '-'
+        )}
+      </TableCell>
+
       {/* Actions */}
       <TableCell onClick={(e) => e.stopPropagation()}>
         <QuickActionButtons
