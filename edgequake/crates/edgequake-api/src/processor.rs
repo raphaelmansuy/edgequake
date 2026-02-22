@@ -2115,108 +2115,92 @@ impl DocumentTaskProcessor {
         let progress_callback: Arc<dyn edgequake_pdf::ProgressCallback> = progress_callback;
 
         // 4. Extract content (vision or text mode)
-        // SPEC-007: Vision mode uses multimodal LLM to extract from rendered page images
-        // Requires vision feature and poppler-utils (pdftoppm) system package
+        // SPEC-007: Vision → edgequake-pdf2md v0.4.2 (bundled pdfium, multi-provider,
+        //           10-rule post-processing). Text → edgequake-pdf PdfExtractor.
+        //
+        // WHY spawn_blocking + Handle::block_on (still needed in v0.4.2):
+        // v0.4.2 fixed on_page_error(&str → String) HRTB (issue #9), but a second HRTB
+        // remains: process_page(... prior_page: Option<&str> ...) holds &str across
+        // .await points inside the process_concurrent state machine, preventing the future
+        // from being Send in async_trait contexts. Tracked upstream for v0.4.3.
+        // Handle::block_on requires no Send bound on the future, bypassing both.
         let (markdown, extraction_method, used_vision_model) = if data.enable_vision {
             #[cfg(feature = "vision")]
             {
-                use edgequake_pdf::{MarkdownRenderer, Renderer, VisionConfig, VisionExtractor};
+                use edgequake_pdf2md::{convert_from_bytes, ConversionConfig};
+
+                let model = data
+                    .vision_model
+                    .clone()
+                    .unwrap_or_else(|| "gpt-4.1-nano".to_string());
+                let pdf_bytes = pdf.pdf_data.clone();
+
+                // WHY: Vision extraction uses a provider selected per-workspace
+                // (e.g. OpenAI gpt-4o-mini), which may differ from the system
+                // entity-extraction LLM (e.g. Ollama). Cloning self.llm_provider
+                // would silently send vision requests to the wrong provider and
+                // produce hallucinated content. We create a dedicated provider
+                // using data.vision_provider so the correct API key and endpoint
+                // are used (SPEC-040 fix).
+                let provider = {
+                    use crate::safety_limits::create_safe_llm_provider;
+                    create_safe_llm_provider(&data.vision_provider, &model).map_err(|e| {
+                        edgequake_tasks::TaskError::Processing(format!(
+                            "Failed to create vision provider '{}': {e}",
+                            data.vision_provider
+                        ))
+                    })?
+                };
+                let model_owned = model.clone();
 
                 info!(
                     pdf_id = %data.pdf_id,
                     vision_provider = %data.vision_provider,
-                    vision_model = ?data.vision_model,
-                    "Starting vision-based PDF extraction"
+                    vision_model = %model,
+                    "Starting vision extraction via edgequake-pdf2md v0.4.4 (SPEC-040: dedicated vision provider)"
                 );
 
-                // Build vision config with workspace-specified model
-                let model = data
-                    .vision_model
-                    .clone()
-                    .unwrap_or_else(|| "gpt-4o-mini".to_string());
-                let vision_config = VisionConfig::new()
-                    .with_model(&model)
-                    .with_dpi(150)
-                    .with_temperature(0.1);
+                // WHY Handle::current before spawn_blocking: must capture the runtime
+                // handle on the async thread before entering the blocking thread.
+                let handle = tokio::runtime::Handle::current();
+                let output = tokio::task::spawn_blocking(move || {
+                    let config = ConversionConfig::builder()
+                        .provider(provider)
+                        .model(model_owned)
+                        .build()
+                        .map_err(|e| format!("Vision config: {e}"))?;
+                    // Handle::block_on has no Send bound on the future
+                    handle
+                        .block_on(convert_from_bytes(&pdf_bytes, &config))
+                        .map_err(|e| format!("Vision extraction: {e}"))
+                })
+                .await
+                .map_err(|e| edgequake_tasks::TaskError::Processing(format!("Spawn error: {e}")))?
+                .map_err(|e| edgequake_tasks::TaskError::Processing(e))?;
 
-                let extractor = VisionExtractor::new(Arc::clone(&self.llm_provider), vision_config);
-
-                // OODA-11: Use progress callback for vision extraction
-                match extractor
-                    .extract_from_pdf_with_progress(&pdf.pdf_data, Arc::clone(&progress_callback))
-                    .await
-                {
-                    Ok(document) => {
-                        // Render Document to markdown string
-                        let renderer = MarkdownRenderer::new();
-                        let md = renderer.render(&document).map_err(|e| {
-                            edgequake_tasks::TaskError::Processing(format!(
-                                "Markdown rendering failed: {}",
-                                e
-                            ))
-                        })?;
-                        info!(
-                            pdf_id = %data.pdf_id,
-                            pages = document.page_count(),
-                            markdown_len = md.len(),
-                            "Vision extraction completed successfully"
-                        );
-                        (md, ExtractionMethod::Vision, Some(model))
-                    }
-                    Err(e) => {
-                        warn!(
-                            pdf_id = %data.pdf_id,
-                            error = %e,
-                            "Vision extraction failed - falling back to text extraction"
-                        );
-                        // Fallback to text extraction with progress callback (OODA-09)
-                        let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
-                        let md = extractor
-                            .extract_to_markdown_with_progress(
-                                &pdf.pdf_data,
-                                Arc::clone(&progress_callback),
-                            )
-                            .await
-                            .map_err(|e| {
-                                edgequake_tasks::TaskError::Processing(format!(
-                                    "PDF extraction failed: {}",
-                                    e
-                                ))
-                            })?;
-                        (md, ExtractionMethod::Text, None)
-                    }
-                }
+                info!(
+                    pdf_id = %data.pdf_id,
+                    pages = output.stats.total_pages,
+                    processed = output.stats.processed_pages,
+                    markdown_len = output.markdown.len(),
+                    "Vision extraction completed"
+                );
+                (output.markdown, ExtractionMethod::Vision, Some(model))
             }
             #[cfg(not(feature = "vision"))]
             {
-                warn!(
-                    pdf_id = %data.pdf_id,
-                    "Vision extraction requested but vision feature not enabled - using text extraction"
-                );
-                // OODA-09: Use progress callback for text extraction
-                let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
-                let md = extractor
-                    .extract_to_markdown_with_progress(
-                        &pdf.pdf_data,
-                        Arc::clone(&progress_callback),
-                    )
-                    .await
-                    .map_err(|e| {
-                        edgequake_tasks::TaskError::Processing(format!(
-                            "PDF extraction failed: {}",
-                            e
-                        ))
-                    })?;
-                (md, ExtractionMethod::Text, None)
+                return Err(edgequake_tasks::TaskError::UnsupportedOperation(
+                    "Vision extraction requires the 'vision' feature flag".to_string(),
+                ));
             }
         } else {
-            // Standard text extraction with progress callback (OODA-09)
+            // Text extraction with progress callback
             let extractor = PdfExtractor::new(Arc::clone(&self.llm_provider));
             let md = extractor
                 .extract_to_markdown_with_progress(&pdf.pdf_data, Arc::clone(&progress_callback))
                 .await
                 .map_err(|e| {
-                    edgequake_tasks::TaskError::Processing(format!("PDF extraction failed: {}", e))
+                    edgequake_tasks::TaskError::Processing(format!("PDF extraction failed: {e}"))
                 })?;
             (md, ExtractionMethod::Text, None)
         };
@@ -2236,7 +2220,7 @@ impl DocumentTaskProcessor {
             extraction_method: Some(extraction_method),
             extraction_errors: None,
             document_id: None, // Will be set after document creation
-            vision_model: used_vision_model,
+            vision_model: used_vision_model.clone(),
         };
 
         pdf_storage
@@ -2266,6 +2250,12 @@ impl DocumentTaskProcessor {
                 "sha256_checksum": pdf.sha256_checksum,
                 "tenant_id": data.tenant_id.to_string(),
                 "workspace_id": data.workspace_id.to_string(),
+                // SPEC-040: Store PDF extraction lineage for document detail view
+                // WHY: The lineage builder in documents.rs reads from this metadata JSON.
+                // vision_model and extraction_method are stored in pdf_documents table but
+                // not in the KV document metadata, making them invisible in the lineage view.
+                "pdf_vision_model": used_vision_model,
+                "pdf_extraction_method": extraction_method.as_str(),
             })),
         };
 
