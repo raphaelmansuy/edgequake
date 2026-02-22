@@ -189,7 +189,8 @@ jobs:
                   echo "::notice::Total tests passed: ${TOTAL_PASSED}"
                   
                   # Adjusted threshold for no-default-features (postgres tests excluded)
-                  MIN_TESTS=1500
+                  # Note: edgequake-pdf crate moved to legacy/ in v0.4.0, reducing total count
+                  MIN_TESTS=900
                   if [ "$TOTAL_PASSED" -lt "$MIN_TESTS" ]; then
                     echo "::error::Test count below threshold! Expected >= ${MIN_TESTS}, got ${TOTAL_PASSED}"
                     exit 1
@@ -214,7 +215,7 @@ jobs:
                   echo "| Invariant Tests | ${{ needs.invariant-tests.result }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| API Tests (<30s) | ${{ needs.api-tests.result }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Optimized Tests | ${{ needs.optimized-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Test Count (>2600) | ${{ needs.test-count-gate.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Test Count (>900) | ${{ needs.test-count-gate.result }} |" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "### Timing Targets" >> $GITHUB_STEP_SUMMARY
                   echo "- Unit tests: <30s" >> $GITHUB_STEP_SUMMARY
