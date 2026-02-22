@@ -5,7 +5,6 @@ members = [
     "crates/edgequake-audit",
     "crates/edgequake-auth",
     "crates/edgequake-core",
-    "crates/edgequake-pdf",
     "crates/edgequake-pipeline",
     "crates/edgequake-query",
     "crates/edgequake-rate-limiter",

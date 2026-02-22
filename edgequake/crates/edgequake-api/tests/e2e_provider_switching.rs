@@ -102,6 +102,9 @@ async fn test_workspace_custom_embedding_config() {
         embedding_model: Some("embeddinggemma:latest".to_string()),
         embedding_provider: Some("ollama".to_string()),
         embedding_dimension: Some(768),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = service
@@ -135,6 +138,9 @@ async fn test_workspace_default_embedding_config() {
         embedding_model: None,
         embedding_provider: None,
         embedding_dimension: None,
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = service
@@ -200,6 +206,9 @@ async fn test_workspace_provider_switching() {
         embedding_model: Some("text-embedding-3-small".to_string()),
         embedding_provider: Some("openai".to_string()),
         embedding_dimension: Some(1536),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let ws_openai = service
@@ -218,6 +227,9 @@ async fn test_workspace_provider_switching() {
         embedding_model: Some("embeddinggemma:latest".to_string()),
         embedding_provider: Some("ollama".to_string()),
         embedding_dimension: Some(768),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let ws_ollama = service
@@ -386,6 +398,9 @@ async fn test_empty_workspace_embedding_config() {
         embedding_model: None,
         embedding_provider: None,
         embedding_dimension: None,
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = service
@@ -431,6 +446,9 @@ async fn test_concurrent_workspace_creation() {
                     embedding_model: None,
                     embedding_provider: Some(provider.to_string()),
                     embedding_dimension: Some(dimension),
+
+                    vision_provider: None,
+                    vision_model: None,
                 };
 
                 service_clone.create_workspace(tenant_id, request).await
@@ -466,6 +484,9 @@ async fn test_lmstudio_workspace_config() {
         embedding_model: Some("nomic-embed-text-v1.5".to_string()),
         embedding_provider: Some("lmstudio".to_string()),
         embedding_dimension: Some(768),
+
+        vision_provider: None,
+        vision_model: None,
     };
 
     let workspace = service

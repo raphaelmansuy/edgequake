@@ -9,6 +9,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # v0.4.0: pdfium is embedded via pdfium-auto in edgequake-pdf2md 0.4.1.
+  # No external library setup needed. The bundled feature is the default,
+  # so we do NOT use --no-default-features for edgequake-api / pdf-related crates.
 
 jobs:
   check:
@@ -33,7 +36,9 @@ jobs:
 
       - name: Check clippy
         working-directory: edgequake
-        run: cargo clippy --workspace --lib --no-default-features -- -D warnings
+        # Use --no-default-features only for non-pdf crates to avoid postgres dep at check time.
+        # The pdf bundled feature embeds pdfium at build time (no external library needed on CI).
+        run: cargo clippy --workspace --lib -- -D warnings
 
   test:
     name: Test
@@ -51,7 +56,8 @@ jobs:
 
       - name: Run tests
         working-directory: edgequake
-        run: cargo test --workspace --lib --no-default-features --no-fail-fast
+        # pdfium embedded via pdfium-auto — no external library needed on Ubuntu CI runner.
+        run: cargo test --workspace --lib --no-fail-fast
         env:
           # Use mock LLM provider for tests (no API key needed)
           RUST_LOG: warn
@@ -72,7 +78,8 @@ jobs:
 
       - name: Build release
         working-directory: edgequake
-        run: cargo build --workspace --release --lib --no-default-features
+        # pdfium-auto downloads and embeds pdfium for linux/amd64 at build time.
+        run: cargo build --workspace --release --lib
 
       # Note: Examples and binaries require postgres feature, tested in postgres-integration.yml
 
@@ -94,7 +101,10 @@ jobs:
           df -h
 
       - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
+        # WHY: Use pre-built binary to avoid compiling native-tls v0.2.17 which fails on Rust 1.85+
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -103,7 +113,7 @@ jobs:
 
       - name: Generate coverage
         working-directory: edgequake
-        run: cargo tarpaulin --workspace --no-default-features --timeout 300 --out xml
+        run: cargo tarpaulin --workspace --timeout 300 --out xml
         # WHY: continue-on-error - Coverage generation can run out of disk space on GitHub runners
         continue-on-error: true
 
@@ -146,7 +156,7 @@ jobs:
 
       - name: Build docs
         working-directory: edgequake
-        run: cargo doc --workspace --no-deps --no-default-features
+        run: cargo doc --workspace --no-deps
         env:
           # Allow unresolved links (FEAT/BR/UC references) but error on other doc warnings
           RUSTDOCFLAGS: -A rustdoc::broken_intra_doc_links -D warnings

@@ -42,6 +42,8 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 
 > **v0.4.0 — PDF is now Production Ready**: The PDF pipeline ships with embedded pdfium (zero-config) and an opt-in LLM vision mode. Text-mode extraction works for all standard PDFs; enable `use_vision_llm = true` (or send `X-Use-Vision: true`) to route pages through your vision-capable LLM for scanned documents and complex layouts.
 
+> **v0.4.0 Update**: PDF processing is now **production-ready** with embedded pdfium via `edgequake-pdf2md v0.4.1`. No external library setup required — just upload your PDFs!
+
 ---
 
 ## Features
