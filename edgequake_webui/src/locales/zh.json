@@ -154,6 +154,7 @@
       "entities": "实体",
       "cost": "费用",
       "created": "创建时间",
+      "updated": "最后更新",
       "actions": "操作"
     },
     "actions": {

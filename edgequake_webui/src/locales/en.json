@@ -201,6 +201,7 @@
       "entities": "Entities",
       "cost": "Cost",
       "created": "Created",
+      "updated": "Last Updated",
       "actions": "Actions"
     },
     "actions": {

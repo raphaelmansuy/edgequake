@@ -167,6 +167,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                     <TableHead scope="col" className="text-center">{t('documents.table.entities', 'Entities')}</TableHead>
                     <TableHead scope="col" className="text-center">{t('documents.table.cost', 'Cost')}</TableHead>
                     <TableHead scope="col">{t('documents.table.created', 'Created')}</TableHead>
+                    <TableHead scope="col">{t('documents.table.updated', 'Last Updated')}</TableHead>
                     <TableHead scope="col" className="w-25"><span className="sr-only">{t('documents.table.actions', 'Actions')}</span></TableHead>
                   </TableRow>
                 </TableHeader>

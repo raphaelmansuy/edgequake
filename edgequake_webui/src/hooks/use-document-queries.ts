@@ -1,6 +1,7 @@
 "use client";
 
 import { getDocuments, getPipelineStatus } from "@/lib/api/edgequake";
+import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 /**
@@ -117,6 +118,22 @@ export function useDocumentQueries({
       doc.status === "embedding" ||
       doc.status === "indexing",
   ) ?? false;
+
+  // WHY: When processing transitions from active → done, the pipelineStatus cache
+  // may still hold a stale "is_busy: true" value for up to 10-30s (staleTime).
+  // Immediately invalidate the pipeline-status cache so the "Processing..." banner
+  // disappears as soon as the last document finishes — not 10-30s later.
+  const prevHasProcessingRef = useRef(hasProcessingDocuments);
+  useEffect(() => {
+    const wasProcessing = prevHasProcessingRef.current;
+    prevHasProcessingRef.current = hasProcessingDocuments;
+    if (wasProcessing && !hasProcessingDocuments) {
+      // Transitioned from processing → idle: force immediate pipeline status refresh
+      queryClient.invalidateQueries({
+        queryKey: ["pipeline-status", tenantId, workspaceId],
+      });
+    }
+  }, [hasProcessingDocuments, queryClient, tenantId, workspaceId]);
 
   const { data: pipelineStatus } = useQuery({
     queryKey: ["pipeline-status", tenantId, workspaceId],
