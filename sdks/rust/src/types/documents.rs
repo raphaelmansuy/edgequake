@@ -84,14 +84,82 @@ pub struct DeletionImpactResponse {
     pub chunk_count: u32,
 }
 
+/// Options for PDF upload (v0.4.0+).
+///
+/// Vision pipeline renders each page to an image and passes it to a
+/// multimodal LLM for high-fidelity Markdown extraction.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct PdfUploadOptions {
+    /// Enable LLM vision pipeline for high-fidelity extraction.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub enable_vision: bool,
+    /// Override vision provider (e.g. "openai", "ollama").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_provider: Option<String>,
+    /// Override vision model (e.g. "gpt-4o", "gemma3").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_model: Option<String>,
+    /// Human-readable title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Batch track ID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_id: Option<String>,
+    /// Re-process even if document already exists.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub force_reindex: bool,
+}
+
 /// PDF upload response.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PdfUploadResponse {
-    pub id: String,
+    /// Primary identifier returned by the API (v0.4.0+).
+    #[serde(default)]
+    pub pdf_id: Option<String>,
+    /// Legacy field — same as pdf_id on older servers.
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub document_id: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
     #[serde(default)]
     pub track_id: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
+    #[serde(default)]
+    pub estimated_time_seconds: Option<u64>,
+    #[serde(default)]
+    pub duplicate_of: Option<String>,
+}
+
+impl PdfUploadResponse {
+    /// Return the canonical PDF ID regardless of which field the server used.
+    pub fn canonical_id(&self) -> Option<&str> {
+        self.pdf_id.as_deref().or_else(|| self.id.as_deref())
+    }
+}
+
+/// PDF document metadata returned by list/get endpoints.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PdfInfo {
+    pub pdf_id: String,
+    #[serde(default)]
+    pub document_id: Option<String>,
+    /// Original filename uploaded.
+    #[serde(default, alias = "file_name")]
+    pub filename: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub file_size: Option<u64>,
+    #[serde(default)]
+    pub page_count: Option<u32>,
+    /// Extraction method: "vision", "text", or "ocr" (v0.4.0+).
+    #[serde(default)]
+    pub extraction_method: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 /// PDF progress response.

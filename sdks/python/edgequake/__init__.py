@@ -33,6 +33,7 @@ from edgequake._errors import (
     TimeoutError,
     UnauthorizedError,
 )
+from edgequake.types.documents import PdfInfo, PdfUploadOptions, PdfUploadResponse
 from edgequake.types.shared import HealthResponse
 
 __all__ = [
@@ -43,6 +44,10 @@ __all__ = [
     "ClientConfig",
     # Health
     "HealthResponse",
+    # PDF types
+    "PdfInfo",
+    "PdfUploadOptions",
+    "PdfUploadResponse",
     # Errors
     "EdgeQuakeError",
     "ApiError",
@@ -59,4 +64,4 @@ __all__ = [
     "StreamError",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.4.0"

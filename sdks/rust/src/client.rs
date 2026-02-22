@@ -1,9 +1,11 @@
 //! HTTP client with builder pattern, retry, and auth/tenant middleware.
 
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
+use reqwest::multipart;
 use reqwest::{Client, Method, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -206,6 +208,62 @@ impl EdgeQuakeClient {
         let status = resp.status();
         if status.is_success() {
             Ok(())
+        } else {
+            Err(Error::from_response(resp).await)
+        }
+    }
+
+    /// Upload a file via multipart/form-data.
+    ///
+    /// WHY: PDF upload requires multipart; reqwest multipart is separate from
+    /// JSON requests and needs its own send path to preserve the correct
+    /// Content-Type boundary header.
+    pub(crate) async fn upload_multipart<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        file_bytes: Vec<u8>,
+        filename: &str,
+        extra_fields: HashMap<String, String>,
+    ) -> Result<T> {
+        let url = self.url(path)?;
+
+        let part = multipart::Part::bytes(file_bytes)
+            .file_name(filename.to_owned())
+            .mime_str("application/pdf")
+            .map_err(Error::Network)?;
+
+        let mut form = multipart::Form::new().part("file", part);
+        for (key, value) in extra_fields {
+            form = form.text(key, value);
+        }
+
+        let mut req = self.inner.http.post(url).multipart(form);
+
+        // Auth headers — same as send_once
+        match &self.inner.auth {
+            Auth::None => {}
+            Auth::ApiKey(key) => {
+                req = req.header("X-API-Key", key.as_str());
+            }
+            Auth::Bearer(token) => {
+                req = req.header(AUTHORIZATION, format!("Bearer {}", token));
+            }
+        }
+        if let Some(tid) = &self.inner.tenant.tenant_id {
+            req = req.header("X-Tenant-ID", tid.as_str());
+        }
+        if let Some(uid) = &self.inner.tenant.user_id {
+            req = req.header("X-User-ID", uid.as_str());
+        }
+        if let Some(wid) = &self.inner.tenant.workspace_id {
+            req = req.header("X-Workspace-ID", wid.as_str());
+        }
+
+        let resp = req.send().await.map_err(Error::Network)?;
+        let status = resp.status();
+        if status.is_success() {
+            let bytes = resp.bytes().await.map_err(Error::Network)?;
+            serde_json::from_slice(&bytes).map_err(Error::Json)
         } else {
             Err(Error::from_response(resp).await)
         }

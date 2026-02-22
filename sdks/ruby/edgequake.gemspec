@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "edgequake"
-  spec.version       = "0.1.0"
+  spec.version       = "0.4.0"
   spec.authors       = ["EdgeQuake"]
   spec.email         = ["dev@edgequake.io"]
   spec.summary       = "Ruby SDK for the EdgeQuake RAG API"

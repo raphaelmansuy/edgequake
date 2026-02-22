@@ -4,6 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Version>0.4.0</Version>
+    <PackageId>EdgeQuake.SDK</PackageId>
+    <Description>Official .NET SDK for the EdgeQuake RAG API</Description>
+    <RepositoryUrl>https://github.com/raphaelmansuy/edgequake</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
