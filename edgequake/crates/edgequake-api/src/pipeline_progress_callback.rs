@@ -533,7 +533,7 @@ mod tests {
         );
 
         callback.on_conversion_start(5);
-        callback.on_page_error(3, 5, "Corrupt image data");
+        callback.on_page_error(3, 5, "Corrupt image data".to_string());
 
         // Skip start event
         let _ = rx.try_recv();

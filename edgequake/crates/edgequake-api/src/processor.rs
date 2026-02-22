@@ -2219,7 +2219,7 @@ impl DocumentTaskProcessor {
                 })
                 .await
                 .map_err(|e| edgequake_tasks::TaskError::Processing(format!("Spawn error: {e}")))?
-                .map_err(|e| edgequake_tasks::TaskError::Processing(e))?;
+                .map_err(edgequake_tasks::TaskError::Processing)?;
 
                 info!(
                     pdf_id = %data.pdf_id,
