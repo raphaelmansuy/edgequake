@@ -1,8 +1,9 @@
 package io.edgequake.sdk.models;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.List;
 
 /** Auth, tenant, user, and API key model classes. */
 public class AuthModels {

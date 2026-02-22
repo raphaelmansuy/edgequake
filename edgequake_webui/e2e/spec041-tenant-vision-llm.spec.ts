@@ -45,10 +45,7 @@ test.describe("SPEC-041: Tenant Vision LLM – API", () => {
     expect(tenant).toHaveProperty("name");
     // Vision fields should be returned
     expect(tenant).toHaveProperty("default_vision_llm_model", "gpt-4o");
-    expect(tenant).toHaveProperty(
-      "default_vision_llm_provider",
-      "openai",
-    );
+    expect(tenant).toHaveProperty("default_vision_llm_provider", "openai");
   });
 
   test("POST /tenants without vision model succeeds (field is optional)", async ({
@@ -117,7 +114,7 @@ test.describe("SPEC-041: Tenant Vision LLM – API", () => {
     const workspacesPayload = await wsResp.json();
     const workspaces = Array.isArray(workspacesPayload)
       ? workspacesPayload
-      : workspacesPayload.items ?? [];
+      : (workspacesPayload.items ?? []);
 
     // The auto-created "Default Workspace" should exist
     expect(workspaces.length).toBeGreaterThan(0);
@@ -133,14 +130,18 @@ test.describe("SPEC-041: Tenant Vision LLM – API", () => {
     expect(response.ok()).toBe(true);
 
     const body = await response.json();
-    const tenants = Array.isArray(body) ? body : body.items ?? [];
+    const tenants = Array.isArray(body) ? body : (body.items ?? []);
 
     // At minimum the schema should include the fields (even if null)
     if (tenants.length > 0) {
       const t = tenants[0];
       // Both keys should be present (null or string)
-      expect(Object.prototype.hasOwnProperty.call(t, "default_vision_llm_model")).toBe(true);
-      expect(Object.prototype.hasOwnProperty.call(t, "default_vision_llm_provider")).toBe(true);
+      expect(
+        Object.prototype.hasOwnProperty.call(t, "default_vision_llm_model"),
+      ).toBe(true);
+      expect(
+        Object.prototype.hasOwnProperty.call(t, "default_vision_llm_provider"),
+      ).toBe(true);
     }
   });
 });

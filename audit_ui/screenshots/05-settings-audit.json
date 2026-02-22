@@ -1,0 +1,21 @@
+{
+  "route": "/settings",
+  "timestamp": "2026-02-22T09:36:37.070Z",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "elements": {
+    "header": true,
+    "sidebar": true,
+    "mainContent": true,
+    "breadcrumbs": true,
+    "rightPanel": false
+  },
+  "measurements": {
+    "headerHeight": 48,
+    "sidebarWidth": 256,
+    "mainContentWidth": 1024
+  },
+  "issues": []
+}

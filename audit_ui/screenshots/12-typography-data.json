@@ -1,0 +1,12 @@
+{
+  "H1-0": {
+    "fontSize": "24px",
+    "lineHeight": "32px",
+    "fontWeight": "700"
+  },
+  "body": {
+    "fontSize": "16px",
+    "lineHeight": "24px",
+    "fontWeight": "400"
+  }
+}

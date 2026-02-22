@@ -300,8 +300,8 @@ type CreateTenantParams struct {
 	Description string `json:"description,omitempty"`
 	Plan        string `json:"plan,omitempty"`
 	// Default LLM configuration for new workspaces.
-	DefaultLLMModel        string `json:"default_llm_model,omitempty"`
-	DefaultLLMProvider     string `json:"default_llm_provider,omitempty"`
+	DefaultLLMModel    string `json:"default_llm_model,omitempty"`
+	DefaultLLMProvider string `json:"default_llm_provider,omitempty"`
 	// Default embedding configuration for new workspaces.
 	DefaultEmbeddingModel     string `json:"default_embedding_model,omitempty"`
 	DefaultEmbeddingProvider  string `json:"default_embedding_provider,omitempty"`
@@ -326,8 +326,8 @@ type TenantInfo struct {
 	// Vision LLM defaults (SPEC-041) – only present when configured.
 	DefaultVisionLLMModel    string `json:"default_vision_llm_model,omitempty"`
 	DefaultVisionLLMProvider string `json:"default_vision_llm_provider,omitempty"`
-	CreatedAt                 string `json:"created_at,omitempty"`
-	UpdatedAt                 string `json:"updated_at,omitempty"`
+	CreatedAt                string `json:"created_at,omitempty"`
+	UpdatedAt                string `json:"updated_at,omitempty"`
 }
 
 type CreateConversationParams struct {
@@ -636,8 +636,8 @@ type WorkspaceInfo struct {
 	// Vision LLM – only present when configured or inherited from tenant.
 	VisionLLMModel    string `json:"vision_llm_model,omitempty"`
 	VisionLLMProvider string `json:"vision_llm_provider,omitempty"`
-	CreatedAt   string `json:"created_at,omitempty"`
-	UpdatedAt   string `json:"updated_at,omitempty"`
+	CreatedAt         string `json:"created_at,omitempty"`
+	UpdatedAt         string `json:"updated_at,omitempty"`
 }
 
 type WorkspaceStats struct {

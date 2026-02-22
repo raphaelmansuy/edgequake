@@ -93,9 +93,6 @@ export function DocumentManager() {
     tenantId: selectedTenantId,
     workspaceId: selectedWorkspaceId,
     onUploadStart: () => setStatusFilter('all'),
-    // WHY: Reprocess mutation lives here (DocumentManager owns mutations).
-    // Passing callback keeps useFileUpload decoupled from mutations.
-    onReplace: (docId) => reprocessMutation.mutate(docId),
   });
 
   // OODA-14: Document mutations extracted to useDocumentMutations hook
