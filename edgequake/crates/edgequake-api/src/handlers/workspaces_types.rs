@@ -74,6 +74,19 @@ pub struct CreateTenantRequest {
     /// If not provided, auto-detected from model name or uses EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_embedding_dimension: Option<usize>,
+
+    // === Default Vision LLM Configuration (SPEC-041) ===
+    /// Default Vision LLM model for PDF-to-Markdown extraction (e.g., "gpt-4o", "gemma3:12b").
+    /// Workspaces inherit this if not explicitly configured.
+    /// If not provided, server default is used (or upload-time override).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_vision_llm_model: Option<String>,
+
+    /// Default Vision LLM provider for PDF-to-Markdown extraction (e.g., "openai", "ollama").
+    /// Workspaces inherit this if not explicitly configured.
+    /// If not provided, auto-detected from model name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_vision_llm_provider: Option<String>,
 }
 
 /// Request to update a tenant.
@@ -148,6 +161,17 @@ pub struct CreateWorkspaceApiRequest {
     /// If not provided, auto-detected from embedding_model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding_dimension: Option<usize>,
+
+    // === Vision LLM Configuration (SPEC-041) ===
+    /// Vision LLM model for PDF-to-Markdown extraction (e.g., "gpt-4o", "gemma3:12b").
+    /// If not provided, inherits from tenant default_vision_llm_model, then server default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_llm_model: Option<String>,
+
+    /// Vision LLM provider for PDF-to-Markdown extraction ("openai", "ollama", "lmstudio").
+    /// If not provided, auto-detected from vision_llm_model or inherited from tenant.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision_llm_provider: Option<String>,
 }
 
 /// Request to update a workspace.
@@ -242,6 +266,14 @@ pub struct TenantResponse {
     pub default_embedding_dimension: usize,
     /// Fully qualified default embedding model ID (provider/model format).
     pub default_embedding_full_id: String,
+
+    // === Default Vision LLM Configuration (SPEC-041) ===
+    /// Default Vision LLM model for PDF-to-Markdown extraction.
+    /// None if not configured (workspaces use upload-time defaults).
+    pub default_vision_llm_model: Option<String>,
+    /// Default Vision LLM provider for PDF-to-Markdown extraction.
+    /// None if not configured.
+    pub default_vision_llm_provider: Option<String>,
 
     /// Creation timestamp.
     pub created_at: String,
@@ -631,6 +663,8 @@ mod tests {
             default_embedding_model: Some("text-embedding-3-small".to_string()),
             default_embedding_provider: Some("openai".to_string()),
             default_embedding_dimension: Some(1536),
+            default_vision_llm_model: Some("gpt-4o".to_string()),
+            default_vision_llm_provider: Some("openai".to_string()),
         };
 
         let json = serde_json::to_string(&req).unwrap();
@@ -667,6 +701,8 @@ mod tests {
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,
+            vision_llm_model: None,
+            vision_llm_provider: None,
         };
 
         let json = serde_json::to_string(&req).unwrap();
@@ -711,6 +747,8 @@ mod tests {
             default_embedding_provider: "openai".to_string(),
             default_embedding_dimension: 1536,
             default_embedding_full_id: "openai/text-embedding-3-small".to_string(),
+            default_vision_llm_model: None,
+            default_vision_llm_provider: None,
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };

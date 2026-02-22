@@ -559,7 +559,9 @@
     "createNew": "Create New Tenant",
     "createDescription": "Create a new tenant to organize your workspaces and data.",
     "createSuccess": "Tenant created successfully",
-    "createFailed": "Failed to create tenant"
+    "createFailed": "Failed to create tenant",
+    "defaultVisionLlmModel": "Default Vision LLM Model",
+    "defaultVisionLlmHint": "Used for PDF vision extraction. Workspaces inherit this value if no model is defined."
   },
   "workspace": {
     "workspace": "Workspace",

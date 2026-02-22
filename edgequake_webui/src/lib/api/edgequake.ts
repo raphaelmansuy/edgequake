@@ -167,6 +167,13 @@ export interface CreateTenantRequest {
   default_embedding_provider?: string;
   /** Default embedding dimension for new workspaces (e.g., 1536, 768). */
   default_embedding_dimension?: number;
+
+  // === Default Vision LLM Configuration (SPEC-041) ===
+
+  /** Default vision LLM model for new workspaces (e.g., "gpt-4o", "gemma3:12b"). */
+  default_vision_llm_model?: string;
+  /** Default vision LLM provider for new workspaces ("openai", "ollama"). */
+  default_vision_llm_provider?: string;
 }
 
 /**
