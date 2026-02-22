@@ -134,7 +134,10 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
         ref={ref}
         className={cn(
           resizable ? 'w-full' : panelWidth,
-          "border-l bg-card flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
+          // WHY: h-full constrains the aside to its container height so the inner
+          // ScrollArea (flex-1 min-h-0) can scroll instead of the aside growing
+          // to fit all content and being clipped by overflow-hidden on the parent.
+          "border-l bg-card flex flex-col h-full transition-all duration-300 ease-in-out overflow-hidden",
           className
         )}
         aria-label={title || 'Side panel'}

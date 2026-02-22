@@ -29,7 +29,7 @@ import { retryFailedChunks } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
 import type { IngestionStage } from '@/types/ingestion';
 import { RefreshCw, X } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface IngestionProgressPanelProps {
   /** Track ID for the ingestion job */
@@ -160,8 +160,9 @@ export function IngestionProgressPanel({
   // Check if complete
   const isComplete = progress?.status === 'completed';
   
-  // Effect for onComplete callback
-  useMemo(() => {
+  // WHY: useEffect (not useMemo) because calling onComplete() is a side effect.
+  // useMemo is for computing derived values; side effects belong in useEffect.
+  useEffect(() => {
     if (isComplete) {
       onComplete?.();
     }

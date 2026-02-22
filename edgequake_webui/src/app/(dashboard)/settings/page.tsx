@@ -1,6 +1,7 @@
 'use client';
 
 import { ProviderStatusCard } from '@/components/settings/provider-status-card';
+import { VisionLLMSettingsCard } from '@/components/settings/vision-llm-settings-card';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -30,9 +31,11 @@ import { useSettingsStore } from '@/stores/use-settings-store';
 import { Database, Download, Globe, Monitor, Moon, Palette, Sun, Upload } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const { 
     language, 
@@ -52,12 +55,12 @@ export default function SettingsPage() {
 
   const handleClearHistory = () => {
     clearHistory();
-    toast.success('Query history cleared');
+    toast.success(t('settings.toasts.historyCleared', 'Query history cleared'));
   };
 
   const handleResetSettings = () => {
     resetSettings();
-    toast.success('Settings reset to defaults');
+    toast.success(t('settings.toasts.settingsReset', 'Settings reset to defaults'));
   };
 
   const handleExportSettings = () => {
@@ -69,7 +72,7 @@ export default function SettingsPage() {
     a.download = `edgequake-settings-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Settings exported successfully');
+    toast.success(t('settings.data.exported', 'Settings exported successfully'));
   };
 
   const handleImportSettings = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,13 +83,13 @@ export default function SettingsPage() {
     reader.onload = (e) => {
       const result = importSettings(e.target?.result as string);
       if (result.success) {
-        toast.success('Settings imported successfully');
+        toast.success(t('settings.toasts.settingsImportedSuccess', 'Settings imported successfully'));
       } else {
-        toast.error(`Import failed: ${result.error}`);
+        toast.error(t('settings.data.importError', 'Import failed: {{error}}', { error: result.error }));
       }
     };
     reader.onerror = () => {
-      toast.error('Failed to read file');
+      toast.error(t('common.failed', 'Failed to read file'));
     };
     reader.readAsText(file);
     
@@ -98,13 +101,13 @@ export default function SettingsPage() {
 
   const handleThemeChange = (newTheme: string) => {
     setTheme(newTheme);
-    toast.success(`Theme changed to ${newTheme}`);
+    toast.success(t('settings.toasts.themeChanged', 'Theme updated'));
   };
 
   const handleLanguageChange = (newLanguage: 'en' | 'zh' | 'ja' | 'ko') => {
     setLanguage(newLanguage);
     const languageNames = { en: 'English', zh: '中文', ja: '日本語', ko: '한국어' };
-    toast.success(`Language changed to ${languageNames[newLanguage]}`);
+    toast.success(t('settings.toasts.languageChanged', `Language changed to ${languageNames[newLanguage]}`));
   };
 
   const handleGraphSettingsChange = <K extends keyof typeof graphSettings>(
@@ -112,7 +115,7 @@ export default function SettingsPage() {
     value: typeof graphSettings[K]
   ) => {
     setGraphSettings({ [key]: value });
-    toast.success('Graph settings updated');
+    toast.success(t('settings.graph.updated', 'Graph settings updated'));
   };
 
   const handleQuerySettingsChange = <K extends keyof typeof querySettings>(
@@ -120,7 +123,7 @@ export default function SettingsPage() {
     value: typeof querySettings[K]
   ) => {
     setQuerySettings({ [key]: value });
-    toast.success('Query settings updated');
+    toast.success(t('settings.query.updated', 'Query settings updated'));
   };
 
   const handleIngestionSettingsChange = <K extends keyof typeof ingestionSettings>(
@@ -128,7 +131,7 @@ export default function SettingsPage() {
     value: typeof ingestionSettings[K]
   ) => {
     setIngestionSettings({ [key]: value });
-    toast.success('Ingestion settings updated');
+    toast.success(t('settings.ingestion.updated', 'Ingestion settings updated'));
   };
 
   return (
@@ -136,9 +139,9 @@ export default function SettingsPage() {
       <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('settings.title', 'Settings')}</h1>
           <p className="text-base text-muted-foreground">
-            Customize your EdgeQuake experience
+            {t('settings.subtitle', 'Customize your EdgeQuake experience')}
           </p>
         </header>
 
@@ -147,19 +150,19 @@ export default function SettingsPage() {
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2">
             <Palette className="h-5 w-5 text-primary" />
-            Appearance
+            {t('settings.appearance.title', 'Appearance')}
           </CardTitle>
           <CardDescription>
-            Customize the look and feel of the application
+            {t('settings.appearance.subtitle', 'Customize the look and feel of the application')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Theme */}
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium">Theme</label>
+              <label className="text-sm font-medium">{t('settings.appearance.theme', 'Theme')}</label>
               <p className="text-sm text-muted-foreground">
-                Select your preferred color scheme
+                {t('settings.appearance.themeDesc', 'Select your preferred color scheme')}
               </p>
             </div>
             <Select value={theme} onValueChange={handleThemeChange}>
@@ -170,19 +173,19 @@ export default function SettingsPage() {
                 <SelectItem value="light">
                   <div className="flex items-center gap-2">
                     <Sun className="h-4 w-4" />
-                    Light
+                    {t('settings.appearance.themeLight', 'Light')}
                   </div>
                 </SelectItem>
                 <SelectItem value="dark">
                   <div className="flex items-center gap-2">
                     <Moon className="h-4 w-4" />
-                    Dark
+                    {t('settings.appearance.themeDark', 'Dark')}
                   </div>
                 </SelectItem>
                 <SelectItem value="system">
                   <div className="flex items-center gap-2">
                     <Monitor className="h-4 w-4" />
-                    System
+                    {t('settings.appearance.themeSystem', 'System')}
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -194,9 +197,9 @@ export default function SettingsPage() {
           {/* Language */}
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium">Language</label>
+              <label className="text-sm font-medium">{t('settings.appearance.language', 'Language')}</label>
               <p className="text-sm text-muted-foreground">
-                Select your preferred language
+                {t('settings.appearance.languageDesc', 'Select your preferred language')}
               </p>
             </div>
             <Select value={language} onValueChange={handleLanguageChange}>
@@ -217,6 +220,9 @@ export default function SettingsPage() {
       {/* Provider Status */}
       <ProviderStatusCard />
 
+      {/* Vision LLM Configuration (SPEC-040) */}
+      <VisionLLMSettingsCard />
+
       {/* Workspace Maintenance (SPEC-032) */}
       <RebuildEmbeddingsButton variant="card" />
 
@@ -225,19 +231,19 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Globe className="h-5 w-5" />
-            Graph Visualization
+            {t('settings.graph.title', 'Graph Visualization')}
           </CardTitle>
           <CardDescription>
-            Configure how the knowledge graph is displayed
+            {t('settings.graph.subtitle', 'Configure how the knowledge graph is displayed')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Show Labels */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Show Node Labels</label>
+              <label className="text-sm font-medium">{t('settings.graph.showNodeLabels', 'Show Node Labels')}</label>
               <p className="text-xs text-muted-foreground">
-                Display labels on graph nodes
+                {t('settings.graph.showNodeLabelsDesc', 'Display labels on graph nodes')}
               </p>
             </div>
             <Switch
@@ -251,9 +257,9 @@ export default function SettingsPage() {
           {/* Show Edge Labels */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Show Edge Labels</label>
+              <label className="text-sm font-medium">{t('settings.graph.showEdgeLabels', 'Show Edge Labels')}</label>
               <p className="text-xs text-muted-foreground">
-                Display relationship types on edges
+                {t('settings.graph.showEdgeLabelsDesc', 'Display relationship types on edges')}
               </p>
             </div>
             <Switch
@@ -267,9 +273,9 @@ export default function SettingsPage() {
           {/* Node Size */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Node Size</label>
+              <label className="text-sm font-medium">{t('settings.graph.nodeSize', 'Node Size')}</label>
               <p className="text-xs text-muted-foreground">
-                Size of nodes in the graph
+                {t('settings.graph.nodeSizeDesc', 'Size of nodes in the graph')}
               </p>
             </div>
             <Select
@@ -280,9 +286,9 @@ export default function SettingsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="small">Small</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="large">Large</SelectItem>
+                <SelectItem value="small">{t('settings.graph.nodeSizeSmall', 'Small')}</SelectItem>
+                <SelectItem value="medium">{t('settings.graph.nodeSizeMedium', 'Medium')}</SelectItem>
+                <SelectItem value="large">{t('settings.graph.nodeSizeLarge', 'Large')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -292,9 +298,9 @@ export default function SettingsPage() {
           {/* Layout */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Default Layout</label>
+              <label className="text-sm font-medium">{t('settings.graph.defaultLayout', 'Default Layout')}</label>
               <p className="text-xs text-muted-foreground">
-                Initial graph layout algorithm
+                {t('settings.graph.defaultLayoutDesc', 'Initial graph layout algorithm')}
               </p>
             </div>
             <Select
@@ -323,19 +329,19 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            Query Defaults
+            {t('settings.query.title', 'Query Defaults')}
           </CardTitle>
           <CardDescription>
-            Default settings for knowledge graph queries
+            {t('settings.query.subtitle', 'Default settings for knowledge graph queries')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Default Mode */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Default Query Mode</label>
+              <label className="text-sm font-medium">{t('settings.query.defaultMode', 'Default Query Mode')}</label>
               <p className="text-xs text-muted-foreground">
-                Default retrieval mode for queries
+                {t('settings.query.defaultModeDesc', 'Default retrieval mode for queries')}
               </p>
             </div>
             <Select
@@ -361,9 +367,9 @@ export default function SettingsPage() {
           {/* Streaming */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Enable Streaming</label>
+              <label className="text-sm font-medium">{t('settings.query.enableStreaming', 'Enable Streaming')}</label>
               <p className="text-xs text-muted-foreground">
-                Show responses as they are generated
+                {t('settings.query.enableStreamingDesc', 'Show responses as they are generated')}
               </p>
             </div>
             <Switch
@@ -377,9 +383,9 @@ export default function SettingsPage() {
           {/* Reranking - SOTA Feature */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Enable Reranking</label>
+              <label className="text-sm font-medium">{t('settings.query.enableReranking', 'Enable Reranking')}</label>
               <p className="text-xs text-muted-foreground">
-                Improve retrieval precision with semantic reranking
+                {t('settings.query.enableRerankingDesc', 'Improve retrieval precision with semantic reranking')}
               </p>
             </div>
             <Switch
@@ -391,9 +397,9 @@ export default function SettingsPage() {
           {/* Rerank Top K */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Rerank Top K</label>
+              <label className="text-sm font-medium">{t('settings.query.rerankTopK', 'Rerank Top K')}</label>
               <p className="text-xs text-muted-foreground">
-                Number of top results after reranking
+                {t('settings.query.rerankTopKDesc', 'Number of top results after reranking')}
               </p>
             </div>
             <Select
@@ -419,19 +425,19 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            Ingestion Settings
+            {t('settings.ingestion.title', 'Ingestion Settings')}
           </CardTitle>
           <CardDescription>
-            Advanced settings for document ingestion quality
+            {t('settings.ingestion.subtitle', 'Advanced settings for document ingestion quality')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Gleaning */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Enable Gleaning</label>
+              <label className="text-sm font-medium">{t('settings.ingestion.enableGleaning', 'Enable Gleaning')}</label>
               <p className="text-xs text-muted-foreground">
-                Multiple extraction passes for higher quality entities
+                {t('settings.ingestion.enableGleaningDesc', 'Multiple extraction passes for higher quality entities')}
               </p>
             </div>
             <Switch
@@ -445,9 +451,9 @@ export default function SettingsPage() {
           {/* Max Gleaning Passes */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">Max Gleaning Passes</label>
+              <label className="text-sm font-medium">{t('settings.ingestion.maxGleaning', 'Max Gleaning Passes')}</label>
               <p className="text-xs text-muted-foreground">
-                Maximum number of extraction passes (1-3)
+                {t('settings.ingestion.maxGleaningDesc', 'Maximum number of extraction passes (1-3)')}
               </p>
             </div>
             <Select
@@ -470,9 +476,9 @@ export default function SettingsPage() {
           {/* LLM Summarization */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="text-sm font-medium">LLM Summarization</label>
+              <label className="text-sm font-medium">{t('settings.ingestion.llmSummarization', 'LLM Summarization')}</label>
               <p className="text-xs text-muted-foreground">
-                Use LLM to merge entity descriptions intelligently
+                {t('settings.ingestion.llmSummarizationDesc', 'Use LLM to merge entity descriptions intelligently')}
               </p>
             </div>
             <Switch
@@ -488,30 +494,30 @@ export default function SettingsPage() {
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-destructive">
             <Database className="h-5 w-5" />
-            Data Management
+            {t('settings.data.title', 'Data Management')}
           </CardTitle>
           <CardDescription>
-            Manage local data, import/export settings, and reset. Use caution with destructive actions.
+            {t('settings.data.subtitle', 'Manage local data, import/export settings, and reset. Use caution with destructive actions.')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Import/Export Settings */}
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium">Settings Backup</label>
+              <label className="text-sm font-medium">{t('settings.data.backup', 'Settings Backup')}</label>
               <p className="text-sm text-muted-foreground">
-                Export or import your settings as JSON
+                {t('settings.data.backupDesc', 'Export or import your settings as JSON')}
               </p>
             </div>
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" onClick={handleExportSettings}>
                 <Download className="h-4 w-4 mr-2" />
-                Export
+                {t('common.export', 'Export')}
               </Button>
               <Button variant="outline" size="sm" asChild>
                 <label className="cursor-pointer">
                   <Upload className="h-4 w-4 mr-2" />
-                  Import
+                  {t('common.import', 'Import')}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -529,28 +535,28 @@ export default function SettingsPage() {
           {/* Clear History */}
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium">Query History</label>
+              <label className="text-sm font-medium">{t('settings.data.queryHistory', 'Query History')}</label>
               <p className="text-sm text-muted-foreground">
-                Clear all saved query history and conversations
+                {t('settings.data.queryHistoryDesc', 'Clear all saved query history and conversations')}
               </p>
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="border-destructive/50 text-destructive hover:bg-destructive/10">
-                  Clear History
+                  {t('settings.data.clearHistory', 'Clear History')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Clear query history?</AlertDialogTitle>
+                  <AlertDialogTitle>{t('settings.data.clearHistoryTitle', 'Clear query history?')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will permanently delete all your saved queries and favorites. This action cannot be undone.
+                    {t('settings.data.clearHistoryDesc', 'This will permanently delete all your saved queries and favorites. This action cannot be undone.')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{t('common.cancel', 'Cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleClearHistory} className="bg-destructive hover:bg-destructive/90">
-                    Clear
+                    {t('settings.data.clearHistoryConfirm', 'Clear')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -562,28 +568,28 @@ export default function SettingsPage() {
           {/* Reset Settings */}
           <div className="flex items-center justify-between gap-4 p-4 rounded-lg bg-destructive/5 border border-destructive/20">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-destructive">Reset All Settings</label>
+              <label className="text-sm font-medium text-destructive">{t('settings.data.resetAll', 'Reset All Settings')}</label>
               <p className="text-sm text-muted-foreground">
-                Reset all settings to their default values. Your data will not be affected.
+                {t('settings.data.resetAllDesc', 'Reset all settings to their default values. Your data will not be affected.')}
               </p>
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm">
-                  Reset Settings
+                  {t('settings.data.resetButton', 'Reset Settings')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Reset all settings?</AlertDialogTitle>
+                  <AlertDialogTitle>{t('settings.data.resetConfirmTitle', 'Reset all settings?')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will reset all settings to their default values. Your documents and knowledge graph data will not be affected. This action cannot be undone.
+                    {t('settings.data.resetConfirmDesc', 'This will reset all settings to their default values. Your documents and knowledge graph data will not be affected. This action cannot be undone.')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{t('common.cancel', 'Cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleResetSettings} className="bg-destructive hover:bg-destructive/90">
-                    Reset
+                    {t('settings.data.resetConfirm', 'Reset')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

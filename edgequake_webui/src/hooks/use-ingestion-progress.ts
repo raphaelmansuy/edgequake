@@ -73,13 +73,22 @@ export function useIngestionProgress(
   const { getTrack, startTracking } = useIngestionStore();
   const { getIngestionCost } = useCostStore();
 
-  // Get progress from store
+  // Get progress from store (from WebSocket events)
   const storeProgress = useMemo(() => {
     return trackId ? getTrack(trackId) : null;
   }, [trackId, getTrack]);
 
-  // Fallback to polling when WebSocket is unavailable
-  const shouldPoll = !connected && !!trackId && enableWebSocket;
+  // WHY: Always poll as a fallback until the track reaches a terminal state,
+  // even when WebSocket is connected. WS events can be missed (reconnect gaps,
+  // race conditions) leaving the panel stuck showing a processing state forever.
+  // Use a slower interval when WS is live (5s vs 2s) to avoid redundant requests.
+  const isTerminalStatus =
+    storeProgress?.status === "completed" ||
+    storeProgress?.status === "failed" ||
+    storeProgress?.status === "cancelled";
+
+  const shouldPoll = !!trackId && !isTerminalStatus;
+  const effectiveInterval = connected ? 5000 : pollingInterval;
 
   const {
     data: polledProgress,
@@ -90,7 +99,7 @@ export function useIngestionProgress(
     queryKey: ["ingestion-progress", trackId],
     queryFn: () => getTrackProgress(trackId!),
     enabled: !!trackId && !!shouldPoll,
-    refetchInterval: shouldPoll ? pollingInterval : false,
+    refetchInterval: shouldPoll ? effectiveInterval : false,
   });
 
   // Subscribe to WebSocket updates
@@ -138,22 +147,51 @@ export function useIngestionProgress(
     }
   };
 
-  // Combine store and polled progress
-  const progress =
-    storeProgress ||
-    (polledProgress
-      ? {
-          track_id: polledProgress.track_id,
-          document_id: polledProgress.document_id,
-          document_name: polledProgress.document_name,
-          status: polledProgress.status,
-          overall_progress: polledProgress.progress.completion_percentage,
-          progress: polledProgress.progress,
-          started_at: polledProgress.started_at,
-          updated_at: polledProgress.updated_at,
-          completed_at: polledProgress.completed_at,
-        }
-      : null);
+  // WHY: Map polled API data to the IngestionProgress shape for use below.
+  const mappedPolledProgress = useMemo(
+    () =>
+      polledProgress
+        ? {
+            track_id: polledProgress.track_id,
+            document_id: polledProgress.document_id,
+            document_name: polledProgress.document_name,
+            status: polledProgress.status,
+            overall_progress: polledProgress.progress.completion_percentage,
+            progress: polledProgress.progress,
+            started_at: polledProgress.started_at,
+            updated_at: polledProgress.updated_at,
+            completed_at: polledProgress.completed_at,
+          }
+        : null,
+    [polledProgress],
+  );
+
+  // WHY: Prefer the most "advanced" progress state.
+  // The WS store is the primary source of truth. However, if the polled API
+  // response shows a terminal status (completed/failed/cancelled) while the
+  // store still shows a processing state (e.g., WS "completed" event was
+  // missed), we prefer the polled value so the panel doesn't get stuck.
+  const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
+
+  const progress = useMemo(() => {
+    if (!storeProgress && !mappedPolledProgress) return null;
+    if (!storeProgress) return mappedPolledProgress;
+    if (!mappedPolledProgress) return storeProgress;
+
+    // If the polled data shows a terminal state but the store does not, use polled.
+    const pollIsTerminal = TERMINAL_STATUSES.includes(
+      mappedPolledProgress.status as (typeof TERMINAL_STATUSES)[number],
+    );
+    const storeIsTerminal = TERMINAL_STATUSES.includes(
+      storeProgress.status as (typeof TERMINAL_STATUSES)[number],
+    );
+
+    if (pollIsTerminal && !storeIsTerminal) {
+      return mappedPolledProgress;
+    }
+    // Otherwise WS store has priority (more granular stage data).
+    return storeProgress;
+  }, [storeProgress, mappedPolledProgress]);
 
   return {
     progress,
