@@ -180,6 +180,7 @@ export default function WorkspacePage() {
       vision_llm_model?: string;
       _embeddingChanged?: boolean;
       _llmChanged?: boolean;
+      _visionChanged?: boolean;
     }) =>
       updateWorkspace(selectedTenantId!, selectedWorkspaceId!, {
         llm_model: data.llm_model,
@@ -198,11 +199,13 @@ export default function WorkspacePage() {
       // Check if model changes require rebuild
       const needsEmbeddingRebuild = variables._embeddingChanged;
       const needsExtractionRebuild = variables._llmChanged;
+      const needsVisionRebuild = variables._visionChanged;
       
-      if (needsEmbeddingRebuild || needsExtractionRebuild) {
+      if (needsEmbeddingRebuild || needsExtractionRebuild || needsVisionRebuild) {
         setPendingRebuild({
           embeddings: needsEmbeddingRebuild ?? false,
           extraction: needsExtractionRebuild ?? false,
+          vision: needsVisionRebuild ?? false,
         });
         
         if (needsEmbeddingRebuild && needsExtractionRebuild) {
@@ -233,7 +236,18 @@ export default function WorkspacePage() {
             {
               description: t(
                 'workspace.llmRebuildHint',
-                'Use "Rebuild Embeddings" to re-extract entities with the new LLM model.'
+                'Use "Rebuild Knowledge Graph" to re-extract entities with the new LLM model.'
+              ),
+              duration: 6000,
+            }
+          );
+        } else if (needsVisionRebuild) {
+          toast.info(
+            t('workspace.visionRebuildRequired', 'Vision LLM model changed'),
+            {
+              description: t(
+                'workspace.visionRebuildHint',
+                'Use "Rebuild Knowledge Graph" to re-extract PDF documents with the new vision model from original files.'
               ),
               duration: 6000,
             }
@@ -269,6 +283,7 @@ export default function WorkspacePage() {
     // Track which models changed for post-save rebuild notification
     data._embeddingChanged = embeddingModelChanged ?? false;
     data._llmChanged = llmModelChanged ?? false;
+    data._visionChanged = visionLLMChanged ?? false;
 
     updateMutation.mutate(data as Parameters<typeof updateMutation.mutate>[0]);
   };
@@ -319,7 +334,7 @@ export default function WorkspacePage() {
     workspace.llm_provider !== selectedLLM.provider
   );
 
-  // Check if Vision LLM changed (informational only — affects next PDF upload)
+  // Check if Vision LLM changed (triggers full re-extraction of existing PDF documents from originals)
   const visionLLMChanged = workspace && selectedVisionLLM && (
     workspace.vision_llm_model !== selectedVisionLLM.model ||
     workspace.vision_llm_provider !== selectedVisionLLM.provider
@@ -329,6 +344,7 @@ export default function WorkspacePage() {
   const [pendingRebuild, setPendingRebuild] = useState<{
     embeddings: boolean;
     extraction: boolean;
+    vision: boolean;
   } | null>(null);
 
   if (!selectedTenantId || !selectedWorkspaceId) {
@@ -773,7 +789,7 @@ export default function WorkspacePage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Pending rebuild alert */}
-          {pendingRebuild && (pendingRebuild.embeddings || pendingRebuild.extraction) && (
+          {pendingRebuild && (pendingRebuild.embeddings || pendingRebuild.extraction || pendingRebuild.vision) && (
             <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
               <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
@@ -782,11 +798,13 @@ export default function WorkspacePage() {
                 </p>
                 <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
                   {pendingRebuild.embeddings && pendingRebuild.extraction ? (
-                    t('workspace.rebuildBothPending', 'You changed both LLM and embedding models. Click "Rebuild Embeddings" to reprocess all documents with the new configuration.')
+                    t('workspace.rebuildBothPending', 'You changed both LLM and embedding models. Click "Rebuild Knowledge Graph" to reprocess all documents from original files with the new configuration.')
                   ) : pendingRebuild.embeddings ? (
                     t('workspace.rebuildEmbeddingsPending', 'You changed the embedding model. Click "Rebuild Embeddings" to regenerate vector embeddings.')
+                  ) : pendingRebuild.vision ? (
+                    t('workspace.rebuildVisionPending', 'You changed the Vision LLM model. Click "Rebuild Knowledge Graph" to re-extract all PDF documents from their original files using the new vision model.')
                   ) : (
-                    t('workspace.rebuildExtractionPending', 'You changed the LLM model. Click "Rebuild Embeddings" to re-extract entities from all documents.')
+                    t('workspace.rebuildExtractionPending', 'You changed the LLM model. Click "Rebuild Knowledge Graph" to re-extract entities from all documents.')
                   )}
                 </p>
               </div>
