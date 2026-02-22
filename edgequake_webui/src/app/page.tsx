@@ -58,7 +58,10 @@ export default function Home() {
   const entityCount = statsData?.entity_count ?? 0;
   const relationshipCount = statsData?.relationship_count ?? 0;
   const recentDocuments = documentsData?.items || [];
-  const entityTypes = 0; // TODO: Backend needs to provide entity_type_count
+  // WHY: entity_type_count is returned by the backend workspace stats endpoint
+  // and counts distinct graph node types (PERSON, ORGANIZATION, etc.) via a
+  // single Cypher aggregate query — much faster than fetching all nodes.
+  const entityTypes = statsData?.entity_type_count ?? 0;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
