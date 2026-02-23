@@ -760,7 +760,12 @@ pub async fn stream_graph(
                         match state_clone.graph_storage.get_all_nodes().await {
                             Ok(all_nodes) => all_nodes
                                 .into_iter()
-                                .filter(|n| properties_match_tenant_context(&n.properties, &tenant_ctx_clone))
+                                .filter(|n| {
+                                    properties_match_tenant_context(
+                                        &n.properties,
+                                        &tenant_ctx_clone,
+                                    )
+                                })
                                 .take(params_clone.max_nodes)
                                 .map(|n| (n, 0usize)) // Degree unknown, use 0
                                 .collect(),
@@ -797,7 +802,9 @@ pub async fn stream_graph(
                     match state_clone.graph_storage.get_all_nodes().await {
                         Ok(all_nodes) => all_nodes
                             .into_iter()
-                            .filter(|n| properties_match_tenant_context(&n.properties, &tenant_ctx_clone))
+                            .filter(|n| {
+                                properties_match_tenant_context(&n.properties, &tenant_ctx_clone)
+                            })
                             .take(params_clone.max_nodes)
                             .map(|n| (n, 0usize)) // Degree unknown, use 0
                             .collect(),
