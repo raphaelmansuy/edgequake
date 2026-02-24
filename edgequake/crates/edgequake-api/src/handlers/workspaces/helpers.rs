@@ -6,6 +6,10 @@ use uuid::Uuid;
 
 use edgequake_core::Workspace;
 
+use crate::error::ApiError;
+use crate::middleware::TenantContext;
+use crate::state::AppState;
+
 // ============ Stats Cache ============
 
 /// Cached workspace stats with timestamp
@@ -111,6 +115,51 @@ pub(super) fn workspace_to_response(workspace: &Workspace) -> WorkspaceResponse 
 )]
 
 // ============ Helper Functions ============
+
+/// Verify that a workspace belongs to the requesting tenant context.
+///
+/// Fetches the workspace by ID and checks that `workspace.tenant_id` matches
+/// the `X-Tenant-ID` header value in `ctx`. Returns the workspace on success.
+///
+/// # Security contract
+///
+/// - If `ctx.tenant_id` is `Some` and does NOT match → `ApiError::NotFound`
+///   (intentionally 404, not 403, to avoid leaking cross-tenant workspace IDs).
+/// - If `ctx.tenant_id` is `None` (header absent) → access is allowed for
+///   backward compatibility with admin / direct API usage.
+///
+/// # Implements
+///
+/// - **BR0201**: Tenant isolation
+pub(super) async fn verify_workspace_tenant_access(
+    state: &AppState,
+    workspace_id: Uuid,
+    ctx: &TenantContext,
+) -> Result<Workspace, ApiError> {
+    let workspace = state
+        .workspace_service
+        .get_workspace(workspace_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound(format!("Workspace {} not found", workspace_id)))?;
+
+    // Enforce tenant isolation when caller supplies a tenant context header
+    if let Some(ref ctx_tid) = ctx.tenant_id {
+        if workspace.tenant_id.to_string() != *ctx_tid {
+            tracing::warn!(
+                workspace_id = %workspace_id,
+                workspace_tenant_id = %workspace.tenant_id,
+                requesting_tenant_id = %ctx_tid,
+                "Tenant isolation: workspace belongs to different tenant — returning 404"
+            );
+            // 404 (not 403): do not reveal whether the workspace exists in
+            // another tenant to prevent cross-tenant enumeration attacks.
+            return Err(ApiError::NotFound(format!("Workspace {} not found", workspace_id)));
+        }
+    }
+
+    Ok(workspace)
+}
 
 /// Generate a URL-friendly slug from a name.
 pub(super) fn generate_slug(name: &str) -> String {

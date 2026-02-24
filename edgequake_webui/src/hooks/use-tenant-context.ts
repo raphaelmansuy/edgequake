@@ -98,6 +98,10 @@ export function useTenantContext() {
     mutationFn: (data: { name: string; description?: string }) =>
       createTenant(data),
     onSuccess: (newTenant) => {
+      // WHY: Immediately add to store so any consumer of this hook sees the
+      // new tenant selected right away without waiting for the query refetch.
+      const currentTenants = useTenantStore.getState().tenants;
+      setTenants([...currentTenants, newTenant]);
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
       selectTenant(newTenant.id);
     },
@@ -110,6 +114,10 @@ export function useTenantContext() {
         ? createWorkspace(selectedTenantId, data)
         : Promise.reject(new Error("No tenant selected")),
     onSuccess: (newWorkspace) => {
+      // WHY: Immediately add to store so any consumer of this hook sees the
+      // new workspace selected right away without waiting for the query refetch.
+      const currentWorkspaces = useTenantStore.getState().workspaces;
+      setWorkspaces([...currentWorkspaces, newWorkspace]);
       queryClient.invalidateQueries({
         queryKey: ["workspaces", selectedTenantId],
       });
@@ -122,14 +130,14 @@ export function useTenantContext() {
     (tenantId: string) => {
       selectTenant(tenantId);
     },
-    [selectTenant]
+    [selectTenant],
   );
 
   const handleWorkspaceSelect = useCallback(
     (workspaceId: string) => {
       selectWorkspace(workspaceId);
     },
-    [selectWorkspace]
+    [selectWorkspace],
   );
 
   const refetchAll = useCallback(() => {

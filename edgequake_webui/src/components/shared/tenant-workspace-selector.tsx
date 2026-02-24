@@ -177,6 +177,12 @@ export function TenantWorkspaceSelector({
       createTenant(data),
     onSuccess: (newTenant) => {
       toast.success(t('tenant.createSuccess', 'Tenant created successfully'));
+      // WHY: Immediately add to Zustand store so the dropdown reflects the new
+      // tenant without waiting for the async query refetch. The query invalidation
+      // that follows will sync fresh server data, but selectTenant() needs the
+      // tenant in the list now to show the correct display name in the Select.
+      const currentTenants = useTenantStore.getState().tenants;
+      setTenants([...currentTenants, newTenant]);
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       selectTenant(newTenant.id);
       setShowCreateTenant(false);
@@ -215,6 +221,13 @@ export function TenantWorkspaceSelector({
       toast.success(
         t('workspace.createSuccess', 'Workspace created successfully')
       );
+      // WHY: Immediately add to Zustand store so the dropdown reflects the new
+      // workspace without waiting for the async query refetch. The query
+      // invalidation that follows will sync fresh server data, but
+      // selectWorkspace() needs the workspace in the list now so the Select
+      // shows the correct display name instead of "Select workspace..."
+      const currentWorkspaces = useTenantStore.getState().workspaces;
+      setWorkspaces([...currentWorkspaces, newWorkspace]);
       queryClient.invalidateQueries({
         queryKey: ['workspaces', selectedTenantId],
       });

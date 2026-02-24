@@ -7,9 +7,10 @@ use serde::Deserialize;
 use std::time::Instant;
 use uuid::Uuid;
 
-use super::helpers::{CachedStats, STATS_CACHE_TTL, WORKSPACE_STATS_CACHE};
+use super::helpers::{verify_workspace_tenant_access, CachedStats, STATS_CACHE_TTL, WORKSPACE_STATS_CACHE};
 use crate::error::ApiError;
 use crate::handlers::workspaces_types::*;
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 
@@ -31,7 +32,13 @@ use edgequake_core::MetricsTriggerType;
 pub async fn get_workspace_stats(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
 ) -> Result<Json<WorkspaceStatsResponse>, ApiError> {
+    // BR0201: Verify workspace belongs to requesting tenant before serving
+    // stats. Do this before the cache so cross-tenant requests never receive
+    // cached data for workspaces they do not own.
+    verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
+
     // HYBRID APPROACH WITH CACHING: 4-tier performance optimization
     // See: logs/2026-01-26-18-00-storage-architecture-analysis.md
     //
@@ -318,7 +325,11 @@ pub async fn get_metrics_history(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
     Query(params): Query<MetricsHistoryParams>,
+    tenant_ctx: TenantContext,
 ) -> Result<Json<MetricsHistoryResponse>, ApiError> {
+    // BR0201: Verify workspace belongs to requesting tenant
+    verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
+
     // Apply defaults and limits
     let limit = params.limit.unwrap_or(100).min(1000);
     let offset = params.offset.unwrap_or(0);
@@ -394,7 +405,11 @@ pub struct MetricsHistoryParams {
 pub async fn trigger_metrics_snapshot(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
 ) -> Result<(StatusCode, Json<MetricsSnapshotDTO>), ApiError> {
+    // BR0201: Verify workspace belongs to requesting tenant before recording
+    verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
+
     // Record a manual-triggered snapshot
     let snapshot = state
         .workspace_service
