@@ -17,7 +17,9 @@ mod enums;
 mod models;
 mod requests;
 
-pub use context::{MessageContext, MessageContextEntity, MessageContextRelationship, MessageSource};
+pub use context::{
+    MessageContext, MessageContextEntity, MessageContextRelationship, MessageSource,
+};
 pub use enums::{ConversationMode, MessageRole};
 pub use models::{Conversation, Folder, Message};
 pub use requests::{

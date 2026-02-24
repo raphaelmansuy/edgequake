@@ -16,12 +16,12 @@
 //!
 //! Each mode is implemented in its own sub-module:
 //!
-//! - [`naive`]: Simple vector similarity search
-//! - [`local`]: Entity-centric retrieval with keyword extraction
-//! - [`global`]: Relationship-centric high-level retrieval
-//! - [`mix`]: Combines local + naive (recommended default)
-//! - [`hybrid`]: Combines local + global with round-robin interleaving
-//! - [`bypass`]: Direct LLM query (no retrieval)
+//! - `naive`: Simple vector similarity search
+//! - `local`: Entity-centric retrieval with keyword extraction
+//! - `global`: Relationship-centric high-level retrieval
+//! - `mix`: Combines local + naive (recommended default)
+//! - `hybrid`: Combines local + global with round-robin interleaving
+//! - `bypass`: Direct LLM query (no retrieval)
 
 mod bypass;
 mod global;

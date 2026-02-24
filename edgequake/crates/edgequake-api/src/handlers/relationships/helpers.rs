@@ -24,10 +24,7 @@ pub(super) fn extract_relation_type(keywords: &str) -> String {
 }
 
 /// Convert [`GraphEdge`] to [`RelationshipResponse`].
-pub(super) fn edge_to_relationship_response(
-    edge: GraphEdge,
-    rel_id: &str,
-) -> RelationshipResponse {
+pub(super) fn edge_to_relationship_response(edge: GraphEdge, rel_id: &str) -> RelationshipResponse {
     let props = &edge.properties;
 
     RelationshipResponse {

@@ -38,8 +38,7 @@ pub(super) const STATS_CACHE_TTL: Duration = Duration::from_secs(60);
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::workspaces_types::{
-    CreateTenantRequest, TenantResponse, WorkspaceResponse,
-    WorkspaceStatsResponse,
+    CreateTenantRequest, TenantResponse, WorkspaceResponse, WorkspaceStatsResponse,
 };
 
 // ============ Helper Functions ============
@@ -113,7 +112,6 @@ pub(super) fn workspace_to_response(workspace: &Workspace) -> WorkspaceResponse 
     ),
     tags = ["tenants"]
 )]
-
 // ============ Helper Functions ============
 
 /// Verify that a workspace belongs to the requesting tenant context.
@@ -154,7 +152,10 @@ pub(super) async fn verify_workspace_tenant_access(
             );
             // 404 (not 403): do not reveal whether the workspace exists in
             // another tenant to prevent cross-tenant enumeration attacks.
-            return Err(ApiError::NotFound(format!("Workspace {} not found", workspace_id)));
+            return Err(ApiError::NotFound(format!(
+                "Workspace {} not found",
+                workspace_id
+            )));
         }
     }
 
@@ -172,4 +173,3 @@ pub(super) fn generate_slug(name: &str) -> String {
         .collect::<Vec<&str>>()
         .join("-")
 }
-

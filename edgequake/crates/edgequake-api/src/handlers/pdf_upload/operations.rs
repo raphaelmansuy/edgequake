@@ -9,15 +9,15 @@ use crate::state::AppState;
 
 // WHY: These imports are only used inside #[cfg(feature = "postgres")] blocks.
 #[cfg(feature = "postgres")]
-use tracing::info;
-#[cfg(feature = "postgres")]
-use uuid::Uuid;
-#[cfg(feature = "postgres")]
-use edgequake_storage::PdfProcessingStatus;
+use super::helpers::create_pdf_processing_task;
 #[cfg(feature = "postgres")]
 use super::types::PdfUploadOptions;
 #[cfg(feature = "postgres")]
-use super::helpers::create_pdf_processing_task;
+use edgequake_storage::PdfProcessingStatus;
+#[cfg(feature = "postgres")]
+use tracing::info;
+#[cfg(feature = "postgres")]
+use uuid::Uuid;
 
 // ============================================================================
 // OODA-17: Error Recovery Endpoints
@@ -256,4 +256,3 @@ pub async fn cancel_pdf_processing(
         }))
     }
 }
-

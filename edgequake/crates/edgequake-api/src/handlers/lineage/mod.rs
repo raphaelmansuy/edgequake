@@ -57,11 +57,11 @@ pub use crate::handlers::lineage_types::{
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::cache::{
         CachedLineage, LINEAGE_CACHE_MAX_ENTRIES, LINEAGE_CACHE_TTL, LINEAGE_KV_CACHE,
     };
     use super::export::lineage_to_csv;
+    use super::*;
     use std::time::Instant;
 
     #[test]

@@ -1,7 +1,5 @@
 //! PostgreSQL vector storage using pgvector extension.
 //!
-//! @implements FEAT0203
-//!
 //! Provides high-performance vector similarity search using PostgreSQL's
 //! pgvector extension with configurable indexing strategies.
 //!

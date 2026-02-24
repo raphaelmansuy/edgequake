@@ -15,8 +15,7 @@ use crate::state::AppState;
 use super::{node_to_entity_response, normalize_entity_name};
 pub use crate::handlers::entities_types::{
     EntityExistsQuery, EntityExistsResponse, EntityNeighborhoodQuery, EntityNeighborhoodResponse,
-    MergeDetails, MergeEntitiesRequest, MergeEntitiesResponse, NeighborhoodEdge,
-    NeighborhoodNode,
+    MergeDetails, MergeEntitiesRequest, MergeEntitiesResponse, NeighborhoodEdge, NeighborhoodNode,
 };
 
 /// Check if an entity exists.

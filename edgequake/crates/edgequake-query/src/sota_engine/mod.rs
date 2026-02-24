@@ -338,10 +338,10 @@ impl SOTAQueryEngine {
     }
 }
 
-mod reranking;
+mod prompt;
 mod query_entry;
 mod query_modes;
-mod prompt;
+mod reranking;
 mod vector_queries;
 
 #[cfg(test)]

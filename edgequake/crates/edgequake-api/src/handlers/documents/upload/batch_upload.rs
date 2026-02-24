@@ -9,12 +9,11 @@ use crate::error::{ApiError, ApiResult};
 use crate::services::ContentHasher;
 use crate::state::AppState;
 
-use crate::handlers::documents_types::*;
+use crate::file_validation::validate_file;
 #[allow(unused_imports)]
 use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_with_fallback;
+use crate::handlers::documents_types::*;
 use axum_extra::extract::Multipart;
-use crate::file_validation::validate_file;
-
 
 /// Upload multiple files via multipart form.
 #[utoipa::path(

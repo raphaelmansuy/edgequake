@@ -30,28 +30,27 @@
 //!
 //! # Architecture
 //!
-//! - [`types`]: Core data types (ChunkResult, ChunkerConfig, TextChunk, ChunkingStrategy trait)
+//! - `types`: Core data types (ChunkResult, ChunkerConfig, TextChunk, ChunkingStrategy trait)
 //! - [`text_utils`]: String splitting, UTF-8 boundary, sentence detection utilities
-//! - [`strategies`]: Chunking strategy implementations (token, character, sentence, paragraph)
+//! - `strategies`: Chunking strategy implementations (token, character, sentence, paragraph)
 
-mod types;
-pub mod text_utils;
 mod strategies;
+pub mod text_utils;
+mod types;
 
 use std::sync::Arc;
 
 use crate::error::Result;
 
 // Re-export types
-pub use types::{ChunkResult, ChunkingStrategy, ChunkerConfig, TextChunk};
+pub use types::{ChunkResult, ChunkerConfig, ChunkingStrategy, TextChunk};
 
 // Re-export text utilities needed by external consumers
 pub use text_utils::calculate_line_numbers;
 
 // Re-export strategies
 pub use strategies::{
-    CharacterBasedChunking, ParagraphBoundaryChunking, SentenceBoundaryChunking,
-    TokenBasedChunking,
+    CharacterBasedChunking, ParagraphBoundaryChunking, SentenceBoundaryChunking, TokenBasedChunking,
 };
 
 /// Text chunker for splitting documents.
@@ -195,10 +194,10 @@ impl Default for Chunker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::text_utils::{
         ceil_char_boundary, estimate_tokens, floor_char_boundary, split_into_sentences,
     };
+    use super::*;
 
     #[test]
     fn test_basic_chunking() {

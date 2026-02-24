@@ -25,7 +25,7 @@
 //! # Architecture
 //!
 //! - [`ConversationService`]: Trait defining all conversation operations
-//! - [`in_memory`]: In-memory implementation for testing
+//! - `in_memory`: In-memory implementation for testing
 
 mod in_memory;
 

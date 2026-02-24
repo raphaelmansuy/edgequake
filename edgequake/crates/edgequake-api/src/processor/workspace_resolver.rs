@@ -1,6 +1,5 @@
 use super::*;
 
-
 impl DocumentTaskProcessor {
     /// SPEC-032: Creates a new Pipeline instance configured with the workspace's
     /// LLM and embedding providers. Falls back to the default pipeline if:
@@ -460,7 +459,10 @@ impl DocumentTaskProcessor {
     /// which providers were used for extraction.
     ///
     /// Returns default provider config if workspace not found.
-    pub(super) async fn get_workspace_provider_lineage(&self, workspace_id: Option<&str>) -> ProviderLineage {
+    pub(super) async fn get_workspace_provider_lineage(
+        &self,
+        workspace_id: Option<&str>,
+    ) -> ProviderLineage {
         use edgequake_core::types::{
             DEFAULT_EMBEDDING_DIMENSION, DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_PROVIDER,
             DEFAULT_LLM_MODEL, DEFAULT_LLM_PROVIDER,

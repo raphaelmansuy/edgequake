@@ -10,10 +10,10 @@ use axum::{
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::isolation::properties_match_tenant_context;
-use crate::middleware::TenantContext;
 use crate::handlers::lineage_types::{
     ChunkSourceInfo, EntityProvenanceResponse, EntitySourceInfo, RelatedEntityInfo,
 };
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 use super::cache::cached_kv_get;

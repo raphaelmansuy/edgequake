@@ -126,7 +126,10 @@ impl SOTAQueryEngine {
     ///
     /// This method checks each low-level keyword against the graph and drops
     /// those with zero entity matches, preventing embedding dilution.
-    pub(super) async fn validate_keywords(&self, keywords: &ExtractedKeywords) -> ExtractedKeywords {
+    pub(super) async fn validate_keywords(
+        &self,
+        keywords: &ExtractedKeywords,
+    ) -> ExtractedKeywords {
         if keywords.low_level.is_empty() {
             return keywords.clone();
         }

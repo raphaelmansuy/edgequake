@@ -8,12 +8,11 @@
 
 use async_trait::async_trait;
 
-use crate::error::Result;
-use super::types::{ChunkingStrategy, ChunkerConfig, ChunkResult};
 use super::text_utils::{
-    estimate_tokens, split_into_sentences, take_overlap_sentences,
-    split_text_internal,
+    estimate_tokens, split_into_sentences, split_text_internal, take_overlap_sentences,
 };
+use super::types::{ChunkResult, ChunkerConfig, ChunkingStrategy};
+use crate::error::Result;
 
 /// Default token-based chunking strategy.
 ///
@@ -59,11 +58,13 @@ impl ChunkingStrategy for TokenBasedChunking {
         Ok(chunks
             .into_iter()
             .enumerate()
-            .map(|(idx, (text, _, _)): (usize, (String, usize, usize))| ChunkResult {
-                content: text.clone(),
-                tokens: estimate_tokens(&text),
-                chunk_order_index: idx,
-            })
+            .map(
+                |(idx, (text, _, _)): (usize, (String, usize, usize))| ChunkResult {
+                    content: text.clone(),
+                    tokens: estimate_tokens(&text),
+                    chunk_order_index: idx,
+                },
+            )
             .collect())
     }
 

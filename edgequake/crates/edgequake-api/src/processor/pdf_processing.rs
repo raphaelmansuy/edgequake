@@ -1,8 +1,6 @@
 use super::*;
 
-
 impl DocumentTaskProcessor {
-
     /// Process PDF processing task (SPEC-007).
     ///
     /// This method handles the complete PDF processing pipeline:

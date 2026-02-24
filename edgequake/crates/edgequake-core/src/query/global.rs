@@ -263,11 +263,7 @@ impl super::QueryEngine {
     }
 
     /// Build prompt for global query mode.
-    fn build_global_prompt(
-        query: &str,
-        context: &str,
-        keywords: &ExtractedKeywords,
-    ) -> String {
+    fn build_global_prompt(query: &str, context: &str, keywords: &ExtractedKeywords) -> String {
         format!(
             r#"---Role---
 You are a helpful assistant responding to questions about data in the provided tables and relationships.

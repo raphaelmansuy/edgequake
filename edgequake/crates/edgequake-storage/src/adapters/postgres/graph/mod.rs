@@ -84,7 +84,6 @@ use crate::traits::{GraphEdge, GraphNode, GraphStorage, KnowledgeGraph};
 ///
 /// Uses the AGE extension for native graph operations with Cypher queries.
 /// All operations use AGE's graph-optimized storage and query engine.
-
 mod helpers;
 
 pub struct PostgresAGEGraphStorage {

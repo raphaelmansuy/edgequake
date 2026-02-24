@@ -7,7 +7,9 @@ use serde::Deserialize;
 use std::time::Instant;
 use uuid::Uuid;
 
-use super::helpers::{verify_workspace_tenant_access, CachedStats, STATS_CACHE_TTL, WORKSPACE_STATS_CACHE};
+use super::helpers::{
+    verify_workspace_tenant_access, CachedStats, STATS_CACHE_TTL, WORKSPACE_STATS_CACHE,
+};
 use crate::error::ApiError;
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;

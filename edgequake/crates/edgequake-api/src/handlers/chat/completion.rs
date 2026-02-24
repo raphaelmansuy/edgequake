@@ -7,15 +7,14 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::query::{
-    get_workspace_embedding_provider, get_workspace_vector_storage,
-    resolve_chunk_file_paths, QueryStats,
+    get_workspace_embedding_provider, get_workspace_vector_storage, resolve_chunk_file_paths,
+    QueryStats,
 };
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::state::AppState;
 use edgequake_core::types::{
-    CreateConversationRequest, CreateMessageRequest, MessageRole,
-    UpdateMessageRequest,
+    CreateConversationRequest, CreateMessageRequest, MessageRole, UpdateMessageRequest,
 };
 use edgequake_query::QueryRequest as EngineQueryRequest;
 
@@ -469,4 +468,3 @@ pub async fn chat_completion(
         llm_model: used_model,
     }))
 }
-

@@ -174,8 +174,8 @@ impl HybridExtractionParser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::json_parser::extract_json_from_response;
+    use super::*;
 
     #[test]
     fn test_tuple_parser_entities() {

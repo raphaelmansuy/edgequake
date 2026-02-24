@@ -5,11 +5,11 @@ use axum::{
 };
 use uuid::Uuid;
 
+use super::helpers::{verify_workspace_tenant_access, workspace_to_response};
 use crate::error::ApiError;
+use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
-use crate::handlers::workspaces_types::*;
-use super::helpers::{verify_workspace_tenant_access, workspace_to_response};
 
 /// Create a new workspace.
 ///

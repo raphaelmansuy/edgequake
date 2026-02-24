@@ -11,14 +11,14 @@ use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
 use crate::state::AppState;
 
-use crate::handlers::documents_types::*;
-use crate::handlers::documents::storage_helpers::{delete_document_for_reingestion, get_workspace_vector_storage_strict};
+use crate::file_validation::validate_file;
 #[allow(unused_imports)]
 use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_with_fallback;
+use crate::handlers::documents::storage_helpers::{
+    delete_document_for_reingestion, get_workspace_vector_storage_strict,
+};
+use crate::handlers::documents_types::*;
 use axum_extra::extract::Multipart;
-use crate::file_validation::validate_file;
-
-
 
 /// Upload a file via multipart form.
 ///

@@ -11,10 +11,10 @@ use axum::{
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::isolation::verify_document_access;
-use crate::middleware::TenantContext;
 use crate::handlers::lineage_types::{
     CharRange, ChunkDetailResponse, ExtractedEntityInfo, ExtractedRelationshipInfo,
 };
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 /// Get chunk detail.

@@ -3,9 +3,9 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
 
+use super::{EntityExtractor, ExtractedEntity, ExtractionResult};
 use crate::chunker::TextChunk;
 use crate::error::{PipelineError, Result};
-use super::{EntityExtractor, ExtractedEntity, ExtractionResult};
 
 /// Simple regex-based entity extractor for testing.
 pub struct SimpleExtractor {

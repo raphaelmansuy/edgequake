@@ -22,9 +22,9 @@
 //! ## Architecture
 //!
 //! The pipeline is split into focused sub-modules:
-//! - [`extraction`]: Parallel and resilient chunk extraction
-//! - [`helpers`]: Shared helpers for embedding generation, stats, lineage
-//! - [`processing`]: Document processing entry points
+//! - `extraction`: Parallel and resilient chunk extraction
+//! - `helpers`: Shared helpers for embedding generation, stats, lineage
+//! - `processing`: Document processing entry points
 
 mod extraction;
 mod helpers;

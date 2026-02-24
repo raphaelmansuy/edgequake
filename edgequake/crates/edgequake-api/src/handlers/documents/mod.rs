@@ -39,11 +39,11 @@
 //!
 //! # Module Organization (SRP)
 //!
-//! - [`storage_helpers`]: Shared storage utilities (vector storage lookup, graph cleanup)
-//! - [`upload`]: Document upload handlers (text + file multipart)
-//! - [`query`]: Document listing, detail, track status, directory scanning
-//! - [`delete`]: Document deletion with cascade cleanup
-//! - [`recovery`]: Failed document reprocessing, stuck recovery, chunk retry
+//! - `storage_helpers`: Shared storage utilities (vector storage lookup, graph cleanup)
+//! - `upload`: Document upload handlers (text + file multipart)
+//! - `query`: Document listing, detail, track status, directory scanning
+//! - `delete`: Document deletion with cascade cleanup
+//! - `recovery`: Failed document reprocessing, stuck recovery, chunk retry
 
 // Re-export DTOs from documents_types module
 pub use crate::handlers::documents_types::*;

@@ -1,14 +1,14 @@
-use std::sync::Arc;
 use chrono::Utc;
+use std::sync::Arc;
 use tracing::{debug, info};
 use uuid::Uuid;
 
+use super::types::PdfUploadOptions;
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::PdfDocumentStorage;
 use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
-use super::types::PdfUploadOptions;
 
 // ============================================================================
 // Helper Functions
@@ -160,7 +160,10 @@ pub(super) fn estimate_processing_time(pdf_data: &[u8], page_count: Option<i32>)
 ///
 /// * `Ok(())` - Data cleared successfully
 /// * `Err(String)` - Error message if clearing failed
-pub(super) async fn clear_document_derived_data(state: &AppState, document_id: &str) -> Result<(), String> {
+pub(super) async fn clear_document_derived_data(
+    state: &AppState,
+    document_id: &str,
+) -> Result<(), String> {
     info!(
         "OODA-08: Clearing derived data for document: {}",
         document_id
@@ -225,4 +228,3 @@ pub(super) async fn clear_document_derived_data(state: &AppState, document_id: &
 
     Ok(())
 }
-

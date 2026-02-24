@@ -328,7 +328,6 @@ pub trait EntityExtractor: Send + Sync {
     }
 }
 
-
 fn extract_json_from_response(response: &str) -> String {
     let response = response.trim();
 
@@ -351,15 +350,15 @@ fn extract_json_from_response(response: &str) -> String {
     response.to_string()
 }
 
-mod simple;
-mod llm;
-mod sota;
 mod gleaning;
+mod llm;
+mod simple;
+mod sota;
 
-pub use simple::SimpleExtractor;
-pub use llm::LLMExtractor;
-pub use sota::SOTAExtractor;
 pub use gleaning::{GleaningConfig, GleaningExtractor};
+pub use llm::LLMExtractor;
+pub use simple::SimpleExtractor;
+pub use sota::SOTAExtractor;
 
 #[cfg(test)]
 mod tests {

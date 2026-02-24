@@ -400,12 +400,7 @@ impl ConversationService for InMemoryConversationService {
         Ok(folder.clone())
     }
 
-    async fn delete_folder(
-        &self,
-        _tenant_id: Uuid,
-        _user_id: Uuid,
-        folder_id: Uuid,
-    ) -> Result<()> {
+    async fn delete_folder(&self, _tenant_id: Uuid, _user_id: Uuid, folder_id: Uuid) -> Result<()> {
         self.folders.write().unwrap().remove(&folder_id);
         // Move conversations out of folder
         let mut convs = self.conversations.write().unwrap();

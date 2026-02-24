@@ -199,8 +199,7 @@ fn sanitize_json(json: &str) -> String {
 
     // Fix unquoted keys: {name: "value"} → {"name": "value"}
     // Match: word characters followed by colon
-    let re_unquoted_key =
-        regex::Regex::new(r#"([,{]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)"#).unwrap();
+    let re_unquoted_key = regex::Regex::new(r#"([,{]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)"#).unwrap();
     sanitized = re_unquoted_key
         .replace_all(&sanitized, "$1\"$2\"$3")
         .to_string();

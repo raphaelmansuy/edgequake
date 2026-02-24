@@ -4,7 +4,6 @@
 //!
 //! @implements FEAT0206
 //! @implements FEAT0405 (Graph Exploration API)
-//! @implements FEAT0202 (Graph Traversal)
 //! @implements FEAT0204 (Graph Analytics)
 //! @implements FEAT0601 (Knowledge Graph Visualization)
 //! @implements FEAT0410 (REST API Service)

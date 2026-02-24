@@ -2,9 +2,12 @@
 
 use async_trait::async_trait;
 
+use super::{
+    extract_json_from_response, EntityExtractor, ExtractedEntity, ExtractedRelationship,
+    ExtractionResult,
+};
 use crate::chunker::TextChunk;
 use crate::error::{PipelineError, Result};
-use super::{EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult, extract_json_from_response};
 
 /// LLM-based entity extractor using structured prompts.
 ///

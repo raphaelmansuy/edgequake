@@ -1,6 +1,5 @@
 use super::*;
 
-
 impl DocumentTaskProcessor {
     /// Process a text insert task.
     pub(super) async fn process_text_insert(
@@ -673,7 +672,11 @@ impl DocumentTaskProcessor {
         // Batch upsert nodes
         if !nodes_batch.is_empty() {
             if let Err(e) = self.graph_storage.upsert_nodes_batch(&nodes_batch).await {
-                let err_msg = format!("Failed to store {} entities in graph: {}", nodes_batch.len(), e);
+                let err_msg = format!(
+                    "Failed to store {} entities in graph: {}",
+                    nodes_batch.len(),
+                    e
+                );
                 error!(document_id = %document_id, "{}", err_msg);
                 storage_errors.push(err_msg);
             } else {
@@ -713,7 +716,10 @@ impl DocumentTaskProcessor {
             }
         }
         if entity_embedding_failures > 0 {
-            let err_msg = format!("{} entity embeddings failed to store in vector DB", entity_embedding_failures);
+            let err_msg = format!(
+                "{} entity embeddings failed to store in vector DB",
+                entity_embedding_failures
+            );
             error!(document_id = %document_id, "{}", err_msg);
             storage_errors.push(err_msg);
         }
@@ -721,7 +727,11 @@ impl DocumentTaskProcessor {
         // Batch upsert edges
         if !edges_batch.is_empty() {
             if let Err(e) = self.graph_storage.upsert_edges_batch(&edges_batch).await {
-                let err_msg = format!("Failed to store {} relationships in graph: {}", edges_batch.len(), e);
+                let err_msg = format!(
+                    "Failed to store {} relationships in graph: {}",
+                    edges_batch.len(),
+                    e
+                );
                 error!(document_id = %document_id, "{}", err_msg);
                 storage_errors.push(err_msg);
             } else {

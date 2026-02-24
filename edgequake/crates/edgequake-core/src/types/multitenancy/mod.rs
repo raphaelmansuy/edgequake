@@ -6,19 +6,19 @@
 //! - `Membership` - User access to tenants/workspaces
 //! - `TenantContext` - Current request context for RLS
 
+mod context;
+mod membership;
+mod metrics;
+mod requests;
 mod tenant;
 mod workspace;
-mod membership;
-mod context;
-mod requests;
-mod metrics;
 
+pub use context::*;
+pub use membership::*;
+pub use metrics::*;
+pub use requests::*;
 pub use tenant::*;
 pub use workspace::*;
-pub use membership::*;
-pub use context::*;
-pub use requests::*;
-pub use metrics::*;
 
 #[cfg(test)]
 mod tests {

@@ -9,11 +9,7 @@ impl super::QueryEngine {
     ///
     /// This is the recommended default mode as it provides the most comprehensive
     /// context for question answering.
-    pub(super) async fn query_mix(
-        &self,
-        query: &str,
-        params: &QueryParams,
-    ) -> Result<QueryResult> {
+    pub(super) async fn query_mix(&self, query: &str, params: &QueryParams) -> Result<QueryResult> {
         let retrieval_start = std::time::Instant::now();
 
         // 1. Run local query (entity-centric)

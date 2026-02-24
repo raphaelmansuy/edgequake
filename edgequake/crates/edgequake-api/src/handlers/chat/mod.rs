@@ -93,7 +93,6 @@ pub use crate::handlers::chat_types::*;
 // Helper Functions
 // ============================================================================
 
-
 pub mod completion;
 pub mod streaming;
 

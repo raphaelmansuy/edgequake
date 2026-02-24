@@ -27,8 +27,8 @@
 //!
 //! # Architecture
 //!
-//! - [`entity`]: Entity merge, update, and creation logic
-//! - [`relationship`]: Relationship merge, update, creation, and placeholder node logic
+//! - `entity`: Entity merge, update, and creation logic
+//! - `relationship`: Relationship merge, update, creation, and placeholder node logic
 
 mod entity;
 mod relationship;

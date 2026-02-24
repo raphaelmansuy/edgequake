@@ -65,7 +65,8 @@ impl TaskProcessor for DocumentTaskProcessor {
         // Extract document_id from task_data to update document status.
         // For PdfProcessing tasks, it's in existing_document_id.
         // For Insert/Upload tasks, it's in metadata.document_id.
-        let document_id = task.task_data
+        let document_id = task
+            .task_data
             .get("existing_document_id")
             .and_then(|v| v.as_str())
             .or_else(|| {
@@ -91,7 +92,10 @@ impl TaskProcessor for DocumentTaskProcessor {
                 "Processing failed permanently after {} attempts. {}",
                 task.retry_count, error_msg
             );
-            if let Err(e) = self.update_document_status(doc_id, "failed", Some(&failure_msg)).await {
+            if let Err(e) = self
+                .update_document_status(doc_id, "failed", Some(&failure_msg))
+                .await
+            {
                 error!(
                     document_id = %doc_id,
                     error = %e,
@@ -107,7 +111,10 @@ impl TaskProcessor for DocumentTaskProcessor {
                 if let Some(pdf_id_str) = task.task_data.get("pdf_id").and_then(|v| v.as_str()) {
                     if let Ok(pdf_id) = uuid::Uuid::parse_str(pdf_id_str) {
                         use edgequake_storage::PdfProcessingStatus;
-                        if let Err(e) = pdf_storage.update_pdf_status(&pdf_id, PdfProcessingStatus::Failed).await {
+                        if let Err(e) = pdf_storage
+                            .update_pdf_status(&pdf_id, PdfProcessingStatus::Failed)
+                            .await
+                        {
                             error!(
                                 pdf_id = %pdf_id,
                                 error = %e,
@@ -127,4 +134,3 @@ impl TaskProcessor for DocumentTaskProcessor {
         });
     }
 }
-

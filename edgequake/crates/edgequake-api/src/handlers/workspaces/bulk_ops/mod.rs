@@ -105,10 +105,7 @@ pub(super) async fn collect_workspace_documents(
             None => continue,
         };
 
-        let chunk_count = obj
-            .get("chunk_count")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(1) as usize;
+        let chunk_count = obj.get("chunk_count").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
 
         let title = obj
             .get("title")
@@ -162,10 +159,7 @@ pub(super) fn build_pdf_task(
         .filter(|p| !p.is_empty())
         .unwrap_or("ollama")
         .to_string();
-    let vision_model = workspace
-        .vision_llm_model
-        .clone()
-        .filter(|m| !m.is_empty());
+    let vision_model = workspace.vision_llm_model.clone().filter(|m| !m.is_empty());
 
     edgequake_tasks::PdfProcessingData {
         pdf_id,
@@ -292,8 +286,5 @@ pub(super) async fn build_reprocess_task(
         metadata: Some(serde_json::Value::Object(metadata_map)),
     };
 
-    Some((
-        TaskType::Insert,
-        serde_json::to_value(&text_task).unwrap(),
-    ))
+    Some((TaskType::Insert, serde_json::to_value(&text_task).unwrap()))
 }

@@ -5,11 +5,11 @@ use tracing::info;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use super::helpers::get_pdf_storage;
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::PdfProcessingStatus;
-use super::helpers::get_pdf_storage;
 
 // ============================================================================
 // PDF Content Download Endpoints (SPEC-002: Document Viewer)
@@ -187,4 +187,3 @@ pub async fn get_pdf_content(
         is_processed,
     }))
 }
-

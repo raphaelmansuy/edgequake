@@ -12,10 +12,12 @@ use crate::services::ContentHasher;
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 
-use crate::handlers::documents_types::*;
-use crate::handlers::documents::storage_helpers::{delete_document_for_reingestion, get_workspace_vector_storage_strict};
 #[allow(unused_imports)]
 use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_with_fallback;
+use crate::handlers::documents::storage_helpers::{
+    delete_document_for_reingestion, get_workspace_vector_storage_strict,
+};
+use crate::handlers::documents_types::*;
 
 /// Upload a document for processing.
 ///

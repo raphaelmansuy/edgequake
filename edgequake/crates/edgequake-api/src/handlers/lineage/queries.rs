@@ -3,13 +3,12 @@
 use axum::extract::{Path, State};
 use axum::Json;
 
+use super::cache::cached_kv_get;
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::isolation::{properties_match_tenant_context, verify_document_access};
+use crate::handlers::lineage_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
-use super::cache::cached_kv_get;
-use crate::handlers::lineage_types::*;
-
 
 /// Get lineage for an entity (all source documents).
 #[utoipa::path(
@@ -466,4 +465,3 @@ pub async fn get_document_metadata(
 // ============================================================================
 // Lineage Export Endpoint (OODA-22)
 // ============================================================================
-

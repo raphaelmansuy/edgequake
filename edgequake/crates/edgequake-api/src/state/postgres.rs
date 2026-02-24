@@ -242,7 +242,7 @@ impl AppState {
         // Create pipeline with LLM and embedding providers configured
         use edgequake_pipeline::LLMExtractor;
         let extractor = Arc::new(LLMExtractor::new(
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>
         ));
         let pipeline = Arc::new(
             Pipeline::default_pipeline()

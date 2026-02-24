@@ -20,9 +20,7 @@ use super::{
         get_workspace_vector_storage,
     },
 };
-pub use crate::handlers::query_types::{
-    QueryRequest, QueryResponse, QueryStats, SourceReference,
-};
+pub use crate::handlers::query_types::{QueryRequest, QueryResponse, QueryStats, SourceReference};
 
 /// Execute a RAG query with multi-mode retrieval.
 ///

@@ -5,8 +5,7 @@
 
 use crate::error::{Error, Result};
 use crate::types::{
-    ContextEntity, DocumentInfo, GraphStats, QueryContext,
-    QueryParams, QueryResult,
+    ContextEntity, DocumentInfo, GraphStats, QueryContext, QueryParams, QueryResult,
 };
 
 use super::EdgeQuake;
@@ -115,7 +114,6 @@ impl EdgeQuake {
     ///    WHY: Orphan edges would corrupt graph queries.
     ///
     /// This matches LightRAG's P4-04 (Document Suppression) and P4-05 (Cascade Delete).
-
     pub async fn get_graph_stats(&self) -> Result<GraphStats> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -172,7 +170,6 @@ impl EdgeQuake {
 
         Ok(Vec::new())
     }
-
 
     /// Search entities by name using vector similarity.
     ///
@@ -256,7 +253,6 @@ impl EdgeQuake {
     ///
     /// # WHY: Visual Knowledge Exploration
     ///
-
     /// Subgraph extraction enables:
     /// - Interactive graph visualization in the WebUI
     /// - Understanding entity context and relationships

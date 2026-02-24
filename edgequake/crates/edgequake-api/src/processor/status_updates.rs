@@ -1,8 +1,6 @@
 use super::*;
 
-
 impl DocumentTaskProcessor {
-
     /// Update document metadata status.
     ///
     /// @implements SPEC-002: Unified Ingestion Pipeline

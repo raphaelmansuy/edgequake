@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use crate::context::{QueryContext, RetrievedRelationship};
 use crate::error::Result;
-use crate::helpers::{build_chunk_from_result, build_entity_from_node, build_relationship_from_edge};
+use crate::helpers::{
+    build_chunk_from_result, build_entity_from_node, build_relationship_from_edge,
+};
 use crate::keywords::ExtractedKeywords;
 use crate::vector_filter::{filter_by_type, VectorType};
 

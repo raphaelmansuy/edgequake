@@ -5,9 +5,12 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+use super::{
+    extract_json_from_response, EntityExtractor, ExtractedEntity, ExtractedRelationship,
+    ExtractionResult,
+};
 use crate::chunker::TextChunk;
 use crate::error::{PipelineError, Result};
-use super::{EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult, extract_json_from_response};
 
 /// Configuration for gleaning (re-extraction).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,7 +51,6 @@ impl Default for GleaningConfig {
 /// - Cost: Each iteration = 1 additional LLM call
 ///
 /// This implements GAP-018: Max Gleaning from LightRAG.
-/// @implements FEAT0305 (GleaningExtractor)
 pub struct GleaningExtractor {
     /// The underlying LLM provider.
     llm_provider: std::sync::Arc<dyn edgequake_llm::LLMProvider>,
@@ -297,4 +299,3 @@ impl EntityExtractor for GleaningExtractor {
         self.llm_provider.model()
     }
 }
-

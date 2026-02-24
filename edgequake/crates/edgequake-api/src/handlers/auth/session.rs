@@ -17,8 +17,7 @@ use super::{
     USER_KEY_PREFIX,
 };
 pub use crate::handlers::auth_types::{
-    GetMeResponse, LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse,
-    UserInfo,
+    GetMeResponse, LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse, UserInfo,
 };
 
 /// Login endpoint.

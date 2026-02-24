@@ -4,18 +4,15 @@
 //! ingestion pipeline operations.
 //!
 //! @implements FEAT0012 (Progress Reporting)
-//! @implements FEAT0013 (Cost Tracking)
 //!
 //! # Architecture
 //!
 //! - Progress tracking: pipeline stage types, ProgressTracker
-//! - [`cost`]: LLM API cost estimation with per-model pricing
+//! - `cost`: LLM API cost estimation with per-model pricing
 
 mod cost;
 
-pub use cost::{
-    default_model_pricing, CostBreakdown, CostTracker, ModelPricing, OperationCost,
-};
+pub use cost::{default_model_pricing, CostBreakdown, CostTracker, ModelPricing, OperationCost};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

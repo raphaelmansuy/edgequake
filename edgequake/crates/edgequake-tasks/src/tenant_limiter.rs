@@ -83,16 +83,14 @@ impl TenantConcurrencyLimiter {
                 // Slow path: create semaphore for new tenant
                 let mut write_guard = self.semaphores.write().await;
                 // Double-check after acquiring write lock
-                let sem = write_guard
-                    .entry(tenant_id)
-                    .or_insert_with(|| {
-                        debug!(
-                            tenant_id = %tenant_id,
-                            max_concurrent = self.max_per_tenant,
-                            "Created tenant concurrency semaphore"
-                        );
-                        Arc::new(Semaphore::new(self.max_per_tenant))
-                    });
+                let sem = write_guard.entry(tenant_id).or_insert_with(|| {
+                    debug!(
+                        tenant_id = %tenant_id,
+                        max_concurrent = self.max_per_tenant,
+                        "Created tenant concurrency semaphore"
+                    );
+                    Arc::new(Semaphore::new(self.max_per_tenant))
+                });
                 Arc::clone(sem)
             }
         };

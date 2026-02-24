@@ -13,7 +13,9 @@ use std::time::Instant;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::ollama_types::{OllamaGenerateRequest, OllamaGenerateResponse, OllamaSearchMode};
+use crate::handlers::ollama_types::{
+    OllamaGenerateRequest, OllamaGenerateResponse, OllamaSearchMode,
+};
 use crate::state::AppState;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 

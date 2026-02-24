@@ -5,9 +5,8 @@
 use std::sync::Arc;
 
 use edgequake_pipeline::{
-    GleaningConfig, GleaningExtractor, KnowledgeGraphMerger,
-    LLMExtractor, LLMSummarizer, MergerConfig, Pipeline,
-    PipelineConfig, SummarizerConfig,
+    GleaningConfig, GleaningExtractor, KnowledgeGraphMerger, LLMExtractor, LLMSummarizer,
+    MergerConfig, Pipeline, PipelineConfig, SummarizerConfig,
 };
 
 use crate::error::{Error, Result};

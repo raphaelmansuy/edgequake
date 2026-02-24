@@ -40,33 +40,33 @@
 //!
 //! # Module Organization (SRP)
 //!
-//! - [`helpers`]: Stats cache, slug generation, workspace-to-response conversion
-//! - [`tenants`]: Tenant CRUD (create, list, get, update, delete)
-//! - [`workspace_crud`]: Workspace CRUD (create, list, get, update, delete)
-//! - [`stats`]: Workspace statistics, metrics history, metrics snapshots
-//! - [`bulk_ops`]: Rebuild embeddings, rebuild knowledge graph, reprocess all docs
+//! - `helpers`: Stats cache, slug generation, workspace-to-response conversion
+//! - `tenants`: Tenant CRUD (create, list, get, update, delete)
+//! - `workspace_crud`: Workspace CRUD (create, list, get, update, delete)
+//! - `stats`: Workspace statistics, metrics history, metrics snapshots
+//! - `bulk_ops`: Rebuild embeddings, rebuild knowledge graph, reprocess all docs
 
 // Sub-modules: each owns a single responsibility
+mod bulk_ops;
 mod helpers;
+mod stats;
 mod tenants;
 mod workspace_crud;
-mod stats;
-mod bulk_ops;
 
 // Re-export all public items (includes utoipa __path_* structs for OpenAPI)
+pub use bulk_ops::*;
 pub use helpers::invalidate_workspace_stats_cache;
+pub use stats::*;
 pub use tenants::*;
 pub use workspace_crud::*;
-pub use stats::*;
-pub use bulk_ops::*;
 
 // Re-export DTOs from workspaces_types module
 pub use crate::handlers::workspaces_types::*;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::helpers::generate_slug;
+    use super::*;
 
     #[test]
     fn test_generate_slug() {

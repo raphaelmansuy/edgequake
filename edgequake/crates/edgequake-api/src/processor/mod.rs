@@ -76,11 +76,11 @@
 //! - [`BR0472`]: Documents processed with workspace-specific providers
 
 // Sub-modules organized by responsibility (SRP)
-mod workspace_resolver;
-mod text_insert;
-mod status_updates;
 mod pdf_processing;
+mod status_updates;
 mod task_impl;
+mod text_insert;
+mod workspace_resolver;
 
 use std::sync::Arc;
 

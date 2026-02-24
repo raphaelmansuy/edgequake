@@ -4,11 +4,11 @@ use axum::extract::{Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 
+use super::cache::cached_kv_get;
 use crate::error::ApiError;
 use crate::handlers::isolation::verify_document_access;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
-use super::cache::cached_kv_get;
 
 /// Query parameters for lineage export.
 #[derive(Debug, serde::Deserialize, serde::Serialize, utoipa::IntoParams, utoipa::ToSchema)]
@@ -166,4 +166,3 @@ pub(super) fn lineage_to_csv(document_id: &str, lineage: &serde_json::Value) -> 
 
     csv
 }
-

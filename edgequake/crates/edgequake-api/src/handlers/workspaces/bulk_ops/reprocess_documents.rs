@@ -65,7 +65,10 @@ pub async fn reprocess_all_documents(
     if let Some(ref ctx_tid) = tenant_ctx.tenant_id {
         if workspace.tenant_id.to_string() != *ctx_tid {
             tracing::warn!(workspace_id = %workspace_id, "Tenant isolation: reprocess-documents rejected");
-            return Err(ApiError::NotFound(format!("Workspace {} not found", workspace_id)));
+            return Err(ApiError::NotFound(format!(
+                "Workspace {} not found",
+                workspace_id
+            )));
         }
     }
 
@@ -96,8 +99,7 @@ pub async fn reprocess_all_documents(
     let documents_found = docs.len();
     let mut documents_queued = 0;
     let mut documents_skipped = 0;
-    let mut skip_reasons: std::collections::HashMap<&str, usize> =
-        std::collections::HashMap::new();
+    let mut skip_reasons: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
 
     // 4. Process each document with filtering
     for doc in &docs {
@@ -124,15 +126,8 @@ pub async fn reprocess_all_documents(
         mark_document_pending(&state, &doc.doc_id, &track_id).await;
 
         let extra_meta = serde_json::Map::new();
-        if let Some((task_type, task_value)) = build_reprocess_task(
-            &state,
-            &workspace,
-            workspace_id,
-            doc,
-            &track_id,
-            extra_meta,
-        )
-        .await
+        if let Some((task_type, task_value)) =
+            build_reprocess_task(&state, &workspace, workspace_id, doc, &track_id, extra_meta).await
         {
             let task = edgequake_tasks::Task::new(
                 workspace.tenant_id,

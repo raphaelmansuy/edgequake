@@ -177,11 +177,7 @@ pub(super) fn split_text_internal(
 }
 
 /// Find the best split point near the target size using separator hierarchy.
-pub(super) fn find_split_point_internal(
-    text: &str,
-    target: usize,
-    separators: &[String],
-) -> usize {
+pub(super) fn find_split_point_internal(text: &str, target: usize, separators: &[String]) -> usize {
     // Ensure search boundaries are on valid char boundaries
     let search_start = floor_char_boundary(text, target.saturating_sub(target / 4));
     let search_end = floor_char_boundary(text, target.min(text.len()));

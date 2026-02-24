@@ -2,10 +2,7 @@
 //!
 //! Implements import, bulk-delete, bulk-archive, and bulk-move.
 
-use axum::{
-    extract::State,
-    Json,
-};
+use axum::{extract::State, Json};
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::conversations_types::*;

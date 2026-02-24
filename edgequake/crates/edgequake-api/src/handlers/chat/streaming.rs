@@ -12,16 +12,15 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::query::{
-    get_workspace_embedding_provider, get_workspace_vector_storage,
-    resolve_chunk_file_paths,
+    get_workspace_embedding_provider, get_workspace_vector_storage, resolve_chunk_file_paths,
 };
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
 use edgequake_core::types::{
-    CreateConversationRequest, CreateMessageRequest,
-    MessageContext, MessageRole, UpdateMessageRequest,
+    CreateConversationRequest, CreateMessageRequest, MessageContext, MessageRole,
+    UpdateMessageRequest,
 };
 use edgequake_query::QueryRequest as EngineQueryRequest;
 

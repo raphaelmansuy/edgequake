@@ -281,12 +281,9 @@ impl Pipeline {
 
         let embed_model_name = provider.model();
         let pricing = crate::progress::default_model_pricing();
-        let embed_pricing = pricing
-            .get(embed_model_name)
-            .cloned()
-            .unwrap_or_else(|| {
-                crate::progress::ModelPricing::new("text-embedding-3-small", 0.00002, 0.0)
-            });
+        let embed_pricing = pricing.get(embed_model_name).cloned().unwrap_or_else(|| {
+            crate::progress::ModelPricing::new("text-embedding-3-small", 0.00002, 0.0)
+        });
 
         let embedding_cost = embed_pricing.calculate_cost(total_embed_tokens, 0);
         stats.cost_usd += embedding_cost;
@@ -333,8 +330,7 @@ impl Pipeline {
 
         // Record chunks with their line numbers
         for chunk in chunks {
-            let metadata =
-                ExtractionMetadata::new(stats.llm_model.as_deref().unwrap_or("unknown"));
+            let metadata = ExtractionMetadata::new(stats.llm_model.as_deref().unwrap_or("unknown"));
             builder.record_chunk(
                 &chunk.id,
                 chunk.index,
@@ -394,10 +390,7 @@ impl Pipeline {
 
         ProcessingStats {
             chunk_count: chunks.len(),
-            chunking_strategy: Some(format!(
-                "sliding_window_{}",
-                self.config.chunker.chunk_size
-            )),
+            chunking_strategy: Some(format!("sliding_window_{}", self.config.chunker.chunk_size)),
             avg_chunk_size,
             ..ProcessingStats::default()
         }
