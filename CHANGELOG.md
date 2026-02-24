@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-02-24
+
+### Security
+
+#### Tenant / Workspace Isolation (full audit)
+
+- **`verify_workspace_tenant_access` helper** (`handlers/workspaces/helpers.rs`): Centralised guard that fetches a workspace by ID, checks that `workspace.tenant_id` matches the `X-Tenant-ID` request header, and returns **404** (not 403) on mismatch to prevent cross-tenant UUID enumeration. Access is permissive when the header is absent for backward-compat with admin/direct-API use.
+- **Workspace CRUD** (`workspace_crud.rs`): `get_workspace`, `update_workspace`, and `delete_workspace` now require the workspace to belong to the requesting tenant before serving or mutating data.
+- **Stats & metrics** (`stats.rs`): `get_workspace_stats` verifies tenant ownership **before** consulting the in-memory cache — cross-tenant requests never receive cached data from workspaces they do not own. Same check applied to `get_metrics_history` and `trigger_metrics_snapshot`.
+- **Bulk operations** (`rebuild_embeddings`, `rebuild_knowledge_graph`, `reprocess_all_documents`): Inline `BR0201` guard added to all three destructive/long-running handlers.
+
+### Fixed
+
+#### Workspace / Tenant UX
+
+- **Auto-select after creation** (`tenant-workspace-selector.tsx`, `use-tenant-context.ts`): When a new workspace or tenant is created, it is immediately pushed into the Zustand store (`setWorkspaces` / `setTenants`) before `selectWorkspace()` / `selectTenant()` is called. This eliminates the race-condition window where the Select dropdown showed "Select workspace…" until the async React Query refetch delivered the new item. The fix is applied in both the sidebar `TenantWorkspaceSelector` component and the `useTenantContext` hook so all call-sites are consistent.
+
+### Infrastructure
+
+- Bumped `[workspace.package] version` in `edgequake/Cargo.toml`, `VERSION`, and `edgequake_webui/package.json` from `0.5.0` → `0.5.1`.
+
 ## [0.5.0] - 2026-02-25
 
 ### Added

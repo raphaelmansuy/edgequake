@@ -6,9 +6,10 @@ use axum::{
 use uuid::Uuid;
 
 use crate::error::ApiError;
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 use crate::handlers::workspaces_types::*;
-use super::helpers::workspace_to_response;
+use super::helpers::{verify_workspace_tenant_access, workspace_to_response};
 
 /// Create a new workspace.
 ///
@@ -178,13 +179,10 @@ pub async fn list_workspaces(
 pub async fn get_workspace(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
 ) -> Result<Json<WorkspaceResponse>, ApiError> {
-    let workspace = state
-        .workspace_service
-        .get_workspace(workspace_id)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound(format!("Workspace {} not found", workspace_id)))?;
+    // BR0201: verify workspace belongs to requesting tenant
+    let workspace = verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
 
     let response = workspace_to_response(&workspace);
 
@@ -242,9 +240,13 @@ pub async fn get_workspace_by_slug(
 pub async fn update_workspace(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
     Json(request): Json<UpdateWorkspaceApiRequest>,
 ) -> Result<Json<WorkspaceResponse>, ApiError> {
     use edgequake_core::UpdateWorkspaceRequest;
+
+    // BR0201: verify workspace belongs to requesting tenant before mutating
+    verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
 
     // SPEC-032: Include LLM/embedding model configuration in update
     let update_request = UpdateWorkspaceRequest {
@@ -310,7 +312,11 @@ pub async fn update_workspace(
 pub async fn delete_workspace(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
 ) -> Result<StatusCode, ApiError> {
+    // BR0201: verify workspace belongs to requesting tenant before cascade delete
+    verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
+
     tracing::info!(workspace_id = %workspace_id, "Starting workspace cascade delete");
 
     let workspace_id_str = workspace_id.to_string();

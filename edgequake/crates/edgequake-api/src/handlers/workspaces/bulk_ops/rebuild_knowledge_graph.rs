@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::handlers::workspaces_types::*;
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 use super::{build_reprocess_task, collect_workspace_documents, mark_document_pending};
@@ -49,6 +50,7 @@ use super::{build_reprocess_task, collect_workspace_documents, mark_document_pen
 pub async fn rebuild_knowledge_graph(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
     Json(request): Json<RebuildKnowledgeGraphRequest>,
 ) -> Result<Json<RebuildKnowledgeGraphResponse>, ApiError> {
     use chrono::Utc;
@@ -61,6 +63,17 @@ pub async fn rebuild_knowledge_graph(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound(format!("Workspace {} not found", workspace_id)))?;
+
+    // BR0201: verify workspace belongs to requesting tenant before destructive op
+    if let Some(ref ctx_tid) = tenant_ctx.tenant_id {
+        if workspace.tenant_id.to_string() != *ctx_tid {
+            tracing::warn!(workspace_id = %workspace_id, "Tenant isolation: rebuild-knowledge-graph rejected");
+            return Err(ApiError::NotFound(format!(
+                "Workspace {} not found",
+                workspace_id
+            )));
+        }
+    }
 
     // 2. Get workspace stats
     let stats = state
@@ -178,8 +191,7 @@ pub async fn rebuild_knowledge_graph(
     // embedding → entity extraction. Only text/markdown documents fall back to
     // the stored content (TextInsert).
     let (documents_queued, chunks_to_process) = if stats.document_count > 0 {
-        let docs =
-            collect_workspace_documents(&state, &workspace_id, &workspace.slug).await?;
+        let docs = collect_workspace_documents(&state, &workspace_id, &workspace.slug).await?;
 
         let mut documents_queued = 0;
         let mut total_chunks = 0usize;

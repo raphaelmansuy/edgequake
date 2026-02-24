@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::handlers::workspaces_types::*;
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 use super::{build_reprocess_task, collect_workspace_documents, mark_document_pending};
@@ -46,6 +47,7 @@ use super::{build_reprocess_task, collect_workspace_documents, mark_document_pen
 pub async fn reprocess_all_documents(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
     Json(request): Json<ReprocessAllRequest>,
 ) -> Result<Json<ReprocessAllResponse>, ApiError> {
     use chrono::Utc;
@@ -58,6 +60,14 @@ pub async fn reprocess_all_documents(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound(format!("Workspace {} not found", workspace_id)))?;
+
+    // BR0201: verify workspace belongs to requesting tenant before bulk op
+    if let Some(ref ctx_tid) = tenant_ctx.tenant_id {
+        if workspace.tenant_id.to_string() != *ctx_tid {
+            tracing::warn!(workspace_id = %workspace_id, "Tenant isolation: reprocess-documents rejected");
+            return Err(ApiError::NotFound(format!("Workspace {} not found", workspace_id)));
+        }
+    }
 
     // 2. Generate track ID for this batch
     let track_id = format!(
