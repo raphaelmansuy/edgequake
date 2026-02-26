@@ -386,6 +386,34 @@ pub trait PdfDocumentStorage: Send + Sync {
         workspace_id: &Uuid,
         status: Option<PdfProcessingStatus>,
     ) -> Result<i64>;
+
+    /// Ensure a row exists in the `documents` relational table.
+    ///
+    /// WHY: The `pdf_documents.document_id` column has a foreign key constraint
+    /// referencing `documents(id)`. Without a corresponding row in `documents`,
+    /// `link_pdf_to_document` fails with a FK violation (GitHub Issue #74).
+    /// This also enables cascade deletes when a document is removed (Issue #73).
+    ///
+    /// Uses INSERT ... ON CONFLICT DO UPDATE to be idempotent.
+    ///
+    /// @implements FIX-ISSUE-74: Ensure document record exists before FK link
+    async fn ensure_document_record(
+        &self,
+        document_id: &Uuid,
+        workspace_id: &Uuid,
+        tenant_id: Option<&Uuid>,
+        title: &str,
+        content: &str,
+        status: &str,
+    ) -> Result<()>;
+
+    /// Delete a document row from the `documents` relational table.
+    ///
+    /// WHY: Cascade-deletes related rows in `pdf_documents` and `chunks`
+    /// via ON DELETE CASCADE foreign keys (GitHub Issue #73).
+    ///
+    /// @implements FIX-ISSUE-73: Cascade delete pdf_documents/chunks on document removal
+    async fn delete_document_record(&self, document_id: &Uuid) -> Result<()>;
 }
 
 // ============================================================================

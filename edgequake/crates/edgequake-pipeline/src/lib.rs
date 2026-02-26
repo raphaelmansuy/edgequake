@@ -68,6 +68,7 @@ pub mod progress;
 pub mod prompts;
 pub mod sanitizer;
 pub mod summarizer;
+pub mod table_preprocessor;
 pub mod validation;
 
 pub use cache::{
@@ -113,6 +114,9 @@ pub use prompts::{
 };
 pub use sanitizer::{EmojiMode, SanitizeConfig, SanitizeReport, Sanitizer};
 pub use summarizer::{DescriptionSummarizer, LLMSummarizer, SimpleSummarizer, SummarizerConfig};
+pub use table_preprocessor::{
+    preprocess_tabular_content, PreprocessResult, TablePreprocessorConfig,
+};
 pub use validation::{
     validate_document_content, validate_document_filename, DocumentValidator, ValidationCode,
     ValidationConfig, ValidationIssue, ValidationResult,

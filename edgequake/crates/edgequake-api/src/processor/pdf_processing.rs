@@ -366,7 +366,7 @@ impl DocumentTaskProcessor {
         // OODA-04: Include sha256_checksum for end-to-end lineage traceability
         // WHY: Downstream ensure_document_source_type needs checksum for integrity verification
         let text_data = edgequake_tasks::TextInsertData {
-            text: markdown,
+            text: markdown.clone(),
             file_source: pdf.filename.clone(),
             workspace_id: data.workspace_id.to_string(),
             metadata: Some(json!({
@@ -397,6 +397,28 @@ impl DocumentTaskProcessor {
 
         // 7. Link PDF to created document (use early_doc_id)
         if let Ok(document_uuid) = uuid::Uuid::parse_str(&early_doc_id) {
+            // FIX-ISSUE-74: Ensure a row in the `documents` relational table exists
+            // BEFORE setting pdf_documents.document_id (which has a FK constraint).
+            // WHY: Without this, the UPDATE violates the foreign key constraint
+            // "pdf_documents_document_id_fkey" because no matching documents(id) row exists.
+            let workspace_uuid = data.workspace_id;
+            let tenant_uuid = Some(data.tenant_id);
+            if let Err(e) = pdf_storage
+                .ensure_document_record(
+                    &document_uuid,
+                    &workspace_uuid,
+                    tenant_uuid.as_ref(),
+                    &pdf.filename,
+                    // Truncate content to 64KB for the relational record to avoid bloat.
+                    // Full content lives in KV storage.
+                    &markdown[..std::cmp::min(markdown.len(), 65_536)],
+                    "completed",
+                )
+                .await
+            {
+                error!("Failed to ensure document record: {} - continuing anyway", e);
+            }
+
             if let Err(e) = pdf_storage
                 .link_pdf_to_document(&data.pdf_id, &document_uuid)
                 .await

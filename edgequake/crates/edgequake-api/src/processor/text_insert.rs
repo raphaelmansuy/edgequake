@@ -270,8 +270,32 @@ impl DocumentTaskProcessor {
         // This enables partial results instead of complete document failure
         // @implements FEAT0022: Chunk-level resilience and error isolation (processor)
         // @implements UC2305: System continues processing when individual chunks fail
+
+        // FIX-EXCEL-CHUNKING: Preprocess tabular content before pipeline processing
+        // WHY: Large markdown tables (e.g. Excel exports) create 100+ chunks that split
+        // mid-row without headers, leading to poor entity extraction and high LLM costs.
+        // The preprocessor groups rows by category and adds headers per section for better chunking.
+        let processed_text = {
+            let preprocess_result = edgequake_pipeline::preprocess_tabular_content(
+                &data.text,
+                &edgequake_pipeline::TablePreprocessorConfig::default(),
+            );
+            if preprocess_result.was_restructured {
+                info!(
+                    document_id = %document_id,
+                    table_rows = preprocess_result.table_rows,
+                    groups = preprocess_result.groups,
+                    duplicates_removed = preprocess_result.duplicates_removed,
+                    "[TABLE-PREPROCESS] Restructured tabular content into {} groups ({} dupes removed)",
+                    preprocess_result.groups,
+                    preprocess_result.duplicates_removed,
+                );
+            }
+            preprocess_result.content
+        };
+
         let result = match pipeline
-            .process_with_resilience(&document_id, &data.text, Some(chunk_progress_callback))
+            .process_with_resilience(&document_id, &processed_text, Some(chunk_progress_callback))
             .await
         {
             Ok(result) => {

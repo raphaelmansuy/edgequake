@@ -58,7 +58,9 @@ pub async fn delete_document(
     // SPEC-033: Get workspace_id from document metadata for vector storage isolation
     // OODA-02: Also check document status for safe deletion
     // OODA-90: Extract content_hash for hash key cleanup
-    let (workspace_id_for_storage, document_status, content_hash_opt) = if has_metadata {
+    // FIX-ISSUE-73: Extract pdf_id for pdf_documents cleanup
+    let (workspace_id_for_storage, document_status, content_hash_opt, pdf_id_opt) = if has_metadata
+    {
         if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
             let workspace = metadata
                 .get("workspace_id")
@@ -75,12 +77,17 @@ pub async fn delete_document(
                 .get("content_hash")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            (workspace, status, content_hash)
+            // FIX-ISSUE-73: Extract pdf_id for pdf_documents cascade cleanup
+            let pdf_id = metadata
+                .get("pdf_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            (workspace, status, content_hash, pdf_id)
         } else {
-            ("default".to_string(), "unknown".to_string(), None)
+            ("default".to_string(), "unknown".to_string(), None, None)
         }
     } else {
-        ("default".to_string(), "unknown".to_string(), None)
+        ("default".to_string(), "unknown".to_string(), None, None)
     };
 
     // OODA-02: Safety check - prevent deletion of documents that are still being processed
@@ -327,6 +334,50 @@ pub async fn delete_document(
 
     // Delete all document data from KV storage
     state.kv_storage.delete(&keys_to_delete).await?;
+
+    // FIX-ISSUE-73: Cascade delete pdf_documents, chunks, and the documents row.
+    // WHY: Previously only KV/graph/vector data was cleaned up, leaving orphaned rows
+    // in pdf_documents, chunks, and documents tables (GitHub Issue #73).
+    #[cfg(feature = "postgres")]
+    {
+        if let Some(ref pdf_storage) = state.pdf_storage {
+            // 1. Delete from pdf_documents if this is a PDF document
+            if let Some(ref pid) = pdf_id_opt {
+                if let Ok(pdf_uuid) = Uuid::parse_str(pid) {
+                    if let Err(e) = pdf_storage.delete_pdf(&pdf_uuid).await {
+                        tracing::warn!(
+                            pdf_id = %pid,
+                            document_id = %document_id,
+                            error = %e,
+                            "Failed to delete pdf_documents row (may already be gone)"
+                        );
+                    } else {
+                        tracing::debug!(
+                            pdf_id = %pid,
+                            document_id = %document_id,
+                            "Deleted pdf_documents row"
+                        );
+                    }
+                }
+            }
+
+            // 2. Delete from documents relational table (cascades to chunks via FK)
+            if let Ok(doc_uuid) = Uuid::parse_str(&document_id) {
+                if let Err(e) = pdf_storage.delete_document_record(&doc_uuid).await {
+                    tracing::warn!(
+                        document_id = %document_id,
+                        error = %e,
+                        "Failed to delete documents table row (may not exist)"
+                    );
+                } else {
+                    tracing::debug!(
+                        document_id = %document_id,
+                        "Deleted documents table row (cascaded to chunks)"
+                    );
+                }
+            }
+        }
+    }
 
     tracing::info!(
         document_id = %document_id,

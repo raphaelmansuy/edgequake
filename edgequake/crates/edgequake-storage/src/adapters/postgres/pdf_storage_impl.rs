@@ -394,6 +394,70 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         Ok(())
     }
 
+    async fn ensure_document_record(
+        &self,
+        document_id: &Uuid,
+        workspace_id: &Uuid,
+        tenant_id: Option<&Uuid>,
+        title: &str,
+        content: &str,
+        status: &str,
+    ) -> Result<()> {
+        // WHY: INSERT ... ON CONFLICT ensures idempotency (safe to call multiple times).
+        // Updates status and content on conflict so reprocessing refreshes the record.
+        // @implements FIX-ISSUE-74: Ensure document record exists before FK link
+        sqlx::query(
+            r#"
+            INSERT INTO documents (id, tenant_id, workspace_id, title, content, status, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                content = EXCLUDED.content,
+                status  = EXCLUDED.status,
+                title   = EXCLUDED.title,
+                updated_at = NOW()
+            "#,
+        )
+        .bind(document_id)
+        .bind(tenant_id)
+        .bind(workspace_id)
+        .bind(title)
+        .bind(content)
+        .bind(status)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("Failed to ensure document record: {}", e)))?;
+
+        debug!(
+            "Ensured document record: id={}, workspace_id={}",
+            document_id, workspace_id
+        );
+
+        Ok(())
+    }
+
+    async fn delete_document_record(&self, document_id: &Uuid) -> Result<()> {
+        // WHY: CASCADE on chunks.document_id and pdf_documents.document_id
+        // means this single DELETE propagates to related rows automatically.
+        // @implements FIX-ISSUE-73: Cascade delete pdf_documents/chunks on document removal
+        let result = sqlx::query(
+            r#"
+            DELETE FROM documents WHERE id = $1
+            "#,
+        )
+        .bind(document_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("Failed to delete document record: {}", e)))?;
+
+        debug!(
+            "Deleted document record: id={}, rows_affected={}",
+            document_id,
+            result.rows_affected()
+        );
+
+        Ok(())
+    }
+
     async fn count_pdfs(
         &self,
         workspace_id: &Uuid,
