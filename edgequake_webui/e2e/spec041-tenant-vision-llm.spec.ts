@@ -199,7 +199,7 @@ test.describe("SPEC-041: Tenant Vision LLM – UI", () => {
     await expect(dialog).toBeVisible();
 
     // All three model sections should be present
-    const labels = await dialog.getByRole("label").allTextContents();
+    const labels = await dialog.locator("label").allTextContents();
     const combined = labels.join(" ").toLowerCase();
 
     expect(combined).toContain("llm");
