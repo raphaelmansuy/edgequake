@@ -91,51 +91,43 @@ pub async fn get_workspace_stats(
 
 /// Fetch workspace stats from storage backends (uncached).
 ///
-/// This implements the hybrid fallback strategy across storage tiers.
+/// FIX-ISSUE-81: Always use KV storage + Apache AGE graph as the single
+/// source of truth. The previous PostgreSQL-first fallback short-circuited
+/// when `document_count > 0` (e.g. 1 PDF in PostgreSQL), returning stale
+/// entity/relationship counts (0) from empty PostgreSQL tables while the
+/// accurate data lived in KV + AGE.
+///
+/// KV storage holds ALL documents (text, markdown, file, PDF), and AGE
+/// graph holds ALL entities and relationships — making them authoritative.
 async fn fetch_workspace_stats_uncached(
     state: &AppState,
     workspace_id: Uuid,
     start: Instant,
 ) -> Result<WorkspaceStatsResponse, ApiError> {
-    // Try Method 1: PostgreSQL documents table (fastest if populated)
-    if let Ok(mut stats) = try_postgres_stats(state, workspace_id).await {
-        if stats.document_count > 0 {
-            // Enrich with entity_type_count from graph storage
-            // (PostgreSQL path doesn't have this in the documents table)
-            stats.entity_type_count = state
-                .graph_storage
-                .distinct_node_type_count_by_workspace(&workspace_id)
-                .await
-                .unwrap_or(0);
-
-            let elapsed = start.elapsed();
-            tracing::info!(
-                workspace_id = %workspace_id,
-                duration_ms = elapsed.as_millis(),
-                method = "postgresql",
-                "Workspace stats retrieved from PostgreSQL"
-            );
-            return Ok(stats);
-        }
-    }
-
-    // Method 2: KV storage aggregation (moderate speed, reliable)
-    // This is the current source of truth since PostgreSQL tables are empty
+    // ALWAYS use KV storage for document count (source of truth for ALL doc types)
+    // ALWAYS use AGE graph for entity/relationship counts (source of truth)
+    // This eliminates the PostgreSQL fallback that caused the KPI mismatch (Issue #81)
     let stats = try_kv_storage_stats(state, workspace_id).await?;
     let elapsed = start.elapsed();
     tracing::info!(
         workspace_id = %workspace_id,
         duration_ms = elapsed.as_millis(),
         method = "kv_storage",
-        "Workspace stats retrieved from KV storage"
+        document_count = stats.document_count,
+        entity_count = stats.entity_count,
+        relationship_count = stats.relationship_count,
+        "FIX-ISSUE-81: Workspace stats from KV+AGE (authoritative source)"
     );
     Ok(stats)
 }
 
-/// Try to get stats from PostgreSQL documents table (fastest path).
+/// Try to get stats from PostgreSQL documents table.
 ///
-/// This will fail if the documents table is empty (current state) but provides
-/// the fastest query path once the pipeline is updated to populate it.
+/// NOTE (FIX-ISSUE-81): This function is no longer called in the hot path.
+/// It is retained for future use when Phase 2 dual-write is fully complete
+/// and all upload paths populate the PostgreSQL `documents` table.
+/// At that point, it can be re-enabled as an optimization layer.
+#[allow(dead_code)]
 async fn try_postgres_stats(
     state: &AppState,
     workspace_id: Uuid,

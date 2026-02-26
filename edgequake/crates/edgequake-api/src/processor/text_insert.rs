@@ -833,6 +833,55 @@ impl DocumentTaskProcessor {
         self.update_document_status_with_stats(&document_id, final_status, &stats_with_lineage)
             .await?;
 
+        // FIX-ISSUE-81 Phase 2: Dual-write document record to PostgreSQL (async path)
+        // WHY: Without this, async text/markdown uploads only write to KV storage.
+        // The PostgreSQL `documents` table stays incomplete, causing Dashboard KPI mismatch.
+        #[cfg(feature = "postgres")]
+        if let Some(ref pdf_storage) = self.pdf_storage {
+            if let Ok(doc_uuid) = uuid::Uuid::parse_str(&document_id) {
+                if let Ok(workspace_uuid) = uuid::Uuid::parse_str(&workspace_id_meta) {
+                    let tenant_uuid = tenant_id
+                        .as_ref()
+                        .and_then(|t| uuid::Uuid::parse_str(t).ok());
+                    let pg_status = if final_status == "completed" {
+                        "indexed"
+                    } else {
+                        final_status
+                    };
+                    let title = data
+                        .metadata
+                        .as_ref()
+                        .and_then(|m| m.get("title"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&data.file_source);
+                    // Truncate content for summary field (first 500 chars)
+                    let content_summary: String = data.text.chars().take(500).collect();
+                    if let Err(e) = pdf_storage
+                        .ensure_document_record(
+                            &doc_uuid,
+                            &workspace_uuid,
+                            tenant_uuid.as_ref(),
+                            title,
+                            &content_summary,
+                            pg_status,
+                        )
+                        .await
+                    {
+                        warn!(
+                            document_id = %document_id,
+                            error = %e,
+                            "FIX-ISSUE-81: Failed to dual-write document record to PostgreSQL (non-fatal)"
+                        );
+                    } else {
+                        info!(
+                            document_id = %document_id,
+                            "FIX-ISSUE-81: Document record dual-written to PostgreSQL (async path)"
+                        );
+                    }
+                }
+            }
+        }
+
         // OODA-06: Persist DocumentLineage to KV storage for lineage API queries
         // WHY: Without persistence, lineage data only exists in memory during processing
         // and is lost. Lineage endpoints need to read it back from storage.

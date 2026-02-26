@@ -478,6 +478,42 @@ pub async fn upload_file(
         .upsert(&[(doc_metadata_key, completed_metadata)])
         .await?;
 
+    // FIX-ISSUE-81 Phase 2: Dual-write document record to PostgreSQL
+    // WHY: Without this, file uploads only write to KV storage. The PostgreSQL
+    // `documents` table stays incomplete, causing Dashboard KPI mismatch.
+    #[cfg(feature = "postgres")]
+    if let Some(ref pdf_storage) = state.pdf_storage {
+        if let Ok(doc_uuid) = Uuid::parse_str(&document_id) {
+            if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {
+                let tenant_uuid = tenant_id_for_storage
+                    .as_ref()
+                    .and_then(|t| Uuid::parse_str(t).ok());
+                if let Err(e) = pdf_storage
+                    .ensure_document_record(
+                        &doc_uuid,
+                        &workspace_uuid,
+                        tenant_uuid.as_ref(),
+                        &filename,
+                        &content_summary,
+                        "indexed",
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        document_id = %document_id,
+                        error = %e,
+                        "FIX-ISSUE-81: Failed to dual-write file document record to PostgreSQL (non-fatal)"
+                    );
+                } else {
+                    tracing::debug!(
+                        document_id = %document_id,
+                        "FIX-ISSUE-81: File document record dual-written to PostgreSQL"
+                    );
+                }
+            }
+        }
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(FileUploadResponse {

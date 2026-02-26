@@ -658,6 +658,46 @@ pub async fn upload_document(
         // OODA-21: Record metrics snapshot for trend analysis after upload
         // Best-effort: log error but don't fail the upload
         if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {
+            // FIX-ISSUE-81 Phase 2: Dual-write document record to PostgreSQL
+            // WHY: Without this, text/markdown uploads only write to KV storage.
+            // The PostgreSQL `documents` table stays incomplete, causing Dashboard
+            // KPI mismatch when the PostgreSQL path is eventually re-enabled.
+            #[cfg(feature = "postgres")]
+            if let Some(ref pdf_storage) = state.pdf_storage {
+                if let Ok(doc_uuid) = Uuid::parse_str(&document_id) {
+                    let tenant_uuid = tenant_id_for_storage
+                        .as_ref()
+                        .and_then(|t| Uuid::parse_str(t).ok());
+                    let pg_status = if final_status == "completed" {
+                        "indexed"
+                    } else {
+                        final_status
+                    };
+                    if let Err(e) = pdf_storage
+                        .ensure_document_record(
+                            &doc_uuid,
+                            &workspace_uuid,
+                            tenant_uuid.as_ref(),
+                            request.title.as_deref().unwrap_or("Untitled"),
+                            &content_summary,
+                            pg_status,
+                        )
+                        .await
+                    {
+                        tracing::warn!(
+                            document_id = %document_id,
+                            error = %e,
+                            "FIX-ISSUE-81: Failed to dual-write document record to PostgreSQL (non-fatal)"
+                        );
+                    } else {
+                        tracing::debug!(
+                            document_id = %document_id,
+                            "FIX-ISSUE-81: Document record dual-written to PostgreSQL"
+                        );
+                    }
+                }
+            }
+
             if let Err(e) = state
                 .workspace_service
                 .record_metrics_snapshot(workspace_uuid, MetricsTriggerType::Event)
