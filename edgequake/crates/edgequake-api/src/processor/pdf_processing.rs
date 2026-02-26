@@ -403,16 +403,31 @@ impl DocumentTaskProcessor {
             // "pdf_documents_document_id_fkey" because no matching documents(id) row exists.
             let workspace_uuid = data.workspace_id;
             let tenant_uuid = Some(data.tenant_id);
+            // WHY: Truncate content to 64KB for the relational record to avoid bloat.
+            // Full content lives in KV storage. Use floor_char_boundary to avoid
+            // splitting a multi-byte UTF-8 codepoint, which would panic.
+            let truncate_at = if markdown.len() > 65_536 {
+                // Find the largest char boundary <= 65_536
+                markdown
+                    .char_indices()
+                    .map(|(i, _)| i)
+                    .take_while(|&i| i <= 65_536)
+                    .last()
+                    .unwrap_or(0)
+            } else {
+                markdown.len()
+            };
             if let Err(e) = pdf_storage
                 .ensure_document_record(
                     &document_uuid,
                     &workspace_uuid,
                     tenant_uuid.as_ref(),
                     &pdf.filename,
-                    // Truncate content to 64KB for the relational record to avoid bloat.
-                    // Full content lives in KV storage.
-                    &markdown[..std::cmp::min(markdown.len(), 65_536)],
-                    "completed",
+                    &markdown[..truncate_at],
+                    // WHY: The relational `documents` table has a CHECK constraint
+                    // that only allows 'pending', 'processing', 'indexed', 'failed'.
+                    // KV storage uses 'completed' but the relational table uses 'indexed'.
+                    "indexed",
                 )
                 .await
             {
