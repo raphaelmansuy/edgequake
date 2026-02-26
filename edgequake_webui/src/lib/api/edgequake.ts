@@ -762,9 +762,9 @@ export async function getPdfContent(
  * @returns Full URL to download the PDF
  */
 export function getPdfDownloadUrl(pdfId: string): string {
-  // Build the full URL with the API base
-  const baseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+  // WHY: Use SERVER_BASE_URL (derived from NEXT_PUBLIC_API_URL) for consistency
+  // with the rest of the API client. Fixes #79.
+  const baseUrl = SERVER_BASE_URL || '';
   return `${baseUrl}/api/v1/documents/pdf/${pdfId}/download`;
 }
 
@@ -1508,9 +1508,9 @@ export async function exportDocumentLineage(
   documentId: string,
   format: "json" | "csv" = "json",
 ): Promise<void> {
-  // WHY: Use same base URL pattern as getPdfDownloadUrl (line 694)
-  const baseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+  // WHY: Use SERVER_BASE_URL (derived from NEXT_PUBLIC_API_URL) for consistency
+  // with the rest of the API client. Fixes #79.
+  const baseUrl = SERVER_BASE_URL || '';
   const url = `${baseUrl}/api/v1/documents/${documentId}/lineage/export?format=${format}`;
   // WHY: Create temporary link for download — the endpoint returns
   // Content-Disposition: attachment headers that trigger browser download.

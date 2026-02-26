@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-02-26
+
+### Fixed
+
+#### WebUI: Consistent API Base URL (closes #79)
+
+- **`getPdfDownloadUrl()`** (`edgequake.ts`): Replaced incorrect `NEXT_PUBLIC_API_BASE_URL` env var with `SERVER_BASE_URL` (derived from `NEXT_PUBLIC_API_URL`), fixing PDF downloads that failed with `ERR_CONNECTION_REFUSED` in production when the non-standard env var was unset.
+- **`exportDocumentLineage()`** (`edgequake.ts`): Same fix applied — lineage export downloads now use the same base URL as the rest of the API client.
+
+### Infrastructure
+
+- Bumped version `0.5.2` → `0.5.3` in `Cargo.toml`, `VERSION`, and `package.json`.
+
 ## [0.5.2] - 2026-02-26
 
 ### Fixed
