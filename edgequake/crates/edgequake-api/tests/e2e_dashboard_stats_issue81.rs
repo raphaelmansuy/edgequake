@@ -31,11 +31,8 @@ fn test_config() -> ServerConfig {
 
 /// Create a workspace via workspace_service. Returns its UUID.
 async fn setup_workspace(state: &AppState, suffix: &str) -> uuid::Uuid {
-    let tenant = Tenant::new(
-        &format!("Tenant-{}", suffix),
-        &format!("tenant-{}", suffix),
-    )
-    .with_plan(TenantPlan::Pro);
+    let tenant = Tenant::new(&format!("Tenant-{}", suffix), &format!("tenant-{}", suffix))
+        .with_plan(TenantPlan::Pro);
     let tenant = state.workspace_service.create_tenant(tenant).await.unwrap();
     let ws = state
         .workspace_service
@@ -144,7 +141,11 @@ async fn test_mixed_document_types_all_counted() {
     let (state, app, ws_id) = app_with_workspace().await;
     let ws_str = ws_id.to_string();
 
-    let types = [("pdf", "paper.pdf"), ("markdown", "notes.md"), ("file", "readme.txt")];
+    let types = [
+        ("pdf", "paper.pdf"),
+        ("markdown", "notes.md"),
+        ("file", "readme.txt"),
+    ];
     for (st, title) in &types {
         let did = uuid::Uuid::new_v4().to_string();
         state
@@ -316,7 +317,13 @@ async fn test_storage_bytes_aggregation() {
 async fn test_all_status_documents_counted() {
     let (state, app, ws_id) = app_with_workspace().await;
     let ws_str = ws_id.to_string();
-    let statuses = ["completed", "processing", "failed", "partial_success", "pending"];
+    let statuses = [
+        "completed",
+        "processing",
+        "failed",
+        "partial_success",
+        "pending",
+    ];
 
     for (i, st) in statuses.iter().enumerate() {
         let did = uuid::Uuid::new_v4().to_string();
@@ -419,10 +426,19 @@ async fn test_only_metadata_keys_counted() {
     state
         .kv_storage
         .upsert(&[
-            (format!("{}-metadata", doc_id), json!({"id": doc_id,"title":"t.md","status":"completed","workspace_id": ws_str})),
+            (
+                format!("{}-metadata", doc_id),
+                json!({"id": doc_id,"title":"t.md","status":"completed","workspace_id": ws_str}),
+            ),
             (format!("{}-content", doc_id), json!({"content":"hello"})),
-            (format!("{}-chunk-0", doc_id), json!({"content":"h","index":0,"document_id": doc_id})),
-            (format!("{}-chunk-1", doc_id), json!({"content":"e","index":1,"document_id": doc_id})),
+            (
+                format!("{}-chunk-0", doc_id),
+                json!({"content":"h","index":0,"document_id": doc_id}),
+            ),
+            (
+                format!("{}-chunk-1", doc_id),
+                json!({"content":"e","index":1,"document_id": doc_id}),
+            ),
         ])
         .await
         .unwrap();

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-02-26
+
+### Fixed
+
+#### Dashboard KPIs: Accurate Document/Entity/Relationship Counts (closes #81)
+
+- **Phase 1 — Stats endpoint** (`stats.rs`): Removed PostgreSQL-first fallback in `fetch_workspace_stats_uncached`. The endpoint now always uses KV storage for document counts and Apache AGE for entity/relationship counts, eliminating the premature short-circuit at `if stats.document_count > 0` that skipped the accurate data path.
+- **Phase 2 — Dual-write** (`text_upload.rs`, `file_upload.rs`, `text_insert.rs`): Added `ensure_document_record` calls after document processing completes, so text/markdown/file uploads also populate the PostgreSQL `documents` table for consistency. Previously only PDF uploads called this function.
+
+### Added
+
+- **14 E2E test cases** (`e2e_dashboard_stats_issue81.rs`): Comprehensive regression tests covering empty workspace, mixed document types, entity/relationship counts, workspace isolation, cache contamination, orphan documents, chunk counts, storage bytes aggregation, response shape validation, and stress test (50 documents).
+
+### Infrastructure
+
+- Bumped version `0.5.3` → `0.5.4` in `Cargo.toml`, `VERSION`, and `package.json`.
+
 ## [0.5.3] - 2026-02-26
 
 ### Fixed
