@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-02-26
+
+### Fixed
+
+#### Document Lifecycle & Cascade Delete (closes #73, #74)
+
+- **FK constraint on PDF upload** (`pdf_processing.rs`): `ensure_document_record` now inserts into the `documents` table *before* `pdf_documents`, preventing the foreign key violation that caused uploads to silently fail.
+- **Cascade delete** (`single.rs`): Deleting a document now also removes the associated `pdf_documents` row and lets `ON DELETE CASCADE` clean up chunks and graph edges.
+- **Status CHECK constraint** (`pdf_processing.rs`): Changed status value from `"completed"` (invalid) to `"indexed"` to satisfy the `documents_valid_status` CHECK constraint in migration 001/003.
+- **UTF-8 boundary panic** (`pdf_processing.rs`): Markdown preview truncation (`&markdown[..65_536]`) now uses `char_indices()` to find a safe byte boundary, preventing panics on multi-byte characters.
+
+#### Table Preprocessor Quality (SRP / DRY / Edge Cases)
+
+- **Refactored `table_preprocessor.rs`** for single-responsibility: extracted `ParsedTable::from_lines()`, `group_rows_by_first_column()`, and `emit_grouped_sections()` as focused helper functions.
+- **DRY**: Added `PreprocessResult::passthrough()` constructor to eliminate four identical block constructions.
+- **Configurable title**: Replaced hard-coded `"Glossary / Data Dictionary"` with `document_title: Option<String>` field on `TablePreprocessorConfig`.
+- **Separator false-positive fix**: `is_separator_line("| |")` no longer incorrectly returns `true` (guarded against `.all()` on empty iterators).
+- **Test coverage**: Expanded from 9 → 30 tests covering: unicode grouping, deduplication toggle, truncation boundary, threshold semantics, alphabetical ordering, summary statistics, empty/whitespace inputs, mixed content, and more.
+
+### Infrastructure
+
+- Bumped version `0.5.1` → `0.5.2` in `Cargo.toml`, `VERSION`, and `package.json`.
+
 ## [0.5.1] - 2026-02-24
 
 ### Security

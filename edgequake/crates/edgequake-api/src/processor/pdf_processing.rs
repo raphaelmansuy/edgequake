@@ -431,7 +431,10 @@ impl DocumentTaskProcessor {
                 )
                 .await
             {
-                error!("Failed to ensure document record: {} - continuing anyway", e);
+                error!(
+                    "Failed to ensure document record: {} - continuing anyway",
+                    e
+                );
             }
 
             if let Err(e) = pdf_storage

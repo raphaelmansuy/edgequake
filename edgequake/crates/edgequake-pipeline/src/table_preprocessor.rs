@@ -410,8 +410,7 @@ mod tests {
 
     #[test]
     fn restructures_simple_table() {
-        let content =
-            "| Col1 | Col2 | Col3 |\n| --- | --- | --- |\n| A | B | C |\n| D | E | F |";
+        let content = "| Col1 | Col2 | Col3 |\n| --- | --- | --- |\n| A | B | C |\n| D | E | F |";
         let result = preprocess_tabular_content(content, &default_config());
         assert!(result.was_restructured);
         assert_eq!(result.table_rows, 2);

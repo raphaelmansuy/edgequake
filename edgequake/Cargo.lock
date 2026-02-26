@@ -965,7 +965,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "edgequake"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -989,7 +989,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-api"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "async-trait",
  "axum",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-auth"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "argon2",
  "async-trait",
@@ -1068,7 +1068,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-core"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-pipeline"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1173,7 +1173,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-query"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1215,7 +1215,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-storage"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "async-trait",
  "chrono",
