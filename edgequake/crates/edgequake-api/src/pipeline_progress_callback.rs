@@ -235,6 +235,17 @@ impl ConversionProgressCallback for PipelineProgressCallback {
             error: None,
         });
 
+        // FIX-PAGE-COUNT: Immediately update document metadata with real page count.
+        // WHY: The early metadata written in pdf_processing.rs may have page_count=0
+        // if extract_page_count() failed (common for binary PDFs). Now that pdfium
+        // has opened the file and detected the actual number of pages, we update
+        // the KV metadata so the document list shows the correct "0/N pages"
+        // instead of "0/0 pages".
+        self.update_document_metadata(
+            format!("Converting PDF to Markdown (0/{} pages)", total_pages),
+            0.0,
+        );
+
         // OODA-13: Persist to queryable storage (async via spawn)
         // OODA-04: Use captured runtime handle to spawn from sync context
         let state = self.pipeline_state.clone();

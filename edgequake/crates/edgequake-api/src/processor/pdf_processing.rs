@@ -113,7 +113,10 @@ impl DocumentTaskProcessor {
             "document_type": "pdf",
             "status": "processing",
             "current_stage": "converting",
-            "stage_message": format!("Converting PDF to Markdown (0/{} pages)", pdf.page_count.unwrap_or(0)),
+            "stage_message": match pdf.page_count {
+                Some(n) if n > 0 => format!("Converting PDF to Markdown (0/{} pages)", n),
+                _ => "Converting PDF to Markdown (detecting pages...)".to_string(),
+            },
             "stage_progress": 0.0,
             "pdf_id": data.pdf_id.to_string(),
             "file_size_bytes": pdf.file_size_bytes,

@@ -105,22 +105,47 @@ pub(super) async fn create_pdf_processing_task(
     Ok(track_id)
 }
 
-/// Extract page count from PDF (simple parse).
+/// Extract page count from PDF binary data.
+///
+/// WHY: PDF files contain binary content (compressed streams, images), so
+/// `std::str::from_utf8` fails for virtually all real PDFs. Instead, we
+/// search the raw bytes for the `/Count` token followed by a space and
+/// digits — the standard PDF catalog structure for declaring page count.
+/// We find the LARGEST `/Count N` value because the root Pages node
+/// contains the total, while sub-nodes contain partial counts.
 pub(super) fn extract_page_count(pdf_data: &[u8]) -> Option<i32> {
-    // Try to parse PDF and get page count
-    // This is a simple implementation that looks for /Count in the catalog
-    if let Ok(text) = std::str::from_utf8(pdf_data) {
-        // Look for /Type /Catalog ... /Pages ... /Count N
-        if let Some(count_pos) = text.find("/Count") {
-            let after_count = &text[count_pos + 6..];
-            if let Some(num_end) = after_count.find(|c: char| !c.is_ascii_digit()) {
-                if let Ok(count) = after_count[..num_end].trim().parse::<i32>() {
-                    return Some(count);
+    let needle = b"/Count ";
+    let mut max_count: Option<i32> = None;
+
+    // Scan raw bytes for all occurrences of "/Count " followed by digits
+    let mut pos = 0;
+    while pos + needle.len() < pdf_data.len() {
+        if let Some(offset) = pdf_data[pos..]
+            .windows(needle.len())
+            .position(|w| w == needle)
+        {
+            let start = pos + offset + needle.len();
+            // Extract digits after "/Count "
+            let digit_end = pdf_data[start..]
+                .iter()
+                .position(|&b| !b.is_ascii_digit())
+                .unwrap_or(pdf_data.len() - start);
+
+            if digit_end > 0 {
+                if let Ok(num_str) = std::str::from_utf8(&pdf_data[start..start + digit_end]) {
+                    if let Ok(count) = num_str.parse::<i32>() {
+                        // Keep the largest count (root Pages node has the total)
+                        max_count = Some(max_count.map_or(count, |prev: i32| prev.max(count)));
+                    }
                 }
             }
+            pos = start + digit_end;
+        } else {
+            break;
         }
     }
-    None
+
+    max_count
 }
 
 /// Estimate processing time based on file size and page count.
