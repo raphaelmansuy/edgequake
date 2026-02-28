@@ -184,27 +184,21 @@ impl DocumentTaskProcessor {
         if let Some(ref broadcaster) = self.progress_broadcaster {
             callback = callback.with_broadcaster(broadcaster.clone());
         }
-        let progress_callback = Arc::new(callback);
-        // SPEC-040: Coerce to ConversionProgressCallback (edgequake-pdf2md)
-        // WHY: The PipelineProgressCallback implements ConversionProgressCallback.
-        // The spawn_blocking vision path doesn't capture this directly due to Send
-        // constraints; progress is emitted via broadcaster. Keep for future re-use.
-        let _progress_callback: Arc<dyn edgequake_pdf2md::ConversionProgressCallback> =
-            progress_callback;
+        let progress_callback: Arc<dyn edgequake_pdf2md::ConversionProgressCallback> =
+            Arc::new(callback);
 
         // 4. Extract content (vision or text mode)
         // == Progress: starting conversion (this can take 5-10+ minutes) ==
         task.update_progress("pdf_converting".to_string(), 2, 10);
 
-        // SPEC-007: Vision → edgequake-pdf2md v0.4.2 (bundled pdfium, multi-provider,
-        //           10-rule post-processing). Text → edgequake-pdf PdfExtractor.
+        // SPEC-007: Vision → edgequake-pdf2md v0.4.6 (bundled pdfium, multi-provider,
+        //           10-rule post-processing, progress callbacks).
         //
-        // WHY spawn_blocking + Handle::block_on (still needed in v0.4.2):
-        // v0.4.2 fixed on_page_error(&str → String) HRTB (issue #9), but a second HRTB
-        // remains: process_page(... prior_page: Option<&str> ...) holds &str across
+        // WHY spawn_blocking + Handle::block_on:
+        // process_page(... prior_page: Option<&str> ...) holds &str across
         // .await points inside the process_concurrent state machine, preventing the future
-        // from being Send in async_trait contexts. Tracked upstream for v0.4.3.
-        // Handle::block_on requires no Send bound on the future, bypassing both.
+        // from being Send in async_trait contexts.
+        // Handle::block_on requires no Send bound on the future, bypassing this.
         let (markdown, extraction_method, used_vision_model) = if data.enable_vision {
             #[cfg(feature = "vision")]
             {
@@ -234,27 +228,74 @@ impl DocumentTaskProcessor {
                 };
                 let model_owned = model.clone();
 
+                // LARGE-DOC: Adaptive concurrency based on page count.
+                // WHY: For documents with 1000+ pages, we need to limit concurrency
+                // to avoid overwhelming the LLM provider and running out of memory.
+                // Small docs (< 50 pages): default 10 concurrent requests
+                // Medium docs (50-200 pages): 8 concurrent requests
+                // Large docs (200-500 pages): 5 concurrent requests
+                // Very large docs (500+ pages): 3 concurrent requests
+                let page_count = pdf.page_count.unwrap_or(0) as usize;
+                let concurrency = std::env::var("EDGEQUAKE_PDF_CONCURRENCY")
+                    .ok()
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .unwrap_or_else(|| match page_count {
+                        0..=49 => 10,
+                        50..=199 => 8,
+                        200..=499 => 5,
+                        _ => 3,
+                    });
+
+                // LARGE-DOC: Adaptive DPI based on page count.
+                // WHY: For very large documents, lower DPI reduces memory usage
+                // per page image while keeping acceptable quality.
+                // Small docs: 150 DPI (default quality)
+                // Large docs (500+ pages): 120 DPI (saves ~36% memory per image)
+                // Very large docs (1000+ pages): 100 DPI (saves ~55% memory per image)
+                let dpi = std::env::var("EDGEQUAKE_PDF_DPI")
+                    .ok()
+                    .and_then(|v| v.parse::<u32>().ok())
+                    .unwrap_or_else(|| match page_count {
+                        0..=499 => 150,
+                        500..=999 => 120,
+                        _ => 100,
+                    });
+
                 info!(
                     pdf_id = %data.pdf_id,
                     vision_provider = %data.vision_provider,
                     vision_model = %model,
-                    "Starting vision extraction via edgequake-pdf2md v0.4.4 (SPEC-040: dedicated vision provider)"
+                    page_count = page_count,
+                    concurrency = concurrency,
+                    dpi = dpi,
+                    "Starting vision extraction via edgequake-pdf2md v0.4.6 (progress callback connected, adaptive concurrency)"
                 );
 
                 // WHY Handle::current before spawn_blocking: must capture the runtime
                 // handle on the async thread before entering the blocking thread.
                 let handle = tokio::runtime::Handle::current();
 
-                // FIX-TIMEOUT: Wrap vision extraction in a timeout to prevent tasks
-                // from hanging forever when the LLM provider is unresponsive.
-                // WHY: In Docker environments, Ollama on localhost may be unreachable.
-                // Without a timeout, the task stays in "processing" state indefinitely.
-                // Default: 10 minutes per PDF (generous for large documents).
-                let vision_timeout = std::time::Duration::from_secs(
-                    std::env::var("EDGEQUAKE_VISION_TIMEOUT_SECS")
-                        .ok()
-                        .and_then(|v| v.parse().ok())
-                        .unwrap_or(600),
+                // FIX-TIMEOUT: Adaptive timeout based on page count.
+                // WHY: A fixed 10-minute timeout is insufficient for 1000+ page documents.
+                // Scale timeout linearly: base 60s + 5s per page, minimum 600s.
+                // A 1000-page doc gets ~5060 seconds (~84 minutes).
+                let base_timeout_secs: u64 = std::env::var("EDGEQUAKE_VISION_TIMEOUT_SECS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0);
+                let vision_timeout_secs = if base_timeout_secs > 0 {
+                    base_timeout_secs // Explicit override
+                } else {
+                    let adaptive = 60 + (page_count as u64 * 5);
+                    adaptive.max(600) // Minimum 10 minutes
+                };
+                let vision_timeout = std::time::Duration::from_secs(vision_timeout_secs);
+
+                info!(
+                    pdf_id = %data.pdf_id,
+                    timeout_secs = vision_timeout_secs,
+                    "Vision extraction timeout set (adaptive for {} pages)",
+                    page_count
                 );
 
                 let spawn_result = tokio::time::timeout(
@@ -263,6 +304,9 @@ impl DocumentTaskProcessor {
                         let config = ConversionConfig::builder()
                             .provider(provider)
                             .model(model_owned)
+                            .concurrency(concurrency)
+                            .dpi(dpi)
+                            .progress_callback(progress_callback)
                             .build()
                             .map_err(|e| format!("Vision config: {e}"))?;
                         // Handle::block_on has no Send bound on the future

@@ -223,6 +223,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/documents/pdf/progress/{track_id}",
             get(handlers::get_pdf_progress),
         )
+        // FEAT-PROGRESS-SSE: SSE streaming endpoint for real-time progress
+        .route(
+            "/documents/pdf/progress/stream/{track_id}",
+            get(handlers::get_pdf_progress_stream),
+        )
         // OODA-17: Error recovery endpoints - before /documents/pdf/{pdf_id}
         .route(
             "/documents/pdf/{pdf_id}/retry",

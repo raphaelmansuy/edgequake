@@ -18,6 +18,7 @@
 
 import {
   cancelPdfProcessing,
+  createPdfProgressEventSource,
   getPdfProgress,
   type PdfOperationResponse,
   type PdfProgressResponse,
@@ -26,7 +27,7 @@ import {
 } from "@/lib/api/edgequake";
 import { getWebSocketClient } from "@/lib/websocket";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ============================================================================
 // Types
@@ -108,6 +109,14 @@ export interface UsePdfProgressResult {
   wsConnected: boolean;
   /** OODA-23: Whether using polling fallback */
   usingPollingFallback: boolean;
+  /** Whether SSE is connected for real-time page progress */
+  sseConnected: boolean;
+  /** Processing speed in pages per minute (null if not enough data) */
+  pagesPerMinute: number | null;
+  /** Total pages in the document (from PDF conversion phase) */
+  totalPages: number | null;
+  /** Current page being processed */
+  currentPage: number | null;
 }
 
 interface UsePdfProgressOptions {
@@ -121,6 +130,8 @@ interface UsePdfProgressOptions {
   preferWebSocket?: boolean;
   /** OODA-23: Fallback to polling if WebSocket fails (default: true) */
   fallbackToPolling?: boolean;
+  /** Prefer SSE for real-time page-level progress (default: true) */
+  preferSSE?: boolean;
 }
 
 // ============================================================================
@@ -209,6 +220,7 @@ export function usePdfProgress(
     stopOnComplete = true,
     preferWebSocket = true,
     fallbackToPolling = true,
+    preferSSE = true,
   } = options;
 
   const queryClient = useQueryClient();
@@ -216,6 +228,14 @@ export function usePdfProgress(
   // OODA-23: WebSocket connection state
   const [wsConnected, setWsConnected] = useState(false);
   const [wsError, setWsError] = useState<Error | null>(null);
+
+  // SSE connection state for real-time page progress
+  const [sseConnected, setSseConnected] = useState(false);
+  const sseRef = useRef<EventSource | null>(null);
+
+  // Page speed tracking: stores timestamps for completed pages
+  const pageTimestampsRef = useRef<number[]>([]);
+  const [pagesPerMinute, setPagesPerMinute] = useState<number | null>(null);
 
   // OODA-23: Determine if we should use polling (fallback or by preference)
   const usingPollingFallback = useMemo(() => {
@@ -264,14 +284,114 @@ export function usePdfProgress(
     };
   }, [trackId, enabled, preferWebSocket]);
 
+  // SSE connection for real-time page-level progress
+  // WHY: SSE provides lower-latency, server-push progress updates without
+  // the overhead of polling. Especially important for large documents (1000+ pages)
+  // where polling would miss page-by-page updates or create excessive requests.
+  useEffect(() => {
+    if (!trackId || !enabled || !preferSSE) return;
+
+    // Close any existing SSE connection
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
+
+    const eventSource = createPdfProgressEventSource(trackId);
+    sseRef.current = eventSource;
+
+    eventSource.onopen = () => {
+      setSseConnected(true);
+    };
+
+    // Listen for 'progress' events from the SSE stream
+    eventSource.addEventListener("progress", (event) => {
+      try {
+        const data = JSON.parse(event.data) as PdfProgressResponse;
+        // Update the query cache so the UI reacts immediately
+        queryClient.setQueryData(["pdf-progress", trackId], data);
+
+        // Track page timestamps for speed calculation
+        const conversionPhase = data.phases?.find(
+          (_p: PhaseProgressData, i: number) => i === 1, // pdf_conversion is index 1
+        );
+        if (conversionPhase?.status === "active" && conversionPhase.current > 0) {
+          const now = Date.now();
+          const timestamps = pageTimestampsRef.current;
+          // Only add if we have a new page completion
+          if (timestamps.length < conversionPhase.current) {
+            timestamps.push(now);
+            // Calculate speed from last N pages (sliding window)
+            const windowSize = Math.min(10, timestamps.length);
+            if (windowSize >= 2) {
+              const windowStart = timestamps[timestamps.length - windowSize];
+              const windowEnd = timestamps[timestamps.length - 1];
+              const elapsedMinutes = (windowEnd - windowStart) / 60000;
+              if (elapsedMinutes > 0) {
+                setPagesPerMinute(
+                  Math.round(((windowSize - 1) / elapsedMinutes) * 10) / 10,
+                );
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore parse errors from malformed events
+      }
+    });
+
+    // Listen for 'complete' events
+    eventSource.addEventListener("complete", (event) => {
+      try {
+        const data = JSON.parse(event.data) as PdfProgressResponse;
+        queryClient.setQueryData(["pdf-progress", trackId], data);
+      } catch {
+        // Force a refetch on parse failure
+        queryClient.invalidateQueries({ queryKey: ["pdf-progress", trackId] });
+      }
+      // Close SSE on completion
+      eventSource.close();
+      sseRef.current = null;
+      setSseConnected(false);
+    });
+
+    // Listen for 'error' events from the SSE stream (application-level)
+    eventSource.addEventListener("error_event", (event) => {
+      try {
+        const data = JSON.parse(event.data) as PdfProgressResponse;
+        queryClient.setQueryData(["pdf-progress", trackId], data);
+      } catch {
+        queryClient.invalidateQueries({ queryKey: ["pdf-progress", trackId] });
+      }
+    });
+
+    // Handle connection errors
+    eventSource.onerror = () => {
+      setSseConnected(false);
+      // Don't close — EventSource auto-reconnects by default
+      // If the server closed the connection (readyState === CLOSED), clean up
+      if (eventSource.readyState === EventSource.CLOSED) {
+        sseRef.current = null;
+      }
+    };
+
+    return () => {
+      eventSource.close();
+      sseRef.current = null;
+      setSseConnected(false);
+      pageTimestampsRef.current = [];
+      setPagesPerMinute(null);
+    };
+  }, [trackId, enabled, preferSSE, queryClient]);
+
   // Fetch progress data with polling (primary or fallback)
   // OODA-23: Only poll if WebSocket is not connected or we prefer polling
   const shouldPoll = useMemo(() => {
-    if (!preferWebSocket) return true;
-    if (usingPollingFallback) return true;
-    // Even with WebSocket, poll occasionally for reliability
-    return !wsConnected;
-  }, [preferWebSocket, usingPollingFallback, wsConnected]);
+    if (!preferWebSocket && !sseConnected) return true;
+    if (usingPollingFallback && !sseConnected) return true;
+    // Even with WebSocket/SSE, poll occasionally for reliability
+    return !wsConnected && !sseConnected;
+  }, [preferWebSocket, usingPollingFallback, wsConnected, sseConnected]);
 
   const {
     data: progress,
@@ -292,8 +412,12 @@ export function usePdfProgress(
           return false; // Stop polling
         }
       }
-      // OODA-23: Use longer interval if WebSocket is connected
-      return wsConnected ? pollingInterval * 3 : pollingInterval;
+      // OODA-23: Use longer interval if WebSocket or SSE is connected
+      return sseConnected
+        ? pollingInterval * 5
+        : wsConnected
+          ? pollingInterval * 3
+          : pollingInterval;
     },
     staleTime: 500, // Consider data stale quickly
     retry: 2,
@@ -426,6 +550,19 @@ export function usePdfProgress(
     return Math.round(((completed + activeProgress) / totalPhases) * 100);
   }, [progress]);
 
+  // Extract page counts from the PDF conversion phase (index 1)
+  const { totalPages, currentPage } = useMemo(() => {
+    if (!progress?.phases?.length) return { totalPages: null, currentPage: null };
+    const conversionPhase = progress.phases[1]; // pdf_conversion is index 1
+    if (!conversionPhase || conversionPhase.total <= 0) {
+      return { totalPages: null, currentPage: null };
+    }
+    return {
+      totalPages: conversionPhase.total,
+      currentPage: conversionPhase.current,
+    };
+  }, [progress]);
+
   // Callback wrappers
   const retry = useCallback(async () => {
     return retryMutation.mutateAsync();
@@ -473,6 +610,11 @@ export function usePdfProgress(
     // OODA-23: WebSocket status
     wsConnected,
     usingPollingFallback,
+    // SSE + large doc progress
+    sseConnected,
+    pagesPerMinute,
+    totalPages,
+    currentPage,
   };
 }
 

@@ -692,6 +692,20 @@ export async function getPdfProgress(
 }
 
 /**
+ * Create an EventSource for SSE-based progress streaming.
+ * Preferred over polling for large documents (100+ pages).
+ *
+ * @implements FEAT-PDF-PROGRESS: SSE real-time page progress
+ * @param trackId The upload tracking ID
+ * @returns EventSource instance (caller is responsible for closing)
+ */
+export function createPdfProgressEventSource(trackId: string): EventSource {
+  const baseUrl = SERVER_BASE_URL || '';
+  const url = `${baseUrl}/api/v1/documents/pdf/progress/stream/${trackId}`;
+  return new EventSource(url);
+}
+
+/**
  * Retry a failed PDF processing.
  *
  * @implements OODA-19: PDF retry functionality

@@ -1,6 +1,10 @@
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::Json;
+use futures_util::stream::Stream;
+use std::convert::Infallible;
+use std::time::Duration;
 use tracing::info;
 use uuid::Uuid;
 
@@ -272,4 +276,116 @@ pub async fn get_pdf_progress(
         .map_err(|e| ApiError::Internal(format!("Failed to serialize progress: {}", e)))?;
 
     Ok(Json(json_value))
+}
+
+/// SSE (Server-Sent Events) endpoint for real-time PDF progress streaming.
+///
+/// @implements FEAT-PROGRESS-SSE: Server-Sent Events for PDF progress
+///
+/// Provides a continuous stream of progress events for a PDF upload.
+/// This is more efficient than polling for large documents (1000+ pages)
+/// because the server pushes updates as they happen.
+///
+/// The stream automatically closes when:
+/// - Processing completes (is_complete = true)
+/// - Processing fails (is_failed = true)
+/// - Client disconnects
+/// - No progress found for 60 seconds (upload may have completed before connection)
+///
+/// # Event Format
+///
+/// Each SSE event is a JSON `PdfUploadProgress` object with:
+/// - `track_id`, `pdf_id`, `filename`
+/// - `phases[]`: Array of phase progress data
+/// - `overall_percentage`: 0-100
+/// - `is_complete`, `is_failed`
+///
+/// # Example Client Usage
+///
+/// ```javascript
+/// const eventSource = new EventSource('/api/v1/documents/pdf/progress/stream/track-123');
+/// eventSource.onmessage = (event) => {
+///     const progress = JSON.parse(event.data);
+///     console.log(`${progress.overall_percentage}% — ${progress.phases[1].message}`);
+/// };
+/// eventSource.addEventListener('complete', () => eventSource.close());
+/// eventSource.addEventListener('error', () => eventSource.close());
+/// ```
+#[utoipa::path(
+    get,
+    path = "/api/v1/documents/pdf/progress/stream/{track_id}",
+    params(
+        ("track_id" = String, Path, description = "Upload tracking ID from upload response")
+    ),
+    responses(
+        (status = 200, description = "SSE stream of progress events"),
+        (status = 404, description = "Progress not found"),
+    ),
+    tag = "Documents"
+)]
+pub async fn get_pdf_progress_stream(
+    State(state): State<AppState>,
+    Path(track_id): Path<String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let pipeline_state = state.pipeline_state.clone();
+    let tid = track_id.clone();
+
+    // Adaptive poll interval based on whether we've seen progress yet
+    // WHY: For large docs, we don't need to poll faster than the page processing rate.
+    // The progress callback already debounces metadata updates.
+    let stream = async_stream::stream! {
+        let mut miss_count = 0u32;
+        let mut last_percentage = -1.0_f32;
+        let poll_interval = Duration::from_millis(500);
+
+        loop {
+            if let Some(progress) = pipeline_state.get_pdf_progress(&tid).await {
+                miss_count = 0;
+                let current_pct = progress.overall_percentage;
+
+                // Only send event if percentage changed or it's a terminal state
+                if (current_pct - last_percentage).abs() > 0.01
+                    || progress.is_complete
+                    || progress.is_failed
+                {
+                    last_percentage = current_pct;
+                    if let Ok(json) = serde_json::to_string(&progress) {
+                        let event_type = if progress.is_complete {
+                            "complete"
+                        } else if progress.is_failed {
+                            "error"
+                        } else {
+                            "progress"
+                        };
+
+                        yield Ok(Event::default()
+                            .event(event_type)
+                            .data(json));
+
+                        // Terminal state → close stream
+                        if progress.is_complete || progress.is_failed {
+                            break;
+                        }
+                    }
+                }
+            } else {
+                miss_count += 1;
+                // After 120 misses (60 seconds at 500ms intervals), give up
+                if miss_count > 120 {
+                    yield Ok(Event::default()
+                        .event("timeout")
+                        .data(r#"{"error":"Progress not found or already completed"}"#));
+                    break;
+                }
+            }
+
+            tokio::time::sleep(poll_interval).await;
+        }
+    };
+
+    Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("ping"),
+    )
 }

@@ -310,20 +310,33 @@ impl ConversionProgressCallback for PipelineProgressCallback {
             error: None,
         });
 
-        // OODA-PERF-02: Update document metadata with debouncing
-        // WHY: Prevents excessive KV writes (40 updates for 40 pages).
-        // STRATEGY: Update on first page, every 5 pages, OR on last page.
-        //
-        // BUG FIX: page_num is 0-indexed (0..page_count-1) while total is
-        // page_count. Previous code used `page_num >= total` which NEVER
-        // matched the last page (e.g., page 39 < 40). Also, progress
-        // calculation used page_num/total giving 0% for the first completed
-        // page. Now uses (page_num + 1)/total for accurate 1-indexed display.
+        // LARGE-DOC: Adaptive metadata update interval based on document size.
+        // WHY: For a 1000-page document, updating every 5 pages creates 200 KV writes.
+        // STRATEGY: Scale the debounce interval with document size:
+        //   - ≤50 pages: every 3 pages (frequent updates for short docs)
+        //   - 51-200 pages: every 10 pages
+        //   - 201-500 pages: every 25 pages
+        //   - 500+ pages: every 50 pages
+        // Always update first page, last page, and milestone percentages (25%, 50%, 75%).
         let last_updated = self.last_metadata_page.load(Ordering::SeqCst);
         let is_first_page = page_num == 0;
         let is_last_page = page_num + 1 >= total; // Fix: 0-indexed → 39+1 >= 40 = true
-        let gap_met = page_num.saturating_sub(last_updated) >= 5;
-        let should_update = is_first_page || is_last_page || gap_met;
+        let debounce_interval = match total {
+            0..=50 => 3,
+            51..=200 => 10,
+            201..=500 => 25,
+            _ => 50,
+        };
+        let gap_met = page_num.saturating_sub(last_updated) >= debounce_interval;
+        // Also update at milestone percentages (25%, 50%, 75%)
+        let completed_pages = page_num + 1;
+        let milestone = total > 0 && {
+            let pct = (completed_pages * 100) / total;
+            let prev_pct = if page_num > 0 { (page_num * 100) / total } else { 0 };
+            // Check if we crossed a 25% milestone
+            (pct / 25) > (prev_pct / 25)
+        };
+        let should_update = is_first_page || is_last_page || gap_met || milestone;
 
         if should_update {
             self.last_metadata_page.store(page_num, Ordering::SeqCst);
@@ -335,11 +348,21 @@ impl ConversionProgressCallback for PipelineProgressCallback {
             } else {
                 0.0
             };
-            self.update_document_metadata(
+            // LARGE-DOC: Include remaining pages info for better UX on large docs
+            let remaining = total.saturating_sub(completed_pages);
+            let message = if total >= 100 {
+                format!(
+                    "Converting PDF to Markdown: page {}/{} ({:.0}%) — {} remaining",
+                    completed_pages, total, progress_percent, remaining
+                )
+            } else {
                 format!(
                     "Converting PDF to Markdown: page {}/{} ({:.0}%)",
                     completed_pages, total, progress_percent
-                ),
+                )
+            };
+            self.update_document_metadata(
+                message,
                 progress_percent / 100.0, // Normalize to 0.0-1.0
             );
         }

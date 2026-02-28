@@ -59,6 +59,8 @@ sha2 = "0.10"
 hex = "0.4"
 rand = "0.9"
 bytes = "1.9"
+# SSE streaming for real-time PDF progress events
+async-stream = "0.3"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

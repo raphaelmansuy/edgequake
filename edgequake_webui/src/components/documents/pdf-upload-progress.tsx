@@ -40,7 +40,9 @@ import {
     Loader2,
     RefreshCw,
     StopCircle,
+    Wifi,
     XCircle,
+    Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { ErrorBanner } from "./error-banner";
@@ -236,6 +238,79 @@ function EtaDisplay({ seconds }: { seconds: number | null }) {
 }
 
 /**
+ * Large document progress detail panel.
+ * Shows page-by-page progress with speed metrics for documents with many pages.
+ *
+ * @implements FEAT-PDF-PROGRESS: Real-time page conversion feedback
+ */
+function LargeDocProgress({
+  currentPage,
+  totalPages,
+  pagesPerMinute,
+  sseConnected,
+}: {
+  currentPage: number;
+  totalPages: number;
+  pagesPerMinute: number | null;
+  sseConnected: boolean;
+}) {
+  const percent = totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
+  const remainingPages = totalPages - currentPage;
+
+  // Estimated minutes remaining based on current speed
+  const etaMinutes = useMemo(() => {
+    if (!pagesPerMinute || pagesPerMinute <= 0 || remainingPages <= 0) return null;
+    return Math.round((remainingPages / pagesPerMinute) * 10) / 10;
+  }, [pagesPerMinute, remainingPages]);
+
+  const etaFormatted = useMemo(() => {
+    if (etaMinutes === null) return null;
+    if (etaMinutes < 1) return "< 1 min";
+    if (etaMinutes < 60) return `~${Math.ceil(etaMinutes)} min`;
+    const hours = Math.floor(etaMinutes / 60);
+    const mins = Math.round(etaMinutes % 60);
+    return `~${hours}h ${mins}m`;
+  }, [etaMinutes]);
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+      {/* Page counter — large and prominent */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-blue-500" />
+          <span className="text-sm font-semibold tabular-nums">
+            Page {currentPage.toLocaleString()} of {totalPages.toLocaleString()}
+          </span>
+          <span className="text-xs text-muted-foreground">({percent}%)</span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          {pagesPerMinute !== null && (
+            <span className="flex items-center gap-1">
+              <Zap className="h-3 w-3 text-amber-500" />
+              {pagesPerMinute} pages/min
+            </span>
+          )}
+          {etaFormatted && (
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {etaFormatted}
+            </span>
+          )}
+        </div>
+      </div>
+      {/* Fine-grained progress bar for page conversion */}
+      <Progress value={percent} className="h-1.5" />
+      {/* Remaining pages hint */}
+      {remainingPages > 0 && (
+        <p className="text-[10px] text-muted-foreground text-right">
+          {remainingPages.toLocaleString()} pages remaining
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
  * OODA-29: Extract error code from error message for classification.
  */
 function extractErrorCode(errorMessage: string): string {
@@ -293,6 +368,10 @@ export function PdfUploadProgress({
     isRetrying,
     isCancelling,
     error,
+    sseConnected,
+    pagesPerMinute,
+    totalPages,
+    currentPage,
   } = usePdfProgress(trackId);
 
   // WHY: useEffect (not useMemo) because calling parent setState during render
@@ -416,6 +495,17 @@ export function PdfUploadProgress({
             {isProcessing && (
               <Badge variant="secondary">Processing</Badge>
             )}
+            {sseConnected && isProcessing && (
+              <Badge variant="outline" className="text-emerald-600 border-emerald-300 gap-1">
+                <Wifi className="h-3 w-3" />
+                Live
+              </Badge>
+            )}
+            {totalPages !== null && totalPages >= 100 && (
+              <Badge variant="outline" className="text-amber-600 border-amber-300">
+                {totalPages.toLocaleString()} pages
+              </Badge>
+            )}
             <EtaDisplay seconds={etaSeconds} />
           </div>
         </div>
@@ -450,6 +540,16 @@ export function PdfUploadProgress({
             </div>
           ))}
         </div>
+
+        {/* Large document page progress — shown during pdf_conversion phase */}
+        {isProcessing && totalPages !== null && currentPage !== null && totalPages > 0 && (
+          <LargeDocProgress
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pagesPerMinute={pagesPerMinute}
+            sseConnected={sseConnected}
+          />
+        )}
 
         {/* Live progress message for active phase */}
         {isProcessing && (
