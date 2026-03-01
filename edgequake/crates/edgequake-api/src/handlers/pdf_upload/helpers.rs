@@ -253,3 +253,115 @@ pub(super) async fn clear_document_derived_data(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── extract_page_count edge cases ─────────────────────────────────
+
+    #[test]
+    fn test_extract_page_count_normal_pdf() {
+        // Simulates a PDF with a root Pages node: /Count 42
+        let data = b"%PDF-1.4\n/Type /Pages\n/Count 42\n/Kids [...]";
+        assert_eq!(extract_page_count(data), Some(42));
+    }
+
+    #[test]
+    fn test_extract_page_count_multiple_count_entries() {
+        // PDF with sub-nodes: root /Count 100, sub /Count 50
+        // Should return the largest (root total)
+        let data = b"%PDF-1.4\n/Count 50\n...\n/Count 100\n";
+        assert_eq!(extract_page_count(data), Some(100));
+    }
+
+    #[test]
+    fn test_extract_page_count_single_page() {
+        let data = b"%PDF-1.4\n/Count 1\n";
+        assert_eq!(extract_page_count(data), Some(1));
+    }
+
+    #[test]
+    fn test_extract_page_count_zero_pages() {
+        // Edge case: /Count 0 should return Some(0)
+        let data = b"%PDF-1.4\n/Count 0\n";
+        assert_eq!(extract_page_count(data), Some(0));
+    }
+
+    #[test]
+    fn test_extract_page_count_empty_data() {
+        assert_eq!(extract_page_count(b""), None);
+    }
+
+    #[test]
+    fn test_extract_page_count_no_count_token() {
+        let data = b"%PDF-1.4\n/Type /Pages\n/MediaBox [0 0 612 792]\n";
+        assert_eq!(extract_page_count(data), None);
+    }
+
+    #[test]
+    fn test_extract_page_count_count_without_digits() {
+        // "/Count " followed by non-digits
+        let data = b"%PDF-1.4\n/Count abc\n";
+        assert_eq!(extract_page_count(data), None);
+    }
+
+    #[test]
+    fn test_extract_page_count_large_page_count() {
+        let data = b"%PDF-1.4\n/Count 12345\n";
+        assert_eq!(extract_page_count(data), Some(12345));
+    }
+
+    #[test]
+    fn test_extract_page_count_binary_content_around() {
+        // Binary noise around the /Count token
+        let mut data = vec![0u8; 100];
+        data.extend_from_slice(b"/Count 7");
+        data.extend_from_slice(&[0xFF, 0xFE, 0x00]);
+        assert_eq!(extract_page_count(&data), Some(7));
+    }
+
+    #[test]
+    fn test_extract_page_count_needle_at_end_of_data() {
+        // "/Count " at the very end with no digits after
+        let data = b"%PDF-1.4\n/Count ";
+        assert_eq!(extract_page_count(data), None);
+    }
+
+    // ── estimate_processing_time edge cases ───────────────────────────
+
+    #[test]
+    fn test_estimate_time_small_pdf() {
+        // 1KB, 5 pages → ~15s base + ~0s overhead
+        let data = vec![0u8; 1024];
+        let time = estimate_processing_time(&data, Some(5));
+        assert!(time >= 15, "Expected >= 15s, got {time}");
+    }
+
+    #[test]
+    fn test_estimate_time_unknown_page_count() {
+        // When page_count is None, defaults to 10 pages
+        let data = vec![0u8; 1024];
+        let time = estimate_processing_time(&data, None);
+        assert!(time >= 30, "Expected >= 30s for 10-page default, got {time}");
+    }
+
+    #[test]
+    fn test_estimate_time_large_file() {
+        // 100MB, 500 pages
+        let data = vec![0u8; 100 * 1024 * 1024];
+        let time = estimate_processing_time(&data, Some(500));
+        assert!(
+            time >= 1500,
+            "Expected >= 1500s for 500 pages, got {time}"
+        );
+    }
+
+    #[test]
+    fn test_estimate_time_zero_pages() {
+        let data = vec![0u8; 1024];
+        let time = estimate_processing_time(&data, Some(0));
+        // 0 pages → 0 base time + small size overhead
+        assert!(time <= 5, "Expected <= 5s for 0 pages, got {time}");
+    }
+}

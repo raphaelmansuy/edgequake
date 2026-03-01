@@ -144,7 +144,7 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 edgequake-api = { path = "crates/edgequake-api" }
 edgequake-auth = { path = "crates/edgequake-auth" }
 edgequake-core = { path = "crates/edgequake-core" }
-edgequake-llm = "0.2.7"
+edgequake-llm = "0.3.0"
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }

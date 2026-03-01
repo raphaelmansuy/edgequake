@@ -194,8 +194,8 @@ impl DocumentTaskProcessor {
         // == Progress: starting conversion (this can take 5-10+ minutes) ==
         task.update_progress("pdf_converting".to_string(), 2, 10);
 
-        // SPEC-007: Vision → edgequake-pdf2md v0.4.6 (bundled pdfium, multi-provider,
-        //           10-rule post-processing, progress callbacks).
+        // SPEC-007: Vision → edgequake-pdf2md v0.6.1 (bundled pdfium, multi-provider,
+        //           lazy streaming pipeline, progress callbacks).
         //
         // WHY spawn_blocking + Handle::block_on:
         // process_page(... prior_page: Option<&str> ...) holds &str across
@@ -242,7 +242,7 @@ impl DocumentTaskProcessor {
                 let concurrency = std::env::var("EDGEQUAKE_PDF_CONCURRENCY")
                     .ok()
                     .and_then(|v| v.parse::<usize>().ok())
-                    .unwrap_or_else(|| match page_count {
+                    .unwrap_or(match page_count {
                         0..=49 => 10,
                         50..=199 => 8,
                         200..=499 => 5,
@@ -258,7 +258,7 @@ impl DocumentTaskProcessor {
                 let dpi = std::env::var("EDGEQUAKE_PDF_DPI")
                     .ok()
                     .and_then(|v| v.parse::<u32>().ok())
-                    .unwrap_or_else(|| match page_count {
+                    .unwrap_or(match page_count {
                         0..=499 => 150,
                         500..=999 => 120,
                         _ => 100,
@@ -271,7 +271,7 @@ impl DocumentTaskProcessor {
                     page_count = page_count,
                     concurrency = concurrency,
                     dpi = dpi,
-                    "Starting vision extraction via edgequake-pdf2md v0.4.6 (progress callback connected, adaptive concurrency)"
+                    "Starting vision extraction via edgequake-pdf2md v0.6.1 (progress callback connected, adaptive concurrency)"
                 );
 
                 // WHY Handle::current before spawn_blocking: must capture the runtime

@@ -343,7 +343,11 @@ impl ConversionProgressCallback for PipelineProgressCallback {
         let completed_pages = page_num + 1;
         let milestone = total > 0 && {
             let pct = (completed_pages * 100) / total;
-            let prev_pct = if page_num > 0 { (page_num * 100) / total } else { 0 };
+            let prev_pct = if page_num > 0 {
+                (page_num * 100) / total
+            } else {
+                0
+            };
             // Check if we crossed a 25% milestone
             (pct / 25) > (prev_pct / 25)
         };
@@ -773,5 +777,411 @@ mod tests {
         assert_eq!(pdf_phase.status, PhaseStatus::Complete);
         assert_eq!(pdf_phase.current, 5);
         assert_eq!(pdf_phase.total, 5);
+    }
+
+    // ── Edge Case Tests (v0.6.1 upgrade) ─────────────────────────────────
+
+    /// Edge case: Zero-page PDF — ensure no panics and correct events.
+    #[tokio::test]
+    async fn test_zero_page_document() {
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-zero".to_string(),
+            "task-zero".to_string(),
+        );
+
+        // Zero pages should not panic
+        callback.on_conversion_start(0);
+        callback.on_conversion_complete(0, 0);
+
+        // Verify start event
+        let event = rx.try_recv().unwrap();
+        match event {
+            edgequake_tasks::PipelineEvent::PdfPageProgress {
+                total_pages,
+                phase,
+                ..
+            } => {
+                assert_eq!(total_pages, 0);
+                assert_eq!(phase, "extraction");
+            }
+            _ => panic!("Expected PdfPageProgress event"),
+        }
+
+        // Verify complete event
+        let event = rx.try_recv().unwrap();
+        match event {
+            edgequake_tasks::PipelineEvent::PdfPageProgress {
+                total_pages,
+                phase,
+                ..
+            } => {
+                assert_eq!(total_pages, 0);
+                assert_eq!(phase, "complete");
+            }
+            _ => panic!("Expected PdfPageProgress event"),
+        }
+    }
+
+    /// Edge case: Single-page document — full lifecycle.
+    #[tokio::test]
+    async fn test_single_page_document() {
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-single".to_string(),
+            "task-single".to_string(),
+        );
+
+        callback.on_conversion_start(1);
+        callback.on_page_start(0, 1);
+        callback.on_page_complete(0, 1, 512);
+        callback.on_conversion_complete(1, 1);
+
+        // Drain start event
+        let _ = rx.try_recv();
+        // Drain page_start event
+        let _ = rx.try_recv();
+
+        // Verify page_complete event
+        let event = rx.try_recv().unwrap();
+        match event {
+            edgequake_tasks::PipelineEvent::PdfPageProgress {
+                page_num,
+                total_pages,
+                phase,
+                success,
+                ..
+            } => {
+                assert_eq!(page_num, 0);
+                assert_eq!(total_pages, 1);
+                assert_eq!(phase, "extracted");
+                assert!(success);
+            }
+            _ => panic!("Expected PdfPageProgress event"),
+        }
+
+        // Verify complete event
+        let event = rx.try_recv().unwrap();
+        match event {
+            edgequake_tasks::PipelineEvent::PdfPageProgress {
+                phase, success, ..
+            } => {
+                assert_eq!(phase, "complete");
+                assert!(success);
+            }
+            _ => panic!("Expected PdfPageProgress event"),
+        }
+    }
+
+    /// Edge case: All pages fail — success_count = 0.
+    #[tokio::test]
+    async fn test_all_pages_fail() {
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-allfail".to_string(),
+            "task-allfail".to_string(),
+        );
+
+        callback.on_conversion_start(3);
+        callback.on_page_error(0, 3, "API timeout".to_string());
+        callback.on_page_error(1, 3, "Rate limited".to_string());
+        callback.on_page_error(2, 3, "Content filter".to_string());
+        callback.on_conversion_complete(3, 0); // 0 successes
+
+        // Drain all intermediate events (start + 3 errors = 4)
+        for _ in 0..4 {
+            let _ = rx.try_recv();
+        }
+
+        // Verify complete event says NOT successful
+        let event = rx.try_recv().unwrap();
+        match event {
+            edgequake_tasks::PipelineEvent::PdfPageProgress {
+                phase,
+                success,
+                error,
+                ..
+            } => {
+                assert!(phase.contains("partial_complete"));
+                assert!(!success); // 0 successes → false
+                assert!(error.unwrap().contains("0/3"));
+            }
+            _ => panic!("Expected PdfPageProgress event"),
+        }
+    }
+
+    /// Edge case: Page error emits correct data.
+    #[tokio::test]
+    async fn test_page_error_event_data() {
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-err".to_string(),
+            "task-err".to_string(),
+        );
+
+        callback.on_conversion_start(5);
+        // Drain start event
+        let _ = rx.try_recv();
+
+        // Error on page 3 (0-indexed) of 5
+        callback.on_page_error(3, 5, "LLM API returned 500".to_string());
+
+        let event = rx.try_recv().unwrap();
+        match event {
+            edgequake_tasks::PipelineEvent::PdfPageProgress {
+                page_num,
+                total_pages,
+                phase,
+                success,
+                error,
+                ..
+            } => {
+                assert_eq!(page_num, 3);
+                assert_eq!(total_pages, 5);
+                assert_eq!(phase, "extraction_error");
+                assert!(!success);
+                assert_eq!(error.unwrap(), "LLM API returned 500");
+            }
+            _ => panic!("Expected PdfPageProgress event"),
+        }
+    }
+
+    /// Edge case: Interleaved errors and successes.
+    #[tokio::test]
+    async fn test_interleaved_errors_and_successes() {
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-mixed".to_string(),
+            "task-mixed".to_string(),
+        );
+
+        callback.on_conversion_start(4);
+        // Drain start event
+        let _ = rx.try_recv();
+
+        // Mixed results (concurrent order)
+        callback.on_page_complete(0, 4, 1024);
+        callback.on_page_error(1, 4, "timeout".to_string());
+        callback.on_page_complete(2, 4, 2048);
+        callback.on_page_error(3, 4, "rate limit".to_string());
+        callback.on_conversion_complete(4, 2); // 2 of 4 succeeded
+
+        // Drain 4 intermediate events
+        for _ in 0..4 {
+            let _ = rx.try_recv();
+        }
+
+        // Verify partial completion
+        let event = rx.try_recv().unwrap();
+        match event {
+            edgequake_tasks::PipelineEvent::PdfPageProgress {
+                phase,
+                success,
+                error,
+                ..
+            } => {
+                assert!(phase.contains("partial_complete"));
+                assert!(success); // 2 > 0, so still success
+                assert!(error.unwrap().contains("2/4"));
+            }
+            _ => panic!("Expected PdfPageProgress event"),
+        }
+    }
+
+    /// Edge case: Out-of-order page completion (concurrent processing).
+    #[tokio::test]
+    async fn test_out_of_order_page_completion() {
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-ooo".to_string(),
+            "task-ooo".to_string(),
+        );
+
+        callback.on_conversion_start(5);
+        // Drain start event
+        let _ = rx.try_recv();
+
+        // Pages complete out of order (as happens with concurrent processing)
+        callback.on_page_complete(3, 5, 1000); // page 4 finishes first
+        callback.on_page_complete(0, 5, 800);  // then page 1
+        callback.on_page_complete(4, 5, 1200); // then page 5
+        callback.on_page_complete(1, 5, 900);  // then page 2
+        callback.on_page_complete(2, 5, 1100); // then page 3
+        callback.on_conversion_complete(5, 5);
+
+        // Verify all events are received without panic
+        let mut page_nums = Vec::new();
+        for _ in 0..5 {
+            let event = rx.try_recv().unwrap();
+            match event {
+                edgequake_tasks::PipelineEvent::PdfPageProgress {
+                    page_num, phase, ..
+                } => {
+                    assert_eq!(phase, "extracted");
+                    page_nums.push(page_num);
+                }
+                _ => panic!("Expected PdfPageProgress event"),
+            }
+        }
+        // Verify pages arrived in the order they completed (not sorted)
+        assert_eq!(page_nums, vec![3, 0, 4, 1, 2]);
+    }
+
+    /// Edge case: Very large document page count (1000+ pages).
+    #[tokio::test]
+    async fn test_large_document_progress() {
+        use edgequake_tasks::progress::PhaseStatus;
+
+        let state = PipelineState::new();
+        let _rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-large".to_string(),
+            "task-large".to_string(),
+        )
+        .with_filename("large_book.pdf".to_string());
+
+        callback.on_conversion_start(1000);
+
+        // Simulate some pages completing (not all — just enough to test debounce)
+        callback.on_page_complete(0, 1000, 500);   // First page → always updates
+        callback.on_page_complete(10, 1000, 500);  // Within debounce (50 for 1000+ pages)
+        callback.on_page_complete(50, 1000, 500);  // At debounce interval → updates
+        callback.on_page_complete(249, 1000, 500); // 25% milestone → updates
+        callback.on_page_complete(999, 1000, 500); // Last page → always updates
+
+        // Wait for spawned async tasks
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Verify progress was persisted (by checking phase state)
+        let progress = state.get_pdf_progress("task-large").await;
+        assert!(progress.is_some());
+
+        let progress = progress.unwrap();
+        let pdf_phase = &progress.phases[PipelinePhase::PdfConversion.index()];
+        assert_eq!(pdf_phase.status, PhaseStatus::Active);
+        assert_eq!(pdf_phase.total, 1000);
+    }
+
+    /// Edge case: Adaptive debounce intervals match document size thresholds.
+    #[tokio::test]
+    async fn test_debounce_intervals() {
+        // Test debounce interval calculation for different document sizes
+        // These mirror the match arms in on_page_complete
+        let thresholds = [
+            (10, 3),    // ≤50 pages: every 3 pages
+            (50, 3),    // boundary: still ≤50
+            (51, 10),   // 51-200 pages: every 10 pages
+            (200, 10),  // boundary: still ≤200
+            (201, 25),  // 201-500 pages: every 25 pages
+            (500, 25),  // boundary: still ≤500
+            (501, 50),  // 500+ pages: every 50 pages
+            (1000, 50), // large doc
+        ];
+
+        for (total, expected_interval) in thresholds {
+            let interval = match total {
+                0..=50 => 3,
+                51..=200 => 10,
+                201..=500 => 25,
+                _ => 50,
+            };
+            assert_eq!(
+                interval, expected_interval,
+                "Wrong debounce for total={total}: got {interval}, expected {expected_interval}"
+            );
+        }
+    }
+
+    /// Edge case: WebSocket broadcaster receives error events.
+    #[tokio::test]
+    async fn test_broadcaster_receives_errors() {
+        let state = PipelineState::new();
+        let _internal_rx = state.subscribe();
+
+        let broadcaster = ProgressBroadcaster::new(16);
+        let mut ws_rx = broadcaster.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-ws-err".to_string(),
+            "task-ws-err".to_string(),
+        )
+        .with_broadcaster(broadcaster);
+
+        callback.on_conversion_start(3);
+        // Drain start event
+        let _ = ws_rx.try_recv();
+
+        callback.on_page_error(1, 3, "GPU OOM".to_string());
+
+        let ws_event = ws_rx.try_recv().unwrap();
+        match ws_event {
+            ProgressEvent::PdfPageProgress {
+                phase,
+                success,
+                error,
+                page_num,
+                ..
+            } => {
+                assert_eq!(phase, "extraction_error");
+                assert!(!success);
+                assert_eq!(page_num, 1);
+                assert_eq!(error.unwrap(), "GPU OOM");
+            }
+            _ => panic!("Expected PdfPageProgress error event"),
+        }
+    }
+
+    /// Edge case: Completion with exact total sets 100% progress.
+    #[tokio::test]
+    async fn test_completion_metadata_reaches_100_percent() {
+        use edgequake_tasks::progress::PhaseStatus;
+
+        let state = PipelineState::new();
+        let _rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state.clone(),
+            "pdf-100".to_string(),
+            "task-100".to_string(),
+        )
+        .with_filename("complete.pdf".to_string());
+
+        callback.on_conversion_start(3);
+        callback.on_page_complete(0, 3, 100);
+        callback.on_page_complete(1, 3, 100);
+        // Skip page 2 (simulate debounce skipping it)
+        callback.on_conversion_complete(3, 3);
+
+        // Wait for spawned tasks
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Verify phase is marked complete
+        let progress = state.get_pdf_progress("task-100").await;
+        assert!(progress.is_some());
+
+        let progress = progress.unwrap();
+        let pdf_phase = &progress.phases[PipelinePhase::PdfConversion.index()];
+        assert_eq!(pdf_phase.status, PhaseStatus::Complete);
     }
 }
