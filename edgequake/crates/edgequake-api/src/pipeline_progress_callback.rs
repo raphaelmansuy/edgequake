@@ -40,8 +40,9 @@ use edgequake_pdf2md::ConversionProgressCallback;
 use edgequake_storage::traits::KVStorage;
 use edgequake_tasks::progress::PipelinePhase;
 use edgequake_tasks::PipelineState;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::runtime::Handle;
 
 /// Adapter that forwards PDF extraction progress to PipelineState and ProgressBroadcaster.
@@ -96,6 +97,17 @@ pub struct PipelineProgressCallback {
     /// WHY: Prevents excessive KV storage writes (39 updates for 39 pages).
     /// Instead, update every N pages OR on last page for completion.
     last_metadata_page: AtomicUsize,
+    /// FIX-PROGRESS: Last metadata update timestamp in milliseconds (epoch).
+    ///
+    /// WHY: Count-based debounce (every 50 pages) creates 10-15 minute gaps for
+    /// slow providers like Ollama. Time-based debounce (every 2s) ensures the
+    /// frontend polling (also 2s) always sees fresh progress.
+    last_metadata_update_ms: AtomicU64,
+    /// FIX-PROGRESS: Completed page counter (incremented atomically).
+    ///
+    /// WHY: Pages complete out of order with concurrent processing. This counter
+    /// tracks the actual number of completed pages instead of relying on page_num.
+    completed_pages: AtomicUsize,
 }
 
 impl PipelineProgressCallback {
@@ -125,6 +137,10 @@ impl PipelineProgressCallback {
             runtime_handle: Handle::current(),
             // OODA-PERF-02: Start at 0 (no pages updated yet)
             last_metadata_page: AtomicUsize::new(0),
+            // FIX-PROGRESS: No metadata written yet
+            last_metadata_update_ms: AtomicU64::new(0),
+            // FIX-PROGRESS: No pages completed yet
+            completed_pages: AtomicUsize::new(0),
         }
     }
 
@@ -182,27 +198,72 @@ impl PipelineProgressCallback {
 
             handle.spawn(async move {
                 let metadata_key = format!("{}-metadata", doc_id);
-                if let Ok(Some(existing)) = kv.get_by_id(&metadata_key).await {
-                    if let Some(mut obj) = existing.as_object().cloned() {
-                        obj.insert(
-                            "stage_message".to_string(),
-                            serde_json::json!(stage_message),
-                        );
-                        obj.insert(
-                            "stage_progress".to_string(),
-                            serde_json::json!(stage_progress),
-                        );
-                        obj.insert(
-                            "updated_at".to_string(),
-                            serde_json::json!(chrono::Utc::now().to_rfc3339()),
-                        );
+                match kv.get_by_id(&metadata_key).await {
+                    Ok(Some(existing)) => {
+                        if let Some(mut obj) = existing.as_object().cloned() {
+                            obj.insert(
+                                "stage_message".to_string(),
+                                serde_json::json!(stage_message),
+                            );
+                            obj.insert(
+                                "stage_progress".to_string(),
+                                serde_json::json!(stage_progress),
+                            );
+                            obj.insert(
+                                "updated_at".to_string(),
+                                serde_json::json!(chrono::Utc::now().to_rfc3339()),
+                            );
 
-                        if let Err(e) = kv.upsert(&[(metadata_key, serde_json::json!(obj))]).await {
-                            tracing::warn!("Failed to update document metadata: {}", e);
+                            if let Err(e) =
+                                kv.upsert(&[(metadata_key, serde_json::json!(obj))]).await
+                            {
+                                tracing::warn!(
+                                    doc_id = %doc_id,
+                                    error = %e,
+                                    "Failed to upsert document metadata"
+                                );
+                            }
                         }
+                    }
+                    Ok(None) => {
+                        tracing::warn!(
+                            doc_id = %doc_id,
+                            "Document metadata not found in KV for progress update"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            doc_id = %doc_id,
+                            error = %e,
+                            "Failed to read document metadata from KV"
+                        );
                     }
                 }
             });
+        }
+    }
+
+    /// FIX-PROGRESS: Check if enough time has passed to warrant a metadata update.
+    ///
+    /// WHY: Count-based debounce (every 50 pages) creates 10-15 minute gaps for slow
+    /// providers like Ollama (~60s/page). Time-based debounce (every 2s) ensures the
+    /// frontend polling (also 2s) always sees fresh progress.
+    ///
+    /// Returns `true` if at least `interval_ms` milliseconds have passed since the last
+    /// metadata update, and atomically stores the new timestamp.
+    fn should_update_metadata(&self, interval_ms: u64) -> bool {
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        let last = self.last_metadata_update_ms.load(Ordering::Relaxed);
+        if now_ms.saturating_sub(last) >= interval_ms {
+            // CAS: only one thread wins the race to update the timestamp
+            self.last_metadata_update_ms
+                .compare_exchange(last, now_ms, Ordering::SeqCst, Ordering::Relaxed)
+                .is_ok()
+        } else {
+            false
         }
     }
 }
@@ -210,6 +271,12 @@ impl PipelineProgressCallback {
 impl ConversionProgressCallback for PipelineProgressCallback {
     fn on_conversion_start(&self, total_pages: usize) {
         self.total_pages.store(total_pages, Ordering::SeqCst);
+
+        tracing::info!(
+            total_pages = total_pages,
+            pdf_id = %self.pdf_id,
+            "PDF conversion started"
+        );
 
         // Emit start event to PipelineState (internal)
         self.pipeline_state.emit_pdf_page_progress(
@@ -267,6 +334,13 @@ impl ConversionProgressCallback for PipelineProgressCallback {
         // Store total pages in case extraction_start wasn't called
         self.total_pages.store(total_pages, Ordering::SeqCst);
 
+        tracing::debug!(
+            page_num = page_num,
+            total_pages = total_pages,
+            pdf_id = %self.pdf_id,
+            "PDF page extraction starting"
+        );
+
         // Emit "starting page N" event to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
             self.pdf_id.clone(),
@@ -290,12 +364,47 @@ impl ConversionProgressCallback for PipelineProgressCallback {
             success: true,
             error: None,
         });
+
+        // FIX-PROGRESS: Update document metadata on page start (time-debounced).
+        // WHY: With slow LLM providers (Ollama ~60s/page), users see NO visual
+        // feedback until the first page COMPLETES. Updating on page_start shows
+        // "Starting page X/N..." immediately, so users know work is happening.
+        // Debounce interval: 2 seconds (matches frontend polling interval).
+        if self.should_update_metadata(2_000) {
+            let completed = self.completed_pages.load(Ordering::Relaxed);
+            let progress = if total_pages > 0 {
+                completed as f64 / total_pages as f64
+            } else {
+                0.0
+            };
+            self.update_document_metadata(
+                format!(
+                    "Converting PDF to Markdown: starting page {}/{} ({} completed)",
+                    page_num + 1,
+                    total_pages,
+                    completed
+                ),
+                progress,
+            );
+        }
     }
 
     fn on_page_complete(&self, page_num: usize, total_pages: usize, markdown_len: usize) {
+        // FIX-PROGRESS: Track actual completed pages atomically.
+        let completed = self.completed_pages.fetch_add(1, Ordering::SeqCst) + 1;
+
         // Store total_pages for use in debounce logic
         self.total_pages.store(total_pages, Ordering::SeqCst);
         let total = total_pages;
+
+        tracing::debug!(
+            page_num = page_num,
+            total_pages = total,
+            completed = completed,
+            markdown_len = markdown_len,
+            pdf_id = %self.pdf_id,
+            "PDF page extraction complete"
+        );
 
         // Emit to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
@@ -321,59 +430,45 @@ impl ConversionProgressCallback for PipelineProgressCallback {
             error: None,
         });
 
-        // LARGE-DOC: Adaptive metadata update interval based on document size.
-        // WHY: For a 1000-page document, updating every 5 pages creates 200 KV writes.
-        // STRATEGY: Scale the debounce interval with document size:
-        //   - ≤50 pages: every 3 pages (frequent updates for short docs)
-        //   - 51-200 pages: every 10 pages
-        //   - 201-500 pages: every 25 pages
-        //   - 500+ pages: every 50 pages
-        // Always update first page, last page, and milestone percentages (25%, 50%, 75%).
-        let last_updated = self.last_metadata_page.load(Ordering::SeqCst);
-        let is_first_page = page_num == 0;
-        let is_last_page = page_num + 1 >= total; // Fix: 0-indexed → 39+1 >= 40 = true
-        let debounce_interval = match total {
-            0..=50 => 3,
-            51..=200 => 10,
-            201..=500 => 25,
-            _ => 50,
-        };
-        let gap_met = page_num.saturating_sub(last_updated) >= debounce_interval;
-        // Also update at milestone percentages (25%, 50%, 75%)
-        let completed_pages = page_num + 1;
+        // FIX-PROGRESS: Time-based metadata debounce (replaces count-based).
+        //
+        // WHY: Count-based debounce (every 50 pages for 500+ page docs) creates
+        // 10-15 minute gaps between UI updates with slow LLM providers (Ollama
+        // ~60s/page). Time-based debounce (2 seconds) aligns with frontend
+        // polling (also 2s) so users always see fresh progress.
+        //
+        // Override conditions (always update regardless of timer):
+        //   - First completed page: immediate feedback
+        //   - Last completed page: ensure 100% is shown
+        //   - 25% milestones: notable progress markers
+        let is_first_completed = completed == 1;
+        let is_last_page = completed >= total;
         let milestone = total > 0 && {
-            let pct = (completed_pages * 100) / total;
-            let prev_pct = if page_num > 0 {
-                (page_num * 100) / total
-            } else {
-                0
-            };
-            // Check if we crossed a 25% milestone
+            let pct = (completed * 100) / total;
+            let prev_pct = ((completed - 1) * 100) / total;
             (pct / 25) > (prev_pct / 25)
         };
-        let should_update = is_first_page || is_last_page || gap_met || milestone;
+        let time_due = self.should_update_metadata(2_000);
+        let should_update = is_first_completed || is_last_page || milestone || time_due;
 
         if should_update {
             self.last_metadata_page.store(page_num, Ordering::SeqCst);
 
-            // Use (page_num + 1) for 1-indexed display and accurate percentage
-            let completed_pages = page_num + 1;
             let progress_percent = if total > 0 {
-                (completed_pages as f64 / total as f64) * 100.0
+                (completed as f64 / total as f64) * 100.0
             } else {
                 0.0
             };
-            // LARGE-DOC: Include remaining pages info for better UX on large docs
-            let remaining = total.saturating_sub(completed_pages);
+            let remaining = total.saturating_sub(completed);
             let message = if total >= 100 {
                 format!(
                     "Converting PDF to Markdown: page {}/{} ({:.0}%) — {} remaining",
-                    completed_pages, total, progress_percent, remaining
+                    completed, total, progress_percent, remaining
                 )
             } else {
                 format!(
                     "Converting PDF to Markdown: page {}/{} ({:.0}%)",
-                    completed_pages, total, progress_percent
+                    completed, total, progress_percent
                 )
             };
             self.update_document_metadata(
@@ -404,6 +499,14 @@ impl ConversionProgressCallback for PipelineProgressCallback {
         // Store total_pages for consistency
         self.total_pages.store(total_pages, Ordering::SeqCst);
         let total = total_pages;
+
+        tracing::warn!(
+            page_num = page_num,
+            total_pages = total,
+            error = %error,
+            pdf_id = %self.pdf_id,
+            "PDF page extraction error"
+        );
 
         // Emit to PipelineState
         self.pipeline_state.emit_pdf_page_progress(
@@ -449,6 +552,13 @@ impl ConversionProgressCallback for PipelineProgressCallback {
     }
 
     fn on_conversion_complete(&self, total_pages: usize, success_count: usize) {
+        tracing::info!(
+            total_pages = total_pages,
+            success_count = success_count,
+            pdf_id = %self.pdf_id,
+            "PDF conversion complete"
+        );
+
         // Emit completion event
         let phase = if success_count == total_pages {
             "complete".to_string()
@@ -1082,34 +1192,66 @@ mod tests {
         assert_eq!(pdf_phase.total, 1000);
     }
 
-    /// Edge case: Adaptive debounce intervals match document size thresholds.
+    /// FIX-PROGRESS: Time-based debounce correctly gates metadata updates.
     #[tokio::test]
-    async fn test_debounce_intervals() {
-        // Test debounce interval calculation for different document sizes
-        // These mirror the match arms in on_page_complete
-        let thresholds = [
-            (10, 3),    // ≤50 pages: every 3 pages
-            (50, 3),    // boundary: still ≤50
-            (51, 10),   // 51-200 pages: every 10 pages
-            (200, 10),  // boundary: still ≤200
-            (201, 25),  // 201-500 pages: every 25 pages
-            (500, 25),  // boundary: still ≤500
-            (501, 50),  // 500+ pages: every 50 pages
-            (1000, 50), // large doc
-        ];
+    async fn test_time_based_debounce() {
+        let state = PipelineState::new();
+        let _rx = state.subscribe();
 
-        for (total, expected_interval) in thresholds {
-            let interval = match total {
-                0..=50 => 3,
-                51..=200 => 10,
-                201..=500 => 25,
-                _ => 50,
-            };
-            assert_eq!(
-                interval, expected_interval,
-                "Wrong debounce for total={total}: got {interval}, expected {expected_interval}"
-            );
-        }
+        let callback = PipelineProgressCallback::new(
+            state,
+            "pdf-debounce".to_string(),
+            "task-debounce".to_string(),
+        );
+
+        // First call should always succeed (last_metadata_update_ms starts at 0)
+        assert!(
+            callback.should_update_metadata(2_000),
+            "First call should always pass debounce"
+        );
+
+        // Immediate second call should be rejected (0ms elapsed < 2000ms interval)
+        assert!(
+            !callback.should_update_metadata(2_000),
+            "Immediate second call should be debounced"
+        );
+
+        // With a 0ms interval, every call should pass
+        assert!(
+            callback.should_update_metadata(0),
+            "Zero interval should always pass"
+        );
+
+        // Wait a bit and try with a very short interval
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert!(
+            callback.should_update_metadata(10),
+            "10ms interval should pass after 50ms sleep"
+        );
+    }
+
+    /// FIX-PROGRESS: completed_pages counter increments correctly across
+    /// concurrent page completions (simulated sequentially here).
+    #[tokio::test]
+    async fn test_completed_pages_counter() {
+        let state = PipelineState::new();
+        let _rx = state.subscribe();
+
+        let callback = PipelineProgressCallback::new(
+            state,
+            "pdf-counter".to_string(),
+            "task-counter".to_string(),
+        );
+
+        callback.on_conversion_start(10);
+
+        // Pages may complete out of order
+        callback.on_page_complete(2, 10, 100);
+        callback.on_page_complete(0, 10, 100);
+        callback.on_page_complete(5, 10, 100);
+
+        let completed = callback.completed_pages.load(Ordering::Relaxed);
+        assert_eq!(completed, 3, "Should track 3 completed pages regardless of order");
     }
 
     /// Edge case: WebSocket broadcaster receives error events.
