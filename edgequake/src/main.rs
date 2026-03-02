@@ -100,53 +100,67 @@ async fn recover_orphaned_tasks(
         ..Default::default()
     };
 
-    let pagination = Pagination {
-        page: 1,
-        page_size: 1000, // Process up to 1000 orphaned tasks
-        ..Default::default()
-    };
-
-    let task_list = task_storage.list_tasks(filter, pagination).await?;
     let now = Utc::now();
-
     let mut recovered_count = 0;
+    let mut page = 1;
+    let page_size = 500;
 
-    // WHY unconditional recovery: At startup there are ZERO active workers.
-    // Every task with status "processing" is orphaned — there is no worker
-    // processing it. The heartbeat mechanism updates `updated_at` every 60s,
-    // which defeats any age-based threshold. Recovering unconditionally is
-    // both correct and safe (idempotent processing + checkpoint system).
-    for mut task in task_list.tasks {
-        let age = now.signed_duration_since(task.updated_at);
+    // WHY pagination loop: If >page_size tasks are stuck in "processing"
+    // (e.g., large batch upload interrupted), a single page misses the rest.
+    // Loop until we get an empty page or fewer results than page_size.
+    loop {
+        let pagination = Pagination {
+            page,
+            page_size,
+            ..Default::default()
+        };
 
-        // Reset to pending for automatic retry via checkpoint system.
-        // WHY pending (not failed): The checkpoint system will resume from
-        // where the task left off. Marking as "failed" forces manual retry
-        // which is poor UX. Resetting to "pending" enables auto-recovery.
-        task.status = TaskStatus::Pending;
-        task.error_message = Some(format!(
-            "Auto-recovered after backend restart (was processing for {} minutes). \
-             Will resume from checkpoint if available.",
-            age.num_minutes()
-        ));
-        task.updated_at = now;
+        let task_list = task_storage.list_tasks(filter.clone(), pagination).await?;
+        let batch_len = task_list.tasks.len();
 
-        match task_storage.update_task(&task).await {
-            Ok(_) => {
-                info!(
-                    "✅ Recovered orphaned task: {} (age: {})",
-                    task.track_id,
-                    humanize_duration(age)
-                );
-                recovered_count += 1;
-            }
-            Err(e) => {
-                warn!(
-                    "⚠️ Failed to recover orphaned task {}: {}",
-                    task.track_id, e
-                );
+        // WHY unconditional recovery: At startup there are ZERO active workers.
+        // Every task with status "processing" is orphaned — there is no worker
+        // processing it. The heartbeat mechanism updates `updated_at` every 60s,
+        // which defeats any age-based threshold. Recovering unconditionally is
+        // both correct and safe (idempotent processing + checkpoint system).
+        for mut task in task_list.tasks {
+            let age = now.signed_duration_since(task.updated_at);
+
+            // Reset to pending for automatic retry via checkpoint system.
+            // WHY pending (not failed): The checkpoint system will resume from
+            // where the task left off. Marking as "failed" forces manual retry
+            // which is poor UX. Resetting to "pending" enables auto-recovery.
+            task.status = TaskStatus::Pending;
+            task.error_message = Some(format!(
+                "Auto-recovered after backend restart (was processing for {} minutes). \
+                 Will resume from checkpoint if available.",
+                age.num_minutes()
+            ));
+            task.updated_at = now;
+
+            match task_storage.update_task(&task).await {
+                Ok(_) => {
+                    info!(
+                        "✅ Recovered orphaned task: {} (age: {})",
+                        task.track_id,
+                        humanize_duration(age)
+                    );
+                    recovered_count += 1;
+                }
+                Err(e) => {
+                    warn!(
+                        "⚠️ Failed to recover orphaned task {}: {}",
+                        task.track_id, e
+                    );
+                }
             }
         }
+
+        // Stop when we got fewer results than page_size (last page)
+        if batch_len < page_size as usize {
+            break;
+        }
+        page += 1;
     }
 
     if recovered_count > 0 {
@@ -468,48 +482,61 @@ async fn periodic_orphan_check(
         ..Default::default()
     };
 
-    let pagination = Pagination {
-        page: 1,
-        page_size: 1000,
-        ..Default::default()
-    };
-
-    let task_list = task_storage.list_tasks(filter, pagination).await?;
     let now = Utc::now();
     let orphan_threshold = Duration::minutes(10);
-
     let mut recovered_count = 0;
+    let mut page = 1;
+    let page_size = 500;
 
-    for mut task in task_list.tasks {
-        let age = now.signed_duration_since(task.updated_at);
+    // WHY pagination loop: Same reason as startup recovery — if many tasks
+    // have dead heartbeats (e.g., OOM killed multiple workers), we need
+    // to process all of them, not just the first page.
+    loop {
+        let pagination = Pagination {
+            page,
+            page_size,
+            ..Default::default()
+        };
 
-        if age > orphan_threshold {
-            // Heartbeat died — mark as failed so the user can see and retry
-            task.status = TaskStatus::Failed;
-            task.error_message = Some(format!(
-                "Task heartbeat lost (no update for {} minutes). \
-                 The worker may have crashed. Please retry.",
-                age.num_minutes()
-            ));
-            task.updated_at = now;
+        let task_list = task_storage.list_tasks(filter.clone(), pagination).await?;
+        let batch_len = task_list.tasks.len();
 
-            match task_storage.update_task(&task).await {
-                Ok(_) => {
-                    warn!(
-                        "⚠️ Periodic check: recovered dead-heartbeat task {} (age: {})",
-                        task.track_id,
-                        humanize_duration(age)
-                    );
-                    recovered_count += 1;
-                }
-                Err(e) => {
-                    warn!(
-                        "⚠️ Failed to recover dead-heartbeat task {}: {}",
-                        task.track_id, e
-                    );
+        for mut task in task_list.tasks {
+            let age = now.signed_duration_since(task.updated_at);
+
+            if age > orphan_threshold {
+                // Heartbeat died — mark as failed so the user can see and retry
+                task.status = TaskStatus::Failed;
+                task.error_message = Some(format!(
+                    "Task heartbeat lost (no update for {} minutes). \
+                     The worker may have crashed. Please retry.",
+                    age.num_minutes()
+                ));
+                task.updated_at = now;
+
+                match task_storage.update_task(&task).await {
+                    Ok(_) => {
+                        warn!(
+                            "⚠️ Periodic check: recovered dead-heartbeat task {} (age: {})",
+                            task.track_id,
+                            humanize_duration(age)
+                        );
+                        recovered_count += 1;
+                    }
+                    Err(e) => {
+                        warn!(
+                            "⚠️ Failed to recover dead-heartbeat task {}: {}",
+                            task.track_id, e
+                        );
+                    }
                 }
             }
         }
+
+        if batch_len < page_size as usize {
+            break;
+        }
+        page += 1;
     }
 
     if recovered_count > 0 {
@@ -628,10 +655,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // of real-world documents while still catching truly stuck tasks.
         // Without this timeout, hung processor.process() calls keep heartbeating
         // forever, creating phantom "Processing N document(s)" banners.
-        processing_timeout_secs: std::env::var("TASK_PROCESSING_TIMEOUT_SECS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(7200),
+        processing_timeout_secs: {
+            let raw = std::env::var("TASK_PROCESSING_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(7200u64);
+            // Clamp to minimum 60s to prevent misconfiguration (0 = instant timeout)
+            let clamped = raw.max(60);
+            if clamped != raw {
+                warn!(
+                    "TASK_PROCESSING_TIMEOUT_SECS={} is below minimum (60). Using 60s.",
+                    raw
+                );
+            }
+            clamped
+        },
     };
 
     // Recover orphaned tasks from previous backend session (PRODUCTION_BUG_FIX)
@@ -680,8 +718,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!(
         "Starting worker pool with {} workers (task timeout: {}s)",
-        worker_config.num_workers,
-        worker_config.processing_timeout_secs
+        worker_config.num_workers, worker_config.processing_timeout_secs
     );
     worker_pool.start();
 
@@ -690,20 +727,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 10-minute updated_at threshold — safe because legitimate tasks have heartbeats
     // updating every 60s. This complements startup recovery (which is unconditional)
     // and the processing timeout (which catches hung tasks with active heartbeats).
-    let periodic_task_storage =
-        Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>;
+    let periodic_task_storage = Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>;
     tokio::spawn(async move {
         // WHY 5 minutes: Frequent enough to catch dead-heartbeat tasks within
         // ~15 minutes (10 min threshold + up to 5 min wait for the next check).
-        let mut interval = tokio::time::interval(
-            tokio::time::Duration::from_secs(300),
-        );
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
         interval.tick().await; // Skip first immediate tick (startup recovery already ran)
         loop {
             interval.tick().await;
-            if let Err(e) =
-                periodic_orphan_check(Arc::clone(&periodic_task_storage)).await
-            {
+            if let Err(e) = periodic_orphan_check(Arc::clone(&periodic_task_storage)).await {
                 warn!("Periodic orphan check failed (non-fatal): {}", e);
             }
         }

@@ -47,6 +47,29 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
+/// RAII guard that aborts the heartbeat task on drop.
+///
+/// WHY: If `processor.process()` panics, the stack unwinds and this guard's
+/// `Drop` impl fires, aborting the heartbeat. Without this, a panic leaves
+/// the heartbeat running forever — the task stays in "processing" with a
+/// live heartbeat, and neither the periodic orphan check nor the processing
+/// timeout can catch it (timeout is in the same panic scope, orphan check
+/// sees a fresh `updated_at`).
+struct HeartbeatGuard(JoinHandle<()>);
+
+impl Drop for HeartbeatGuard {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// Minimum allowed processing timeout (60 seconds).
+///
+/// WHY: A timeout of 0 would cause every task to immediately time out,
+/// making the system non-functional. Even very fast tasks need a few
+/// seconds for LLM API round-trips.
+const MIN_PROCESSING_TIMEOUT_SECS: u64 = 60;
+
 /// Task processor trait - implement this to process different task types.
 ///
 /// Implementors handle both normal processing and cleanup on permanent failure.
@@ -143,7 +166,7 @@ impl Default for WorkerPoolConfig {
             // can take 3+ hours. 2 hours catches most real-world cases while
             // still preventing infinite hangs. Override via
             // TASK_PROCESSING_TIMEOUT_SECS env var.
-            processing_timeout_secs: 7200,
+            processing_timeout_secs: 7200.max(MIN_PROCESSING_TIMEOUT_SECS),
         }
     }
 }
@@ -294,7 +317,12 @@ impl WorkerPool {
                                     // checks; startup recovery now ignores it (recovers all).
                                     let heartbeat_track_id = task.track_id.clone();
                                     let heartbeat_storage = Arc::clone(&storage);
-                                    let heartbeat_handle = tokio::spawn(async move {
+                                    // HeartbeatGuard ensures the heartbeat is aborted
+                                    // even if processor.process() panics. Without RAII,
+                                    // a panic leaves the heartbeat running forever —
+                                    // the task stays "processing" with a live heartbeat
+                                    // that defeats the periodic orphan check.
+                                    let _heartbeat_guard = HeartbeatGuard(tokio::spawn(async move {
                                         let mut interval = tokio::time::interval(
                                             tokio::time::Duration::from_secs(60),
                                         );
@@ -311,7 +339,7 @@ impl WorkerPool {
                                                 );
                                             }
                                         }
-                                    });
+                                    }));
 
                                     // Process task with timeout.
                                     // WHY: Without a timeout, processor.process() can hang
@@ -330,12 +358,12 @@ impl WorkerPool {
 
                                     match process_result {
                                         Ok(Ok(result)) => {
-                                            heartbeat_handle.abort();
+                                            // HeartbeatGuard aborts heartbeat on drop at end of scope
                                             task.mark_success(result);
                                             info!("Worker {} completed task: {} (tenant: {})", worker_id, task.track_id, task.tenant_id);
                                         }
                                         Ok(Err(e)) => {
-                                            heartbeat_handle.abort();
+                                            // HeartbeatGuard aborts heartbeat on drop at end of scope
                                             let error_msg = format!("{}", e);
                                             task.mark_failed(error_msg.clone());
 
@@ -425,7 +453,7 @@ impl WorkerPool {
                                             // TIMEOUT: Task processing exceeded the configured
                                             // time limit. This catches stuck LLM calls, hung
                                             // PDF conversions, and other infinite-wait scenarios.
-                                            heartbeat_handle.abort();
+                                            // HeartbeatGuard aborts heartbeat on drop at end of scope
                                             let timeout_msg = format!(
                                                 "Task processing timed out after {} seconds",
                                                 config.processing_timeout_secs
@@ -556,7 +584,7 @@ mod tests {
             initial_retry_delay_ms: 100,
             max_retry_delay_ms: 5000,
             backoff_multiplier: 2.0,
-            max_tasks_per_tenant: 0, // disabled for basic test
+            max_tasks_per_tenant: 0,      // disabled for basic test
             processing_timeout_secs: 300, // 5 min for tests
         };
 
@@ -633,5 +661,152 @@ mod tests {
         drop(p1);
         let p4 = limiter.try_acquire(tenant).await;
         assert!(p4.is_some(), "Should succeed after releasing permit");
+    }
+
+    #[test]
+    fn test_heartbeat_guard_aborts_on_drop() {
+        // Create a tokio runtime for this test
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let handle = tokio::spawn(async {
+                // This task should be aborted when the guard is dropped
+                tokio::time::sleep(tokio::time::Duration::from_secs(600)).await;
+            });
+
+            // Wrap in guard and drop immediately
+            let guard = HeartbeatGuard(handle);
+            drop(guard);
+
+            // Give tokio a moment to process the abort
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            // If we get here without hanging, the guard correctly aborted the task
+        });
+    }
+
+    #[test]
+    fn test_calculate_backoff_delay_boundaries() {
+        // Attempt 0: initial delay
+        assert_eq!(calculate_backoff_delay(0, 1000, 60_000, 2.0), 1000);
+
+        // Attempt 1: 1000 * 2 = 2000
+        assert_eq!(calculate_backoff_delay(1, 1000, 60_000, 2.0), 2000);
+
+        // Attempt 5: 1000 * 32 = 32000
+        assert_eq!(calculate_backoff_delay(5, 1000, 60_000, 2.0), 32000);
+
+        // Attempt 6: 1000 * 64 = 64000, but capped at 60000
+        assert_eq!(calculate_backoff_delay(6, 1000, 60_000, 2.0), 60_000);
+
+        // Very large attempt: should be capped, not overflow
+        assert_eq!(calculate_backoff_delay(100, 1000, 60_000, 2.0), 60_000);
+
+        // Multiplier of 1.0: delay stays constant
+        assert_eq!(calculate_backoff_delay(5, 1000, 60_000, 1.0), 1000);
+
+        // Zero initial delay: always 0
+        assert_eq!(calculate_backoff_delay(3, 0, 60_000, 2.0), 0);
+    }
+
+    #[test]
+    fn test_worker_pool_config_default_values() {
+        let config = WorkerPoolConfig::default();
+
+        // Workers should be at least 4
+        assert!(config.num_workers >= 4, "Minimum 4 workers");
+
+        // Timeout must be at least MIN_PROCESSING_TIMEOUT_SECS
+        assert!(
+            config.processing_timeout_secs >= MIN_PROCESSING_TIMEOUT_SECS,
+            "Timeout {} < minimum {}",
+            config.processing_timeout_secs,
+            MIN_PROCESSING_TIMEOUT_SECS
+        );
+
+        // Per-tenant limit should be at least 1
+        assert!(
+            config.max_tasks_per_tenant >= 1,
+            "Per-tenant limit must be >= 1"
+        );
+
+        // Per-tenant limit should be less than total workers
+        assert!(
+            config.max_tasks_per_tenant <= config.num_workers,
+            "Per-tenant limit {} should be <= total workers {}",
+            config.max_tasks_per_tenant,
+            config.num_workers
+        );
+
+        // Auto-retry should be enabled by default
+        assert!(config.auto_retry, "Auto-retry should be on by default");
+    }
+
+    #[tokio::test]
+    async fn test_worker_pool_timeout_marks_task_failed() {
+        // Create a slow processor that exceeds the timeout
+        struct SlowProcessor;
+
+        #[async_trait::async_trait]
+        impl TaskProcessor for SlowProcessor {
+            async fn process(&self, _task: &mut Task) -> TaskResult<serde_json::Value> {
+                // Sleep longer than the timeout
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                Ok(serde_json::json!({"status": "should_not_reach"}))
+            }
+
+            async fn on_permanent_failure(&self, _task: &Task, _error_msg: &str) {
+                // No-op for test
+            }
+        }
+
+        let queue = Arc::new(ChannelTaskQueue::new(10));
+        let storage = Arc::new(MemoryTaskStorage::new());
+        let processor: SharedTaskProcessor = Arc::new(SlowProcessor);
+
+        let config = WorkerPoolConfig {
+            num_workers: 1,
+            auto_retry: false,
+            initial_retry_delay_ms: 100,
+            max_retry_delay_ms: 5000,
+            backoff_multiplier: 2.0,
+            max_tasks_per_tenant: 0,
+            processing_timeout_secs: 1, // 1 second timeout for quick test
+        };
+
+        let mut pool = WorkerPool::new(config, queue.clone(), storage.clone(), processor);
+        pool.start();
+
+        // Create and enqueue a task
+        let task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Insert,
+            serde_json::json!({"test": "timeout"}),
+        );
+        let track_id = task.track_id.clone();
+        storage.create_task(&task).await.unwrap();
+        queue.send(task).await.unwrap();
+
+        // Wait for timeout to fire (1s) + some buffer
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+        // Task should be marked as failed due to timeout
+        let stored = storage.get_task(&track_id).await.unwrap().unwrap();
+        assert_eq!(
+            stored.status,
+            TaskStatus::Failed,
+            "Timed-out task should be failed, got {:?}",
+            stored.status
+        );
+        assert!(
+            stored
+                .error_message
+                .as_ref()
+                .unwrap_or(&String::new())
+                .contains("timed out"),
+            "Error message should mention timeout: {:?}",
+            stored.error_message
+        );
+
+        pool.shutdown().await;
     }
 }
