@@ -100,8 +100,12 @@ export function useDocumentQueries({
             doc.stage_message.includes("complete")),
       );
 
-      // Poll every 2s when documents are processing or transitioning
-      return hasProcessingDocs || hasTransitioningDocs ? 2000 : false;
+      // Poll every 2s when documents are processing or transitioning.
+      // WHY 30s fallback: After a server restart, orphan recovery may
+      // temporarily mark documents as "failed" before the worker resumes
+      // and sets them back to "processing". Without fallback polling the
+      // frontend never picks up the status change and shows stale data.
+      return hasProcessingDocs || hasTransitioningDocs ? 2000 : 30000;
     },
   });
 

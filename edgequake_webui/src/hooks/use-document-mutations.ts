@@ -85,7 +85,12 @@ export interface UseDocumentMutationsReturn {
    * Uses the correct /tasks/{track_id}/retry endpoint.
    * WHY: PDF documents stuck in conversion must use this path, not reprocessDocument.
    */
-  retryTaskMutation: UseMutationResult<import("@/types").TaskResponse, Error, string, unknown>;
+  retryTaskMutation: UseMutationResult<
+    import("@/types").TaskResponse,
+    Error,
+    string,
+    unknown
+  >;
 
   /**
    * Convenience flag: true if any mutation is currently pending.
@@ -152,6 +157,10 @@ export function useDocumentMutations(
           },
         },
       });
+      // WHY: After a 409 Conflict (e.g., document transitioned from "failed"
+      // to "processing" after a server restart recovery), the stale status in
+      // the cache must be refreshed so the UI reflects the actual backend state.
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
   });
 

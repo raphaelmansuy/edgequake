@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS documents (
     
     -- Constraints
     CONSTRAINT documents_valid_status CHECK (
-        status IN ('pending', 'processing', 'indexed', 'failed')
+        status IN ('pending', 'processing', 'chunking', 'extracting', 'embedding', 'indexing', 'completed', 'indexed', 'failed', 'cancelled')
     )
 );
 
@@ -223,7 +223,7 @@ CREATE TABLE IF NOT EXISTS tasks (
         status IN ('pending', 'processing', 'indexed', 'failed', 'cancelled')
     ),
     CONSTRAINT tasks_valid_type CHECK (
-        task_type IN ('upload', 'insert', 'scan', 'reindex')
+        task_type IN ('upload', 'insert', 'scan', 'reindex', 'pdf_processing')
     )
 );
 

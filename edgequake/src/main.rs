@@ -229,11 +229,20 @@ async fn recover_orphaned_documents(
 
     // Stages where no meaningful work has been done yet — source content
     // may have been lost on restart. These need user re-upload.
-    let needs_reupload_stages = ["uploading", "converting"];
+    //
+    // WHY only "uploading": During "uploading" the HTTP multipart receive is
+    // in progress and the PDF binary may not be fully stored in PostgreSQL.
+    // "converting" was previously here but is WRONG — by the time the worker
+    // reaches "converting", the PDF binary is fully stored in PostgreSQL and
+    // pipeline checkpoints can resume conversion. Marking it "failed" while
+    // the recovered task resumes causes a state desync where the UI shows
+    // "Failed" but the backend actively processes the document.
+    let needs_reupload_stages = ["uploading"];
 
     // Stages where pipeline checkpoint or at least the text is in KV storage,
     // so automatic retry is possible.
     let auto_retryable_statuses = [
+        "converting",
         "preprocessing",
         "chunking",
         "extracting",
