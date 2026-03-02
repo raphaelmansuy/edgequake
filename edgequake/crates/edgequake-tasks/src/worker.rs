@@ -106,6 +106,20 @@ pub struct WorkerPoolConfig {
     ///
     /// Set to 0 to disable per-tenant limiting (all workers available to any tenant).
     pub max_tasks_per_tenant: usize,
+
+    /// Maximum time (seconds) a single task can process before being timed out.
+    ///
+    /// WHY: Without a timeout, processor.process() can hang forever (e.g., stuck
+    /// LLM call, unresponsive PDF conversion) while the heartbeat mechanism keeps
+    /// the task looking "alive" in the database. This creates phantom "Processing"
+    /// banners that never resolve — the orphan recovery can't catch them because
+    /// the heartbeat keeps updating `updated_at`.
+    ///
+    /// Default: 7200s (2 hours) — generous enough for very large PDF processing
+    /// (1000+ page documents with vision LLM extraction at ~12s/page ≈ 3.3h) while
+    /// still catching truly stuck tasks within a reasonable window.
+    /// Override via `TASK_PROCESSING_TIMEOUT_SECS` environment variable.
+    pub processing_timeout_secs: u64,
 }
 
 impl Default for WorkerPoolConfig {
@@ -125,6 +139,11 @@ impl Default for WorkerPoolConfig {
             // use most of the pool while still guaranteeing at least 25% of
             // workers remain available for other tenants.
             max_tasks_per_tenant: (num_workers * 3 / 4).max(1),
+            // WHY 2 hours: Large PDFs (1000+ pages) with vision LLM extraction
+            // can take 3+ hours. 2 hours catches most real-world cases while
+            // still preventing infinite hangs. Override via
+            // TASK_PROCESSING_TIMEOUT_SECS env var.
+            processing_timeout_secs: 7200,
         }
     }
 }
@@ -271,9 +290,8 @@ impl WorkerPool {
                                     // touches the task's updated_at timestamp. This prevents
                                     // the orphan-recovery logic from marking active tasks as
                                     // orphaned during long-running LLM extraction (>5 min).
-                                    // WHY: Large documents can take 10+ minutes for entity
-                                    // extraction. Without heartbeat, the task would be falsely
-                                    // detected as orphaned on the next server restart.
+                                    // The heartbeat is ONLY useful for periodic runtime orphan
+                                    // checks; startup recovery now ignores it (recovers all).
                                     let heartbeat_track_id = task.track_id.clone();
                                     let heartbeat_storage = Arc::clone(&storage);
                                     let heartbeat_handle = tokio::spawn(async move {
@@ -295,15 +313,29 @@ impl WorkerPool {
                                         }
                                     });
 
-                                    // Process task
-                                    match processor.process(&mut task).await {
-                                        Ok(result) => {
-                                            heartbeat_handle.abort(); // Stop heartbeat on success
+                                    // Process task with timeout.
+                                    // WHY: Without a timeout, processor.process() can hang
+                                    // forever (stuck LLM call, unresponsive PDF conversion)
+                                    // while the heartbeat keeps updating updated_at. The orphan
+                                    // recovery can never catch these "zombie" tasks. The timeout
+                                    // ensures every task eventually completes or fails.
+                                    let timeout_duration = tokio::time::Duration::from_secs(
+                                        config.processing_timeout_secs,
+                                    );
+                                    let process_result = tokio::time::timeout(
+                                        timeout_duration,
+                                        processor.process(&mut task),
+                                    )
+                                    .await;
+
+                                    match process_result {
+                                        Ok(Ok(result)) => {
+                                            heartbeat_handle.abort();
                                             task.mark_success(result);
                                             info!("Worker {} completed task: {} (tenant: {})", worker_id, task.track_id, task.tenant_id);
                                         }
-                                        Err(e) => {
-                                            heartbeat_handle.abort(); // Stop heartbeat on failure
+                                        Ok(Err(e)) => {
+                                            heartbeat_handle.abort();
                                             let error_msg = format!("{}", e);
                                             task.mark_failed(error_msg.clone());
 
@@ -388,6 +420,31 @@ impl WorkerPool {
                                                 );
                                                 processor.on_permanent_failure(&task, &reason).await;
                                             }
+                                        }
+                                        Err(_elapsed) => {
+                                            // TIMEOUT: Task processing exceeded the configured
+                                            // time limit. This catches stuck LLM calls, hung
+                                            // PDF conversions, and other infinite-wait scenarios.
+                                            heartbeat_handle.abort();
+                                            let timeout_msg = format!(
+                                                "Task processing timed out after {} seconds",
+                                                config.processing_timeout_secs
+                                            );
+                                            task.mark_failed(timeout_msg.clone());
+
+                                            error!(
+                                                worker_id = worker_id,
+                                                task_id = %task.track_id,
+                                                tenant_id = %task.tenant_id,
+                                                timeout_secs = config.processing_timeout_secs,
+                                                "Task timed out — marking as permanently failed"
+                                            );
+
+                                            // Timeouts are treated as permanent failures (no retry).
+                                            // WHY: If a task timed out once, it's very likely to
+                                            // time out again. Retrying would just waste worker time
+                                            // and keep the "Processing" banner showing indefinitely.
+                                            processor.on_permanent_failure(&task, &timeout_msg).await;
                                         }
                                     }
 
@@ -500,6 +557,7 @@ mod tests {
             max_retry_delay_ms: 5000,
             backoff_multiplier: 2.0,
             max_tasks_per_tenant: 0, // disabled for basic test
+            processing_timeout_secs: 300, // 5 min for tests
         };
 
         let mut pool = WorkerPool::new(config, queue.clone(), storage.clone(), processor);
@@ -544,6 +602,7 @@ mod tests {
             max_retry_delay_ms: 5000,
             backoff_multiplier: 2.0,
             max_tasks_per_tenant: 0,
+            processing_timeout_secs: 300,
         };
 
         let mut pool = WorkerPool::new(config, queue, storage, processor);

@@ -39,6 +39,21 @@ fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, p
     println!();
 }
 
+/// Format a chrono Duration into a human-readable string (e.g. "2h 15m", "47s").
+fn humanize_duration(d: Duration) -> String {
+    let total_secs = d.num_seconds().unsigned_abs();
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+    if hours > 0 {
+        format!("{}h {}m", hours, minutes)
+    } else if minutes > 0 {
+        format!("{}m {}s", minutes, seconds)
+    } else {
+        format!("{}s", seconds)
+    }
+}
+
 /// Recover orphaned tasks that were stuck in "processing" state when backend restarted.
 ///
 /// ## WHY This Fix Is Critical
@@ -48,21 +63,30 @@ fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, p
 /// which tasks they were processing, these tasks become orphaned:
 /// - They never complete
 /// - Workers don't pick them up (status != "pending")
-/// - UI shows "Converting PDF: 100%" forever
+/// - UI shows "Processing N document(s)" banner but no documents are actually processing
 /// - Users see documents stuck, can't retry without manual DB intervention
 ///
 /// ## Recovery Strategy
 ///
-/// Tasks stuck in "processing" for >5 minutes are assumed orphaned:
+/// **ALL** tasks with status "processing" are unconditionally recovered on startup.
+///
+/// WHY no age threshold: At startup, ZERO workers are running — every task in
+/// "processing" state is orphaned by definition. The previous 10-minute age threshold
+/// based on `updated_at` was defeated by the worker heartbeat mechanism: workers
+/// update `updated_at` every 60 seconds, so the threshold could never catch tasks
+/// where the heartbeat was still running until the moment of shutdown. This caused
+/// a phantom "Processing N document(s)" banner with no actual processing happening.
+///
 /// - Reset to "pending" status so they will be requeued by `requeue_pending_tasks()`
 /// - Pipeline checkpoint system ensures expensive LLM extraction is not repeated
 /// - Workers resume from checkpoint, skipping already-completed stages
 ///
-/// ## False Positive Risk
+/// ## Safety
 ///
-/// Could reset legitimately slow tasks if they take >5 minutes. This is safe because:
+/// Unconditional recovery is safe because:
 /// - Processing is idempotent (upserts to KV/graph/vector storage)
 /// - Checkpoint system prevents re-running expensive LLM extraction
+/// - No workers are running at startup → zero risk of resetting active work
 /// - Worst case: a small amount of duplicate storage writes
 ///
 /// @implements PRODUCTION_BUG_FIX: Orphaned task recovery on startup
@@ -84,64 +108,54 @@ async fn recover_orphaned_tasks(
 
     let task_list = task_storage.list_tasks(filter, pagination).await?;
     let now = Utc::now();
-    // WHY 10 minutes: Workers send heartbeat every 60s updating `updated_at`.
-    // Tasks that haven't been updated in 10 minutes (10x heartbeat interval)
-    // are truly orphaned — no active worker is processing them.
-    let orphan_threshold = Duration::minutes(10);
 
     let mut recovered_count = 0;
-    let mut skipped_count = 0;
 
+    // WHY unconditional recovery: At startup there are ZERO active workers.
+    // Every task with status "processing" is orphaned — there is no worker
+    // processing it. The heartbeat mechanism updates `updated_at` every 60s,
+    // which defeats any age-based threshold. Recovering unconditionally is
+    // both correct and safe (idempotent processing + checkpoint system).
     for mut task in task_list.tasks {
         let age = now.signed_duration_since(task.updated_at);
 
-        if age > orphan_threshold {
-            // Task is orphaned — reset to pending for automatic retry.
-            // WHY pending (not failed): The checkpoint system will resume from
-            // where the task left off. Marking as "failed" forces manual retry
-            // which is poor UX. Resetting to "pending" enables auto-recovery.
-            task.status = TaskStatus::Pending;
-            task.error_message = Some(format!(
-                "Auto-recovered after backend restart (was processing for {} minutes). \
-                 Will resume from checkpoint if available.",
-                age.num_minutes()
-            ));
-            task.updated_at = now;
+        // Reset to pending for automatic retry via checkpoint system.
+        // WHY pending (not failed): The checkpoint system will resume from
+        // where the task left off. Marking as "failed" forces manual retry
+        // which is poor UX. Resetting to "pending" enables auto-recovery.
+        task.status = TaskStatus::Pending;
+        task.error_message = Some(format!(
+            "Auto-recovered after backend restart (was processing for {} minutes). \
+             Will resume from checkpoint if available.",
+            age.num_minutes()
+        ));
+        task.updated_at = now;
 
-            match task_storage.update_task(&task).await {
-                Ok(_) => {
-                    info!(
-                        "✅ Auto-recovered orphaned task: {} → pending (age: {} min, will resume from checkpoint)",
-                        task.track_id,
-                        age.num_minutes()
-                    );
-                    recovered_count += 1;
-                }
-                Err(e) => {
-                    warn!(
-                        "⚠️ Failed to recover orphaned task {}: {}",
-                        task.track_id, e
-                    );
-                }
+        match task_storage.update_task(&task).await {
+            Ok(_) => {
+                info!(
+                    "✅ Recovered orphaned task: {} (age: {})",
+                    task.track_id,
+                    humanize_duration(age)
+                );
+                recovered_count += 1;
             }
-        } else {
-            // Task is recent - might still be actively processing
-            skipped_count += 1;
+            Err(e) => {
+                warn!(
+                    "⚠️ Failed to recover orphaned task {}: {}",
+                    task.track_id, e
+                );
+            }
         }
     }
 
     if recovered_count > 0 {
         info!(
-            "🔧 Orphaned task recovery complete: {} auto-recovered to pending, {} skipped (too recent)",
-            recovered_count, skipped_count
+            "🔧 Orphaned task recovery complete: {} recovered",
+            recovered_count
         );
-    } else if recovered_count == 0 && skipped_count == 0 {
-        info!("✅ No orphaned tasks found - clean startup");
     } else {
-        info!(
-            "✅ All {} processing tasks are recent (<5 min) - likely still active",
-            skipped_count
-        );
+        info!("✅ No orphaned tasks found - clean startup");
     }
 
     Ok(())
@@ -157,6 +171,13 @@ async fn recover_orphaned_tasks(
 /// - The upload/processing context is lost on restart
 /// - The cancel endpoint may fail (no matching task, wrong status)
 /// - UI shows documents permanently stuck with animated spinners
+///
+/// ## WHY No Age Threshold
+///
+/// At startup, ZERO workers are running. Any document in a non-terminal state is
+/// orphaned by definition. The previous 10-minute age threshold was defeated by the
+/// worker heartbeat mechanism: workers update metadata periodically, keeping documents
+/// looking "recent" even after the previous server instance dies.
 ///
 /// ## Recovery Strategy
 ///
@@ -191,10 +212,6 @@ async fn recover_orphaned_documents(
 
     let metadata_values = kv_storage.get_by_ids(&metadata_keys).await?;
     let now = Utc::now();
-    // WHY 10 minutes: Aligned with task orphan threshold. Workers send heartbeats
-    // every 60s which also update document status. Documents not updated in 10
-    // minutes are truly orphaned — no worker is processing them.
-    let orphan_threshold = Duration::minutes(10);
 
     // Stages where no meaningful work has been done yet — source content
     // may have been lost on restart. These need user re-upload.
@@ -241,22 +258,9 @@ async fn recover_orphaned_documents(
                 continue;
             }
 
-            // Check age - only recover if old enough to be considered orphaned
-            let updated_at = obj
-                .get("updated_at")
-                .and_then(|v| v.as_str())
-                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-                .map(|dt| dt.with_timezone(&Utc));
-
-            let is_old_enough = match updated_at {
-                Some(dt) => now.signed_duration_since(dt) > orphan_threshold,
-                // No updated_at → assume orphaned (conservative)
-                None => true,
-            };
-
-            if !is_old_enough {
-                continue;
-            }
+            // WHY no age threshold: At startup, ZERO workers are running.
+            // Any document in a non-terminal state is orphaned by definition.
+            // The heartbeat mechanism defeated the previous age-based threshold.
 
             // Determine recovery strategy based on the stuck stage
             let stuck_stage = if !current_stage.is_empty() {
@@ -440,6 +444,84 @@ async fn requeue_pending_tasks(
     Ok(())
 }
 
+/// Periodic runtime orphan check for tasks whose heartbeat stopped.
+///
+/// WHY: Complements startup recovery (which catches all processing tasks) and the
+/// processing timeout (which catches hung tasks with active heartbeats). This catches
+/// a specific edge case: tasks where the heartbeat tokio task died (e.g., worker panic,
+/// out-of-memory) but the server is still running. Without this, the task stays in
+/// "processing" forever until the next server restart.
+///
+/// Uses a 10-minute `updated_at` threshold which is safe because:
+/// - Legitimate tasks have heartbeats updating `updated_at` every 60 seconds
+/// - 10 minutes = 10x the heartbeat interval → very high confidence the heartbeat died
+///
+/// Recovered tasks are set to "failed" (not "pending") because:
+/// - If the heartbeat died, something went wrong with the worker state
+/// - Automatic retry could hit the same issue
+/// - "failed" gives the user visibility and the option to manually retry
+async fn periodic_orphan_check(
+    task_storage: Arc<dyn TaskStorage>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let filter = TaskFilter {
+        status: Some(TaskStatus::Processing),
+        ..Default::default()
+    };
+
+    let pagination = Pagination {
+        page: 1,
+        page_size: 1000,
+        ..Default::default()
+    };
+
+    let task_list = task_storage.list_tasks(filter, pagination).await?;
+    let now = Utc::now();
+    let orphan_threshold = Duration::minutes(10);
+
+    let mut recovered_count = 0;
+
+    for mut task in task_list.tasks {
+        let age = now.signed_duration_since(task.updated_at);
+
+        if age > orphan_threshold {
+            // Heartbeat died — mark as failed so the user can see and retry
+            task.status = TaskStatus::Failed;
+            task.error_message = Some(format!(
+                "Task heartbeat lost (no update for {} minutes). \
+                 The worker may have crashed. Please retry.",
+                age.num_minutes()
+            ));
+            task.updated_at = now;
+
+            match task_storage.update_task(&task).await {
+                Ok(_) => {
+                    warn!(
+                        "⚠️ Periodic check: recovered dead-heartbeat task {} (age: {})",
+                        task.track_id,
+                        humanize_duration(age)
+                    );
+                    recovered_count += 1;
+                }
+                Err(e) => {
+                    warn!(
+                        "⚠️ Failed to recover dead-heartbeat task {}: {}",
+                        task.track_id, e
+                    );
+                }
+            }
+        }
+    }
+
+    if recovered_count > 0 {
+        info!(
+            "🔧 Periodic orphan check: {} task(s) recovered",
+            recovered_count
+        );
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
@@ -541,6 +623,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or_else(|| (num_workers * 3 / 4).max(1)),
+        // WHY 2 hours (7200s): Large PDFs with vision LLM extraction can take
+        // 3+ hours (1000+ pages × ~12s/page). 2 hours covers the vast majority
+        // of real-world documents while still catching truly stuck tasks.
+        // Without this timeout, hung processor.process() calls keep heartbeating
+        // forever, creating phantom "Processing N document(s)" banners.
+        processing_timeout_secs: std::env::var("TASK_PROCESSING_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(7200),
     };
 
     // Recover orphaned tasks from previous backend session (PRODUCTION_BUG_FIX)
@@ -588,10 +679,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     info!(
-        "Starting worker pool with {} workers",
-        worker_config.num_workers
+        "Starting worker pool with {} workers (task timeout: {}s)",
+        worker_config.num_workers,
+        worker_config.processing_timeout_secs
     );
     worker_pool.start();
+
+    // PERIODIC ORPHAN RECOVERY: Background task that catches tasks whose heartbeat
+    // stopped mid-runtime (e.g., worker panic, tokio task cancellation). Uses the
+    // 10-minute updated_at threshold — safe because legitimate tasks have heartbeats
+    // updating every 60s. This complements startup recovery (which is unconditional)
+    // and the processing timeout (which catches hung tasks with active heartbeats).
+    let periodic_task_storage =
+        Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>;
+    tokio::spawn(async move {
+        // WHY 5 minutes: Frequent enough to catch dead-heartbeat tasks within
+        // ~15 minutes (10 min threshold + up to 5 min wait for the next check).
+        let mut interval = tokio::time::interval(
+            tokio::time::Duration::from_secs(300),
+        );
+        interval.tick().await; // Skip first immediate tick (startup recovery already ran)
+        loop {
+            interval.tick().await;
+            if let Err(e) =
+                periodic_orphan_check(Arc::clone(&periodic_task_storage)).await
+            {
+                warn!("Periodic orphan check failed (non-fatal): {}", e);
+            }
+        }
+    });
 
     // Configure server
     let config = ServerConfig {
