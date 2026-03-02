@@ -30,6 +30,7 @@ use edgequake_tasks::{Pagination, SortField, SortOrder, TaskFilter, TaskStatus, 
 use serde_json::json;
 use tracing;
 
+use crate::middleware::TenantContext;
 use crate::{error::ApiError, state::AppState};
 
 // Re-export DTOs for backward compatibility
@@ -49,6 +50,7 @@ pub use crate::handlers::tasks_types::{
 )]
 pub async fn get_task(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Path(track_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let task = state
@@ -58,7 +60,16 @@ pub async fn get_task(
         .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?;
 
     match task {
-        Some(task) => Ok(Json(TaskResponse::from(task))),
+        Some(task) => {
+            // SECURITY: Verify task belongs to the requester's workspace
+            // WHY: Without this check, knowing a track_id leaks task data across workspaces
+            if let Some(ctx_workspace_id) = tenant_ctx.workspace_id_uuid() {
+                if task.workspace_id != ctx_workspace_id {
+                    return Err(ApiError::NotFound(format!("Task not found: {}", track_id)));
+                }
+            }
+            Ok(Json(TaskResponse::from(task)))
+        }
         None => Err(ApiError::NotFound(format!("Task not found: {}", track_id))),
     }
 }
@@ -82,17 +93,56 @@ pub async fn get_task(
 /// @implements FEAT0406
 pub async fn list_tasks(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Query(params): Query<ListTasksQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    // SECURITY: Merge TenantContext headers with query params for workspace isolation
+    // Priority: query params (explicit) > TenantContext headers (automatic) > None
+    // WHY: The frontend API client always sends X-Tenant-ID/X-Workspace-ID headers.
+    // Query params allow explicit override for admin/debugging scenarios.
+    // This matches the pattern used by get_queue_metrics.
+    let filter_tenant_id = params
+        .tenant_id
+        .as_deref()
+        .and_then(|s| uuid::Uuid::parse_str(s).ok())
+        .or_else(|| tenant_ctx.tenant_id_uuid());
+
+    let filter_workspace_id = params
+        .workspace_id
+        .as_deref()
+        .and_then(|s| uuid::Uuid::parse_str(s).ok())
+        .or_else(|| tenant_ctx.workspace_id_uuid());
+
+    // SECURITY: Enforce strict tenant context requirement — NO EXCEPTIONS
+    // WHY: Same enforcement as list_documents (commit d11edba8) — without filtering,
+    // pipeline status leaks across workspaces ("Processing 2 documents" from other workspaces).
+    if filter_tenant_id.is_none() || filter_workspace_id.is_none() {
+        tracing::warn!(
+            tenant_id = ?filter_tenant_id,
+            workspace_id = ?filter_workspace_id,
+            "list_tasks: Missing tenant context — returning empty for security"
+        );
+        return Ok(Json(TaskListResponse {
+            tasks: vec![],
+            pagination: PaginationInfo {
+                total: 0,
+                page: 1,
+                page_size: params.page_size.unwrap_or(20).min(100),
+                total_pages: 0,
+            },
+            statistics: StatisticsInfo {
+                pending: 0,
+                processing: 0,
+                indexed: 0,
+                failed: 0,
+                cancelled: 0,
+            },
+        }));
+    }
+
     let filter = TaskFilter {
-        tenant_id: params
-            .tenant_id
-            .as_deref()
-            .and_then(|s| uuid::Uuid::parse_str(s).ok()),
-        workspace_id: params
-            .workspace_id
-            .as_deref()
-            .and_then(|s| uuid::Uuid::parse_str(s).ok()),
+        tenant_id: filter_tenant_id,
+        workspace_id: filter_workspace_id,
         status: params
             .status
             .as_deref()
@@ -168,6 +218,7 @@ pub async fn list_tasks(
 /// @implements SPEC-002: Document status sync on task cancel
 pub async fn cancel_task(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Path(track_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     // SPEC-002: First, always try to update document status for this track_id
@@ -231,6 +282,13 @@ pub async fn cancel_task(
 
     match task {
         Some(mut task) => {
+            // SECURITY: Verify task belongs to the requester's workspace
+            if let Some(ctx_workspace_id) = tenant_ctx.workspace_id_uuid() {
+                if task.workspace_id != ctx_workspace_id {
+                    return Err(ApiError::NotFound(format!("Task not found: {}", track_id)));
+                }
+            }
+
             // Check if task can be cancelled
             if task.status == TaskStatus::Indexed || task.status == TaskStatus::Cancelled {
                 return Err(ApiError::Conflict(format!(
@@ -300,6 +358,7 @@ pub async fn cancel_task(
 )]
 pub async fn retry_task(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Path(track_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let mut task = state
@@ -308,6 +367,13 @@ pub async fn retry_task(
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?
         .ok_or_else(|| ApiError::NotFound(format!("Task not found: {}", track_id)))?;
+
+    // SECURITY: Verify task belongs to the requester's workspace
+    if let Some(ctx_workspace_id) = tenant_ctx.workspace_id_uuid() {
+        if task.workspace_id != ctx_workspace_id {
+            return Err(ApiError::NotFound(format!("Task not found: {}", track_id)));
+        }
+    }
 
     // Check if task can be retried
     if !task.can_retry() {
