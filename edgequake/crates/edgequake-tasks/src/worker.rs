@@ -40,8 +40,7 @@
 //! saturated. Override via the `WORKER_THREADS` environment variable.
 
 use crate::{
-    cancellation::CancellationRegistry,
-    error::TaskResult, queue::TaskQueue, storage::TaskStorage,
+    cancellation::CancellationRegistry, error::TaskResult, queue::TaskQueue, storage::TaskStorage,
     tenant_limiter::TenantConcurrencyLimiter, types::Task,
 };
 use std::sync::Arc;
@@ -579,7 +578,11 @@ pub struct MockTaskProcessor;
 #[cfg(test)]
 #[async_trait::async_trait]
 impl TaskProcessor for MockTaskProcessor {
-    async fn process(&self, task: &mut Task, _cancel_token: CancellationToken) -> TaskResult<serde_json::Value> {
+    async fn process(
+        &self,
+        task: &mut Task,
+        _cancel_token: CancellationToken,
+    ) -> TaskResult<serde_json::Value> {
         // Simulate some work
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
@@ -785,7 +788,11 @@ mod tests {
 
         #[async_trait::async_trait]
         impl TaskProcessor for SlowProcessor {
-            async fn process(&self, _task: &mut Task, _cancel_token: CancellationToken) -> TaskResult<serde_json::Value> {
+            async fn process(
+                &self,
+                _task: &mut Task,
+                _cancel_token: CancellationToken,
+            ) -> TaskResult<serde_json::Value> {
                 // Sleep longer than the timeout
                 tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 Ok(serde_json::json!({"status": "should_not_reach"}))
