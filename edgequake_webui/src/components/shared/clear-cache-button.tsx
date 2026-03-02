@@ -168,22 +168,26 @@ export function ClearCacheButton({
           <AlertDialogTitle>
             {t('settings.cache.clearTitle', 'Clear Cache?')}
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            {t(
-              'settings.cache.clearDescription',
-              'This will clear all cached data in the application, including:'
-            )}
-            <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-              <li>{t('settings.cache.queryCache', 'Query results cache')}</li>
-              <li>{t('settings.cache.graphCache', 'Graph visualization cache')}</li>
-              <li>{t('settings.cache.historyCache', 'Query history cache')}</li>
-            </ul>
-            <p className="mt-2">
-              {t(
-                'settings.cache.reloadNote',
-                'Data will be refreshed from the server.'
-              )}
-            </p>
+          <AlertDialogDescription asChild>
+            <div className="text-muted-foreground text-sm">
+              <p>
+                {t(
+                  'settings.cache.clearDescription',
+                  'This will clear all cached data in the application, including:'
+                )}
+              </p>
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>{t('settings.cache.queryCache', 'Query results cache')}</li>
+                <li>{t('settings.cache.graphCache', 'Graph visualization cache')}</li>
+                <li>{t('settings.cache.historyCache', 'Query history cache')}</li>
+              </ul>
+              <p className="mt-2">
+                {t(
+                  'settings.cache.reloadNote',
+                  'Data will be refreshed from the server.'
+                )}
+              </p>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

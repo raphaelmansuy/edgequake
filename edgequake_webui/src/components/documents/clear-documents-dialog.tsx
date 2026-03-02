@@ -143,28 +143,30 @@ export function ClearDocumentsDialog({
             <AlertTriangle className="h-5 w-5" />
             {t('documents.clearAll.title', 'Delete All Documents')}
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-3">
-            <p>
-              {t('documents.clearAll.warning', 'This action cannot be undone. This will permanently delete:')}
-            </p>
-            <ul className="list-disc list-inside space-y-1 text-sm">
-              <li>{t('documents.clearAll.item1', '{{count}} document(s)', { count: documentCount })}</li>
-              <li>{t('documents.clearAll.item2', 'All extracted entities and relationships')}</li>
-              <li>{t('documents.clearAll.item3', 'All document chunks and embeddings')}</li>
-            </ul>
-            <div className="pt-2">
-              <Label htmlFor="confirmation" className="text-sm font-medium">
-                {t('documents.clearAll.typeToConfirm', 'Type {{text}} to confirm:', { text: CONFIRMATION_TEXT })}
-              </Label>
-              <Input
-                id="confirmation"
-                value={confirmation}
-                onChange={(e) => setConfirmation(e.target.value)}
-                placeholder={CONFIRMATION_TEXT}
-                className="mt-2"
-                disabled={clearMutation.isPending}
-                autoComplete="off"
-              />
+          <AlertDialogDescription asChild>
+            <div className="text-muted-foreground text-sm space-y-3">
+              <p>
+                {t('documents.clearAll.warning', 'This action cannot be undone. This will permanently delete:')}
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>{t('documents.clearAll.item1', '{{count}} document(s)', { count: documentCount })}</li>
+                <li>{t('documents.clearAll.item2', 'All extracted entities and relationships')}</li>
+                <li>{t('documents.clearAll.item3', 'All document chunks and embeddings')}</li>
+              </ul>
+              <div className="pt-2">
+                <Label htmlFor="confirmation" className="text-sm font-medium">
+                  {t('documents.clearAll.typeToConfirm', 'Type {{text}} to confirm:', { text: CONFIRMATION_TEXT })}
+                </Label>
+                <Input
+                  id="confirmation"
+                  value={confirmation}
+                  onChange={(e) => setConfirmation(e.target.value)}
+                  placeholder={CONFIRMATION_TEXT}
+                  className="mt-2"
+                  disabled={clearMutation.isPending}
+                  autoComplete="off"
+                />
+              </div>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>

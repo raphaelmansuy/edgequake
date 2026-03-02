@@ -40,14 +40,21 @@ export function ProcessingStatusSummary({
 }: ProcessingStatusSummaryProps) {
   const { t } = useTranslation();
 
-  // WHY: Only show when pipeline is actively processing or has queued work
-  const shouldShow = pipelineStatus.running_tasks > 0 || pipelineStatus.queued_tasks > 0;
-  if (!shouldShow) return null;
+  // WHY: Count documents actually in processing state (not task count)
+  // Tasks can be "processing" even when their documents are failed/completed
+  // (e.g., after server restart: orphan recovery fails docs but tasks keep running)
+  const processingDocCount = documents?.filter(
+    (d) => d.status && isProcessingStatus(d.status)
+  ).length ?? 0;
 
-  // Filter documents that are currently processing
+  // Filter documents with stage details (for progress detail display)
   const processingDocs = documents?.filter(
     (d) => d.current_stage && d.status && isProcessingStatus(d.status)
   ) ?? [];
+
+  // Show banner when documents are actively processing or queued tasks await processing
+  const shouldShow = processingDocCount > 0 || pipelineStatus.queued_tasks > 0;
+  if (!shouldShow) return null;
 
   return (
     <div
@@ -61,9 +68,9 @@ export function ProcessingStatusSummary({
         <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
-            {pipelineStatus.running_tasks > 0
+            {processingDocCount > 0
               ? t('pipeline.processing', 'Processing {{count}} document(s)', {
-                  count: pipelineStatus.running_tasks,
+                  count: processingDocCount,
                 })
               : t('pipeline.queued', '{{count}} document(s) queued', {
                   count: pipelineStatus.queued_tasks,

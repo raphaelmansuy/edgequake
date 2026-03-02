@@ -40,6 +40,7 @@ import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
 import { useFileUpload } from '@/hooks/use-file-upload';
 import { useStuckDetection } from '@/hooks/use-stuck-detection';
+import { isProcessingStatus } from './status-badge';
 import { DocumentErrorAlert } from './document-error-alert';
 import { DocumentHeader } from './document-header';
 import { DocumentPreviewRightPanel } from './document-preview-right-panel';
@@ -191,9 +192,15 @@ export function DocumentManager() {
   });
 
   // OODA-22: Dynamic page title with document count
+  // WHY: Use document-level processing count (not task count) so the title
+  // reflects what users see in the table. Tasks can be "processing" while
+  // their documents are already "failed" or "completed" (e.g., after restart).
+  const processingDocCount = documents?.filter(
+    (d: Document) => d.status && isProcessingStatus(d.status)
+  ).length ?? 0;
   useDocumentTitle({
     totalCount,
-    processingCount: pipelineStatus?.running_tasks || 0,
+    processingCount: processingDocCount,
   });
 
   if (isError) {
