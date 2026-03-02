@@ -65,7 +65,7 @@ All notable changes to this project will be documented in this file.
 
 #### Document Lifecycle & Cascade Delete (closes #73, #74)
 
-- **FK constraint on PDF upload** (`pdf_processing.rs`): `ensure_document_record` now inserts into the `documents` table *before* `pdf_documents`, preventing the foreign key violation that caused uploads to silently fail.
+- **FK constraint on PDF upload** (`pdf_processing.rs`): `ensure_document_record` now inserts into the `documents` table _before_ `pdf_documents`, preventing the foreign key violation that caused uploads to silently fail.
 - **Cascade delete** (`single.rs`): Deleting a document now also removes the associated `pdf_documents` row and lets `ON DELETE CASCADE` clean up chunks and graph edges.
 - **Status CHECK constraint** (`pdf_processing.rs`): Changed status value from `"completed"` (invalid) to `"indexed"` to satisfy the `documents_valid_status` CHECK constraint in migration 001/003.
 - **UTF-8 boundary panic** (`pdf_processing.rs`): Markdown preview truncation (`&markdown[..65_536]`) now uses `char_indices()` to find a safe byte boundary, preventing panics on multi-byte characters.

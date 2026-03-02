@@ -31,11 +31,7 @@ async fn resolve_kv_key_prefix(
     // Fast path: direct key lookup — key prefix == document_id
     let direct_metadata_key = format!("{}-metadata", document_id);
     if keys.contains(&direct_metadata_key) {
-        return (
-            document_id.to_string(),
-            direct_metadata_key,
-            true,
-        );
+        return (document_id.to_string(), direct_metadata_key, true);
     }
 
     // Slow path: scan ALL metadata keys and check if any has a JSON `id` field
@@ -45,10 +41,7 @@ async fn resolve_kv_key_prefix(
             if let Some(json_id) = val.get("id").and_then(|v| v.as_str()) {
                 if json_id == document_id {
                     // Found it! Extract the real key prefix.
-                    let prefix = key
-                        .strip_suffix("-metadata")
-                        .unwrap_or(key)
-                        .to_string();
+                    let prefix = key.strip_suffix("-metadata").unwrap_or(key).to_string();
                     return (prefix, key.clone(), true);
                 }
             }
@@ -404,8 +397,7 @@ pub async fn delete_document(
     let all_prefix_keys: Vec<String> = keys
         .iter()
         .filter(|k| {
-            k.starts_with(&format!("{}-", actual_key_prefix))
-                && !keys_to_delete.contains(k)
+            k.starts_with(&format!("{}-", actual_key_prefix)) && !keys_to_delete.contains(k)
         })
         .cloned()
         .collect();
@@ -422,10 +414,7 @@ pub async fn delete_document(
     if key_id_mismatch {
         let alt_prefix_keys: Vec<String> = keys
             .iter()
-            .filter(|k| {
-                k.starts_with(&format!("{}-", document_id))
-                    && !keys_to_delete.contains(k)
-            })
+            .filter(|k| k.starts_with(&format!("{}-", document_id)) && !keys_to_delete.contains(k))
             .cloned()
             .collect();
         if !alt_prefix_keys.is_empty() {
@@ -575,8 +564,7 @@ mod tests {
             .unwrap();
 
         let keys = state.kv_storage.keys().await.unwrap();
-        let (prefix, key, has_metadata) =
-            resolve_kv_key_prefix(doc_id, &keys, &state).await;
+        let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &keys, &state).await;
 
         assert_eq!(prefix, doc_id);
         assert_eq!(key, metadata_key);
@@ -602,8 +590,7 @@ mod tests {
             .unwrap();
 
         let keys = state.kv_storage.keys().await.unwrap();
-        let (prefix, key, has_metadata) =
-            resolve_kv_key_prefix(json_id, &keys, &state).await;
+        let (prefix, key, has_metadata) = resolve_kv_key_prefix(json_id, &keys, &state).await;
 
         // Should resolve to the KV key prefix, not the JSON id
         assert_eq!(prefix, kv_prefix);
@@ -618,8 +605,7 @@ mod tests {
         let doc_id = "nonexistent-doc-9999";
 
         let keys = state.kv_storage.keys().await.unwrap();
-        let (prefix, key, has_metadata) =
-            resolve_kv_key_prefix(doc_id, &keys, &state).await;
+        let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &keys, &state).await;
 
         assert_eq!(prefix, doc_id);
         assert_eq!(key, format!("{}-metadata", doc_id));
@@ -656,18 +642,9 @@ mod tests {
                         "error_message": "Orphaned during backend restart"
                     }),
                 ),
-                (
-                    content_key.clone(),
-                    json!({"text": "Some content"}),
-                ),
-                (
-                    chunk_0_key.clone(),
-                    json!({"text": "Chunk 0"}),
-                ),
-                (
-                    chunk_1_key.clone(),
-                    json!({"text": "Chunk 1"}),
-                ),
+                (content_key.clone(), json!({"text": "Some content"})),
+                (chunk_0_key.clone(), json!({"text": "Chunk 0"})),
+                (chunk_1_key.clone(), json!({"text": "Chunk 1"})),
             ])
             .await
             .unwrap();
@@ -752,14 +729,8 @@ mod tests {
                         "workspace_id": "default"
                     }),
                 ),
-                (
-                    lineage_key.clone(),
-                    json!({"chunks": []}),
-                ),
-                (
-                    alt_lineage_key.clone(),
-                    json!({"chunks": []}),
-                ),
+                (lineage_key.clone(), json!({"chunks": []})),
+                (alt_lineage_key.clone(), json!({"chunks": []})),
             ])
             .await
             .unwrap();
@@ -777,7 +748,10 @@ mod tests {
         // ALL keys under BOTH prefixes must be cleaned
         let keys_after = state.kv_storage.keys().await.unwrap();
         assert!(!keys_after.contains(&metadata_key), "metadata");
-        assert!(!keys_after.contains(&lineage_key), "lineage under kv prefix");
+        assert!(
+            !keys_after.contains(&lineage_key),
+            "lineage under kv prefix"
+        );
         assert!(
             !keys_after.contains(&alt_lineage_key),
             "lineage under json id prefix"

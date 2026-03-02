@@ -132,20 +132,17 @@ cargo clippy --all-targets
 EdgeQuake follows a modular architecture:
 
 1. **Document Ingestion**
-
    - Text chunking with overlap
    - Entity extraction via LLM
    - Relationship extraction
    - Embedding generation
 
 2. **Storage Layer**
-
    - Key-value store for documents
    - Vector store for embeddings
    - Graph store for knowledge graph
 
 3. **Query Engine**
-
    - Multi-mode retrieval
    - Context assembly
    - LLM answer generation
