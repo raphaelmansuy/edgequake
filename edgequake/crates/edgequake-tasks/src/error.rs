@@ -73,6 +73,13 @@ pub enum TaskError {
     #[error("Timeout: {0}")]
     Timeout(String),
 
+    /// Task was cancelled via the cancel API.
+    /// WHY: When a user or system requests cancellation, every pipeline
+    /// stage should check the CancellationToken and return this error
+    /// to unwind cleanly, releasing worker slots for other tasks.
+    #[error("Task cancelled: {0}")]
+    Cancelled(String),
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }

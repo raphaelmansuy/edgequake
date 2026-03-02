@@ -1,8 +1,13 @@
 use super::*;
+use tokio_util::sync::CancellationToken;
 
 #[async_trait::async_trait]
 impl TaskProcessor for DocumentTaskProcessor {
-    async fn process(&self, task: &mut Task) -> TaskResult<serde_json::Value> {
+    async fn process(
+        &self,
+        task: &mut Task,
+        cancel_token: CancellationToken,
+    ) -> TaskResult<serde_json::Value> {
         match task.task_type {
             TaskType::Insert => {
                 // Parse TextInsertData from task_data
@@ -14,7 +19,7 @@ impl TaskProcessor for DocumentTaskProcessor {
                         ))
                     })?;
 
-                self.process_text_insert(task, data).await
+                self.process_text_insert(task, data, cancel_token).await
             }
             TaskType::Upload => {
                 // For file uploads, we need to read the file content first
@@ -27,7 +32,7 @@ impl TaskProcessor for DocumentTaskProcessor {
                         ))
                     })?;
 
-                self.process_text_insert(task, data).await
+                self.process_text_insert(task, data, cancel_token).await
             }
             TaskType::Scan => {
                 // Directory scanning not yet implemented
@@ -51,7 +56,7 @@ impl TaskProcessor for DocumentTaskProcessor {
                         ))
                     })?;
 
-                self.process_pdf_processing(task, data).await
+                self.process_pdf_processing(task, data, cancel_token).await
             }
         }
     }

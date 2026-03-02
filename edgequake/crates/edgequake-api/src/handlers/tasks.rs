@@ -308,6 +308,17 @@ pub async fn cancel_task(
 
             task.mark_cancelled();
 
+            // WHY: Signal the in-flight CancellationToken so that every pipeline
+            // stage currently processing this task will observe cancellation at
+            // its next cooperative checkpoint and bail out early.
+            let was_running = state.cancellation_registry.cancel(&track_id).await;
+            if was_running {
+                tracing::info!(
+                    track_id = %track_id,
+                    "Signalled cancellation token for in-flight task"
+                );
+            }
+
             state
                 .task_storage
                 .update_task(&task)

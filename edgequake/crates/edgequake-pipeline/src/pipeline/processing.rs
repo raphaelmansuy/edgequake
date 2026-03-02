@@ -9,6 +9,7 @@
 //! stats aggregation, and lineage building (DRY).
 
 use futures::stream::{self, StreamExt};
+use tokio_util::sync::CancellationToken;
 
 use crate::error::Result;
 
@@ -146,6 +147,23 @@ impl Pipeline {
         content: &str,
         progress_callback: Option<ChunkProgressCallback>,
     ) -> Result<ProcessingResult> {
+        self.process_with_resilience_cancellable(document_id, content, progress_callback, None)
+            .await
+    }
+
+    /// Process a document with resilient chunk-level error handling and
+    /// cooperative cancellation support.
+    ///
+    /// When a `cancel_token` is provided, new chunk extractions are skipped
+    /// once the token is cancelled. Already in-flight LLM calls finish
+    /// naturally  (cooperative, not preemptive).
+    pub async fn process_with_resilience_cancellable(
+        &self,
+        document_id: &str,
+        content: &str,
+        progress_callback: Option<ChunkProgressCallback>,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<ProcessingResult> {
         let start = std::time::Instant::now();
 
         // Step 1: Chunk the document
@@ -157,7 +175,12 @@ impl Pipeline {
         if self.config.enable_entity_extraction || self.config.enable_relationship_extraction {
             if let Some(extractor) = &self.extractor {
                 let resilient_result = self
-                    .resilient_extract_parallel(&chunks, extractor, progress_callback)
+                    .resilient_extract_parallel(
+                        &chunks,
+                        extractor,
+                        progress_callback,
+                        cancel_token.clone(),
+                    )
                     .await;
 
                 tracing::info!(

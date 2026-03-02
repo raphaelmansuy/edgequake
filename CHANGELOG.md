@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+#### Cooperative Pipeline Cancellation
+
+- **`CancellationRegistry`** (`edgequake-tasks/src/cancellation.rs`): New per-task cooperative cancellation using `tokio_util::sync::CancellationToken`. Each running task gets a unique token registered at worker start and deregistered on completion.
+- **`cancel_task` handler** (`handlers/tasks.rs`): `POST /tasks/{track_id}/cancel` now triggers the token, causing the pipeline to exit at the next cancellation gate instead of waiting for the current LLM call to finish.
+- **6 cancellation gates in `text_insert.rs`**: Before chunking, after chunking, before extraction, after extraction, before embedding, and after storage — each calls `check_cancelled()`.
+- **2 cancellation gates in `pdf_processing.rs`**: After PDF-to-markdown conversion and after vision extraction.
+- **Per-chunk + per-retry cancellation** (`extraction.rs`, `processing.rs`): Entity extraction loop and resilience retry loop check the token between iterations.
+- **Shared registry** (`main.rs`): `CancellationRegistry` is shared between `WorkerPool` and `AppState` so the cancel API endpoint and the worker pool use the same token store.
+
+### Fixed
+
+#### Undeletable Documents with KV Key/ID Mismatch
+
+- **`resolve_kv_key_prefix()`** (`delete/single.rs`): New two-phase resolution — fast path checks `{id}-metadata` directly, slow path scans all metadata keys for matching JSON `id` field. Handles historical data where the KV key prefix diverged from the metadata JSON `id`.
+- **Comprehensive key cleanup** (`delete/single.rs`): Delete now collects ALL keys under both the resolved KV prefix and the JSON id prefix (catches lineage, checkpoint, and other auxiliary keys).
+- **Source prefix matching** (`delete/single.rs`): Graph entity/edge source filtering uses both prefixes in mismatch cases to prevent orphaned graph data.
+- **Postgres cascade** (`delete/single.rs`): `delete_document_record` tries both UUIDs (KV prefix and JSON id) when they differ.
+- **6 unit tests** covering fast-path resolution, mismatch resolution, not-found, full cascade with mismatch, lineage key cleanup, and 404 for truly nonexistent documents.
+
+#### Clippy
+
+- **`pipeline_checkpoint.rs`**: Fixed 3 `cloned_ref_to_slice_refs` warnings by using `std::slice::from_ref()` instead of `&[key.clone()]`.
+
 ## [0.5.4] - 2026-02-26
 
 ### Fixed

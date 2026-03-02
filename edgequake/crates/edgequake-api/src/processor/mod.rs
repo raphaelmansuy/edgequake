@@ -288,6 +288,7 @@ mod tests {
     use edgequake_storage::{
         MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
     };
+    use tokio_util::sync::CancellationToken;
 
     /// Create a test pipeline instance using default configuration
     fn create_test_pipeline() -> Arc<Pipeline> {
@@ -378,7 +379,7 @@ mod tests {
         let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
         let mut task = Task::new(test_tenant, test_workspace, TaskType::Scan, json!({}));
 
-        let result = processor.process(&mut task).await;
+        let result = processor.process(&mut task, CancellationToken::new()).await;
 
         // Scan should return UnsupportedOperation error
         assert!(result.is_err());
@@ -409,7 +410,7 @@ mod tests {
         let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
         let mut task = Task::new(test_tenant, test_workspace, TaskType::Reindex, json!({}));
 
-        let result = processor.process(&mut task).await;
+        let result = processor.process(&mut task, CancellationToken::new()).await;
 
         // Reindex should return UnsupportedOperation error
         assert!(result.is_err());
@@ -445,7 +446,7 @@ mod tests {
         let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
         let mut task = Task::new(test_tenant, test_workspace, TaskType::Insert, invalid_data);
 
-        let result = processor.process(&mut task).await;
+        let result = processor.process(&mut task, CancellationToken::new()).await;
 
         // Should fail due to invalid payload
         assert!(result.is_err());
@@ -614,7 +615,7 @@ mod tests {
         for task_type in types {
             let mut task = Task::new(test_tenant, test_workspace, task_type.clone(), json!({}));
 
-            let result = processor.process(&mut task).await;
+            let result = processor.process(&mut task, CancellationToken::new()).await;
 
             // Scan/Reindex fail on unsupported
             assert!(result.is_err());

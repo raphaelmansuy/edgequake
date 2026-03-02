@@ -1,11 +1,37 @@
 use super::*;
+use tokio_util::sync::CancellationToken;
 
 impl DocumentTaskProcessor {
+    /// Check if the task has been cancelled and return early if so.
+    ///
+    /// WHY: This is called at every major stage boundary so that a cancel
+    /// request interrupts processing within seconds rather than minutes.
+    pub(crate) async fn check_cancelled(
+        &self,
+        cancel_token: &CancellationToken,
+        stage: &str,
+        document_id: &str,
+    ) -> TaskResult<()> {
+        if cancel_token.is_cancelled() {
+            let msg = format!(
+                "Task cancelled during '{}' stage for document {}",
+                stage, document_id
+            );
+            warn!("{}", msg);
+            self.update_document_status(document_id, "cancelled", Some(&msg))
+                .await
+                .ok(); // best-effort status update
+            return Err(TaskError::Cancelled(msg));
+        }
+        Ok(())
+    }
+
     /// Process a text insert task.
     pub(super) async fn process_text_insert(
         &self,
         task: &mut Task,
         data: TextInsertData,
+        cancel_token: CancellationToken,
     ) -> TaskResult<serde_json::Value> {
         let document_id = data
             .metadata
@@ -297,6 +323,11 @@ impl DocumentTaskProcessor {
         // CHECKPOINT: Try to load a saved pipeline checkpoint before running
         // expensive LLM extraction. This saves minutes of processing when
         // a server crashed after extraction but before storage completed.
+
+        // ── CANCELLATION GATE: before LLM extraction (most expensive stage) ──
+        self.check_cancelled(&cancel_token, "pre-extraction", &document_id)
+            .await?;
+
         let checkpoint_result = super::pipeline_checkpoint::load_pipeline_checkpoint(
             &self.kv_storage,
             &document_id,
@@ -318,10 +349,11 @@ impl DocumentTaskProcessor {
         } else {
             // No valid checkpoint — run the full pipeline
             let fresh_result = match pipeline
-                .process_with_resilience(
+                .process_with_resilience_cancellable(
                     &document_id,
                     &processed_text,
                     Some(chunk_progress_callback),
+                    Some(cancel_token.clone()),
                 )
                 .await
             {
@@ -410,6 +442,11 @@ impl DocumentTaskProcessor {
 
         // Update task progress - embedding
         task.update_progress("embedding".to_string(), 4, 30);
+
+        // ── CANCELLATION GATE: after extraction, before embedding storage ──
+        self.check_cancelled(&cancel_token, "post-extraction", &document_id)
+            .await?;
+
         self.pipeline_state
             .info(format!(
                 "Generated {} chunks for {}",
@@ -558,6 +595,11 @@ impl DocumentTaskProcessor {
 
         // Update task progress - extraction
         task.update_progress("extraction".to_string(), 4, 60);
+
+        // ── CANCELLATION GATE: before graph storage (heavy DB writes) ──
+        self.check_cancelled(&cancel_token, "pre-graph-storage", &document_id)
+            .await?;
+
         self.pipeline_state
             .info(format!("Extracting entities from {}...", document_id))
             .await;
@@ -767,6 +809,11 @@ impl DocumentTaskProcessor {
         }
 
         // CRITICAL: Store entity embeddings in vector storage for query_local retrieval
+
+        // ── CANCELLATION GATE: before entity embedding storage ──
+        self.check_cancelled(&cancel_token, "pre-entity-embeddings", &document_id)
+            .await?;
+
         // FIX: Use workspace_vector_storage instead of self.vector_storage to avoid
         // dimension mismatch (768 vs 1536) when workspace uses different embedding model
         let mut entity_embedding_failures = 0u32;
@@ -807,6 +854,11 @@ impl DocumentTaskProcessor {
         }
 
         // Batch upsert edges
+
+        // ── CANCELLATION GATE: before edge batch upsert ──
+        self.check_cancelled(&cancel_token, "pre-edge-storage", &document_id)
+            .await?;
+
         if !edges_batch.is_empty() {
             if let Err(e) = self.graph_storage.upsert_edges_batch(&edges_batch).await {
                 let err_msg = format!(
@@ -941,6 +993,11 @@ impl DocumentTaskProcessor {
         }
 
         // OODA-06: Persist DocumentLineage to KV storage for lineage API queries
+
+        // ── CANCELLATION GATE: before lineage persistence ──
+        self.check_cancelled(&cancel_token, "pre-lineage", &document_id)
+            .await?;
+
         // WHY: Without persistence, lineage data only exists in memory during processing
         // and is lost. Lineage endpoints need to read it back from storage.
         if let Some(ref lineage) = result.lineage {

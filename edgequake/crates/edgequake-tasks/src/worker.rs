@@ -40,11 +40,13 @@
 //! saturated. Override via the `WORKER_THREADS` environment variable.
 
 use crate::{
+    cancellation::CancellationRegistry,
     error::TaskResult, queue::TaskQueue, storage::TaskStorage,
     tenant_limiter::TenantConcurrencyLimiter, types::Task,
 };
 use std::sync::Arc;
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 /// RAII guard that aborts the heartbeat task on drop.
@@ -73,10 +75,22 @@ const MIN_PROCESSING_TIMEOUT_SECS: u64 = 60;
 /// Task processor trait - implement this to process different task types.
 ///
 /// Implementors handle both normal processing and cleanup on permanent failure.
+///
+/// The `CancellationToken` parameter enables cooperative cancellation:
+/// processors should periodically check `cancel_token.is_cancelled()` and
+/// return early with an appropriate error when cancellation is detected.
 #[async_trait::async_trait]
 pub trait TaskProcessor: Send + Sync {
-    /// Process a task.
-    async fn process(&self, task: &mut Task) -> TaskResult<serde_json::Value>;
+    /// Process a task with cooperative cancellation support.
+    ///
+    /// Implementations MUST check `cancel_token.is_cancelled()` at each
+    /// stage boundary (chunking, extraction, embedding, storage) and
+    /// return `Err(TaskError::Cancelled)` when cancellation is detected.
+    async fn process(
+        &self,
+        task: &mut Task,
+        cancel_token: CancellationToken,
+    ) -> TaskResult<serde_json::Value>;
 
     /// Called when a task has permanently failed (retries exhausted or circuit
     /// breaker tripped). Override to update document status, clean up resources,
@@ -195,6 +209,7 @@ pub struct WorkerPool {
     handles: Vec<JoinHandle<()>>,
     shutdown_tx: Option<tokio::sync::broadcast::Sender<()>>,
     tenant_limiter: Option<TenantConcurrencyLimiter>,
+    cancellation_registry: CancellationRegistry,
 }
 
 impl WorkerPool {
@@ -220,7 +235,17 @@ impl WorkerPool {
             handles: Vec::new(),
             shutdown_tx: None,
             tenant_limiter,
+            cancellation_registry: CancellationRegistry::new(),
         }
+    }
+
+    /// Get a reference to the cancellation registry.
+    ///
+    /// WHY: The cancel API handler needs access to this registry to trigger
+    /// cooperative cancellation of in-flight tasks. Store this reference in
+    /// your AppState and pass it to the cancel endpoint.
+    pub fn cancellation_registry(&self) -> CancellationRegistry {
+        self.cancellation_registry.clone()
     }
 
     /// Start the worker pool
@@ -248,6 +273,7 @@ impl WorkerPool {
             let config = self.config.clone();
             let mut shutdown_rx = shutdown_tx.subscribe();
             let tenant_limiter = self.tenant_limiter.clone();
+            let cancel_registry = self.cancellation_registry.clone();
 
             let handle = tokio::spawn(async move {
                 info!("Worker {} started", worker_id);
@@ -309,6 +335,13 @@ impl WorkerPool {
                                         error!("Failed to update task status: {}", e);
                                     }
 
+                                    // FEAT-CANCEL: Register cancellation token for this task.
+                                    // WHY: The cancel API can now signal this specific task to stop
+                                    // at the next cooperative checkpoint in the pipeline.
+                                    let cancel_token = cancel_registry
+                                        .register(&task.track_id)
+                                        .await;
+
                                     // HEARTBEAT: Spawn a background task that periodically
                                     // touches the task's updated_at timestamp. This prevents
                                     // the orphan-recovery logic from marking active tasks as
@@ -352,7 +385,7 @@ impl WorkerPool {
                                     );
                                     let process_result = tokio::time::timeout(
                                         timeout_duration,
-                                        processor.process(&mut task),
+                                        processor.process(&mut task, cancel_token.clone()),
                                     )
                                     .await;
 
@@ -476,6 +509,11 @@ impl WorkerPool {
                                         }
                                     }
 
+                                    // Deregister the cancellation token now that the task
+                                    // is done (success, failure, or timeout). This ensures
+                                    // the CancellationRegistry doesn't leak entries.
+                                    cancel_registry.deregister(&task.track_id).await;
+
                                     // Update task in storage
                                     if let Err(e) = storage.update_task(&task).await {
                                         error!("Failed to update task: {}", e);
@@ -541,7 +579,7 @@ pub struct MockTaskProcessor;
 #[cfg(test)]
 #[async_trait::async_trait]
 impl TaskProcessor for MockTaskProcessor {
-    async fn process(&self, task: &mut Task) -> TaskResult<serde_json::Value> {
+    async fn process(&self, task: &mut Task, _cancel_token: CancellationToken) -> TaskResult<serde_json::Value> {
         // Simulate some work
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
@@ -747,7 +785,7 @@ mod tests {
 
         #[async_trait::async_trait]
         impl TaskProcessor for SlowProcessor {
-            async fn process(&self, _task: &mut Task) -> TaskResult<serde_json::Value> {
+            async fn process(&self, _task: &mut Task, _cancel_token: CancellationToken) -> TaskResult<serde_json::Value> {
                 // Sleep longer than the timeout
                 tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 Ok(serde_json::json!({"status": "should_not_reach"}))

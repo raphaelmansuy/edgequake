@@ -334,6 +334,7 @@ impl AppState {
             // SECURITY (OODA-248): PostgreSQL mode defaults to secure config.
             // Administrators should configure ALLOWED_SCAN_PATHS environment variable.
             path_validation_config: Self::load_path_validation_config(),
+            cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
         })
     }
 }

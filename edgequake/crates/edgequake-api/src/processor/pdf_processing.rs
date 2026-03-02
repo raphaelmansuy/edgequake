@@ -1,4 +1,5 @@
 use super::*;
+use tokio_util::sync::CancellationToken;
 
 impl DocumentTaskProcessor {
     /// Process PDF processing task (SPEC-007).
@@ -19,6 +20,7 @@ impl DocumentTaskProcessor {
         &self,
         task: &mut Task,
         data: edgequake_tasks::PdfProcessingData,
+        cancel_token: CancellationToken,
     ) -> TaskResult<serde_json::Value> {
         use edgequake_storage::{
             ExtractionMethod, PdfProcessingStatus, UpdatePdfProcessingRequest,
@@ -193,6 +195,10 @@ impl DocumentTaskProcessor {
         // 4. Extract content (vision or text mode)
         // == Progress: starting conversion (this can take 5-10+ minutes) ==
         task.update_progress("pdf_converting".to_string(), 2, 10);
+
+        // ── CANCELLATION GATE: before vision extraction (most expensive PDF stage) ──
+        self.check_cancelled(&cancel_token, "pre-vision-extraction", &early_doc_id)
+            .await?;
 
         // SPEC-007: Vision → edgequake-pdf2md v0.7.0 (bundled pdfium, multi-provider,
         //           lazy streaming pipeline, progress callbacks, page-level checkpointing).
@@ -443,6 +449,10 @@ impl DocumentTaskProcessor {
         // == Progress: markdown stored, starting entity extraction + indexing ==
         task.update_progress("entity_extraction".to_string(), 4, 50);
 
+        // ── CANCELLATION GATE: before handing off to text_insert pipeline ──
+        self.check_cancelled(&cancel_token, "pre-text-insert", &early_doc_id)
+            .await?;
+
         // SPEC-002: Include source_type: "pdf" for unified pipeline tracking
         // OODA-05: Include tenant_id/workspace_id for multi-tenant document visibility
         // Pass the early_doc_id so we reuse the same document that's already showing in UI
@@ -473,7 +483,9 @@ impl DocumentTaskProcessor {
             })),
         };
 
-        let result = self.process_text_insert(task, text_data).await?;
+        let result = self
+            .process_text_insert(task, text_data, cancel_token)
+            .await?;
 
         // == Progress: extraction complete, linking PDF ==
         task.update_progress("linking".to_string(), 5, 95);
@@ -551,6 +563,7 @@ impl DocumentTaskProcessor {
         &self,
         _task: &mut Task,
         data: edgequake_tasks::PdfProcessingData,
+        _cancel_token: CancellationToken,
     ) -> TaskResult<serde_json::Value> {
         warn!(
             pdf_id = %data.pdf_id,

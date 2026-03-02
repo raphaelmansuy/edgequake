@@ -85,6 +85,7 @@ impl AppState {
             // SECURITY (OODA-248): Default to secure config (no paths allowed).
             // Production deployments should configure allowed_paths.
             path_validation_config: crate::path_validation::PathValidationConfig::default(),
+            cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
         }
     }
 
@@ -225,6 +226,7 @@ impl AppState {
                 allow_any_path: true, // Permissive for memory/dev mode
                 ..Default::default()
             },
+            cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
         }
     }
 
@@ -319,6 +321,7 @@ impl AppState {
                 allow_any_path: true,
                 ..Default::default()
             },
+            cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
         }
     }
 }

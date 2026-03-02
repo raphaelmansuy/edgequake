@@ -15,6 +15,7 @@ EdgeQuake is a next-generation Retrieval-Augmented Generation (RAG) system built
 - 📊 **OpenAPI Documentation**: Full Swagger UI support
 - 🔧 **Modular Architecture**: Pluggable storage backends and LLM providers
 - 🌐 **REST API**: Clean, versioned HTTP API
+- ⛔ **Cooperative Cancellation**: Cancel long-running pipeline tasks mid-flight via API
 
 ## Quick Start
 

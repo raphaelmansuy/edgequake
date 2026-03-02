@@ -275,7 +275,7 @@ pub async fn load_pipeline_checkpoint(
 /// Called when all storage stages complete successfully, freeing KV space.
 pub async fn clear_pipeline_checkpoint(kv: &Arc<dyn KVStorage>, document_id: &str) {
     let key = checkpoint_key(document_id);
-    match kv.delete(&[key.clone()]).await {
+    match kv.delete(std::slice::from_ref(&key)).await {
         Ok(_) => debug!(document_id = %document_id, "Cleared pipeline checkpoint"),
         Err(e) => warn!(
             document_id = %document_id,
@@ -319,12 +319,12 @@ pub async fn cleanup_stale_checkpoints(kv: &Arc<dyn KVStorage>) {
             if let Ok(cp) = serde_json::from_value::<PipelineCheckpoint>(value) {
                 let age = now.saturating_sub(cp.created_at_epoch);
                 if age > CHECKPOINT_MAX_AGE_SECS {
-                    let _ = kv.delete(&[key.clone()]).await;
+                    let _ = kv.delete(std::slice::from_ref(key)).await;
                     cleaned += 1;
                 }
             } else {
                 // Corrupt checkpoint — remove it
-                let _ = kv.delete(&[key.clone()]).await;
+                let _ = kv.delete(std::slice::from_ref(key)).await;
                 cleaned += 1;
             }
         }

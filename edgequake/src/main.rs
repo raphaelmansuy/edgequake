@@ -596,7 +596,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     info!("🐘 PostgreSQL storage mode (DATABASE_URL detected)");
-    let state = AppState::new_postgres(&database_url, &api_key)
+    let mut state = AppState::new_postgres(&database_url, &api_key)
         .await
         .expect("Failed to initialize PostgreSQL storage");
 
@@ -724,6 +724,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::clone(&state.task_storage) as Arc<dyn edgequake_tasks::TaskStorage>,
         processor,
     );
+
+    // WHY: The cancel_task API handler signals the CancellationRegistry living
+    // on AppState.  The worker loop registers/checks tokens via the registry
+    // in WorkerPool.  Both must point to the *same* underlying Arc so that a
+    // cancel request from the HTTP handler is visible to the running worker.
+    state.cancellation_registry = worker_pool.cancellation_registry();
 
     info!(
         "Starting worker pool with {} workers (task timeout: {}s)",

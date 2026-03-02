@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
+use tokio_util::sync::CancellationToken;
 
 use crate::error::Result;
 use crate::extractor::EntityExtractor;
@@ -207,6 +208,7 @@ impl Pipeline {
         chunks: &[crate::chunker::TextChunk],
         extractor: &Arc<dyn EntityExtractor>,
         progress_callback: Option<ChunkProgressCallback>,
+        cancel_token: Option<CancellationToken>,
     ) -> crate::error::ResilientExtractionResult {
         use crate::error::{ChunkExtractionOutcome, ChunkFailure, ResilientExtractionResult};
 
@@ -251,9 +253,24 @@ impl Pipeline {
                 let cumulative_output_tokens = cumulative_output_tokens.clone();
                 let completed_chunks = completed_chunks.clone();
                 let model_pricing = model_pricing.clone();
+                let cancel_token = cancel_token.clone();
 
                 async move {
                     let chunk_start = std::time::Instant::now();
+
+                    // ── CANCELLATION CHECK: skip pending chunks when cancelled ──
+                    if let Some(ref token) = cancel_token {
+                        if token.is_cancelled() {
+                            return ChunkExtractionOutcome::Failed(ChunkFailure {
+                                chunk_index,
+                                chunk_id: chunk.id.clone(),
+                                error: "Task cancelled".to_string(),
+                                retry_attempts: 0,
+                                was_timeout: false,
+                                processing_time_ms: 0,
+                            });
+                        }
+                    }
 
                     // Acquire permit (released on drop)
                     let _permit = match semaphore.acquire().await {
@@ -277,6 +294,14 @@ impl Pipeline {
                     let mut was_timeout = false;
 
                     for attempt in 1..=max_retries {
+                        // ── CANCELLATION CHECK: abort retry loop when cancelled ──
+                        if let Some(ref token) = cancel_token {
+                            if token.is_cancelled() {
+                                last_error = "Task cancelled".to_string();
+                                break;
+                            }
+                        }
+
                         let extraction_future = extractor.extract(&chunk);
                         let timeout_duration = tokio::time::Duration::from_secs(timeout_secs);
 

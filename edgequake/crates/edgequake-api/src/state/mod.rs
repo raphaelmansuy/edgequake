@@ -202,6 +202,12 @@ pub struct AppState {
     /// Path validation configuration for filesystem access security (OODA-248).
     /// WHY: Prevents directory traversal attacks in scan_directory endpoint.
     pub path_validation_config: crate::path_validation::PathValidationConfig,
+
+    /// Per-task cancellation registry.
+    /// WHY: The cancel_task handler triggers cooperative cancellation of in-flight
+    /// tasks by signalling the token registered here. Workers check the token
+    /// at every pipeline stage boundary to stop processing promptly.
+    pub cancellation_registry: edgequake_tasks::CancellationRegistry,
 }
 
 // ── Operational Methods ───────────────────────────────────────────────────
