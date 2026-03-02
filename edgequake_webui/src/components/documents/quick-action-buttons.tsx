@@ -61,7 +61,7 @@ interface ActionButtonProps {
 function ActionButton({ icon, label, onClick, className }: ActionButtonProps) {
   return (
     <TooltipProvider delayDuration={300}>
-      <Tooltip>
+      <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
           <Button
             variant="ghost"

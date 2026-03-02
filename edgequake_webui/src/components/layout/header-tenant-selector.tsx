@@ -358,7 +358,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   return (
     <>
       <TooltipProvider delayDuration={300}>
-        <Tooltip>
+        <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

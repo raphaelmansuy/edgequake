@@ -18,11 +18,11 @@
 "use client";
 
 import {
-  cancelTask,
-  deleteAllDocuments,
-  deleteDocument,
-  reprocessDocument,
-  retryTask,
+    cancelTask,
+    deleteAllDocuments,
+    deleteDocument,
+    reprocessDocument,
+    retryTask,
 } from "@/lib/api/edgequake";
 import type { Document } from "@/types";
 import type { UseMutationResult } from "@tanstack/react-query";

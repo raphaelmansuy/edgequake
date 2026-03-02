@@ -145,7 +145,7 @@ export function QuerySettingsSheet({
                       </Label>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger aria-label="Top K help">
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-[200px]">
@@ -198,7 +198,7 @@ export function QuerySettingsSheet({
                       </Label>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger aria-label="Temperature help">
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-[200px]">
@@ -237,7 +237,7 @@ export function QuerySettingsSheet({
                       </Label>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger aria-label="Max tokens help">
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-[200px]">

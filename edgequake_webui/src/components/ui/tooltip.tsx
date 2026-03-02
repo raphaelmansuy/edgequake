@@ -1,7 +1,7 @@
 "use client"
 
-import * as React from "react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
+import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -19,10 +19,14 @@ function TooltipProvider({
 }
 
 function Tooltip({
+  delayDuration,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+}: React.ComponentProps<typeof TooltipPrimitive.Root> & {
+  /** Hover delay in ms. Passed to the internal TooltipProvider. */
+  delayDuration?: number
+}) {
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={delayDuration}>
       <TooltipPrimitive.Root data-slot="tooltip" {...props} />
     </TooltipProvider>
   )
@@ -36,7 +40,7 @@ function TooltipTrigger({
 
 function TooltipContent({
   className,
-  sideOffset = 0,
+  sideOffset = 4,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
@@ -51,11 +55,17 @@ function TooltipContent({
         )}
         {...props}
       >
-        {children}
-        <TooltipPrimitive.Arrow className="bg-foreground fill-foreground z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]" />
+        {/* WHY: contents wrapper remaps CSS theme variables so that semantic
+            classes (text-muted-foreground, bg-muted, etc.) render with correct
+            contrast inside the inverted tooltip background. See globals.css. */}
+        <span className="tooltip-theme-invert contents">
+          {children}
+        </span>
+        <TooltipPrimitive.Arrow className="fill-foreground z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger }
+

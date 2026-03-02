@@ -222,7 +222,7 @@ export const StatusBadge = memo(function StatusBadge({
   // For processing states, show rich tooltip with stage progress
   return (
     <TooltipProvider delayDuration={300}>
-      <Tooltip>
+      <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
           {badge}
         </TooltipTrigger>

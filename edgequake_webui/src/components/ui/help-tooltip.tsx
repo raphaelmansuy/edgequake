@@ -71,13 +71,13 @@ export function HelpTooltip({
         <div className="space-y-1.5">
           <div className="text-xs leading-relaxed">{content}</div>
           {shortcuts.length > 0 && (
-            <div className="flex items-center gap-1.5 pt-1 border-t border-background/20">
+            <div className="flex items-center gap-1.5 pt-1 border-t border-foreground/25">
               <Keyboard className="h-3 w-3 opacity-60" />
               <div className="flex items-center gap-1">
                 {shortcuts.map((key, index) => (
                   <React.Fragment key={key}>
                     {index > 0 && <span className="opacity-60 text-[10px]">then</span>}
-                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-background/20 rounded border border-background/10">
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-foreground/15 rounded border border-foreground/20">
                       {key}
                     </kbd>
                   </React.Fragment>
@@ -128,7 +128,7 @@ export function FeatureTooltip({
             <p className="text-[11px] opacity-80 leading-relaxed">{description}</p>
           </div>
           {shortcuts && shortcuts.length > 0 && (
-            <div className="pt-2 border-t border-background/20">
+            <div className="pt-2 border-t border-foreground/25">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Keyboard className="h-3 w-3 opacity-60" />
                 <span className="text-[10px] font-medium opacity-80">Keyboard Shortcuts</span>
@@ -137,7 +137,7 @@ export function FeatureTooltip({
                 {shortcuts.map(({ key, action }) => (
                   <div key={key} className="flex items-center justify-between gap-4 text-[10px]">
                     <span className="opacity-70">{action}</span>
-                    <kbd className="px-1.5 py-0.5 font-mono bg-background/20 rounded border border-background/10 shrink-0">
+                    <kbd className="px-1.5 py-0.5 font-mono bg-foreground/15 rounded border border-foreground/20 shrink-0">
                       {key}
                     </kbd>
                   </div>

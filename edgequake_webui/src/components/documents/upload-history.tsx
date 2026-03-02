@@ -306,7 +306,7 @@ export function UploadHistory({
                       ) : (
                         <TooltipProvider>
                           <Tooltip>
-                            <TooltipTrigger>
+                            <TooltipTrigger aria-label="View error details">
                               <AlertCircle className="h-4 w-4 text-red-500" />
                             </TooltipTrigger>
                             <TooltipContent>

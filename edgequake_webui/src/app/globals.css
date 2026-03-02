@@ -125,6 +125,54 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Tooltip theme inversion
+   WHY: Tooltips use bg-foreground / text-background (inverted colours).
+   Semantic utility classes (text-muted-foreground, bg-muted, etc.) reference
+   CSS variables designed for the *page* background, so they produce poor
+   contrast inside the inverted tooltip surface.  The rules below:
+   1. Save the page‑theme values on the tooltip boundary.
+   2. Remap semantic variables inside a `.tooltip-theme-invert` wrapper so
+      every child renders with correct contrast — no per‑consumer changes.
+   See tooltip.tsx for the companion <span class="tooltip-theme-invert contents">.
+   --------------------------------------------------------------------------- */
+
+/* Layer 1 – save page‑theme values before any descendant override */
+[data-slot="tooltip-content"] {
+  --_tt-bg: var(--background);
+  --_tt-fg: var(--foreground);
+  --_tt-primary: var(--primary);
+  --_tt-primary-fg: var(--primary-foreground);
+  --_tt-secondary: var(--secondary);
+  --_tt-secondary-fg: var(--secondary-foreground);
+}
+
+/* Layer 2 – remap semantic variables for the inverted surface */
+.tooltip-theme-invert {
+  /* Core palette swap */
+  --background: var(--_tt-fg);
+  --foreground: var(--_tt-bg);
+  --card: var(--_tt-fg);
+  --card-foreground: var(--_tt-bg);
+  --popover: var(--_tt-fg);
+  --popover-foreground: var(--_tt-bg);
+
+  /* Accent swaps (foreground ↔ background counterpart) */
+  --primary: var(--_tt-primary-fg);
+  --primary-foreground: var(--_tt-primary);
+  --secondary: var(--_tt-secondary-fg);
+  --secondary-foreground: var(--_tt-secondary);
+
+  /* Derived tones via color-mix for theme-safe rendering */
+  --muted-foreground: color-mix(in oklch, var(--_tt-bg) 60%, var(--_tt-fg));
+  --muted: color-mix(in oklch, var(--_tt-fg) 90%, var(--_tt-bg));
+  --accent: color-mix(in oklch, var(--_tt-fg) 90%, var(--_tt-bg));
+  --accent-foreground: var(--_tt-bg);
+  --border: color-mix(in oklch, var(--_tt-bg) 20%, transparent);
+  --input: color-mix(in oklch, var(--_tt-bg) 15%, transparent);
+  --ring: color-mix(in oklch, var(--_tt-bg) 50%, var(--_tt-fg));
+}
+
 /* Smooth theme transition - prevents flash on theme change */
 html {
   transition: background-color 0.3s ease, color 0.3s ease;
