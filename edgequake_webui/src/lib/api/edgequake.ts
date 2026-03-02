@@ -700,7 +700,7 @@ export async function getPdfProgress(
  * @returns EventSource instance (caller is responsible for closing)
  */
 export function createPdfProgressEventSource(trackId: string): EventSource {
-  const baseUrl = SERVER_BASE_URL || '';
+  const baseUrl = SERVER_BASE_URL || "";
   const url = `${baseUrl}/api/v1/documents/pdf/progress/stream/${trackId}`;
   return new EventSource(url);
 }
@@ -778,7 +778,7 @@ export async function getPdfContent(
 export function getPdfDownloadUrl(pdfId: string): string {
   // WHY: Use SERVER_BASE_URL (derived from NEXT_PUBLIC_API_URL) for consistency
   // with the rest of the API client. Fixes #79.
-  const baseUrl = SERVER_BASE_URL || '';
+  const baseUrl = SERVER_BASE_URL || "";
   return `${baseUrl}/api/v1/documents/pdf/${pdfId}/download`;
 }
 
@@ -1524,7 +1524,7 @@ export async function exportDocumentLineage(
 ): Promise<void> {
   // WHY: Use SERVER_BASE_URL (derived from NEXT_PUBLIC_API_URL) for consistency
   // with the rest of the API client. Fixes #79.
-  const baseUrl = SERVER_BASE_URL || '';
+  const baseUrl = SERVER_BASE_URL || "";
   const url = `${baseUrl}/api/v1/documents/${documentId}/lineage/export?format=${format}`;
   // WHY: Create temporary link for download — the endpoint returns
   // Content-Disposition: attachment headers that trigger browser download.

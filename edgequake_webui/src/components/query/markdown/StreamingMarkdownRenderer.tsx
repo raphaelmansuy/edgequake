@@ -17,6 +17,7 @@
 import { cn } from '@/lib/utils';
 import { marked, type Token } from 'marked';
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
+import { LAZY_SECTION_THRESHOLD, LazyMarkdownSections } from './LazyMarkdownSections';
 import { MarkdownTokens } from './MarkdownTokens';
 import { configureMarked } from './utils/configure-marked';
 import { analyzeStreamingContent } from './utils/streaming-utils';
@@ -467,12 +468,25 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
       role="region"
       aria-label="Response content"
     >
-      <MarkdownTokens
-        tokens={tokens}
-        isStreaming={isStreaming}
-        onSourceClick={onCitationClick}
-        highlightedIndices={highlightedIndices}
-      />
+      {/* WHY: For large non-streaming documents (e.g. 1000-page PDF → markdown),
+         rendering all tokens at once freezes the browser. LazyMarkdownSections
+         splits tokens into sections and renders them progressively via
+         IntersectionObserver, keeping initial paint fast. */}
+      {!isStreaming && tokens.length >= LAZY_SECTION_THRESHOLD ? (
+        <LazyMarkdownSections
+          tokens={tokens}
+          isStreaming={false}
+          onSourceClick={onCitationClick}
+          highlightedIndices={highlightedIndices}
+        />
+      ) : (
+        <MarkdownTokens
+          tokens={tokens}
+          isStreaming={isStreaming}
+          onSourceClick={onCitationClick}
+          highlightedIndices={highlightedIndices}
+        />
+      )}
       
       {/* Show table skeleton when table is being streamed */}
       {hasPendingTable && (

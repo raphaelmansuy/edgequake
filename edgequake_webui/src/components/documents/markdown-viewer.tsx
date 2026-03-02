@@ -16,6 +16,10 @@
 'use client';
 
 import { StreamingMarkdownRenderer } from '@/components/query/markdown';
+import {
+  VIRTUALIZATION_CHAR_THRESHOLD,
+  VirtualizedMarkdownContent,
+} from '@/components/query/markdown/VirtualizedMarkdownContent';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Check, Copy, FileText } from 'lucide-react';
@@ -115,21 +119,44 @@ export function MarkdownViewer({
         )}
         style={{ height: height ? `${height}px` : 'auto' }}
       >
-        <div className={cn(
-          'p-4 md:p-6',
-          'prose prose-sm md:prose-base dark:prose-invert max-w-none',
-          // Typography improvements for document viewing
-          'prose-headings:scroll-mt-4',
-          'prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border',
-          'prose-code:before:content-none prose-code:after:content-none',
-          'prose-table:text-sm',
-          showLineNumbers && 'markdown-with-line-numbers'
-        )}>
-          <StreamingMarkdownRenderer
-            content={content}
-            isStreaming={false}
-          />
-        </div>
+        {content.length >= VIRTUALIZATION_CHAR_THRESHOLD ? (
+          // WHY: Large markdown (e.g. 1 000-page PDF) freezes the browser if
+          // tokenised all at once. VirtualizedMarkdownContent splits the raw
+          // string into ~25 KB chunks — only visible chunks are tokenised.
+          <VirtualizedMarkdownContent content={content}>
+            {(pageContent) => (
+              <div className={cn(
+                'p-4 md:p-6',
+                'prose prose-sm md:prose-base dark:prose-invert max-w-none',
+                'prose-headings:scroll-mt-4',
+                'prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border',
+                'prose-code:before:content-none prose-code:after:content-none',
+                'prose-table:text-sm',
+                showLineNumbers && 'markdown-with-line-numbers'
+              )}>
+                <StreamingMarkdownRenderer
+                  content={pageContent}
+                  isStreaming={false}
+                />
+              </div>
+            )}
+          </VirtualizedMarkdownContent>
+        ) : (
+          <div className={cn(
+            'p-4 md:p-6',
+            'prose prose-sm md:prose-base dark:prose-invert max-w-none',
+            'prose-headings:scroll-mt-4',
+            'prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border',
+            'prose-code:before:content-none prose-code:after:content-none',
+            'prose-table:text-sm',
+            showLineNumbers && 'markdown-with-line-numbers'
+          )}>
+            <StreamingMarkdownRenderer
+              content={content}
+              isStreaming={false}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -150,7 +150,12 @@ impl Default for PipelineConfig {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Result of processing a document through the pipeline.
-#[derive(Debug, Clone)]
+///
+/// WHY `Serialize, Deserialize`: Enables KG+Embedding pipeline checkpointing.
+/// When the server crashes mid-ingestion, the expensive LLM extraction results
+/// can be serialized to KV storage and restored on restart, skipping the
+/// multi-minute entity extraction stage entirely.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessingResult {
     /// Document ID.
     pub document_id: String,

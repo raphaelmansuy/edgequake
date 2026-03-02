@@ -1555,9 +1555,9 @@ dependencies = [
 
 [[package]]
 name = "edgequake-pdf2md"
-version = "0.6.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3769e32b2eed4bbf3582a00e07c84c7e862b8c0415aa17dd68585d0da5456351"
+checksum = "c7f59dd76d219491d27715d928282cc02ce5156bdc10283b31397a083e1a82fc"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1573,6 +1573,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",

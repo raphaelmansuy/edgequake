@@ -315,7 +315,10 @@ export function usePdfProgress(
         const conversionPhase = data.phases?.find(
           (_p: PhaseProgressData, i: number) => i === 1, // pdf_conversion is index 1
         );
-        if (conversionPhase?.status === "active" && conversionPhase.current > 0) {
+        if (
+          conversionPhase?.status === "active" &&
+          conversionPhase.current > 0
+        ) {
           const now = Date.now();
           const timestamps = pageTimestampsRef.current;
           // Only add if we have a new page completion
@@ -552,7 +555,8 @@ export function usePdfProgress(
 
   // Extract page counts from the PDF conversion phase (index 1)
   const { totalPages, currentPage } = useMemo(() => {
-    if (!progress?.phases?.length) return { totalPages: null, currentPage: null };
+    if (!progress?.phases?.length)
+      return { totalPages: null, currentPage: null };
     const conversionPhase = progress.phases[1]; // pdf_conversion is index 1
     if (!conversionPhase || conversionPhase.total <= 0) {
       return { totalPages: null, currentPage: null };

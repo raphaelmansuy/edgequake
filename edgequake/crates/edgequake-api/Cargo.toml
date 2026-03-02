@@ -25,8 +25,8 @@ edgequake-rate-limiter = { path = "../edgequake-rate-limiter" }
 edgequake-audit = { path = "../edgequake-audit" }
 # PDF vision extraction via VLM — bundled pdfium, multi-provider, lazy streaming pipeline
 # WHY: edgequake-pdf2md provides higher quality vision extraction than internal implementation
-# v0.6.1: lazy streaming pipeline (Issue #16), AWS Bedrock default, file overwrite fix
-edgequake-pdf2md = "=0.6.1"
+# v0.7.0: page-level checkpointing for resumable conversions (Issue #20, PR #21)
+edgequake-pdf2md = "=0.7.0"
 
 axum.workspace = true
 axum-extra = { version = "0.10", features = ["multipart"] }

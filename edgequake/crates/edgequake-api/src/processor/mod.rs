@@ -77,6 +77,7 @@
 
 // Sub-modules organized by responsibility (SRP)
 mod pdf_processing;
+pub mod pipeline_checkpoint;
 mod status_updates;
 mod task_impl;
 mod text_insert;

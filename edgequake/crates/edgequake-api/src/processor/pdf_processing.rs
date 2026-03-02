@@ -194,8 +194,8 @@ impl DocumentTaskProcessor {
         // == Progress: starting conversion (this can take 5-10+ minutes) ==
         task.update_progress("pdf_converting".to_string(), 2, 10);
 
-        // SPEC-007: Vision → edgequake-pdf2md v0.6.1 (bundled pdfium, multi-provider,
-        //           lazy streaming pipeline, progress callbacks).
+        // SPEC-007: Vision → edgequake-pdf2md v0.7.0 (bundled pdfium, multi-provider,
+        //           lazy streaming pipeline, progress callbacks, page-level checkpointing).
         //
         // WHY spawn_blocking + Handle::block_on:
         // process_page(... prior_page: Option<&str> ...) holds &str across
@@ -304,12 +304,50 @@ impl DocumentTaskProcessor {
                 let spawn_result = tokio::time::timeout(
                     vision_timeout,
                     tokio::task::spawn_blocking(move || {
-                        let config = ConversionConfig::builder()
+                        // CHECKPOINT: Create FileCheckpointStore for resumable PDF→MD conversion.
+                        // WHY: If the server crashes mid-conversion of a 1000-page PDF,
+                        // already-converted pages are saved to disk and skipped on retry,
+                        // saving hours of LLM calls and API costs.
+                        // The checkpoint ID is a SHA-256 of (PDF content prefix + settings),
+                        // so the same PDF with the same settings always resumes correctly.
+                        let checkpoint_dir = std::env::var("EDGEQUAKE_CHECKPOINT_DIR")
+                            .unwrap_or_else(|_| {
+                                let mut dir = std::env::temp_dir();
+                                dir.push("edgequake-checkpoints");
+                                dir.to_string_lossy().to_string()
+                            });
+                        let checkpoint_store: Option<
+                            std::sync::Arc<dyn edgequake_pdf2md::CheckpointStore>,
+                        > = {
+                            let store = edgequake_pdf2md::FileCheckpointStore::new(&checkpoint_dir);
+                            tracing::info!(
+                                checkpoint_dir = %checkpoint_dir,
+                                "PDF checkpoint store initialized for resumable conversion"
+                            );
+                            Some(std::sync::Arc::new(store))
+                        };
+
+                        // CHECKPOINT: Force fresh conversion on rebuild/reprocess.
+                        // WHY: When a user explicitly triggers rebuild, they want fresh
+                        // extraction with potentially different LLM settings. Reusing
+                        // old checkpoints would silently serve stale content.
+                        let force_no_resume = is_reprocess;
+
+                        let mut builder = ConversionConfig::builder()
                             .provider(provider)
                             .model(model_owned)
                             .concurrency(concurrency)
                             .dpi(dpi)
-                            .progress_callback(progress_callback)
+                            .progress_callback(progress_callback);
+
+                        if let Some(store) = checkpoint_store {
+                            builder = builder.checkpoint_store(store);
+                        }
+                        if force_no_resume {
+                            builder = builder.no_resume(true);
+                        }
+
+                        let config = builder
                             .build()
                             .map_err(|e| format!("Vision config: {e}"))?;
                         // Handle::block_on has no Send bound on the future

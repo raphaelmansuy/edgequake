@@ -294,20 +294,47 @@ impl DocumentTaskProcessor {
             preprocess_result.content
         };
 
-        let result = match pipeline
-            .process_with_resilience(&document_id, &processed_text, Some(chunk_progress_callback))
-            .await
-        {
-            Ok(result) => {
-                // SPEC-003: Log partial success if some chunks failed
-                if result.stats.failed_chunks > 0 {
-                    warn!(
-                        document_id = %document_id,
-                        successful_chunks = result.stats.successful_chunks,
-                        failed_chunks = result.stats.failed_chunks,
-                        total_chunks = result.stats.chunk_count,
-                        "Document processed with partial success - some chunks failed extraction"
-                    );
+        // CHECKPOINT: Try to load a saved pipeline checkpoint before running
+        // expensive LLM extraction. This saves minutes of processing when
+        // a server crashed after extraction but before storage completed.
+        let checkpoint_result = super::pipeline_checkpoint::load_pipeline_checkpoint(
+            &self.kv_storage,
+            &document_id,
+            &data.workspace_id,
+            &provider_lineage.extraction_provider,
+            &provider_lineage.embedding_provider,
+            &processed_text,
+        )
+        .await;
+
+        let (result, resumed_from_checkpoint) = if let Some(checkpointed) = checkpoint_result {
+            info!(
+                document_id = %document_id,
+                chunks = checkpointed.chunks.len(),
+                entities = checkpointed.stats.entity_count,
+                "CHECKPOINT-RESUME: Skipping LLM extraction — loaded from checkpoint"
+            );
+            (checkpointed, true)
+        } else {
+            // No valid checkpoint — run the full pipeline
+            let fresh_result = match pipeline
+                .process_with_resilience(
+                    &document_id,
+                    &processed_text,
+                    Some(chunk_progress_callback),
+                )
+                .await
+            {
+                Ok(result) => {
+                    // SPEC-003: Log partial success if some chunks failed
+                    if result.stats.failed_chunks > 0 {
+                        warn!(
+                            document_id = %document_id,
+                            successful_chunks = result.stats.successful_chunks,
+                            failed_chunks = result.stats.failed_chunks,
+                            total_chunks = result.stats.chunk_count,
+                            "Document processed with partial success - some chunks failed extraction"
+                        );
 
                     // Emit WebSocket events for failed chunks
                     if let Some(ref chunk_errors) = result.stats.chunk_errors {
@@ -349,6 +376,37 @@ impl DocumentTaskProcessor {
                 return Err(edgequake_tasks::TaskError::Process(error_msg));
             }
         };
+
+            // CHECKPOINT-SAVE: Persist pipeline results so a crash during
+            // storage won't force re-running the expensive LLM extraction.
+            if let Err(e) = super::pipeline_checkpoint::save_pipeline_checkpoint(
+                &self.kv_storage,
+                &document_id,
+                &fresh_result,
+                &data.workspace_id,
+                &provider_lineage.extraction_provider,
+                &provider_lineage.embedding_provider,
+                &processed_text,
+            )
+            .await
+            {
+                warn!(
+                    document_id = %document_id,
+                    error = %e,
+                    "Failed to save pipeline checkpoint — processing continues without checkpoint"
+                );
+            }
+
+            (fresh_result, false)
+        };
+
+        // Log checkpoint usage metrics
+        if resumed_from_checkpoint {
+            info!(
+                document_id = %document_id,
+                "CHECKPOINT-STATS: Resumed from checkpoint — saved LLM extraction time"
+            );
+        }
 
         // Update task progress - embedding
         task.update_progress("embedding".to_string(), 4, 30);
@@ -941,6 +999,13 @@ impl DocumentTaskProcessor {
                 crate::handlers::workspaces::invalidate_workspace_stats_cache(workspace_uuid).await;
             }
         }
+
+        // CHECKPOINT-CLEAR: All storage stages completed successfully.
+        // Remove the checkpoint so it won't be reloaded on next run.
+        // WHY: If we reach here, every piece of data is safely persisted.
+        // Keeping the checkpoint would waste storage and risk stale reloads.
+        super::pipeline_checkpoint::clear_pipeline_checkpoint(&self.kv_storage, &document_id)
+            .await;
 
         // Log success
         self.pipeline_state

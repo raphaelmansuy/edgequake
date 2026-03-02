@@ -14,6 +14,10 @@
 'use client';
 
 import { StreamingMarkdownRenderer } from '@/components/query/markdown';
+import {
+  VIRTUALIZATION_CHAR_THRESHOLD,
+  VirtualizedMarkdownContent,
+} from '@/components/query/markdown/VirtualizedMarkdownContent';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Document } from '@/types';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
@@ -102,7 +106,12 @@ function getRendererForDocument(doc: Document, highlightText?: string, startLine
         ? { startLine, endLine }
         : undefined;
 
-    return (
+    // WHY: For very large markdown (e.g. 1000-page PDF), tokenising the
+    // entire string freezes the browser. VirtualizedMarkdownContent splits the
+    // raw string into ~25 KB chunks — only visible chunks are tokenised.
+    const isLargeDocument = content.length >= VIRTUALIZATION_CHAR_THRESHOLD;
+
+    const markdownArticle = (pageContent: string) => (
       <article className="
         prose prose-lg dark:prose-invert max-w-none
         prose-headings:font-display prose-headings:font-semibold
@@ -126,12 +135,22 @@ function getRendererForDocument(doc: Document, highlightText?: string, startLine
         prose-thead:bg-muted
       ">
         <StreamingMarkdownRenderer
-          content={content}
+          content={pageContent}
           className="text-sm leading-relaxed"
-          highlightLineRange={highlightLineRange}
+          highlightLineRange={isLargeDocument ? undefined : highlightLineRange}
         />
       </article>
     );
+
+    if (isLargeDocument) {
+      return (
+        <VirtualizedMarkdownContent content={content}>
+          {markdownArticle}
+        </VirtualizedMarkdownContent>
+      );
+    }
+
+    return markdownArticle(content);
   }
 
   // ---------------------------------------------------------------------------

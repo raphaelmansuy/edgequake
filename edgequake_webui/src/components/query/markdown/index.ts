@@ -14,8 +14,16 @@ export {
 export { CodeBlock } from "./CodeBlock";
 export { DetailsBlock } from "./DetailsBlock";
 export { GitHubAlert } from "./GitHubAlert";
+export {
+  LAZY_SECTION_THRESHOLD,
+  LazyMarkdownSections,
+} from "./LazyMarkdownSections";
 export { MarkdownTokens } from "./MarkdownTokens";
 export { MermaidBlock } from "./MermaidBlock";
+export {
+  VIRTUALIZATION_CHAR_THRESHOLD,
+  VirtualizedMarkdownContent,
+} from "./VirtualizedMarkdownContent";
 export { TableSkeleton } from "./TableSkeleton";
 
 // Inline components

@@ -503,6 +503,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         warn!("Failed to requeue pending tasks (non-fatal): {}", e);
     }
 
+    // CHECKPOINT-CLEANUP: Remove pipeline checkpoints older than 24 hours.
+    // WHY: Stale checkpoints reference outdated provider configs or content
+    // that may have been re-uploaded. Cleaning on startup keeps storage lean
+    // and prevents stale data from being reloaded.
+    edgequake_api::processor::pipeline_checkpoint::cleanup_stale_checkpoints(
+        &state.kv_storage,
+    )
+    .await;
+
     // Create and start worker pool
     let mut worker_pool = WorkerPool::new(
         worker_config.clone(),
