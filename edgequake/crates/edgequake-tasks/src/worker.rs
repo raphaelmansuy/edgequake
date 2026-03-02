@@ -34,8 +34,10 @@
 //! - **Exponential backoff**: Prevents hammering failing services
 //! - **Permanent failure cleanup**: Updates document status on retry exhaustion
 //!
-//! Default worker count is `num_cpus` because embedding generation is CPU-bound.
-//! For IO-bound workloads (e.g., LLM API calls), consider increasing.
+//! Default worker count is `num_cpus * 4` because pipeline processing is IO-bound
+//! (waiting for LLM API calls, embedding generation). Workers spend most of their
+//! time in network I/O, so we need more workers than CPU cores to keep the pipeline
+//! saturated. Override via the `WORKER_THREADS` environment variable.
 
 use crate::{
     error::TaskResult, queue::TaskQueue, storage::TaskStorage,
@@ -108,16 +110,21 @@ pub struct WorkerPoolConfig {
 
 impl Default for WorkerPoolConfig {
     fn default() -> Self {
-        let num_workers = num_cpus::get().max(2);
+        // WHY num_cpus * 4: Pipeline processing is IO-bound (waiting for LLM API
+        // calls and embedding generation). Workers spend most of their time in
+        // network I/O, not CPU computation. Higher worker count ensures the
+        // pipeline stays saturated with concurrent requests to external services.
+        let num_workers = (num_cpus::get() * 4).max(4);
         Self {
             num_workers,
             auto_retry: true,
             initial_retry_delay_ms: 1000,
             max_retry_delay_ms: 60_000,
             backoff_multiplier: 2.0,
-            // WHY num_workers/2: Ensures no tenant can consume more than
-            // half the worker pool, leaving slots for other tenants.
-            max_tasks_per_tenant: (num_workers / 2).max(1),
+            // WHY num_workers * 3/4: For IO-bound workloads, each tenant can
+            // use most of the pool while still guaranteeing at least 25% of
+            // workers remain available for other tenants.
+            max_tasks_per_tenant: (num_workers * 3 / 4).max(1),
         }
     }
 }
@@ -225,13 +232,21 @@ impl WorkerPool {
                                                     tenant_id = %task.tenant_id,
                                                     "Tenant at concurrency limit, requeueing task"
                                                 );
-                                                // Requeue with small delay so other tenants' tasks
-                                                // get a chance to be picked up first.
+                                                // Requeue with delay so other tenants' tasks get
+                                                // picked up first. The delay is bounded: base 200ms
+                                                // to avoid busy-looping when many tasks hit the
+                                                // tenant limit simultaneously.
+                                                // WHY tokio::spawn: We don't want to block this
+                                                // worker — it should immediately pick up the next
+                                                // task (which may be for a different tenant).
+                                                // WHY bounded: The number of spawned requeue tasks
+                                                // is bounded by queue capacity (backpressure from
+                                                // the channel's send).
                                                 let requeue_task = task;
                                                 let requeue_queue = Arc::clone(&queue);
                                                 tokio::spawn(async move {
                                                     tokio::time::sleep(
-                                                        tokio::time::Duration::from_millis(200)
+                                                        tokio::time::Duration::from_millis(500)
                                                     ).await;
                                                     if let Err(e) = requeue_queue.send(requeue_task).await {
                                                         error!("Failed to requeue tenant-limited task: {}", e);
@@ -252,13 +267,43 @@ impl WorkerPool {
                                         error!("Failed to update task status: {}", e);
                                     }
 
+                                    // HEARTBEAT: Spawn a background task that periodically
+                                    // touches the task's updated_at timestamp. This prevents
+                                    // the orphan-recovery logic from marking active tasks as
+                                    // orphaned during long-running LLM extraction (>5 min).
+                                    // WHY: Large documents can take 10+ minutes for entity
+                                    // extraction. Without heartbeat, the task would be falsely
+                                    // detected as orphaned on the next server restart.
+                                    let heartbeat_track_id = task.track_id.clone();
+                                    let heartbeat_storage = Arc::clone(&storage);
+                                    let heartbeat_handle = tokio::spawn(async move {
+                                        let mut interval = tokio::time::interval(
+                                            tokio::time::Duration::from_secs(60),
+                                        );
+                                        interval.tick().await; // Skip first immediate tick
+                                        loop {
+                                            interval.tick().await;
+                                            if let Err(e) = heartbeat_storage
+                                                .touch_task(&heartbeat_track_id)
+                                                .await
+                                            {
+                                                debug!(
+                                                    "Heartbeat failed for task {}: {}",
+                                                    heartbeat_track_id, e
+                                                );
+                                            }
+                                        }
+                                    });
+
                                     // Process task
                                     match processor.process(&mut task).await {
                                         Ok(result) => {
+                                            heartbeat_handle.abort(); // Stop heartbeat on success
                                             task.mark_success(result);
                                             info!("Worker {} completed task: {} (tenant: {})", worker_id, task.track_id, task.tenant_id);
                                         }
                                         Err(e) => {
+                                            heartbeat_handle.abort(); // Stop heartbeat on failure
                                             let error_msg = format!("{}", e);
                                             task.mark_failed(error_msg.clone());
 

@@ -343,7 +343,10 @@ mod tests {
         // When page_count is None, defaults to 10 pages
         let data = vec![0u8; 1024];
         let time = estimate_processing_time(&data, None);
-        assert!(time >= 30, "Expected >= 30s for 10-page default, got {time}");
+        assert!(
+            time >= 30,
+            "Expected >= 30s for 10-page default, got {time}"
+        );
     }
 
     #[test]
@@ -351,10 +354,7 @@ mod tests {
         // 100MB, 500 pages
         let data = vec![0u8; 100 * 1024 * 1024];
         let time = estimate_processing_time(&data, Some(500));
-        assert!(
-            time >= 1500,
-            "Expected >= 1500s for 500 pages, got {time}"
-        );
+        assert!(time >= 1500, "Expected >= 1500s for 500 pages, got {time}");
     }
 
     #[test]

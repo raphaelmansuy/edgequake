@@ -911,9 +911,7 @@ mod tests {
         let event = rx.try_recv().unwrap();
         match event {
             edgequake_tasks::PipelineEvent::PdfPageProgress {
-                total_pages,
-                phase,
-                ..
+                total_pages, phase, ..
             } => {
                 assert_eq!(total_pages, 0);
                 assert_eq!(phase, "extraction");
@@ -925,9 +923,7 @@ mod tests {
         let event = rx.try_recv().unwrap();
         match event {
             edgequake_tasks::PipelineEvent::PdfPageProgress {
-                total_pages,
-                phase,
-                ..
+                total_pages, phase, ..
             } => {
                 assert_eq!(total_pages, 0);
                 assert_eq!(phase, "complete");
@@ -979,9 +975,7 @@ mod tests {
         // Verify complete event
         let event = rx.try_recv().unwrap();
         match event {
-            edgequake_tasks::PipelineEvent::PdfPageProgress {
-                phase, success, ..
-            } => {
+            edgequake_tasks::PipelineEvent::PdfPageProgress { phase, success, .. } => {
                 assert_eq!(phase, "complete");
                 assert!(success);
             }
@@ -1131,9 +1125,9 @@ mod tests {
 
         // Pages complete out of order (as happens with concurrent processing)
         callback.on_page_complete(3, 5, 1000); // page 4 finishes first
-        callback.on_page_complete(0, 5, 800);  // then page 1
+        callback.on_page_complete(0, 5, 800); // then page 1
         callback.on_page_complete(4, 5, 1200); // then page 5
-        callback.on_page_complete(1, 5, 900);  // then page 2
+        callback.on_page_complete(1, 5, 900); // then page 2
         callback.on_page_complete(2, 5, 1100); // then page 3
         callback.on_conversion_complete(5, 5);
 
@@ -1173,9 +1167,9 @@ mod tests {
         callback.on_conversion_start(1000);
 
         // Simulate some pages completing (not all — just enough to test debounce)
-        callback.on_page_complete(0, 1000, 500);   // First page → always updates
-        callback.on_page_complete(10, 1000, 500);  // Within debounce (50 for 1000+ pages)
-        callback.on_page_complete(50, 1000, 500);  // At debounce interval → updates
+        callback.on_page_complete(0, 1000, 500); // First page → always updates
+        callback.on_page_complete(10, 1000, 500); // Within debounce (50 for 1000+ pages)
+        callback.on_page_complete(50, 1000, 500); // At debounce interval → updates
         callback.on_page_complete(249, 1000, 500); // 25% milestone → updates
         callback.on_page_complete(999, 1000, 500); // Last page → always updates
 
@@ -1251,7 +1245,10 @@ mod tests {
         callback.on_page_complete(5, 10, 100);
 
         let completed = callback.completed_pages.load(Ordering::Relaxed);
-        assert_eq!(completed, 3, "Should track 3 completed pages regardless of order");
+        assert_eq!(
+            completed, 3,
+            "Should track 3 completed pages regardless of order"
+        );
     }
 
     /// Edge case: WebSocket broadcaster receives error events.

@@ -347,9 +347,7 @@ impl DocumentTaskProcessor {
                             builder = builder.no_resume(true);
                         }
 
-                        let config = builder
-                            .build()
-                            .map_err(|e| format!("Vision config: {e}"))?;
+                        let config = builder.build().map_err(|e| format!("Vision config: {e}"))?;
                         // Handle::block_on has no Send bound on the future
                         handle
                             .block_on(convert_from_bytes(&pdf_bytes, &config))

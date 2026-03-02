@@ -336,46 +336,46 @@ impl DocumentTaskProcessor {
                             "Document processed with partial success - some chunks failed extraction"
                         );
 
-                    // Emit WebSocket events for failed chunks
-                    if let Some(ref chunk_errors) = result.stats.chunk_errors {
-                        for error_info in chunk_errors {
-                            self.pipeline_state.emit_chunk_failure(
-                                document_id.clone(),
-                                task.track_id.clone(),
-                                error_info.chunk_index as u32,
-                                result.stats.chunk_count as u32,
-                                error_info.error_message.clone(),
-                                error_info.was_timeout,
-                                error_info.retry_attempts,
-                            );
+                        // Emit WebSocket events for failed chunks
+                        if let Some(ref chunk_errors) = result.stats.chunk_errors {
+                            for error_info in chunk_errors {
+                                self.pipeline_state.emit_chunk_failure(
+                                    document_id.clone(),
+                                    task.track_id.clone(),
+                                    error_info.chunk_index as u32,
+                                    result.stats.chunk_count as u32,
+                                    error_info.error_message.clone(),
+                                    error_info.was_timeout,
+                                    error_info.retry_attempts,
+                                );
+                            }
                         }
                     }
+                    result
                 }
-                result
-            }
-            Err(e) => {
-                // FIX-3: Comprehensive error logging with context
-                let error_msg = format!("Pipeline processing failed: {}", e);
-                error!(
-                    document_id = %document_id,
-                    workspace_id = ?workspace_id,
-                    tenant_id = ?tenant_id,
-                    content_length = data.text.len(),
-                    error = %e,
-                    "CRITICAL: Pipeline processing failed - document marked as failed"
-                );
+                Err(e) => {
+                    // FIX-3: Comprehensive error logging with context
+                    let error_msg = format!("Pipeline processing failed: {}", e);
+                    error!(
+                        document_id = %document_id,
+                        workspace_id = ?workspace_id,
+                        tenant_id = ?tenant_id,
+                        content_length = data.text.len(),
+                        error = %e,
+                        "CRITICAL: Pipeline processing failed - document marked as failed"
+                    );
 
-                // Update document status to failed with detailed error
-                self.update_document_status(&document_id, "failed", Some(&error_msg))
-                    .await?;
+                    // Update document status to failed with detailed error
+                    self.update_document_status(&document_id, "failed", Some(&error_msg))
+                        .await?;
 
-                self.pipeline_state
-                    .document_failed(&document_id, &error_msg)
-                    .await;
+                    self.pipeline_state
+                        .document_failed(&document_id, &error_msg)
+                        .await;
 
-                return Err(edgequake_tasks::TaskError::Process(error_msg));
-            }
-        };
+                    return Err(edgequake_tasks::TaskError::Process(error_msg));
+                }
+            };
 
             // CHECKPOINT-SAVE: Persist pipeline results so a crash during
             // storage won't force re-running the expensive LLM extraction.
@@ -1004,8 +1004,7 @@ impl DocumentTaskProcessor {
         // Remove the checkpoint so it won't be reloaded on next run.
         // WHY: If we reach here, every piece of data is safely persisted.
         // Keeping the checkpoint would waste storage and risk stale reloads.
-        super::pipeline_checkpoint::clear_pipeline_checkpoint(&self.kv_storage, &document_id)
-            .await;
+        super::pipeline_checkpoint::clear_pipeline_checkpoint(&self.kv_storage, &document_id).await;
 
         // Log success
         self.pipeline_state

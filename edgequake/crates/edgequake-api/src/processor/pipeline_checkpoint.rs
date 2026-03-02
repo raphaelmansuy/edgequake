@@ -135,9 +135,8 @@ pub async fn save_pipeline_checkpoint(
     };
 
     let key = checkpoint_key(document_id);
-    let value = serde_json::to_value(&checkpoint).map_err(|e| {
-        format!("Failed to serialize pipeline checkpoint for {document_id}: {e}")
-    })?;
+    let value = serde_json::to_value(&checkpoint)
+        .map_err(|e| format!("Failed to serialize pipeline checkpoint for {document_id}: {e}"))?;
 
     kv.upsert(&[(key.clone(), value)])
         .await
@@ -346,10 +345,7 @@ mod tests {
 
     #[test]
     fn test_checkpoint_key_format() {
-        assert_eq!(
-            checkpoint_key("doc-123"),
-            "doc-123-pipeline-checkpoint"
-        );
+        assert_eq!(checkpoint_key("doc-123"), "doc-123-pipeline-checkpoint");
     }
 
     #[test]
@@ -535,15 +531,8 @@ mod tests {
         .unwrap();
 
         // Load with different content — should return None
-        let loaded = load_pipeline_checkpoint(
-            &kv,
-            "doc-3",
-            "ws",
-            "openai",
-            "ollama",
-            "modified text",
-        )
-        .await;
+        let loaded =
+            load_pipeline_checkpoint(&kv, "doc-3", "ws", "openai", "ollama", "modified text").await;
         assert!(loaded.is_none());
     }
 
@@ -567,16 +556,14 @@ mod tests {
             .unwrap();
 
         // Verify it exists
-        let loaded =
-            load_pipeline_checkpoint(&kv, "doc-4", "ws", "openai", "ollama", "text").await;
+        let loaded = load_pipeline_checkpoint(&kv, "doc-4", "ws", "openai", "ollama", "text").await;
         assert!(loaded.is_some());
 
         // Clear it
         clear_pipeline_checkpoint(&kv, "doc-4").await;
 
         // Verify it's gone
-        let loaded =
-            load_pipeline_checkpoint(&kv, "doc-4", "ws", "openai", "ollama", "text").await;
+        let loaded = load_pipeline_checkpoint(&kv, "doc-4", "ws", "openai", "ollama", "text").await;
         assert!(loaded.is_none());
     }
 
@@ -593,15 +580,8 @@ mod tests {
             .unwrap();
 
         // Load should return None and clean up corrupt entry
-        let loaded = load_pipeline_checkpoint(
-            &kv,
-            "doc-corrupt",
-            "ws",
-            "openai",
-            "ollama",
-            "text",
-        )
-        .await;
+        let loaded =
+            load_pipeline_checkpoint(&kv, "doc-corrupt", "ws", "openai", "ollama", "text").await;
         assert!(loaded.is_none());
     }
 
@@ -611,15 +591,9 @@ mod tests {
 
         let kv: Arc<dyn KVStorage> = Arc::new(MemoryKVStorage::new("test"));
 
-        let loaded = load_pipeline_checkpoint(
-            &kv,
-            "nonexistent-doc",
-            "ws",
-            "openai",
-            "ollama",
-            "text",
-        )
-        .await;
+        let loaded =
+            load_pipeline_checkpoint(&kv, "nonexistent-doc", "ws", "openai", "ollama", "text")
+                .await;
         assert!(loaded.is_none());
     }
 }

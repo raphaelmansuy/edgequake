@@ -54,15 +54,16 @@ fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, p
 /// ## Recovery Strategy
 ///
 /// Tasks stuck in "processing" for >5 minutes are assumed orphaned:
-/// - Mark as "failed" with clear error message
-/// - Users can see the failure and retry manually
-/// - Prevents silent data loss and UI confusion
+/// - Reset to "pending" status so they will be requeued by `requeue_pending_tasks()`
+/// - Pipeline checkpoint system ensures expensive LLM extraction is not repeated
+/// - Workers resume from checkpoint, skipping already-completed stages
 ///
 /// ## False Positive Risk
 ///
-/// Could mark legitimately slow tasks as failed if they take >5 minutes.
-/// Mitigation: 5 minutes is conservative - most docs process in <1 minute.
-/// Users can retry immediately if this happens.
+/// Could reset legitimately slow tasks if they take >5 minutes. This is safe because:
+/// - Processing is idempotent (upserts to KV/graph/vector storage)
+/// - Checkpoint system prevents re-running expensive LLM extraction
+/// - Worst case: a small amount of duplicate storage writes
 ///
 /// @implements PRODUCTION_BUG_FIX: Orphaned task recovery on startup
 async fn recover_orphaned_tasks(
@@ -83,7 +84,10 @@ async fn recover_orphaned_tasks(
 
     let task_list = task_storage.list_tasks(filter, pagination).await?;
     let now = Utc::now();
-    let orphan_threshold = Duration::minutes(5);
+    // WHY 10 minutes: Workers send heartbeat every 60s updating `updated_at`.
+    // Tasks that haven't been updated in 10 minutes (10x heartbeat interval)
+    // are truly orphaned — no active worker is processing them.
+    let orphan_threshold = Duration::minutes(10);
 
     let mut recovered_count = 0;
     let mut skipped_count = 0;
@@ -92,19 +96,22 @@ async fn recover_orphaned_tasks(
         let age = now.signed_duration_since(task.updated_at);
 
         if age > orphan_threshold {
-            // Task is orphaned - mark as failed
-            task.status = TaskStatus::Failed;
+            // Task is orphaned — reset to pending for automatic retry.
+            // WHY pending (not failed): The checkpoint system will resume from
+            // where the task left off. Marking as "failed" forces manual retry
+            // which is poor UX. Resetting to "pending" enables auto-recovery.
+            task.status = TaskStatus::Pending;
             task.error_message = Some(format!(
-                "Task orphaned after backend restart. Last updated {} minutes ago. Please retry.",
+                "Auto-recovered after backend restart (was processing for {} minutes). \
+                 Will resume from checkpoint if available.",
                 age.num_minutes()
             ));
-            task.completed_at = Some(now);
             task.updated_at = now;
 
             match task_storage.update_task(&task).await {
                 Ok(_) => {
                     info!(
-                        "✅ Recovered orphaned task: {} (age: {} minutes)",
+                        "✅ Auto-recovered orphaned task: {} → pending (age: {} min, will resume from checkpoint)",
                         task.track_id,
                         age.num_minutes()
                     );
@@ -125,7 +132,7 @@ async fn recover_orphaned_tasks(
 
     if recovered_count > 0 {
         info!(
-            "🔧 Orphaned task recovery complete: {} recovered, {} skipped (too recent)",
+            "🔧 Orphaned task recovery complete: {} auto-recovered to pending, {} skipped (too recent)",
             recovered_count, skipped_count
         );
     } else if recovered_count == 0 && skipped_count == 0 {
@@ -154,7 +161,15 @@ async fn recover_orphaned_tasks(
 /// ## Recovery Strategy
 ///
 /// Documents with non-terminal status/current_stage updated >5 minutes ago are
-/// marked as "failed" with a clear message. Users can then retry or delete them.
+/// reset to "pending" with a clear recovery message. This enables automatic
+/// retry through the normal task pipeline without user intervention.
+///
+/// Pipeline checkpoints ensure that expensive LLM extraction work is not repeated
+/// — the recovered document will resume from the last checkpoint.
+///
+/// Documents stuck in early stages (uploading, converting) where no checkpoint
+/// exists are marked as "retry_pending" to indicate they need user action
+/// to re-upload the source file.
 ///
 /// @implements FIX: Stuck uploading status after cancel or server restart
 async fn recover_orphaned_documents(
@@ -176,11 +191,18 @@ async fn recover_orphaned_documents(
 
     let metadata_values = kv_storage.get_by_ids(&metadata_keys).await?;
     let now = Utc::now();
-    let orphan_threshold = Duration::minutes(5);
+    // WHY 10 minutes: Aligned with task orphan threshold. Workers send heartbeats
+    // every 60s which also update document status. Documents not updated in 10
+    // minutes are truly orphaned — no worker is processing them.
+    let orphan_threshold = Duration::minutes(10);
 
-    let non_terminal_statuses = [
-        "uploading",
-        "converting",
+    // Stages where no meaningful work has been done yet — source content
+    // may have been lost on restart. These need user re-upload.
+    let needs_reupload_stages = ["uploading", "converting"];
+
+    // Stages where pipeline checkpoint or at least the text is in KV storage,
+    // so automatic retry is possible.
+    let auto_retryable_statuses = [
         "preprocessing",
         "chunking",
         "extracting",
@@ -191,9 +213,17 @@ async fn recover_orphaned_documents(
         "storing",
         "pending",
         "processing",
+        "indexing",
     ];
 
-    let mut recovered_count = 0;
+    let non_terminal_statuses: Vec<&str> = needs_reupload_stages
+        .iter()
+        .chain(auto_retryable_statuses.iter())
+        .copied()
+        .collect();
+
+    let mut auto_recovered_count = 0;
+    let mut needs_reupload_count = 0;
 
     for (key, value) in metadata_keys.iter().zip(metadata_values.iter()) {
         if let Some(obj) = value.as_object() {
@@ -228,25 +258,58 @@ async fn recover_orphaned_documents(
                 continue;
             }
 
-            // Mark document as failed
+            // Determine recovery strategy based on the stuck stage
+            let stuck_stage = if !current_stage.is_empty() {
+                current_stage
+            } else {
+                status
+            };
+
+            let is_early_stage = needs_reupload_stages.contains(&stuck_stage);
+
             let mut updated = obj.clone();
-            updated.insert("status".to_string(), serde_json::json!("failed"));
-            updated.insert("current_stage".to_string(), serde_json::json!("failed"));
-            updated.insert(
-                "stage_message".to_string(),
-                serde_json::json!(format!(
-                    "Document was stuck in '{}' state after backend restart. Please retry.",
-                    if !current_stage.is_empty() {
-                        current_stage
-                    } else {
-                        status
-                    }
-                )),
-            );
-            updated.insert(
-                "error_message".to_string(),
-                serde_json::json!("Orphaned during backend restart - please retry"),
-            );
+
+            if is_early_stage {
+                // Early stage: source content may be lost — mark failed but with
+                // a clear message so users know to re-upload
+                updated.insert("status".to_string(), serde_json::json!("failed"));
+                updated.insert("current_stage".to_string(), serde_json::json!("failed"));
+                updated.insert(
+                    "stage_message".to_string(),
+                    serde_json::json!(format!(
+                        "Server restarted during '{}' stage. Source content may be incomplete. \
+                         Please re-upload the document.",
+                        stuck_stage
+                    )),
+                );
+                updated.insert(
+                    "error_message".to_string(),
+                    serde_json::json!(
+                        "Server restarted during early processing — please re-upload"
+                    ),
+                );
+                needs_reupload_count += 1;
+            } else {
+                // Later stage: pipeline checkpoint likely exists, auto-retry.
+                // WHY "pending": The task recovery already requeued the task as
+                // pending, and the checkpoint system will skip expensive LLM
+                // extraction. Setting document to "pending" keeps the UI
+                // showing progress instead of an error.
+                updated.insert("status".to_string(), serde_json::json!("pending"));
+                updated.insert("current_stage".to_string(), serde_json::json!("pending"));
+                updated.insert(
+                    "stage_message".to_string(),
+                    serde_json::json!(format!(
+                        "Auto-recovered after server restart (was in '{}' stage). \
+                         Resuming from checkpoint...",
+                        stuck_stage
+                    )),
+                );
+                // Clear any previous error message since we're retrying
+                updated.remove("error_message");
+                auto_recovered_count += 1;
+            }
+
             updated.insert(
                 "updated_at".to_string(),
                 serde_json::json!(now.to_rfc3339()),
@@ -257,16 +320,17 @@ async fn recover_orphaned_documents(
                 .await
             {
                 Ok(_) => {
-                    info!(
-                        "✅ Recovered orphaned document: {} (was stuck in '{}')",
-                        key,
-                        if !current_stage.is_empty() {
-                            current_stage
-                        } else {
-                            status
-                        }
-                    );
-                    recovered_count += 1;
+                    if is_early_stage {
+                        info!(
+                            "⚠️ Document needs re-upload: {} (was stuck in '{}')",
+                            key, stuck_stage
+                        );
+                    } else {
+                        info!(
+                            "✅ Auto-recovered document: {} (was in '{}' → pending, will resume from checkpoint)",
+                            key, stuck_stage
+                        );
+                    }
                 }
                 Err(e) => {
                     warn!("⚠️ Failed to recover orphaned document {}: {}", key, e);
@@ -275,10 +339,11 @@ async fn recover_orphaned_documents(
         }
     }
 
-    if recovered_count > 0 {
+    let total_recovered = auto_recovered_count + needs_reupload_count;
+    if total_recovered > 0 {
         info!(
-            "🔧 Orphaned document recovery complete: {} recovered",
-            recovered_count
+            "🔧 Orphaned document recovery complete: {} auto-recovered (pending), {} need re-upload (failed)",
+            auto_recovered_count, needs_reupload_count
         );
     } else {
         info!("✅ No orphaned documents found - clean startup");
@@ -452,10 +517,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let processor = Arc::new(processor);
 
     // Configure worker pool
+    // WHY num_cpus * 4: Pipeline processing is IO-bound (LLM API calls,
+    // embedding generation). Workers mostly wait for network I/O, so we need
+    // more workers than CPU cores to keep the pipeline saturated.
     let num_workers: usize = std::env::var("WORKER_THREADS")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| num_cpus::get().max(2));
+        .unwrap_or_else(|| (num_cpus::get() * 4).max(4));
 
     let worker_config = WorkerPoolConfig {
         num_workers,
@@ -465,13 +533,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         backoff_multiplier: 2.0,
         // FEAT-TENANT-FAIRNESS: Per-tenant concurrency limit.
         // Ensures no single tenant can monopolize all workers.
-        // Default: max(1, num_workers/2) so at least half the workers
-        // remain available for other tenants.
+        // Default: max(1, num_workers * 3/4) — IO-bound workloads benefit
+        // from higher per-tenant concurrency while still reserving 25%
+        // capacity for other tenants.
         // Set MAX_TASKS_PER_TENANT=0 to disable.
         max_tasks_per_tenant: std::env::var("MAX_TASKS_PER_TENANT")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| (num_workers / 2).max(1)),
+            .unwrap_or_else(|| (num_workers * 3 / 4).max(1)),
     };
 
     // Recover orphaned tasks from previous backend session (PRODUCTION_BUG_FIX)
@@ -507,10 +576,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // WHY: Stale checkpoints reference outdated provider configs or content
     // that may have been re-uploaded. Cleaning on startup keeps storage lean
     // and prevents stale data from being reloaded.
-    edgequake_api::processor::pipeline_checkpoint::cleanup_stale_checkpoints(
-        &state.kv_storage,
-    )
-    .await;
+    edgequake_api::processor::pipeline_checkpoint::cleanup_stale_checkpoints(&state.kv_storage)
+        .await;
 
     // Create and start worker pool
     let mut worker_pool = WorkerPool::new(

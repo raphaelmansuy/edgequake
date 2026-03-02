@@ -166,6 +166,20 @@ impl TaskStorage for PostgresTaskStorage {
         }
     }
 
+    /// Lightweight heartbeat: only update `updated_at` column.
+    ///
+    /// WHY: This is ~10x cheaper than a full `update_task` because it doesn't
+    /// serialize/deserialize the JSONB payload column. Workers call this every
+    /// 60 seconds during long-running LLM extraction to signal liveness.
+    async fn touch_task(&self, track_id: &str) -> TaskResult<()> {
+        sqlx::query("UPDATE tasks SET updated_at = NOW() WHERE track_id = $1")
+            .bind(track_id)
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| TaskError::StorageError(format!("Failed to touch task: {}", e)))?;
+        Ok(())
+    }
+
     async fn update_task(&self, task: &Task) -> TaskResult<()> {
         // WHY: Update payload JSONB with combined task_data, metadata, progress
         // We only update the progress inside payload on updates (task_data is immutable)

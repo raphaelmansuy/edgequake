@@ -18,6 +18,24 @@ pub trait TaskStorage: Send + Sync {
     /// Update existing task
     async fn update_task(&self, task: &Task) -> TaskResult<()>;
 
+    /// Lightweight heartbeat: update only the `updated_at` timestamp.
+    ///
+    /// WHY: Workers call this periodically during long-running processing
+    /// (LLM extraction can take 10+ minutes for large documents). This
+    /// prevents the orphan-recovery logic from falsely marking active tasks
+    /// as orphaned. A full `update_task` would be wasteful since only the
+    /// timestamp needs changing.
+    ///
+    /// Default implementation falls back to `get_task` + `update_task`.
+    async fn touch_task(&self, track_id: &str) -> TaskResult<()> {
+        if let Some(mut task) = self.get_task(track_id).await? {
+            task.updated_at = Utc::now();
+            self.update_task(&task).await
+        } else {
+            Ok(()) // Task gone — nothing to heartbeat
+        }
+    }
+
     /// Delete task by track ID
     async fn delete_task(&self, track_id: &str) -> TaskResult<()>;
 
