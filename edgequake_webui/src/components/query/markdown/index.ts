@@ -20,11 +20,11 @@ export {
 } from "./LazyMarkdownSections";
 export { MarkdownTokens } from "./MarkdownTokens";
 export { MermaidBlock } from "./MermaidBlock";
+export { TableSkeleton } from "./TableSkeleton";
 export {
   VIRTUALIZATION_CHAR_THRESHOLD,
   VirtualizedMarkdownContent,
 } from "./VirtualizedMarkdownContent";
-export { TableSkeleton } from "./TableSkeleton";
 
 // Inline components
 export { KatexMath } from "./KatexMath";

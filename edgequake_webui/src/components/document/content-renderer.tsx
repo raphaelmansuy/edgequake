@@ -15,8 +15,8 @@
 
 import { StreamingMarkdownRenderer } from '@/components/query/markdown';
 import {
-  VIRTUALIZATION_CHAR_THRESHOLD,
-  VirtualizedMarkdownContent,
+    VIRTUALIZATION_CHAR_THRESHOLD,
+    VirtualizedMarkdownContent,
 } from '@/components/query/markdown/VirtualizedMarkdownContent';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Document } from '@/types';

@@ -40,13 +40,13 @@ import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
 import { useFileUpload } from '@/hooks/use-file-upload';
 import { useStuckDetection } from '@/hooks/use-stuck-detection';
-import { isProcessingStatus } from './status-badge';
 import { DocumentErrorAlert } from './document-error-alert';
 import { DocumentHeader } from './document-header';
 import { DocumentPreviewRightPanel } from './document-preview-right-panel';
 import { DocumentTableSection } from './document-table-section';
 import { DocumentToolbarSection } from './document-toolbar-section';
 import { DuplicateUploadDialog } from './duplicate-upload-dialog';
+import { isProcessingStatus } from './status-badge';
 
 export function DocumentManager() {
   const { t } = useTranslation();

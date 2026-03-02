@@ -17,8 +17,8 @@
 
 import { StreamingMarkdownRenderer } from '@/components/query/markdown';
 import {
-  VIRTUALIZATION_CHAR_THRESHOLD,
-  VirtualizedMarkdownContent,
+    VIRTUALIZATION_CHAR_THRESHOLD,
+    VirtualizedMarkdownContent,
 } from '@/components/query/markdown/VirtualizedMarkdownContent';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
