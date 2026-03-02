@@ -282,6 +282,18 @@
       "started": "Analyse démarrée",
       "startedDesc": "Analyse du répertoire d'entrée pour de nouveaux documents..."
     },
+    "bulk": {
+      "selected": "{{count}} document(s) sélectionné(s)",
+      "select": "Sélectionner",
+      "selectAll": "Tout sélectionner",
+      "delete": "Supprimer",
+      "reprocess": "Retraiter",
+      "clear": "Désélectionner",
+      "deleteSuccess": "{{count}} document(s) supprimé(s)",
+      "deleteFailed": "Échec de la suppression de {{count}} document(s)",
+      "reprocessSuccess": "{{count}} document(s) mis en file d'attente",
+      "reprocessFailed": "Échec du retraitement de {{count}} document(s)"
+    },
     "viewStatus": "Voir le statut"
   },
   "graph": {

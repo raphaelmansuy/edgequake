@@ -306,6 +306,10 @@ export function useDocumentMutations(
                 "Could not cancel processing. It may have already completed.",
               ),
       });
+      // WHY: The cancel handler may have already updated the document's KV
+      // metadata to "cancelled" before the task-level check returned 409.
+      // Invalidate cache so the UI reflects the actual document state.
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
   });
 

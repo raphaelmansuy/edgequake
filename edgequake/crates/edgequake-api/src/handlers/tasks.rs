@@ -290,11 +290,20 @@ pub async fn cancel_task(
             }
 
             // Check if task can be cancelled
-            if task.status == TaskStatus::Indexed || task.status == TaskStatus::Cancelled {
+            // WHY: Indexed tasks represent completed work that can't be undone,
+            // so cancellation is rejected. But already-cancelled tasks should be
+            // treated as idempotent — the user's intent (stop processing) was
+            // already achieved, so return success instead of 409 Conflict.
+            if task.status == TaskStatus::Indexed {
                 return Err(ApiError::Conflict(format!(
                     "Cannot cancel task in status: {}",
                     task.status
                 )));
+            }
+
+            // Already cancelled — return success (idempotent)
+            if task.status == TaskStatus::Cancelled {
+                return Ok(Json(TaskResponse::from(task)));
             }
 
             task.mark_cancelled();

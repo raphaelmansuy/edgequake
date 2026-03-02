@@ -181,6 +181,18 @@
       "confirm": "Retry All Failed"
     },
     "clearAll": "Clear All",
+    "bulk": {
+      "selected": "{{count}} document(s) selected",
+      "select": "Select",
+      "selectAll": "Select all",
+      "delete": "Delete",
+      "reprocess": "Reprocess",
+      "clear": "Clear",
+      "deleteSuccess": "Deleted {{count}} document(s)",
+      "deleteFailed": "Failed to delete {{count}} document(s)",
+      "reprocessSuccess": "Queued {{count}} document(s) for reprocessing",
+      "reprocessFailed": "Failed to queue {{count}} document(s)"
+    },
     "viewStatus": "View Status",
     "uploadDrop": "Drag & drop files or click to upload",
     "uploadDropActive": "Drop files here...",

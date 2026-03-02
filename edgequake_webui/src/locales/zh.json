@@ -282,6 +282,18 @@
       "started": "扫描已启动",
       "startedDesc": "正在扫描输入目录以查找新文档..."
     },
+    "bulk": {
+      "selected": "已选择 {{count}} 个文档",
+      "select": "选择",
+      "selectAll": "全选",
+      "delete": "删除",
+      "reprocess": "重新处理",
+      "clear": "取消选择",
+      "deleteSuccess": "已删除 {{count}} 个文档",
+      "deleteFailed": "{{count}} 个文档删除失败",
+      "reprocessSuccess": "{{count}} 个文档已加入重新处理队列",
+      "reprocessFailed": "{{count}} 个文档重新处理失败"
+    },
     "viewStatus": "查看状态"
   },
   "graph": {
