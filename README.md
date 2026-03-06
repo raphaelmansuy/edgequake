@@ -124,7 +124,10 @@ cd edgequake
 # 2. Install dependencies
 make install
 
-# 3. Start the full stack (PostgreSQL + Backend + Frontend)
+# 3. Configure the frontend environment
+cp edgequake_webui/.env.local.example edgequake_webui/.env.local
+
+# 4. Start the full stack (PostgreSQL + Backend + Frontend)
 make dev
 ```
 
