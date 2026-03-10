@@ -90,12 +90,10 @@ impl PipelineCheckpoint {
     fn compute_content_hash(text: &str) -> String {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
-        // Hash prefix to avoid hashing multi-MB documents entirely
-
+        // Hash prefix to avoid hashing multi-MB documents entirely.
         let target_len = text.len().min(65_536);
         let safe_len = text.floor_char_boundary(target_len);
         let prefix = &text[..safe_len];
-
         hasher.update(prefix.as_bytes());
         hex::encode(&hasher.finalize()[..8]) // 16-char hex = 64-bit fingerprint
     }
@@ -118,7 +116,7 @@ fn checkpoint_key(document_id: &str) -> String {
 /// * `source_text` — Original document text (for content hash)
 #[allow(clippy::too_many_arguments)]
 pub async fn save_pipeline_checkpoint(
-    kv: &Arc<dyn KVStorage>, 
+    kv: &Arc<dyn KVStorage>,
     document_id: &str,
     result: &ProcessingResult,
     workspace_id: &str,
