@@ -225,7 +225,7 @@ curl -X POST http://localhost:8080/api/v1/query \
 │  Backend (Rust - 11 Crates)                                                 │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │  edgequake-core          │  Orchestration & Pipeline                 │   │
-│  │  edgequake-llm           │  OpenAI, Ollama, LM Studio, Mock          │   │
+│  │  edgequake-llm           │  OpenAI, Anthropic, MiniMax, Ollama, etc.  │   │
 │  │  edgequake-storage       │  PostgreSQL AGE, Memory adapters          │   │
 │  │  edgequake-api           │  REST API server                          │   │
 │  │  edgequake-pipeline      │  Document ingestion pipeline              │   │
@@ -242,9 +242,10 @@ curl -X POST http://localhost:8080/api/v1/query \
 │  ┌─────────────────────────────┐   ┌──────────────────────────────────┐     │
 │  │   LLM Providers             │   │   Storage Backends               │     │
 │  │  • OpenAI (gpt-4.1-nano)    │   │  • PostgreSQL 15+ (AGE + vector) │     │
-│  │  • Ollama (gemma3:12b)      │   │  • In-Memory (dev/testing)       │     │
-│  │  • LM Studio (local models) │   │  • Graph: Property graph model   │     │
-│  │  • Mock (testing, free)     │   │  • Vector: pgvector embeddings   │     │
+│  │  • Anthropic (Claude)       │   │  • In-Memory (dev/testing)       │     │
+│  │  • MiniMax (MiniMax-M2.5)   │   │  • Graph: Property graph model   │     │
+│  │  • Ollama (gemma3:12b)      │   │  • Vector: pgvector embeddings   │     │
+│  │  • LM Studio, xAI, Gemini  │   │                                  │     │
 │  │  Auto-detection via env     │   │                                  │     │
 │  └─────────────────────────────┘   └──────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────────────┘

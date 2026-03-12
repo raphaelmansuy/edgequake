@@ -116,6 +116,13 @@ DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
 | `OPENROUTER_API_KEY`  | String | None                        | OpenRouter API key (required) |
 | `OPENROUTER_BASE_URL` | String | `https://openrouter.ai/api` | API endpoint                  |
 
+#### MiniMax
+
+| Variable            | Type   | Default                      | Description                                          |
+| ------------------- | ------ | ---------------------------- | ---------------------------------------------------- |
+| `MINIMAX_API_KEY`   | String | None                         | MiniMax API key (required)                           |
+| `MINIMAX_BASE_URL`  | String | `https://api.minimax.io/v1`  | API endpoint (use `https://api.minimaxi.com/v1` for China) |
+
 #### Azure OpenAI
 
 | Variable                   | Type   | Default              | Description                 |
@@ -201,6 +208,7 @@ image_per_unit = 0.0
 | `gemini`     | Google Gemini models    | `GEMINI_API_KEY`       |
 | `xai`        | xAI Grok models         | `XAI_API_KEY`          |
 | `openrouter` | OpenRouter aggregator   | `OPENROUTER_API_KEY`   |
+| `minimax`    | MiniMax AI models       | `MINIMAX_API_KEY`      |
 | `azure`      | Azure OpenAI            | `AZURE_OPENAI_API_KEY` |
 | `ollama`     | Ollama local models     | None (local)           |
 | `lm_studio`  | LM Studio local         | None (local)           |

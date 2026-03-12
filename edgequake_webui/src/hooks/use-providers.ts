@@ -129,6 +129,7 @@ export function getProviderDisplayName(providerId: string): string {
     xai: "xAI",
     openrouter: "OpenRouter",
     azure: "Azure OpenAI",
+    minimax: "MiniMax",
     mock: "Mock (Dev)",
   };
   return names[providerId.toLowerCase()] || providerId;
@@ -147,6 +148,7 @@ export function getProviderIconClass(providerId: string): string {
     xai: "text-slate-700",
     openrouter: "text-indigo-600",
     azure: "text-sky-600",
+    minimax: "text-teal-600",
     mock: "text-gray-500",
   };
   return icons[providerId.toLowerCase()] || "text-gray-500";

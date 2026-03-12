@@ -119,6 +119,8 @@ function getProviderIcon(providerId: string, className?: string) {
       return <Globe className={cn(iconClass, 'text-indigo-600')} />;
     case 'azure':
       return <Cloud className={cn(iconClass, 'text-sky-600')} />;
+    case 'minimax':
+      return <Sparkles className={cn(iconClass, 'text-teal-600')} />;
     case 'mock':
       return <FlaskConical className={cn(iconClass, 'text-gray-500')} />;
     default:

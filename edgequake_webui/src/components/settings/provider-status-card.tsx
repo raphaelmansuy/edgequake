@@ -78,6 +78,7 @@ export function ProviderStatusCard() {
       'xai': 'xAI',
       'openrouter': 'OpenRouter',
       'azure': 'Azure OpenAI',
+      'minimax': 'MiniMax',
       'mock': 'Mock (Development)',
     };
     return names[name.toLowerCase()] || name;
@@ -142,6 +143,12 @@ export EDGEQUAKE_LLM_MODEL="openai/gpt-4o-mini"`,
         code: `export AZURE_OPENAI_API_KEY="..."
 export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
 export EDGEQUAKE_LLM_PROVIDER="azure"`,
+      },
+      'minimax': {
+        label: 'MiniMax Configuration',
+        code: `export MINIMAX_API_KEY="..."
+export EDGEQUAKE_LLM_PROVIDER="minimax"
+export EDGEQUAKE_LLM_MODEL="MiniMax-M2.5"`,
       },
     };
     return configs[providerName.toLowerCase()] || { label: 'Configuration', code: '' };

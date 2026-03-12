@@ -300,6 +300,24 @@ impl AvailableProvidersResponse {
                 },
             },
             ProviderInfo {
+                id: "minimax".to_string(),
+                name: "MiniMax".to_string(),
+                description: "MiniMax AI (MiniMax-M2.5) - Peak Performance, Ultimate Value"
+                    .to_string(),
+                available: std::env::var("MINIMAX_API_KEY").is_ok(),
+                config_requirements: vec![ConfigRequirement {
+                    env_var: "MINIMAX_API_KEY".to_string(),
+                    required: true,
+                    description: "MiniMax API key".to_string(),
+                    satisfied: std::env::var("MINIMAX_API_KEY").is_ok(),
+                }],
+                default_models: DefaultModels {
+                    chat_model: "MiniMax-M2.5".to_string(),
+                    embedding_model: "".to_string(),
+                    embedding_dimension: 0,
+                },
+            },
+            ProviderInfo {
                 id: "azure".to_string(),
                 name: "Azure OpenAI".to_string(),
                 description: "Azure-hosted OpenAI models (enterprise)".to_string(),

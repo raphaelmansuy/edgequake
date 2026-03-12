@@ -355,6 +355,7 @@ pub fn default_model_for_provider(provider_name: &str) -> &'static str {
         "openrouter" => "openai/gpt-4o-mini",
         "ollama" => "gemma3:12b",
         "lmstudio" | "lm-studio" | "lm_studio" => "gemma-3n-e4b-it",
+        "minimax" => "MiniMax-M2.5",
         "mock" => "mock-model",
         _ => "gpt-4.1-nano",
     }
