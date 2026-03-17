@@ -2,11 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.5.5] - 2026-02-27
+## [0.5.6] - 2026-03-17
 
 ### Added
 
-#### Document Query Filters (SPEC-005)
+#### Document Query Filters (SPEC-005) — Closes [#75](https://github.com/raphaelmansuy/edgequake/issues/75)
 
 - **`document_filter` field** on `QueryRequest`, `ChatCompletionRequest`, and `ListDocumentsRequest`: Optional filter restricting RAG context and document listings by date range (`date_from`, `date_to`) and document name pattern (`document_pattern`). All criteria are AND-ed.
 - **`context_filter.rs`** (`edgequake-query`): Post-retrieval context filtering by `allowed_document_ids`. Chunks use strict matching; entities and relationships use lenient matching (kept if no provenance metadata).
@@ -16,6 +16,10 @@ All notable changes to this project will be documented in this file.
 - **Document listing**: `GET /api/v1/documents` accepts `date_from`, `date_to`, `document_pattern` query parameters for server-side filtering.
 - **Frontend**: `QueryDocumentFilter` popover component with date range pickers and pattern input, integrated into the query interface toolbar. Active filter count badge on the filter button.
 - **12 unit tests**: 4 for `context_filter` and 8 for `document_filter_resolver` covering date ranges, patterns, tenant scoping, combined filters, and edge cases.
+
+## [0.5.5] - 2026-02-27
+
+### Added
 
 #### System Prompt Extension Point (SPEC-004)
 

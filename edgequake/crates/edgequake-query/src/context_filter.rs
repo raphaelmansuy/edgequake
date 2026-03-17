@@ -18,10 +18,7 @@ use crate::context::QueryContext;
 /// - **Relationships**: same rule as entities.
 ///
 /// This is a no-op when `allowed_ids` is `None` (no filter active).
-pub fn filter_context_by_document_ids(
-    context: &mut QueryContext,
-    allowed_ids: Option<&[String]>,
-) {
+pub fn filter_context_by_document_ids(context: &mut QueryContext, allowed_ids: Option<&[String]>) {
     let allowed = match allowed_ids {
         Some(ids) => ids,
         None => return, // No filter active — keep everything
@@ -70,8 +67,8 @@ mod tests {
     }
 
     fn make_entity(name: &str, doc_id: Option<&str>) -> RetrievedEntity {
-        let mut entity = RetrievedEntity::new(name, "PERSON", format!("desc of {}", name))
-            .with_score(0.8);
+        let mut entity =
+            RetrievedEntity::new(name, "PERSON", format!("desc of {}", name)).with_score(0.8);
         if let Some(d) = doc_id {
             entity = entity.with_source_document_id(d);
         }
@@ -130,8 +127,11 @@ mod tests {
 
         // Chunks: doc-a, doc-b kept; doc-c and orphan excluded
         assert_eq!(ctx.chunks.len(), 2);
-        assert!(ctx.chunks.iter().all(|c| c.document_id.as_deref() == Some("doc-a")
-            || c.document_id.as_deref() == Some("doc-b")));
+        assert!(ctx
+            .chunks
+            .iter()
+            .all(|c| c.document_id.as_deref() == Some("doc-a")
+                || c.document_id.as_deref() == Some("doc-b")));
 
         // Entities: Alice (doc-a), Bob (doc-b), Charlie (no provenance) kept
         assert_eq!(ctx.entities.len(), 3);

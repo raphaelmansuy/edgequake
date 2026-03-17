@@ -198,11 +198,14 @@ List all documents in the workspace.
 
 **Query Parameters**:
 
-| Parameter | Type    | Default | Description                                      |
-| --------- | ------- | ------- | ------------------------------------------------ |
-| `limit`   | integer | 50      | Max documents to return                          |
-| `offset`  | integer | 0       | Pagination offset                                |
-| `status`  | string  | all     | Filter by status (processing, completed, failed) |
+| Parameter          | Type    | Default | Description                                      |
+| ------------------ | ------- | ------- | ------------------------------------------------ |
+| `limit`            | integer | 50      | Max documents to return                          |
+| `offset`           | integer | 0       | Pagination offset                                |
+| `status`           | string  | all     | Filter by status (processing, completed, failed) |
+| `date_from`        | string  | null    | ISO 8601 date. Only include documents created on or after this date |
+| `date_to`          | string  | null    | ISO 8601 date. Only include documents created on or before this date |
+| `document_pattern` | string  | null    | Comma-separated title search terms (case-insensitive, OR logic) |
 
 ```bash
 curl http://localhost:8080/api/v1/documents?limit=10&status=completed \
@@ -302,6 +305,17 @@ curl -X POST http://localhost:8080/api/v1/query \
 | `rerank_top_k`         | integer | 5        | Number of top chunks after reranking         |
 | `conversation_history` | array   | null     | Previous messages for multi-turn context     |
 | `system_prompt`        | string  | null     | Custom instructions prepended to LLM context |
+| `document_filter`      | object  | null     | Optional filter to restrict RAG context (see below) |
+
+**Document Filter Object**:
+
+| Field              | Type   | Description                                          |
+| ------------------ | ------ | ---------------------------------------------------- |
+| `date_from`        | string | ISO 8601 date. Only include documents created on or after this date |
+| `date_to`          | string | ISO 8601 date. Only include documents created on or before this date |
+| `document_pattern` | string | Comma-separated terms. Matches document titles case-insensitively (OR logic) |
+
+All filter fields are optional and AND-ed together. Omit `document_filter` entirely to query all documents.
 
 **Query Modes**:
 
@@ -427,6 +441,7 @@ curl -X POST http://localhost:8080/api/v1/chat/completions \
 | `mode`            | string  | "hybrid" | Query mode                                     |
 | `stream`          | boolean | false    | Enable SSE streaming                           |
 | `system_prompt`   | string  | null     | Custom instructions prepended to LLM context   |
+| `document_filter` | object  | null     | Optional filter to restrict RAG context (same schema as Query API) |
 
 **Response** (Non-streaming):
 

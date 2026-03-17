@@ -32,15 +32,15 @@ pub async fn resolve_document_filter(
     workspace_id: &Option<String>,
 ) -> Result<Option<Vec<String>>, crate::error::ApiError> {
     // If all filter fields are None, return None (no filtering)
-    if filter.date_from.is_none() && filter.date_to.is_none() && filter.document_pattern.is_none()
-    {
+    if filter.date_from.is_none() && filter.date_to.is_none() && filter.document_pattern.is_none() {
         return Ok(None);
     }
 
     // Fetch all KV keys and find metadata keys
-    let keys = kv_storage.keys().await.map_err(|e| {
-        crate::error::ApiError::Internal(format!("Failed to list KV keys: {}", e))
-    })?;
+    let keys = kv_storage
+        .keys()
+        .await
+        .map_err(|e| crate::error::ApiError::Internal(format!("Failed to list KV keys: {}", e)))?;
 
     let metadata_keys: Vec<String> = keys
         .into_iter()
@@ -177,7 +177,10 @@ mod tests {
         let result = resolve_document_filter(&kv, &filter, &None, &None)
             .await
             .unwrap();
-        assert!(result.is_none(), "All-None filter should return None (no-op)");
+        assert!(
+            result.is_none(),
+            "All-None filter should return None (no-op)"
+        );
     }
 
     #[tokio::test]
@@ -201,7 +204,10 @@ mod tests {
 
         assert!(result.contains(&"doc1".to_string()));
         assert!(result.contains(&"doc2".to_string()));
-        assert!(!result.contains(&"doc3".to_string()), "doc3 is before date_from");
+        assert!(
+            !result.contains(&"doc3".to_string()),
+            "doc3 is before date_from"
+        );
     }
 
     #[tokio::test]
@@ -290,7 +296,11 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(result, vec!["doc1".to_string()], "Only doc1 matches both date AND pattern");
+        assert_eq!(
+            result,
+            vec!["doc1".to_string()],
+            "Only doc1 matches both date AND pattern"
+        );
     }
 
     #[tokio::test]
@@ -306,17 +316,16 @@ mod tests {
             date_to: None,
             document_pattern: Some("alpha, beta".to_string()),
         };
-        let result = resolve_document_filter(
-            &kv,
-            &filter,
-            &Some("t1".to_string()),
-            &None,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let result = resolve_document_filter(&kv, &filter, &Some("t1".to_string()), &None)
+            .await
+            .unwrap()
+            .unwrap();
 
-        assert_eq!(result, vec!["doc1".to_string()], "Only tenant t1 docs returned");
+        assert_eq!(
+            result,
+            vec!["doc1".to_string()],
+            "Only tenant t1 docs returned"
+        );
     }
 
     #[tokio::test]

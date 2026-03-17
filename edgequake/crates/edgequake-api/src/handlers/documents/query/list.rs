@@ -373,8 +373,7 @@ pub async fn list_documents(
     });
 
     // SPEC-005: Apply optional date range and title pattern filters
-    if params.date_from.is_some() || params.date_to.is_some() || params.document_pattern.is_some()
-    {
+    if params.date_from.is_some() || params.date_to.is_some() || params.document_pattern.is_some() {
         let patterns: Vec<String> = params
             .document_pattern
             .as_ref()
@@ -402,11 +401,7 @@ pub async fn list_documents(
             }
             // Title pattern filter (case-insensitive, comma-separated OR)
             if !patterns.is_empty() {
-                let title = doc
-                    .title
-                    .as_deref()
-                    .unwrap_or("")
-                    .to_lowercase();
+                let title = doc.title.as_deref().unwrap_or("").to_lowercase();
                 if !patterns.iter().any(|p| title.contains(p.as_str())) {
                     return false;
                 }
