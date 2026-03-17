@@ -20,6 +20,7 @@
  */
 
 import { apiClient, streamClient } from "./client";
+import type { DocumentFilter } from "@/types";
 
 // ============================================================================
 // Types
@@ -69,6 +70,11 @@ export interface ChatCompletionRequest {
    * @implements SPEC-004: System prompt extension point
    */
   system_prompt?: string;
+  /**
+   * Optional document filter to restrict RAG context to matching documents.
+   * @implements SPEC-005: Document filters for queries
+   */
+  document_filter?: DocumentFilter;
 }
 
 /**

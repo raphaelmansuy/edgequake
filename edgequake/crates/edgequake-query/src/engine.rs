@@ -133,6 +133,13 @@ pub struct QueryRequest {
     /// @implements SPEC-004: System prompt extension point
     #[serde(default)]
     pub system_prompt: Option<String>,
+
+    /// Pre-resolved document IDs that match the user's date/pattern filters.
+    /// When set, only chunks/entities/relationships from these documents are included
+    /// in the query context. Resolved by the API layer from DocumentFilter criteria.
+    /// @implements SPEC-005: Document date and pattern filters
+    #[serde(default)]
+    pub allowed_document_ids: Option<Vec<String>>,
 }
 
 /// A single message in conversation history.
@@ -161,6 +168,7 @@ impl QueryRequest {
             llm_provider: None,
             llm_model: None,
             system_prompt: None,
+            allowed_document_ids: None,
         }
     }
 
@@ -266,6 +274,14 @@ impl QueryRequest {
     /// Set the rerank top K for this request.
     pub fn with_rerank_top_k(mut self, top_k: usize) -> Self {
         self.rerank_top_k = Some(top_k);
+        self
+    }
+
+    /// Set pre-resolved document IDs for filtering.
+    /// Only chunks/entities/relationships from these documents will be included.
+    /// @implements SPEC-005: Document date and pattern filters
+    pub fn with_allowed_document_ids(mut self, ids: Vec<String>) -> Self {
+        self.allowed_document_ids = Some(ids);
         self
     }
 }

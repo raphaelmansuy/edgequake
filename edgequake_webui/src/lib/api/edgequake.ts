@@ -488,7 +488,15 @@ export interface DocumentsListResult extends PaginatedResponse<Document> {
 }
 
 export async function getDocuments(
-  params?: PaginationParams & { status?: string },
+  params?: PaginationParams & {
+    status?: string;
+    /** @implements SPEC-005 */
+    date_from?: string;
+    /** @implements SPEC-005 */
+    date_to?: string;
+    /** @implements SPEC-005 */
+    document_pattern?: string;
+  },
 ): Promise<DocumentsListResult> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", String(params.page));
@@ -497,6 +505,10 @@ export async function getDocuments(
   if (params?.sort_by) searchParams.set("sort_by", params.sort_by);
   if (params?.sort_order) searchParams.set("sort_order", params.sort_order);
   if (params?.status) searchParams.set("status", params.status);
+  if (params?.date_from) searchParams.set("date_from", params.date_from);
+  if (params?.date_to) searchParams.set("date_to", params.date_to);
+  if (params?.document_pattern)
+    searchParams.set("document_pattern", params.document_pattern);
 
   const query = searchParams.toString();
 

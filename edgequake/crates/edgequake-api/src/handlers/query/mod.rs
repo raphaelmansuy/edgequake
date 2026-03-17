@@ -51,6 +51,7 @@
 //!   Format response + sources
 //! ```
 
+pub(crate) mod document_filter_resolver;
 mod query_execute;
 mod query_stream;
 pub(crate) mod workspace_resolve;
@@ -181,6 +182,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             system_prompt: None,
+            document_filter: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -206,6 +208,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             system_prompt: None,
+            document_filter: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -248,6 +251,7 @@ mod tests {
                 llm_provider: None,
                 llm_model: None,
                 system_prompt: None,
+                document_filter: None,
             };
 
             let result = execute_query(State(state.clone()), tenant_ctx, Json(request)).await;
@@ -274,6 +278,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             system_prompt: None,
+            document_filter: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -299,6 +304,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             system_prompt: None,
+            document_filter: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;

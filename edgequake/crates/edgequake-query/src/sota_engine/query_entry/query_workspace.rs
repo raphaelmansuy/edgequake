@@ -152,6 +152,11 @@ impl SOTAQueryEngine {
 
         // Step 4.5: Rerank chunks
         let mut context = context;
+        // SPEC-005: Filter context by allowed document IDs
+        crate::context_filter::filter_context_by_document_ids(
+            &mut context,
+            request.allowed_document_ids.as_deref(),
+        );
         let should_rerank = request.enable_rerank.unwrap_or(self.config.enable_rerank);
         tracing::debug!(
             chunks_before_rerank = context.chunks.len(),
@@ -367,6 +372,11 @@ impl SOTAQueryEngine {
 
         // Step 4.5: Rerank chunks
         let mut context = context;
+        // SPEC-005: Filter context by allowed document IDs
+        crate::context_filter::filter_context_by_document_ids(
+            &mut context,
+            request.allowed_document_ids.as_deref(),
+        );
         let should_rerank = request.enable_rerank.unwrap_or(self.config.enable_rerank);
         if should_rerank && self.reranker.is_some() {
             let rerank_start = std::time::Instant::now();

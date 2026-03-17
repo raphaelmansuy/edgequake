@@ -145,6 +145,24 @@ pub async fn execute_query(
         engine_request = engine_request.with_conversation_history(engine_history);
     }
 
+    // SPEC-005: Resolve document filter → allowed_document_ids
+    if let Some(ref filter) = request.document_filter {
+        if let Some(allowed_ids) = super::document_filter_resolver::resolve_document_filter(
+            state.kv_storage.as_ref(),
+            filter,
+            &data_tenant_id,
+            &tenant_ctx.workspace_id,
+        )
+        .await?
+        {
+            debug!(
+                matched_doc_count = allowed_ids.len(),
+                "Document filter resolved — restricting query scope"
+            );
+            engine_request = engine_request.with_allowed_document_ids(allowed_ids);
+        }
+    }
+
     // SPEC-032 & SPEC-033: Get workspace-specific embedding provider AND vector storage
     // If workspace has custom embedding config, use workspace-specific resources
     let result = if let Some(ref workspace_id) = tenant_ctx.workspace_id {

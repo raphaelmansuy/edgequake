@@ -1,6 +1,9 @@
 //! List all documents handler.
 
-use axum::{extract::State, Json};
+use axum::{
+    extract::{Query, State},
+    Json,
+};
 use tracing::{debug, warn};
 
 use crate::error::ApiResult;
@@ -22,6 +25,7 @@ use crate::handlers::documents_types::*;
 pub async fn list_documents(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    Query(params): Query<ListDocumentsRequest>,
 ) -> ApiResult<Json<ListDocumentsResponse>> {
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
@@ -367,6 +371,54 @@ pub async fn list_documents(
             .unwrap_or("")
             .cmp(a.created_at.as_deref().unwrap_or(""))
     });
+
+    // SPEC-005: Apply optional date range and title pattern filters
+    if params.date_from.is_some() || params.date_to.is_some() || params.document_pattern.is_some()
+    {
+        let patterns: Vec<String> = params
+            .document_pattern
+            .as_ref()
+            .map(|p| {
+                p.split(',')
+                    .map(|s| s.trim().to_lowercase())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        documents.retain(|doc| {
+            // Date range filter (ISO 8601 string comparison)
+            if let Some(ref date_from) = params.date_from {
+                match doc.created_at.as_deref() {
+                    Some(ca) if ca >= date_from.as_str() => {}
+                    _ => return false,
+                }
+            }
+            if let Some(ref date_to) = params.date_to {
+                match doc.created_at.as_deref() {
+                    Some(ca) if ca <= date_to.as_str() => {}
+                    _ => return false,
+                }
+            }
+            // Title pattern filter (case-insensitive, comma-separated OR)
+            if !patterns.is_empty() {
+                let title = doc
+                    .title
+                    .as_deref()
+                    .unwrap_or("")
+                    .to_lowercase();
+                if !patterns.iter().any(|p| title.contains(p.as_str())) {
+                    return false;
+                }
+            }
+            true
+        });
+
+        debug!(
+            filtered_count = documents.len(),
+            "Applied SPEC-005 document listing filters"
+        );
+    }
 
     // Calculate status counts for all documents
     let status_counts = StatusCounts {

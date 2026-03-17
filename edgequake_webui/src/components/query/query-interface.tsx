@@ -54,6 +54,7 @@ import { ChatMessage } from './chat-message';
 import { ConversationHistoryPanelV2 } from './conversation-history-panel-v2';
 import { MobileHistoryPanel } from './mobile-history-panel';
 import { ProviderModelSelector } from './provider-model-selector';
+import { QueryDocumentFilter } from './query-document-filter';
 import { LoadingMessage, NonStreamingLoadingIndicator } from './query-loading-indicators';
 import { QueryModeSelector } from './query-mode-selector';
 import { QuerySettingsSheet } from './query-settings-sheet';
@@ -494,6 +495,7 @@ export function QueryInterface() {
         model: querySettings.model,
         language: i18n.language,
         system_prompt: querySettings.systemPrompt || undefined,
+        document_filter: querySettings.documentFilter || undefined,
       })) {
         if (abortControllerRef.current?.signal.aborted) {
           break;
@@ -697,6 +699,7 @@ export function QueryInterface() {
           model: querySettings.model,
           language: i18n.language,
           system_prompt: querySettings.systemPrompt || undefined,
+          document_filter: querySettings.documentFilter || undefined,
         });
 
         // Update active conversation if a new one was created
@@ -852,6 +855,13 @@ export function QueryInterface() {
             <QueryModeSelector
               value={querySettings.mode}
               onChange={(mode) => setQuerySettings({ mode })}
+              disabled={isLoading}
+            />
+
+            {/* Document Filter (SPEC-005) */}
+            <QueryDocumentFilter
+              value={querySettings.documentFilter}
+              onChange={(documentFilter) => setQuerySettings({ documentFilter })}
               disabled={isLoading}
             />
 

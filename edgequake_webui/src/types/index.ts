@@ -411,6 +411,22 @@ export interface PdfUploadResponse {
 // Query types
 export type QueryMode = "local" | "global" | "hybrid" | "naive";
 
+/**
+ * Document filter criteria for narrowing query scope.
+ * @implements SPEC-005: Document date and pattern filters
+ */
+export interface DocumentFilter {
+  /** Start date (inclusive) in ISO 8601 format (e.g., "2025-01-01T00:00:00Z"). */
+  date_from?: string;
+  /** End date (inclusive) in ISO 8601 format (e.g., "2025-12-31T23:59:59Z"). */
+  date_to?: string;
+  /**
+   * Case-insensitive substring pattern to match against document titles.
+   * Comma-separated values are treated as OR conditions.
+   */
+  document_pattern?: string;
+}
+
 export interface QueryRequest {
   query: string;
   mode: QueryMode;
@@ -419,6 +435,8 @@ export interface QueryRequest {
   temperature?: number;
   stream?: boolean;
   only_context?: boolean;
+  /** Optional document filter to narrow query scope. @implements SPEC-005 */
+  document_filter?: DocumentFilter;
 }
 
 export interface QueryContext {
@@ -967,6 +985,11 @@ export interface QuerySettings {
    * @implements SPEC-004: System prompt extension point
    */
   systemPrompt?: string;
+  /**
+   * Optional document filter to restrict RAG context to matching documents.
+   * @implements SPEC-005: Document filters for queries
+   */
+  documentFilter?: DocumentFilter;
 }
 
 export interface IngestionSettings {

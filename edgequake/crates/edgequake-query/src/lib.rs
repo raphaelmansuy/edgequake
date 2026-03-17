@@ -53,6 +53,7 @@
 
 pub mod chunk_retrieval;
 pub mod context;
+pub mod context_filter;
 pub mod engine;
 pub mod error;
 pub mod helpers;

@@ -652,10 +652,10 @@ GET /api/v1/documents?page=1&page_size=20&date_from=2025-01-01&date_to=2025-03-3
 
 ## Success Criteria
 
-- [ ] Date filter narrows RAG query to matching documents only
-- [ ] Document pattern filter restricts query to matching documents
-- [ ] Document list supports server-side date/pattern filtering
-- [ ] UI provides intuitive date range picker with presets
-- [ ] All filters are optional and backward compatible
-- [ ] E2E test demonstrates working filters
-- [ ] CHANGELOG updated with feature entry
+- [x] Date filter narrows RAG query to matching documents only
+- [x] Document pattern filter restricts query to matching documents
+- [x] Document list supports server-side date/pattern filtering
+- [x] UI provides intuitive date range picker and pattern input
+- [x] All filters are optional and backward compatible
+- [x] E2E test demonstrates working filters
+- [x] CHANGELOG updated with feature entry

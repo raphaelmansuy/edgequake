@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::handlers::query::{QueryStats, SourceReference};
+use crate::handlers::query_types::DocumentFilter;
 
 // ============================================================================
 // Default value helper functions
@@ -82,6 +83,11 @@ pub struct ChatCompletionRequest {
     /// @implements SPEC-004: System prompt extension point
     #[serde(default)]
     pub system_prompt: Option<String>,
+
+    /// Optional document filter to restrict RAG context to matching documents.
+    /// @implements SPEC-005: Document filters for queries
+    #[serde(default)]
+    pub document_filter: Option<DocumentFilter>,
 }
 
 // ============================================================================

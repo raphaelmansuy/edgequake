@@ -6,6 +6,8 @@ use utoipa::ToSchema;
 use super::defaults::{default_page, default_page_size};
 
 /// List documents request.
+///
+/// @implements SPEC-005: Document date and pattern filters
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct ListDocumentsRequest {
     /// Page number.
@@ -15,6 +17,24 @@ pub struct ListDocumentsRequest {
     /// Page size.
     #[serde(default = "default_page_size")]
     pub page_size: usize,
+
+    /// Filter: start date (inclusive) in ISO 8601 format.
+    /// Only documents created on or after this date are returned.
+    /// @implements SPEC-005
+    #[serde(default)]
+    pub date_from: Option<String>,
+
+    /// Filter: end date (inclusive) in ISO 8601 format.
+    /// Only documents created on or before this date are returned.
+    /// @implements SPEC-005
+    #[serde(default)]
+    pub date_to: Option<String>,
+
+    /// Filter: case-insensitive substring pattern for document titles.
+    /// Comma-separated values are OR conditions (e.g., "report,summary").
+    /// @implements SPEC-005
+    #[serde(default)]
+    pub document_pattern: Option<String>,
 }
 
 /// Status counts for document filtering.

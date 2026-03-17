@@ -189,6 +189,8 @@ pub async fn chat_completion_stream(
     let request_language = request.language.clone();
     // SPEC-004: Clone system prompt for async task
     let request_system_prompt = request.system_prompt.clone();
+    // SPEC-005: Clone document filter for async task
+    let request_document_filter = request.document_filter.clone();
     // FEAT0505: Clone for auto-title generation
     let first_message_for_title = request.message.clone();
 
@@ -228,9 +230,38 @@ pub async fn chat_completion_stream(
             .as_ref()
             .map(|ws| ws.tenant_id.to_string())
             .unwrap_or_else(|| tenant_id.to_string());
-        engine_request = engine_request.with_tenant_id(data_tenant_id);
+        engine_request = engine_request.with_tenant_id(data_tenant_id.clone());
         if let Some(ref ws_id) = workspace_id {
             engine_request = engine_request.with_workspace_id(ws_id.to_string());
+        }
+
+        // SPEC-005: Resolve document filter → allowed_document_ids for RAG context scoping
+        if let Some(ref filter) = request_document_filter {
+            let ws_id_str = workspace_id.as_ref().map(|id| id.to_string());
+            let tenant_filter = Some(data_tenant_id.clone());
+            match crate::handlers::query::document_filter_resolver::resolve_document_filter(
+                state_clone.kv_storage.as_ref(),
+                filter,
+                &tenant_filter,
+                &ws_id_str,
+            )
+            .await
+            {
+                Ok(Some(allowed_ids)) => {
+                    engine_request = engine_request.with_allowed_document_ids(allowed_ids);
+                }
+                Ok(None) => {} // No filter constraints
+                Err(e) => {
+                    error!(error = %e, "Failed to resolve document filter (streaming)");
+                    let _ = tx
+                        .send(ChatStreamEvent::Error {
+                            message: format!("Document filter resolution failed: {}", e),
+                            code: "DOCUMENT_FILTER_ERROR".to_string(),
+                        })
+                        .await;
+                    return;
+                }
+            }
         }
 
         // SPEC-032 + OODA-227: Unified provider resolution with safety limits (streaming)
