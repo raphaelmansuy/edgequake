@@ -148,7 +148,7 @@ export EDGEQUAKE_LLM_PROVIDER="azure"`,
         label: 'MiniMax Configuration',
         code: `export MINIMAX_API_KEY="..."
 export EDGEQUAKE_LLM_PROVIDER="minimax"
-export EDGEQUAKE_LLM_MODEL="MiniMax-M2.5"`,
+export EDGEQUAKE_LLM_MODEL="MiniMax-M2.7"`,
       },
     };
     return configs[providerName.toLowerCase()] || { label: 'Configuration', code: '' };

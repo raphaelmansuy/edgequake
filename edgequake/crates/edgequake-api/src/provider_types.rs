@@ -302,7 +302,7 @@ impl AvailableProvidersResponse {
             ProviderInfo {
                 id: "minimax".to_string(),
                 name: "MiniMax".to_string(),
-                description: "MiniMax AI (MiniMax-M2.5) - Peak Performance, Ultimate Value"
+                description: "MiniMax AI (MiniMax-M2.7) - Latest flagship model with enhanced reasoning and coding"
                     .to_string(),
                 available: std::env::var("MINIMAX_API_KEY").is_ok(),
                 config_requirements: vec![ConfigRequirement {
@@ -312,7 +312,7 @@ impl AvailableProvidersResponse {
                     satisfied: std::env::var("MINIMAX_API_KEY").is_ok(),
                 }],
                 default_models: DefaultModels {
-                    chat_model: "MiniMax-M2.5".to_string(),
+                    chat_model: "MiniMax-M2.7".to_string(),
                     embedding_model: "".to_string(),
                     embedding_dimension: 0,
                 },

@@ -243,7 +243,7 @@ curl -X POST http://localhost:8080/api/v1/query \
 │  │   LLM Providers             │   │   Storage Backends               │     │
 │  │  • OpenAI (gpt-4.1-nano)    │   │  • PostgreSQL 15+ (AGE + vector) │     │
 │  │  • Anthropic (Claude)       │   │  • In-Memory (dev/testing)       │     │
-│  │  • MiniMax (MiniMax-M2.5)   │   │  • Graph: Property graph model   │     │
+│  │  • MiniMax (MiniMax-M2.7)   │   │  • Graph: Property graph model   │     │
 │  │  • Ollama (gemma3:12b)      │   │  • Vector: pgvector embeddings   │     │
 │  │  • LM Studio, xAI, Gemini  │   │                                  │     │
 │  │  Auto-detection via env     │   │                                  │     │
