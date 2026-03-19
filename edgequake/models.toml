@@ -1573,7 +1573,7 @@ context_length = 204800
 max_output_tokens = 192000
 supports_vision = false
 supports_function_calling = true
-supports_json_mode = false
+supports_json_mode = true
 supports_streaming = true
 supports_system_message = true
 embedding_dimension = 0
@@ -1597,7 +1597,7 @@ context_length = 204800
 max_output_tokens = 192000
 supports_vision = false
 supports_function_calling = true
-supports_json_mode = false
+supports_json_mode = true
 supports_streaming = true
 supports_system_message = true
 embedding_dimension = 0
@@ -1621,7 +1621,7 @@ context_length = 204800
 max_output_tokens = 192000
 supports_vision = false
 supports_function_calling = true
-supports_json_mode = false
+supports_json_mode = true
 supports_streaming = true
 supports_system_message = true
 embedding_dimension = 0
@@ -1645,7 +1645,7 @@ context_length = 204800
 max_output_tokens = 192000
 supports_vision = false
 supports_function_calling = true
-supports_json_mode = false
+supports_json_mode = true
 supports_streaming = true
 supports_system_message = true
 embedding_dimension = 0
@@ -1717,122 +1717,6 @@ embedding_dimension = 768
 [providers.models.cost]
 input_per_1k = 0.0
 output_per_1k = 0.0
-embedding_per_1k = 0.0
-image_per_unit = 0.0
-
-# =============================================================================
-# MINIMAX PROVIDER
-# =============================================================================
-# MiniMax AI - Peak Performance. Ultimate Value. Master the Complex.
-# OpenAI-compatible API with competitive pricing.
-# Requires: MINIMAX_API_KEY environment variable
-# Docs: https://platform.minimax.io/docs/api-reference/text-openai-api
-
-[[providers]]
-name = "minimax"
-display_name = "MiniMax"
-type = "openaicompatible"
-api_base = "https://api.minimax.io/v1"
-api_key_env = "MINIMAX_API_KEY"
-enabled = true
-priority = 50
-description = "MiniMax AI models - Peak Performance, Ultimate Value"
-
-# --- MiniMax LLM Models ---
-
-[[providers.models]]
-name = "MiniMax-M2.7"
-display_name = "MiniMax M2.7"
-model_type = "llm"
-description = "Latest flagship model with enhanced reasoning and coding."
-deprecated = false
-tags = ["recommended", "reasoning", "cost-effective"]
-
-[providers.models.capabilities]
-context_length = 204800
-max_output_tokens = 192000
-supports_vision = false
-supports_function_calling = true
-supports_json_mode = true
-supports_streaming = true
-supports_system_message = true
-embedding_dimension = 0
-
-[providers.models.cost]
-input_per_1k = 0.0003
-output_per_1k = 0.0012
-embedding_per_1k = 0.0
-image_per_unit = 0.0
-
-[[providers.models]]
-name = "MiniMax-M2.7-highspeed"
-display_name = "MiniMax M2.7 High Speed"
-model_type = "llm"
-description = "High-speed version of M2.7 for low-latency scenarios."
-deprecated = false
-tags = ["fast", "cost-effective"]
-
-[providers.models.capabilities]
-context_length = 204800
-max_output_tokens = 192000
-supports_vision = false
-supports_function_calling = true
-supports_json_mode = true
-supports_streaming = true
-supports_system_message = true
-embedding_dimension = 0
-
-[providers.models.cost]
-input_per_1k = 0.0006
-output_per_1k = 0.0024
-embedding_per_1k = 0.0
-image_per_unit = 0.0
-
-[[providers.models]]
-name = "MiniMax-M2.5"
-display_name = "MiniMax M2.5"
-model_type = "llm"
-description = "Peak Performance. Ultimate Value. Master the Complex."
-deprecated = false
-tags = ["reasoning", "cost-effective"]
-
-[providers.models.capabilities]
-context_length = 204800
-max_output_tokens = 192000
-supports_vision = false
-supports_function_calling = true
-supports_json_mode = true
-supports_streaming = true
-supports_system_message = true
-embedding_dimension = 0
-
-[providers.models.cost]
-input_per_1k = 0.0003
-output_per_1k = 0.0012
-embedding_per_1k = 0.0
-image_per_unit = 0.0
-
-[[providers.models]]
-name = "MiniMax-M2.5-highspeed"
-display_name = "MiniMax M2.5 High Speed"
-model_type = "llm"
-description = "Same performance, faster and more agile."
-deprecated = false
-tags = ["fast", "cost-effective"]
-
-[providers.models.capabilities]
-context_length = 204800
-max_output_tokens = 192000
-supports_vision = false
-supports_function_calling = true
-supports_json_mode = true
-supports_streaming = true
-supports_system_message = true
-embedding_dimension = 0
-
-[providers.models.cost]
-input_per_1k = 0.0006
-output_per_1k = 0.0024
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 
