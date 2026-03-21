@@ -223,6 +223,7 @@
   }
 
   .mkt-card {
+    min-width: 0;
     border: 1px solid var(--mkt-border);
     background: var(--mkt-bg-card);
     box-shadow: 0 24px 64px rgba(9, 9, 11, 0.08);
@@ -274,9 +275,19 @@
   }
 
   .mkt-code-surface {
+    min-width: 0;
+    overflow: hidden;
     border: 1px solid var(--mkt-border);
     background: var(--mkt-code-bg);
     color: var(--mkt-text-secondary);
+  }
+
+  .mkt-code-surface code {
+    display: block;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .mkt-code-showcase {
