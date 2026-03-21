@@ -11,29 +11,29 @@
 
 ### 1.1 Primary Keywords
 
-| Keyword | Monthly Volume (est.) | Difficulty | Target Page |
-|---------|--------------------|------------|-------------|
-| graph rag | High | Medium | Homepage |
-| graph rag framework | Medium | Low | Homepage |
-| knowledge graph rag | Medium | Low | `/docs/concepts/graph-rag` |
-| rust rag framework | Low | Very Low | Homepage |
-| entity extraction llm | Medium | Medium | `/docs/concepts/entity-extraction` |
-| rag query modes | Low | Very Low | `/docs/concepts/query-modes` |
-| pdf to knowledge graph | Medium | Low | `/docs/guides/pdf-ingestion` |
-| mcp rag integration | Low | Very Low | `/docs/guides/mcp-integration` |
+| Keyword                | Monthly Volume (est.) | Difficulty | Target Page                        |
+| ---------------------- | --------------------- | ---------- | ---------------------------------- |
+| graph rag              | High                  | Medium     | Homepage                           |
+| graph rag framework    | Medium                | Low        | Homepage                           |
+| knowledge graph rag    | Medium                | Low        | `/docs/concepts/graph-rag`         |
+| rust rag framework     | Low                   | Very Low   | Homepage                           |
+| entity extraction llm  | Medium                | Medium     | `/docs/concepts/entity-extraction` |
+| rag query modes        | Low                   | Very Low   | `/docs/concepts/query-modes`       |
+| pdf to knowledge graph | Medium                | Low        | `/docs/guides/pdf-ingestion`       |
+| mcp rag integration    | Low                   | Very Low   | `/docs/guides/mcp-integration`     |
 
 ### 1.2 Long-Tail Keywords
 
-| Keyword Phrase | Target Page |
-|---------------|-------------|
-| "how to build knowledge graph from documents" | `/docs/getting-started/quick-start` |
-| "graph rag vs traditional rag" | `/docs/comparisons/vs-traditional-rag` |
-| "self-hosted rag framework" | `/enterprise` |
-| "open source graph rag rust" | Homepage |
-| "multi-tenant rag system" | `/enterprise` |
-| "pdf entity extraction pipeline" | `/docs/guides/pdf-ingestion` |
-| "lightrag alternative" | `/docs/comparisons/vs-lightrag` |
-| "graphrag alternative faster" | `/docs/comparisons/vs-graphrag` |
+| Keyword Phrase                                | Target Page                            |
+| --------------------------------------------- | -------------------------------------- |
+| "how to build knowledge graph from documents" | `/docs/getting-started/quick-start`    |
+| "graph rag vs traditional rag"                | `/docs/comparisons/vs-traditional-rag` |
+| "self-hosted rag framework"                   | `/enterprise`                          |
+| "open source graph rag rust"                  | Homepage                               |
+| "multi-tenant rag system"                     | `/enterprise`                          |
+| "pdf entity extraction pipeline"              | `/docs/guides/pdf-ingestion`           |
+| "lightrag alternative"                        | `/docs/comparisons/vs-lightrag`        |
+| "graphrag alternative faster"                 | `/docs/comparisons/vs-graphrag`        |
 
 ### 1.3 Branded Keywords
 
@@ -49,9 +49,17 @@
 ### 2.1 Homepage (`/`)
 
 ```html
-<title>EdgeQuake — Graph-RAG Built for Speed | Rust Knowledge Graph Framework</title>
-<meta name="description" content="Turn documents into queryable knowledge graphs. 10x faster than Python RAG frameworks. 6 query modes. Open source Apache 2.0." />
-<meta name="keywords" content="graph rag, knowledge graph, entity extraction, rust, open source, rag framework" />
+<title>
+  EdgeQuake — Graph-RAG Built for Speed | Rust Knowledge Graph Framework
+</title>
+<meta
+  name="description"
+  content="Turn documents into queryable knowledge graphs. 10x faster than Python RAG frameworks. 6 query modes. Open source Apache 2.0."
+/>
+<meta
+  name="keywords"
+  content="graph rag, knowledge graph, entity extraction, rust, open source, rag framework"
+/>
 <link rel="canonical" href="https://edgequake.dev/" />
 ```
 
@@ -59,7 +67,10 @@
 
 ```html
 <title>Documentation — EdgeQuake</title>
-<meta name="description" content="Complete guide to EdgeQuake: installation, concepts, architecture, API reference, and deployment." />
+<meta
+  name="description"
+  content="Complete guide to EdgeQuake: installation, concepts, architecture, API reference, and deployment."
+/>
 <link rel="canonical" href="https://edgequake.dev/docs/" />
 ```
 
@@ -67,7 +78,10 @@
 
 ```html
 <title>Interactive Demo — EdgeQuake</title>
-<meta name="description" content="See EdgeQuake in action. Explore 6 query modes, knowledge graph visualization, and entity extraction results." />
+<meta
+  name="description"
+  content="See EdgeQuake in action. Explore 6 query modes, knowledge graph visualization, and entity extraction results."
+/>
 <link rel="canonical" href="https://edgequake.dev/demo/" />
 ```
 
@@ -75,7 +89,10 @@
 
 ```html
 <title>Ecosystem — 10 Modular Crates | EdgeQuake</title>
-<meta name="description" content="Explore EdgeQuake's modular Rust crate ecosystem: core, API, storage, pipeline, query engine, LLM providers, and more." />
+<meta
+  name="description"
+  content="Explore EdgeQuake's modular Rust crate ecosystem: core, API, storage, pipeline, query engine, LLM providers, and more."
+/>
 <link rel="canonical" href="https://edgequake.dev/ecosystem/" />
 ```
 
@@ -83,7 +100,10 @@
 
 ```html
 <title>Enterprise — Production-Grade Graph-RAG | EdgeQuake</title>
-<meta name="description" content="Get dedicated support, architecture consulting, and custom integrations for production EdgeQuake deployments." />
+<meta
+  name="description"
+  content="Get dedicated support, architecture consulting, and custom integrations for production EdgeQuake deployments."
+/>
 <link rel="canonical" href="https://edgequake.dev/enterprise/" />
 ```
 
@@ -91,7 +111,10 @@
 
 ```html
 <title>Contact — EdgeQuake Enterprise</title>
-<meta name="description" content="Contact the EdgeQuake team for enterprise support, partnerships, and consulting. contact@elitizon.com" />
+<meta
+  name="description"
+  content="Contact the EdgeQuake team for enterprise support, partnerships, and consulting. contact@elitizon.com"
+/>
 <link rel="canonical" href="https://edgequake.dev/contact/" />
 ```
 
@@ -119,7 +142,10 @@
 
 ```html
 <meta property="og:title" content="EdgeQuake — Graph-RAG Built for Speed" />
-<meta property="og:description" content="Turn documents into queryable knowledge graphs. 10x faster than Python RAG. Open source." />
+<meta
+  property="og:description"
+  content="Turn documents into queryable knowledge graphs. 10x faster than Python RAG. Open source."
+/>
 <meta property="og:image" content="https://edgequake.dev/og/home.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -128,13 +154,13 @@
 
 ### 3.3 OG Image Spec
 
-| Image | Dimensions | Content |
-|-------|-----------|---------|
-| `og/home.png` | 1200x630 | Logo + tagline + graph background |
-| `og/docs.png` | 1200x630 | Logo + "Documentation" + code snippet |
-| `og/demo.png` | 1200x630 | Logo + "Interactive Demo" + graph screenshot |
-| `og/enterprise.png` | 1200x630 | Logo + "Enterprise" + professional gradient |
-| `og/docs/[slug].png` | 1200x630 | Logo + page title (auto-generated at build time) |
+| Image                | Dimensions | Content                                          |
+| -------------------- | ---------- | ------------------------------------------------ |
+| `og/home.png`        | 1200x630   | Logo + tagline + graph background                |
+| `og/docs.png`        | 1200x630   | Logo + "Documentation" + code snippet            |
+| `og/demo.png`        | 1200x630   | Logo + "Interactive Demo" + graph screenshot     |
+| `og/enterprise.png`  | 1200x630   | Logo + "Enterprise" + professional gradient      |
+| `og/docs/[slug].png` | 1200x630   | Logo + page title (auto-generated at build time) |
 
 ### 3.4 OG Image Template Design
 
@@ -186,9 +212,7 @@
     "email": "contact@elitizon.com",
     "contactType": "sales"
   },
-  "sameAs": [
-    "https://github.com/raphaelmansuy/edgequake"
-  ]
+  "sameAs": ["https://github.com/raphaelmansuy/edgequake"]
 }
 ```
 
@@ -319,34 +343,34 @@ Generated at build time using `next-sitemap` or a custom script. Each page inclu
 
 ### 6.3 Page Speed Checklist
 
-| Check | Target | Method |
-|-------|--------|--------|
-| Largest Contentful Paint | < 2.5s | Static HTML, minimal JS |
-| First Input Delay | < 100ms | Deferred hydration |
-| Cumulative Layout Shift | < 0.1 | Explicit image dimensions, font-display |
-| Time to First Byte | < 200ms | GitHub Pages CDN |
-| Total Blocking Time | < 200ms | Code splitting, tree shaking |
+| Check                    | Target  | Method                                  |
+| ------------------------ | ------- | --------------------------------------- |
+| Largest Contentful Paint | < 2.5s  | Static HTML, minimal JS                 |
+| First Input Delay        | < 100ms | Deferred hydration                      |
+| Cumulative Layout Shift  | < 0.1   | Explicit image dimensions, font-display |
+| Time to First Byte       | < 200ms | GitHub Pages CDN                        |
+| Total Blocking Time      | < 200ms | Code splitting, tree shaking            |
 
 ### 6.4 Accessibility (SEO Signal)
 
-| Requirement | Implementation |
-|-------------|---------------|
-| Semantic HTML | `<main>`, `<nav>`, `<article>`, `<section>`, `<header>`, `<footer>` |
-| Alt text | All images have descriptive `alt` attributes |
-| ARIA labels | Navigation landmarks, form inputs |
-| Heading hierarchy | Single `<h1>` per page, sequential `<h2>`–`<h6>` |
-| Focus management | Visible focus rings, skip-to-content link |
-| Color contrast | WCAG AA (4.5:1 for text, 3:1 for large text) |
+| Requirement       | Implementation                                                      |
+| ----------------- | ------------------------------------------------------------------- |
+| Semantic HTML     | `<main>`, `<nav>`, `<article>`, `<section>`, `<header>`, `<footer>` |
+| Alt text          | All images have descriptive `alt` attributes                        |
+| ARIA labels       | Navigation landmarks, form inputs                                   |
+| Heading hierarchy | Single `<h1>` per page, sequential `<h2>`–`<h6>`                    |
+| Focus management  | Visible focus rings, skip-to-content link                           |
+| Color contrast    | WCAG AA (4.5:1 for text, 3:1 for large text)                        |
 
 ### 6.5 Internal Linking Strategy
 
-| Rule | Description |
-|------|------------|
-| IL-01 | Every doc page links to ≥ 2 related doc pages |
-| IL-02 | Homepage links to all top-level sections |
+| Rule  | Description                                              |
+| ----- | -------------------------------------------------------- |
+| IL-01 | Every doc page links to ≥ 2 related doc pages            |
+| IL-02 | Homepage links to all top-level sections                 |
 | IL-03 | Every comparison page links back to feature it discusses |
-| IL-04 | Ecosystem page links to docs for each crate |
-| IL-05 | All CTAs point to relevant landing pages |
+| IL-04 | Ecosystem page links to docs for each crate              |
+| IL-05 | All CTAs point to relevant landing pages                 |
 
 ---
 
@@ -367,15 +391,15 @@ No cookies. GDPR-compliant. No consent banner needed.
 
 ### 7.2 Events to Track
 
-| Event | Trigger | Purpose |
-|-------|---------|---------|
-| `pageview` | Auto | Traffic analysis |
-| `cta_click` | "Get Started" / "Contact Us" buttons | Conversion tracking |
-| `demo_interact` | Query mode change in demo | Engagement |
-| `docs_search` | Pagefind search query | Content gaps |
-| `github_click` | GitHub link click | Community funnel |
-| `copy_code` | Code block copy button | Developer engagement |
+| Event           | Trigger                              | Purpose              |
+| --------------- | ------------------------------------ | -------------------- |
+| `pageview`      | Auto                                 | Traffic analysis     |
+| `cta_click`     | "Get Started" / "Contact Us" buttons | Conversion tracking  |
+| `demo_interact` | Query mode change in demo            | Engagement           |
+| `docs_search`   | Pagefind search query                | Content gaps         |
+| `github_click`  | GitHub link click                    | Community funnel     |
+| `copy_code`     | Code block copy button               | Developer engagement |
 
 ---
 
-*Previous: [04-technical-architecture.md](./04-technical-architecture.md) · Next: [06-design-system.md](./06-design-system.md)*
+_Previous: [04-technical-architecture.md](./04-technical-architecture.md) · Next: [06-design-system.md](./06-design-system.md)_

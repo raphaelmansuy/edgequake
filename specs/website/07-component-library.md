@@ -11,25 +11,25 @@
 
 Components installed via `pnpm dlx shadcn@latest add <name>`.
 
-| Component | Usage | Pages |
-|-----------|-------|-------|
-| `Button` | CTAs, links, form submit | All |
-| `Card` | Feature cards, crate cards, pain cards | Home, Ecosystem |
-| `Tabs` | Code tabs (Rust/Docker/API), query mode selector | Home, Demo |
-| `Sheet` | Mobile navigation drawer | All (mobile) |
-| `NavigationMenu` | Desktop header navigation with dropdowns | All |
-| `Accordion` | FAQ section, collapsible sidebar sections | Docs, Home |
-| `Badge` | Version tags, status indicators, tech labels | All |
-| `Input` | Contact form fields | Contact |
-| `Select` | Inquiry type dropdown | Contact |
-| `Textarea` | Message field | Contact |
-| `Separator` | Section dividers | All |
-| `Tooltip` | Architecture diagram hover info | Home, Docs |
-| `DropdownMenu` | Theme switcher, mobile overflow | All |
-| `Dialog` | Confirmations, details popups | Contact |
-| `ScrollArea` | Docs sidebar, long code blocks | Docs |
-| `Toggle` | Dark mode switch | All |
-| `Skeleton` | Loading states for demo | Demo |
+| Component        | Usage                                            | Pages           |
+| ---------------- | ------------------------------------------------ | --------------- |
+| `Button`         | CTAs, links, form submit                         | All             |
+| `Card`           | Feature cards, crate cards, pain cards           | Home, Ecosystem |
+| `Tabs`           | Code tabs (Rust/Docker/API), query mode selector | Home, Demo      |
+| `Sheet`          | Mobile navigation drawer                         | All (mobile)    |
+| `NavigationMenu` | Desktop header navigation with dropdowns         | All             |
+| `Accordion`      | FAQ section, collapsible sidebar sections        | Docs, Home      |
+| `Badge`          | Version tags, status indicators, tech labels     | All             |
+| `Input`          | Contact form fields                              | Contact         |
+| `Select`         | Inquiry type dropdown                            | Contact         |
+| `Textarea`       | Message field                                    | Contact         |
+| `Separator`      | Section dividers                                 | All             |
+| `Tooltip`        | Architecture diagram hover info                  | Home, Docs      |
+| `DropdownMenu`   | Theme switcher, mobile overflow                  | All             |
+| `Dialog`         | Confirmations, details popups                    | Contact         |
+| `ScrollArea`     | Docs sidebar, long code blocks                   | Docs            |
+| `Toggle`         | Dark mode switch                                 | All             |
+| `Skeleton`       | Loading states for demo                          | Demo            |
 
 ---
 
@@ -38,6 +38,7 @@ Components installed via `pnpm dlx shadcn@latest add <name>`.
 ### 2.1 Layout Components
 
 #### `Header`
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  🔷 EdgeQuake    Docs  Demo  Ecosystem  Enterprise           │
@@ -45,11 +46,12 @@ Components installed via `pnpm dlx shadcn@latest add <name>`.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-| Prop | Type | Description |
-|------|------|-------------|
-| — | — | No props. Reads path for active state. |
+| Prop | Type | Description                            |
+| ---- | ---- | -------------------------------------- |
+| —    | —    | No props. Reads path for active state. |
 
 **Behavior:**
+
 - Sticky on scroll (`position: sticky; top: 0`)
 - Backdrop blur when scrolled (`backdrop-blur-md`)
 - Active link underlined
@@ -58,6 +60,7 @@ Components installed via `pnpm dlx shadcn@latest add <name>`.
 - CTA: "Get Started" → `/docs/getting-started`
 
 #### `Footer`
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Product      Developers    Company      Community           │
@@ -74,12 +77,13 @@ Components installed via `pnpm dlx shadcn@latest add <name>`.
 
 #### `DocsSidebar`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `sections` | `SidebarSection[]` | Tree of navigation items |
-| `currentPath` | `string` | Active page for highlighting |
+| Prop          | Type               | Description                  |
+| ------------- | ------------------ | ---------------------------- |
+| `sections`    | `SidebarSection[]` | Tree of navigation items     |
+| `currentPath` | `string`           | Active page for highlighting |
 
 **Behavior:**
+
 - Collapsible section groups (accordion)
 - Active page highlighted with left border accent
 - Scroll synced to active item
@@ -95,11 +99,12 @@ Sheet drawer component for mobile navigation. Triggered by hamburger icon in Hea
 
 #### `Hero`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| — | — | Static content, no props |
+| Prop | Type | Description              |
+| ---- | ---- | ------------------------ |
+| —    | —    | Static content, no props |
 
 **Elements:**
+
 - Animated background (knowledge graph SVG with subtle node pulses)
 - Gradient H1: "Graph-RAG Built for Speed"
 - Subtitle paragraph
@@ -111,8 +116,8 @@ Sheet drawer component for mobile navigation. Triggered by hamburger icon in Hea
 
 #### `ProblemSection`
 
-| Prop | Type | Description |
-|------|------|-------------|
+| Prop    | Type         | Description            |
+| ------- | ------------ | ---------------------- |
 | `cards` | `PainCard[]` | Array of problem cards |
 
 ```typescript
@@ -127,8 +132,8 @@ interface PainCard {
 
 #### `SolutionGrid`
 
-| Prop | Type | Description |
-|------|------|-------------|
+| Prop       | Type        | Description         |
+| ---------- | ----------- | ------------------- |
 | `features` | `Feature[]` | Array of 6 features |
 
 ```typescript
@@ -144,11 +149,12 @@ interface Feature {
 
 #### `ArchitectureDiagram`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| — | — | SVG-based, interactive tooltips |
+| Prop | Type | Description                     |
+| ---- | ---- | ------------------------------- |
+| —    | —    | SVG-based, interactive tooltips |
 
 **Implementation:**
+
 - SVG inline component with hover tooltips (`Tooltip` from shadcn)
 - Shows: Documents → Pipeline → Storage (pgvector + AGE) → Query Engine → API → Clients
 - Nodes are clickable, linking to relevant docs page
@@ -158,10 +164,10 @@ interface Feature {
 
 #### `BenchmarkChart`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `data` | `BenchmarkData[]` | Comparison data |
-| `metric` | `string` | Chart title |
+| Prop     | Type              | Description     |
+| -------- | ----------------- | --------------- |
+| `data`   | `BenchmarkData[]` | Comparison data |
+| `metric` | `string`          | Chart title     |
 
 ```typescript
 interface BenchmarkData {
@@ -173,6 +179,7 @@ interface BenchmarkData {
 ```
 
 **Implementation:**
+
 - Horizontal bar chart using CSS (no charting library)
 - Bars animate width from 0% to target on scroll
 - EdgeQuake bar highlighted with brand gradient
@@ -182,19 +189,20 @@ interface BenchmarkData {
 
 #### `QuickStart`
 
-| Prop | Type | Description |
-|------|------|-------------|
+| Prop   | Type        | Description                |
+| ------ | ----------- | -------------------------- |
 | `tabs` | `CodeTab[]` | Code examples per language |
 
 ```typescript
 interface CodeTab {
-  label: string;       // "Rust" | "Docker" | "REST API"
-  language: string;    // for Shiki highlighting
-  code: string;        // raw code string
+  label: string; // "Rust" | "Docker" | "REST API"
+  language: string; // for Shiki highlighting
+  code: string; // raw code string
 }
 ```
 
 **Implementation:**
+
 - Uses shadcn `Tabs` component
 - Code highlighted at build time via Shiki
 - Copy-to-clipboard button on each block
@@ -202,17 +210,17 @@ interface CodeTab {
 
 #### `EcosystemPreview`
 
-| Prop | Type | Description |
-|------|------|-------------|
+| Prop     | Type             | Description       |
+| -------- | ---------------- | ----------------- |
 | `crates` | `CrateSummary[]` | Top 5 crate cards |
 
 **Layout:** Horizontal scroll on mobile, 5-column grid on desktop. "Explore All Crates →" link.
 
 #### `EnterpriseCTA`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| — | — | Static banner |
+| Prop | Type | Description   |
+| ---- | ---- | ------------- |
+| —    | —    | Static banner |
 
 **Design:** Full-width gradient background. Heading + paragraph + "Contact Us →" button.
 
@@ -222,12 +230,13 @@ interface CodeTab {
 
 #### `QueryPanel`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `modes` | `QueryMode[]` | Available query modes |
+| Prop        | Type             | Description                |
+| ----------- | ---------------- | -------------------------- |
+| `modes`     | `QueryMode[]`    | Available query modes      |
 | `questions` | `DemoQuestion[]` | Pre-built sample questions |
 
 **Behavior:**
+
 - Tab selector for 6 query modes
 - Dropdown selector for sample questions
 - Shows pre-computed result for selected mode + question combo
@@ -236,9 +245,9 @@ interface CodeTab {
 
 #### `GraphViewer`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `nodes` | `GraphNode[]` | Entity nodes |
+| Prop    | Type          | Description        |
+| ------- | ------------- | ------------------ |
+| `nodes` | `GraphNode[]` | Entity nodes       |
 | `edges` | `GraphEdge[]` | Relationship edges |
 
 ```typescript
@@ -259,6 +268,7 @@ interface GraphEdge {
 ```
 
 **Implementation:**
+
 - D3.js force-directed layout
 - Node colors mapped to entity type (see [06-design-system.md](./06-design-system.md))
 - Click node → highlights connected edges
@@ -269,10 +279,10 @@ interface GraphEdge {
 
 #### `ResultPanel`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `content` | `string` | Markdown response |
-| `mode` | `QueryMode` | Active query mode |
+| Prop      | Type        | Description       |
+| --------- | ----------- | ----------------- |
+| `content` | `string`    | Markdown response |
+| `mode`    | `QueryMode` | Active query mode |
 
 Renders markdown response with syntax highlighting.
 
@@ -282,26 +292,26 @@ Renders markdown response with syntax highlighting.
 
 #### `CrateCard`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `name` | `string` | Crate name |
-| `description` | `string` | One-line description |
-| `category` | `string` | Core / API / Storage / ... |
-| `docsUrl` | `string` | Link to docs section |
-| `sourceUrl` | `string` | Link to GitHub source |
-| `published` | `boolean` | Whether on crates.io |
-| `version` | `string` | If published |
+| Prop          | Type      | Description                |
+| ------------- | --------- | -------------------------- |
+| `name`        | `string`  | Crate name                 |
+| `description` | `string`  | One-line description       |
+| `category`    | `string`  | Core / API / Storage / ... |
+| `docsUrl`     | `string`  | Link to docs section       |
+| `sourceUrl`   | `string`  | Link to GitHub source      |
+| `published`   | `boolean` | Whether on crates.io       |
+| `version`     | `string`  | If published               |
 
 **Layout:** Card with icon, name, description, category badge, two link buttons.
 
 #### `IntegrationCard`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `name` | `string` | Integration name |
-| `description` | `string` | Brief description |
-| `icon` | `LucideIcon` | Visual icon |
-| `docsUrl` | `string` | Link to integration guide |
+| Prop          | Type         | Description               |
+| ------------- | ------------ | ------------------------- |
+| `name`        | `string`     | Integration name          |
+| `description` | `string`     | Brief description         |
+| `icon`        | `LucideIcon` | Visual icon               |
+| `docsUrl`     | `string`     | Link to integration guide |
 
 ---
 
@@ -309,14 +319,15 @@ Renders markdown response with syntax highlighting.
 
 #### `CodeBlock`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `code` | `string` | Source code |
-| `language` | `string` | Shiki language ID |
-| `filename` | `string?` | Optional file name header |
-| `showLineNumbers` | `boolean?` | Default: false |
+| Prop              | Type       | Description               |
+| ----------------- | ---------- | ------------------------- |
+| `code`            | `string`   | Source code               |
+| `language`        | `string`   | Shiki language ID         |
+| `filename`        | `string?`  | Optional file name header |
+| `showLineNumbers` | `boolean?` | Default: false            |
 
 **Implementation:**
+
 - Shiki highlighted at build time
 - Copy button (top-right)
 - Optional filename tab header
@@ -325,11 +336,11 @@ Renders markdown response with syntax highlighting.
 
 #### `Callout`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `type` | `"info" \| "warning" \| "tip" \| "danger"` | Visual variant |
-| `title` | `string?` | Optional heading |
-| `children` | `ReactNode` | Body content |
+| Prop       | Type                                       | Description      |
+| ---------- | ------------------------------------------ | ---------------- |
+| `type`     | `"info" \| "warning" \| "tip" \| "danger"` | Visual variant   |
+| `title`    | `string?`                                  | Optional heading |
+| `children` | `ReactNode`                                | Body content     |
 
 ```
 ┌─ ℹ️ Info ──────────────────────────────────┐
@@ -340,11 +351,11 @@ Renders markdown response with syntax highlighting.
 
 #### `ScrollAnimation`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `children` | `ReactNode` | Content to animate |
-| `variant` | `"fadeIn" \| "slideUp" \| "slideLeft"` | Animation type |
-| `delay` | `number?` | Stagger delay in seconds |
+| Prop       | Type                                   | Description              |
+| ---------- | -------------------------------------- | ------------------------ |
+| `children` | `ReactNode`                            | Content to animate       |
+| `variant`  | `"fadeIn" \| "slideUp" \| "slideLeft"` | Animation type           |
+| `delay`    | `number?`                              | Stagger delay in seconds |
 
 Wraps children in Framer Motion `motion.div` with Intersection Observer trigger.
 
@@ -352,12 +363,12 @@ Wraps children in Framer Motion `motion.div` with Intersection Observer trigger.
 
 #### `SeoHead`
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `title` | `string` | Page title |
-| `description` | `string` | Meta description |
-| `ogImage` | `string?` | OG image path |
-| `canonical` | `string?` | Canonical URL |
+| Prop          | Type      | Description      |
+| ------------- | --------- | ---------------- |
+| `title`       | `string`  | Page title       |
+| `description` | `string`  | Meta description |
+| `ogImage`     | `string?` | OG image path    |
+| `canonical`   | `string?` | Canonical URL    |
 
 Generates `<head>` meta via Next.js `generateMetadata()`.
 
@@ -365,27 +376,27 @@ Generates `<head>` meta via Next.js `generateMetadata()`.
 
 ## 3. Component Inventory Matrix
 
-| Component | Server/Client | JS Size (est.) | Pages Used |
-|-----------|--------------|----------------|-----------|
-| Header | Client | 8KB | All |
-| Footer | Server | 0KB | All |
-| Hero | Client | 15KB | Home |
-| ProblemSection | Client | 5KB | Home |
-| SolutionGrid | Client | 6KB | Home |
-| ArchitectureDiagram | Client | 10KB | Home |
-| BenchmarkChart | Client | 4KB | Home |
-| QuickStart | Client | 3KB | Home |
-| EcosystemPreview | Server | 0KB | Home |
-| EnterpriseCTA | Server | 0KB | Home, Enterprise |
-| DocsSidebar | Client | 6KB | Docs |
-| CodeBlock | Server | 0KB | Docs, Home |
-| Callout | Server | 0KB | Docs |
-| QueryPanel | Client | 5KB | Demo |
-| GraphViewer | Client | 80KB | Demo |
-| ResultPanel | Server | 0KB | Demo |
-| CrateCard | Server | 0KB | Ecosystem |
-| ContactForm | Client | 8KB | Contact |
-| ScrollAnimation | Client | 2KB | All |
+| Component           | Server/Client | JS Size (est.) | Pages Used       |
+| ------------------- | ------------- | -------------- | ---------------- |
+| Header              | Client        | 8KB            | All              |
+| Footer              | Server        | 0KB            | All              |
+| Hero                | Client        | 15KB           | Home             |
+| ProblemSection      | Client        | 5KB            | Home             |
+| SolutionGrid        | Client        | 6KB            | Home             |
+| ArchitectureDiagram | Client        | 10KB           | Home             |
+| BenchmarkChart      | Client        | 4KB            | Home             |
+| QuickStart          | Client        | 3KB            | Home             |
+| EcosystemPreview    | Server        | 0KB            | Home             |
+| EnterpriseCTA       | Server        | 0KB            | Home, Enterprise |
+| DocsSidebar         | Client        | 6KB            | Docs             |
+| CodeBlock           | Server        | 0KB            | Docs, Home       |
+| Callout             | Server        | 0KB            | Docs             |
+| QueryPanel          | Client        | 5KB            | Demo             |
+| GraphViewer         | Client        | 80KB           | Demo             |
+| ResultPanel         | Server        | 0KB            | Demo             |
+| CrateCard           | Server        | 0KB            | Ecosystem        |
+| ContactForm         | Client        | 8KB            | Contact          |
+| ScrollAnimation     | Client        | 2KB            | All              |
 
 **Total unique JS:** ~152KB (before gzip, ~50KB gzipped)
 
@@ -440,14 +451,14 @@ import { CodeBlock } from "./code-block";
 import { Callout } from "./callout";
 
 export const mdxComponents = {
-  pre: CodeBlock,           // Override default code blocks
-  Callout,                  // <Callout type="info">...</Callout>
-  CrateLink,               // <CrateLink name="edgequake-core" />
-  ApiEndpoint,             // <ApiEndpoint method="POST" path="/api/v1/documents" />
-  Architecture,            // <Architecture /> inline SVG diagram
+  pre: CodeBlock, // Override default code blocks
+  Callout, // <Callout type="info">...</Callout>
+  CrateLink, // <CrateLink name="edgequake-core" />
+  ApiEndpoint, // <ApiEndpoint method="POST" path="/api/v1/documents" />
+  Architecture, // <Architecture /> inline SVG diagram
 };
 ```
 
 ---
 
-*Previous: [06-design-system.md](./06-design-system.md) · Next: [08-contact-lead-generation.md](./08-contact-lead-generation.md)*
+_Previous: [06-design-system.md](./06-design-system.md) · Next: [08-contact-lead-generation.md](./08-contact-lead-generation.md)_
