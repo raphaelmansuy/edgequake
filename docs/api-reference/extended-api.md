@@ -1,3 +1,7 @@
+---
+title: 'Extended API Reference'
+---
+
 # Extended API Reference
 
 > **Additional Endpoints for Tasks, Pipeline, Costs, and Lineage**

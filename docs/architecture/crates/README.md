@@ -1,3 +1,7 @@
+---
+title: 'Architecture: Crate Reference'
+---
+
 # Architecture: Crate Reference
 
 > **Understanding EdgeQuake's Modular Rust Architecture**

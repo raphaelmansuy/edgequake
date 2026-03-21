@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake Data Flow'
+---
+
 # EdgeQuake Data Flow
 
 > How documents flow through ingestion and how queries are processed

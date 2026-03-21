@@ -1,3 +1,7 @@
+---
+title: 'Deep Dive: Gleaning'
+---
+
 # Deep Dive: Gleaning
 
 > **Multi-Pass Extraction for Comprehensive Entity Discovery**

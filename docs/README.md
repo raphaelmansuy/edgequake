@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake Documentation'
+---
+
 # EdgeQuake Documentation
 
 > **High-Performance Graph-Enhanced RAG in Rust**

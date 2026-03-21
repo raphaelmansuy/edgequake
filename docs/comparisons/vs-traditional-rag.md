@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake vs Traditional RAG'
+---
+
 # EdgeQuake vs Traditional RAG
 
 > **Why Knowledge Graphs Transform Retrieval Quality**

@@ -1,3 +1,7 @@
+---
+title: 'Deep Dive: Vector Storage'
+---
+
 # Deep Dive: Vector Storage
 
 > **How EdgeQuake Stores and Searches Vector Embeddings**

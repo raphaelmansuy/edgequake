@@ -1,3 +1,7 @@
+---
+title: 'Tutorial: Multi-Tenant Setup'
+---
+
 # Tutorial: Multi-Tenant Setup
 
 > **Building a SaaS Application with EdgeQuake**

@@ -1,3 +1,7 @@
+---
+title: 'PDF Ingestion Tutorial'
+---
+
 # PDF Ingestion Tutorial
 
 EdgeQuake extracts text, tables, and metadata from PDF documents using advanced layout analysis. This tutorial shows you how to upload PDFs and configure extraction for optimal results.

@@ -8,49 +8,49 @@ const crates = [
     name: "edgequake-core",
     version: "0.7.0",
     description:
-      "Orchestration layer — pipeline management, workspace isolation, and the top-level EdgeQuake API.",
+      "Coordinates the pipeline, workspace lifecycle, and top-level APIs used to assemble the full system.",
   },
   {
     name: "edgequake-api",
     version: "0.7.0",
     description:
-      "REST API service built with Axum. Health checks, document upload, query endpoints, and SSE streaming.",
+      "Exposes ingestion, query, health, and streaming endpoints for applications that need a service boundary.",
   },
   {
     name: "edgequake-storage",
     version: "0.7.0",
     description:
-      "Storage adapters for PostgreSQL + Apache AGE. KV, vector, and graph storage behind a unified trait.",
+      "Implements unified key-value, vector, and graph storage on top of PostgreSQL and Apache AGE.",
   },
   {
     name: "edgequake-pipeline",
     version: "0.7.0",
     description:
-      "Document processing pipeline. Chunking, entity extraction, relationship mapping, and deduplication.",
+      "Handles chunking, extraction, relationship mapping, normalization, and the work required to build graph context from source files.",
   },
   {
     name: "edgequake-query",
     version: "0.7.0",
     description:
-      "Query engine supporting 6 retrieval modes: local, global, hybrid, naive, mix, and graph-aware.",
+      "Contains the retrieval engine behind local, global, hybrid, naive, mix, and graph-aware querying.",
   },
   {
     name: "edgequake-llm",
     version: "0.3.0",
     description:
-      "LLM provider abstraction. OpenAI, Ollama, LM Studio, and mock providers with automatic selection.",
+      "Abstracts LLM providers so teams can move between OpenAI, Ollama, LM Studio, and mocks without rewriting the stack.",
   },
   {
     name: "edgequake-pdf",
     version: "0.7.0",
     description:
-      "PDF-to-markdown conversion with embedded pdfium. Vision LLM support for tables and complex layouts.",
+      "Turns PDFs into markdown and structured extraction inputs, including layout-heavy documents and vision-assisted flows.",
   },
   {
     name: "edgequake-graph",
     version: "0.7.0",
     description:
-      "Graph algorithms and traversal. Community detection, entity resolution, and knowledge graph operations.",
+      "Provides graph algorithms, traversal, community detection, and entity resolution primitives for graph-aware retrieval.",
   },
 ];
 ---
@@ -62,7 +62,8 @@ const crates = [
         Modular by Design
       </h2>
       <p class="mt-4 text-lg mkt-text-muted">
-        {crates.length} focused crates. Use the full stack or pick just what you need.
+        {crates.length} focused crates. Adopt the whole platform or pull in the
+        pieces you need for your own retrieval stack.
       </p>
     </div>
 

@@ -1,3 +1,7 @@
+---
+title: 'Graph-RAG: The Foundation'
+---
+
 # Graph-RAG: The Foundation
 
 > **Graph-RAG enhances Retrieval-Augmented Generation by using knowledge graphs

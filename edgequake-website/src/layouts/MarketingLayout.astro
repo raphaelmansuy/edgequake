@@ -7,35 +7,87 @@ interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  ogImageAlt?: string;
   noIndex?: boolean;
 }
 
 const {
   title,
   description = "Graph-RAG framework built in Rust. Turn documents into knowledge graphs, query with 6 modes, 10x faster than Python RAG.",
-  ogImage = "/og-default.png",
+  ogImage = "/og-default.svg",
+  ogImageAlt = "EdgeQuake social preview with product positioning and architecture motifs",
   noIndex = false,
 } = Astro.props;
 
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 const ogImageUrl = new URL(ogImage, Astro.site);
 const pageTitle = `${title} | EdgeQuake`;
+const pageTitleIsBrandOnly = title.trim().toLowerCase() === "edgequake";
+const resolvedTitle = pageTitleIsBrandOnly ? "EdgeQuake" : pageTitle;
 const schema = {
   "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "EdgeQuake",
-  applicationCategory: "DeveloperApplication",
-  operatingSystem: "Linux, macOS, Windows",
-  description,
-  url: canonicalUrl,
-  image: ogImageUrl,
-  license: "https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/LICENSE",
-  codeRepository: "https://github.com/raphaelmansuy/edgequake",
-  publisher: {
-    "@type": "Organization",
-    name: "Elitizon",
-    url: "https://elitizon.com",
-  },
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://edgequake.com/#organization",
+      name: "Elitizon",
+      url: "https://elitizon.com",
+      logo: new URL("/favicon.svg", Astro.site).toString(),
+      sameAs: [
+        "https://github.com/raphaelmansuy/edgequake",
+        "https://elitizon.com",
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://edgequake.com/#website",
+      name: "EdgeQuake",
+      url: Astro.site?.toString(),
+      publisher: {
+        "@id": "https://edgequake.com/#organization",
+      },
+      inLanguage: "en",
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${canonicalUrl.toString()}#software`,
+      name: "EdgeQuake",
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Linux, macOS, Windows",
+      description,
+      url: canonicalUrl.toString(),
+      image: ogImageUrl.toString(),
+      offers: {
+        "@type": "Offer",
+        price: 0,
+        priceCurrency: "USD",
+      },
+      license:
+        "https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/LICENSE",
+      codeRepository: "https://github.com/raphaelmansuy/edgequake",
+      publisher: {
+        "@id": "https://edgequake.com/#organization",
+      },
+    },
+    {
+      "@type": "WebPage",
+      "@id": `${canonicalUrl.toString()}#webpage`,
+      url: canonicalUrl.toString(),
+      name: resolvedTitle,
+      description,
+      isPartOf: {
+        "@id": "https://edgequake.com/#website",
+      },
+      about: {
+        "@id": `${canonicalUrl.toString()}#software`,
+      },
+      primaryImageOfPage: {
+        "@type": "ImageObject",
+        url: ogImageUrl.toString(),
+      },
+      inLanguage: "en",
+    },
+  ],
 };
 ---
 
@@ -45,11 +97,14 @@ const schema = {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
+    <meta name="application-name" content="EdgeQuake" />
+    <meta name="apple-mobile-web-app-title" content="EdgeQuake" />
+    <meta name="author" content="Elitizon" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <link rel="canonical" href={canonicalUrl} />
 
-    <title>{pageTitle}</title>
+    <title>{resolvedTitle}</title>
     <meta name="description" content={description} />
     <meta
       name="robots"
@@ -57,6 +112,7 @@ const schema = {
         ? "noindex, nofollow"
         : "index, follow, max-image-preview:large"}
     />
+    <meta id="theme-color-meta" name="theme-color" content="#09090b" />
     <meta
       name="theme-color"
       content="#09090b"
@@ -71,25 +127,27 @@ const schema = {
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:site_name" content="EdgeQuake" />
-    <meta property="og:title" content={pageTitle} />
+    <meta property="og:title" content={resolvedTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:secure_url" content={ogImageUrl} />
+    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="EdgeQuake knowledge graph product preview"
+      content={ogImageAlt}
     />
     <meta property="og:url" content={canonicalUrl} />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:title" content={resolvedTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
-    <meta
-      name="twitter:image:alt"
-      content="EdgeQuake knowledge graph product preview"
-    />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
 
     <script
       is:inline
@@ -109,16 +167,30 @@ const schema = {
     <script is:inline>
       (function () {
         var theme = localStorage.getItem("starlight-theme");
+        var themeColorMeta = document.getElementById("theme-color-meta");
         if (theme === "light" || theme === "dark") {
           document.documentElement.setAttribute("data-theme", theme);
+          if (themeColorMeta) {
+            themeColorMeta.setAttribute(
+              "content",
+              theme === "light" ? "#ffffff" : "#09090b",
+            );
+          }
         } else {
           var prefersDark = window.matchMedia(
             "(prefers-color-scheme: dark)",
           ).matches;
+          var resolvedTheme = prefersDark ? "dark" : "light";
           document.documentElement.setAttribute(
             "data-theme",
-            prefersDark ? "dark" : "light",
+            resolvedTheme,
           );
+          if (themeColorMeta) {
+            themeColorMeta.setAttribute(
+              "content",
+              resolvedTheme === "light" ? "#ffffff" : "#09090b",
+            );
+          }
         }
       })();
     </script>

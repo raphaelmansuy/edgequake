@@ -1,3 +1,7 @@
+---
+title: 'Deep Dive: Cost Tracking'
+---
+
 # Deep Dive: Cost Tracking
 
 > **How EdgeQuake Tracks and Reports LLM Costs**

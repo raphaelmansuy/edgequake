@@ -1,3 +1,7 @@
+---
+title: 'Troubleshooting Guide'
+---
+
 # Troubleshooting Guide
 
 > **Diagnosing and Resolving Common EdgeQuake Issues**

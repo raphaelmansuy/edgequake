@@ -8,42 +8,42 @@ const features = [
     icon: "brain",
     title: "Knowledge Graph Engine",
     description:
-      "Entities and relationships extracted automatically. PostgreSQL + Apache AGE for production-grade graph storage.",
+      "Extract entities, relationships, and lineage into a graph-backed retrieval layer built on PostgreSQL and Apache AGE.",
     href: "/docs/concepts/",
   },
   {
     icon: "zap",
     title: "10x Faster",
     description:
-      "Rust-native pipeline processes 1,000+ documents per minute. Zero-copy parsing with async I/O throughout.",
+      "Use a Rust-native ingestion pipeline designed for throughput, low memory pressure, and repeatable performance on large document sets.",
     href: "/docs/deep-dives/",
   },
   {
     icon: "git-fork",
     title: "6 Query Modes",
     description:
-      "Local, global, hybrid, naive, mix, and graph-aware retrieval. Pick the right mode for each question automatically.",
+      "Choose the retrieval strategy that fits the question: local, global, hybrid, naive, mix, or graph-aware.",
     href: "/docs/concepts/",
   },
   {
     icon: "building",
     title: "Multi-Tenant",
     description:
-      "Workspace isolation built in. Run multiple teams, clients, or projects on a single deployment with zero bleed.",
+      "Run multiple teams, projects, or clients on one deployment with workspace boundaries designed into the core architecture.",
     href: "/docs/operations/",
   },
   {
     icon: "file-text",
     title: "PDF Vision Pipeline",
     description:
-      "Built-in PDF-to-markdown with vision LLM support. Tables, figures, and complex layouts handled natively.",
+      "Convert difficult PDFs into usable markdown with built-in vision support for tables, figures, and layout-sensitive extraction.",
     href: "/docs/deep-dives/",
   },
   {
     icon: "bot",
     title: "MCP Integration",
     description:
-      "Model Context Protocol server included. Connect EdgeQuake to any MCP-compatible AI assistant seamlessly.",
+      "Expose your graph and document context through MCP so assistants and internal tools can work against the same retrieval system.",
     href: "/docs/integrations/",
   },
 ];
@@ -66,11 +66,12 @@ const iconPaths: Record<string, string> = {
   <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
     <div class="text-center max-w-3xl mx-auto">
       <h2 class="text-3xl font-bold tracking-tight mkt-text sm:text-4xl">
-        Everything you need. Nothing you don't.
+        Built for Real Graph-RAG Work
       </h2>
       <p class="mt-4 text-lg mkt-text-muted">
-        A complete Graph-RAG framework designed from the ground up for
-        performance, correctness, and developer experience.
+        EdgeQuake combines ingestion, extraction, storage, and retrieval into a
+        stack that is easier to reason about, easier to operate, and easier to
+        extend.
       </p>
     </div>
 

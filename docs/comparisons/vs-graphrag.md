@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake vs Microsoft GraphRAG'
+---
+
 # EdgeQuake vs Microsoft GraphRAG
 
 > **Two Approaches to Graph-Enhanced RAG**

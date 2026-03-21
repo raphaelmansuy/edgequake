@@ -11,7 +11,8 @@ const tabs = [
     label: "Rust",
     title: "src/main.rs",
     lang: "rust",
-    summary: "Create an EdgeQuake client, ingest text, and run a graph-aware query.",
+    summary:
+      "Create an EdgeQuake client, ingest text, and run a graph-aware query.",
     code: `use edgequake::EdgeQuake;
 
 #[tokio::main]
@@ -34,7 +35,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     label: "Docker",
     title: "Bootstrap the full stack",
     lang: "bash",
-    summary: "Download the Compose file, launch the services, and verify API health.",
+    summary:
+      "Download the Compose file, launch the services, and verify API health.",
     code: `# Start EdgeQuake with Docker Compose
 curl -O https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.yml
 
@@ -49,7 +51,8 @@ curl http://localhost:8080/health`,
     label: "REST API",
     title: "api-demo.sh",
     lang: "bash",
-    summary: "Post a document, then send a retrieval request to the query endpoint.",
+    summary:
+      "Post a document, then send a retrieval request to the query endpoint.",
     code: `# Insert a document
 curl -X POST http://localhost:8080/documents \\
   -H "Content-Type: application/json" \\
@@ -70,7 +73,8 @@ curl -X POST http://localhost:8080/query \\
         Up and Running in Minutes
       </h2>
       <p class="mt-4 text-lg mkt-text-muted">
-        Choose your preferred way to get started with EdgeQuake.
+        Start where you are: embed the Rust crate, launch the full stack with
+        Docker, or hit the API directly.
       </p>
     </div>
 
@@ -84,12 +88,14 @@ curl -X POST http://localhost:8080/query \\
         {
           tabs.map((tab, i) => (
             <button
+              type="button"
               role="tab"
               data-tab={tab.id}
               class={`mkt-tab px-4 py-2.5 text-sm font-medium transition-colors ${i === 0 ? "is-active" : ""}`}
               aria-selected={i === 0 ? "true" : "false"}
               aria-controls={`panel-${tab.id}`}
               id={`tab-${tab.id}`}
+              tabindex={i === 0 ? "0" : "-1"}
             >
               {tab.label}
             </button>
@@ -105,6 +111,7 @@ curl -X POST http://localhost:8080/query \\
             id={`panel-${tab.id}`}
             role="tabpanel"
             aria-labelledby={`tab-${tab.id}`}
+            tabindex="0"
             class={`relative ${i === 0 ? "" : "hidden"}`}
           >
             <div class="mkt-code-showcase rounded-b-2xl border border-t-0 p-5 sm:p-6">
@@ -124,24 +131,63 @@ curl -X POST http://localhost:8080/query \\
 </section>
 
 <script>
-  // Tab switching
-  document.querySelectorAll("[role=tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = (btn as HTMLElement).dataset.tab;
-      // Deactivate all
-      document.querySelectorAll("[role=tab]").forEach((t) => {
-        t.classList.remove("is-active");
-        t.setAttribute("aria-selected", "false");
+  const setupQuickStartTabs = () => {
+    document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
+      if (tablist instanceof HTMLElement && tablist.dataset.bound === "true") {
+        return;
+      }
+
+      const tabs = Array.from(
+        tablist.querySelectorAll<HTMLElement>('[role="tab"]'),
+      );
+      const section = tablist.closest("section");
+      const panels = Array.from(
+        section?.querySelectorAll<HTMLElement>('[data-panel]') ?? [],
+      );
+
+      const activateTab = (nextTab?: HTMLElement) => {
+        const nextId = nextTab?.dataset.tab;
+        tabs.forEach((tab) => {
+          const isActive = tab === nextTab;
+          tab.classList.toggle("is-active", isActive);
+          tab.setAttribute("aria-selected", String(isActive));
+          tab.setAttribute("tabindex", isActive ? "0" : "-1");
+        });
+
+        panels.forEach((panel) => {
+          panel.classList.toggle("hidden", panel.dataset.panel !== nextId);
+        });
+      };
+
+      tabs.forEach((tab, index) => {
+        tab.addEventListener("click", () => activateTab(tab));
+        tab.addEventListener("keydown", (event: KeyboardEvent) => {
+          let nextIndex = index;
+
+          if (event.key === "ArrowRight") {
+            nextIndex = (index + 1) % tabs.length;
+          } else if (event.key === "ArrowLeft") {
+            nextIndex = (index - 1 + tabs.length) % tabs.length;
+          } else if (event.key === "Home") {
+            nextIndex = 0;
+          } else if (event.key === "End") {
+            nextIndex = tabs.length - 1;
+          } else {
+            return;
+          }
+
+          event.preventDefault();
+          const nextTab = tabs[nextIndex];
+          activateTab(nextTab);
+          nextTab?.focus();
+        });
       });
-      document
-        .querySelectorAll("[data-panel]")
-        .forEach((p) => p.classList.add("hidden"));
-      // Activate selected
-      btn.classList.add("is-active");
-      btn.setAttribute("aria-selected", "true");
-      document
-        .querySelector(`[data-panel="${id}"]`)
-        ?.classList.remove("hidden");
+
+      if (tablist instanceof HTMLElement) {
+        tablist.dataset.bound = "true";
+      }
     });
-  });
+  };
+
+  setupQuickStartTabs();
 </script>

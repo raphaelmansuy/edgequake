@@ -8,37 +8,37 @@ const problems = [
     icon: "link-off",
     title: "Lost Relationships",
     description:
-      "Vector search treats documents as isolated chunks, losing the connections between entities that make knowledge valuable.",
+      "Vector search breaks context into isolated chunks, so answers miss the entity relationships, dependencies, and provenance users actually care about.",
   },
   {
     icon: "timer",
     title: "Slow at Scale",
     description:
-      "Python-based RAG frameworks struggle with large document collections, taking hours to process what should take minutes.",
+      "Pipelines that feel fine in demos become slow and brittle on real corpora, where ingestion, extraction, and reprocessing all compound latency.",
   },
   {
     icon: "layers",
     title: "Single Query Mode",
     description:
-      "Most RAG systems offer one way to query. Real-world questions need local, global, hybrid, and graph-aware retrieval.",
+      "Real questions are not all the same. Some need local evidence, others need global context, and many need both in the same retrieval flow.",
   },
   {
     icon: "building",
     title: "No Multi-Tenancy",
     description:
-      "Sharing a RAG system across teams or clients requires workspace isolation that most frameworks don't support.",
+      "Once multiple teams or clients share the same system, weak workspace isolation turns into operational risk and trust issues.",
   },
   {
     icon: "file-text",
     title: "PDF Pain",
     description:
-      "Extracting structured knowledge from PDFs with tables, figures, and complex layouts remains a painful unsolved problem.",
+      "PDFs still break many RAG pipelines, especially when tables, figures, layout structure, and scanned pages matter to the final answer.",
   },
   {
     icon: "dollar-sign",
     title: "Cloud-Only Cost",
     description:
-      "Vendor lock-in to expensive cloud APIs makes experimentation costly and production deployment unpredictable.",
+      "If the stack only works with one hosted provider, experimentation gets expensive and production cost becomes hard to control.",
   },
 ];
 
@@ -58,11 +58,11 @@ const iconPaths: Record<string, string> = {
   <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
     <div class="text-center max-w-3xl mx-auto">
       <h2 class="text-3xl font-bold tracking-tight mkt-text sm:text-4xl">
-        Traditional RAG Loses Knowledge
+        Traditional RAG Breaks the Thread
       </h2>
       <p class="mt-4 text-lg mkt-text-muted">
-        Vector-only retrieval breaks the connections between entities. You need
-        structure, not just similarity.
+        Similarity search alone is not enough when users need grounded answers,
+        entity relationships, source traceability, and predictable operations.
       </p>
     </div>
 

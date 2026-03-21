@@ -1,3 +1,7 @@
+---
+title: 'Tutorial: Document Ingestion Deep-Dive'
+---
+
 # Tutorial: Document Ingestion Deep-Dive
 
 > **Understanding and Customizing the Document Pipeline**

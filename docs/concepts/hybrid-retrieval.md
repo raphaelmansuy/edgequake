@@ -1,3 +1,7 @@
+---
+title: 'Hybrid Retrieval'
+---
+
 # Hybrid Retrieval
 
 > **Hybrid retrieval combines vector similarity search with knowledge graph

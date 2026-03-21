@@ -1,3 +1,7 @@
+---
+title: 'Tutorial: Building Your First RAG App'
+---
+
 # Tutorial: Building Your First RAG App
 
 > **End-to-End Guide: From Documents to Intelligent Q&A**

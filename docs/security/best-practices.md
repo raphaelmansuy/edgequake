@@ -1,3 +1,7 @@
+---
+title: 'Security Best Practices'
+---
+
 # Security Best Practices
 
 > **Securing Your EdgeQuake Deployment**

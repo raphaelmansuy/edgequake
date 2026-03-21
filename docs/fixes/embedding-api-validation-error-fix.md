@@ -1,3 +1,7 @@
+---
+title: 'Fix: Embedding API Validation Error'
+---
+
 # Fix: Embedding API Validation Error
 
 **Date**: 2026-02-10  

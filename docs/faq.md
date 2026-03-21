@@ -1,3 +1,7 @@
+---
+title: 'Frequently Asked Questions'
+---
+
 # Frequently Asked Questions
 
 > **Common Questions About EdgeQuake**

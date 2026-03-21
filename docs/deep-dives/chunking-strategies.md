@@ -1,3 +1,7 @@
+---
+title: 'Deep Dive: Chunking Strategies'
+---
+
 # Deep Dive: Chunking Strategies
 
 > **How EdgeQuake Splits Documents for Processing**

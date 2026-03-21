@@ -129,7 +129,7 @@ const isActivePath = (href: string) => {
         class="md:hidden inline-flex items-center justify-center rounded-md p-2 mkt-text-muted hover:mkt-text mkt-hover-bg"
         aria-controls="mobile-menu"
         aria-expanded="false"
-        aria-label="Toggle menu"
+        aria-label="Open menu"
         id="mobile-menu-btn"
       >
         <svg
@@ -224,10 +224,18 @@ const isActivePath = (href: string) => {
     const themeBtn = document.getElementById("theme-toggle");
 
     if (btn && menu && !btn.dataset.bound) {
+      const menuLinks = Array.from(menu.querySelectorAll("a"));
+
       const setMenuState = (expanded: boolean) => {
         menu.classList.toggle("hidden", !expanded);
         btn.setAttribute("aria-expanded", String(expanded));
         menu.setAttribute("aria-hidden", String(!expanded));
+        btn.setAttribute("aria-label", expanded ? "Close menu" : "Open menu");
+        document.body.style.overflow = expanded ? "hidden" : "";
+
+        if (expanded) {
+          menuLinks[0]?.focus();
+        }
       };
 
       btn.addEventListener("click", () => {
@@ -235,12 +243,49 @@ const isActivePath = (href: string) => {
         setMenuState(!expanded);
       });
 
-      menu.querySelectorAll("a").forEach((link) => {
+      menuLinks.forEach((link) => {
         link.addEventListener("click", () => setMenuState(false));
       });
 
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
+          setMenuState(false);
+          btn.focus();
+        }
+
+        if (
+          event.key === "Tab" &&
+          btn.getAttribute("aria-expanded") === "true" &&
+          menuLinks.length > 0
+        ) {
+          const first = menuLinks[0];
+          const last = menuLinks[menuLinks.length - 1];
+          const active = document.activeElement;
+
+          if (event.shiftKey && active === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && active === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Node)) {
+          return;
+        }
+
+        const expanded = btn.getAttribute("aria-expanded") === "true";
+        if (expanded && !menu.contains(target) && !btn.contains(target)) {
+          setMenuState(false);
+        }
+      });
+
+      window.addEventListener("resize", () => {
+        if (window.innerWidth >= 768) {
           setMenuState(false);
         }
       });

@@ -1,3 +1,7 @@
+---
+title: 'LightRAG Algorithm Deep-Dive'
+---
+
 # LightRAG Algorithm Deep-Dive
 
 > **Understanding Graph-Augmented Retrieval: From First Principles to Implementation**

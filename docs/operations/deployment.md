@@ -1,3 +1,7 @@
+---
+title: 'Deployment Guide'
+---
+
 # Deployment Guide
 
 > **Deploying EdgeQuake to Production**

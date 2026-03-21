@@ -1,3 +1,7 @@
+---
+title: 'Knowledge Graph'
+---
+
 # Knowledge Graph
 
 > **EdgeQuake's knowledge graph stores entities as nodes and relationships as edges,

@@ -1,3 +1,7 @@
+---
+title: 'Document Upload Quick Reference'
+---
+
 # Document Upload Quick Reference
 
 > **Choose the Right Endpoint for Your Upload Method**

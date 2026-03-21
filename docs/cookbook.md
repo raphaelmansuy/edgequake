@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake Cookbook'
+---
+
 # EdgeQuake Cookbook
 
 > **Practical Recipes for Common Tasks**

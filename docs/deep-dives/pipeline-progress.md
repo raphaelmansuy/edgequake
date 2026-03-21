@@ -1,3 +1,7 @@
+---
+title: 'Deep Dive: Pipeline Progress Tracking'
+---
+
 # Deep Dive: Pipeline Progress Tracking
 
 > **Real-Time Monitoring of Document Ingestion**

@@ -1,0 +1,312 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "EdgeQuake" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - img [ref=e5]
+        - generic [ref=e7]: EdgeQuake
+      - button "Toggle menu" [ref=e9]:
+        - img [ref=e10]
+  - main [ref=e12]:
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]: Apache 2.0
+        - generic [ref=e21]: 1000+ docs/min
+        - generic [ref=e22]: 6 Query Modes
+        - generic [ref=e23]: Built with Rust
+      - heading "Graph-RAG. Built for Speed." [level=1] [ref=e24]
+      - paragraph [ref=e25]: Turn documents into knowledge graphs. Query with 6 modes. 10x faster than Python RAG. Built in Rust, powered by PostgreSQL.
+      - generic [ref=e26]:
+        - link "Get Started" [ref=e27] [cursor=pointer]:
+          - /url: /docs/getting-started/
+          - text: Get Started
+          - img [ref=e28]
+        - link "GitHub" [ref=e30] [cursor=pointer]:
+          - /url: https://github.com/raphaelmansuy/edgequake
+          - img [ref=e31]
+          - text: GitHub
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - heading "Traditional RAG Loses Knowledge" [level=2] [ref=e37]
+        - paragraph [ref=e38]: Vector-only retrieval breaks the connections between entities. You need structure, not just similarity.
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - img [ref=e42]
+          - heading "Lost Relationships" [level=3] [ref=e44]
+          - paragraph [ref=e45]: Vector search treats documents as isolated chunks, losing the connections between entities that make knowledge valuable.
+        - generic [ref=e46]:
+          - img [ref=e48]
+          - heading "Slow at Scale" [level=3] [ref=e50]
+          - paragraph [ref=e51]: Python-based RAG frameworks struggle with large document collections, taking hours to process what should take minutes.
+        - generic [ref=e52]:
+          - img [ref=e54]
+          - heading "Single Query Mode" [level=3] [ref=e56]
+          - paragraph [ref=e57]: Most RAG systems offer one way to query. Real-world questions need local, global, hybrid, and graph-aware retrieval.
+        - generic [ref=e58]:
+          - img [ref=e60]
+          - heading "No Multi-Tenancy" [level=3] [ref=e62]
+          - paragraph [ref=e63]: Sharing a RAG system across teams or clients requires workspace isolation that most frameworks don't support.
+        - generic [ref=e64]:
+          - img [ref=e66]
+          - heading "PDF Pain" [level=3] [ref=e68]
+          - paragraph [ref=e69]: Extracting structured knowledge from PDFs with tables, figures, and complex layouts remains a painful unsolved problem.
+        - generic [ref=e70]:
+          - img [ref=e72]
+          - heading "Cloud-Only Cost" [level=3] [ref=e74]
+          - paragraph [ref=e75]: Vendor lock-in to expensive cloud APIs makes experimentation costly and production deployment unpredictable.
+    - generic [ref=e78]:
+      - generic [ref=e79]:
+        - heading "Everything you need. Nothing you don't." [level=2] [ref=e80]
+        - paragraph [ref=e81]: A complete Graph-RAG framework designed from the ground up for performance, correctness, and developer experience.
+      - generic [ref=e82]:
+        - link "Knowledge Graph Engine Entities and relationships extracted automatically. PostgreSQL + Apache AGE for production-grade graph storage." [ref=e83] [cursor=pointer]:
+          - /url: /docs/concepts/
+          - img [ref=e85]
+          - heading "Knowledge Graph Engine" [level=3] [ref=e87]
+          - paragraph [ref=e88]: Entities and relationships extracted automatically. PostgreSQL + Apache AGE for production-grade graph storage.
+        - link "10x Faster Rust-native pipeline processes 1,000+ documents per minute. Zero-copy parsing with async I/O throughout." [ref=e89] [cursor=pointer]:
+          - /url: /docs/deep-dives/
+          - img [ref=e91]
+          - heading "10x Faster" [level=3] [ref=e93]
+          - paragraph [ref=e94]: Rust-native pipeline processes 1,000+ documents per minute. Zero-copy parsing with async I/O throughout.
+        - link "6 Query Modes Local, global, hybrid, naive, mix, and graph-aware retrieval. Pick the right mode for each question automatically." [ref=e95] [cursor=pointer]:
+          - /url: /docs/concepts/
+          - img [ref=e97]
+          - heading "6 Query Modes" [level=3] [ref=e99]
+          - paragraph [ref=e100]: Local, global, hybrid, naive, mix, and graph-aware retrieval. Pick the right mode for each question automatically.
+        - link "Multi-Tenant Workspace isolation built in. Run multiple teams, clients, or projects on a single deployment with zero bleed." [ref=e101] [cursor=pointer]:
+          - /url: /docs/operations/
+          - img [ref=e103]
+          - heading "Multi-Tenant" [level=3] [ref=e105]
+          - paragraph [ref=e106]: Workspace isolation built in. Run multiple teams, clients, or projects on a single deployment with zero bleed.
+        - link "PDF Vision Pipeline Built-in PDF-to-markdown with vision LLM support. Tables, figures, and complex layouts handled natively." [ref=e107] [cursor=pointer]:
+          - /url: /docs/deep-dives/
+          - img [ref=e109]
+          - heading "PDF Vision Pipeline" [level=3] [ref=e111]
+          - paragraph [ref=e112]: Built-in PDF-to-markdown with vision LLM support. Tables, figures, and complex layouts handled natively.
+        - link "MCP Integration Model Context Protocol server included. Connect EdgeQuake to any MCP-compatible AI assistant seamlessly." [ref=e113] [cursor=pointer]:
+          - /url: /docs/integrations/
+          - img [ref=e115]
+          - heading "MCP Integration" [level=3] [ref=e117]
+          - paragraph [ref=e118]: Model Context Protocol server included. Connect EdgeQuake to any MCP-compatible AI assistant seamlessly.
+    - generic [ref=e121]:
+      - generic [ref=e122]:
+        - heading "How it Works" [level=2] [ref=e123]
+        - paragraph [ref=e124]: From raw documents to queryable knowledge graphs — a production-ready pipeline.
+      - img [ref=e127]:
+        - generic [ref=e128]:
+          - generic [ref=e130]: Documents
+          - generic [ref=e132]: Ingestion
+          - generic [ref=e133]: Pipeline
+          - generic [ref=e135]: PostgreSQL
+          - generic [ref=e136]: Storage
+          - generic [ref=e138]: Query Engine
+          - generic [ref=e140]: REST API
+          - generic [ref=e142]: LLM Provider
+          - generic [ref=e144]: Clients
+    - generic [ref=e150]:
+      - generic [ref=e151]:
+        - heading "Built for Performance" [level=2] [ref=e152]
+        - paragraph [ref=e153]: Measured against real-world workloads, not synthetic benchmarks.
+      - generic [ref=e154]:
+        - generic [ref=e155]:
+          - generic [ref=e156]: 10x
+          - generic [ref=e157]: Faster ingestion
+        - generic [ref=e158]:
+          - generic [ref=e159]: 300MB
+          - generic [ref=e160]: Memory per core
+        - generic [ref=e161]:
+          - generic [ref=e162]: <100ms
+          - generic [ref=e163]: Query latency (p95)
+        - generic [ref=e164]:
+          - generic [ref=e165]: "6"
+          - generic [ref=e166]: Query modes
+      - generic [ref=e167]:
+        - generic [ref=e168]:
+          - heading "Throughput (docs/min)" [level=3] [ref=e169]
+          - generic [ref=e170]:
+            - generic [ref=e172]:
+              - generic [ref=e173]: EdgeQuake
+              - generic [ref=e174]: "1000"
+            - generic [ref=e178]:
+              - generic [ref=e179]: LightRAG
+              - generic [ref=e180]: "100"
+            - generic [ref=e184]:
+              - generic [ref=e185]: GraphRAG
+              - generic [ref=e186]: "50"
+            - generic [ref=e190]:
+              - generic [ref=e191]: Traditional RAG
+              - generic [ref=e192]: "200"
+        - generic [ref=e195]:
+          - heading "Memory Usage" [level=3] [ref=e196]
+          - generic [ref=e197]:
+            - generic [ref=e199]:
+              - generic [ref=e200]: EdgeQuake
+              - generic [ref=e201]: 300MB
+            - generic [ref=e205]:
+              - generic [ref=e206]: LightRAG
+              - generic [ref=e207]: 3GB
+            - generic [ref=e211]:
+              - generic [ref=e212]: GraphRAG
+              - generic [ref=e213]: 1.5GB
+    - generic [ref=e218]:
+      - generic [ref=e219]:
+        - heading "Up and Running in Minutes" [level=2] [ref=e220]
+        - paragraph [ref=e221]: Choose your preferred way to get started with EdgeQuake.
+      - generic [ref=e222]:
+        - tablist [ref=e223]:
+          - tab "Rust" [selected] [ref=e224]
+          - tab "Docker" [ref=e225]
+          - tab "REST API" [ref=e226]
+        - generic [ref=e228]:
+          - button "Copy code" [ref=e229]: Copy
+          - code [ref=e231]: "use edgequake::EdgeQuake; #[tokio::main] async fn main() -> Result<(), Box<dyn std::error::Error>> { let eq = EdgeQuake::new(\"postgres://localhost/edgequake\").await?; // Ingest documents eq.insert(\"GraphRAG combines vector search with knowledge graphs to deliver more accurate and contextual retrieval.\").await?; // Query with different modes let result = eq.query(\"How does GraphRAG work?\").await?; println!(\"{}\", result); Ok(()) }"
+    - generic [ref=e234]:
+      - generic [ref=e235]:
+        - heading "Modular by Design" [level=2] [ref=e236]
+        - paragraph [ref=e237]: 8 focused crates. Use the full stack or pick just what you need.
+      - generic [ref=e238]:
+        - generic [ref=e239]:
+          - generic [ref=e240]:
+            - heading "edgequake-core" [level=3] [ref=e241]
+            - generic [ref=e242]: v0.7.0
+          - paragraph [ref=e243]: Orchestration layer — pipeline management, workspace isolation, and the top-level EdgeQuake API.
+        - generic [ref=e244]:
+          - generic [ref=e245]:
+            - heading "edgequake-api" [level=3] [ref=e246]
+            - generic [ref=e247]: v0.7.0
+          - paragraph [ref=e248]: REST API service built with Axum. Health checks, document upload, query endpoints, and SSE streaming.
+        - generic [ref=e249]:
+          - generic [ref=e250]:
+            - heading "edgequake-storage" [level=3] [ref=e251]
+            - generic [ref=e252]: v0.7.0
+          - paragraph [ref=e253]: Storage adapters for PostgreSQL + Apache AGE. KV, vector, and graph storage behind a unified trait.
+        - generic [ref=e254]:
+          - generic [ref=e255]:
+            - heading "edgequake-pipeline" [level=3] [ref=e256]
+            - generic [ref=e257]: v0.7.0
+          - paragraph [ref=e258]: Document processing pipeline. Chunking, entity extraction, relationship mapping, and deduplication.
+        - generic [ref=e259]:
+          - generic [ref=e260]:
+            - heading "edgequake-query" [level=3] [ref=e261]
+            - generic [ref=e262]: v0.7.0
+          - paragraph [ref=e263]: "Query engine supporting 6 retrieval modes: local, global, hybrid, naive, mix, and graph-aware."
+        - generic [ref=e264]:
+          - generic [ref=e265]:
+            - heading "edgequake-llm" [level=3] [ref=e266]
+            - generic [ref=e267]: v0.3.0
+          - paragraph [ref=e268]: LLM provider abstraction. OpenAI, Ollama, LM Studio, and mock providers with automatic selection.
+        - generic [ref=e269]:
+          - generic [ref=e270]:
+            - heading "edgequake-pdf" [level=3] [ref=e271]
+            - generic [ref=e272]: v0.7.0
+          - paragraph [ref=e273]: PDF-to-markdown conversion with embedded pdfium. Vision LLM support for tables and complex layouts.
+        - generic [ref=e274]:
+          - generic [ref=e275]:
+            - heading "edgequake-graph" [level=3] [ref=e276]
+            - generic [ref=e277]: v0.7.0
+          - paragraph [ref=e278]: Graph algorithms and traversal. Community detection, entity resolution, and knowledge graph operations.
+    - generic [ref=e281]:
+      - generic [ref=e282]:
+        - heading "Need EdgeQuake for Your Organization?" [level=2] [ref=e283]
+        - paragraph [ref=e284]: Get dedicated support, custom integrations, and enterprise-grade security for your team.
+      - generic [ref=e285]:
+        - generic [ref=e286]:
+          - img [ref=e288]
+          - heading "Enterprise Security" [level=3] [ref=e290]
+          - paragraph [ref=e291]: SOC 2 readiness, audit logging, and role-based access for regulated industries.
+        - generic [ref=e292]:
+          - img [ref=e294]
+          - heading "Priority Support" [level=3] [ref=e296]
+          - paragraph [ref=e297]: Dedicated Slack channel, SLA guarantees, and direct access to the core team.
+        - generic [ref=e298]:
+          - img [ref=e300]
+          - heading "Custom Integrations" [level=3] [ref=e302]
+          - paragraph [ref=e303]: Bespoke connectors, private model hosting, and custom deployment architectures.
+      - link "Contact Us" [ref=e305] [cursor=pointer]:
+        - /url: /contact/
+        - text: Contact Us
+        - img [ref=e306]
+  - contentinfo [ref=e308]:
+    - generic [ref=e309]:
+      - generic [ref=e310]:
+        - generic [ref=e311]:
+          - heading "Product" [level=3] [ref=e312]
+          - list [ref=e313]:
+            - listitem [ref=e314]:
+              - link "Getting Started" [ref=e315] [cursor=pointer]:
+                - /url: /docs/getting-started/
+            - listitem [ref=e316]:
+              - link "Live Demo" [ref=e317] [cursor=pointer]:
+                - /url: /demo/
+            - listitem [ref=e318]:
+              - link "Ecosystem" [ref=e319] [cursor=pointer]:
+                - /url: /ecosystem/
+            - listitem [ref=e320]:
+              - link "Enterprise" [ref=e321] [cursor=pointer]:
+                - /url: /enterprise/
+        - generic [ref=e322]:
+          - heading "Developers" [level=3] [ref=e323]
+          - list [ref=e324]:
+            - listitem [ref=e325]:
+              - link "Documentation" [ref=e326] [cursor=pointer]:
+                - /url: /docs/
+            - listitem [ref=e327]:
+              - link "Core Concepts" [ref=e328] [cursor=pointer]:
+                - /url: /docs/concepts/
+            - listitem [ref=e329]:
+              - link "API Reference" [ref=e330] [cursor=pointer]:
+                - /url: /docs/api-reference/
+            - listitem [ref=e331]:
+              - link "crates.io" [ref=e332] [cursor=pointer]:
+                - /url: https://crates.io/crates/edgequake
+        - generic [ref=e333]:
+          - heading "Community" [level=3] [ref=e334]
+          - list [ref=e335]:
+            - listitem [ref=e336]:
+              - link "GitHub" [ref=e337] [cursor=pointer]:
+                - /url: https://github.com/raphaelmansuy/edgequake
+            - listitem [ref=e338]:
+              - link "Issues" [ref=e339] [cursor=pointer]:
+                - /url: https://github.com/raphaelmansuy/edgequake/issues
+            - listitem [ref=e340]:
+              - link "Discussions" [ref=e341] [cursor=pointer]:
+                - /url: https://github.com/raphaelmansuy/edgequake/discussions
+            - listitem [ref=e342]:
+              - link "Changelog" [ref=e343] [cursor=pointer]:
+                - /url: https://github.com/raphaelmansuy/edgequake/blob/main/CHANGELOG.md
+        - generic [ref=e344]:
+          - heading "Company" [level=3] [ref=e345]
+          - list [ref=e346]:
+            - listitem [ref=e347]:
+              - link "Contact" [ref=e348] [cursor=pointer]:
+                - /url: /contact/
+            - listitem [ref=e349]:
+              - link "Elitizon" [ref=e350] [cursor=pointer]:
+                - /url: https://elitizon.com
+            - listitem [ref=e351]:
+              - link "License" [ref=e352] [cursor=pointer]:
+                - /url: https://github.com/raphaelmansuy/edgequake/blob/main/LICENSE
+      - generic [ref=e354]:
+        - link "EdgeQuake" [ref=e355] [cursor=pointer]:
+          - /url: /
+          - img [ref=e356]
+          - generic [ref=e358]: EdgeQuake
+        - paragraph [ref=e359]:
+          - text: © 2026 EdgeQuake · Built by
+          - link "Elitizon" [ref=e360] [cursor=pointer]:
+            - /url: https://elitizon.com
+          - text: · Apache 2.0
+  - generic [ref=e363]:
+    - button "Menu" [ref=e364]:
+      - img [ref=e366]
+      - generic: Menu
+    - button "Inspect" [ref=e370]:
+      - img [ref=e372]
+      - generic: Inspect
+    - button "Audit" [ref=e374]:
+      - img [ref=e376]
+      - generic: Audit
+    - button "Settings" [ref=e379]:
+      - img [ref=e381]
+      - generic: Settings

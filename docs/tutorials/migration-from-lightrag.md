@@ -1,3 +1,7 @@
+---
+title: 'Migration Guide: LightRAG Python → EdgeQuake Rust'
+---
+
 # Migration Guide: LightRAG Python → EdgeQuake Rust
 
 > **Transitioning from LightRAG Python to EdgeQuake**

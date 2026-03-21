@@ -5,7 +5,7 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
 
 <MarketingLayout
   title="Enterprise"
-  description="Learn how EdgeQuake supports enterprise Graph-RAG deployments with self-hosting, multi-tenant isolation, and scalable Rust infrastructure."
+  description="Learn how EdgeQuake supports enterprise Graph-RAG deployments with self-hosting, workspace isolation, scalable Rust infrastructure, and production operations guidance."
 >
   <section class="py-24 sm:py-32">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -14,8 +14,14 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
           EdgeQuake for Enterprise
         </h1>
         <p class="mt-6 text-lg mkt-text-muted">
-          Production-grade Graph-RAG with dedicated support, custom
-          integrations, and enterprise security for regulated industries.
+          Production-grade Graph-RAG for teams that need deployment control,
+          workspace isolation, reliable operations, and a path from prototype to
+          internal platform.
+        </p>
+        <p class="mt-4 text-sm leading-relaxed mkt-text-dim">
+          Use this page to understand how EdgeQuake fits air-gapped
+          environments, private model hosting, customer-facing systems, and
+          multi-team knowledge platforms.
         </p>
       </div>
     </div>
@@ -82,6 +88,27 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
             </li>
           </ul>
         </div>
+      </div>
+
+      <div class="mt-10 grid gap-6 lg:grid-cols-3">
+        <a href="/docs/operations/deployment/" class="mkt-card rounded-xl p-6 transition-colors hover:border-accent-500/30">
+          <h2 class="text-lg font-semibold mkt-text">Deployment guide</h2>
+          <p class="mt-2 text-sm mkt-text-muted">
+            Review environment setup, service architecture, and deployment mechanics.
+          </p>
+        </a>
+        <a href="/docs/operations/configuration/" class="mkt-card rounded-xl p-6 transition-colors hover:border-accent-500/30">
+          <h2 class="text-lg font-semibold mkt-text">Configuration reference</h2>
+          <p class="mt-2 text-sm mkt-text-muted">
+            Understand provider, database, and runtime configuration options.
+          </p>
+        </a>
+        <a href="/contact/" class="mkt-card rounded-xl p-6 transition-colors hover:border-accent-500/30">
+          <h2 class="text-lg font-semibold mkt-text">Implementation support</h2>
+          <p class="mt-2 text-sm mkt-text-muted">
+            Talk to the team about architecture reviews, rollout planning, or custom integration work.
+          </p>
+        </a>
       </div>
     </div>
   </section>

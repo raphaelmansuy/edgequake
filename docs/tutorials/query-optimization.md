@@ -1,3 +1,7 @@
+---
+title: 'Tutorial: Query Optimization'
+---
+
 # Tutorial: Query Optimization
 
 > **Choosing and Tuning Query Modes for Best Results**

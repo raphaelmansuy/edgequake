@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake Architecture Overview'
+---
+
 # EdgeQuake Architecture Overview
 
 > Understanding the system design through first principles

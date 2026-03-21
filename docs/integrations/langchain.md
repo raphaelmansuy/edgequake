@@ -1,3 +1,7 @@
+---
+title: 'Integration: LangChain'
+---
+
 # Integration: LangChain
 
 > **Using EdgeQuake as a Retriever in LangChain Applications**

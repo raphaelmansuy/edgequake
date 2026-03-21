@@ -1,3 +1,7 @@
+---
+title: 'Entity Extraction'
+---
+
 # Entity Extraction
 
 > **Entity extraction uses LLMs to identify people, organizations, concepts, and

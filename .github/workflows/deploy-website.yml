@@ -5,6 +5,7 @@ on:
     branches: [edgequake-main]
     paths:
       - "edgequake-website/**"
+      - "docs/**"
   workflow_dispatch:
 
 permissions:
@@ -37,11 +38,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm next build
+      - name: Build Astro site
+        run: pnpm run build
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: edgequake-website/out
+          path: edgequake-website/dist
 
   deploy:
     needs: build

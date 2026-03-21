@@ -1,3 +1,7 @@
+---
+title: 'Deep Dive: Community Detection'
+---
+
 # Deep Dive: Community Detection
 
 > **How EdgeQuake Discovers Structure in Knowledge Graphs**

@@ -1,3 +1,7 @@
+---
+title: 'Metadata Debugging Guide'
+---
+
 # Metadata Debugging Guide
 
 > How to diagnose and fix lineage issues in EdgeQuake

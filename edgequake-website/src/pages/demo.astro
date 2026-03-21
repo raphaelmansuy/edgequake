@@ -4,17 +4,24 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
 
 <MarketingLayout
   title="Live Demo"
-  description="Preview how EdgeQuake ingests documents, builds knowledge graphs, and serves graph-aware queries through a live demo workflow."
+  description="Follow the EdgeQuake demo workflow to validate document ingestion, knowledge graph construction, retrieval modes, and source traceability end to end."
 >
   <section class="py-24 sm:py-32">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto">
         <h1 class="text-4xl font-bold tracking-tight mkt-text sm:text-5xl">
-          Try EdgeQuake Live
+          Evaluate the EdgeQuake Workflow
         </h1>
         <p class="mt-6 text-lg mkt-text-muted">
-          Upload a document, build a knowledge graph, and query it — all in your
-          browser.
+          Use this page as the shortest path from first run to meaningful
+          validation: ingest a document, inspect the graph, compare retrieval
+          modes, and trace answers back to source material.
+        </p>
+        <p class="mt-4 text-sm leading-relaxed mkt-text-dim">
+          If you need installation details first, go to the
+          <a href="/docs/getting-started/installation/" class="mkt-accent-text hover:underline"> installation guide</a>.
+          If you want the production framing, continue to the
+          <a href="/enterprise/" class="mkt-accent-text hover:underline"> enterprise page</a>.
         </p>
       </div>
 
@@ -37,16 +44,27 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
                 ></polygon>
               </svg>
             </div>
-            <h2 class="text-2xl font-semibold mkt-text">Interactive Demo Workflow</h2>
+            <h2 class="text-2xl font-semibold mkt-text">
+              Interactive Demo Workflow
+            </h2>
             <p class="mt-3 mkt-text-muted">
               The demo is a real EdgeQuake stack running locally. It is best for
-              evaluating document ingestion, graph construction, and query behavior
-              end to end rather than browsing a static placeholder.
+              evaluating document ingestion, graph construction, and query
+              behavior end to end rather than browsing a static placeholder.
+            </p>
+
+            <p class="mt-4 text-sm leading-relaxed mkt-text-dim">
+              This flow is useful for platform teams testing Graph-RAG quality,
+              developers validating API ergonomics, and decision-makers who want
+              to understand what the product actually does before reading deep
+              technical documentation.
             </p>
 
             <div class="mt-8 grid gap-4 md:grid-cols-3">
               <div class="mkt-card rounded-xl p-5">
-                <div class="text-sm font-semibold mkt-accent-text">1. Start services</div>
+                <div class="text-sm font-semibold mkt-accent-text">
+                  1. Start services
+                </div>
                 <p class="mt-2 text-sm mkt-text-muted">
                   Bring up PostgreSQL, the API, and the web UI with the standard
                   development workflow.
@@ -57,24 +75,32 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
               </div>
 
               <div class="mkt-card rounded-xl p-5">
-                <div class="text-sm font-semibold mkt-accent-text">2. Ingest a document</div>
+                <div class="text-sm font-semibold mkt-accent-text">
+                  2. Ingest a document
+                </div>
                 <p class="mt-2 text-sm mkt-text-muted">
-                  Upload a PDF or markdown source and watch chunking, extraction,
-                  and lineage-aware processing complete in the UI.
+                  Upload a PDF or markdown source and watch chunking,
+                  extraction, and lineage-aware processing complete in the UI.
                 </p>
                 <div class="mkt-code-surface mt-4 rounded-lg p-3">
-                  <code class="text-sm mkt-text-secondary">http://localhost:3000/documents</code>
+                  <code class="text-sm mkt-text-secondary"
+                    >http://localhost:3000/documents</code
+                  >
                 </div>
               </div>
 
               <div class="mkt-card rounded-xl p-5">
-                <div class="text-sm font-semibold mkt-accent-text">3. Query the graph</div>
+                <div class="text-sm font-semibold mkt-accent-text">
+                  3. Query the graph
+                </div>
                 <p class="mt-2 text-sm mkt-text-muted">
-                  Ask the same question with different retrieval modes and compare
-                  local, global, hybrid, and graph-aware answers.
+                  Ask the same question with different retrieval modes and
+                  compare local, global, hybrid, and graph-aware answers.
                 </p>
                 <div class="mkt-code-surface mt-4 rounded-lg p-3">
-                  <code class="text-sm mkt-text-secondary">http://localhost:8080/health</code>
+                  <code class="text-sm mkt-text-secondary"
+                    >http://localhost:8080/health</code
+                  >
                 </div>
               </div>
             </div>
@@ -108,11 +134,32 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
           </div>
 
           <div class="mkt-card rounded-xl p-8 text-left">
-            <h2 class="text-xl font-semibold mkt-text">Need the stack recipe?</h2>
+            <h2 class="text-xl font-semibold mkt-text">Where to go next</h2>
+            <div class="mt-4 space-y-3 text-sm">
+              <a href="/docs/tutorials/pdf-ingestion/" class="block mkt-text-muted hover:mkt-text transition-colors">
+                PDF ingestion tutorial for layout-heavy documents
+              </a>
+              <a href="/docs/concepts/graph-rag/" class="block mkt-text-muted hover:mkt-text transition-colors">
+                Graph-RAG concepts and retrieval model overview
+              </a>
+              <a href="/ecosystem/" class="block mkt-text-muted hover:mkt-text transition-colors">
+                Ecosystem and crate boundaries
+              </a>
+              <a href="/contact/" class="block mkt-text-muted hover:mkt-text transition-colors">
+                Contact the team for implementation help
+              </a>
+            </div>
+          </div>
+
+          <div class="mkt-card rounded-xl p-8 text-left">
+            <h2 class="text-xl font-semibold mkt-text">
+              Need the stack recipe?
+            </h2>
             <p class="mt-3 mkt-text-muted">
               If you are evaluating the full experience, use the Makefile-based
-              workflow instead of piecing services together manually. That keeps the
-              ports, environment variables, and dependencies aligned with the docs.
+              workflow instead of piecing services together manually. That keeps
+              the ports, environment variables, and dependencies aligned with
+              the docs.
             </p>
             <div class="mt-6 flex flex-wrap gap-4">
               <a

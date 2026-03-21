@@ -1,3 +1,7 @@
+---
+title: 'Deep Dive: Embedding Models'
+---
+
 # Deep Dive: Embedding Models
 
 > **Understanding Vector Embeddings in EdgeQuake**

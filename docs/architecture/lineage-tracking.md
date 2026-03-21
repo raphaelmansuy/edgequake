@@ -1,3 +1,7 @@
+---
+title: 'Lineage Tracking Architecture'
+---
+
 # Lineage Tracking Architecture
 
 > Complete traceability from source documents to extracted entities

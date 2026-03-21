@@ -1,3 +1,7 @@
+---
+title: 'LinkedIn Post — EdgeQuake v0.4.0'
+---
+
 # LinkedIn Post — EdgeQuake v0.4.0
 
 **Title:** Why your RAG pipeline struggles with PDFs — and how we fixed it with LLM Vision

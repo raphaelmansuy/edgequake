@@ -1,3 +1,7 @@
+---
+title: 'Monitoring Guide'
+---
+
 # Monitoring Guide
 
 > **Observability for EdgeQuake Deployments**

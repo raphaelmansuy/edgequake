@@ -1,3 +1,7 @@
+---
+title: 'Deep Dive: Entity Extraction'
+---
+
 # Deep Dive: Entity Extraction
 
 > **How EdgeQuake Extracts Knowledge Entities from Documents**

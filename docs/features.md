@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake Feature Registry'
+---
+
 # EdgeQuake Feature Registry
 
 This file maintains traceability between code features and business requirements.

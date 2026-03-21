@@ -1,3 +1,7 @@
+---
+title: 'SQLx Offline Mode'
+---
+
 # SQLx Offline Mode
 
 ## Overview

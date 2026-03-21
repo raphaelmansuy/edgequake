@@ -1,3 +1,7 @@
+---
+title: 'Quick Start Guide'
+---
+
 # Quick Start Guide
 
 > From zero to your first knowledge graph query in 10 minutes

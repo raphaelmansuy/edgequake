@@ -1,3 +1,7 @@
+---
+title: 'PDF Processing Deep Dive'
+---
+
 # PDF Processing Deep Dive
 
 **Status**: ✅ Production Ready  

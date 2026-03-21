@@ -1,3 +1,7 @@
+---
+title: 'Deep Dive: Graph Storage'
+---
+
 # Deep Dive: Graph Storage
 
 > **How EdgeQuake Stores and Queries Knowledge Graphs**

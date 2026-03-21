@@ -1,3 +1,7 @@
+---
+title: 'Lineage API Reference'
+---
+
 # Lineage API Reference
 
 > REST API endpoints for document lineage, chunk provenance, and entity traceability

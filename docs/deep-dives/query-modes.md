@@ -1,3 +1,7 @@
+---
+title: 'Query Modes Deep-Dive'
+---
+
 # Query Modes Deep-Dive
 
 > **Understanding EdgeQuake's Multi-Strategy Retrieval System**

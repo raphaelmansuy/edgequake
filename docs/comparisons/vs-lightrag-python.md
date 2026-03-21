@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake vs LightRAG (Python)'
+---
+
 # EdgeQuake vs LightRAG (Python)
 
 > **A Rust reimplementation with production-grade enhancements**

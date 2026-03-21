@@ -1,3 +1,7 @@
+---
+title: 'Entity Normalization Deep-Dive'
+---
+
 # Entity Normalization Deep-Dive
 
 > **Deduplication and Merging for Clean Knowledge Graphs**

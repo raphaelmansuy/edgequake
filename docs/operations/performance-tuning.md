@@ -1,3 +1,7 @@
+---
+title: 'Performance Tuning Guide'
+---
+
 # Performance Tuning Guide
 
 > **Optimizing EdgeQuake for Production Workloads**

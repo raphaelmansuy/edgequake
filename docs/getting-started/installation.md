@@ -1,3 +1,7 @@
+---
+title: 'Installation Guide'
+---
+
 # Installation Guide
 
 > Get EdgeQuake running on your machine in 5 minutes

@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake vs LightRAG: Comprehensive Superiority Analysis'
+---
+
 # EdgeQuake vs LightRAG: Comprehensive Superiority Analysis
 
 **Date**: 2026-02-08

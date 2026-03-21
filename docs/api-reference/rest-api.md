@@ -1,3 +1,7 @@
+---
+title: 'EdgeQuake REST API Reference'
+---
+
 # EdgeQuake REST API Reference
 
 > **Version**: 0.1.0  

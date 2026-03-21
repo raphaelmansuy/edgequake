@@ -1,3 +1,7 @@
+---
+title: 'Integration: Open WebUI'
+---
+
 # Integration: Open WebUI
 
 > **Using EdgeQuake as an Ollama Backend for Open WebUI**

@@ -1,3 +1,7 @@
+---
+title: 'Integration: Custom Clients'
+---
+
 # Integration: Custom Clients
 
 > **Building Custom Applications with EdgeQuake's API**

@@ -1,3 +1,7 @@
+---
+title: 'Tracing Entity Sources Tutorial'
+---
+
 # Tracing Entity Sources Tutorial
 
 > Learn how to trace any entity in EdgeQuake's knowledge graph back to its source document and exact location

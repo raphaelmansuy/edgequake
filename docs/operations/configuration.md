@@ -1,3 +1,7 @@
+---
+title: 'Configuration Reference'
+---
+
 # Configuration Reference
 
 > **Complete EdgeQuake Configuration Options**
