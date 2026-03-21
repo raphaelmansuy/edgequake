@@ -115,6 +115,12 @@ open-webui/
 # Exploration and scratch work
 zz-explore/
 
+# Marketing website (separate project, not tracked here)
+edgequake-website/
+
+# Root-level marketing screenshots (safe to regenerate)
+/*.png
+
 # OS files
 Thumbs.db
 ehthumbs.db
