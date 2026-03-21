@@ -1,0 +1,100 @@
+import { defineConfig } from "astro/config";
+import starlight from "@astrojs/starlight";
+import react from "@astrojs/react";
+import sitemap from "@astrojs/sitemap";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  site: "https://edgequake.com",
+  trailingSlash: "always",
+  output: "static",
+
+  integrations: [
+    starlight({
+      title: "EdgeQuake",
+      description:
+        "Graph-RAG framework built for speed. Knowledge graph engine powered by Rust.",
+      social: [
+        {
+          icon: "github",
+          label: "GitHub",
+          href: "https://github.com/raphaelmansuy/edgequake",
+        },
+      ],
+      editLink: {
+        baseUrl:
+          "https://github.com/raphaelmansuy/edgequake/edit/main/",
+      },
+      components: {
+        Header: "./src/components/overrides/StarlightHeader.astro",
+      },
+      customCss: ["./src/styles/global.css"],
+      lastUpdated: true,
+      pagination: true,
+      disable404Route: true,
+      sidebar: [
+        {
+          label: "Getting Started",
+          autogenerate: { directory: "docs/getting-started" },
+        },
+        {
+          label: "Concepts",
+          autogenerate: { directory: "docs/concepts" },
+        },
+        {
+          label: "Architecture",
+          autogenerate: { directory: "docs/architecture" },
+        },
+        {
+          label: "Tutorials",
+          autogenerate: { directory: "docs/tutorials" },
+        },
+        {
+          label: "API Reference",
+          autogenerate: { directory: "docs/api-reference" },
+        },
+        {
+          label: "Deep Dives",
+          collapsed: true,
+          autogenerate: { directory: "docs/deep-dives" },
+        },
+        {
+          label: "Operations",
+          collapsed: true,
+          autogenerate: { directory: "docs/operations" },
+        },
+        {
+          label: "Integrations",
+          autogenerate: { directory: "docs/integrations" },
+        },
+        {
+          label: "Comparisons",
+          collapsed: true,
+          autogenerate: { directory: "docs/comparisons" },
+        },
+        {
+          label: "Security",
+          autogenerate: { directory: "docs/security" },
+        },
+        {
+          label: "Troubleshooting",
+          autogenerate: { directory: "docs/troubleshooting" },
+        },
+        {
+          label: "Resources",
+          items: [
+            { slug: "docs/cookbook" },
+            { slug: "docs/faq" },
+            { slug: "docs/features" },
+          ],
+        },
+      ],
+    }),
+    react(),
+    sitemap(),
+  ],
+
+  vite: {
+    plugins: [tailwindcss()],
+  },
+});

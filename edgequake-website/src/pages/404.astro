@@ -1,0 +1,36 @@
+---
+import MarketingLayout from "../layouts/MarketingLayout.astro";
+---
+
+<MarketingLayout title="Page Not Found">
+  <section class="flex min-h-[70vh] items-center justify-center py-24">
+    <div class="text-center">
+      <div class="mx-auto mb-6 inline-flex h-20 w-20 items-center justify-center rounded-2xl bg-accent-500/10">
+        <svg class="h-10 w-10 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+      </div>
+
+      <h1 class="text-7xl font-extrabold text-white">404</h1>
+      <p class="mt-4 text-xl text-gray-400">Page Not Found</p>
+      <p class="mt-2 text-gray-500">
+        The page you're looking for doesn't exist or has moved.
+      </p>
+
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
+        <a
+          href="/"
+          class="inline-flex items-center rounded-lg bg-accent-600 px-6 py-3 text-sm font-semibold text-white hover:bg-accent-500 transition-colors"
+        >
+          Back to Home
+        </a>
+        <a
+          href="/docs/"
+          class="inline-flex items-center rounded-lg border border-gray-700 px-6 py-3 text-sm font-semibold text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
+        >
+          Documentation
+        </a>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>

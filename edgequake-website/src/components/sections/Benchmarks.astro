@@ -1,0 +1,93 @@
+---
+/**
+ * Benchmarks section — Performance comparison.
+ * Content ported from _archive/benchmarks.tsx
+ */
+const stats = [
+  { value: "10x", label: "Faster ingestion" },
+  { value: "300MB", label: "Memory per core" },
+  { value: "<100ms", label: "Query latency (p95)" },
+  { value: "6", label: "Query modes" },
+];
+
+const throughput = [
+  { name: "EdgeQuake", value: 1000, max: 1000 },
+  { name: "LightRAG", value: 100, max: 1000 },
+  { name: "GraphRAG", value: 50, max: 1000 },
+  { name: "Traditional RAG", value: 200, max: 1000 },
+];
+
+const memory = [
+  { name: "EdgeQuake", value: 300, max: 3000, label: "300MB" },
+  { name: "LightRAG", value: 3000, max: 3000, label: "3GB" },
+  { name: "GraphRAG", value: 1500, max: 3000, label: "1.5GB" },
+];
+---
+
+<section class="py-20 sm:py-24">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="text-center max-w-3xl mx-auto">
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        Built for Performance
+      </h2>
+      <p class="mt-4 text-lg text-gray-400">
+        Measured against real-world workloads, not synthetic benchmarks.
+      </p>
+    </div>
+
+    <!-- Stats grid -->
+    <div class="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {stats.map((s) => (
+        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-6 text-center">
+          <div class="text-3xl font-bold text-accent-400">{s.value}</div>
+          <div class="mt-1 text-sm text-gray-400">{s.label}</div>
+        </div>
+      ))}
+    </div>
+
+    <!-- Charts -->
+    <div class="mt-12 grid gap-8 md:grid-cols-2">
+      <!-- Throughput -->
+      <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-6">
+        <h3 class="text-lg font-semibold text-white mb-6">Throughput (docs/min)</h3>
+        <div class="space-y-4">
+          {throughput.map((t) => (
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-sm text-gray-300">{t.name}</span>
+                <span class="text-sm font-mono text-gray-400">{t.value}</span>
+              </div>
+              <div class="h-3 w-full rounded-full bg-gray-800">
+                <div
+                  class={`h-3 rounded-full ${t.name === "EdgeQuake" ? "bg-accent-500" : "bg-gray-600"}`}
+                  style={`width: ${(t.value / t.max) * 100}%`}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- Memory -->
+      <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-6">
+        <h3 class="text-lg font-semibold text-white mb-6">Memory Usage</h3>
+        <div class="space-y-4">
+          {memory.map((m) => (
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-sm text-gray-300">{m.name}</span>
+                <span class="text-sm font-mono text-gray-400">{m.label}</span>
+              </div>
+              <div class="h-3 w-full rounded-full bg-gray-800">
+                <div
+                  class={`h-3 rounded-full ${m.name === "EdgeQuake" ? "bg-green-500" : "bg-gray-600"}`}
+                  style={`width: ${(m.value / m.max) * 100}%`}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

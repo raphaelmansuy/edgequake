@@ -1,0 +1,69 @@
+---
+/**
+ * Enterprise CTA section.
+ * Content ported from _archive/enterprise-cta.tsx
+ */
+const pillars = [
+  {
+    icon: "shield",
+    title: "Enterprise Security",
+    description: "SOC 2 readiness, audit logging, and role-based access for regulated industries.",
+  },
+  {
+    icon: "headphones",
+    title: "Priority Support",
+    description: "Dedicated Slack channel, SLA guarantees, and direct access to the core team.",
+  },
+  {
+    icon: "settings",
+    title: "Custom Integrations",
+    description: "Bespoke connectors, private model hosting, and custom deployment architectures.",
+  },
+];
+
+const iconPaths: Record<string, string> = {
+  "shield": "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  "headphones": "M3 18v-6a9 9 0 0118 0v6M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z",
+  "settings": "M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z",
+};
+---
+
+<section class="py-20 sm:py-24 bg-gray-900/50">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="text-center max-w-3xl mx-auto">
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        Need EdgeQuake for Your Organization?
+      </h2>
+      <p class="mt-4 text-lg text-gray-400">
+        Get dedicated support, custom integrations, and enterprise-grade
+        security for your team.
+      </p>
+    </div>
+
+    <div class="mt-12 grid gap-8 sm:grid-cols-3">
+      {pillars.map((p) => (
+        <div class="text-center">
+          <div class="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-accent-500/10 text-accent-400">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <path d={iconPaths[p.icon]} />
+            </svg>
+          </div>
+          <h3 class="text-lg font-semibold text-white">{p.title}</h3>
+          <p class="mt-2 text-sm text-gray-400">{p.description}</p>
+        </div>
+      ))}
+    </div>
+
+    <div class="mt-12 text-center">
+      <a
+        href="/contact/"
+        class="inline-flex items-center rounded-lg bg-accent-600 px-8 py-3 text-sm font-semibold text-white hover:bg-accent-500 transition-colors shadow-lg shadow-accent-600/25"
+      >
+        Contact Us
+        <svg class="ml-2 h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+        </svg>
+      </a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,37 @@
+---
+import MarketingLayout from "../layouts/MarketingLayout.astro";
+import Hero from "../components/sections/Hero.astro";
+import Problem from "../components/sections/Problem.astro";
+import Solution from "../components/sections/Solution.astro";
+import Architecture from "../components/sections/Architecture.astro";
+import Benchmarks from "../components/sections/Benchmarks.astro";
+import QuickStart from "../components/sections/QuickStart.astro";
+import Ecosystem from "../components/sections/Ecosystem.astro";
+import EnterpriseCTA from "../components/sections/EnterpriseCTA.astro";
+import FadeIn from "../components/FadeIn.astro";
+---
+
+<MarketingLayout title="Graph-RAG Built for Speed">
+  <Hero />
+  <FadeIn>
+    <Problem />
+  </FadeIn>
+  <FadeIn delay={100}>
+    <Solution />
+  </FadeIn>
+  <FadeIn>
+    <Architecture />
+  </FadeIn>
+  <FadeIn delay={100}>
+    <Benchmarks />
+  </FadeIn>
+  <FadeIn>
+    <QuickStart />
+  </FadeIn>
+  <FadeIn delay={100}>
+    <Ecosystem />
+  </FadeIn>
+  <FadeIn>
+    <EnterpriseCTA />
+  </FadeIn>
+</MarketingLayout>

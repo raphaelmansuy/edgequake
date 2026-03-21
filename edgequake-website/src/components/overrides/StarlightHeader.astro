@@ -1,0 +1,74 @@
+---
+import type { Props } from "@astrojs/starlight/props";
+import Default from "@astrojs/starlight/components/Header.astro";
+---
+
+<div class="eq-header-wrapper">
+  <nav class="eq-top-nav" aria-label="Site navigation">
+    <a href="/" class="eq-logo">
+      <svg
+        class="eq-logo-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+      <span>EdgeQuake</span>
+    </a>
+    <div class="eq-nav-links">
+      <a href="/">Home</a>
+      <a href="/demo/">Demo</a>
+      <a href="/ecosystem/">Ecosystem</a>
+      <a href="/enterprise/">Enterprise</a>
+    </div>
+  </nav>
+  <Default {...Astro.props}><slot /></Default>
+</div>
+
+<style>
+  .eq-top-nav {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--sl-color-gray-5);
+    font-size: var(--sl-text-xs);
+    background: var(--sl-color-bg);
+  }
+  .eq-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 700;
+    color: var(--sl-color-white);
+    text-decoration: none;
+    font-size: var(--sl-text-sm);
+    white-space: nowrap;
+  }
+  .eq-logo-icon {
+    width: 1.1rem;
+    height: 1.1rem;
+    color: var(--sl-color-accent);
+  }
+  .eq-nav-links {
+    display: flex;
+    gap: 1rem;
+  }
+  .eq-nav-links a {
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .eq-nav-links a:hover {
+    color: var(--sl-color-white);
+  }
+  @media (max-width: 50rem) {
+    .eq-nav-links {
+      display: none;
+    }
+  }
+</style>

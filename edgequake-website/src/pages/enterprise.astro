@@ -1,0 +1,86 @@
+---
+import MarketingLayout from "../layouts/MarketingLayout.astro";
+import EnterpriseCTA from "../components/sections/EnterpriseCTA.astro";
+---
+
+<MarketingLayout title="Enterprise">
+  <section class="py-24 sm:py-32">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto">
+        <h1 class="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+          EdgeQuake for Enterprise
+        </h1>
+        <p class="mt-6 text-lg text-gray-400">
+          Production-grade Graph-RAG with dedicated support, custom integrations,
+          and enterprise security for regulated industries.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature pillars -->
+  <section class="py-16">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="grid gap-8 md:grid-cols-3">
+        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-8">
+          <h2 class="text-xl font-semibold text-white">Self-Hosted</h2>
+          <p class="mt-3 text-gray-400">
+            Deploy on your own infrastructure. Air-gapped environments, private
+            clouds, or on-premises — EdgeQuake runs wherever you need it.
+          </p>
+          <ul class="mt-4 space-y-2 text-sm text-gray-400">
+            <li class="flex items-center gap-2">
+              <span class="text-green-400">✓</span> Docker & Kubernetes ready
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-green-400">✓</span> Private LLM support (Ollama/vLLM)
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-green-400">✓</span> No data leaves your network
+            </li>
+          </ul>
+        </div>
+
+        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-8">
+          <h2 class="text-xl font-semibold text-white">Multi-Tenant</h2>
+          <p class="mt-3 text-gray-400">
+            Workspace isolation built into the core. Run multiple teams, clients,
+            or projects on a single deployment with zero knowledge bleed.
+          </p>
+          <ul class="mt-4 space-y-2 text-sm text-gray-400">
+            <li class="flex items-center gap-2">
+              <span class="text-green-400">✓</span> Per-workspace encryption
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-green-400">✓</span> RBAC-ready architecture
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-green-400">✓</span> Audit logging
+            </li>
+          </ul>
+        </div>
+
+        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-8">
+          <h2 class="text-xl font-semibold text-white">Scalable</h2>
+          <p class="mt-3 text-gray-400">
+            Process millions of documents with constant memory usage. Horizontal
+            scaling via PostgreSQL and stateless API servers.
+          </p>
+          <ul class="mt-4 space-y-2 text-sm text-gray-400">
+            <li class="flex items-center gap-2">
+              <span class="text-green-400">✓</span> 300MB memory per core
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-green-400">✓</span> Horizontal API scaling
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-green-400">✓</span> Connection pooling built-in
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <EnterpriseCTA />
+</MarketingLayout>

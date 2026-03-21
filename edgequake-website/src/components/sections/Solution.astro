@@ -1,0 +1,86 @@
+---
+/**
+ * Solution section — EdgeQuake features.
+ * Content ported from _archive/solution.tsx
+ */
+const features = [
+  {
+    icon: "brain",
+    title: "Knowledge Graph Engine",
+    description: "Entities and relationships extracted automatically. PostgreSQL + Apache AGE for production-grade graph storage.",
+    href: "/docs/concepts/",
+  },
+  {
+    icon: "zap",
+    title: "10x Faster",
+    description: "Rust-native pipeline processes 1,000+ documents per minute. Zero-copy parsing with async I/O throughout.",
+    href: "/docs/deep-dives/",
+  },
+  {
+    icon: "git-fork",
+    title: "6 Query Modes",
+    description: "Local, global, hybrid, naive, mix, and graph-aware retrieval. Pick the right mode for each question automatically.",
+    href: "/docs/concepts/",
+  },
+  {
+    icon: "building",
+    title: "Multi-Tenant",
+    description: "Workspace isolation built in. Run multiple teams, clients, or projects on a single deployment with zero bleed.",
+    href: "/docs/operations/",
+  },
+  {
+    icon: "file-text",
+    title: "PDF Vision Pipeline",
+    description: "Built-in PDF-to-markdown with vision LLM support. Tables, figures, and complex layouts handled natively.",
+    href: "/docs/deep-dives/",
+  },
+  {
+    icon: "bot",
+    title: "MCP Integration",
+    description: "Model Context Protocol server included. Connect EdgeQuake to any MCP-compatible AI assistant seamlessly.",
+    href: "/docs/integrations/",
+  },
+];
+
+const iconPaths: Record<string, string> = {
+  "brain": "M12 2a7 7 0 017 7c0 2-1 3.5-2.5 4.5M12 2a7 7 0 00-7 7c0 2 1 3.5 2.5 4.5M12 2v4M8.5 8.5L12 12l3.5-3.5M12 22v-8M7 14.5C5 15.5 4 17 4 19a3 3 0 003 3h10a3 3 0 003-3c0-2-1-3.5-3-4.5",
+  "zap": "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
+  "git-fork": "M18 21a3 3 0 100-6 3 3 0 000 6zM6 21a3 3 0 100-6 3 3 0 000 6zM12 3a3 3 0 100 6 3 3 0 000-6zM6 15V9a6 6 0 0112 0v6",
+  "building": "M6 22V4a2 2 0 012-2h8a2 2 0 012 2v18zM6 12H4a2 2 0 00-2 2v6a2 2 0 002 2h2M18 9h2a2 2 0 012 2v9a2 2 0 01-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4",
+  "file-text": "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8",
+  "bot": "M12 8V4H8M2 14h2M20 14h2M15 13a3 3 0 11-6 0v3h6v-3zM12 20v2M9 13h.01M15 13h.01M6 10a6 6 0 1112 0v4a6 6 0 01-12 0v-4z",
+};
+---
+
+<section class="py-20 sm:py-24">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="text-center max-w-3xl mx-auto">
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        Everything you need. Nothing you don't.
+      </h2>
+      <p class="mt-4 text-lg text-gray-400">
+        A complete Graph-RAG framework designed from the ground up for
+        performance, correctness, and developer experience.
+      </p>
+    </div>
+
+    <div class="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {features.map((f) => (
+        <a
+          href={f.href}
+          class="group rounded-xl border border-gray-800 bg-gray-900/80 p-6 hover:border-accent-500/30 hover:bg-gray-900 transition-all"
+        >
+          <div class="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-accent-500/10 text-accent-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <path d={iconPaths[f.icon]} />
+            </svg>
+          </div>
+          <h3 class="text-lg font-semibold text-white group-hover:text-accent-400 transition-colors">
+            {f.title}
+          </h3>
+          <p class="mt-2 text-sm text-gray-400 leading-relaxed">{f.description}</p>
+        </a>
+      ))}
+    </div>
+  </div>
+</section>

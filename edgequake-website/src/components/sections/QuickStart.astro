@@ -1,0 +1,139 @@
+---
+/**
+ * QuickStart section — Tabbed code examples.
+ * Content ported from _archive/quickstart.tsx
+ */
+const tabs = [
+  {
+    id: "rust",
+    label: "Rust",
+    code: `use edgequake::EdgeQuake;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let eq = EdgeQuake::new("postgres://localhost/edgequake").await?;
+
+    // Ingest documents
+    eq.insert("GraphRAG combines vector search with knowledge graphs
+    to deliver more accurate and contextual retrieval.").await?;
+
+    // Query with different modes
+    let result = eq.query("How does GraphRAG work?").await?;
+    println!("{}", result);
+
+    Ok(())
+}`,
+  },
+  {
+    id: "docker",
+    label: "Docker",
+    code: `# Start EdgeQuake with Docker Compose
+curl -O https://raw.githubusercontent.com/raphaelmansuy/edgequake/main/docker-compose.yml
+
+# Launch all services
+docker compose up -d
+
+# Check health
+curl http://localhost:8080/health`,
+  },
+  {
+    id: "api",
+    label: "REST API",
+    code: `# Insert a document
+curl -X POST http://localhost:8080/documents \\
+  -H "Content-Type: application/json" \\
+  -d '{"content": "EdgeQuake is a Graph-RAG framework."}'
+
+# Query the knowledge graph
+curl -X POST http://localhost:8080/query \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "What is EdgeQuake?", "mode": "hybrid"}'`,
+  },
+];
+---
+
+<section class="py-20 sm:py-24 bg-gray-900/50">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="text-center max-w-3xl mx-auto">
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        Up and Running in Minutes
+      </h2>
+      <p class="mt-4 text-lg text-gray-400">
+        Choose your preferred way to get started with EdgeQuake.
+      </p>
+    </div>
+
+    <div class="mt-12 max-w-3xl mx-auto">
+      <!-- Tabs -->
+      <div class="flex border-b border-gray-800" role="tablist">
+        {tabs.map((tab, i) => (
+          <button
+            role="tab"
+            data-tab={tab.id}
+            class={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${
+              i === 0
+                ? "text-accent-400 border-accent-500"
+                : "text-gray-400 border-transparent hover:text-gray-300"
+            }`}
+            aria-selected={i === 0 ? "true" : "false"}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <!-- Code panels -->
+      {tabs.map((tab, i) => (
+        <div
+          data-panel={tab.id}
+          class={`relative ${i === 0 ? "" : "hidden"}`}
+        >
+          <div class="relative rounded-b-xl bg-gray-950 border border-t-0 border-gray-800 overflow-hidden">
+            <button
+              data-copy={tab.id}
+              class="absolute top-3 right-3 rounded-md bg-gray-800 px-2.5 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-gray-700 transition-colors z-10"
+              aria-label="Copy code"
+            >
+              Copy
+            </button>
+            <pre class="overflow-x-auto p-6 text-sm leading-relaxed"><code class="text-gray-300" set:text={tab.code} /></pre>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<script>
+  // Tab switching
+  document.querySelectorAll("[role=tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = (btn as HTMLElement).dataset.tab;
+      // Deactivate all
+      document.querySelectorAll("[role=tab]").forEach((t) => {
+        t.classList.remove("text-accent-400", "border-accent-500");
+        t.classList.add("text-gray-400", "border-transparent");
+        t.setAttribute("aria-selected", "false");
+      });
+      document.querySelectorAll("[data-panel]").forEach((p) => p.classList.add("hidden"));
+      // Activate selected
+      btn.classList.add("text-accent-400", "border-accent-500");
+      btn.classList.remove("text-gray-400", "border-transparent");
+      btn.setAttribute("aria-selected", "true");
+      document.querySelector(`[data-panel="${id}"]`)?.classList.remove("hidden");
+    });
+  });
+
+  // Copy functionality
+  document.querySelectorAll("[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = (btn as HTMLElement).dataset.copy;
+      const code = document.querySelector(`[data-panel="${id}"] code`)?.textContent;
+      if (code) {
+        navigator.clipboard.writeText(code);
+        btn.textContent = "Copied!";
+        setTimeout(() => (btn.textContent = "Copy"), 2000);
+      }
+    });
+  });
+</script>

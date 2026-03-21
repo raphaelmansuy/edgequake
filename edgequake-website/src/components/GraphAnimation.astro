@@ -1,0 +1,119 @@
+---
+/**
+ * GraphAnimation — Canvas-based knowledge graph visualization.
+ * Pure Astro component with vanilla JS — no React needed.
+ */
+---
+
+<canvas
+  id="graph-animation-canvas"
+  class="w-full h-full"
+  aria-label="Animated knowledge graph visualization"
+  role="img"
+></canvas>
+
+<script>
+  const canvas = document.getElementById("graph-animation-canvas") as HTMLCanvasElement;
+  if (canvas) {
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      const dpr = window.devicePixelRatio || 1;
+      const size = 480;
+      canvas.width = size * dpr;
+      canvas.height = size * dpr;
+      canvas.style.width = `${size}px`;
+      canvas.style.height = `${size}px`;
+      ctx.scale(dpr, dpr);
+
+      const LABELS = [
+        "Entity", "Document", "Chunk", "Query",
+        "Graph", "Vector", "Pipeline", "LLM",
+        "Storage", "Index", "Schema", "Edge",
+        "Node", "Embed",
+      ];
+
+      const COLORS = [
+        "#3b82f6", "#60a5fa", "#93c5fd", "#2563eb",
+        "#1d4ed8", "#3b82f6", "#60a5fa", "#93c5fd",
+        "#2563eb", "#1d4ed8", "#3b82f6", "#60a5fa",
+        "#93c5fd", "#2563eb",
+      ];
+
+      const EDGES = [
+        [0, 1], [0, 2], [1, 3], [2, 4], [3, 5], [4, 6],
+        [5, 7], [6, 8], [7, 9], [8, 10], [9, 11], [10, 12],
+        [11, 13], [12, 0], [13, 1], [2, 7], [4, 9], [6, 11],
+      ];
+
+      const nodes = LABELS.map((label, i) => {
+        const angle = (i / LABELS.length) * Math.PI * 2;
+        const r = 140 + Math.random() * 40;
+        return {
+          x: size / 2 + Math.cos(angle) * r,
+          y: size / 2 + Math.sin(angle) * r,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3,
+          radius: 4 + Math.random() * 4,
+          label,
+          color: COLORS[i],
+        };
+      });
+
+      let time = 0;
+
+      function animate() {
+        time += 0.016;
+        ctx!.clearRect(0, 0, size, size);
+
+        for (const node of nodes) {
+          node.x += node.vx;
+          node.y += node.vy;
+          if (node.x < 40 || node.x > size - 40) node.vx *= -1;
+          if (node.y < 40 || node.y > size - 40) node.vy *= -1;
+          node.vx += (size / 2 - node.x) * 0.0001;
+          node.vy += (size / 2 - node.y) * 0.0001;
+        }
+
+        for (const [from, to] of EDGES) {
+          const a = nodes[from];
+          const b = nodes[to];
+          ctx!.beginPath();
+          ctx!.moveTo(a.x, a.y);
+          ctx!.lineTo(b.x, b.y);
+          ctx!.strokeStyle = "rgba(59, 130, 246, 0.15)";
+          ctx!.lineWidth = 1;
+          ctx!.stroke();
+        }
+
+        for (const node of nodes) {
+          const pulse = Math.sin(time * 2 + node.x * 0.01) * 0.5 + 0.5;
+          const glowRadius = node.radius + 8 + pulse * 4;
+          const gradient = ctx!.createRadialGradient(
+            node.x, node.y, node.radius,
+            node.x, node.y, glowRadius,
+          );
+          gradient.addColorStop(0, node.color + "40");
+          gradient.addColorStop(1, node.color + "00");
+          ctx!.beginPath();
+          ctx!.arc(node.x, node.y, glowRadius, 0, Math.PI * 2);
+          ctx!.fillStyle = gradient;
+          ctx!.fill();
+
+          ctx!.beginPath();
+          ctx!.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+          ctx!.fillStyle = node.color;
+          ctx!.fill();
+
+          ctx!.fillStyle = "rgba(255, 255, 255, 0.6)";
+          ctx!.font = "10px Inter, sans-serif";
+          ctx!.textAlign = "center";
+          ctx!.fillText(node.label, node.x, node.y + node.radius + 14);
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+    }
+  }
+</script>
