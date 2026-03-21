@@ -9,6 +9,7 @@
 
 ## 1. Design Principles
 
+<<<<<<< HEAD
 | Principle | Description |
 |-----------|------------|
 | **Clarity First** | Information density over decoration. Every element earns its place. |
@@ -16,6 +17,15 @@
 | **Speed Signals** | The site itself must feel fast — proving EdgeQuake's performance ethos. |
 | **Accessible by Default** | WCAG AA compliant. Dark mode native. Reduced motion respected. |
 | **Modular** | Design tokens → components → sections → pages. Swap any layer. |
+=======
+| Principle                 | Description                                                             |
+| ------------------------- | ----------------------------------------------------------------------- |
+| **Clarity First**         | Information density over decoration. Every element earns its place.     |
+| **Developer Trust**       | Monospace code, real examples, no marketing fluff.                      |
+| **Speed Signals**         | The site itself must feel fast — proving EdgeQuake's performance ethos. |
+| **Accessible by Default** | WCAG AA compliant. Dark mode native. Reduced motion respected.          |
+| **Modular**               | Design tokens → components → sections → pages. Swap any layer.          |
+>>>>>>> origin/edgequake-main
 
 ---
 
@@ -132,12 +142,21 @@ Card highlight: linear-gradient(135deg, #3B82F650, #8B5CF620)
 --font-mono:  "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 ```
 
+<<<<<<< HEAD
 | Usage | Font | Weight | Tracking |
 |-------|------|--------|----------|
 | Headlines | Inter | 700 (bold) | -0.02em (tight) |
 | Body | Inter | 400 (regular) | 0 (normal) |
 | Code / badges | JetBrains Mono | 400 | 0 |
 | Labels / captions | Inter | 500 (medium) | 0.05em (wide) |
+=======
+| Usage             | Font           | Weight        | Tracking        |
+| ----------------- | -------------- | ------------- | --------------- |
+| Headlines         | Inter          | 700 (bold)    | -0.02em (tight) |
+| Body              | Inter          | 400 (regular) | 0 (normal)      |
+| Code / badges     | JetBrains Mono | 400           | 0               |
+| Labels / captions | Inter          | 500 (medium)  | 0.05em (wide)   |
+>>>>>>> origin/edgequake-main
 
 ### 3.2 Type Scale
 
@@ -160,6 +179,7 @@ Card highlight: linear-gradient(135deg, #3B82F650, #8B5CF620)
 
 ### 3.3 Usage Map
 
+<<<<<<< HEAD
 | Element | Size | Weight | Color |
 |---------|------|--------|-------|
 | Page H1 (hero) | text-5xl / sm:text-6xl | bold | foreground |
@@ -170,6 +190,18 @@ Card highlight: linear-gradient(135deg, #3B82F650, #8B5CF620)
 | Badge text | text-xs | mono 500 | primary |
 | Navigation link | text-sm | medium | muted-foreground → foreground on hover |
 | Footer text | text-sm | regular | muted-foreground |
+=======
+| Element         | Size                   | Weight   | Color                                  |
+| --------------- | ---------------------- | -------- | -------------------------------------- |
+| Page H1 (hero)  | text-5xl / sm:text-6xl | bold     | foreground                             |
+| Section H2      | text-3xl / sm:text-4xl | bold     | foreground                             |
+| Card H3         | text-xl                | semibold | foreground                             |
+| Body paragraph  | text-base / text-lg    | regular  | muted-foreground                       |
+| Code inline     | text-sm                | mono 400 | foreground on muted bg                 |
+| Badge text      | text-xs                | mono 500 | primary                                |
+| Navigation link | text-sm                | medium   | muted-foreground → foreground on hover |
+| Footer text     | text-sm                | regular  | muted-foreground                       |
+>>>>>>> origin/edgequake-main
 
 ---
 
@@ -197,6 +229,7 @@ Uses Tailwind's default 4px base grid:
 
 ### Spacing Application
 
+<<<<<<< HEAD
 | Context | Value |
 |---------|-------|
 | Section top/bottom padding | `py-16 md:py-24` (64px / 96px) |
@@ -205,6 +238,16 @@ Uses Tailwind's default 4px base grid:
 | Inline element spacing | `gap-2 md:gap-3` (8px / 12px) |
 | Container max-width | `max-w-7xl` (1280px) |
 | Container padding | `px-4 md:px-6 lg:px-8` |
+=======
+| Context                    | Value                          |
+| -------------------------- | ------------------------------ |
+| Section top/bottom padding | `py-16 md:py-24` (64px / 96px) |
+| Card internal padding      | `p-6` (24px)                   |
+| Grid gap                   | `gap-6 md:gap-8` (24px / 32px) |
+| Inline element spacing     | `gap-2 md:gap-3` (8px / 12px)  |
+| Container max-width        | `max-w-7xl` (1280px)           |
+| Container padding          | `px-4 md:px-6 lg:px-8`         |
+>>>>>>> origin/edgequake-main
 
 ---
 
@@ -223,6 +266,7 @@ Uses Tailwind's default 4px base grid:
 └─────────────────────────────────────────────────────┘
 ```
 
+<<<<<<< HEAD
 | Grid Config | Value |
 |-------------|-------|
 | Columns (base) | 1 (mobile) |
@@ -230,11 +274,21 @@ Uses Tailwind's default 4px base grid:
 | Columns (lg) | 3 |
 | Feature grid (lg) | `grid-cols-3` |
 | Docs layout | Sidebar 240px + Content flex-1 + TOC 200px |
+=======
+| Grid Config       | Value                                      |
+| ----------------- | ------------------------------------------ |
+| Columns (base)    | 1 (mobile)                                 |
+| Columns (md)      | 2                                          |
+| Columns (lg)      | 3                                          |
+| Feature grid (lg) | `grid-cols-3`                              |
+| Docs layout       | Sidebar 240px + Content flex-1 + TOC 200px |
+>>>>>>> origin/edgequake-main
 
 ---
 
 ## 6. Border & Radius
 
+<<<<<<< HEAD
 | Token | Value | Usage |
 |-------|-------|-------|
 | `rounded-sm` | 0.25rem / 4px | Badges, inline code |
@@ -242,6 +296,15 @@ Uses Tailwind's default 4px base grid:
 | `rounded-lg` | 0.5rem / 8px | Cards, modals |
 | `rounded-xl` | 0.75rem / 12px | Hero sections, featured cards |
 | `border` | 1px solid hsl(var(--border)) | Cards, separators |
+=======
+| Token        | Value                        | Usage                         |
+| ------------ | ---------------------------- | ----------------------------- |
+| `rounded-sm` | 0.25rem / 4px                | Badges, inline code           |
+| `rounded-md` | 0.375rem / 6px               | Buttons, inputs               |
+| `rounded-lg` | 0.5rem / 8px                 | Cards, modals                 |
+| `rounded-xl` | 0.75rem / 12px               | Hero sections, featured cards |
+| `border`     | 1px solid hsl(var(--border)) | Cards, separators             |
+>>>>>>> origin/edgequake-main
 
 ---
 
@@ -286,6 +349,7 @@ import { ThemeProvider } from "next-themes";
 
 ### 8.2 Color Mapping
 
+<<<<<<< HEAD
 | Element | Light | Dark |
 |---------|-------|------|
 | Page background | `#FFFFFF` | `#0A0A0F` |
@@ -295,6 +359,17 @@ import { ThemeProvider } from "next-themes";
 | Border | `#DEE2E6` | `#2A2A3A` |
 | Primary button | Blue on white | Blue on dark |
 | Graph nodes | Blue/violet filled | Blue/violet filled (brighter) |
+=======
+| Element         | Light              | Dark                          |
+| --------------- | ------------------ | ----------------------------- |
+| Page background | `#FFFFFF`          | `#0A0A0F`                     |
+| Card background | `#F1F3F5`          | `#1A1A24`                     |
+| Text primary    | `#1A1A2E`          | `#F8F9FA`                     |
+| Code block bg   | `#F8F9FA`          | `#111118`                     |
+| Border          | `#DEE2E6`          | `#2A2A3A`                     |
+| Primary button  | Blue on white      | Blue on dark                  |
+| Graph nodes     | Blue/violet filled | Blue/violet filled (brighter) |
+>>>>>>> origin/edgequake-main
 
 ### 8.3 Rules
 
@@ -331,6 +406,7 @@ export const slideInLeft = {
 
 ### 9.2 Animation Rules
 
+<<<<<<< HEAD
 | Rule | Detail |
 |------|--------|
 | Respect `prefers-reduced-motion` | Disable all animations if set |
@@ -340,6 +416,17 @@ export const slideInLeft = {
 | No layout shift | Animate `opacity` and `transform` only |
 | Hero animation | Knowledge graph nodes pulse at 3s interval |
 | Benchmark bars | Width transitions from 0% to target on scroll |
+=======
+| Rule                             | Detail                                               |
+| -------------------------------- | ---------------------------------------------------- |
+| Respect `prefers-reduced-motion` | Disable all animations if set                        |
+| Duration                         | 200–500ms for UI, 500–1000ms for scroll reveals      |
+| Easing                           | `easeOut` for entrances, `easeInOut` for transitions |
+| Scroll trigger                   | Intersection Observer at 20% visibility              |
+| No layout shift                  | Animate `opacity` and `transform` only               |
+| Hero animation                   | Knowledge graph nodes pulse at 3s interval           |
+| Benchmark bars                   | Width transitions from 0% to target on scroll        |
+>>>>>>> origin/edgequake-main
 
 ---
 
@@ -351,6 +438,7 @@ Primary: **Lucide React** (MIT, 1000+ icons, tree-shakeable)
 
 ### 10.2 Icon Usage
 
+<<<<<<< HEAD
 | Context | Size | Stroke Width |
 |---------|------|-------------|
 | Navigation | 20px | 2px |
@@ -365,11 +453,28 @@ Primary: **Lucide React** (MIT, 1000+ icons, tree-shakeable)
 | EdgeQuake logo | Brand | SVG (inline) |
 | Knowledge graph | Feature icon | SVG (custom) |
 | Crate box | Ecosystem | SVG (custom, derived from Lucide `package`) |
+=======
+| Context          | Size | Stroke Width |
+| ---------------- | ---- | ------------ |
+| Navigation       | 20px | 2px          |
+| Feature cards    | 24px | 1.5px        |
+| Inline body text | 16px | 2px          |
+| Hero badges      | 16px | 2px          |
+
+### 10.3 Custom Icons
+
+| Icon            | Purpose      | Format                                      |
+| --------------- | ------------ | ------------------------------------------- |
+| EdgeQuake logo  | Brand        | SVG (inline)                                |
+| Knowledge graph | Feature icon | SVG (custom)                                |
+| Crate box       | Ecosystem    | SVG (custom, derived from Lucide `package`) |
+>>>>>>> origin/edgequake-main
 
 ---
 
 ## 11. Brand Assets
 
+<<<<<<< HEAD
 | Asset | Format | Sizes |
 |-------|--------|-------|
 | Logo (full) | SVG | — |
@@ -377,6 +482,15 @@ Primary: **Lucide React** (MIT, 1000+ icons, tree-shakeable)
 | Favicon | ICO + PNG | 16, 32, 180, 192, 512 |
 | OG background | PNG | 1200x630 |
 | Social banner | PNG | 1500x500 (Twitter) |
+=======
+| Asset            | Format    | Sizes                 |
+| ---------------- | --------- | --------------------- |
+| Logo (full)      | SVG       | —                     |
+| Logo (mark only) | SVG       | 32px, 64px, 128px     |
+| Favicon          | ICO + PNG | 16, 32, 180, 192, 512 |
+| OG background    | PNG       | 1200x630              |
+| Social banner    | PNG       | 1500x500 (Twitter)    |
+>>>>>>> origin/edgequake-main
 
 ### Logo Lockup
 
@@ -389,4 +503,8 @@ Primary: **Lucide React** (MIT, 1000+ icons, tree-shakeable)
 
 ---
 
+<<<<<<< HEAD
 *Previous: [05-seo-strategy.md](./05-seo-strategy.md) · Next: [07-component-library.md](./07-component-library.md)*
+=======
+_Previous: [05-seo-strategy.md](./05-seo-strategy.md) · Next: [07-component-library.md](./07-component-library.md)_
+>>>>>>> origin/edgequake-main
