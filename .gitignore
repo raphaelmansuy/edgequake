@@ -3,6 +3,7 @@ target/
 # WHY: Cargo.lock is committed for the application binary (edgequake/) to ensure
 # reproducible CI builds. SDK libraries ignore their Cargo.lock (standard practice).
 sdks/*/Cargo.lock
+sdks/**/.build/
 **/*.rs.bk
 *.pdb
 
@@ -12,6 +13,11 @@ sdks/*/Cargo.lock
 *.swo
 *~
 .DS_Store
+
+# Screenshots / temporary images at repo root
+*.png
+*.jpg
+*.jpeg
 
 # Environment files
 .env
