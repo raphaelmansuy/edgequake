@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="og-title og-desc">
+  <title id="og-title">EdgeQuake - Graph-RAG Built for Speed</title>
+  <desc id="og-desc">EdgeQuake is a Rust-native Graph-RAG framework that turns documents into knowledge graphs with 6 query modes on PostgreSQL.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#020914"/>
+      <stop offset="55%" stop-color="#050b1a"/>
+      <stop offset="100%" stop-color="#0a1428"/>
+    </linearGradient>
+    <linearGradient id="hero-grad" x1="80" y1="0" x2="640" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="70%" stop-color="#e0f2fe"/>
+      <stop offset="100%" stop-color="#bfdbfe"/>
+    </linearGradient>
+    <linearGradient id="bolt-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#93c5fd"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <pattern id="dots" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse">
+      <circle cx="18" cy="18" r="1.1" fill="#3b82f6" opacity="0.22"/>
+    </pattern>
+    <linearGradient id="sep-grad" x1="0" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#1e3a8a" stop-opacity="0"/>
+      <stop offset="25%"  stop-color="#3b82f6" stop-opacity="0.55"/>
+      <stop offset="75%"  stop-color="#3b82f6" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#1e3a8a" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="div-grad" x1="0" y1="0" x2="0" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#1e3a8a" stop-opacity="0"/>
+      <stop offset="30%"  stop-color="#3b82f6" stop-opacity="0.35"/>
+      <stop offset="70%"  stop-color="#3b82f6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1e3a8a" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="ng" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="sg" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="lg" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- BACKGROUND -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <ellipse cx="180"  cy="260" rx="340" ry="290" fill="#1d4ed8" fill-opacity="0.07"/>
+  <ellipse cx="1060" cy="195" rx="320" ry="270" fill="#1d4ed8" fill-opacity="0.09"/>
+  <ellipse cx="930"  cy="490" rx="260" ry="210" fill="#1e40af" fill-opacity="0.07"/>
+  <rect x="540" y="0" width="660" height="630" fill="url(#dots)"/>
+  <!-- KNOWLEDGE GRAPH (right panel) -->
+  <g fill="none" stroke="#60a5fa" stroke-linecap="round">
+    <line x1="920" y1="240" x2="832" y2="325" stroke-width="1.6" stroke-opacity="0.55"/>
+    <line x1="920" y1="240" x2="1012" y2="318" stroke-width="1.6" stroke-opacity="0.55"/>
+    <line x1="920" y1="240" x2="956" y2="153" stroke-width="1.4" stroke-opacity="0.50"/>
+    <line x1="920" y1="240" x2="1005" y2="175" stroke-width="1.2" stroke-opacity="0.40"/>
+    <line x1="832" y1="325" x2="775" y2="420" stroke-width="1.4" stroke-opacity="0.50"/>
+    <line x1="832" y1="325" x2="738" y2="252" stroke-width="1.2" stroke-opacity="0.42"/>
+    <line x1="832" y1="325" x2="1012" y2="318" stroke-width="1.0" stroke-opacity="0.28"/>
+    <line x1="1012" y1="318" x2="1095" y2="248" stroke-width="1.4" stroke-opacity="0.50"/>
+    <line x1="1012" y1="318" x2="1078" y2="410" stroke-width="1.4" stroke-opacity="0.50"/>
+    <line x1="775" y1="420" x2="862" y2="486" stroke-width="1.0" stroke-opacity="0.38"/>
+    <line x1="775" y1="420" x2="695" y2="358" stroke-width="0.9" stroke-opacity="0.30"/>
+    <line x1="1078" y1="410" x2="992" y2="492" stroke-width="1.0" stroke-opacity="0.38"/>
+    <line x1="956" y1="153" x2="1078" y2="138" stroke-width="0.9" stroke-opacity="0.32"/>
+    <line x1="738" y1="252" x2="674" y2="182" stroke-width="0.9" stroke-opacity="0.28"/>
+    <line x1="862" y1="486" x2="992" y2="492" stroke-width="0.8" stroke-opacity="0.28"/>
+  </g>
+  <g filter="url(#ng)">
+    <circle cx="920" cy="240" r="22" fill="#1a3a7a" opacity="0.9"/>
+    <circle cx="920" cy="240" r="14" fill="#2563eb"/>
+    <circle cx="920" cy="240" r="7"  fill="#93c5fd"/>
+  </g>
+  <g filter="url(#ng)">
+    <circle cx="832" cy="325" r="16" fill="#1a3570" opacity="0.88"/>
+    <circle cx="832" cy="325" r="10" fill="#2563eb"/>
+    <circle cx="832" cy="325" r="5"  fill="#60a5fa"/>
+    <circle cx="1012" cy="318" r="16" fill="#1a3570" opacity="0.88"/>
+    <circle cx="1012" cy="318" r="10" fill="#2563eb"/>
+    <circle cx="1012" cy="318" r="5"  fill="#60a5fa"/>
+    <circle cx="956"  cy="153" r="13" fill="#1e3a8a" opacity="0.82"/>
+    <circle cx="956"  cy="153" r="8"  fill="#1d4ed8"/>
+    <circle cx="956"  cy="153" r="4"  fill="#60a5fa"/>
+  </g>
+  <g filter="url(#sg)">
+    <circle cx="775"  cy="420" r="13" fill="#1e3a8a" opacity="0.80"/>
+    <circle cx="775"  cy="420" r="8"  fill="#1d4ed8"/>
+    <circle cx="775"  cy="420" r="4"  fill="#93c5fd"/>
+    <circle cx="1095" cy="248" r="12" fill="#1e3a8a" opacity="0.78"/>
+    <circle cx="1095" cy="248" r="7"  fill="#1d4ed8"/>
+    <circle cx="1095" cy="248" r="3.5" fill="#60a5fa"/>
+    <circle cx="1078" cy="410" r="12" fill="#1e3a8a" opacity="0.78"/>
+    <circle cx="1078" cy="410" r="7"  fill="#1d4ed8"/>
+    <circle cx="1078" cy="410" r="3.5" fill="#60a5fa"/>
+    <circle cx="738"  cy="252" r="11" fill="#1e3a8a" opacity="0.75"/>
+    <circle cx="738"  cy="252" r="7"  fill="#1d4ed8"/>
+    <circle cx="738"  cy="252" r="3.5" fill="#3b82f6"/>
+    <circle cx="1005" cy="175" r="10" fill="#1e3a8a" opacity="0.72"/>
+    <circle cx="1005" cy="175" r="6"  fill="#1d4ed8"/>
+    <circle cx="1005" cy="175" r="3"  fill="#3b82f6"/>
+  </g>
+  <g opacity="0.60">
+    <circle cx="862"  cy="486" r="8"  fill="#1d4ed8"/>
+    <circle cx="862"  cy="486" r="4"  fill="#2563eb"/>
+    <circle cx="992"  cy="492" r="8"  fill="#1d4ed8"/>
+    <circle cx="992"  cy="492" r="4"  fill="#2563eb"/>
+    <circle cx="1078" cy="138" r="7"  fill="#1e3a8a"/>
+    <circle cx="1078" cy="138" r="3.5" fill="#1d4ed8"/>
+    <circle cx="674"  cy="182" r="7"  fill="#1e3a8a"/>
+    <circle cx="674"  cy="182" r="3.5" fill="#1d4ed8"/>
+    <circle cx="695"  cy="358" r="7"  fill="#1e3a8a"/>
+    <circle cx="695"  cy="358" r="3.5" fill="#1d4ed8"/>
+  </g>
+  <!-- VERTICAL DIVIDER -->
+  <line x1="608" y1="0" x2="608" y2="554" stroke="url(#div-grad)" stroke-width="1"/>
+  <!-- LEFT CONTENT PANEL -->
+  <g transform="translate(80,74)" filter="url(#lg)">
+    <g transform="scale(2.16)">
+      <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"
+               fill="url(#bolt-grad)" stroke="#93c5fd" stroke-width="0.6"/>
+    </g>
+  </g>
+  <text x="148" y="122"
+        fill="#f8fafc"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="40" font-weight="800" letter-spacing="-0.6">EdgeQuake</text>
+  <rect x="148" y="132" width="218" height="27" rx="13.5"
+        fill="#1e3a8a" fill-opacity="0.45"
+        stroke="#3b82f6" stroke-opacity="0.38" stroke-width="1"/>
+  <text x="163" y="150"
+        fill="#93c5fd"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="13" font-weight="600" letter-spacing="0.5">RUST-NATIVE - OPEN SOURCE</text>
+  <line x1="80" y1="178" x2="576" y2="178"
+        stroke="#1e3a8a" stroke-width="1" stroke-opacity="0.65"/>
+  <text x="80" y="256"
+        fill="url(#hero-grad)"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="76" font-weight="800" letter-spacing="-2.8">Graph-RAG</text>
+  <text x="80" y="340"
+        fill="url(#hero-grad)"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="76" font-weight="800" letter-spacing="-2.8">Built for Speed.</text>
+  <text x="80" y="382"
+        fill="#8899aa"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="400" letter-spacing="-0.2">Turn documents into knowledge graphs.</text>
+  <text x="80" y="412"
+        fill="#8899aa"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="400" letter-spacing="-0.2">6 query modes. PostgreSQL + Apache AGE.</text>
+  <!-- Badge 1: 10x faster -->
+  <rect x="80" y="444" width="158" height="58" rx="12"
+        fill="#0a1428" stroke="#1e3a8a" stroke-width="1.5"/>
+  <rect x="80" y="444" width="158" height="58" rx="12"
+        fill="#1d4ed8" fill-opacity="0.10"/>
+  <polygon points="92,470 88,478 91,478 90,486 96,478 93,478" fill="#60a5fa" opacity="0.9"/>
+  <text x="112" y="466"
+        fill="#60a5fa"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="12" font-weight="700" letter-spacing="0.8">SPEED</text>
+  <text x="112" y="490"
+        fill="#e2e8f0"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="19" font-weight="700">10x faster</text>
+  <!-- Badge 2: 6 query modes -->
+  <rect x="256" y="444" width="158" height="58" rx="12"
+        fill="#0a1428" stroke="#1e3a8a" stroke-width="1.5"/>
+  <rect x="256" y="444" width="158" height="58" rx="12"
+        fill="#1d4ed8" fill-opacity="0.10"/>
+  <polygon points="268,474 264,480 268,486 274,486 278,480 274,474" fill="none" stroke="#60a5fa" stroke-width="1.5" opacity="0.9"/>
+  <text x="288" y="466"
+        fill="#60a5fa"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="12" font-weight="700" letter-spacing="0.8">QUERY</text>
+  <text x="288" y="490"
+        fill="#e2e8f0"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="19" font-weight="700">6 query modes</text>
+  <!-- Badge 3: PostgreSQL -->
+  <rect x="432" y="444" width="158" height="58" rx="12"
+        fill="#0a1428" stroke="#1e3a8a" stroke-width="1.5"/>
+  <rect x="432" y="444" width="158" height="58" rx="12"
+        fill="#1d4ed8" fill-opacity="0.10"/>
+  <ellipse cx="449" cy="470" rx="7" ry="2.8" fill="none" stroke="#60a5fa" stroke-width="1.5" opacity="0.9"/>
+  <rect    x="442" y="470" width="14" height="7" fill="none" stroke="#60a5fa" stroke-width="1.5" opacity="0.9"/>
+  <ellipse cx="449" cy="477" rx="7" ry="2.8" fill="none" stroke="#60a5fa" stroke-width="1.5" opacity="0.9"/>
+  <text x="469" y="466"
+        fill="#60a5fa"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="12" font-weight="700" letter-spacing="0.8">STORAGE</text>
+  <text x="469" y="490"
+        fill="#e2e8f0"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="19" font-weight="700">PostgreSQL</text>
+  <!-- BOTTOM BAR -->
+  <rect x="0" y="554" width="1200" height="76" fill="#020914" fill-opacity="0.88"/>
+  <line x1="0" y1="554" x2="1200" y2="554" stroke="url(#sep-grad)" stroke-width="1"/>
+  <text x="80" y="598"
+        fill="#37415a"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="19" font-weight="500">github.com/raphaelmansuy/edgequake</text>
+  <text x="1120" y="598" text-anchor="end"
+        fill="#2d3d52"
+        font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="17" font-weight="400">Rust - Graph-RAG - PostgreSQL</text>
+</svg>

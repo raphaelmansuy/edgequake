@@ -14,6 +14,41 @@ export default defineConfig({
       title: "EdgeQuake",
       description:
         "Graph-RAG framework built for speed. Knowledge graph engine powered by Rust.",
+      head: [
+        // Default OG image for all docs pages (PNG required for Twitter/LinkedIn/Facebook)
+        {
+          tag: "meta",
+          attrs: { property: "og:image", content: "https://edgequake.com/og-default.png" },
+        },
+        {
+          tag: "meta",
+          attrs: { property: "og:image:width", content: "1200" },
+        },
+        {
+          tag: "meta",
+          attrs: { property: "og:image:height", content: "630" },
+        },
+        {
+          tag: "meta",
+          attrs: { property: "og:image:type", content: "image/png" },
+        },
+        {
+          tag: "meta",
+          attrs: { name: "twitter:card", content: "summary_large_image" },
+        },
+        {
+          tag: "meta",
+          attrs: { name: "twitter:site", content: "@raphaelmansuy" },
+        },
+        {
+          tag: "meta",
+          attrs: { name: "twitter:creator", content: "@raphaelmansuy" },
+        },
+        {
+          tag: "meta",
+          attrs: { name: "twitter:image", content: "https://edgequake.com/og-default.png" },
+        },
+      ],
       social: [
         {
           icon: "github",

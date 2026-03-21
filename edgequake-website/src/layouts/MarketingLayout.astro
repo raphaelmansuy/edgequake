@@ -14,8 +14,8 @@ interface Props {
 const {
   title,
   description = "Graph-RAG framework built in Rust. Turn documents into knowledge graphs, query with 6 modes, 10x faster than Python RAG.",
-  ogImage = "/og-default.svg",
-  ogImageAlt = "EdgeQuake social preview with product positioning and architecture motifs",
+  ogImage = "/og-default.png",
+  ogImageAlt = "EdgeQuake – Graph-RAG Built for Speed. Dark card showing the EdgeQuake logo, hero headline, knowledge graph visualization, and three metric badges: 10x faster, 6 query modes, PostgreSQL.",
   noIndex = false,
 } = Astro.props;
 
@@ -32,10 +32,16 @@ const schema = {
       "@id": "https://edgequake.com/#organization",
       name: "Elitizon",
       url: "https://elitizon.com",
-      logo: new URL("/favicon.svg", Astro.site).toString(),
+      logo: {
+        "@type": "ImageObject",
+        url: new URL("/favicon.svg", Astro.site).toString(),
+        width: 32,
+        height: 32,
+      },
       sameAs: [
         "https://github.com/raphaelmansuy/edgequake",
         "https://elitizon.com",
+        "https://twitter.com/raphaelmansuy",
       ],
     },
     {
@@ -47,26 +53,58 @@ const schema = {
         "@id": "https://edgequake.com/#organization",
       },
       inLanguage: "en",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: "https://edgequake.com/?q={search_term_string}",
+        },
+        "query-input": "required name=search_term_string",
+      },
     },
     {
       "@type": "SoftwareApplication",
       "@id": `${canonicalUrl.toString()}#software`,
       name: "EdgeQuake",
       applicationCategory: "DeveloperApplication",
+      applicationSubCategory: "Knowledge Graph / RAG Framework",
       operatingSystem: "Linux, macOS, Windows",
       description,
       url: canonicalUrl.toString(),
-      image: ogImageUrl.toString(),
+      image: {
+        "@type": "ImageObject",
+        url: ogImageUrl.toString(),
+        width: 1200,
+        height: 630,
+      },
+      screenshot: {
+        "@type": "ImageObject",
+        url: ogImageUrl.toString(),
+        width: 1200,
+        height: 630,
+        caption: "EdgeQuake Graph-RAG framework social preview",
+      },
+      softwareVersion: "0.4.0",
+      programmingLanguage: ["Rust", "TypeScript"],
+      keywords: "graph-rag, knowledge-graph, rust, llm, postgresql, rag, ai, nlp",
       offers: {
         "@type": "Offer",
         price: 0,
         priceCurrency: "USD",
+        availability: "https://schema.org/InStock",
       },
       license:
         "https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/LICENSE",
       codeRepository: "https://github.com/raphaelmansuy/edgequake",
+      downloadUrl: "https://github.com/raphaelmansuy/edgequake/releases",
       publisher: {
         "@id": "https://edgequake.com/#organization",
+      },
+      author: {
+        "@type": "Person",
+        name: "Raphael Mansuy",
+        url: "https://github.com/raphaelmansuy",
+        sameAs: "https://twitter.com/raphaelmansuy",
       },
     },
     {
@@ -125,7 +163,7 @@ const schema = {
     />
     <meta name="color-scheme" content="dark light" />
 
-    <!-- Open Graph -->
+    <!-- Open Graph (Facebook, LinkedIn, WhatsApp, Slack, Discord) -->
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:site_name" content="EdgeQuake" />
@@ -133,14 +171,16 @@ const schema = {
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImageUrl} />
     <meta property="og:image:secure_url" content={ogImageUrl} />
-    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={ogImageAlt} />
     <meta property="og:url" content={canonicalUrl} />
 
-    <!-- Twitter -->
+    <!-- Twitter / X Card (summary_large_image = 1200×630 banner) -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@raphaelmansuy" />
+    <meta name="twitter:creator" content="@raphaelmansuy" />
     <meta name="twitter:title" content={resolvedTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
