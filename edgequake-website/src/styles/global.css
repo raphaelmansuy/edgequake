@@ -279,6 +279,17 @@
     color: var(--mkt-text-secondary);
   }
 
+  .mkt-code-showcase {
+    border-color: var(--mkt-border);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--mkt-bg-card-solid) 96%, transparent), color-mix(in srgb, var(--mkt-code-bg) 100%, transparent));
+  }
+
+  .mkt-code-showcase figure,
+  .mkt-code-showcase pre {
+    margin: 0;
+  }
+
   .mkt-form-field {
     width: 100%;
     border-radius: 0.875rem;

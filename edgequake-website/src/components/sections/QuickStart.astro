@@ -1,4 +1,6 @@
 ---
+import { Code } from "@astrojs/starlight/components";
+
 /**
  * QuickStart section — Tabbed code examples.
  * Content ported from _archive/quickstart.tsx
@@ -7,15 +9,18 @@ const tabs = [
   {
     id: "rust",
     label: "Rust",
+    title: "src/main.rs",
+    lang: "rust",
+    summary: "Create an EdgeQuake client, ingest text, and run a graph-aware query.",
     code: `use edgequake::EdgeQuake;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let eq = EdgeQuake::new("postgres://localhost/edgequake").await?;
+    let document = "GraphRAG combines vector search with knowledge graphs to deliver more accurate and contextual retrieval.";
 
     // Ingest documents
-    eq.insert("GraphRAG combines vector search with knowledge graphs
-    to deliver more accurate and contextual retrieval.").await?;
+    eq.insert(document).await?;
 
     // Query with different modes
     let result = eq.query("How does GraphRAG work?").await?;
@@ -27,6 +32,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   {
     id: "docker",
     label: "Docker",
+    title: "Bootstrap the full stack",
+    lang: "bash",
+    summary: "Download the Compose file, launch the services, and verify API health.",
     code: `# Start EdgeQuake with Docker Compose
 curl -O https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.yml
 
@@ -39,6 +47,9 @@ curl http://localhost:8080/health`,
   {
     id: "api",
     label: "REST API",
+    title: "api-demo.sh",
+    lang: "bash",
+    summary: "Post a document, then send a retrieval request to the query endpoint.",
     code: `# Insert a document
 curl -X POST http://localhost:8080/documents \\
   -H "Content-Type: application/json" \\
@@ -96,17 +107,14 @@ curl -X POST http://localhost:8080/query \\
             aria-labelledby={`tab-${tab.id}`}
             class={`relative ${i === 0 ? "" : "hidden"}`}
           >
-            <div class="mkt-code-surface relative overflow-hidden rounded-b-xl border border-t-0">
-              <button
-                data-copy={tab.id}
-                class="mkt-outline-button absolute top-3 right-3 z-10 px-2.5 py-1.5 text-xs"
-                aria-label="Copy code"
-              >
-                Copy
-              </button>
-              <pre class="overflow-x-auto p-6 text-sm leading-relaxed">
-                <code class="mkt-text-secondary" set:text={tab.code} />
-              </pre>
+            <div class="mkt-code-showcase rounded-b-2xl border border-t-0 p-5 sm:p-6">
+              <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-sm mkt-text-secondary">{tab.summary}</p>
+                <span class="mkt-badge inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]">
+                  {tab.label}
+                </span>
+              </div>
+              <Code code={tab.code} lang={tab.lang} title={tab.title} />
             </div>
           </div>
         ))
@@ -134,21 +142,6 @@ curl -X POST http://localhost:8080/query \\
       document
         .querySelector(`[data-panel="${id}"]`)
         ?.classList.remove("hidden");
-    });
-  });
-
-  // Copy functionality
-  document.querySelectorAll("[data-copy]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = (btn as HTMLElement).dataset.copy;
-      const code = document.querySelector(
-        `[data-panel="${id}"] code`,
-      )?.textContent;
-      if (code) {
-        navigator.clipboard.writeText(code);
-        btn.textContent = "Copied!";
-        setTimeout(() => (btn.textContent = "Copy"), 2000);
-      }
     });
   });
 </script>
