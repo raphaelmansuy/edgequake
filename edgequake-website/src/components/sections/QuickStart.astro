@@ -142,7 +142,7 @@ curl -X POST http://localhost:8080/query \\
       );
       const section = tablist.closest("section");
       const panels = Array.from(
-        section?.querySelectorAll<HTMLElement>('[data-panel]') ?? [],
+        section?.querySelectorAll<HTMLElement>("[data-panel]") ?? [],
       );
 
       const activateTab = (nextTab?: HTMLElement) => {
