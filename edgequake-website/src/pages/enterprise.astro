@@ -1,18 +1,21 @@
 ---
-import MarketingLayout from "../layouts/MarketingLayout.astro";
 import EnterpriseCTA from "../components/sections/EnterpriseCTA.astro";
+import MarketingLayout from "../layouts/MarketingLayout.astro";
 ---
 
-<MarketingLayout title="Enterprise">
+<MarketingLayout
+  title="Enterprise"
+  description="Learn how EdgeQuake supports enterprise Graph-RAG deployments with self-hosting, multi-tenant isolation, and scalable Rust infrastructure."
+>
   <section class="py-24 sm:py-32">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto">
-        <h1 class="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+        <h1 class="text-4xl font-bold tracking-tight mkt-text sm:text-5xl">
           EdgeQuake for Enterprise
         </h1>
-        <p class="mt-6 text-lg text-gray-400">
-          Production-grade Graph-RAG with dedicated support, custom integrations,
-          and enterprise security for regulated industries.
+        <p class="mt-6 text-lg mkt-text-muted">
+          Production-grade Graph-RAG with dedicated support, custom
+          integrations, and enterprise security for regulated industries.
         </p>
       </div>
     </div>
@@ -22,59 +25,60 @@ import EnterpriseCTA from "../components/sections/EnterpriseCTA.astro";
   <section class="py-16">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div class="grid gap-8 md:grid-cols-3">
-        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-8">
-          <h2 class="text-xl font-semibold text-white">Self-Hosted</h2>
-          <p class="mt-3 text-gray-400">
+        <div class="mkt-card rounded-xl p-8">
+          <h2 class="text-xl font-semibold mkt-text">Self-Hosted</h2>
+          <p class="mt-3 mkt-text-muted">
             Deploy on your own infrastructure. Air-gapped environments, private
             clouds, or on-premises — EdgeQuake runs wherever you need it.
           </p>
-          <ul class="mt-4 space-y-2 text-sm text-gray-400">
+          <ul class="mt-4 space-y-2 text-sm mkt-text-muted">
             <li class="flex items-center gap-2">
-              <span class="text-green-400">✓</span> Docker & Kubernetes ready
+              <span class="mkt-success-text">✓</span> Docker & Kubernetes ready
             </li>
             <li class="flex items-center gap-2">
-              <span class="text-green-400">✓</span> Private LLM support (Ollama/vLLM)
+              <span class="mkt-success-text">✓</span> Private LLM support (Ollama/vLLM)
             </li>
             <li class="flex items-center gap-2">
-              <span class="text-green-400">✓</span> No data leaves your network
+              <span class="mkt-success-text">✓</span> No data leaves your network
             </li>
           </ul>
         </div>
 
-        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-8">
-          <h2 class="text-xl font-semibold text-white">Multi-Tenant</h2>
-          <p class="mt-3 text-gray-400">
-            Workspace isolation built into the core. Run multiple teams, clients,
-            or projects on a single deployment with zero knowledge bleed.
+        <div class="mkt-card rounded-xl p-8">
+          <h2 class="text-xl font-semibold mkt-text">Multi-Tenant</h2>
+          <p class="mt-3 mkt-text-muted">
+            Workspace isolation built into the core. Run multiple teams,
+            clients, or projects on a single deployment with zero knowledge
+            bleed.
           </p>
-          <ul class="mt-4 space-y-2 text-sm text-gray-400">
+          <ul class="mt-4 space-y-2 text-sm mkt-text-muted">
             <li class="flex items-center gap-2">
-              <span class="text-green-400">✓</span> Per-workspace encryption
+              <span class="mkt-success-text">✓</span> Per-workspace encryption
             </li>
             <li class="flex items-center gap-2">
-              <span class="text-green-400">✓</span> RBAC-ready architecture
+              <span class="mkt-success-text">✓</span> RBAC-ready architecture
             </li>
             <li class="flex items-center gap-2">
-              <span class="text-green-400">✓</span> Audit logging
+              <span class="mkt-success-text">✓</span> Audit logging
             </li>
           </ul>
         </div>
 
-        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-8">
-          <h2 class="text-xl font-semibold text-white">Scalable</h2>
-          <p class="mt-3 text-gray-400">
+        <div class="mkt-card rounded-xl p-8">
+          <h2 class="text-xl font-semibold mkt-text">Scalable</h2>
+          <p class="mt-3 mkt-text-muted">
             Process millions of documents with constant memory usage. Horizontal
             scaling via PostgreSQL and stateless API servers.
           </p>
-          <ul class="mt-4 space-y-2 text-sm text-gray-400">
+          <ul class="mt-4 space-y-2 text-sm mkt-text-muted">
             <li class="flex items-center gap-2">
-              <span class="text-green-400">✓</span> 300MB memory per core
+              <span class="mkt-success-text">✓</span> 300MB memory per core
             </li>
             <li class="flex items-center gap-2">
-              <span class="text-green-400">✓</span> Horizontal API scaling
+              <span class="mkt-success-text">✓</span> Horizontal API scaling
             </li>
             <li class="flex items-center gap-2">
-              <span class="text-green-400">✓</span> Connection pooling built-in
+              <span class="mkt-success-text">✓</span> Connection pooling built-in
             </li>
           </ul>
         </div>

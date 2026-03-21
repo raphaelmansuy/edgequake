@@ -2,45 +2,134 @@
 import MarketingLayout from "../layouts/MarketingLayout.astro";
 ---
 
-<MarketingLayout title="Live Demo">
+<MarketingLayout
+  title="Live Demo"
+  description="Preview how EdgeQuake ingests documents, builds knowledge graphs, and serves graph-aware queries through a live demo workflow."
+>
   <section class="py-24 sm:py-32">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto">
-        <h1 class="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+        <h1 class="text-4xl font-bold tracking-tight mkt-text sm:text-5xl">
           Try EdgeQuake Live
         </h1>
-        <p class="mt-6 text-lg text-gray-400">
-          Upload a document, build a knowledge graph, and query it — all in your browser.
+        <p class="mt-6 text-lg mkt-text-muted">
+          Upload a document, build a knowledge graph, and query it — all in your
+          browser.
         </p>
       </div>
 
-      <div class="mt-12 rounded-xl border border-gray-800 bg-gray-900 p-8 text-center">
-        <div class="mx-auto max-w-md">
-          <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-400 mb-6">
-            <svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
+      <div class="mt-12 grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+        <div class="mkt-card rounded-xl p-8">
+          <div class="mx-auto max-w-2xl text-left">
+            <div
+              class="mkt-accent-surface mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl"
+            >
+              <svg
+                class="h-8 w-8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"
+                ></polygon>
+              </svg>
+            </div>
+            <h2 class="text-2xl font-semibold mkt-text">Interactive Demo Workflow</h2>
+            <p class="mt-3 mkt-text-muted">
+              The demo is a real EdgeQuake stack running locally. It is best for
+              evaluating document ingestion, graph construction, and query behavior
+              end to end rather than browsing a static placeholder.
+            </p>
+
+            <div class="mt-8 grid gap-4 md:grid-cols-3">
+              <div class="mkt-card rounded-xl p-5">
+                <div class="text-sm font-semibold mkt-accent-text">1. Start services</div>
+                <p class="mt-2 text-sm mkt-text-muted">
+                  Bring up PostgreSQL, the API, and the web UI with the standard
+                  development workflow.
+                </p>
+                <div class="mkt-code-surface mt-4 rounded-lg p-3">
+                  <code class="text-sm mkt-text-secondary">make dev</code>
+                </div>
+              </div>
+
+              <div class="mkt-card rounded-xl p-5">
+                <div class="text-sm font-semibold mkt-accent-text">2. Ingest a document</div>
+                <p class="mt-2 text-sm mkt-text-muted">
+                  Upload a PDF or markdown source and watch chunking, extraction,
+                  and lineage-aware processing complete in the UI.
+                </p>
+                <div class="mkt-code-surface mt-4 rounded-lg p-3">
+                  <code class="text-sm mkt-text-secondary">http://localhost:3000/documents</code>
+                </div>
+              </div>
+
+              <div class="mkt-card rounded-xl p-5">
+                <div class="text-sm font-semibold mkt-accent-text">3. Query the graph</div>
+                <p class="mt-2 text-sm mkt-text-muted">
+                  Ask the same question with different retrieval modes and compare
+                  local, global, hybrid, and graph-aware answers.
+                </p>
+                <div class="mkt-code-surface mt-4 rounded-lg p-3">
+                  <code class="text-sm mkt-text-secondary">http://localhost:8080/health</code>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-8 flex flex-wrap gap-4">
+              <a
+                href="/docs/getting-started/"
+                class="inline-flex items-center rounded-lg bg-accent-600 px-6 py-3 text-sm font-semibold text-white hover:bg-accent-500 transition-colors"
+              >
+                Getting Started Guide
+              </a>
+              <a
+                href="/docs/tutorials/pdf-ingestion/"
+                class="mkt-outline-button px-6 py-3 text-sm font-semibold"
+              >
+                PDF Ingestion Tutorial
+              </a>
+            </div>
           </div>
-          <h2 class="text-xl font-semibold text-white">Interactive Demo</h2>
-          <p class="mt-3 text-gray-400">
-            The live demo connects to a running EdgeQuake instance. Start the
-            local stack with <code class="text-accent-400 bg-gray-800 px-1.5 py-0.5 rounded text-sm">make dev</code> to try it yourself.
-          </p>
-          <div class="mt-8 flex flex-wrap justify-center gap-4">
-            <a
-              href="/docs/getting-started/"
-              class="inline-flex items-center rounded-lg bg-accent-600 px-6 py-3 text-sm font-semibold text-white hover:bg-accent-500 transition-colors"
-            >
-              Getting Started Guide
-            </a>
-            <a
-              href="https://github.com/raphaelmansuy/edgequake"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="inline-flex items-center rounded-lg border border-gray-700 px-6 py-3 text-sm font-semibold text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
-            >
-              View Source
-            </a>
+        </div>
+
+        <div class="space-y-6">
+          <div class="mkt-card rounded-xl p-8 text-left">
+            <h2 class="text-xl font-semibold mkt-text">What to Validate</h2>
+            <ul class="mt-4 space-y-3 text-sm mkt-text-muted">
+              <li>Document upload and processing state transitions</li>
+              <li>Entity extraction quality and graph coverage</li>
+              <li>Query-mode differences for the same prompt</li>
+              <li>Source traceability from answer back to document</li>
+            </ul>
+          </div>
+
+          <div class="mkt-card rounded-xl p-8 text-left">
+            <h2 class="text-xl font-semibold mkt-text">Need the stack recipe?</h2>
+            <p class="mt-3 mkt-text-muted">
+              If you are evaluating the full experience, use the Makefile-based
+              workflow instead of piecing services together manually. That keeps the
+              ports, environment variables, and dependencies aligned with the docs.
+            </p>
+            <div class="mt-6 flex flex-wrap gap-4">
+              <a
+                href="/docs/getting-started/installation/"
+                class="mkt-outline-button px-5 py-3 text-sm font-semibold"
+              >
+                Installation Guide
+              </a>
+              <a
+                href="https://github.com/raphaelmansuy/edgequake"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="mkt-outline-button px-5 py-3 text-sm font-semibold"
+              >
+                View Source
+              </a>
+            </div>
           </div>
         </div>
       </div>

@@ -1,8 +1,8 @@
-import { defineConfig } from "astro/config";
-import starlight from "@astrojs/starlight";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
+import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "astro/config";
 
 export default defineConfig({
   site: "https://edgequake.com",
@@ -23,11 +23,12 @@ export default defineConfig({
       ],
       editLink: {
         baseUrl:
-          "https://github.com/raphaelmansuy/edgequake/edit/main/",
+          "https://github.com/raphaelmansuy/edgequake/edit/edgequake-main/",
       },
       components: {
         Header: "./src/components/overrides/StarlightHeader.astro",
       },
+      routeMiddleware: "./src/route-data.ts",
       customCss: ["./src/styles/global.css"],
       lastUpdated: true,
       pagination: true,

@@ -27,65 +27,77 @@ const memory = [
 <section class="py-20 sm:py-24">
   <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
     <div class="text-center max-w-3xl mx-auto">
-      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+      <h2 class="text-3xl font-bold tracking-tight mkt-text sm:text-4xl">
         Built for Performance
       </h2>
-      <p class="mt-4 text-lg text-gray-400">
+      <p class="mt-4 text-lg mkt-text-muted">
         Measured against real-world workloads, not synthetic benchmarks.
       </p>
     </div>
 
     <!-- Stats grid -->
     <div class="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {stats.map((s) => (
-        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-6 text-center">
-          <div class="text-3xl font-bold text-accent-400">{s.value}</div>
-          <div class="mt-1 text-sm text-gray-400">{s.label}</div>
-        </div>
-      ))}
+      {
+        stats.map((s) => (
+          <div class="mkt-card rounded-xl p-6 text-center">
+            <div class="text-3xl font-bold mkt-accent-text">{s.value}</div>
+            <div class="mt-1 text-sm mkt-text-muted">{s.label}</div>
+          </div>
+        ))
+      }
     </div>
 
     <!-- Charts -->
     <div class="mt-12 grid gap-8 md:grid-cols-2">
       <!-- Throughput -->
-      <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-6">
-        <h3 class="text-lg font-semibold text-white mb-6">Throughput (docs/min)</h3>
+      <div class="mkt-card rounded-xl p-6">
+        <h3 class="mb-6 text-lg font-semibold mkt-text">
+          Throughput (docs/min)
+        </h3>
         <div class="space-y-4">
-          {throughput.map((t) => (
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-sm text-gray-300">{t.name}</span>
-                <span class="text-sm font-mono text-gray-400">{t.value}</span>
+          {
+            throughput.map((t) => (
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm mkt-text-secondary">{t.name}</span>
+                  <span class="text-sm font-mono mkt-text-muted">
+                    {t.value}
+                  </span>
+                </div>
+                <div class="h-3 w-full rounded-full mkt-bg-alt">
+                  <div
+                    class={`h-3 rounded-full ${t.name === "EdgeQuake" ? "bg-accent-500" : "bg-gray-600"}`}
+                    style={`width: ${(t.value / t.max) * 100}%`}
+                  />
+                </div>
               </div>
-              <div class="h-3 w-full rounded-full bg-gray-800">
-                <div
-                  class={`h-3 rounded-full ${t.name === "EdgeQuake" ? "bg-accent-500" : "bg-gray-600"}`}
-                  style={`width: ${(t.value / t.max) * 100}%`}
-                />
-              </div>
-            </div>
-          ))}
+            ))
+          }
         </div>
       </div>
 
       <!-- Memory -->
-      <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-6">
-        <h3 class="text-lg font-semibold text-white mb-6">Memory Usage</h3>
+      <div class="mkt-card rounded-xl p-6">
+        <h3 class="mb-6 text-lg font-semibold mkt-text">Memory Usage</h3>
         <div class="space-y-4">
-          {memory.map((m) => (
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-sm text-gray-300">{m.name}</span>
-                <span class="text-sm font-mono text-gray-400">{m.label}</span>
+          {
+            memory.map((m) => (
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm mkt-text-secondary">{m.name}</span>
+                  <span class="text-sm font-mono mkt-text-muted">
+                    {m.label}
+                  </span>
+                </div>
+                <div class="h-3 w-full rounded-full mkt-bg-alt">
+                  <div
+                    class={`h-3 rounded-full ${m.name === "EdgeQuake" ? "bg-green-500" : "bg-gray-600"}`}
+                    style={`width: ${(m.value / m.max) * 100}%`}
+                  />
+                </div>
               </div>
-              <div class="h-3 w-full rounded-full bg-gray-800">
-                <div
-                  class={`h-3 rounded-full ${m.name === "EdgeQuake" ? "bg-green-500" : "bg-gray-600"}`}
-                  style={`width: ${(m.value / m.max) * 100}%`}
-                />
-              </div>
-            </div>
-          ))}
+            ))
+          }
         </div>
       </div>
     </div>

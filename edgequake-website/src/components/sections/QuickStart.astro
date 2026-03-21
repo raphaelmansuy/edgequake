@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     id: "docker",
     label: "Docker",
     code: `# Start EdgeQuake with Docker Compose
-curl -O https://raw.githubusercontent.com/raphaelmansuy/edgequake/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.yml
 
 # Launch all services
 docker compose up -d
@@ -52,54 +52,65 @@ curl -X POST http://localhost:8080/query \\
 ];
 ---
 
-<section class="py-20 sm:py-24 bg-gray-900/50">
+<section class="mkt-section-alt py-20 sm:py-24">
   <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
     <div class="text-center max-w-3xl mx-auto">
-      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+      <h2 class="text-3xl font-bold tracking-tight mkt-text sm:text-4xl">
         Up and Running in Minutes
       </h2>
-      <p class="mt-4 text-lg text-gray-400">
+      <p class="mt-4 text-lg mkt-text-muted">
         Choose your preferred way to get started with EdgeQuake.
       </p>
     </div>
 
     <div class="mt-12 max-w-3xl mx-auto">
       <!-- Tabs -->
-      <div class="flex border-b border-gray-800" role="tablist">
-        {tabs.map((tab, i) => (
-          <button
-            role="tab"
-            data-tab={tab.id}
-            class={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${
-              i === 0
-                ? "text-accent-400 border-accent-500"
-                : "text-gray-400 border-transparent hover:text-gray-300"
-            }`}
-            aria-selected={i === 0 ? "true" : "false"}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div
+        class="mkt-tablist flex"
+        role="tablist"
+        aria-label="Quick start examples"
+      >
+        {
+          tabs.map((tab, i) => (
+            <button
+              role="tab"
+              data-tab={tab.id}
+              class={`mkt-tab px-4 py-2.5 text-sm font-medium transition-colors ${i === 0 ? "is-active" : ""}`}
+              aria-selected={i === 0 ? "true" : "false"}
+              aria-controls={`panel-${tab.id}`}
+              id={`tab-${tab.id}`}
+            >
+              {tab.label}
+            </button>
+          ))
+        }
       </div>
 
       <!-- Code panels -->
-      {tabs.map((tab, i) => (
-        <div
-          data-panel={tab.id}
-          class={`relative ${i === 0 ? "" : "hidden"}`}
-        >
-          <div class="relative rounded-b-xl bg-gray-950 border border-t-0 border-gray-800 overflow-hidden">
-            <button
-              data-copy={tab.id}
-              class="absolute top-3 right-3 rounded-md bg-gray-800 px-2.5 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-gray-700 transition-colors z-10"
-              aria-label="Copy code"
-            >
-              Copy
-            </button>
-            <pre class="overflow-x-auto p-6 text-sm leading-relaxed"><code class="text-gray-300" set:text={tab.code} /></pre>
+      {
+        tabs.map((tab, i) => (
+          <div
+            data-panel={tab.id}
+            id={`panel-${tab.id}`}
+            role="tabpanel"
+            aria-labelledby={`tab-${tab.id}`}
+            class={`relative ${i === 0 ? "" : "hidden"}`}
+          >
+            <div class="mkt-code-surface relative overflow-hidden rounded-b-xl border border-t-0">
+              <button
+                data-copy={tab.id}
+                class="mkt-outline-button absolute top-3 right-3 z-10 px-2.5 py-1.5 text-xs"
+                aria-label="Copy code"
+              >
+                Copy
+              </button>
+              <pre class="overflow-x-auto p-6 text-sm leading-relaxed">
+                <code class="mkt-text-secondary" set:text={tab.code} />
+              </pre>
+            </div>
           </div>
-        </div>
-      ))}
+        ))
+      }
     </div>
   </div>
 </section>
@@ -111,16 +122,18 @@ curl -X POST http://localhost:8080/query \\
       const id = (btn as HTMLElement).dataset.tab;
       // Deactivate all
       document.querySelectorAll("[role=tab]").forEach((t) => {
-        t.classList.remove("text-accent-400", "border-accent-500");
-        t.classList.add("text-gray-400", "border-transparent");
+        t.classList.remove("is-active");
         t.setAttribute("aria-selected", "false");
       });
-      document.querySelectorAll("[data-panel]").forEach((p) => p.classList.add("hidden"));
+      document
+        .querySelectorAll("[data-panel]")
+        .forEach((p) => p.classList.add("hidden"));
       // Activate selected
-      btn.classList.add("text-accent-400", "border-accent-500");
-      btn.classList.remove("text-gray-400", "border-transparent");
+      btn.classList.add("is-active");
       btn.setAttribute("aria-selected", "true");
-      document.querySelector(`[data-panel="${id}"]`)?.classList.remove("hidden");
+      document
+        .querySelector(`[data-panel="${id}"]`)
+        ?.classList.remove("hidden");
     });
   });
 
@@ -128,7 +141,9 @@ curl -X POST http://localhost:8080/query \\
   document.querySelectorAll("[data-copy]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = (btn as HTMLElement).dataset.copy;
-      const code = document.querySelector(`[data-panel="${id}"] code`)?.textContent;
+      const code = document.querySelector(
+        `[data-panel="${id}"] code`,
+      )?.textContent;
       if (code) {
         navigator.clipboard.writeText(code);
         btn.textContent = "Copied!";

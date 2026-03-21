@@ -24,9 +24,18 @@ const groups = [
     title: "Community",
     links: [
       { label: "GitHub", href: "https://github.com/raphaelmansuy/edgequake" },
-      { label: "Issues", href: "https://github.com/raphaelmansuy/edgequake/issues" },
-      { label: "Discussions", href: "https://github.com/raphaelmansuy/edgequake/discussions" },
-      { label: "Changelog", href: "https://github.com/raphaelmansuy/edgequake/blob/main/CHANGELOG.md" },
+      {
+        label: "Issues",
+        href: "https://github.com/raphaelmansuy/edgequake/issues",
+      },
+      {
+        label: "Discussions",
+        href: "https://github.com/raphaelmansuy/edgequake/discussions",
+      },
+      {
+        label: "Changelog",
+        href: "https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/CHANGELOG.md",
+      },
     ],
   },
   {
@@ -34,48 +43,71 @@ const groups = [
     links: [
       { label: "Contact", href: "/contact/" },
       { label: "Elitizon", href: "https://elitizon.com" },
-      { label: "License", href: "https://github.com/raphaelmansuy/edgequake/blob/main/LICENSE" },
+      {
+        label: "License",
+        href: "https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/LICENSE",
+      },
     ],
   },
 ];
 ---
 
-<footer class="border-t border-gray-800/50 bg-gray-950" data-pagefind-ignore>
+<footer class="mkt-border-subtle border-t mkt-bg-alt" data-pagefind-ignore>
   <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
     <div class="grid grid-cols-2 gap-8 md:grid-cols-4">
-      {groups.map((group) => (
-        <div>
-          <h3 class="text-sm font-semibold text-white">{group.title}</h3>
-          <ul class="mt-4 space-y-2">
-            {group.links.map((link) => (
-              <li>
-                <a
-                  href={link.href}
-                  class="text-sm text-gray-400 hover:text-white transition-colors"
-                  {...(link.href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                >
-                  {link.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      {
+        groups.map((group) => (
+          <div>
+            <h3 class="text-sm font-semibold mkt-text">{group.title}</h3>
+            <ul class="mt-4 space-y-2">
+              {group.links.map((link) => (
+                <li>
+                  <a
+                    href={link.href}
+                    class="text-sm mkt-text-muted hover:mkt-text transition-colors"
+                    {...(link.href.startsWith("http")
+                      ? { target: "_blank", rel: "noopener noreferrer" }
+                      : {})}
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
     </div>
 
-    <div class="mt-12 border-t border-gray-800/50 pt-8">
+    <div class="mt-12 mkt-border-subtle border-t pt-8">
       <div class="flex flex-col items-center justify-between gap-4 sm:flex-row">
         <!-- Logo -->
-        <a href="/" class="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-          <svg class="h-5 w-5 text-accent-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        <a
+          href="/"
+          class="flex items-center gap-2 mkt-text-muted hover:mkt-text transition-colors"
+        >
+          <svg
+            class="h-5 w-5 text-accent-500"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
           </svg>
           <span class="text-sm font-semibold">EdgeQuake</span>
         </a>
 
-        <p class="text-sm text-gray-500">
+        <p class="text-sm mkt-text-dim">
           &copy; {year} EdgeQuake &middot; Built by{" "}
-          <a href="https://elitizon.com" class="text-gray-400 hover:text-white transition-colors" target="_blank" rel="noopener noreferrer">
+          <a
+            href="https://elitizon.com"
+            class="mkt-text-muted hover:mkt-text transition-colors"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Elitizon
           </a>{" "}
           &middot; Apache 2.0

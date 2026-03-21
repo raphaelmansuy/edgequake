@@ -7,69 +7,89 @@ const problems = [
   {
     icon: "link-off",
     title: "Lost Relationships",
-    description: "Vector search treats documents as isolated chunks, losing the connections between entities that make knowledge valuable.",
+    description:
+      "Vector search treats documents as isolated chunks, losing the connections between entities that make knowledge valuable.",
   },
   {
     icon: "timer",
     title: "Slow at Scale",
-    description: "Python-based RAG frameworks struggle with large document collections, taking hours to process what should take minutes.",
+    description:
+      "Python-based RAG frameworks struggle with large document collections, taking hours to process what should take minutes.",
   },
   {
     icon: "layers",
     title: "Single Query Mode",
-    description: "Most RAG systems offer one way to query. Real-world questions need local, global, hybrid, and graph-aware retrieval.",
+    description:
+      "Most RAG systems offer one way to query. Real-world questions need local, global, hybrid, and graph-aware retrieval.",
   },
   {
     icon: "building",
     title: "No Multi-Tenancy",
-    description: "Sharing a RAG system across teams or clients requires workspace isolation that most frameworks don't support.",
+    description:
+      "Sharing a RAG system across teams or clients requires workspace isolation that most frameworks don't support.",
   },
   {
     icon: "file-text",
     title: "PDF Pain",
-    description: "Extracting structured knowledge from PDFs with tables, figures, and complex layouts remains a painful unsolved problem.",
+    description:
+      "Extracting structured knowledge from PDFs with tables, figures, and complex layouts remains a painful unsolved problem.",
   },
   {
     icon: "dollar-sign",
     title: "Cloud-Only Cost",
-    description: "Vendor lock-in to expensive cloud APIs makes experimentation costly and production deployment unpredictable.",
+    description:
+      "Vendor lock-in to expensive cloud APIs makes experimentation costly and production deployment unpredictable.",
   },
 ];
 
 const iconPaths: Record<string, string> = {
   "link-off": "M17 17H7a5 5 0 010-10m10.17 3.17A5 5 0 0017 7h0M2 2l20 20",
-  "timer": "M12 22a10 10 0 100-20 10 10 0 000 20zM12 6v6l4 2",
-  "layers": "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
-  "building": "M6 22V4a2 2 0 012-2h8a2 2 0 012 2v18zM6 12H4a2 2 0 00-2 2v6a2 2 0 002 2h2M18 9h2a2 2 0 012 2v9a2 2 0 01-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4",
-  "file-text": "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8",
+  timer: "M12 22a10 10 0 100-20 10 10 0 000 20zM12 6v6l4 2",
+  layers: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
+  building:
+    "M6 22V4a2 2 0 012-2h8a2 2 0 012 2v18zM6 12H4a2 2 0 00-2 2v6a2 2 0 002 2h2M18 9h2a2 2 0 012 2v9a2 2 0 01-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4",
+  "file-text":
+    "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8",
   "dollar-sign": "M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6",
 };
 ---
 
-<section class="py-20 sm:py-24 bg-gray-900/50">
+<section class="mkt-section-alt py-20 sm:py-24">
   <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
     <div class="text-center max-w-3xl mx-auto">
-      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+      <h2 class="text-3xl font-bold tracking-tight mkt-text sm:text-4xl">
         Traditional RAG Loses Knowledge
       </h2>
-      <p class="mt-4 text-lg text-gray-400">
+      <p class="mt-4 text-lg mkt-text-muted">
         Vector-only retrieval breaks the connections between entities. You need
         structure, not just similarity.
       </p>
     </div>
 
     <div class="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {problems.map((p) => (
-        <div class="group rounded-xl border border-gray-800 bg-gray-900/80 p-6 hover:border-red-500/30 hover:bg-gray-900 transition-all">
-          <div class="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-              <path d={iconPaths[p.icon]} />
-            </svg>
+      {
+        problems.map((p) => (
+          <div class="mkt-card group rounded-xl p-6 transition-all hover:border-red-500/30">
+            <div class="mkt-danger-surface mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg">
+              <svg
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d={iconPaths[p.icon]} />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold mkt-text">{p.title}</h3>
+            <p class="mt-2 text-sm mkt-text-muted leading-relaxed">
+              {p.description}
+            </p>
           </div>
-          <h3 class="text-lg font-semibold text-white">{p.title}</h3>
-          <p class="mt-2 text-sm text-gray-400 leading-relaxed">{p.description}</p>
-        </div>
-      ))}
+        ))
+      }
     </div>
   </div>
 </section>

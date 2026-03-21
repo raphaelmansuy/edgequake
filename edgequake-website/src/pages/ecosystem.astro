@@ -1,16 +1,19 @@
 ---
-import MarketingLayout from "../layouts/MarketingLayout.astro";
 import EcosystemSection from "../components/sections/Ecosystem.astro";
+import MarketingLayout from "../layouts/MarketingLayout.astro";
 ---
 
-<MarketingLayout title="Ecosystem">
+<MarketingLayout
+  title="Ecosystem"
+  description="Explore the EdgeQuake ecosystem of modular Rust crates for ingestion, query execution, graph storage, PDF processing, and API delivery."
+>
   <section class="py-24 sm:py-32">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto">
-        <h1 class="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+        <h1 class="text-4xl font-bold tracking-tight mkt-text sm:text-5xl">
           The EdgeQuake Ecosystem
         </h1>
-        <p class="mt-6 text-lg text-gray-400">
+        <p class="mt-6 text-lg mkt-text-muted">
           A modular Rust workspace of focused, composable crates. Use the full
           stack or pick just what you need.
         </p>
@@ -23,23 +26,23 @@ import EcosystemSection from "../components/sections/Ecosystem.astro";
   <section class="py-16">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div class="grid gap-8 md:grid-cols-2">
-        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-8">
-          <h2 class="text-xl font-semibold text-white">Install from crates.io</h2>
-          <div class="mt-4 rounded-lg bg-gray-950 p-4 border border-gray-800">
-            <code class="text-sm text-accent-400">cargo add edgequake</code>
+        <div class="mkt-card rounded-xl p-8">
+          <h2 class="text-xl font-semibold mkt-text">Install from crates.io</h2>
+          <div class="mkt-code-surface mt-4 rounded-lg p-4">
+            <code class="text-sm mkt-accent-text">cargo add edgequake</code>
           </div>
-          <p class="mt-4 text-sm text-gray-400">
+          <p class="mt-4 text-sm mkt-text-muted">
             Add EdgeQuake to your Rust project. The main crate re-exports all
             sub-crates for convenience.
           </p>
         </div>
 
-        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-8">
-          <h2 class="text-xl font-semibold text-white">Docker Quick Start</h2>
-          <div class="mt-4 rounded-lg bg-gray-950 p-4 border border-gray-800">
-            <code class="text-sm text-accent-400">docker compose up -d</code>
+        <div class="mkt-card rounded-xl p-8">
+          <h2 class="text-xl font-semibold mkt-text">Docker Quick Start</h2>
+          <div class="mkt-code-surface mt-4 rounded-lg p-4">
+            <code class="text-sm mkt-accent-text">docker compose up -d</code>
           </div>
-          <p class="mt-4 text-sm text-gray-400">
+          <p class="mt-4 text-sm mkt-text-muted">
             Launch EdgeQuake with PostgreSQL, Ollama, and the web UI in one
             command. No Rust toolchain needed.
           </p>

@@ -2,31 +2,49 @@
 import MarketingLayout from "../layouts/MarketingLayout.astro";
 ---
 
-<MarketingLayout title="Contact">
+<MarketingLayout
+  title="Contact"
+  description="Contact the EdgeQuake team for product questions, enterprise support, implementation guidance, or partnership discussions."
+>
   <section class="py-24 sm:py-32">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div class="grid gap-12 lg:grid-cols-2">
         <!-- Info -->
         <div>
-          <h1 class="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+          <h1 class="text-4xl font-bold tracking-tight mkt-text sm:text-5xl">
             Get in Touch
           </h1>
-          <p class="mt-6 text-lg text-gray-400">
+          <p class="mt-6 text-lg mkt-text-muted">
             Questions about EdgeQuake? Need enterprise support? We'd love to
             hear from you.
           </p>
 
           <div class="mt-12 space-y-6">
             <div class="flex items-start gap-4">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-400">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              <div
+                class="mkt-accent-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+              >
+                <svg
+                  class="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  ></path>
                 </svg>
               </div>
               <div>
-                <h3 class="font-semibold text-white">Email</h3>
-                <p class="text-gray-400">
-                  <a href="mailto:contact@elitizon.com" class="hover:text-accent-400 transition-colors">
+                <h3 class="font-semibold mkt-text">Email</h3>
+                <p class="mkt-text-muted">
+                  <a
+                    href="mailto:contact@elitizon.com"
+                    class="transition-colors hover:mkt-text"
+                  >
                     contact@elitizon.com
                   </a>
                 </p>
@@ -34,17 +52,24 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
             </div>
 
             <div class="flex items-start gap-4">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-400">
+              <div
+                class="mkt-accent-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+              >
                 <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                  <path
+                    d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+                  ></path>
                 </svg>
               </div>
               <div>
-                <h3 class="font-semibold text-white">GitHub</h3>
-                <p class="text-gray-400">
-                  <a href="https://github.com/raphaelmansuy/edgequake/discussions"
-                    target="_blank" rel="noopener noreferrer"
-                    class="hover:text-accent-400 transition-colors">
+                <h3 class="font-semibold mkt-text">GitHub</h3>
+                <p class="mkt-text-muted">
+                  <a
+                    href="https://github.com/raphaelmansuy/edgequake/discussions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="transition-colors hover:mkt-text"
+                  >
                     Open a Discussion
                   </a>
                 </p>
@@ -52,16 +77,32 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
             </div>
 
             <div class="flex items-start gap-4">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-400">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+              <div
+                class="mkt-accent-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+              >
+                <svg
+                  class="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                  ></path>
                 </svg>
               </div>
               <div>
-                <h3 class="font-semibold text-white">Elitizon</h3>
-                <p class="text-gray-400">
-                  <a href="https://elitizon.com" target="_blank" rel="noopener noreferrer"
-                    class="hover:text-accent-400 transition-colors">
+                <h3 class="font-semibold mkt-text">Elitizon</h3>
+                <p class="mkt-text-muted">
+                  <a
+                    href="https://elitizon.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="transition-colors hover:mkt-text"
+                  >
                     elitizon.com
                   </a>
                 </p>
@@ -70,41 +111,86 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
           </div>
         </div>
 
-        <!-- Contact form -->
-        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-8">
-          <h2 class="text-xl font-semibold text-white">Send a Message</h2>
-          <form class="mt-6 space-y-5" action="https://formspree.io/f/placeholder" method="POST">
-            <div>
-              <label for="name" class="block text-sm font-medium text-gray-300">Name</label>
-              <input
-                type="text" id="name" name="name" required
-                class="mt-1 block w-full rounded-lg border border-gray-700 bg-gray-950 px-4 py-2.5 text-white placeholder-gray-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500 focus:outline-none"
-                placeholder="Your name"
-              />
-            </div>
-            <div>
-              <label for="email" class="block text-sm font-medium text-gray-300">Email</label>
-              <input
-                type="email" id="email" name="email" required
-                class="mt-1 block w-full rounded-lg border border-gray-700 bg-gray-950 px-4 py-2.5 text-white placeholder-gray-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500 focus:outline-none"
-                placeholder="you@company.com"
-              />
-            </div>
-            <div>
-              <label for="message" class="block text-sm font-medium text-gray-300">Message</label>
-              <textarea
-                id="message" name="message" rows="4" required
-                class="mt-1 block w-full rounded-lg border border-gray-700 bg-gray-950 px-4 py-2.5 text-white placeholder-gray-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500 focus:outline-none resize-none"
-                placeholder="Tell us about your use case..."
-              ></textarea>
-            </div>
-            <button
-              type="submit"
-              class="inline-flex items-center rounded-lg bg-accent-600 px-6 py-3 text-sm font-semibold text-white hover:bg-accent-500 transition-colors w-full justify-center"
+        <!-- Contact routes -->
+        <div class="mkt-card rounded-xl p-8">
+          <h2 class="text-xl font-semibold mkt-text">
+            Choose Your Contact Route
+          </h2>
+          <p class="mt-3 mkt-text-muted">
+            Use a verified channel so your message reaches the right team
+            quickly.
+          </p>
+
+          <div class="mt-6 space-y-4">
+            <a
+              href="mailto:contact@elitizon.com?subject=EdgeQuake%20Inquiry"
+              class="mkt-card block rounded-xl p-5 transition-colors hover:border-accent-500/30"
             >
-              Send Message
-            </button>
-          </form>
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h3 class="text-base font-semibold mkt-text">
+                    Email the team
+                  </h3>
+                  <p class="mt-1 text-sm mkt-text-muted">
+                    Best for product questions, architecture reviews, and
+                    implementation support.
+                  </p>
+                </div>
+                <span class="mkt-accent-text text-sm font-semibold">mailto</span
+                >
+              </div>
+            </a>
+
+            <a
+              href="https://github.com/raphaelmansuy/edgequake/discussions"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mkt-card block rounded-xl p-5 transition-colors hover:border-accent-500/30"
+            >
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h3 class="text-base font-semibold mkt-text">
+                    Open a GitHub discussion
+                  </h3>
+                  <p class="mt-1 text-sm mkt-text-muted">
+                    Best for community questions, feature ideas, and public
+                    technical conversations.
+                  </p>
+                </div>
+                <span class="mkt-accent-text text-sm font-semibold"
+                  >community</span
+                >
+              </div>
+            </a>
+
+            <a
+              href="https://elitizon.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mkt-card block rounded-xl p-5 transition-colors hover:border-accent-500/30"
+            >
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h3 class="text-base font-semibold mkt-text">
+                    Talk to Elitizon
+                  </h3>
+                  <p class="mt-1 text-sm mkt-text-muted">
+                    Best for enterprise engagements, custom delivery, and
+                    partnership discussions.
+                  </p>
+                </div>
+                <span class="mkt-accent-text text-sm font-semibold"
+                  >enterprise</span
+                >
+              </div>
+            </a>
+          </div>
+
+          <div
+            class="mkt-code-surface mt-6 rounded-xl p-4 text-sm mkt-text-secondary"
+          >
+            Typical response window: 1 to 2 business days.
+          </div>
         </div>
       </div>
     </div>

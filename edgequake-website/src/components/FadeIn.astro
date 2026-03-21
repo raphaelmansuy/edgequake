@@ -3,45 +3,9 @@ interface Props {
   class?: string;
   delay?: number;
 }
-const { class: className = "", delay = 0 } = Astro.props;
-const style = delay > 0 ? `transition-delay: ${delay}ms` : undefined;
+const { class: className = "" } = Astro.props;
 ---
 
-<div class:list={["fade-in-section", className]} data-fade style={style}>
+<div class:list={className}>
   <slot />
 </div>
-
-<style>
-  .fade-in-section {
-    opacity: 0;
-    transform: translateY(1rem);
-    transition:
-      opacity 400ms cubic-bezier(0.16, 1, 0.3, 1),
-      transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .fade-in-section.is-visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .fade-in-section {
-      opacity: 1;
-      transform: none;
-      transition: none;
-    }
-  }
-</style>
-
-<script>
-  const observer = new IntersectionObserver(
-    (entries) =>
-      entries.forEach((e) => {
-        if (e.isIntersecting) {
-          e.target.classList.add("is-visible");
-          observer.unobserve(e.target);
-        }
-      }),
-    { threshold: 0.1 }
-  );
-  document.querySelectorAll("[data-fade]").forEach((el) => observer.observe(el));
-</script>

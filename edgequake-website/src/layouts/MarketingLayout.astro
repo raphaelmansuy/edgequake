@@ -1,47 +1,101 @@
 ---
-import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
 import "../styles/global.css";
 
 interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  noIndex?: boolean;
 }
 
 const {
   title,
   description = "Graph-RAG framework built in Rust. Turn documents into knowledge graphs, query with 6 modes, 10x faster than Python RAG.",
   ogImage = "/og-default.png",
+  noIndex = false,
 } = Astro.props;
 
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
+const ogImageUrl = new URL(ogImage, Astro.site);
+const pageTitle = `${title} | EdgeQuake`;
+const schema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "EdgeQuake",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Linux, macOS, Windows",
+  description,
+  url: canonicalUrl,
+  image: ogImageUrl,
+  license: "https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/LICENSE",
+  codeRepository: "https://github.com/raphaelmansuy/edgequake",
+  publisher: {
+    "@type": "Organization",
+    name: "Elitizon",
+    url: "https://elitizon.com",
+  },
+};
 ---
 
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <link rel="canonical" href={canonicalUrl} />
 
-    <title>{title} | EdgeQuake</title>
+    <title>{pageTitle}</title>
     <meta name="description" content={description} />
+    <meta
+      name="robots"
+      content={noIndex
+        ? "noindex, nofollow"
+        : "index, follow, max-image-preview:large"}
+    />
+    <meta
+      name="theme-color"
+      content="#09090b"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta name="color-scheme" content="dark light" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content={`${title} | EdgeQuake`} />
+    <meta property="og:site_name" content="EdgeQuake" />
+    <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImage} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta
+      property="og:image:alt"
+      content="EdgeQuake knowledge graph product preview"
+    />
     <meta property="og:url" content={canonicalUrl} />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={`${title} | EdgeQuake`} />
+    <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image" content={ogImageUrl} />
+    <meta
+      name="twitter:image:alt"
+      content="EdgeQuake knowledge graph product preview"
+    />
+
+    <script
+      is:inline
+      type="application/ld+json"
+      set:html={JSON.stringify(schema)}
+    />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -50,12 +104,31 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
+
+    <!-- Theme detection (runs before paint to prevent flash) -->
+    <script is:inline>
+      (function () {
+        var theme = localStorage.getItem("starlight-theme");
+        if (theme === "light" || theme === "dark") {
+          document.documentElement.setAttribute("data-theme", theme);
+        } else {
+          var prefersDark = window.matchMedia(
+            "(prefers-color-scheme: dark)",
+          ).matches;
+          document.documentElement.setAttribute(
+            "data-theme",
+            prefersDark ? "dark" : "light",
+          );
+        }
+      })();
+    </script>
   </head>
   <body
-    class="min-h-screen bg-gray-950 text-gray-50 font-sans antialiased overflow-x-hidden"
+    class="min-h-screen mkt-bg mkt-text font-sans antialiased overflow-x-hidden"
   >
+    <a class="mkt-skip-link" href="#main-content">Skip to main content</a>
     <Header />
-    <main data-pagefind-body>
+    <main id="main-content" data-pagefind-body>
       <slot />
     </main>
     <Footer />
