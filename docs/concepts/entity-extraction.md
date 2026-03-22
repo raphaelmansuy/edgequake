@@ -69,39 +69,39 @@ EdgeQuake's default entity types:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                EXTRACTION PIPELINE                               │
+│                EXTRACTION PIPELINE                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌──────────┐                                                    │
-│  │   TEXT   │  "Dr. Sarah Chen leads the AI team at Quantum      │
-│  │  CHUNK   │   Dynamics Lab. Her research on neural networks    │
-│  │          │   has been cited 500 times."                       │
-│  └────┬─────┘                                                    │
-│       │                                                          │
-│       v                                                          │
+│                                                                 │
+│  ┌──────────┐                                                   │
+│  │   TEXT   │  "Dr. Sarah Chen leads the AI team at Quantum     │
+│  │  CHUNK   │   Dynamics Lab. Her research on neural networks   │
+│  │          │   has been cited 500 times."                      │
+│  └────┬─────┘                                                   │
+│       │                                                         │
+│       v                                                         │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    LLM EXTRACTION                         │   │
+│  │                    LLM EXTRACTION                        │   │
 │  │  System: "You are a Knowledge Graph Specialist..."       │   │
 │  │  User: "Extract entities and relationships from..."      │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│       │                                                          │
-│       v                                                          │
+│       │                                                         │
+│       v                                                         │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    RAW OUTPUT (Tuples)                    │   │
+│  │                    RAW OUTPUT (Tuples)                   │   │
 │  │  entity<|#|>SARAH_CHEN<|#|>PERSON<|#|>Lead researcher... │   │
 │  │  entity<|#|>QUANTUM_LAB<|#|>ORG<|#|>Research institution │   │
 │  │  entity<|#|>NEURAL_NETWORKS<|#|>CONCEPT<|#|>ML approach  │   │
 │  │  relation<|#|>SARAH_CHEN<|#|>QUANTUM_LAB<|#|>works_at... │   │
-│  │  <|COMPLETE|>                                             │   │
+│  │  <|COMPLETE|>                                            │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│       │                                                          │
-│       v                                                          │
+│       │                                                         │
+│       v                                                         │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    PARSED RESULT                          │   │
-│  │  Entities: 3                                              │   │
-│  │  Relationships: 3                                         │   │
+│  │                    PARSED RESULT                         │   │
+│  │  Entities: 3                                             │   │
+│  │  Relationships: 3                                        │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
