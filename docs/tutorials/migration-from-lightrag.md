@@ -115,7 +115,7 @@ curl -X POST http://localhost:8080/api/v1/tenants/default/workspaces \
     "name": "my-project",
     "slug": "my-project",
     "llm_provider": "openai",
-    "llm_model": "gpt-4o-mini"
+    "llm_model": "gpt-5-nano"
   }'
 
 # Returns workspace_id to use in subsequent requests
@@ -266,7 +266,7 @@ lightrag = LightRAG(
 # Environment variables
 export OPENAI_API_KEY="sk-..."
 export EDGEQUAKE_LLM_PROVIDER="openai"
-export EDGEQUAKE_LLM_MODEL="gpt-4o-mini"
+export EDGEQUAKE_LLM_MODEL="gpt-5-nano"
 export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
 
 # Or per-workspace via API
@@ -274,7 +274,7 @@ curl -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
   -H "Content-Type: application/json" \
   -d '{
     "llm_provider": "openai",
-    "llm_model": "gpt-4o-mini",
+    "llm_model": "gpt-5-nano",
     "embedding_model": "text-embedding-3-small"
   }'
 ```

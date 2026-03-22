@@ -170,7 +170,7 @@ Server Defaults (models.toml)
 
 | Scenario               | Configuration                              |
 | ---------------------- | ------------------------------------------ |
-| Cost-conscious tenant  | Use `ollama` or `gpt-4o-mini`              |
+| Cost-conscious tenant  | Use `ollama` or `gpt-5-nano`              |
 | Premium tenant         | Use `gpt-4o` with `text-embedding-3-large` |
 | Compliance requirement | Use self-hosted Ollama                     |
 | Testing                | Use mock provider                          |
@@ -477,7 +477,7 @@ Examples:
 | Tier    | LLM          | Embedding              | Cost |
 | ------- | ------------ | ---------------------- | ---- |
 | Free    | Ollama local | Ollama local           | $0   |
-| Basic   | gpt-4o-mini  | text-embedding-3-small | $    |
+| Basic   | gpt-5-nano   | text-embedding-3-small | $    |
 | Premium | gpt-4o       | text-embedding-3-large | $$$  |
 
 ### 3. Quota Management

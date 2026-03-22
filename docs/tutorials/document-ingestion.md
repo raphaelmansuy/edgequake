@@ -781,7 +781,7 @@ curl "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/metrics"
 **Solutions**:
 
 1. Increase worker threads: `WORKER_THREADS=8`
-2. Use faster LLM model (gpt-4o-mini)
+2. Use faster LLM model (gpt-5-nano)
 3. Reduce gleaning iterations
 4. Batch documents instead of sequential
 
