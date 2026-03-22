@@ -19,16 +19,16 @@ A knowledge graph is a structured representation of knowledge using:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    KNOWLEDGE GRAPH                               │
+│                    KNOWLEDGE GRAPH                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│     ┌─────────┐                         ┌─────────┐              │
-│     │  NODE   │────── EDGE ────────────▶│  NODE   │              │
-│     │ (Entity)│     (Relationship)      │ (Entity)│              │
-│     └─────────┘                         └─────────┘              │
-│         │                                    │                   │
-│         │                                    │                   │
-│         v                                    v                   │
+│                                                                 │
+│     ┌─────────┐                         ┌─────────┐             │
+│     │  NODE   │────── EDGE ────────────▶│  NODE   │             │
+│     │ (Entity)│     (Relationship)      │ (Entity)│             │
+│     └─────────┘                         └─────────┘             │
+│         │                                    │                  │
+│         │                                    │                  │
+│         v                                    v                  │
 │   ┌───────────┐                      ┌───────────┐              │
 │   │ Properties│                      │ Properties│              │
 │   │ - name    │                      │ - name    │              │
@@ -36,7 +36,7 @@ A knowledge graph is a structured representation of knowledge using:
 │   │ - desc    │                      │ - desc    │              │
 │   │ - embed   │                      │ - embed   │              │
 │   └───────────┘                      └───────────┘              │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -157,9 +157,9 @@ EdgeQuake supports data isolation across tenants:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    MULTI-TENANT ISOLATION                        │
+│                    MULTI-TENANT ISOLATION                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                 │
 │  Tenant: "acme-corp"          Tenant: "globex"                  │
 │  ┌─────────────────┐          ┌─────────────────┐               │
 │  │  Workspace A    │          │  Workspace X    │               │
@@ -171,7 +171,7 @@ EdgeQuake supports data isolation across tenants:
 │  │  ├─ Documents   │          Each tenant has isolated          │
 │  │  └─ ...         │          data with no cross-access         │
 │  └─────────────────┘                                            │
-│                                                                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
