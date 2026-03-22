@@ -54,12 +54,12 @@ curl http://localhost:8080/health`,
     summary:
       "Post a document, then send a retrieval request to the query endpoint.",
     code: `# Insert a document
-curl -X POST http://localhost:8080/documents \\
+curl -X POST http://localhost:8080/api/v1/documents \\
   -H "Content-Type: application/json" \\
   -d '{"content": "EdgeQuake is a Graph-RAG framework."}'
 
 # Query the knowledge graph
-curl -X POST http://localhost:8080/query \\
+curl -X POST http://localhost:8080/api/v1/query \\
   -H "Content-Type: application/json" \\
   -d '{"query": "What is EdgeQuake?", "mode": "hybrid"}'`,
   },

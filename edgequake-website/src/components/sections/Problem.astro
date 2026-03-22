@@ -8,37 +8,37 @@ const problems = [
     icon: "link-off",
     title: "Lost Relationships",
     description:
-      "Vector search breaks context into isolated chunks, so answers miss the entity relationships, dependencies, and provenance users actually care about.",
+      "You ask \"How does service A depend on team B's contracts?\" and get back unrelated paragraphs. Vector search holds text proximity — not edges, ownership, or causality between entities.",
   },
   {
     icon: "timer",
     title: "Slow at Scale",
     description:
-      "Pipelines that feel fine in demos become slow and brittle on real corpora, where ingestion, extraction, and reprocessing all compound latency.",
+      "A 10,000-document import that works fine at 100 docs takes hours in Python. Extraction, embedding, and re-ingestion compound as your corpus grows — before a query is ever run.",
   },
   {
     icon: "layers",
     title: "Single Query Mode",
     description:
-      "Real questions are not all the same. Some need local evidence, others need global context, and many need both in the same retrieval flow.",
+      "Some questions need a precise paragraph. Others need a cross-document overview. Forcing every query through the same retrieval path guarantees the wrong answer for one of them.",
   },
   {
     icon: "building",
     title: "No Multi-Tenancy",
     description:
-      "Once multiple teams or clients share the same system, weak workspace isolation turns into operational risk and trust issues.",
+      "Sharing one index across projects silently bleeds context between workspaces. Adding isolation after the fact means rebuilding the index from scratch.",
   },
   {
     icon: "file-text",
     title: "PDF Pain",
     description:
-      "PDFs still break many RAG pipelines, especially when tables, figures, layout structure, and scanned pages matter to the final answer.",
+      "Multi-column layouts, embedded figures, and scanned pages all break naive text extraction. The answer you need is locked in a table that became garbage text on import.",
   },
   {
     icon: "dollar-sign",
     title: "Cloud-Only Cost",
     description:
-      "If the stack only works with one hosted provider, experimentation gets expensive and production cost becomes hard to control.",
+      "Every retrieval call requiring a remote embedding API compounds cost at scale. And when the provider rate-limits or goes down, your search degrades with it.",
   },
 ];
 

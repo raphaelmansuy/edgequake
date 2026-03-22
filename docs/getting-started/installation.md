@@ -84,12 +84,13 @@ open http://localhost:3000
 git clone https://github.com/raphaelmansuy/edgequake.git
 cd edgequake
 
-# Start backend with PostgreSQL
+# Start backend with PostgreSQL (required since v0.4.0)
 make backend-bg
-
-# Or: Start backend with in-memory storage (no persistence)
-make backend-memory
 ```
+
+> **Note**: Starting with v0.4.0, `DATABASE_URL` is required for all server modes.
+> In-memory storage was removed to ensure reliable, production-grade behavior.
+> Use the Docker-based PostgreSQL setup above (`make dev`) for the fastest path.
 
 **Verify**:
 
@@ -183,21 +184,25 @@ curl http://localhost:8080/api/v1/config | jq .llm_provider
 
 ## Storage Configuration
 
+EdgeQuake uses PostgreSQL as its storage backend for all modes (since v0.4.0):
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Storage Options                         │
+│                     Storage (PostgreSQL)                    │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  ┌──────────────────┐          ┌──────────────────┐         │
-│  │   PostgreSQL     │          │    In-Memory     │         │
-│  │  + pgvector      │          │                  │         │
-│  │  + Apache AGE    │          │   (No Docker)    │         │
-│  │                  │          │   (No persist)   │         │
-│  │  [Production]    │          │   [Development]  │         │
-│  └──────────────────┘          └──────────────────┘         │
+│         ┌─────────────────────────────────────┐            │
+│         │          PostgreSQL 16+              │            │
+│         │                                     │            │
+│         │  ┌──────────┐  ┌──────────────────┐ │            │
+│         │  │ pgvector  │  │   Apache AGE     │ │            │
+│         │  │ (vectors) │  │   (graph DB)     │ │            │
+│         │  └──────────┘  └──────────────────┘ │            │
+│         │                                     │            │
+│         └─────────────────────────────────────┘            │
 │                                                             │
-│  DATABASE_URL set?  ────▶ Yes: Use PostgreSQL               │
-│                     ────▶ No:  Use In-Memory                │
+│  DATABASE_URL required for all server modes.               │ 
+│  Use Docker for the easiest PostgreSQL setup.              │
 └─────────────────────────────────────────────────────────────┘
 ```
 

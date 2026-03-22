@@ -62,17 +62,23 @@ Key differences:
 
 ### Can I run EdgeQuake without PostgreSQL?
 
-**Yes**, for development and testing. EdgeQuake automatically selects storage:
+**No** — starting with v0.4.0, `DATABASE_URL` is required for all server modes.
+In-memory storage was removed to ensure reliable, production-grade behavior. Running
+without a database causes the server to exit with error code 1.
+
+For **development and testing**, use the Docker-based PostgreSQL setup — it starts
+in seconds and requires no configuration:
 
 ```bash
-# In-memory mode (no database)
-cargo run
+# Start full stack (PostgreSQL + backend + frontend)
+make dev
 
-# PostgreSQL mode
-DATABASE_URL="postgresql://..." cargo run
+# Start PostgreSQL only, then run tests
+make postgres-start
+cargo test
 ```
 
-In-memory mode persists nothing between restarts.
+For **CI environments**, use Docker Compose with the provided `docker-compose.yml`.
 
 ### Can I run EdgeQuake without an LLM?
 

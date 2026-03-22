@@ -8,6 +8,12 @@ title: 'EdgeQuake vs LightRAG (Python)'
 
 EdgeQuake is a Rust-native reimplementation of the LightRAG algorithm from HKU. This document compares the two implementations to help you choose the right tool for your needs.
 
+:::tip[Quick decision]
+**Use LightRAG Python** if you want the reference implementation with the broadest ecosystem (Neo4j, MongoDB, Milvus, Langfuse, RAG-Anything).
+
+**Use EdgeQuake** if you need a single binary with no Python runtime, built-in multi-tenancy, and PostgreSQL as a unified store.
+:::
+
 ---
 
 ## Quick Comparison
@@ -189,21 +195,23 @@ let response = edgequake.query(
 ✅ **Choose EdgeQuake when:**
 
 - You need production-ready deployment (single binary, no Python deps)
-- Multi-tenant architecture is required
+- Multi-tenant architecture is required from day one
 - High concurrency (>500 concurrent users)
 - Type safety and compile-time guarantees matter
 - You're already using Rust or have Rust expertise
 - PostgreSQL is your preferred database
 - Memory efficiency is critical
-- You need predictable latency (no GC pauses)
+- You want predictable latency (no GC pauses)
+- You need on-premise deployment with no cloud embedding dependency
 
-❌ **Consider LightRAG Python when:**
+✅ **Choose LightRAG Python when:**
 
-- You need rapid prototyping
-- Your team has Python expertise
-- You need Neo4J or other specialized backends
-- You want community plugins and integrations
-- You're doing research/experimentation
+- You want the reference implementation that is closest to the research paper
+- Your team is Python-fluent and wants fast iteration without a compile step
+- You need backends that EdgeQuake doesn't support: Neo4j, MongoDB, Milvus, Qdrant, Faiss, Redis
+- You need community integrations: RAG-Anything (multimodal), Langfuse tracing, Memgraph
+- You are prototyping or exploring Graph-RAG as a concept before committing to a stack
+- LightRAG's 27k+ GitHub stars and 216+ contributors mean more community answers for edge cases
 
 ---
 
