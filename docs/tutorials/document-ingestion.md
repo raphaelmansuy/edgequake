@@ -1,5 +1,5 @@
 ---
-title: 'Tutorial: Document Ingestion Deep-Dive'
+title: "Tutorial: Document Ingestion Deep-Dive"
 ---
 
 # Tutorial: Document Ingestion Deep-Dive
@@ -21,7 +21,7 @@ This tutorial explores EdgeQuake's document processing pipeline in depth, coveri
 │                   DOCUMENT INGESTION PIPELINE                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  Document ─────────────────────────────────────────────────────▶ 
+│  Document ─────────────────────────────────────────────────────▶
 │      │                                                          │
 │      ▼                                                          │
 │  ┌─────────────┐                                                │
@@ -405,12 +405,12 @@ Different document types benefit from different chunking approaches:
 
 ### Strategy Comparison
 
-| Strategy      | Best For             | Chunk Size    |
-| ------------- | -------------------- | ------------- |
+| Strategy      | Best For             | Chunk Size            |
+| ------------- | -------------------- | --------------------- |
 | **Fixed**     | General text         | 1200 tokens (default) |
-| **Semantic**  | Well-structured docs | Variable      |
-| **Paragraph** | Articles, blogs      | 1 paragraph   |
-| **Sentence**  | Q&A, definitions     | 1-3 sentences |
+| **Semantic**  | Well-structured docs | Variable              |
+| **Paragraph** | Articles, blogs      | 1 paragraph           |
+| **Sentence**  | Q&A, definitions     | 1-3 sentences         |
 
 ### Using Custom Chunk Size
 
@@ -737,12 +737,12 @@ curl "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/metrics"
 
 ### Chunk Size Guidelines
 
-| Document Type    | Recommended Size |
-| ---------------- | ---------------- |
+| Document Type    | Recommended Size      |
+| ---------------- | --------------------- |
 | General articles | 1200 tokens (default) |
-| Technical docs   | 1200 tokens      |
-| Short Q&A        | 512 tokens       |
-| Legal contracts  | Paragraph-based  |
+| Technical docs   | 1200 tokens           |
+| Short Q&A        | 512 tokens            |
+| Legal contracts  | Paragraph-based       |
 
 ### Entity Extraction Tips
 
@@ -802,11 +802,11 @@ curl "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/metrics"
 
 ## Next Steps
 
-| Tutorial                                    | Description                     |
-| ------------------------------------------- | ------------------------------- |
+| Tutorial                                                  | Description                     |
+| --------------------------------------------------------- | ------------------------------- |
 | [Query Optimization](/docs/tutorials/query-optimization/) | Choosing and tuning query modes |
 | [Multi-Tenant Setup](/docs/tutorials/multi-tenant/)       | Building a SaaS application     |
-| [Custom Entity Types](/docs/concepts/entity-extraction/)   | Domain-specific extraction      |
+| [Custom Entity Types](/docs/concepts/entity-extraction/)  | Domain-specific extraction      |
 
 ---
 

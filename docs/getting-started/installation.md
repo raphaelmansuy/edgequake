@@ -1,5 +1,5 @@
 ---
-title: 'Installation Guide'
+title: "Installation Guide"
 ---
 
 # Installation Guide
@@ -201,7 +201,7 @@ EdgeQuake uses PostgreSQL as its storage backend for all modes (since v0.4.0):
 │         │                                     │            │
 │         └─────────────────────────────────────┘            │
 │                                                             │
-│  DATABASE_URL required for all server modes.               │ 
+│  DATABASE_URL required for all server modes.               │
 │  Use Docker for the easiest PostgreSQL setup.              │
 └─────────────────────────────────────────────────────────────┘
 ```

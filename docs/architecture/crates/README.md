@@ -1,5 +1,5 @@
 ---
-title: 'Architecture: Crate Reference'
+title: "Architecture: Crate Reference"
 sidebar:
   hidden: true
 ---

@@ -1,5 +1,5 @@
 ---
-title: 'Tutorial: Multi-Tenant Setup'
+title: "Tutorial: Multi-Tenant Setup"
 ---
 
 # Tutorial: Multi-Tenant Setup
@@ -170,7 +170,7 @@ Server Defaults (models.toml)
 
 | Scenario               | Configuration                              |
 | ---------------------- | ------------------------------------------ |
-| Cost-conscious tenant  | Use `ollama` or `gpt-5-nano`              |
+| Cost-conscious tenant  | Use `ollama` or `gpt-5-nano`               |
 | Premium tenant         | Use `gpt-4o` with `text-embedding-3-large` |
 | Compliance requirement | Use self-hosted Ollama                     |
 | Testing                | Use mock provider                          |
@@ -610,11 +610,11 @@ Increase quotas or upgrade tier.
 
 ## Next Steps
 
-| Tutorial                                  | Description                |
-| ----------------------------------------- | -------------------------- |
+| Tutorial                                                 | Description                |
+| -------------------------------------------------------- | -------------------------- |
 | [Custom Entity Types](/docs/concepts/entity-extraction/) | Domain-specific extraction |
-| [API Integration](/docs/integrations/custom-clients/)     | Building on EdgeQuake      |
-| [Scaling Guide](/docs/operations/deployment/)             | Growing your deployment    |
+| [API Integration](/docs/integrations/custom-clients/)    | Building on EdgeQuake      |
+| [Scaling Guide](/docs/operations/deployment/)            | Growing your deployment    |
 
 ---
 

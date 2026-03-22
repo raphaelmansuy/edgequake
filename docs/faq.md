@@ -1,5 +1,5 @@
 ---
-title: 'Frequently Asked Questions'
+title: "Frequently Asked Questions"
 ---
 
 # Frequently Asked Questions
@@ -254,14 +254,14 @@ EdgeQuake doesn't include built-in authentication. Secure with:
 
 ### What query modes are available?
 
-| Mode     | Use Case                          |
-| -------- | --------------------------------- |
-| `naive`  | Simple vector search              |
-| `local`  | Entity-focused queries            |
-| `global` | High-level summaries              |
-| `hybrid` | Best of all modes (DEFAULT)       |
-| `mix`    | Custom weighted blend             |
-| `bypass` | Direct LLM, no retrieval (debug)  |
+| Mode     | Use Case                         |
+| -------- | -------------------------------- |
+| `naive`  | Simple vector search             |
+| `local`  | Entity-focused queries           |
+| `global` | High-level summaries             |
+| `hybrid` | Best of all modes (DEFAULT)      |
+| `mix`    | Custom weighted blend            |
+| `bypass` | Direct LLM, no retrieval (debug) |
 
 ---
 

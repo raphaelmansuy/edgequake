@@ -1,5 +1,5 @@
 ---
-title: 'Tutorial: Building Your First RAG App'
+title: "Tutorial: Building Your First RAG App"
 ---
 
 # Tutorial: Building Your First RAG App
@@ -462,12 +462,12 @@ curl -X DELETE "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID"
 
 ## Next Steps
 
-| Tutorial                                              | Description                    |
-| ----------------------------------------------------- | ------------------------------ |
+| Tutorial                                                            | Description                    |
+| ------------------------------------------------------------------- | ------------------------------ |
 | [Document Ingestion Deep-Dive](/docs/tutorials/document-ingestion/) | Custom chunking and processing |
 | [Query Optimization](/docs/tutorials/query-optimization/)           | Choosing the right mode        |
 | [Multi-Tenant Setup](/docs/tutorials/multi-tenant/)                 | Building a SaaS app            |
-| [Custom Entity Types](/docs/concepts/entity-extraction/)             | Domain-specific extraction     |
+| [Custom Entity Types](/docs/concepts/entity-extraction/)            | Domain-specific extraction     |
 
 ---
 

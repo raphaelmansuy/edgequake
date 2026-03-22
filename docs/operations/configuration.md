@@ -1,5 +1,5 @@
 ---
-title: 'Configuration Reference'
+title: "Configuration Reference"
 ---
 
 # Configuration Reference
@@ -122,10 +122,10 @@ DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
 
 #### MiniMax
 
-| Variable            | Type   | Default                      | Description                                          |
-| ------------------- | ------ | ---------------------------- | ---------------------------------------------------- |
-| `MINIMAX_API_KEY`   | String | None                         | MiniMax API key (required)                           |
-| `MINIMAX_BASE_URL`  | String | `https://api.minimax.io/v1`  | API endpoint (use `https://api.minimaxi.com/v1` for China) |
+| Variable           | Type   | Default                     | Description                                                |
+| ------------------ | ------ | --------------------------- | ---------------------------------------------------------- |
+| `MINIMAX_API_KEY`  | String | None                        | MiniMax API key (required)                                 |
+| `MINIMAX_BASE_URL` | String | `https://api.minimax.io/v1` | API endpoint (use `https://api.minimaxi.com/v1` for China) |
 
 #### Azure OpenAI
 

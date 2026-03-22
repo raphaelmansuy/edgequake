@@ -1,5 +1,5 @@
 ---
-title: 'EdgeQuake REST API Reference'
+title: "EdgeQuake REST API Reference"
 ---
 
 # EdgeQuake REST API Reference
@@ -202,14 +202,14 @@ List all documents in the workspace.
 
 **Query Parameters**:
 
-| Parameter          | Type    | Default | Description                                      |
-| ------------------ | ------- | ------- | ------------------------------------------------ |
-| `limit`            | integer | 50      | Max documents to return                          |
-| `offset`           | integer | 0       | Pagination offset                                |
-| `status`           | string  | all     | Filter by status (processing, completed, failed) |
-| `date_from`        | string  | null    | ISO 8601 date. Only include documents created on or after this date |
+| Parameter          | Type    | Default | Description                                                          |
+| ------------------ | ------- | ------- | -------------------------------------------------------------------- |
+| `limit`            | integer | 50      | Max documents to return                                              |
+| `offset`           | integer | 0       | Pagination offset                                                    |
+| `status`           | string  | all     | Filter by status (processing, completed, failed)                     |
+| `date_from`        | string  | null    | ISO 8601 date. Only include documents created on or after this date  |
 | `date_to`          | string  | null    | ISO 8601 date. Only include documents created on or before this date |
-| `document_pattern` | string  | null    | Comma-separated title search terms (case-insensitive, OR logic) |
+| `document_pattern` | string  | null    | Comma-separated title search terms (case-insensitive, OR logic)      |
 
 ```bash
 curl http://localhost:8080/api/v1/documents?limit=10&status=completed \
@@ -299,24 +299,24 @@ curl -X POST http://localhost:8080/api/v1/query \
 
 **Request Body**:
 
-| Field                  | Type    | Default  | Description                                  |
-| ---------------------- | ------- | -------- | -------------------------------------------- |
-| `query`                | string  | required | The question to answer                       |
-| `mode`                 | string  | "hybrid" | Query mode (see below)                       |
-| `context_only`         | boolean | false    | Return only retrieved context, no LLM answer |
-| `prompt_only`          | boolean | false    | Return formatted prompt for debugging        |
-| `enable_rerank`        | boolean | true     | Apply reranking to improve relevance         |
-| `rerank_top_k`         | integer | 5        | Number of top chunks after reranking         |
-| `conversation_history` | array   | null     | Previous messages for multi-turn context     |
-| `system_prompt`        | string  | null     | Custom instructions prepended to LLM context |
+| Field                  | Type    | Default  | Description                                         |
+| ---------------------- | ------- | -------- | --------------------------------------------------- |
+| `query`                | string  | required | The question to answer                              |
+| `mode`                 | string  | "hybrid" | Query mode (see below)                              |
+| `context_only`         | boolean | false    | Return only retrieved context, no LLM answer        |
+| `prompt_only`          | boolean | false    | Return formatted prompt for debugging               |
+| `enable_rerank`        | boolean | true     | Apply reranking to improve relevance                |
+| `rerank_top_k`         | integer | 5        | Number of top chunks after reranking                |
+| `conversation_history` | array   | null     | Previous messages for multi-turn context            |
+| `system_prompt`        | string  | null     | Custom instructions prepended to LLM context        |
 | `document_filter`      | object  | null     | Optional filter to restrict RAG context (see below) |
 
 **Document Filter Object**:
 
-| Field              | Type   | Description                                          |
-| ------------------ | ------ | ---------------------------------------------------- |
-| `date_from`        | string | ISO 8601 date. Only include documents created on or after this date |
-| `date_to`          | string | ISO 8601 date. Only include documents created on or before this date |
+| Field              | Type   | Description                                                                  |
+| ------------------ | ------ | ---------------------------------------------------------------------------- |
+| `date_from`        | string | ISO 8601 date. Only include documents created on or after this date          |
+| `date_to`          | string | ISO 8601 date. Only include documents created on or before this date         |
 | `document_pattern` | string | Comma-separated terms. Matches document titles case-insensitively (OR logic) |
 
 All filter fields are optional and AND-ed together. Omit `document_filter` entirely to query all documents.
@@ -392,15 +392,15 @@ curl -X POST http://localhost:8080/api/v1/query/stream \
 
 **Request Parameters**:
 
-| Field             | Type   | Required | Description                                                |
-|-------------------|--------|----------|------------------------------------------------------------|
-| `query`           | string | yes      | Natural language query                                     |
-| `mode`            | string | no       | Query mode: `hybrid`, `local`, `global`, `naive`, `mix`    |
-| `system_prompt`   | string | no       | System prompt extension                                    |
-| `document_filter` | object | no       | Document filter to scope RAG context (SPEC-005)            |
-| `llm_provider`    | string | no       | LLM provider override (e.g., `openai`, `ollama`)           |
-| `llm_model`       | string | no       | LLM model override (e.g., `gpt-5-nano`)                   |
-| `stream_format`   | string | no       | `v1` for raw text (backward compat), `v2` for structured   |
+| Field             | Type   | Required | Description                                              |
+| ----------------- | ------ | -------- | -------------------------------------------------------- |
+| `query`           | string | yes      | Natural language query                                   |
+| `mode`            | string | no       | Query mode: `hybrid`, `local`, `global`, `naive`, `mix`  |
+| `system_prompt`   | string | no       | System prompt extension                                  |
+| `document_filter` | object | no       | Document filter to scope RAG context (SPEC-005)          |
+| `llm_provider`    | string | no       | LLM provider override (e.g., `openai`, `ollama`)         |
+| `llm_model`       | string | no       | LLM model override (e.g., `gpt-5-nano`)                  |
+| `stream_format`   | string | no       | `v1` for raw text (backward compat), `v2` for structured |
 
 **SSE Events (v2 format — default)**:
 
@@ -452,13 +452,13 @@ curl -X POST http://localhost:8080/api/v1/chat/completions \
 
 **Request Body**:
 
-| Field             | Type    | Default  | Description                                    |
-| ----------------- | ------- | -------- | ---------------------------------------------- |
-| `message`         | string  | required | User message                                   |
-| `conversation_id` | string  | null     | Existing conversation ID (creates new if null) |
-| `mode`            | string  | "hybrid" | Query mode                                     |
-| `stream`          | boolean | false    | Enable SSE streaming                           |
-| `system_prompt`   | string  | null     | Custom instructions prepended to LLM context   |
+| Field             | Type    | Default  | Description                                                        |
+| ----------------- | ------- | -------- | ------------------------------------------------------------------ |
+| `message`         | string  | required | User message                                                       |
+| `conversation_id` | string  | null     | Existing conversation ID (creates new if null)                     |
+| `mode`            | string  | "hybrid" | Query mode                                                         |
+| `stream`          | boolean | false    | Enable SSE streaming                                               |
+| `system_prompt`   | string  | null     | Custom instructions prepended to LLM context                       |
 | `document_filter` | object  | null     | Optional filter to restrict RAG context (same schema as Query API) |
 
 **Response** (Non-streaming):
