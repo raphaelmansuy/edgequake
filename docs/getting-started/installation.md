@@ -233,7 +233,7 @@ Run these commands to verify your installation:
 ```bash
 # 1. Check backend health
 curl -s http://localhost:8080/health | jq
-# ✅ Expected: {"status":"ok","version":"0.1.0",...}
+# ✅ Expected: {"status":"ok","version":"0.7.0",...}
 
 # 2. Check API docs
 curl -s http://localhost:8080/api-docs/openapi.json | jq .info.title

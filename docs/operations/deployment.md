@@ -375,10 +375,10 @@ EdgeQuake automatically selects storage based on `DATABASE_URL`:
 │       │              • Apache AGE for graph                     │
 │       │              • Full multi-tenant support                │
 │       │                                                         │
-│       └── NO ──────▶ Memory Mode                                │
-│                      • Ephemeral (data lost on restart)         │
-│                      • For development/testing only             │
-│                      • No external dependencies                 │
+│       └── NO ──────▶ ❌ Error: DATABASE_URL required             │
+│                      • Server exits with code 1                 │
+│                      • Set DATABASE_URL to proceed              │
+│                      • In-memory mode removed in v0.4.0         │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```

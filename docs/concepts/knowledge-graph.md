@@ -112,12 +112,9 @@ EdgeQuake uses a hybrid storage architecture:
 
 ### Development Mode
 
-For rapid development, EdgeQuake also supports in-memory storage:
-
-```bash
-# Start with in-memory (no database required)
-cargo run -- --storage memory
-```
+> **Note:** In-memory storage was removed in v0.4.0. PostgreSQL is required
+> for all deployments, including development. See the
+> [installation guide](/docs/getting-started/installation/) for setup instructions.
 
 ---
 
