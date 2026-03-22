@@ -179,7 +179,7 @@ description = "OpenAI GPT models"
 
 # Model definitions within provider
 [[providers.models]]
-name = "gpt-4o-mini"
+name = "gpt-5-nano"
 display_name = "GPT-4o Mini"
 model_type = "llm"                   # or "embedding"
 description = "Cost-effective model"
@@ -242,7 +242,7 @@ enabled = true
 priority = 10
 
 [[providers.models]]
-name = "gpt-4o-mini"
+name = "gpt-5-nano"
 display_name = "GPT-4o Mini"
 model_type = "llm"
 tags = ["recommended"]
@@ -312,7 +312,7 @@ enabled = true
 priority = 5
 
 [[providers.models]]
-name = "gpt-4o-mini"  # Your deployment name
+name = "gpt-5-nano"  # Your deployment name
 display_name = "Azure GPT-4o Mini"
 model_type = "llm"
 
@@ -437,7 +437,7 @@ enabled = true
 priority = 6
 
 [[providers.models]]
-name = "openai/gpt-4o-mini"
+name = "openai/gpt-5-nano"
 display_name = "OpenRouter GPT-4o Mini"
 model_type = "llm"
 tags = ["recommended"]
@@ -473,7 +473,7 @@ curl -X POST http://localhost:8080/api/v1/query \
     "query": "What is quantum computing?",
     "mode": "hybrid",
     "llm_provider": "openai",
-    "llm_model": "gpt-4o-mini"
+    "llm_model": "gpt-5-nano"
   }'
 ```
 
