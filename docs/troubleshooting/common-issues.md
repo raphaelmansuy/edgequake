@@ -1041,7 +1041,7 @@ curl -I http://localhost:8080/health
 1. Check this troubleshooting guide
 2. Check logs for specific error messages
 3. Verify environment variables are set
-4. Try with minimal configuration (in-memory, mock LLM)
+4. Try with minimal configuration (PostgreSQL + mock LLM)
 
 ### Debug Mode
 

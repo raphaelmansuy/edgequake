@@ -519,7 +519,6 @@ Key feature flags across crates:
 | Flag       | Crate    | Description               |
 | ---------- | -------- | ------------------------- |
 | `postgres` | storage  | Enable PostgreSQL backend |
-| `memory`   | storage  | Enable in-memory backend  |
 | `openai`   | llm      | Enable OpenAI provider    |
 | `ollama`   | llm      | Enable Ollama provider    |
 | `pdf`      | pipeline | Enable PDF processing     |

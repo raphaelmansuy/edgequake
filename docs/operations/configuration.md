@@ -566,7 +566,8 @@ DATABASE_URL="postgresql://user:pass@pgbouncer:6432/edgequake?application_name=e
 ### Development (Minimal)
 
 ```bash
-# Just run with defaults (in-memory, mock LLM if no key)
+# Requires DATABASE_URL — set via .env or environment
+# Mock LLM if no OPENAI_API_KEY is set
 cargo run
 ```
 
