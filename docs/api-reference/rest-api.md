@@ -87,7 +87,7 @@ Deep health check with component status for monitoring dashboards.
 ```json
 {
   "status": "healthy",
-  "version": "0.1.0",
+  "version": "0.7.0",
   "storage_mode": "postgres",
   "workspace_id": "default",
   "components": {

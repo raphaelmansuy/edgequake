@@ -59,7 +59,7 @@ curl http://localhost:8080/health
 Expected response:
 
 ```json
-{ "status": "ok", "version": "0.1.0", "storage_mode": "postgresql" }
+{ "status": "ok", "version": "0.7.0", "storage_mode": "postgresql" }
 ```
 
 ---
