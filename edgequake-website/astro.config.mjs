@@ -13,7 +13,7 @@ export default defineConfig({
     starlight({
       title: "EdgeQuake",
       description:
-        "Graph-RAG framework built for speed. Knowledge graph engine powered by Rust.",
+        "Graph-RAG framework — Built to Ship. Knowledge graph engine powered by Rust.",
       head: [
         // Default OG image for all docs pages (PNG required for Twitter/LinkedIn/Facebook)
         {
