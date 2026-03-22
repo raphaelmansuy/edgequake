@@ -267,7 +267,7 @@ retriever = EdgeQuakeRetriever(
     query_mode="hybrid",
 )
 
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatOpenAI(model="gpt-5-nano", temperature=0)
 
 # Prompt template
 template = """Answer the question based on the following context:
@@ -367,7 +367,7 @@ knowledge_tool = Tool(
 )
 
 # Create agent
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatOpenAI(model="gpt-5-nano", temperature=0)
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant with access to a knowledge base."),
@@ -419,7 +419,7 @@ def generate(state: GraphState) -> GraphState:
     """Generate response using context."""
     from langchain_openai import ChatOpenAI
 
-    llm = ChatOpenAI(model="gpt-4o-mini")
+    llm = ChatOpenAI(model="gpt-5-nano")
 
     prompt = f"""Based on the following context, answer the question.
 

@@ -635,7 +635,7 @@ curl -X POST http://localhost:8080/api/v1/workspaces \
     "description": "Workspace for research documents",
     "embedding_model": "text-embedding-3-small",
     "embedding_dimension": 1536,
-    "llm_model": "gpt-4o-mini"
+    "llm_model": "gpt-5-nano"
   }'
 ```
 
@@ -699,7 +699,7 @@ curl http://localhost:8080/api/v1/models
 {
   "models": [
     {
-      "id": "gpt-4o-mini",
+      "id": "gpt-5-nano",
       "name": "GPT-4o Mini",
       "provider": "openai",
       "context_length": 128000,

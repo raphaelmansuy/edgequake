@@ -115,8 +115,8 @@ EdgeQuake itself is **free and open source**. Costs come from:
 1. **Use cheaper models**:
 
    ```bash
-   # gpt-4o-mini is 10x cheaper than gpt-4o
-   EDGEQUAKE_LLM_MODEL=gpt-4o-mini
+   # gpt-5-nano is 10x cheaper than gpt-4o
+   EDGEQUAKE_LLM_MODEL=gpt-5-nano
    ```
 
 2. **Use local LLM** (Ollama):
@@ -133,7 +133,7 @@ EdgeQuake itself is **free and open source**. Costs come from:
 
 OpenAI offers free credits for new accounts ($5-$18 depending on promotion). After that:
 
-- gpt-4o-mini: ~$0.00015/1K input tokens
+- gpt-5-nano: ~$0.00015/1K input tokens
 - text-embedding-3-small: ~$0.00002/1K tokens
 
 ---
@@ -163,7 +163,7 @@ EdgeQuake handles:
 
 1. **Use `naive` mode** for simple queries (vector-only, no graph)
 2. **Reduce `max_chunks`** from 20 to 5-10
-3. **Use faster LLM** (gpt-4o-mini vs gpt-4o)
+3. **Use faster LLM** (gpt-5-nano vs gpt-4o)
 4. **Pre-warm embeddings** with test query
 5. **Use GPU** for Ollama embedding
 

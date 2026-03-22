@@ -826,7 +826,7 @@ RUST_LOG="edgequake=debug" cargo run
 ```bash
 # Use faster model
 curl -X POST "http://localhost:8080/api/v1/query" \
-  -d '{"query": "test", "llm_model": "gpt-4o-mini"}'
+  -d '{"query": "test", "llm_model": "gpt-5-nano"}'
 
 # Reduce context size
 curl -X POST "http://localhost:8080/api/v1/query" \
