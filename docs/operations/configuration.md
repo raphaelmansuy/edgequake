@@ -607,7 +607,7 @@ EdgeQuake validates configuration at startup:
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║   ⚡ EdgeQuake v0.1.0                                         ║
+║   ⚡ EdgeQuake v0.7.0                                         ║
 ║                                                              ║
 ║   🐘 Storage: POSTGRESQL (persistent)
 ║   🌐 Server:  http://0.0.0.0:8080

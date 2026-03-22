@@ -4,7 +4,7 @@ title: 'EdgeQuake REST API Reference'
 
 # EdgeQuake REST API Reference
 
-> **Version**: 0.1.0  
+> **Version**: 0.7.0  
 > **Base URL**: `http://localhost:8080/api/v1`  
 > **OpenAPI**: Available at `/api-docs/openapi.json`
 

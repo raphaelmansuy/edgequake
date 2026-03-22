@@ -1,6 +1,6 @@
 ---
 title: Documentation
-description: Complete documentation for EdgeQuake — the Graph-RAG framework built for speed.
+description: Complete documentation for EdgeQuake — the Graph-RAG framework Built to Ship.
 template: splash
 hero:
   title: EdgeQuake Documentation
