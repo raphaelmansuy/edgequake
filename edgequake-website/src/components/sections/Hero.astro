@@ -27,11 +27,11 @@ const badges = [
   </div>
 
   <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-    <div class="grid items-center gap-12 lg:grid-cols-2">
+    <div class="grid items-center gap-8 md:grid-cols-2 md:gap-12">
       <!-- Text -->
-      <div class="text-center lg:text-left">
+      <div class="text-center md:text-left">
         <div
-          class="flex flex-wrap items-center justify-center gap-2 lg:justify-start"
+          class="flex flex-wrap items-center justify-center gap-2 md:justify-start"
         >
           {
             badges.map((b) => (
@@ -43,25 +43,25 @@ const badges = [
         </div>
 
         <h1
-          class="mt-6 text-4xl font-extrabold tracking-tight mkt-text sm:text-5xl lg:text-6xl"
+          class="mt-6 text-4xl font-extrabold tracking-tight mkt-text sm:text-5xl md:text-5xl lg:text-6xl"
         >
           Graph-RAG.{" "}
           <span class="mkt-accent-text">Built to Ship.</span>
         </h1>
 
-        <p class="mt-6 max-w-xl text-lg mkt-text-muted mx-auto lg:mx-0">
+        <p class="mt-6 max-w-xl text-lg mkt-text-muted mx-auto md:mx-0">
           Turn PDFs, markdown, and raw text into lineage-aware knowledge graphs.
           Query with local, global, hybrid, naive, mix, and graph-aware
           retrieval. Run the full stack in Rust on PostgreSQL.
         </p>
 
-        <p class="mt-4 max-w-xl text-sm mkt-text-dim mx-auto lg:mx-0">
+        <p class="mt-4 max-w-xl text-sm mkt-text-dim mx-auto md:mx-0">
           Built for teams that want Graph-RAG quality without Python pipeline
           fragility, cloud lock-in, or opaque retrieval behavior.
         </p>
 
         <div
-          class="mt-8 flex flex-wrap items-center justify-center gap-4 lg:justify-start"
+          class="mt-8 flex flex-wrap items-center justify-center gap-4 md:justify-start"
         >
           <a
             href="/docs/getting-started/"
@@ -103,7 +103,7 @@ const badges = [
         </div>
 
         <div
-          class="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm lg:justify-start"
+          class="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm md:justify-start"
         >
           <a
             href="/docs/getting-started/"
@@ -126,9 +126,9 @@ const badges = [
         </div>
       </div>
 
-      <!-- Graph Animation -->
-      <div class="relative hidden lg:block">
-        <div class="aspect-square w-full max-w-lg mx-auto">
+      <!-- Graph Animation (tablet + desktop) -->
+      <div class="relative hidden md:block">
+        <div class="aspect-square w-full max-w-sm mx-auto lg:max-w-lg">
           <GraphAnimation />
         </div>
       </div>

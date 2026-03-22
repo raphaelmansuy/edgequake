@@ -18,10 +18,58 @@
     </div>
 
     <div class="mt-12 flex justify-center">
-      <div class="mkt-card w-full max-w-4xl overflow-x-auto rounded-xl p-8">
+      <div class="mkt-card w-full max-w-4xl rounded-xl p-4 sm:p-8">
+
+        <!-- Mobile pipeline: vertical steps (visible on xs/sm only) -->
+        <div class="sm:hidden">
+          <ol class="flex flex-col items-center gap-1">
+            {[
+              "Documents",
+              "Ingestion Pipeline",
+              "PostgreSQL Storage",
+              "Query Engine",
+              "REST API",
+            ].map((stage, i) => (
+              <li class="flex w-full flex-col items-center">
+                <div class="w-full rounded-lg border border-blue-500/70 bg-[#1e3a5f] px-4 py-3 text-center">
+                  <span class="text-sm font-semibold text-blue-300">{stage}</span>
+                </div>
+                {i < 4 && (
+                  <svg
+                    width="16"
+                    height="20"
+                    viewBox="0 0 16 20"
+                    aria-hidden="true"
+                  >
+                    <line
+                      x1="8"
+                      y1="0"
+                      x2="8"
+                      y2="14"
+                      stroke="#3b82f6"
+                      stroke-width="1.5"
+                    />
+                    <polygon points="2,12 8,20 14,12" fill="#3b82f6" />
+                  </svg>
+                )}
+              </li>
+            ))}
+          </ol>
+          <div class="mt-4 flex justify-center gap-4">
+            <span class="rounded-md border border-dashed border-zinc-500/60 px-3 py-1.5 text-xs text-zinc-400">
+              LLM Provider
+            </span>
+            <span class="rounded-md border border-dashed border-zinc-500/60 px-3 py-1.5 text-xs text-zinc-400">
+              Clients
+            </span>
+          </div>
+        </div>
+
+        <!-- Desktop/tablet pipeline: horizontal SVG (hidden on xs) -->
+        <div class="hidden sm:block overflow-x-auto">
         <svg
           viewBox="0 0 800 340"
-          class="w-full"
+          class="w-full min-w-[640px]"
           xmlns="http://www.w3.org/2000/svg"
         >
           <!-- Boxes -->
@@ -185,6 +233,7 @@
             </marker>
           </defs>
         </svg>
+        </div><!-- end hidden sm:block -->
 
         <p class="mt-6 text-sm leading-relaxed mkt-text-muted">
           The key idea is simple: ingest source material once, preserve

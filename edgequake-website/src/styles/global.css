@@ -301,6 +301,12 @@
     margin: 0;
   }
 
+  /* Ensure code blocks scroll horizontally on narrow screens */
+  .mkt-code-showcase pre {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
   .mkt-form-field {
     width: 100%;
     border-radius: 0.875rem;
