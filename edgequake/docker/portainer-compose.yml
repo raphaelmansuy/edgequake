@@ -1,5 +1,6 @@
 services:
   edgequake:
+    # docker build -t docker-edgequake:latest -f edgequake/docker/Dockerfile edgequake
     image: docker-edgequake:latest
     container_name: edgequake-backend
     restart: unless-stopped
@@ -25,6 +26,8 @@ services:
       - EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1024
       - EDGEQUAKE_VISION_PROVIDER=${EDGEQUAKE_VISION_PROVIDER:-openai}
       - EDGEQUAKE_VISION_MODEL=${EDGEQUAKE_VISION_MODEL:-qwen3.5-35b-a3b}
+      - EDGEQUAKE_VISION_TIMEOUT_SECS=${EDGEQUAKE_VISION_TIMEOUT_SECS:-600}
+      - PDFIUM_AUTO_CACHE_DIR=${PDFIUM_AUTO_CACHE_DIR:-/tmp/edgequake-pdfium-cache}
       - WORKER_THREADS=2
       - RUST_LOG=debug,edgequake=debug,tower_http=warn,axum=warn
       - RUST_BACKTRACE=1
@@ -43,6 +46,7 @@ services:
       start_period: 40s
 
   frontend:
+    # docker build -t docker-frontend:latest -f edgequake_webui/Dockerfile .
     image: docker-frontend:latest
     container_name: edgequake-frontend
     restart: unless-stopped
