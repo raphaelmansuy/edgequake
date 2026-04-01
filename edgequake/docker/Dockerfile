@@ -54,6 +54,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -s /bin/false edgequake
 
+# pdfium-auto extracts the bundled shared library into this writable cache base.
+ENV PDFIUM_AUTO_CACHE_DIR=/tmp/edgequake-pdfium-cache
+
 # Copy binary from builder
 COPY --from=builder /app/target/release/edgequake /usr/local/bin/
 

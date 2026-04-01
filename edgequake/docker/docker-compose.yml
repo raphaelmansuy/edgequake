@@ -30,6 +30,8 @@ services:
       - EDGEQUAKE_EMBEDDING_PROVIDER=${EDGEQUAKE_EMBEDDING_PROVIDER:-}
       # Vision extraction timeout (seconds). Default 600s (10 min).
       - EDGEQUAKE_VISION_TIMEOUT_SECS=${EDGEQUAKE_VISION_TIMEOUT_SECS:-600}
+      # Writable cache base for the bundled pdfium library used by pdfium-auto.
+      - PDFIUM_AUTO_CACHE_DIR=${PDFIUM_AUTO_CACHE_DIR:-/tmp/edgequake-pdfium-cache}
       - RUST_LOG=info,edgequake=debug
     # Linux only: enable host.docker.internal resolution
     extra_hosts:

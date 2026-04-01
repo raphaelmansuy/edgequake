@@ -1,0 +1,54 @@
+services:
+  edgequake:
+    image: docker-edgequake:latest
+    container_name: edgequake-backend
+    restart: unless-stopped
+    ports:
+      - "11432:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - DATABASE_URL=${DATABASE_URL:-postgresql://edgequake:${POSTGRES_PASSWORD:-edgequake_pass}@host.docker.internal:5432/edgequake_db}
+      - EDGEQUAKE_MODELS_CONFIG=/app/models.toml
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_COMPATIBLE_API_KEY=${OPENAI_COMPATIBLE_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://host.docker.internal:4000/v1}
+      - EDGEQUAKE_LLM_PROVIDER=${EDGEQUAKE_LLM_PROVIDER:-openai}
+      - EDGEQUAKE_LLM_MODEL=${EDGEQUAKE_LLM_MODEL:-qwen3.5-35b-a3b}
+      - EDGEQUAKE_EMBEDDING_PROVIDER=${EDGEQUAKE_EMBEDDING_PROVIDER:-openai}
+      - EDGEQUAKE_EMBEDDING_MODEL=${EDGEQUAKE_EMBEDDING_MODEL:-qwen3-embedding-0.6b}
+      - EDGEQUAKE_EMBEDDING_DIMENSION=${EDGEQUAKE_EMBEDDING_DIMENSION:-1024}
+      - EDGEQUAKE_DEFAULT_LLM_PROVIDER=litellm-local
+      - EDGEQUAKE_DEFAULT_LLM_MODEL=qwen3.5-35b-a3b
+      - EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=litellm-local
+      - EDGEQUAKE_DEFAULT_EMBEDDING_MODEL=qwen3-embedding-0.6b
+      - EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1024
+      - EDGEQUAKE_VISION_PROVIDER=${EDGEQUAKE_VISION_PROVIDER:-openai}
+      - EDGEQUAKE_VISION_MODEL=${EDGEQUAKE_VISION_MODEL:-qwen3.5-35b-a3b}
+      - PDFIUM_AUTO_CACHE_DIR=${PDFIUM_AUTO_CACHE_DIR:-/tmp/edgequake-pdfium-cache}
+      - WORKER_THREADS=2
+      - RUST_LOG=debug,edgequake=debug,tower_http=warn,axum=warn
+      - RUST_BACKTRACE=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: /root/edgequake/config/models.toml
+        target: /app/models.toml
+        read_only: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    image: docker-frontend:latest
+    container_name: edgequake-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      EDGEQUAKE_API_URL: ${EDGEQUAKE_API_URL:-http://localhost:11432}
+      NODE_ENV: production
