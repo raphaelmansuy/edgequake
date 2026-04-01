@@ -7,9 +7,9 @@ use uuid::Uuid;
 // ============================================================================
 // Model Configuration Constants (SPEC-032)
 // ============================================================================
-// These defaults MUST match models.toml [defaults] section.
-// Ollama is used by default for both LLM and embedding to enable
-// development without requiring API keys.
+// These defaults are only used as a safe fallback when environment variables
+// are not set. Production/runtime defaults should come from the corresponding
+// EDGEQUAKE_DEFAULT_* and EDGEQUAKE_VISION_* environment variables.
 //
 // To use OpenAI or other providers, set environment variables:
 //   - EDGEQUAKE_DEFAULT_LLM_PROVIDER=openai
@@ -176,12 +176,39 @@ impl Workspace {
         (model, provider, dimension)
     }
 
+    /// Get default vision configuration from environment.
+    ///
+    /// Returns `(provider, model)` when `EDGEQUAKE_VISION_MODEL` is set.
+    /// If the provider is not set explicitly, it is inferred from the model
+    /// name so OpenAI-compatible aliases keep their runtime provider name.
+    pub fn default_vision_config() -> (Option<String>, Option<String>) {
+        let model = std::env::var("EDGEQUAKE_VISION_MODEL")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+
+        let provider = model.as_deref().map(|model| {
+            std::env::var("EDGEQUAKE_VISION_PROVIDER")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| Self::detect_provider_from_model(model))
+        });
+
+        match (provider, model) {
+            (Some(provider), Some(model)) => (Some(provider), Some(model)),
+            (Some(provider), None) => (Some(provider), None),
+            _ => (None, None),
+        }
+    }
+
     /// Auto-detect provider from model name conventions.
     ///
     /// # Examples
     ///
     /// - "text-embedding-3-small" → "openai"
     /// - "gemma3:12b" → "ollama" (colon indicates Ollama tag format)
+    /// - "qwen3.5-35b-a3b" → "litellm-local" (OpenAI-compatible LiteLLM alias)
     /// - "gemma2-9b-it" → "lmstudio"
     pub fn detect_provider_from_model(model: &str) -> String {
         if model.starts_with("text-embedding") || model.starts_with("ada") {
@@ -189,6 +216,8 @@ impl Workspace {
         } else if model.contains(':') {
             // Ollama uses "model:tag" format
             "ollama".to_string()
+        } else if model.starts_with("qwen3") {
+            "litellm-local".to_string()
         } else if model.starts_with("gemma") || model.starts_with("llama") {
             "lmstudio".to_string()
         } else {
@@ -209,12 +238,14 @@ impl Workspace {
     /// | embeddinggemma:latest | 768 |
     /// | nomic-embed-text | 768 |
     /// | mxbai-embed-large | 1024 |
+    /// | qwen3-embedding-0.6b | 1024 |
     pub fn detect_dimension_from_model(model: &str) -> usize {
         match model {
             "text-embedding-3-small" | "text-embedding-ada-002" => 1536,
             "text-embedding-3-large" => 3072,
             "embeddinggemma:latest" | "nomic-embed-text" | "nomic-embed-text:latest" => 768,
             "mxbai-embed-large" | "mxbai-embed-large:latest" => 1024,
+            _ if model.starts_with("qwen3-embedding") => 1024,
             _ if model.contains("768") => 768,
             _ if model.contains("1024") => 1024,
             _ if model.contains("3072") => 3072,

@@ -27,8 +27,20 @@ fn clean_provider_env() {
     std::env::remove_var("LMSTUDIO_HOST");
     std::env::remove_var("LMSTUDIO_MODEL");
     std::env::remove_var("OPENAI_API_KEY");
+    std::env::remove_var("OPENAI_COMPATIBLE_API_KEY");
+    std::env::remove_var("OPENAI_BASE_URL");
+    std::env::remove_var("EDGEQUAKE_LLM_MODEL");
+    std::env::remove_var("EDGEQUAKE_EMBEDDING_MODEL");
+    std::env::remove_var("EDGEQUAKE_EMBEDDING_PROVIDER");
+    std::env::remove_var("EDGEQUAKE_EMBEDDING_DIMENSION");
     std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL");
     std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER");
+    std::env::remove_var("EDGEQUAKE_DEFAULT_LLM_MODEL");
+    std::env::remove_var("EDGEQUAKE_DEFAULT_LLM_PROVIDER");
+    std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION");
+    std::env::remove_var("EDGEQUAKE_VISION_PROVIDER");
+    std::env::remove_var("EDGEQUAKE_VISION_MODEL");
+    std::env::remove_var("EDGEQUAKE_MODELS_CONFIG");
 }
 
 // ============================================================================
@@ -167,6 +179,7 @@ async fn test_embedding_dimension_autodetection() {
         ("nomic-embed-text", 768),
         ("nomic-embed-text:latest", 768),
         ("mxbai-embed-large", 1024),
+        ("qwen3-embedding-0.6b", 1024),
         ("unknown-model", 768), // Default fallback now matches Ollama/models.toml
     ];
 
@@ -506,6 +519,7 @@ async fn test_provider_detection_from_model() {
     // Detection rules:
     // - "text-embedding*" or "ada*" → openai
     // - Contains ":" (like "model:tag") → ollama
+    // - Starts with "qwen3" → litellm-local
     // - Starts with "gemma" or "llama" → lmstudio
     // - Default → openai
     let test_cases = [
@@ -514,6 +528,7 @@ async fn test_provider_detection_from_model() {
         ("embeddinggemma:latest", "ollama"),   // Contains ":"
         ("nomic-embed-text:latest", "ollama"), // Contains ":"
         ("nomic-embed-text", "openai"),        // No ":", not gemma/llama → default openai
+        ("qwen3.5-35b-a3b", "litellm-local"),
         ("gemma2-9b-it", "lmstudio"),          // Starts with gemma
         ("llama-3.1-8b", "lmstudio"),          // Starts with llama
     ];

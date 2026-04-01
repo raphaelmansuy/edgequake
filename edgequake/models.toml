@@ -31,10 +31,10 @@
 #   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
 
 [defaults]
-llm_provider = "ollama"              # Default LLM provider
-llm_model = "gemma3:12b"             # Default LLM model (128K context, vision support)
-embedding_provider = "ollama"        # Default embedding provider
-embedding_model = "embeddinggemma"   # Default embedding model (768 dimensions, 2K context)
+llm_provider = "litellm-local"               # Default LLM provider
+llm_model = "qwen3.5-35b-a3b"                # Default LLM model (128K context, vision support)
+embedding_provider = "litellm-local"         # Default embedding provider
+embedding_model = "qwen3-embedding-0.6b"     # Default embedding model (1024 dimensions)
 
 # =============================================================================
 # OPENAI PROVIDER
@@ -1723,6 +1723,67 @@ image_per_unit = 0.0
 # =============================================================================
 # CUSTOM OPENAI-COMPATIBLE PROVIDERS
 # =============================================================================
+#
+# LiteLLM-compatible local provider used by the Portainer stack.
+
+[[providers]]
+name = "litellm-local"
+display_name = "LiteLLM"
+type = "openai"
+api_base = "http://192.168.0.204:4000/v1"
+api_key_env = "OPENAI_COMPATIBLE_API_KEY"
+enabled = true
+priority = 30
+description = "Local LiteLLM deployment"
+
+[[providers.models]]
+name = "qwen3.5-35b-a3b"
+display_name = "Qwen3.5-35B-A3B-Instruct"
+model_type = "llm"
+description = "gx10-2 resident local multimodal Qwen3.5 35B A3B profile with 102400 context, vision, and tool-calling support"
+deprecated = false
+tags = ["recommended", "multimodal", "vision"]
+
+[providers.models.capabilities]
+context_length = 102400
+max_output_tokens = 16384
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "qwen3-embedding-0.6b"
+display_name = "Qwen3 Embedding 0.6B"
+model_type = "embedding"
+description = "gx10-2 resident local embedding model with 1024 dimensions"
+deprecated = false
+tags = ["recommended", "cost-effective"]
+
+[providers.models.capabilities]
+context_length = 20480
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1024
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
 # Example template for adding custom OpenAI-compatible providers
 # Uncomment and modify to add providers like vLLM, Text Generation Inference, etc.
 
