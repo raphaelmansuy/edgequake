@@ -71,6 +71,7 @@ edgequake_webui/playwright-report/
 edgequake_webui/build_pid.txt
 edgequake_webui/tsc_output.txt
 edgequake_webui/tsc_pid.txt
+edgequake_webui/public/runtime-config.js
 node_modules/
 # Node.js (for webui)
 node_modules/
@@ -132,3 +133,4 @@ Thumbs.db
 ehthumbs.db
 specs/
 ./metals
+config/

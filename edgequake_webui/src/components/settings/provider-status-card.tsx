@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Provider Status Card Component
+ * Runtime Provider Status Card Component
  * 
  * @implements SPEC-032: Ollama/LM Studio provider support - WebUI status display
  * @iteration OODA Loop #5 - Phase 5E.6
@@ -72,6 +72,7 @@ export function ProviderStatusCard() {
     const names: Record<string, string> = {
       'ollama': 'Ollama',
       'openai': 'OpenAI',
+      'openai-compatible': 'OpenAI-compatible',
       'lmstudio': 'LM Studio',
       'anthropic': 'Anthropic',
       'gemini': 'Google Gemini',
@@ -79,6 +80,8 @@ export function ProviderStatusCard() {
       'openrouter': 'OpenRouter',
       'azure': 'Azure OpenAI',
       'minimax': 'MiniMax',
+      'litellm': 'LiteLLM',
+      'litellm-local': 'LiteLLM',
       'mock': 'Mock (Development)',
     };
     return names[name.toLowerCase()] || name;
@@ -94,7 +97,32 @@ export function ProviderStatusCard() {
     return colors[status] || 'bg-gray-500';
   };
 
-  const getProviderConfig = (providerName: string): { label: string; code: string } => {
+  const isOpenAICompatibleRuntime = (provider: ProviderStatusResponse['provider']): boolean => {
+    const providerName = provider.name.toLowerCase();
+    const modelName = provider.model.toLowerCase();
+    return providerName === 'openai' && (Boolean(provider.base_url) || modelName.startsWith('qwen3'));
+  };
+
+  const getProviderConfig = (
+    response: ProviderStatusResponse,
+  ): { label: string; code: string } => {
+    const { provider, embedding } = response;
+    const providerName = provider.name.toLowerCase();
+    const isOpenAICompatible = isOpenAICompatibleRuntime(provider);
+
+    if (isOpenAICompatible) {
+      return {
+        label: 'LiteLLM / OpenAI-compatible Configuration',
+        code: `export OPENAI_COMPATIBLE_API_KEY="sk-proj-..."
+export OPENAI_BASE_URL="${provider.base_url ?? 'http://192.168.0.204:4000/v1'}"
+export EDGEQUAKE_LLM_PROVIDER="openai"
+export EDGEQUAKE_LLM_MODEL="${provider.model}"
+export EDGEQUAKE_EMBEDDING_PROVIDER="openai"
+export EDGEQUAKE_EMBEDDING_MODEL="${embedding.model}"
+export EDGEQUAKE_EMBEDDING_DIMENSION="${embedding.dimension}"`,
+      };
+    }
+
     const configs: Record<string, { label: string; code: string }> = {
       'ollama': {
         label: 'Ollama Configuration',
@@ -105,8 +133,8 @@ export OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest"`,
       'openai': {
         label: 'OpenAI Configuration',
         code: `export OPENAI_API_KEY="sk-proj-..."
-export EDGEQUAKE_LLM_MODEL="gpt-4o-mini"
-export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"`,
+export EDGEQUAKE_LLM_MODEL="${provider.model}"
+export EDGEQUAKE_EMBEDDING_MODEL="${embedding.model}"`,
       },
       'lmstudio': {
         label: 'LM Studio Configuration',
@@ -150,8 +178,28 @@ export EDGEQUAKE_LLM_PROVIDER="azure"`,
 export EDGEQUAKE_LLM_PROVIDER="minimax"
 export EDGEQUAKE_LLM_MODEL="MiniMax-M2.7"`,
       },
+      'litellm': {
+        label: 'LiteLLM Configuration',
+        code: `export OPENAI_COMPATIBLE_API_KEY="sk-proj-..."
+export OPENAI_BASE_URL="http://localhost:4000/v1"
+export EDGEQUAKE_LLM_PROVIDER="openai"
+export EDGEQUAKE_LLM_MODEL="${provider.model}"
+export EDGEQUAKE_EMBEDDING_PROVIDER="openai"
+export EDGEQUAKE_EMBEDDING_MODEL="${embedding.model}"
+export EDGEQUAKE_EMBEDDING_DIMENSION="${embedding.dimension}"`,
+      },
+      'litellm-local': {
+        label: 'LiteLLM Configuration',
+        code: `export OPENAI_COMPATIBLE_API_KEY="sk-proj-..."
+export OPENAI_BASE_URL="http://localhost:4000/v1"
+export EDGEQUAKE_LLM_PROVIDER="openai"
+export EDGEQUAKE_LLM_MODEL="${provider.model}"
+export EDGEQUAKE_EMBEDDING_PROVIDER="openai"
+export EDGEQUAKE_EMBEDDING_MODEL="${embedding.model}"
+export EDGEQUAKE_EMBEDDING_DIMENSION="${embedding.dimension}"`,
+      },
     };
-    return configs[providerName.toLowerCase()] || { label: 'Configuration', code: '' };
+    return configs[providerName] || { label: 'Configuration', code: '' };
   };
 
   const formatUptime = (seconds: number): string => {
@@ -169,9 +217,9 @@ export EDGEQUAKE_LLM_MODEL="MiniMax-M2.7"`,
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Server className="h-5 w-5" />
-            LLM Provider Status
+            Runtime Provider Status
           </CardTitle>
-          <CardDescription>Loading provider information...</CardDescription>
+          <CardDescription>Loading active runtime provider information...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-4">
@@ -189,9 +237,9 @@ export EDGEQUAKE_LLM_MODEL="MiniMax-M2.7"`,
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Server className="h-5 w-5" />
-            LLM Provider Status
+            Runtime Provider Status
           </CardTitle>
-          <CardDescription>Unable to fetch provider status</CardDescription>
+          <CardDescription>Unable to fetch runtime provider status</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2 text-red-600">
@@ -209,7 +257,16 @@ export EDGEQUAKE_LLM_MODEL="MiniMax-M2.7"`,
 
   if (!status) return null;
 
-  const config = getProviderConfig(status.provider.name);
+  const providerRuntimeLabel = isOpenAICompatibleRuntime(status.provider)
+    ? 'LiteLLM (OpenAI-compatible)'
+    : formatProviderName(status.provider.name);
+  const embeddingRuntimeLabel = isOpenAICompatibleRuntime({
+    ...status.provider,
+    model: status.embedding.model,
+  })
+    ? 'LiteLLM (OpenAI-compatible)'
+    : formatProviderName(status.embedding.name);
+  const config = getProviderConfig(status);
 
   return (
     <Card>
@@ -218,10 +275,10 @@ export EDGEQUAKE_LLM_MODEL="MiniMax-M2.7"`,
           <div>
             <CardTitle className="flex items-center gap-2">
               <Server className="h-5 w-5" />
-              LLM Provider Status
+              Runtime Provider Status
             </CardTitle>
             <CardDescription>
-              Current provider configuration and health
+              Current runtime provider configuration and health
             </CardDescription>
           </div>
           <Button
@@ -259,7 +316,7 @@ export EDGEQUAKE_LLM_MODEL="MiniMax-M2.7"`,
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Provider:</span>
-              <span className="text-sm">{formatProviderName(status.provider.name)}</span>
+              <span className="text-sm">{providerRuntimeLabel}</span>
               <Badge variant="outline" className="ml-2">
                 <div className={`h-2 w-2 rounded-full ${getStatusColor(status.provider.status)} mr-2`}></div>
                 {status.provider.status}
@@ -272,12 +329,21 @@ export EDGEQUAKE_LLM_MODEL="MiniMax-M2.7"`,
             <span className="text-sm text-muted-foreground">{status.provider.model}</span>
           </div>
 
+          {status.provider.base_url && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Endpoint:</span>
+              <span className="text-sm text-muted-foreground break-all">
+                {status.provider.base_url}
+              </span>
+            </div>
+          )}
+
           <Separator />
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Embedding:</span>
-              <span className="text-sm">{formatProviderName(status.embedding.name)}</span>
+              <span className="text-sm">{embeddingRuntimeLabel}</span>
             </div>
             <Badge variant="secondary">{status.embedding.dimension}d</Badge>
           </div>

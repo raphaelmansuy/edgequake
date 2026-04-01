@@ -788,7 +788,7 @@ export async function getPdfContent(
  * @returns Full URL to download the PDF
  */
 export function getPdfDownloadUrl(pdfId: string): string {
-  // WHY: Use SERVER_BASE_URL (derived from NEXT_PUBLIC_API_URL) for consistency
+  // WHY: Use SERVER_BASE_URL (derived from runtime config) for consistency
   // with the rest of the API client. Fixes #79.
   const baseUrl = SERVER_BASE_URL || "";
   return `${baseUrl}/api/v1/documents/pdf/${pdfId}/download`;
@@ -1534,7 +1534,7 @@ export async function exportDocumentLineage(
   documentId: string,
   format: "json" | "csv" = "json",
 ): Promise<void> {
-  // WHY: Use SERVER_BASE_URL (derived from NEXT_PUBLIC_API_URL) for consistency
+  // WHY: Use SERVER_BASE_URL (derived from runtime config) for consistency
   // with the rest of the API client. Fixes #79.
   const baseUrl = SERVER_BASE_URL || "";
   const url = `${baseUrl}/api/v1/documents/${documentId}/lineage/export?format=${format}`;

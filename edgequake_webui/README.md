@@ -56,7 +56,8 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 | Variable                          | Description                      | Default   |
 | --------------------------------- | -------------------------------- | --------- |
-| `NEXT_PUBLIC_API_URL`             | EdgeQuake API base URL           | `/api/v1` |
+| `EDGEQUAKE_API_URL`              | EdgeQuake API base URL           | `http://localhost:8080` |
+| `EDGEQUAKE_WS_URL`               | Optional WebSocket base URL      | Derived from API URL |
 | `NEXT_PUBLIC_ENABLE_DEMO_MODE`    | Enable demo mode without backend | `false`   |
 | `NEXT_PUBLIC_ENABLE_API_EXPLORER` | Show API Explorer in navigation  | `true`    |
 
@@ -100,7 +101,7 @@ src/
 The WebUI expects the EdgeQuake API server to be running. Configure the API URL in `.env.local`:
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8080
+EDGEQUAKE_API_URL=http://localhost:8080
 ```
 
 ### Supported Endpoints

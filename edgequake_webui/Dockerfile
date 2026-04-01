@@ -19,9 +19,6 @@ RUN npm install -g pnpm && pnpm install --frozen-lockfile
 # ============================================
 FROM node:20-alpine AS builder
 
-# Build args for Next.js public environment variables
-ARG NEXT_PUBLIC_API_URL=http://localhost:8080
-
 WORKDIR /app
 
 # Copy package files
@@ -47,9 +44,6 @@ COPY edgequake_webui/vitest.config.mjs ./
 # Copy source directories
 COPY edgequake_webui/src ./src
 COPY edgequake_webui/public ./public
-
-# Set Next.js public environment variables for build time
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Build application directly with next build (bypass safe-build.sh for Docker)
 RUN npx next build
@@ -77,6 +71,7 @@ RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY edgequake_webui/scripts/generate-runtime-config.mjs ./scripts/generate-runtime-config.mjs
 
 # Switch to non-root user
 USER nextjs

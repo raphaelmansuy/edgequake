@@ -13,19 +13,16 @@
  */
 
 import type { ApiError } from "@/types";
+import { getRuntimeApiUrl } from "@/lib/runtime-config";
 
 // Server Base URL (without /api/v1)
 const getServerBaseUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (envUrl) {
-    return envUrl.replace(/\/$/, "");
-  }
-  return "";
+  return getRuntimeApiUrl();
 };
 
 // API Base URL configuration
-// If NEXT_PUBLIC_API_URL is set (e.g., http://localhost:8080), append /api/v1
-// Otherwise default to /api/v1 for same-origin requests
+// Runtime config is generated at container start and can be changed without
+// rebuilding the frontend image. Fallback keeps local development working.
 const getApiBaseUrl = () => {
   const serverUrl = getServerBaseUrl();
   return serverUrl ? `${serverUrl}/api/v1` : "/api/v1";
