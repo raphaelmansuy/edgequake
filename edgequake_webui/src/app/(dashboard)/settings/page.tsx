@@ -1,27 +1,28 @@
 'use client';
 
+import { AdminQuotaSection } from '@/components/settings/admin-quota-section';
 import { ProviderStatusCard } from '@/components/settings/provider-status-card';
 import { VisionLLMSettingsCard } from '@/components/settings/vision-llm-settings-card';
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
@@ -597,6 +598,11 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
+
+      {/* Admin section — only fetches and renders for admin users (SPEC-0001) */}
+      <div className="p-6 md:p-8 max-w-4xl mx-auto">
+        <AdminQuotaSection />
       </div>
     </ScrollArea>
   );
