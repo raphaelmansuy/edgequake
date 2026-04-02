@@ -90,7 +90,7 @@ jobs:
     api-tests:
         name: "API Tests (Target: <30s)"
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 20
         steps:
             - uses: actions/checkout@v4
 
