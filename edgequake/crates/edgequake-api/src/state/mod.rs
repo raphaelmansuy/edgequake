@@ -80,7 +80,12 @@ use std::sync::Arc;
 
 use crate::cache_manager::CacheManager;
 use crate::handlers::ProgressBroadcaster;
+use crate::safety_limits::{
+    create_safe_embedding_provider, create_safe_llm_provider, default_embedding_model_for_provider,
+    default_model_for_provider,
+};
 use edgequake_auth::AuthConfig;
+use edgequake_core::Workspace;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, SOTAQueryEngine};
@@ -108,6 +113,216 @@ fn create_bm25_reranker() -> Arc<dyn edgequake_llm::Reranker> {
         tracing::info!("Using enhanced BM25 reranker with stemming and Unicode normalization");
         Arc::new(edgequake_llm::reranker::BM25Reranker::new_enhanced())
     }
+}
+
+/// Mirror compatible OpenAI key environment variables so startup and health
+/// checks can treat `OPENAI_API_KEY` and `OPENAI_COMPATIBLE_API_KEY` as aliases.
+pub(crate) fn sync_openai_compatible_api_key() {
+    let openai_key = std::env::var("OPENAI_API_KEY")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let compatible_key = std::env::var("OPENAI_COMPATIBLE_API_KEY")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+
+    match (openai_key, compatible_key) {
+        (None, Some(key)) => std::env::set_var("OPENAI_API_KEY", key),
+        (Some(key), None) => std::env::set_var("OPENAI_COMPATIBLE_API_KEY", key),
+        _ => {}
+    }
+}
+
+fn env_value(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn startup_provider_selection_enabled() -> bool {
+    [
+        "EDGEQUAKE_MODELS_CONFIG",
+        "EDGEQUAKE_LLM_PROVIDER",
+        "EDGEQUAKE_LLM_MODEL",
+        "EDGEQUAKE_DEFAULT_LLM_PROVIDER",
+        "EDGEQUAKE_DEFAULT_LLM_MODEL",
+        "EDGEQUAKE_EMBEDDING_PROVIDER",
+        "EDGEQUAKE_EMBEDDING_MODEL",
+        "EDGEQUAKE_EMBEDDING_DIMENSION",
+        "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER",
+        "EDGEQUAKE_DEFAULT_EMBEDDING_MODEL",
+        "EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION",
+    ]
+    .iter()
+    .any(|name| env_value(name).is_some())
+}
+
+fn load_models_config_or_builtin() -> ModelsConfig {
+    ModelsConfig::load().unwrap_or_else(|error| {
+        tracing::warn!(
+            error = %error,
+            "Failed to load models config for startup provider selection; using built-in defaults"
+        );
+        ModelsConfig::builtin_defaults()
+    })
+}
+
+#[derive(Debug, Clone)]
+struct StartupProviderSelection {
+    llm_provider: String,
+    llm_model: String,
+    embedding_provider: String,
+    embedding_model: String,
+    embedding_dimension: usize,
+    source: &'static str,
+}
+
+fn resolve_startup_provider_selection() -> Option<StartupProviderSelection> {
+    if !startup_provider_selection_enabled() {
+        return None;
+    }
+
+    let models_config = load_models_config_or_builtin();
+    let llm_provider_explicit = env_value("EDGEQUAKE_LLM_PROVIDER");
+    let llm_provider_default = env_value("EDGEQUAKE_DEFAULT_LLM_PROVIDER");
+    let llm_model_explicit = env_value("EDGEQUAKE_LLM_MODEL");
+    let llm_model_default = env_value("EDGEQUAKE_DEFAULT_LLM_MODEL");
+    let embedding_provider_explicit = env_value("EDGEQUAKE_EMBEDDING_PROVIDER");
+    let embedding_provider_default = env_value("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER");
+    let embedding_model_explicit = env_value("EDGEQUAKE_EMBEDDING_MODEL");
+    let embedding_model_default = env_value("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL");
+    let embedding_dimension_explicit = env_value("EDGEQUAKE_EMBEDDING_DIMENSION");
+    let embedding_dimension_default = env_value("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION");
+
+    let llm_provider_env = llm_provider_explicit
+        .clone()
+        .or_else(|| llm_provider_default.clone());
+    let llm_model_env = llm_model_explicit
+        .clone()
+        .or_else(|| llm_model_default.clone());
+    let embedding_provider_env = embedding_provider_explicit
+        .clone()
+        .or_else(|| embedding_provider_default.clone());
+    let embedding_model_env = embedding_model_explicit
+        .clone()
+        .or_else(|| embedding_model_default.clone());
+    let embedding_dimension_env = embedding_dimension_explicit
+        .clone()
+        .or_else(|| embedding_dimension_default.clone());
+
+    let llm_provider = llm_provider_env
+        .clone()
+        .or_else(|| {
+            llm_model_env
+                .as_deref()
+                .map(Workspace::detect_provider_from_model)
+        })
+        .unwrap_or_else(|| models_config.defaults.llm_provider.clone());
+    let llm_model = llm_model_env
+        .clone()
+        .or_else(|| {
+            llm_provider_env
+                .as_deref()
+                .map(default_model_for_provider)
+                .map(ToString::to_string)
+        })
+        .or_else(|| Some(models_config.defaults.llm_model.clone()))
+        .unwrap_or_else(|| default_model_for_provider(&llm_provider).to_string());
+
+    let embedding_provider = embedding_provider_env
+        .clone()
+        .or_else(|| {
+            embedding_model_env
+                .as_deref()
+                .map(Workspace::detect_provider_from_model)
+        })
+        .unwrap_or_else(|| models_config.defaults.embedding_provider.clone());
+    let embedding_model = embedding_model_env
+        .clone()
+        .or_else(|| {
+            embedding_provider_env
+                .as_deref()
+                .map(default_embedding_model_for_provider)
+                .map(ToString::to_string)
+        })
+        .or_else(|| Some(models_config.defaults.embedding_model.clone()))
+        .unwrap_or_else(|| default_embedding_model_for_provider(&embedding_provider).to_string());
+    let embedding_dimension = embedding_dimension_env
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or_else(|| Workspace::detect_dimension_from_model(&embedding_model));
+
+    Some(StartupProviderSelection {
+        llm_provider,
+        llm_model,
+        embedding_provider,
+        embedding_model,
+        embedding_dimension,
+        source: if llm_provider_explicit.is_some()
+            || llm_model_explicit.is_some()
+            || embedding_provider_explicit.is_some()
+            || embedding_model_explicit.is_some()
+            || embedding_dimension_explicit.is_some()
+        {
+            "explicit-env"
+        } else if llm_provider_default.is_some()
+            || llm_model_default.is_some()
+            || embedding_provider_default.is_some()
+            || embedding_model_default.is_some()
+            || embedding_dimension_default.is_some()
+            || env_value("EDGEQUAKE_MODELS_CONFIG").is_some()
+        {
+            "configured-defaults"
+        } else {
+            "auto-detected"
+        },
+    })
+}
+
+pub(crate) fn create_startup_providers() -> Result<
+    (
+        Arc<dyn edgequake_llm::traits::LLMProvider>,
+        Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+    ),
+    Box<dyn std::error::Error + Send + Sync>,
+> {
+    sync_openai_compatible_api_key();
+
+    if let Some(selection) = resolve_startup_provider_selection() {
+        let llm_provider = create_safe_llm_provider(&selection.llm_provider, &selection.llm_model)?;
+        let embedding_provider = create_safe_embedding_provider(
+            &selection.embedding_provider,
+            &selection.embedding_model,
+            selection.embedding_dimension,
+        )?;
+
+        tracing::info!(
+            source = selection.source,
+            llm_provider = %selection.llm_provider,
+            llm_model = %selection.llm_model,
+            embedding_provider = %selection.embedding_provider,
+            embedding_model = %selection.embedding_model,
+            embedding_dimension = selection.embedding_dimension,
+            "Created runtime providers from configured selection"
+        );
+
+        return Ok((llm_provider, embedding_provider));
+    }
+
+    use edgequake_llm::ProviderFactory;
+
+    let (llm_provider, embedding_provider) = ProviderFactory::from_env()
+        .map_err(|error| Box::<dyn std::error::Error + Send + Sync>::from(error))?;
+
+    tracing::info!(
+        llm_provider = llm_provider.name(),
+        llm_model = llm_provider.model(),
+        embedding_provider = embedding_provider.name(),
+        embedding_model = embedding_provider.model(),
+        embedding_dimension = embedding_provider.dimension(),
+        "Created runtime providers from auto-detected environment"
+    );
+
+    Ok((llm_provider, embedding_provider))
 }
 
 // ── AppState ──────────────────────────────────────────────────────────────
@@ -415,6 +630,7 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_storage_mode_as_str() {
@@ -480,5 +696,94 @@ mod tests {
         let state = AppState::test_state();
         assert!(state.storage_mode.is_memory());
         assert_eq!(state.config.workspace_id, "default");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_app_state_new_memory_uses_configured_qwen_runtime_models() {
+        struct EnvGuard;
+
+        impl Drop for EnvGuard {
+            fn drop(&mut self) {
+                for key in [
+                    "EDGEQUAKE_LLM_PROVIDER",
+                    "EDGEQUAKE_LLM_MODEL",
+                    "EDGEQUAKE_EMBEDDING_PROVIDER",
+                    "EDGEQUAKE_EMBEDDING_MODEL",
+                    "EDGEQUAKE_EMBEDDING_DIMENSION",
+                    "EDGEQUAKE_DEFAULT_LLM_PROVIDER",
+                    "EDGEQUAKE_DEFAULT_LLM_MODEL",
+                    "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER",
+                    "EDGEQUAKE_DEFAULT_EMBEDDING_MODEL",
+                    "EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION",
+                    "EDGEQUAKE_MODELS_CONFIG",
+                    "OPENAI_API_KEY",
+                    "OPENAI_COMPATIBLE_API_KEY",
+                    "OPENAI_BASE_URL",
+                ] {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+
+        let _guard = EnvGuard;
+
+        std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "openai");
+        std::env::set_var("EDGEQUAKE_LLM_MODEL", "qwen3.5-35b-a3b");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "openai");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_MODEL", "qwen3-embedding-0.6b");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_DIMENSION", "1024");
+        std::env::set_var("OPENAI_COMPATIBLE_API_KEY", "sk-test-runtime");
+        std::env::set_var("OPENAI_BASE_URL", "http://localhost:4000/v1");
+
+        let state = AppState::new_memory(None::<String>);
+
+        assert_eq!(state.llm_provider.name(), "openai");
+        assert_eq!(state.llm_provider.model(), "qwen3.5-35b-a3b");
+        assert_eq!(state.embedding_provider.name(), "openai");
+        assert_eq!(state.embedding_provider.model(), "qwen3-embedding-0.6b");
+        assert_eq!(state.embedding_provider.dimension(), 1024);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_startup_selection_infers_provider_from_explicit_model() {
+        struct EnvGuard;
+
+        impl Drop for EnvGuard {
+            fn drop(&mut self) {
+                for key in [
+                    "EDGEQUAKE_LLM_PROVIDER",
+                    "EDGEQUAKE_LLM_MODEL",
+                    "EDGEQUAKE_EMBEDDING_PROVIDER",
+                    "EDGEQUAKE_EMBEDDING_MODEL",
+                    "EDGEQUAKE_EMBEDDING_DIMENSION",
+                    "EDGEQUAKE_DEFAULT_LLM_PROVIDER",
+                    "EDGEQUAKE_DEFAULT_LLM_MODEL",
+                    "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER",
+                    "EDGEQUAKE_DEFAULT_EMBEDDING_MODEL",
+                    "EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION",
+                    "EDGEQUAKE_MODELS_CONFIG",
+                ] {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+
+        let _guard = EnvGuard;
+
+        std::env::set_var("EDGEQUAKE_LLM_MODEL", "qwen3.5-35b-a3b");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "openai");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_MODEL", "text-embedding-3-small");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_DIMENSION", "1536");
+
+        let selection = resolve_startup_provider_selection().expect("selection");
+
+        assert_eq!(selection.llm_provider, "litellm-local");
+        assert_eq!(selection.llm_model, "qwen3.5-35b-a3b");
+        assert_eq!(selection.embedding_provider, "openai");
+        assert_eq!(selection.embedding_model, "text-embedding-3-small");
+        assert_eq!(selection.embedding_dimension, 1536);
+        assert_eq!(selection.source, "explicit-env");
     }
 }

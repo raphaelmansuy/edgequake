@@ -191,8 +191,12 @@ export default function WorkspacePage() {
         vision_llm_provider: data.vision_llm_provider,
         vision_llm_model: data.vision_llm_model,
       }),
-    onSuccess: (_result, variables) => {
+    onSuccess: (updatedWorkspace, variables) => {
       toast.success(t('workspace.updateSuccess', 'Workspace updated successfully'));
+      queryClient.setQueryData(
+        ['workspace', selectedTenantId, selectedWorkspaceId],
+        updatedWorkspace,
+      );
       queryClient.invalidateQueries({ queryKey: ['workspace', selectedTenantId, selectedWorkspaceId] });
       setIsEditing(false);
       

@@ -83,8 +83,12 @@ export function VisionLLMSettingsCard() {
         vision_llm_provider: selectedVisionLLM?.provider ?? '',
         vision_llm_model: selectedVisionLLM?.model ?? '',
       }),
-    onSuccess: () => {
+    onSuccess: (updatedWorkspace) => {
       toast.success(t('settings.vision.updateSuccess', 'Vision LLM configuration updated'));
+      queryClient.setQueryData(
+        ['workspace', selectedTenantId, selectedWorkspaceId],
+        updatedWorkspace,
+      );
       queryClient.invalidateQueries({ queryKey: ['workspace', selectedTenantId, selectedWorkspaceId] });
       setIsEditing(false);
     },

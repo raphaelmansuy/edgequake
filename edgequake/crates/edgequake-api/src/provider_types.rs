@@ -372,6 +372,13 @@ impl AvailableProvidersResponse {
 }
 
 impl ProviderStatusResponse {
+    fn runtime_openai_base_url() -> Option<String> {
+        std::env::var("OPENAI_BASE_URL")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    }
+
     /// Create a new provider status response from AppState
     pub fn from_app_state(app_state: &crate::state::AppState) -> Self {
         use chrono::Utc;
@@ -379,6 +386,11 @@ impl ProviderStatusResponse {
         // Get LLM provider info
         let llm_name = app_state.llm_provider.name().to_string();
         let llm_model = app_state.llm_provider.model().to_string();
+        let llm_base_url = if matches!(llm_name.as_str(), "openai" | "openai-compatible") {
+            Self::runtime_openai_base_url()
+        } else {
+            None
+        };
 
         // Get embedding provider info
         let emb_name = app_state.embedding_provider.name().to_string();
@@ -407,8 +419,10 @@ impl ProviderStatusResponse {
                 provider_type: "llm".to_string(),
                 status: ConnectionStatus::Connected, // MVP: assume connected
                 model: llm_model,
-                base_url: None, // TODO: Extract from provider config
-                config: serde_json::json!({}),
+                base_url: llm_base_url.clone(),
+                config: llm_base_url
+                    .map(|base_url| serde_json::json!({ "base_url": base_url }))
+                    .unwrap_or_else(|| serde_json::json!({})),
             },
             embedding: EmbeddingProviderStatus {
                 name: emb_name,
@@ -428,5 +442,76 @@ impl ProviderStatusResponse {
                 uptime_seconds: uptime,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    #[test]
+    #[serial]
+    fn provider_status_includes_openai_base_url_when_configured() {
+        struct EnvGuard;
+
+        impl Drop for EnvGuard {
+            fn drop(&mut self) {
+                for key in [
+                    "EDGEQUAKE_LLM_PROVIDER",
+                    "EDGEQUAKE_LLM_MODEL",
+                    "EDGEQUAKE_EMBEDDING_PROVIDER",
+                    "EDGEQUAKE_EMBEDDING_MODEL",
+                    "EDGEQUAKE_EMBEDDING_DIMENSION",
+                    "OPENAI_API_KEY",
+                    "OPENAI_BASE_URL",
+                ] {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+
+        let _guard = EnvGuard;
+        std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "openai");
+        std::env::set_var("EDGEQUAKE_LLM_MODEL", "gpt-4o");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "openai");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_MODEL", "text-embedding-3-small");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_DIMENSION", "1536");
+        std::env::set_var("OPENAI_API_KEY", "sk-test-provider-status");
+        std::env::set_var("OPENAI_BASE_URL", "http://localhost:4000/v1");
+
+        let state = crate::state::AppState::new_memory(None::<String>);
+        let status = ProviderStatusResponse::from_app_state(&state);
+
+        assert_eq!(
+            status.provider.base_url.as_deref(),
+            Some("http://localhost:4000/v1")
+        );
+        assert_eq!(
+            status.provider.config,
+            serde_json::json!({ "base_url": "http://localhost:4000/v1" })
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn provider_status_omits_openai_base_url_for_non_openai_provider() {
+        struct EnvGuard;
+
+        impl Drop for EnvGuard {
+            fn drop(&mut self) {
+                std::env::remove_var("OPENAI_BASE_URL");
+            }
+        }
+
+        let _guard = EnvGuard;
+        std::env::set_var("OPENAI_BASE_URL", "http://localhost:4000/v1");
+
+        let state = crate::state::AppState::test_state();
+        let status = ProviderStatusResponse::from_app_state(&state);
+
+        assert_eq!(status.provider.name, "mock");
+        assert_eq!(status.provider.base_url, None);
+        assert_eq!(status.provider.config, serde_json::json!({}));
     }
 }

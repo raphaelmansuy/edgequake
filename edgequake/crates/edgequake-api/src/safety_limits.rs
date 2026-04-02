@@ -117,6 +117,14 @@ pub struct SafetyLimitedProviderWrapper {
     config: SafetyLimitsConfig,
 }
 
+/// Normalize local OpenAI-compatible aliases to the supported runtime provider.
+fn normalize_provider_name(provider_name: &str) -> String {
+    match provider_name.trim().to_lowercase().as_str() {
+        "litellm-local" | "litellm" | "openai-compatible" => "openai".to_string(),
+        _ => provider_name.trim().to_string(),
+    }
+}
+
 impl SafetyLimitedProviderWrapper {
     /// Create a new safety-limited provider wrapper.
     pub fn new(provider: Arc<dyn LLMProvider>, config: SafetyLimitsConfig) -> Self {
@@ -258,14 +266,20 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
 pub struct SafetyLimitedEmbeddingProviderWrapper {
     inner: Arc<dyn EmbeddingProvider>,
     config: SafetyLimitsConfig,
+    dimension: usize,
 }
 
 impl SafetyLimitedEmbeddingProviderWrapper {
     /// Create a new safety-limited embedding provider wrapper.
-    pub fn new(provider: Arc<dyn EmbeddingProvider>, config: SafetyLimitsConfig) -> Self {
+    pub fn new(
+        provider: Arc<dyn EmbeddingProvider>,
+        dimension: usize,
+        config: SafetyLimitsConfig,
+    ) -> Self {
         Self {
             inner: provider,
             config,
+            dimension,
         }
     }
 }
@@ -281,7 +295,7 @@ impl EmbeddingProvider for SafetyLimitedEmbeddingProviderWrapper {
     }
 
     fn dimension(&self) -> usize {
-        self.inner.dimension()
+        self.dimension
     }
 
     fn max_tokens(&self) -> usize {
@@ -309,11 +323,13 @@ impl EmbeddingProvider for SafetyLimitedEmbeddingProviderWrapper {
 
 /// Create a safety-limited LLM provider from workspace configuration.
 pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<dyn LLMProvider>> {
-    let inner = ProviderFactory::create_llm_provider(provider_name, model)?;
+    let runtime_provider_name = normalize_provider_name(provider_name);
+    let inner = ProviderFactory::create_llm_provider(&runtime_provider_name, model)?;
     let config = SafetyLimitsConfig::from_env();
 
     tracing::info!(
         provider = provider_name,
+        runtime_provider = runtime_provider_name.as_str(),
         model = model,
         max_tokens = config.max_tokens,
         timeout_secs = config.timeout.as_secs(),
@@ -329,11 +345,14 @@ pub fn create_safe_embedding_provider(
     model: &str,
     dimension: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>> {
-    let inner = ProviderFactory::create_embedding_provider(provider_name, model, dimension)?;
+    let runtime_provider_name = normalize_provider_name(provider_name);
+    let inner =
+        ProviderFactory::create_embedding_provider(&runtime_provider_name, model, dimension)?;
     let config = SafetyLimitsConfig::from_env();
 
     tracing::info!(
         provider = provider_name,
+        runtime_provider = runtime_provider_name.as_str(),
         model = model,
         dimension = dimension,
         timeout_secs = config.timeout.as_secs(),
@@ -341,7 +360,7 @@ pub fn create_safe_embedding_provider(
     );
 
     Ok(Arc::new(SafetyLimitedEmbeddingProviderWrapper::new(
-        inner, config,
+        inner, dimension, config,
     )))
 }
 
@@ -354,9 +373,48 @@ pub fn default_model_for_provider(provider_name: &str) -> &'static str {
         "xai" => "grok-4-1-fast",
         "openrouter" => "openai/gpt-4o-mini",
         "ollama" => "gemma3:12b",
+        "litellm-local" | "litellm" | "openai-compatible" => "qwen3.5-35b-a3b",
         "lmstudio" | "lm-studio" | "lm_studio" => "gemma-3n-e4b-it",
         "minimax" => "MiniMax-M2.7",
         "mock" => "mock-model",
         _ => "gpt-4.1-nano",
+    }
+}
+
+/// Get the default embedding model for a given provider name.
+pub fn default_embedding_model_for_provider(provider_name: &str) -> &'static str {
+    match provider_name.to_lowercase().as_str() {
+        "openai" => "text-embedding-3-small",
+        "ollama" => "embeddinggemma:latest",
+        "litellm-local" | "litellm" | "openai-compatible" => "qwen3-embedding-0.6b",
+        "lmstudio" | "lm-studio" | "lm_studio" => "nomic-embed-text",
+        "mock" => "mock-embedding",
+        _ => "text-embedding-3-small",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn litellm_local_uses_qwen_default_model() {
+        assert_eq!(
+            default_model_for_provider("litellm-local"),
+            "qwen3.5-35b-a3b"
+        );
+    }
+
+    #[test]
+    fn litellm_local_normalizes_to_openai_runtime_provider() {
+        assert_eq!(normalize_provider_name("litellm-local"), "openai");
+    }
+
+    #[test]
+    fn litellm_local_uses_qwen_default_embedding_model() {
+        assert_eq!(
+            default_embedding_model_for_provider("litellm-local"),
+            "qwen3-embedding-0.6b"
+        );
     }
 }

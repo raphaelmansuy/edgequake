@@ -22,6 +22,34 @@ use super::{create_bm25_reranker, AppState};
 use crate::cache_manager::CacheManager;
 use crate::handlers::ProgressBroadcaster;
 
+fn is_sqlx_migration_duplicate_key(error: &sqlx::migrate::MigrateError) -> bool {
+    let rendered = error.to_string();
+    let debug_rendered = format!("{error:?}");
+
+    rendered.contains("_sqlx_migrations_pkey")
+        || rendered.contains("duplicate key value violates unique constraint")
+        || debug_rendered.contains("_sqlx_migrations_pkey")
+        || debug_rendered.contains("duplicate key value violates unique constraint")
+}
+
+async fn repair_sqlx_migrations(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+    tracing::warn!(
+        "Detected stale SQLx migration history; clearing SQLx bookkeeping and retrying once"
+    );
+
+    let removed = sqlx::query("DELETE FROM public._sqlx_migrations")
+        .execute(pool)
+        .await?
+        .rows_affected();
+
+    tracing::warn!(
+        removed = removed,
+        "Cleared SQLx migration bookkeeping rows before retry"
+    );
+
+    Ok(())
+}
+
 impl AppState {
     /// Load path validation configuration from environment.
     ///
@@ -75,20 +103,17 @@ impl AppState {
     ///
     /// # Provider Selection
     ///
-    /// LLM provider is automatically selected based on environment:
-    /// - `EDGEQUAKE_LLM_PROVIDER=ollama|lmstudio|mock` - explicit selection
-    /// - `OLLAMA_HOST` present → Ollama provider
-    /// - `OPENAI_API_KEY` present → OpenAI provider
-    /// - Default → Mock provider
+    /// LLM/embedding providers are created by the shared startup provider
+    /// selection helper, which prefers explicit EdgeQuake model/provider env
+    /// vars and falls back to provider auto-detection.
     ///
     /// The `llm_api_key` parameter is kept for backward compatibility and will set `OPENAI_API_KEY`
-    /// when provided. For Ollama/LM Studio, you can pass an empty string and use environment variables.
+    /// when provided. For Ollama/LM Studio, you can pass an empty string and use environment
+    /// variables.
     pub async fn new_postgres(
         database_url: impl Into<String>,
         llm_api_key: impl Into<String>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        use edgequake_llm::ProviderFactory;
-
         let database_url = database_url.into();
         let llm_api_key = llm_api_key.into();
 
@@ -97,9 +122,11 @@ impl AppState {
             std::env::set_var("OPENAI_API_KEY", &llm_api_key);
         }
 
-        // Create providers via factory (auto-detects from environment)
-        let (llm_provider, embedding_provider) =
-            ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
+        super::sync_openai_compatible_api_key();
+
+        // Create providers via the shared startup selection helper.
+        let (llm_provider, embedding_provider) = super::create_startup_providers()
+            .expect("Failed to create LLM provider from environment");
 
         // Parse database URL to create PostgreSQL configuration
         // Format: postgresql://username:password@host:port/database
@@ -162,10 +189,27 @@ impl AppState {
             .execute(&pool)
             .await?;
 
-        // Run migrations from the workspace root migrations directory
-        // SQLx migrations will create all required tables automatically
+        // Run migrations from the workspace root migrations directory.
+        // If SQLx's bookkeeping table gets out of sync, reset it once and retry
+        // because these migrations are intentionally idempotent.
         tracing::info!("Running database migrations...");
-        sqlx::migrate!("../../migrations").run(&pool).await?;
+        if let Err(initial_error) = sqlx::migrate!("../../migrations").run(&pool).await {
+            if is_sqlx_migration_duplicate_key(&initial_error) {
+                repair_sqlx_migrations(&pool).await?;
+                sqlx::migrate!("../../migrations")
+                    .run(&pool)
+                    .await
+                    .map_err(|retry_error| {
+                        tracing::error!(
+                            error = %retry_error,
+                            "SQLx migration retry failed after bookkeeping reset"
+                        );
+                        retry_error
+                    })?;
+            } else {
+                return Err(initial_error.into());
+            }
+        }
         tracing::info!("✓ Database migrations completed successfully");
 
         // Auto-configure vector dimension from embedding provider
@@ -173,7 +217,7 @@ impl AppState {
         tracing::info!(
             "Using vector dimension {} from {} provider",
             embedding_dim,
-            std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_else(|_| "auto-detected".to_string())
+            embedding_provider.name()
         );
 
         // Create PostgreSQL-backed storages

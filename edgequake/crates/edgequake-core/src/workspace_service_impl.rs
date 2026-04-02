@@ -54,6 +54,10 @@ pub struct WorkspaceServiceImpl {
 
 #[cfg(feature = "postgres")]
 impl WorkspaceServiceImpl {
+    const CONFIG_SOURCE_KEY: &'static str = "config_source";
+    const CONFIG_SOURCE_ENV: &'static str = "env";
+    const CONFIG_SOURCE_MANUAL: &'static str = "manual";
+
     /// Create a new PostgreSQL workspace service.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
@@ -72,40 +76,67 @@ impl WorkspaceServiceImpl {
     /// Ensure default tenant and workspace exist.
     /// Returns the default tenant ID and workspace ID.
     pub async fn ensure_defaults(&self) -> Result<(Uuid, Uuid)> {
-        let default_tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000002")
-            .expect("Invalid default tenant UUID");
-        let default_workspace_id = Uuid::parse_str("00000000-0000-0000-0000-000000000003")
-            .expect("Invalid default workspace UUID");
+        let default_tenant_id = Self::default_tenant_id();
+        let default_workspace_id = Self::default_workspace_id();
 
-        // Ensure default tenant exists
+        let default_tenant = Self::default_tenant(default_tenant_id);
+        let default_workspace = Self::default_workspace(default_tenant_id, default_workspace_id);
+        let tenant_metadata = Self::build_tenant_metadata(&default_tenant);
+        let workspace_metadata = Self::build_workspace_metadata(&default_workspace);
+
+        // Ensure default tenant exists or refresh its runtime defaults.
         // Schema: tenant_id, name, slug, settings, metadata, is_active, created_at, updated_at
         // Note: plan, max_workspaces, max_users stored in metadata JSONB
         sqlx::query(
             r#"
             INSERT INTO tenants (tenant_id, name, slug, is_active, metadata, settings, created_at, updated_at)
-            VALUES ($1, 'Default', 'default', TRUE, 
-                    '{"plan": "pro", "max_workspaces": 100, "max_users": 100, "description": "Default tenant"}'::jsonb,
-                    '{}'::jsonb, NOW(), NOW())
-            ON CONFLICT (tenant_id) DO NOTHING
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (tenant_id) DO UPDATE SET
+                metadata = CASE
+                    WHEN COALESCE(tenants.metadata->>'config_source', '') = 'manual'
+                        THEN tenants.metadata
+                    ELSE COALESCE(tenants.metadata, '{}'::jsonb) || EXCLUDED.metadata
+                END,
+                updated_at = EXCLUDED.updated_at
             "#,
         )
-        .bind(default_tenant_id)
+        .bind(default_tenant.tenant_id)
+        .bind(&default_tenant.name)
+        .bind(&default_tenant.slug)
+        .bind(default_tenant.is_active)
+        .bind(tenant_metadata)
+        .bind(serde_json::json!({}))
+        .bind(default_tenant.created_at)
+        .bind(default_tenant.updated_at)
         .execute(&self.pool)
         .await
         .map_err(|e| Error::internal(format!("Failed to ensure default tenant: {}", e)))?;
 
-        // Ensure default workspace exists
+        // Ensure default workspace exists or refresh its runtime defaults.
         // Schema: workspace_id, tenant_id, name, slug, description, settings, metadata, is_active, created_at, updated_at
         sqlx::query(
             r#"
             INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at)
-            VALUES ($1, $2, 'Default Workspace', 'default', 'Default knowledge base', TRUE,
-                    '{}'::jsonb, '{}'::jsonb, NOW(), NOW())
-            ON CONFLICT (workspace_id) DO NOTHING
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (workspace_id) DO UPDATE SET
+                metadata = CASE
+                    WHEN COALESCE(workspaces.metadata->>'config_source', '') = 'manual'
+                        THEN workspaces.metadata
+                    ELSE COALESCE(workspaces.metadata, '{}'::jsonb) || EXCLUDED.metadata
+                END,
+                updated_at = EXCLUDED.updated_at
             "#,
         )
-        .bind(default_workspace_id)
-        .bind(default_tenant_id)
+        .bind(default_workspace.workspace_id)
+        .bind(default_workspace.tenant_id)
+        .bind(&default_workspace.name)
+        .bind(&default_workspace.slug)
+        .bind(&default_workspace.description)
+        .bind(default_workspace.is_active)
+        .bind(workspace_metadata)
+        .bind(serde_json::json!({}))
+        .bind(default_workspace.created_at)
+        .bind(default_workspace.updated_at)
         .execute(&self.pool)
         .await
         .map_err(|e| Error::internal(format!("Failed to ensure default workspace: {}", e)))?;
@@ -117,6 +148,34 @@ impl WorkspaceServiceImpl {
         );
 
         Ok((default_tenant_id, default_workspace_id))
+    }
+
+    fn default_tenant_id() -> Uuid {
+        Uuid::parse_str("00000000-0000-0000-0000-000000000002")
+            .expect("Invalid default tenant UUID")
+    }
+
+    fn default_workspace_id() -> Uuid {
+        Uuid::parse_str("00000000-0000-0000-0000-000000000003")
+            .expect("Invalid default workspace UUID")
+    }
+
+    fn is_default_tenant_id(tenant_id: Uuid) -> bool {
+        tenant_id == Self::default_tenant_id()
+    }
+
+    fn is_default_workspace_id(workspace_id: Uuid) -> bool {
+        workspace_id == Self::default_workspace_id()
+    }
+
+    fn set_config_source(metadata: &mut HashMap<String, serde_json::Value>, source: &'static str) {
+        metadata.insert(Self::CONFIG_SOURCE_KEY.to_string(), serde_json::json!(source));
+    }
+
+    fn config_source(metadata: &HashMap<String, serde_json::Value>) -> Option<&str> {
+        metadata
+            .get(Self::CONFIG_SOURCE_KEY)
+            .and_then(|value| value.as_str())
     }
 
     /// Parse TenantPlan from string
@@ -144,27 +203,157 @@ impl WorkspaceServiceImpl {
     /// Stores all tenant configuration fields in the metadata JSONB column,
     /// including plan info, default LLM, embedding, and vision LLM configs.
     fn build_tenant_metadata(tenant: &Tenant) -> serde_json::Value {
-        let mut map = serde_json::json!({
-            "plan": tenant.plan.to_string(),
-            "max_workspaces": tenant.max_workspaces,
-            "max_users": tenant.max_users,
-            "description": tenant.description,
-            // SPEC-032: Persist default LLM configuration
-            "default_llm_model": tenant.default_llm_model,
-            "default_llm_provider": tenant.default_llm_provider,
-            // SPEC-032: Persist default embedding configuration
-            "default_embedding_model": tenant.default_embedding_model,
-            "default_embedding_provider": tenant.default_embedding_provider,
-            "default_embedding_dimension": tenant.default_embedding_dimension,
-        });
+        let mut map: serde_json::Map<String, serde_json::Value> =
+            tenant.metadata.clone().into_iter().collect();
+        map.insert("plan".to_string(), serde_json::json!(tenant.plan.to_string()));
+        map.insert(
+            "max_workspaces".to_string(),
+            serde_json::json!(tenant.max_workspaces),
+        );
+        map.insert(
+            "max_users".to_string(),
+            serde_json::json!(tenant.max_users),
+        );
+        map.insert("description".to_string(), serde_json::json!(tenant.description));
+        // SPEC-032: Persist default LLM configuration
+        map.insert(
+            "default_llm_model".to_string(),
+            serde_json::json!(tenant.default_llm_model),
+        );
+        map.insert(
+            "default_llm_provider".to_string(),
+            serde_json::json!(tenant.default_llm_provider),
+        );
+        // SPEC-032: Persist default embedding configuration
+        map.insert(
+            "default_embedding_model".to_string(),
+            serde_json::json!(tenant.default_embedding_model),
+        );
+        map.insert(
+            "default_embedding_provider".to_string(),
+            serde_json::json!(tenant.default_embedding_provider),
+        );
+        map.insert(
+            "default_embedding_dimension".to_string(),
+            serde_json::json!(tenant.default_embedding_dimension),
+        );
         // SPEC-041: Persist default vision LLM configuration (optional, only if set)
         if let Some(ref vision_provider) = tenant.default_vision_llm_provider {
-            map["default_vision_llm_provider"] = serde_json::json!(vision_provider);
+            map.insert(
+                "default_vision_llm_provider".to_string(),
+                serde_json::json!(vision_provider),
+            );
         }
         if let Some(ref vision_model) = tenant.default_vision_llm_model {
-            map["default_vision_llm_model"] = serde_json::json!(vision_model);
+            map.insert(
+                "default_vision_llm_model".to_string(),
+                serde_json::json!(vision_model),
+            );
         }
-        map
+        serde_json::Value::Object(map)
+    }
+
+    /// Build metadata JSON with workspace configuration.
+    fn build_workspace_metadata(workspace: &Workspace) -> serde_json::Value {
+        let mut metadata = workspace.metadata.clone();
+        metadata.insert(
+            "llm_model".to_string(),
+            serde_json::json!(workspace.llm_model.clone()),
+        );
+        metadata.insert(
+            "llm_provider".to_string(),
+            serde_json::json!(workspace.llm_provider.clone()),
+        );
+        metadata.insert(
+            "embedding_model".to_string(),
+            serde_json::json!(workspace.embedding_model.clone()),
+        );
+        metadata.insert(
+            "embedding_provider".to_string(),
+            serde_json::json!(workspace.embedding_provider.clone()),
+        );
+        metadata.insert(
+            "embedding_dimension".to_string(),
+            serde_json::json!(workspace.embedding_dimension),
+        );
+
+        if let Some(ref vision_provider) = workspace.vision_llm_provider {
+            metadata.insert(
+                "vision_llm_provider".to_string(),
+                serde_json::json!(vision_provider),
+            );
+        }
+        if let Some(ref vision_model) = workspace.vision_llm_model {
+            metadata.insert(
+                "vision_llm_model".to_string(),
+                serde_json::json!(vision_model),
+            );
+        }
+
+        serde_json::json!(metadata)
+    }
+
+    /// Create the system default tenant using runtime environment defaults.
+    fn default_tenant(default_tenant_id: Uuid) -> Tenant {
+        let now = chrono::Utc::now();
+        let (default_llm_model, default_llm_provider) = Workspace::default_llm_config();
+        let (default_embedding_model, default_embedding_provider, default_embedding_dimension) =
+            Workspace::default_embedding_config();
+        let (default_vision_llm_provider, default_vision_llm_model) =
+            Workspace::default_vision_config();
+        let mut metadata = HashMap::new();
+        Self::set_config_source(&mut metadata, Self::CONFIG_SOURCE_ENV);
+
+        Tenant {
+            tenant_id: default_tenant_id,
+            name: "Default".to_string(),
+            slug: "default".to_string(),
+            description: Some("Default tenant".to_string()),
+            plan: TenantPlan::Pro,
+            max_workspaces: 100,
+            max_users: 100,
+            is_active: true,
+            created_at: now,
+            updated_at: now,
+            metadata,
+            default_llm_model,
+            default_llm_provider,
+            default_embedding_model,
+            default_embedding_provider,
+            default_embedding_dimension,
+            default_vision_llm_provider,
+            default_vision_llm_model,
+        }
+    }
+
+    /// Create the system default workspace using runtime environment defaults.
+    fn default_workspace(default_tenant_id: Uuid, default_workspace_id: Uuid) -> Workspace {
+        let now = chrono::Utc::now();
+        let (llm_model, llm_provider) = Workspace::default_llm_config();
+        let (embedding_model, embedding_provider, embedding_dimension) =
+            Workspace::default_embedding_config();
+        let (vision_llm_provider, vision_llm_model) = Workspace::default_vision_config();
+        let mut metadata = HashMap::new();
+        Self::set_config_source(&mut metadata, Self::CONFIG_SOURCE_ENV);
+
+        Workspace {
+            workspace_id: default_workspace_id,
+            tenant_id: default_tenant_id,
+            name: "Default Workspace".to_string(),
+            slug: "default".to_string(),
+            description: Some("Default knowledge base".to_string()),
+            is_active: true,
+            created_at: now,
+            updated_at: now,
+            metadata,
+            llm_model,
+            llm_provider,
+            embedding_model,
+            embedding_provider,
+            embedding_dimension,
+            vision_llm_provider,
+            vision_llm_model,
+        }
     }
 }
 
@@ -236,6 +425,12 @@ impl WorkspaceService for WorkspaceServiceImpl {
     }
 
     async fn update_tenant(&self, tenant: Tenant) -> Result<Tenant> {
+        let mut tenant = tenant;
+        if Self::is_default_tenant_id(tenant.tenant_id)
+            && Self::config_source(&tenant.metadata) != Some(Self::CONFIG_SOURCE_MANUAL)
+        {
+            Self::set_config_source(&mut tenant.metadata, Self::CONFIG_SOURCE_MANUAL);
+        }
         let metadata = Self::build_tenant_metadata(&tenant);
 
         let result = sqlx::query(
@@ -428,6 +623,8 @@ impl WorkspaceService for WorkspaceServiceImpl {
             );
         }
 
+        let workspace_metadata = Self::build_workspace_metadata(&workspace);
+
         sqlx::query(
             r#"
             INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at)
@@ -440,19 +637,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .bind(&workspace.slug)
         .bind(&workspace.description)
         .bind(workspace.is_active)
-        // SPEC-032/SPEC-040: Store LLM, embedding, and vision config in metadata
-        .bind({
-            let mut metadata = workspace.metadata.clone();
-            // LLM configuration
-            metadata.insert("llm_model".to_string(), serde_json::Value::String(workspace.llm_model.clone()));
-            metadata.insert("llm_provider".to_string(), serde_json::Value::String(workspace.llm_provider.clone()));
-            // Embedding configuration
-            metadata.insert("embedding_model".to_string(), serde_json::Value::String(workspace.embedding_model.clone()));
-            metadata.insert("embedding_provider".to_string(), serde_json::Value::String(workspace.embedding_provider.clone()));
-            metadata.insert("embedding_dimension".to_string(), serde_json::Value::Number(workspace.embedding_dimension.into()));
-            // SPEC-041: Vision LLM configuration (already set in workspace.metadata above)
-            serde_json::json!(metadata)
-        })
+        .bind(workspace_metadata)
         .bind(workspace.created_at)
         .bind(workspace.updated_at)
         .execute(&self.pool)
@@ -480,6 +665,8 @@ impl WorkspaceService for WorkspaceServiceImpl {
             )));
         }
 
+        let workspace_metadata = Self::build_workspace_metadata(&workspace);
+
         sqlx::query(
             r#"
             INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at)
@@ -498,7 +685,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .bind(&workspace.slug)
         .bind(&workspace.description)
         .bind(workspace.is_active)
-        .bind(serde_json::json!(workspace.metadata))
+        .bind(workspace_metadata)
         .bind(workspace.created_at)
         .bind(workspace.updated_at)
         .execute(&self.pool)
@@ -638,6 +825,11 @@ impl WorkspaceService for WorkspaceServiceImpl {
                 );
                 workspace.vision_llm_model = Some(vision_model);
             }
+        }
+        if Self::is_default_workspace_id(workspace.workspace_id)
+            && Self::config_source(&workspace.metadata) != Some(Self::CONFIG_SOURCE_MANUAL)
+        {
+            Self::set_config_source(&mut workspace.metadata, Self::CONFIG_SOURCE_MANUAL);
         }
         workspace.updated_at = chrono::Utc::now();
 
@@ -1218,6 +1410,12 @@ struct TenantRow {
 #[cfg(feature = "postgres")]
 impl TenantRow {
     fn into_tenant(self) -> Tenant {
+        let (runtime_llm_model, runtime_llm_provider) = Workspace::default_llm_config();
+        let (runtime_embedding_model, runtime_embedding_provider, runtime_embedding_dimension) =
+            Workspace::default_embedding_config();
+        let (runtime_vision_llm_provider, runtime_vision_llm_model) =
+            Workspace::default_vision_config();
+
         // Extract values from metadata JSONB
         let plan_str = self
             .metadata
@@ -1245,33 +1443,52 @@ impl TenantRow {
             .metadata
             .get("default_llm_model")
             .and_then(|v| v.as_str())
-            .unwrap_or(crate::types::DEFAULT_LLM_MODEL)
-            .to_string();
+            .map(|s| s.to_string())
+            .unwrap_or(runtime_llm_model);
         let default_llm_provider = self
             .metadata
             .get("default_llm_provider")
             .and_then(|v| v.as_str())
-            .unwrap_or(crate::types::DEFAULT_LLM_PROVIDER)
-            .to_string();
+            .map(|s| s.to_string())
+            .or_else(|| {
+                self.metadata
+                    .get("default_llm_model")
+                    .and_then(|v| v.as_str())
+                    .map(Workspace::detect_provider_from_model)
+            })
+            .unwrap_or(runtime_llm_provider);
 
         // SPEC-032: Extract default embedding config from metadata
         let default_embedding_model = self
             .metadata
             .get("default_embedding_model")
             .and_then(|v| v.as_str())
-            .unwrap_or(crate::types::DEFAULT_EMBEDDING_MODEL)
-            .to_string();
+            .map(|s| s.to_string())
+            .unwrap_or(runtime_embedding_model);
         let default_embedding_provider = self
             .metadata
             .get("default_embedding_provider")
             .and_then(|v| v.as_str())
-            .unwrap_or(crate::types::DEFAULT_EMBEDDING_PROVIDER)
-            .to_string();
+            .map(|s| s.to_string())
+            .or_else(|| {
+                self.metadata
+                    .get("default_embedding_model")
+                    .and_then(|v| v.as_str())
+                    .map(Workspace::detect_provider_from_model)
+            })
+            .unwrap_or(runtime_embedding_provider);
         let default_embedding_dimension =
             self.metadata
                 .get("default_embedding_dimension")
                 .and_then(|v| v.as_u64())
-                .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64) as usize;
+                .map(|dimension| dimension as usize)
+                .unwrap_or_else(|| {
+                    self.metadata
+                        .get("default_embedding_model")
+                        .and_then(|v| v.as_str())
+                        .map(Workspace::detect_dimension_from_model)
+                        .unwrap_or(runtime_embedding_dimension)
+                });
 
         // SPEC-041: Extract default vision LLM config from metadata
         let default_vision_llm_provider = self
@@ -1279,13 +1496,22 @@ impl TenantRow {
             .get("default_vision_llm_provider")
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
+            .map(|s| s.to_string())
+            .or_else(|| {
+                self.metadata
+                    .get("default_vision_llm_model")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(Workspace::detect_provider_from_model)
+                    .or_else(|| runtime_vision_llm_provider.clone())
+            });
         let default_vision_llm_model = self
             .metadata
             .get("default_vision_llm_model")
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
+            .map(|s| s.to_string())
+            .or_else(|| runtime_vision_llm_model.clone());
 
         Tenant {
             tenant_id: self.tenant_id,
@@ -1298,7 +1524,11 @@ impl TenantRow {
             max_users,
             created_at: self.created_at,
             updated_at: self.updated_at,
-            metadata: HashMap::new(),
+            metadata: if let serde_json::Value::Object(map) = self.metadata {
+                map.into_iter().collect()
+            } else {
+                HashMap::new()
+            },
             default_llm_model,
             default_llm_provider,
             default_embedding_model,
@@ -1328,6 +1558,12 @@ struct WorkspaceRow {
 #[cfg(feature = "postgres")]
 impl WorkspaceRow {
     fn into_workspace(self) -> Workspace {
+        let (runtime_llm_model, runtime_llm_provider) = Workspace::default_llm_config();
+        let (runtime_embedding_model, runtime_embedding_provider, runtime_embedding_dimension) =
+            Workspace::default_embedding_config();
+        let (runtime_vision_llm_provider, runtime_vision_llm_model) =
+            Workspace::default_vision_config();
+
         // Convert metadata from serde_json::Value to HashMap
         let metadata: HashMap<String, serde_json::Value> =
             if let serde_json::Value::Object(map) = self.metadata {
@@ -1340,42 +1576,69 @@ impl WorkspaceRow {
         let llm_model = metadata
             .get("llm_model")
             .and_then(|v| v.as_str())
-            .unwrap_or(crate::types::DEFAULT_LLM_MODEL)
-            .to_string();
+            .map(|s| s.to_string())
+            .unwrap_or(runtime_llm_model);
         let llm_provider = metadata
             .get("llm_provider")
             .and_then(|v| v.as_str())
-            .unwrap_or(crate::types::DEFAULT_LLM_PROVIDER)
-            .to_string();
+            .map(|s| s.to_string())
+            .or_else(|| {
+                metadata
+                    .get("llm_model")
+                    .and_then(|v| v.as_str())
+                    .map(Workspace::detect_provider_from_model)
+            })
+            .unwrap_or(runtime_llm_provider);
 
         // SPEC-032: Extract embedding config from metadata
         let embedding_model = metadata
             .get("embedding_model")
             .and_then(|v| v.as_str())
-            .unwrap_or(crate::types::DEFAULT_EMBEDDING_MODEL)
-            .to_string();
+            .map(|s| s.to_string())
+            .unwrap_or(runtime_embedding_model);
         let embedding_provider = metadata
             .get("embedding_provider")
             .and_then(|v| v.as_str())
-            .unwrap_or(crate::types::DEFAULT_EMBEDDING_PROVIDER)
-            .to_string();
+            .map(|s| s.to_string())
+            .or_else(|| {
+                metadata
+                    .get("embedding_model")
+                    .and_then(|v| v.as_str())
+                    .map(Workspace::detect_provider_from_model)
+            })
+            .unwrap_or(runtime_embedding_provider);
         let embedding_dimension = metadata
             .get("embedding_dimension")
             .and_then(|v| v.as_u64())
-            .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64)
-            as usize;
+            .map(|dimension| dimension as usize)
+            .unwrap_or_else(|| {
+                metadata
+                    .get("embedding_model")
+                    .and_then(|v| v.as_str())
+                    .map(Workspace::detect_dimension_from_model)
+                    .unwrap_or(runtime_embedding_dimension)
+            });
 
         // SPEC-040: Extract vision LLM config from metadata
         let vision_llm_provider = metadata
             .get("vision_llm_provider")
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
+            .map(|s| s.to_string())
+            .or_else(|| {
+                metadata
+                    .get("vision_llm_model")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(Workspace::detect_provider_from_model)
+                    .or_else(|| runtime_vision_llm_provider.clone())
+            });
         let vision_llm_model = metadata
             .get("vision_llm_model")
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
+            .map(|s| s.to_string())
+            .or_else(|| runtime_vision_llm_model.clone());
 
         Workspace {
             workspace_id: self.workspace_id,
@@ -1424,5 +1687,92 @@ impl MembershipRow {
             joined_at: self.joined_at,
             metadata: HashMap::new(),
         }
+    }
+}
+
+#[cfg(all(test, feature = "postgres"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_seed_marks_env_config_source() {
+        let tenant = WorkspaceServiceImpl::default_tenant(WorkspaceServiceImpl::default_tenant_id());
+        assert_eq!(
+            tenant
+                .metadata
+                .get(WorkspaceServiceImpl::CONFIG_SOURCE_KEY)
+                .and_then(|value| value.as_str()),
+            Some(WorkspaceServiceImpl::CONFIG_SOURCE_ENV)
+        );
+
+        let workspace = WorkspaceServiceImpl::default_workspace(
+            WorkspaceServiceImpl::default_tenant_id(),
+            WorkspaceServiceImpl::default_workspace_id(),
+        );
+        assert_eq!(
+            workspace
+                .metadata
+                .get(WorkspaceServiceImpl::CONFIG_SOURCE_KEY)
+                .and_then(|value| value.as_str()),
+            Some(WorkspaceServiceImpl::CONFIG_SOURCE_ENV)
+        );
+    }
+
+    #[test]
+    fn build_tenant_metadata_preserves_custom_keys_and_config_source() {
+        let mut tenant = WorkspaceServiceImpl::default_tenant(WorkspaceServiceImpl::default_tenant_id());
+        tenant
+            .metadata
+            .insert("custom_flag".to_string(), serde_json::json!(true));
+
+        let metadata = WorkspaceServiceImpl::build_tenant_metadata(&tenant);
+        let obj = metadata.as_object().expect("tenant metadata should be an object");
+
+        assert_eq!(
+            obj.get("custom_flag").and_then(|value| value.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            obj.get(WorkspaceServiceImpl::CONFIG_SOURCE_KEY)
+                .and_then(|value| value.as_str()),
+            Some(WorkspaceServiceImpl::CONFIG_SOURCE_ENV)
+        );
+    }
+
+    #[test]
+    fn tenant_row_roundtrip_preserves_metadata() {
+        let row = TenantRow {
+            tenant_id: Uuid::new_v4(),
+            name: "Tenant".to_string(),
+            slug: Some("tenant".to_string()),
+            is_active: true,
+            metadata: serde_json::json!({
+                "custom_flag": true,
+                "config_source": "manual",
+                "default_llm_model": "qwen3.5-35b-a3b",
+                "default_llm_provider": "litellm-local",
+                "default_embedding_model": "qwen3-embedding-0.6b",
+                "default_embedding_provider": "litellm-local",
+                "default_embedding_dimension": 1024
+            }),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let tenant = row.into_tenant();
+        assert_eq!(
+            tenant
+                .metadata
+                .get("custom_flag")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            tenant
+                .metadata
+                .get(WorkspaceServiceImpl::CONFIG_SOURCE_KEY)
+                .and_then(|value| value.as_str()),
+            Some(WorkspaceServiceImpl::CONFIG_SOURCE_MANUAL)
+        );
     }
 }

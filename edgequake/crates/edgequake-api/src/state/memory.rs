@@ -94,26 +94,24 @@ impl AppState {
     /// # Arguments
     ///
     /// * `llm_api_key` - Optional API key override. If provided, sets OPENAI_API_KEY
-    ///   environment variable. Otherwise uses ProviderFactory auto-detection.
+    ///   environment variable and mirrors it to OPENAI_COMPATIBLE_API_KEY when needed.
+    ///   Otherwise uses the shared startup provider selection helper.
     ///
     /// # Provider Selection
     ///
-    /// Uses ProviderFactory::from_env() which auto-detects based on:
-    /// 1. EDGEQUAKE_LLM_PROVIDER environment variable
-    /// 2. OLLAMA_HOST or OLLAMA_MODEL (selects Ollama)
-    /// 3. OPENAI_API_KEY (selects OpenAI)
-    /// 4. Fallback to Mock provider
+    /// Uses the shared startup provider selection helper which prefers explicit
+    /// EdgeQuake model/provider env vars and falls back to provider auto-detection.
     pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
-        use edgequake_llm::ProviderFactory;
-
         // If API key provided, set it in environment for factory to use
         if let Some(key) = llm_api_key {
-            std::env::set_var("OPENAI_API_KEY", key.into());
+            let key = key.into();
+            if !key.trim().is_empty() {
+                std::env::set_var("OPENAI_API_KEY", key);
+            }
         }
 
-        // Use ProviderFactory for auto-detection
-        let (llm_provider, embedding_provider) =
-            ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
+        let (llm_provider, embedding_provider) = super::create_startup_providers()
+            .expect("Failed to create LLM provider from environment");
 
         // Get embedding dimension from provider for vector storage
         let embedding_dim = embedding_provider.dimension();

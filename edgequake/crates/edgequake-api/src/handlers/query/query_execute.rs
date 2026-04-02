@@ -9,6 +9,7 @@ use tracing::{debug, error, warn};
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::safety_limits::create_safe_llm_provider;
 use crate::state::AppState;
 use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
@@ -175,11 +176,9 @@ pub async fn execute_query(
             (&request.llm_provider, &request.llm_model)
         {
             debug!(provider = %provider, model = %model, "Creating LLM provider override from request");
-            Some(
-                edgequake_llm::ProviderFactory::create_llm_provider(provider, model).map_err(
-                    |e| ApiError::Internal(format!("Failed to create LLM provider: {}", e)),
-                )?,
-            )
+            Some(create_safe_llm_provider(provider, model).map_err(|e| {
+                ApiError::Internal(format!("Failed to create LLM provider: {}", e))
+            })?)
         } else {
             None
         };

@@ -150,8 +150,12 @@ export default function WorkspacePage() {
         embedding_provider: data.embedding_provider,
         embedding_dimension: data.embedding_dimension,
       }),
-    onSuccess: (_result, variables) => {
+    onSuccess: (updatedWorkspace, variables) => {
       toast.success(t('workspace.updateSuccess', 'Workspace updated successfully'));
+      queryClient.setQueryData(
+        ['workspace', selectedTenantId, selectedWorkspaceId],
+        updatedWorkspace,
+      );
       queryClient.invalidateQueries({ queryKey: ['workspace', selectedTenantId, selectedWorkspaceId] });
       setIsEditing(false);
       

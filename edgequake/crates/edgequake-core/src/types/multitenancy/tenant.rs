@@ -86,6 +86,8 @@ impl Tenant {
         let (default_llm_model, default_llm_provider) = Workspace::default_llm_config();
         let (default_embedding_model, default_embedding_provider, default_embedding_dimension) =
             Workspace::default_embedding_config();
+        let (default_vision_llm_provider, default_vision_llm_model) =
+            Workspace::default_vision_config();
 
         Self {
             tenant_id: Uuid::new_v4(),
@@ -104,8 +106,8 @@ impl Tenant {
             default_embedding_model,
             default_embedding_provider,
             default_embedding_dimension,
-            default_vision_llm_provider: None,
-            default_vision_llm_model: None,
+            default_vision_llm_provider,
+            default_vision_llm_model,
         }
     }
 
