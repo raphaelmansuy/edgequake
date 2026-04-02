@@ -192,8 +192,6 @@ pub async fn update_server_defaults(
 
     Ok(Json(ServerDefaultsResponse {
         default_max_workspaces: new_default,
-        note: Some(
-            "Applies to newly created tenants only. Not retroactive.".to_string(),
-        ),
+        note: Some("Applies to newly created tenants only. Not retroactive.".to_string()),
     }))
 }
