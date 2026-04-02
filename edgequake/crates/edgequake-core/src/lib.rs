@@ -78,7 +78,9 @@ pub use keyword_extractor::{ExtractedKeywords, KeywordExtractor};
 pub use tenant_manager::{TenantConfig, TenantKBKey, TenantRAGManager, TenantService};
 
 // Re-export workspace service
-pub use workspace_service::{InMemoryWorkspaceService, WorkspaceService, WorkspaceServiceFactory};
+pub use workspace_service::{
+    InMemoryWorkspaceService, UpdateTenantQuotaResult, WorkspaceService, WorkspaceServiceFactory,
+};
 
 // Re-export conversation service
 pub use conversation_service::{ConversationService, InMemoryConversationService};

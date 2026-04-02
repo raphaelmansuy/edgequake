@@ -148,6 +148,16 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/tenants/{tenant_id}", get(handlers::get_tenant))
         .route("/tenants/{tenant_id}", put(handlers::update_tenant))
         .route("/tenants/{tenant_id}", delete(handlers::delete_tenant))
+        // Admin quota management (SPEC-0001: Issue #133)
+        .route(
+            "/admin/tenants/{tenant_id}/quota",
+            patch(handlers::update_tenant_quota),
+        )
+        .route("/admin/config/defaults", get(handlers::get_server_defaults))
+        .route(
+            "/admin/config/defaults",
+            patch(handlers::update_server_defaults),
+        )
         // Workspaces (Multi-tenancy)
         .route(
             "/tenants/{tenant_id}/workspaces",

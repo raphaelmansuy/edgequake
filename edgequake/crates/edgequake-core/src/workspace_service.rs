@@ -35,6 +35,19 @@ use crate::types::{
     Tenant, TenantContext, TenantPlan, UpdateWorkspaceRequest, Workspace, WorkspaceStats,
 };
 
+/// Result returned by `update_tenant_quota`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UpdateTenantQuotaResult {
+    /// The tenant whose quota was updated.
+    pub tenant_id: Uuid,
+    /// New max_workspaces value.
+    pub max_workspaces: usize,
+    /// Previous max_workspaces value.
+    pub previous_max_workspaces: usize,
+    /// Current number of workspaces (used during validation).
+    pub current_workspace_count: usize,
+}
+
 /// Service trait for workspace management.
 #[async_trait]
 pub trait WorkspaceService: Send + Sync {
@@ -159,6 +172,33 @@ pub trait WorkspaceService: Send + Sync {
         tenant_id: Uuid,
         workspace_id: Option<Uuid>,
     ) -> Result<TenantContext>;
+
+    // ============ Quota Operations (SPEC-0001) ============
+
+    /// Update the max_workspaces quota for a specific tenant.
+    ///
+    /// # Validation Rules (SPEC-0001)
+    /// - V1: new_value > 0
+    /// - V2: new_value >= current workspace count (prevent orphan state)
+    /// - V3: new_value <= 10000 (sanity limit)
+    async fn update_tenant_quota(
+        &self,
+        tenant_id: Uuid,
+        new_max_workspaces: usize,
+    ) -> Result<UpdateTenantQuotaResult>;
+
+    /// Get the server-wide default max_workspaces for new tenants.
+    ///
+    /// Resolution order:
+    ///   1. server_config table → key "default_max_workspaces"
+    ///   2. EDGEQUAKE_DEFAULT_MAX_WORKSPACES env var
+    ///   3. Compile-time fallback (100)
+    async fn get_server_default_max_workspaces(&self) -> Result<usize>;
+
+    /// Set the server-wide default max_workspaces for new tenants.
+    ///
+    /// Only affects newly created tenants. Not retroactive.
+    async fn set_server_default_max_workspaces(&self, value: usize) -> Result<usize>;
 }
 
 /// In-memory implementation of WorkspaceService for testing.
@@ -166,6 +206,8 @@ pub struct InMemoryWorkspaceService {
     tenants: RwLock<HashMap<Uuid, Tenant>>,
     workspaces: RwLock<HashMap<Uuid, Workspace>>,
     memberships: RwLock<HashMap<Uuid, Membership>>,
+    /// Server-wide default max_workspaces for new tenants (SPEC-0001).
+    server_default_max_workspaces: RwLock<usize>,
 }
 
 impl InMemoryWorkspaceService {
@@ -175,6 +217,7 @@ impl InMemoryWorkspaceService {
             tenants: RwLock::new(HashMap::new()),
             workspaces: RwLock::new(HashMap::new()),
             memberships: RwLock::new(HashMap::new()),
+            server_default_max_workspaces: RwLock::new(100),
         }
     }
 
@@ -681,6 +724,84 @@ impl WorkspaceService for InMemoryWorkspaceService {
         }
 
         Ok(ctx)
+    }
+
+    // ============ Quota Operations (SPEC-0001) ============
+
+    async fn update_tenant_quota(
+        &self,
+        tenant_id: Uuid,
+        new_max_workspaces: usize,
+    ) -> Result<UpdateTenantQuotaResult> {
+        // Validation V1: must be positive
+        if new_max_workspaces == 0 {
+            return Err(Error::validation("max_workspaces must be positive"));
+        }
+        // Validation V3: sanity limit
+        if new_max_workspaces > 10_000 {
+            return Err(Error::validation("max_workspaces exceeds sanity limit (10000)"));
+        }
+
+        let mut tenants = self.tenants.write().await;
+        let tenant = tenants
+            .get_mut(&tenant_id)
+            .ok_or_else(|| Error::not_found(format!("Tenant {} not found", tenant_id)))?;
+
+        let previous = tenant.max_workspaces;
+
+        // Count workspaces under write lock to avoid TOCTOU
+        let current_count = {
+            let workspaces = self.workspaces.read().await;
+            workspaces.values().filter(|ws| ws.tenant_id == tenant_id).count()
+        };
+
+        // Validation V2: cannot go below current usage
+        if new_max_workspaces < current_count {
+            return Err(Error::validation(format!(
+                "Cannot reduce below current workspace count ({})",
+                current_count
+            )));
+        }
+
+        tenant.max_workspaces = new_max_workspaces;
+        tenant.updated_at = chrono::Utc::now();
+
+        tracing::info!(
+            tenant_id = %tenant_id,
+            previous = previous,
+            new = new_max_workspaces,
+            current_count = current_count,
+            "SPEC-0001: Updated tenant quota"
+        );
+
+        Ok(UpdateTenantQuotaResult {
+            tenant_id,
+            max_workspaces: new_max_workspaces,
+            previous_max_workspaces: previous,
+            current_workspace_count: current_count,
+        })
+    }
+
+    async fn get_server_default_max_workspaces(&self) -> Result<usize> {
+        // Check env var override first
+        if let Ok(val) = std::env::var("EDGEQUAKE_DEFAULT_MAX_WORKSPACES") {
+            if let Ok(n) = val.parse::<usize>() {
+                return Ok(n);
+            }
+        }
+        Ok(*self.server_default_max_workspaces.read().await)
+    }
+
+    async fn set_server_default_max_workspaces(&self, value: usize) -> Result<usize> {
+        if value == 0 {
+            return Err(Error::validation("default_max_workspaces must be positive"));
+        }
+        if value > 10_000 {
+            return Err(Error::validation("default_max_workspaces exceeds sanity limit (10000)"));
+        }
+        *self.server_default_max_workspaces.write().await = value;
+        tracing::info!(value = value, "SPEC-0001: Updated server default max_workspaces");
+        Ok(value)
     }
 }
 
