@@ -81,8 +81,8 @@ use std::sync::Arc;
 use crate::cache_manager::CacheManager;
 use crate::handlers::ProgressBroadcaster;
 use crate::safety_limits::{
-    create_safe_embedding_provider, create_safe_llm_provider,
-    default_embedding_model_for_provider, default_model_for_provider,
+    create_safe_embedding_provider, create_safe_llm_provider, default_embedding_model_for_provider,
+    default_model_for_provider,
 };
 use edgequake_auth::AuthConfig;
 use edgequake_core::Workspace;
@@ -183,37 +183,71 @@ fn resolve_startup_provider_selection() -> Option<StartupProviderSelection> {
     }
 
     let models_config = load_models_config_or_builtin();
+    let llm_provider_explicit = env_value("EDGEQUAKE_LLM_PROVIDER");
+    let llm_provider_default = env_value("EDGEQUAKE_DEFAULT_LLM_PROVIDER");
+    let llm_model_explicit = env_value("EDGEQUAKE_LLM_MODEL");
+    let llm_model_default = env_value("EDGEQUAKE_DEFAULT_LLM_MODEL");
+    let embedding_provider_explicit = env_value("EDGEQUAKE_EMBEDDING_PROVIDER");
+    let embedding_provider_default = env_value("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER");
+    let embedding_model_explicit = env_value("EDGEQUAKE_EMBEDDING_MODEL");
+    let embedding_model_default = env_value("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL");
+    let embedding_dimension_explicit = env_value("EDGEQUAKE_EMBEDDING_DIMENSION");
+    let embedding_dimension_default = env_value("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION");
 
-    let llm_model = env_value("EDGEQUAKE_LLM_MODEL")
-        .or_else(|| env_value("EDGEQUAKE_DEFAULT_LLM_MODEL"))
-        .or_else(|| Some(models_config.defaults.llm_model.clone()));
-    let llm_provider = env_value("EDGEQUAKE_LLM_PROVIDER")
-        .or_else(|| env_value("EDGEQUAKE_DEFAULT_LLM_PROVIDER"))
-        .or_else(|| Some(models_config.defaults.llm_provider.clone()))
+    let llm_provider_env = llm_provider_explicit
+        .clone()
+        .or_else(|| llm_provider_default.clone());
+    let llm_model_env = llm_model_explicit
+        .clone()
+        .or_else(|| llm_model_default.clone());
+    let embedding_provider_env = embedding_provider_explicit
+        .clone()
+        .or_else(|| embedding_provider_default.clone());
+    let embedding_model_env = embedding_model_explicit
+        .clone()
+        .or_else(|| embedding_model_default.clone());
+    let embedding_dimension_env = embedding_dimension_explicit
+        .clone()
+        .or_else(|| embedding_dimension_default.clone());
+
+    let llm_provider = llm_provider_env
+        .clone()
         .or_else(|| {
-            llm_model
+            llm_model_env
                 .as_deref()
                 .map(Workspace::detect_provider_from_model)
         })
-        .unwrap_or_else(|| "openai".to_string());
-    let llm_model = llm_model.unwrap_or_else(|| default_model_for_provider(&llm_provider).to_string());
-
-    let embedding_model = env_value("EDGEQUAKE_EMBEDDING_MODEL")
-        .or_else(|| env_value("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL"))
-        .or_else(|| Some(models_config.defaults.embedding_model.clone()));
-    let embedding_provider = env_value("EDGEQUAKE_EMBEDDING_PROVIDER")
-        .or_else(|| env_value("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER"))
-        .or_else(|| Some(models_config.defaults.embedding_provider.clone()))
+        .unwrap_or_else(|| models_config.defaults.llm_provider.clone());
+    let llm_model = llm_model_env
+        .clone()
         .or_else(|| {
-            embedding_model
+            llm_provider_env
+                .as_deref()
+                .map(default_model_for_provider)
+                .map(ToString::to_string)
+        })
+        .or_else(|| Some(models_config.defaults.llm_model.clone()))
+        .unwrap_or_else(|| default_model_for_provider(&llm_provider).to_string());
+
+    let embedding_provider = embedding_provider_env
+        .clone()
+        .or_else(|| {
+            embedding_model_env
                 .as_deref()
                 .map(Workspace::detect_provider_from_model)
         })
-        .unwrap_or_else(|| "openai".to_string());
-    let embedding_model = embedding_model
+        .unwrap_or_else(|| models_config.defaults.embedding_provider.clone());
+    let embedding_model = embedding_model_env
+        .clone()
+        .or_else(|| {
+            embedding_provider_env
+                .as_deref()
+                .map(default_embedding_model_for_provider)
+                .map(ToString::to_string)
+        })
+        .or_else(|| Some(models_config.defaults.embedding_model.clone()))
         .unwrap_or_else(|| default_embedding_model_for_provider(&embedding_provider).to_string());
-    let embedding_dimension = env_value("EDGEQUAKE_EMBEDDING_DIMENSION")
-        .or_else(|| env_value("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION"))
+    let embedding_dimension = embedding_dimension_env
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or_else(|| Workspace::detect_dimension_from_model(&embedding_model));
 
@@ -223,18 +257,18 @@ fn resolve_startup_provider_selection() -> Option<StartupProviderSelection> {
         embedding_provider,
         embedding_model,
         embedding_dimension,
-        source: if env_value("EDGEQUAKE_LLM_PROVIDER").is_some()
-            || env_value("EDGEQUAKE_LLM_MODEL").is_some()
-            || env_value("EDGEQUAKE_EMBEDDING_PROVIDER").is_some()
-            || env_value("EDGEQUAKE_EMBEDDING_MODEL").is_some()
-            || env_value("EDGEQUAKE_EMBEDDING_DIMENSION").is_some()
+        source: if llm_provider_explicit.is_some()
+            || llm_model_explicit.is_some()
+            || embedding_provider_explicit.is_some()
+            || embedding_model_explicit.is_some()
+            || embedding_dimension_explicit.is_some()
         {
             "explicit-env"
-        } else if env_value("EDGEQUAKE_DEFAULT_LLM_PROVIDER").is_some()
-            || env_value("EDGEQUAKE_DEFAULT_LLM_MODEL").is_some()
-            || env_value("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER").is_some()
-            || env_value("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL").is_some()
-            || env_value("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION").is_some()
+        } else if llm_provider_default.is_some()
+            || llm_model_default.is_some()
+            || embedding_provider_default.is_some()
+            || embedding_model_default.is_some()
+            || embedding_dimension_default.is_some()
             || env_value("EDGEQUAKE_MODELS_CONFIG").is_some()
         {
             "configured-defaults"
@@ -254,8 +288,7 @@ pub(crate) fn create_startup_providers() -> Result<
     sync_openai_compatible_api_key();
 
     if let Some(selection) = resolve_startup_provider_selection() {
-        let llm_provider =
-            create_safe_llm_provider(&selection.llm_provider, &selection.llm_model)?;
+        let llm_provider = create_safe_llm_provider(&selection.llm_provider, &selection.llm_model)?;
         let embedding_provider = create_safe_embedding_provider(
             &selection.embedding_provider,
             &selection.embedding_model,
@@ -277,9 +310,8 @@ pub(crate) fn create_startup_providers() -> Result<
 
     use edgequake_llm::ProviderFactory;
 
-    let (llm_provider, embedding_provider) = ProviderFactory::from_env().map_err(|error| {
-        Box::<dyn std::error::Error + Send + Sync>::from(error)
-    })?;
+    let (llm_provider, embedding_provider) = ProviderFactory::from_env()
+        .map_err(|error| Box::<dyn std::error::Error + Send + Sync>::from(error))?;
 
     tracing::info!(
         llm_provider = llm_provider.name(),
@@ -711,5 +743,47 @@ mod tests {
         assert_eq!(state.embedding_provider.name(), "openai");
         assert_eq!(state.embedding_provider.model(), "qwen3-embedding-0.6b");
         assert_eq!(state.embedding_provider.dimension(), 1024);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_startup_selection_infers_provider_from_explicit_model() {
+        struct EnvGuard;
+
+        impl Drop for EnvGuard {
+            fn drop(&mut self) {
+                for key in [
+                    "EDGEQUAKE_LLM_PROVIDER",
+                    "EDGEQUAKE_LLM_MODEL",
+                    "EDGEQUAKE_EMBEDDING_PROVIDER",
+                    "EDGEQUAKE_EMBEDDING_MODEL",
+                    "EDGEQUAKE_EMBEDDING_DIMENSION",
+                    "EDGEQUAKE_DEFAULT_LLM_PROVIDER",
+                    "EDGEQUAKE_DEFAULT_LLM_MODEL",
+                    "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER",
+                    "EDGEQUAKE_DEFAULT_EMBEDDING_MODEL",
+                    "EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION",
+                    "EDGEQUAKE_MODELS_CONFIG",
+                ] {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+
+        let _guard = EnvGuard;
+
+        std::env::set_var("EDGEQUAKE_LLM_MODEL", "qwen3.5-35b-a3b");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "openai");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_MODEL", "text-embedding-3-small");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_DIMENSION", "1536");
+
+        let selection = resolve_startup_provider_selection().expect("selection");
+
+        assert_eq!(selection.llm_provider, "litellm-local");
+        assert_eq!(selection.llm_model, "qwen3.5-35b-a3b");
+        assert_eq!(selection.embedding_provider, "openai");
+        assert_eq!(selection.embedding_model, "text-embedding-3-small");
+        assert_eq!(selection.embedding_dimension, 1536);
+        assert_eq!(selection.source, "explicit-env");
     }
 }

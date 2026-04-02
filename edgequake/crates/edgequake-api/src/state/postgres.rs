@@ -22,16 +22,6 @@ use super::{create_bm25_reranker, AppState};
 use crate::cache_manager::CacheManager;
 use crate::handlers::ProgressBroadcaster;
 
-fn is_sqlx_database_duplicate_key(error: &sqlx::Error) -> bool {
-    match error {
-        sqlx::Error::Database(db_error) => {
-            db_error.code().as_deref() == Some("23505")
-                && db_error.constraint().as_deref() == Some("_sqlx_migrations_pkey")
-        }
-        _ => false,
-    }
-}
-
 fn is_sqlx_migration_duplicate_key(error: &sqlx::migrate::MigrateError) -> bool {
     let rendered = error.to_string();
     let debug_rendered = format!("{error:?}");

@@ -32,7 +32,7 @@ function getWebSocketUrl(): string {
   // Browser-based detection
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${protocol}//localhost:8080/ws/pipeline/progress`;
+    return `${protocol}//${window.location.host}/ws/pipeline/progress`;
   }
 
   // Fallback for server-side rendering

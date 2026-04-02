@@ -31,10 +31,10 @@
 #   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
 
 [defaults]
-llm_provider = "litellm-local"               # Default LLM provider
-llm_model = "qwen3.5-35b-a3b"                # Default LLM model (128K context, vision support)
-embedding_provider = "litellm-local"         # Default embedding provider
-embedding_model = "qwen3-embedding-0.6b"     # Default embedding model (1024 dimensions)
+llm_provider = "mock"                        # Safe default LLM provider
+llm_model = "mock-model"                     # Safe default LLM model
+embedding_provider = "mock"                  # Safe default embedding provider
+embedding_model = "mock-embedding"          # Safe default embedding model
 
 # =============================================================================
 # OPENAI PROVIDER
@@ -1724,17 +1724,18 @@ image_per_unit = 0.0
 # CUSTOM OPENAI-COMPATIBLE PROVIDERS
 # =============================================================================
 #
-# LiteLLM-compatible local provider used by the Portainer stack.
+# LiteLLM-compatible local provider used by Portainer / local stacks.
+# Override the api_base in deployment-specific config or env files.
 
 [[providers]]
 name = "litellm-local"
 display_name = "LiteLLM"
 type = "openai"
-api_base = "http://192.168.0.204:4000/v1"
+api_base = "http://localhost:4000/v1"
 api_key_env = "OPENAI_COMPATIBLE_API_KEY"
-enabled = true
+enabled = false
 priority = 30
-description = "Local LiteLLM deployment"
+description = "Example local LiteLLM deployment"
 
 [[providers.models]]
 name = "qwen3.5-35b-a3b"

@@ -18,13 +18,26 @@ const deriveWebSocketUrl = (apiUrl) => {
   return apiUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
 };
 
+const normalizeWebSocketUrl = (value) => {
+  const normalized = normalizeUrl(value);
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+    return deriveWebSocketUrl(normalized);
+  }
+
+  return normalized;
+};
+
 const apiUrl =
   normalizeUrl(process.env.EDGEQUAKE_API_URL) ||
   normalizeUrl(process.env.NEXT_PUBLIC_API_URL) ||
   DEFAULT_API_URL;
 const wsUrl =
-  normalizeUrl(process.env.EDGEQUAKE_WS_URL) ||
-  normalizeUrl(process.env.NEXT_PUBLIC_WS_URL) ||
+  normalizeWebSocketUrl(process.env.EDGEQUAKE_WS_URL) ||
+  normalizeWebSocketUrl(process.env.NEXT_PUBLIC_WS_URL) ||
   deriveWebSocketUrl(apiUrl);
 
 const outputPath = resolve(process.cwd(), "public/runtime-config.js");
