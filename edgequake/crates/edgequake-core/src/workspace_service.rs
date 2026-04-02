@@ -739,7 +739,9 @@ impl WorkspaceService for InMemoryWorkspaceService {
         }
         // Validation V3: sanity limit
         if new_max_workspaces > 10_000 {
-            return Err(Error::validation("max_workspaces exceeds sanity limit (10000)"));
+            return Err(Error::validation(
+                "max_workspaces exceeds sanity limit (10000)",
+            ));
         }
 
         let mut tenants = self.tenants.write().await;
@@ -752,7 +754,10 @@ impl WorkspaceService for InMemoryWorkspaceService {
         // Count workspaces under write lock to avoid TOCTOU
         let current_count = {
             let workspaces = self.workspaces.read().await;
-            workspaces.values().filter(|ws| ws.tenant_id == tenant_id).count()
+            workspaces
+                .values()
+                .filter(|ws| ws.tenant_id == tenant_id)
+                .count()
         };
 
         // Validation V2: cannot go below current usage
@@ -797,10 +802,15 @@ impl WorkspaceService for InMemoryWorkspaceService {
             return Err(Error::validation("default_max_workspaces must be positive"));
         }
         if value > 10_000 {
-            return Err(Error::validation("default_max_workspaces exceeds sanity limit (10000)"));
+            return Err(Error::validation(
+                "default_max_workspaces exceeds sanity limit (10000)",
+            ));
         }
         *self.server_default_max_workspaces.write().await = value;
-        tracing::info!(value = value, "SPEC-0001: Updated server default max_workspaces");
+        tracing::info!(
+            value = value,
+            "SPEC-0001: Updated server default max_workspaces"
+        );
         Ok(value)
     }
 }
