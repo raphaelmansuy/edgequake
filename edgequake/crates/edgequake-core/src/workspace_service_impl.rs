@@ -1054,7 +1054,9 @@ impl WorkspaceService for WorkspaceServiceImpl {
         }
         // Validation V3: sanity limit
         if new_max_workspaces > 10_000 {
-            return Err(Error::validation("max_workspaces exceeds sanity limit (10000)"));
+            return Err(Error::validation(
+                "max_workspaces exceeds sanity limit (10000)",
+            ));
         }
 
         // Use a transaction with SELECT FOR UPDATE to avoid TOCTOU race (SPEC-0001)
@@ -1078,20 +1080,21 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .await
         .map_err(|e| Error::internal(format!("Failed to lock tenant: {}", e)))?;
 
-        let tenant_row = row.ok_or_else(|| Error::not_found(format!("Tenant {} not found", tenant_id)))?;
-        let previous_max = tenant_row.metadata
+        let tenant_row =
+            row.ok_or_else(|| Error::not_found(format!("Tenant {} not found", tenant_id)))?;
+        let previous_max = tenant_row
+            .metadata
             .get("max_workspaces")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as usize;
 
         // Count current workspaces within the transaction
-        let workspace_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM workspaces WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| Error::internal(format!("Failed to count workspaces: {}", e)))?;
+        let workspace_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM workspaces WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(|e| Error::internal(format!("Failed to count workspaces: {}", e)))?;
 
         let current_count = workspace_count as usize;
 
@@ -1141,12 +1144,11 @@ impl WorkspaceService for WorkspaceServiceImpl {
 
     async fn get_server_default_max_workspaces(&self) -> Result<usize> {
         // Try server_config table first
-        let row: Option<(serde_json::Value,)> = sqlx::query_as(
-            "SELECT value FROM server_config WHERE key = 'default_max_workspaces'",
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| Error::internal(format!("Failed to query server_config: {}", e)))?;
+        let row: Option<(serde_json::Value,)> =
+            sqlx::query_as("SELECT value FROM server_config WHERE key = 'default_max_workspaces'")
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| Error::internal(format!("Failed to query server_config: {}", e)))?;
 
         if let Some((val,)) = row {
             if let Some(n) = val.as_u64() {
@@ -1170,7 +1172,9 @@ impl WorkspaceService for WorkspaceServiceImpl {
             return Err(Error::validation("default_max_workspaces must be positive"));
         }
         if value > 10_000 {
-            return Err(Error::validation("default_max_workspaces exceeds sanity limit (10000)"));
+            return Err(Error::validation(
+                "default_max_workspaces exceeds sanity limit (10000)",
+            ));
         }
 
         sqlx::query(
@@ -1187,7 +1191,10 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .await
         .map_err(|e| Error::internal(format!("Failed to update server_config: {}", e)))?;
 
-        tracing::info!(value = value, "SPEC-0001: Updated server default max_workspaces in PostgreSQL");
+        tracing::info!(
+            value = value,
+            "SPEC-0001: Updated server default max_workspaces in PostgreSQL"
+        );
         Ok(value)
     }
 }
