@@ -1,14 +1,16 @@
 services:
   edgequake:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     image: docker-edgequake:latest
-    container_name: edgequake-backend
     restart: unless-stopped
     ports:
       - "11432:8080"
     environment:
       - HOST=0.0.0.0
       - PORT=8080
-      - DATABASE_URL=${DATABASE_URL:-postgresql://edgequake:${POSTGRES_PASSWORD:-edgequake_pass}@host.docker.internal:5432/edgequake_db}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-edgequake}:${POSTGRES_PASSWORD:-CHANGE_ME}@postgres:5432/${POSTGRES_DB:-edgequake}
       - EDGEQUAKE_MODELS_CONFIG=/app/models.toml
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_COMPATIBLE_API_KEY=${OPENAI_COMPATIBLE_API_KEY:-}
@@ -28,11 +30,14 @@ services:
       - WORKER_THREADS=2
       - RUST_LOG=debug,edgequake=debug,tower_http=warn,axum=warn
       - RUST_BACKTRACE=1
+    depends_on:
+      postgres:
+        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - type: bind
-        source: /root/edgequake/config/models.toml
+        source: ../../config/models.toml
         target: /app/models.toml
         read_only: true
     healthcheck:
@@ -43,11 +48,42 @@ services:
       start_period: 40s
 
   frontend:
+    build:
+      context: ../../
+      dockerfile: edgequake_webui/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:11432}
     image: docker-frontend:latest
-    container_name: edgequake-frontend
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      EDGEQUAKE_API_URL: ${EDGEQUAKE_API_URL:-http://localhost:11432}
       NODE_ENV: production
+    depends_on:
+      - edgequake
+
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    image: docker-postgres:latest
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-edgequake}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-CHANGE_ME}
+      - POSTGRES_DB=${POSTGRES_DB:-edgequake}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-extensions.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-edgequake} -d ${POSTGRES_DB:-edgequake}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres-data:
+    driver: local
