@@ -77,7 +77,8 @@ fn resolve_pdfium_auto_cache_dir() -> std::path::PathBuf {
     select_pdfium_auto_cache_dir(preferred)
 }
 
-fn ensure_pdfium_auto_cache_dir() -> std::path::PathBuf {
+#[cfg(not(test))]
+pub(super) fn ensure_pdfium_auto_cache_dir() -> std::path::PathBuf {
     static CACHE_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
 
     CACHE_DIR
@@ -398,11 +399,6 @@ impl DocumentTaskProcessor {
                     "Vision extraction timeout set (adaptive for {} pages)",
                     page_count
                 );
-
-                // pdfium-auto extracts the bundled library into a writable cache base.
-                // The default cache location may be unwritable for the non-root runtime
-                // user, so we pin it to a temp-backed path before the first use.
-                let _ = ensure_pdfium_auto_cache_dir();
 
                 let spawn_result = tokio::time::timeout(
                     vision_timeout,
