@@ -125,7 +125,7 @@ pub async fn delete_document(
     // OODA-02: Also check document status for safe deletion
     // OODA-90: Extract content_hash for hash key cleanup
     // FIX-ISSUE-73: Extract pdf_id for pdf_documents cleanup
-    let (workspace_id_for_storage, document_status, content_hash_opt, pdf_id_opt) = if has_metadata
+    let (workspace_id_for_storage, document_status, content_hash_opt, _pdf_id_opt) = if has_metadata
     {
         if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
             let workspace = metadata
@@ -450,7 +450,7 @@ pub async fn delete_document(
     {
         if let Some(ref pdf_storage) = state.pdf_storage {
             // 1. Delete from pdf_documents if this is a PDF document
-            if let Some(ref pid) = pdf_id_opt {
+            if let Some(ref pid) = _pdf_id_opt {
                 if let Ok(pdf_uuid) = Uuid::parse_str(pid) {
                     if let Err(e) = pdf_storage.delete_pdf(&pdf_uuid).await {
                         tracing::warn!(

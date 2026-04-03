@@ -101,6 +101,11 @@ impl AppState {
         let (llm_provider, embedding_provider) =
             ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
 
+        // Allow a dedicated embedding provider / host to override the default
+        // (OLLAMA_EMBEDDING_HOST, EDGEQUAKE_EMBEDDING_PROVIDER, etc.)
+        let embedding_provider =
+            super::provider_setup::resolve_embedding_provider(embedding_provider);
+
         // Parse database URL to create PostgreSQL configuration
         // Format: postgresql://username:password@host:port/database
         let url = url::Url::parse(&database_url)?;

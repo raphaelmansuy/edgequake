@@ -2,7 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.9.0] - 2026-04-03
+## [Unreleased]
+
+### Fixed
+
+#### Disable Demo Login Button in Production — Closes [#139](https://github.com/raphaelmansuy/edgequake/issues/139)
+
+- Added `NEXT_PUBLIC_DISABLE_DEMO_LOGIN` environment variable to the Next.js frontend. When set to `true` at build time, the **"Continue without login (Demo)"** button and its separator are hidden on the login page, preventing unintentional unauthenticated access in production deployments.
+- Updated `.env.example` and `docs/operations/configuration.md` with documentation for the new variable.
+
+#### Separate LLM and Embedding Provider Hosts — Closes [#140](https://github.com/raphaelmansuy/edgequake/issues/140)
+
+- Added **hybrid provider mode**: the embedding provider can now be configured independently from the LLM provider without editing code.
+- New `OLLAMA_EMBEDDING_HOST` environment variable: routes embedding requests to a dedicated Ollama instance (e.g. a separate GPU node), while LLM chat continues to use `OLLAMA_HOST` or whatever the main provider is.
+- New `EDGEQUAKE_EMBEDDING_PROVIDER` environment variable: explicitly selects a different provider type (e.g. `openai`, `ollama`) for embeddings in hybrid setups.
+- New `EDGEQUAKE_EMBEDDING_MODEL` / `EDGEQUAKE_EMBEDDING_DIMENSION` variables for finer control.
+- Implemented in a new `state/provider_setup.rs` module (`resolve_embedding_provider()`), applied in both `AppState::new_postgres()` and `AppState::new_memory()`. The helper is non-fatal: misconfigured overrides warn and fall back to the default provider so the server never fails to start due to an embedding config error.
+- Updated `.env.example` with examples for the hybrid mode configuration.
+- Updated `docs/operations/configuration.md` with a dedicated "Hybrid Provider Mode" table and examples.
+
+
 
 ### Added
 

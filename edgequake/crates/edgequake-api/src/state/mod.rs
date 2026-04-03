@@ -73,6 +73,7 @@ mod config;
 mod memory;
 #[cfg(feature = "postgres")]
 mod postgres;
+mod provider_setup;
 
 pub use config::*;
 

@@ -115,6 +115,11 @@ impl AppState {
         let (llm_provider, embedding_provider) =
             ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
 
+        // Allow a dedicated embedding provider / host to override the default
+        // (OLLAMA_EMBEDDING_HOST, EDGEQUAKE_EMBEDDING_PROVIDER, etc.)
+        let embedding_provider =
+            super::provider_setup::resolve_embedding_provider(embedding_provider);
+
         // Get embedding dimension from provider for vector storage
         let embedding_dim = embedding_provider.dimension();
 
