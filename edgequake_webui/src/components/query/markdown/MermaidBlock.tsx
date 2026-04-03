@@ -10,10 +10,10 @@
 
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, GitBranch, Maximize2, RefreshCw } from 'lucide-react';

@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-04-03
+
 ### Fixed
 
 #### Graph Edge Labels (Relation Types) Now Display — Closes [#91](https://github.com/raphaelmansuy/edgequake/issues/91)

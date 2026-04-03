@@ -5,13 +5,13 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.1-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.78+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.9.0** — Custom Entity Configuration (SPEC-085, [#85](https://github.com/raphaelmansuy/edgequake/issues/85)): Set domain-specific entity types per workspace (Manufacturing, Healthcare, Legal, Research, Finance presets) with up to **50 types** and a live entity-type selector in the workspace creation UI.
+> **v0.9.1** — Graph Edge Labels fix: `relationship_type` field now correctly serialized from API to frontend so Sigma.js edge labels render when "Show Edge Labels" is enabled ([#91](https://github.com/raphaelmansuy/edgequake/issues/91)). Also includes hardened Mermaid renderer for curly-brace labels and forward slashes ([#141](https://github.com/raphaelmansuy/edgequake/issues/141)).
 
 ---
 
