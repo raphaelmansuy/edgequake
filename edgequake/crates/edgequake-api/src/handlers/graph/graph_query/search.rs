@@ -165,9 +165,10 @@ pub async fn search_nodes(
         .map(|edge| GraphEdgeResponse {
             source: edge.source,
             target: edge.target,
-            edge_type: edge
+            relationship_type: edge
                 .properties
                 .get("relationship_type")
+                .or_else(|| edge.properties.get("relation_type"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("RELATED_TO")
                 .to_string(),

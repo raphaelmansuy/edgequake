@@ -116,7 +116,7 @@ pub async fn get_graph(
             .map(|e| GraphEdgeResponse {
                 source: e.source,
                 target: e.target,
-                edge_type: e
+                relationship_type: e
                     .properties
                     .get("relation_type")
                     .and_then(|v| v.as_str())
@@ -236,7 +236,7 @@ pub async fn get_graph(
             .map(|e| GraphEdgeResponse {
                 source: e.source,
                 target: e.target,
-                edge_type: e
+                relationship_type: e
                     .properties
                     .get("relation_type")
                     .and_then(|v| v.as_str())

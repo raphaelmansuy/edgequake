@@ -41,8 +41,11 @@ pub struct GraphEdgeResponse {
     /// Target node ID.
     pub target: String,
 
-    /// Edge type.
-    pub edge_type: String,
+    /// Relationship / edge type.
+    /// WHY: field renamed from `edge_type` to match the frontend `GraphEdge.relationship_type`
+    /// field expected by graph-renderer.tsx — the mismatch caused edge labels to always be
+    /// `undefined` in the browser even with `forceLabel: true` enabled.
+    pub relationship_type: String,
 
     /// Edge weight.
     pub weight: f32,
@@ -408,7 +411,7 @@ mod tests {
         let edge = GraphEdgeResponse {
             source: "node_a".to_string(),
             target: "node_b".to_string(),
-            edge_type: "RELATED_TO".to_string(),
+            relationship_type: "RELATED_TO".to_string(),
             weight: 0.8,
             properties: serde_json::json!({}),
         };

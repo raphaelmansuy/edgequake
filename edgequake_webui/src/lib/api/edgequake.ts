@@ -1011,7 +1011,20 @@ export async function getGraph(
   }
 
   const query = searchParams.toString();
-  return api.get<KnowledgeGraph>(`/graph${query ? `?${query}` : ""}`);
+  const graph = await api.get<KnowledgeGraph>(`/graph${query ? `?${query}` : ""}`);
+
+  // WHY: Normalize edge field names.  Older backend versions returned `edge_type`
+  // instead of `relationship_type`.  Map the legacy field so label rendering
+  // always works regardless of the API version in use.
+  if (graph.edges) {
+    graph.edges = graph.edges.map((e) => ({
+      ...e,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      relationship_type: e.relationship_type || (e as any).edge_type || "",
+    }));
+  }
+
+  return graph;
 }
 
 export async function getGraphLabels(): Promise<{
