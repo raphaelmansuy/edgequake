@@ -17,12 +17,18 @@ cd edgequake
 make stack          # pulls images, starts all services, waits for health
 ```
 
-Or one-liner without `make`:
+Or one-liner without `git clone` (just Docker required):
 
 ```bash
-docker compose -f docker-compose.quickstart.yml up -d
+# Pipe compose file direct to docker compose — no files saved locally
+curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.quickstart.yml \
+  | docker compose -f - up -d
+
+# Or with the helper shell script (auto-detects LLM provider):
+curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh
 ```
 
+- **New `quickstart.sh`** at repo root — one command that downloads the compose file, auto-detects LLM provider (OpenAI if `OPENAI_API_KEY` set, else Ollama), pulls images, starts services, waits for health, and prints access URLs
 - **New `docker-compose.quickstart.yml`** at repo root — pulls all three images from GHCR:
   - `ghcr.io/raphaelmansuy/edgequake:latest` (API, amd64 + arm64)
   - `ghcr.io/raphaelmansuy/edgequake-frontend:latest` (Next.js Web UI, amd64 + arm64)
@@ -56,6 +62,8 @@ Two-tier environment variable resolution for `default_llm_config()`:
 - **#100** PDFium cache `Permission denied` on container startup — writable `/tmp/edgequake-pdfium-cache` + `ENV PDFIUM_AUTO_CACHE_DIR` set in Dockerfile
 - **#147** Ollama workspace defaults not respected when `OPENAI_API_KEY` is set alongside `EDGEQUAKE_LLM_PROVIDER=ollama`
 - **#145** Workspace default model config not reading `EDGEQUAKE_LLM_MODEL` env var
+- **Delete pending/processing documents** — deleting a document with status `pending` or `processing` no longer returns `409 Conflict`. The handler now cancels the in-flight task via `CancellationRegistry` (best-effort) and proceeds with cascade delete unconditionally. First Principle: a user must always be able to delete their own document. SRP: the delete handler's only responsibility is data removal; lifecycle management belongs to the processor (which handles the no-op gracefully when KV keys are gone).
+- **Default LLM/embedding models updated** — `gemma3` → `gemma4:latest` (LLM + vision); `embeddinggemma` → `embeddinggemma:latest` (embedding) across `workspace.rs`, Makefile, `.env.example`, WebUI provider card, and API Explorer
 
 ### Infrastructure
 

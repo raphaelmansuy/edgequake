@@ -5,13 +5,13 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.9.1-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.4-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.78+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.9.1** — Graph Edge Labels fix: `relationship_type` field now correctly serialized from API to frontend so Sigma.js edge labels render when "Show Edge Labels" is enabled ([#91](https://github.com/raphaelmansuy/edgequake/issues/91)). Also includes hardened Mermaid renderer for curly-brace labels and forward slashes ([#141](https://github.com/raphaelmansuy/edgequake/issues/141)).
+> **v0.9.4** — One-command Docker quickstart (`curl ... | sh`), fix deletion of pending/processing documents, update default LLM model to gemma4 + embeddinggemma:latest. See [CHANGELOG](CHANGELOG.md) for full details.
 
 ---
 
@@ -130,14 +130,72 @@ See [mcp/](mcp/) for server implementation details.
 
 ## Quick Start
 
-### Prerequisites
+### ⚡ Option 1 — One Command (Docker, ~30s, no build required)
+
+> **Zero prerequisites beyond Docker.**  
+> No Rust, no Node.js, no `cargo build`, no `npm install`.
+
+```bash
+# Download and start the full stack in one command
+curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh
+```
+
+Or with `docker compose` directly (pipe to compose):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.quickstart.yml \
+  | docker compose -f - up -d
+```
+
+Or download the compose file first, then start:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.quickstart.yml \
+  -o docker-compose.quickstart.yml
+docker compose -f docker-compose.quickstart.yml up -d
+```
+
+**Then open:** http://localhost:3000
+
+| Service | URL                              |
+| ------- | -------------------------------- |
+| Web UI  | http://localhost:3000            |
+| API     | http://localhost:8080            |
+| Swagger | http://localhost:8080/swagger-ui |
+| Health  | http://localhost:8080/health     |
+
+**LLM Provider (choose one):**
+
+```bash
+# Default: Ollama running locally on port 11434
+# Make sure Ollama is running: https://ollama.ai
+
+# Or use OpenAI:
+OPENAI_API_KEY=sk-... curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh
+```
+
+**Management:**
+
+```bash
+docker compose -f docker-compose.quickstart.yml logs -f    # tail logs
+docker compose -f docker-compose.quickstart.yml ps         # check status
+docker compose -f docker-compose.quickstart.yml down       # stop
+```
+
+> **Pinned version:** `EDGEQUAKE_VERSION=0.9.4 sh quickstart.sh` to use a specific release.
+
+---
+
+### 🛠️ Option 2 — Development Setup (Rust toolchain required)
+
+#### Prerequisites
 
 - **Rust**: 1.78 or later ([Install Rust](https://rustup.rs))
 - **Node.js**: 18+ or Bun 1.0+ ([Install Node](https://nodejs.org))
 - **Docker**: For PostgreSQL ([Install Docker](https://www.docker.com/get-started))
 - **Ollama**: For local LLM (optional, [Install Ollama](https://ollama.ai))
 
-### Installation (5 minutes)
+#### Installation (5 minutes)
 
 ```bash
 # 1. Clone the repository
