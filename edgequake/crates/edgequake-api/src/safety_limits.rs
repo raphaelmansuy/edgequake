@@ -319,8 +319,9 @@ fn check_api_key(provider_name: &str) -> Result<()> {
         "openrouter" => ("OPENROUTER_API_KEY", "OpenRouter"),
         _ => return Ok(()), // Local / key-less providers (ollama, lmstudio, mock, etc.)
     };
-    let key_present =
-        std::env::var(env_var).map(|v| !v.trim().is_empty()).unwrap_or(false);
+    let key_present = std::env::var(env_var)
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
     if !key_present {
         return Err(LlmError::ConfigError(format!(
             "{env_var} is not set. To use the {display_name} provider, \

@@ -36,6 +36,11 @@ COPY crates/ crates/
 COPY src/ src/
 COPY migrations/ migrations/
 COPY .sqlx .sqlx/
+# WHY: models.toml defines available LLM providers/models (gpt-5.4, claude-sonnet-4-6,
+# gemma4, etc.). The binary falls back to built-in defaults (edgequake-llm v0.5.1) which
+# only include gpt-4o and gpt-4o-mini — the new models are only in models.toml.
+# We copy it into the build layer so Stage 2 can retrieve it via --from=builder.
+COPY models.toml models.toml
 
 # Build release binary with SQLx offline mode (no database needed at build time).
 # pdfium-auto downloads and embeds the correct pdfium binary for TARGETPLATFORM.
@@ -70,9 +75,13 @@ ENV PDFIUM_AUTO_CACHE_DIR=/tmp/edgequake-pdfium-cache
 
 # Copy binary from builder
 COPY --from=builder /app/target/release/edgequake /usr/local/bin/
+# Copy models.toml so the runtime binary finds up-to-date models at ./models.toml
+# (CWD=/app, see WORKDIR above). Without this, the binary falls back to the compiled-in
+# defaults which lack the v0.9.8 models (gpt-5.4, claude-sonnet-4-6, gemma4).
+COPY --from=builder /app/models.toml /app/models.toml
 
 # Set ownership
-RUN chown edgequake:edgequake /usr/local/bin/edgequake
+RUN chown edgequake:edgequake /usr/local/bin/edgequake /app/models.toml
 
 # Switch to non-root user
 USER edgequake

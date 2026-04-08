@@ -133,9 +133,11 @@ export function sanitizeMermaidCode(code: string): { sanitized: string; issues: 
 
     // Fix node definitions with bracket-style labels that contain special characters.
     // Matches patterns like: NodeId[label text] or NodeId[label (with parens)]
-    // Character class now includes forward-slash `/` and backslash `\`.
+    // Character class includes: parens, braces, pipes, angle brackets, slashes,
+    // @, &, #, : (common in email addresses and URLs), and Unicode.
+    // WHY: @ triggers LINK_ID token; & triggers AMP; # and : cause parser confusion.
     let processedLine = line.replace(
-      /([A-Za-z0-9_\u4e00-\u9fff\u3400-\u4dbf]+)\[([^\]"]*[(){}|><\/\\\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef][^\]"]*)\]/g,
+      /([A-Za-z0-9_\u4e00-\u9fff\u3400-\u4dbf]+)\[([^\]"]*[(){}|><\/\\@&#:\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef][^\]"]*)\]/g,
       (_match, nodeId: string, labelText: string) => {
         // If the label already has quotes, leave it alone
         if (labelText.startsWith('"') && labelText.endsWith('"')) return _match;
@@ -149,9 +151,9 @@ export function sanitizeMermaidCode(code: string): { sanitized: string; issues: 
 
     // Fix rhombus/diamond nodes with special chars: NodeId{label/with/slashes}
     // Mermaid `A{label}` is a valid rhombus but the label must be quoted if it
-    // contains `/`, `\`, `|`, `<`, `>` or Unicode.
+    // contains `/`, `\`, `|`, `<`, `>`, `@`, `&`, `#`, `:` or Unicode.
     processedLine = processedLine.replace(
-      /([A-Za-z0-9_]+)\{([^}"]*[/\\|<>\u4e00-\u9fff\u3400-\u4dbf][^}"]*)\}/g,
+      /([A-Za-z0-9_]+)\{([^}"]*[/\\|<>@&#:\u4e00-\u9fff\u3400-\u4dbf][^}"]*)\}/g,
       (_match, nodeId: string, labelText: string) => {
         if (labelText.startsWith('"') && labelText.endsWith('"')) return _match;
         const escaped = labelText.replace(/"/g, '#quot;');
@@ -172,6 +174,20 @@ export function sanitizeMermaidCode(code: string): { sanitized: string; issues: 
         const escaped = content.replace(/"/g, '#quot;');
         issues.push(`Fixed bare curly-brace node: {${content}} → _bare_${bareNodeCounter}["${escaped}"]`);
         return `_bare_${bareNodeCounter}["${escaped}"]`;
+      }
+    );
+
+    // Fix round-bracket (stadium) node labels that contain special characters.
+    // e.g. `A(user@domain.com)` → `A("user@domain.com")`
+    // WHY: `@`, `&`, `|`, `#`, `:`, `<`, `>`, `/`, `\` inside `()` labels
+    // cause Mermaid parse errors because the lexer interprets them as tokens.
+    processedLine = processedLine.replace(
+      /([A-Za-z0-9_]+)\(([^()"]*[@&|#:<>/\\][^()"]*)\)/g,
+      (_match, nodeId: string, labelText: string) => {
+        if (labelText.startsWith('"') && labelText.endsWith('"')) return _match;
+        const escaped = labelText.replace(/"/g, '#quot;');
+        issues.push(`Quoted round-bracket label: ${nodeId}("${escaped}")`);
+        return `${nodeId}("${escaped}")`;
       }
     );
 
@@ -347,7 +363,10 @@ export const MermaidBlock = memo(function MermaidBlock({
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('Mermaid render error:', err);
+          // WHY: console.error() in Next.js dev mode triggers the global error overlay
+          // even when the error is caught and handled gracefully. We use console.debug
+          // so the info is visible in DevTools without polluting the overlay.
+          console.debug('[mermaid] graceful fallback:', err instanceof Error ? err.message : err);
           setError(err instanceof Error ? err.message : 'Failed to render diagram');
           setSvg(null);
         }
@@ -358,7 +377,10 @@ export const MermaidBlock = memo(function MermaidBlock({
       }
     }
 
-    renderDiagram();
+    // WHY: .catch(()=>{}) prevents an unhandled-promise-rejection if renderDiagram
+    // throws synchronously after being awaited (e.g., mermaid import failure).
+    // All intentional error paths are already handled inside the function.
+    renderDiagram().catch(() => {});
 
     return () => {
       cancelled = true;
