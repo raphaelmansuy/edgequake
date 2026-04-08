@@ -135,6 +135,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
         frontend-dev frontend-build frontend-test frontend-lint \
         db-start db-stop db-wait db-logs db-shell \
         docker-build docker-up docker-prebuilt docker-prebuilt-down docker-prebuilt-logs docker-ps-prebuilt docker-api-only docker-down docker-logs \
+        stack stack-down stack-logs stack-status stack-restart stack-pull \
         check-deps status \
         test-quality test-invariants test-timing test-count test-flaky \
         test-e2e-critical test-e2e-full test-stability-report
@@ -197,16 +198,21 @@ ifdef OPENAI_API_KEY
 else
   # Fall back to Ollama when no API key
   EDGEQUAKE_DEFAULT_LLM_PROVIDER ?= ollama
-  EDGEQUAKE_DEFAULT_LLM_MODEL ?= gemma3:12b
+  EDGEQUAKE_DEFAULT_LLM_MODEL ?= gemma4:latest
   EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER ?= ollama
-  EDGEQUAKE_DEFAULT_EMBEDDING_MODEL ?= embeddinggemma
+  EDGEQUAKE_DEFAULT_EMBEDDING_MODEL ?= embeddinggemma:latest
   EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION ?= 768
 endif
 
 # SPEC-040: Vision/VLM provider defaults for PDF-to-Markdown conversion
-# Vision always uses OpenAI by default (requires vision-capable model)
-EDGEQUAKE_VISION_PROVIDER ?= openai
-EDGEQUAKE_VISION_MODEL ?= gpt-4.1-nano
+# When OpenAI key is set, use OpenAI vision; otherwise use local Ollama gemma4
+ifdef OPENAI_API_KEY
+  EDGEQUAKE_VISION_PROVIDER ?= openai
+  EDGEQUAKE_VISION_MODEL ?= gpt-4.1-nano
+else
+  EDGEQUAKE_VISION_PROVIDER ?= ollama
+  EDGEQUAKE_VISION_MODEL ?= gemma4:latest
+endif
 
 # Default target
 .DEFAULT_GOAL := help
@@ -229,6 +235,13 @@ help: ## Show this help message
 	@echo "  $(GREEN)make dev-memory$(RESET)   Start with in-memory storage (for testing)"
 	@echo "  $(GREEN)make stop$(RESET)         Stop all services"
 	@echo "  $(GREEN)make status$(RESET)       Check status of all services"
+	@echo ""
+	@echo "$(BOLD)$(BLUE)⚡ One-Command Docker Stack (no build needed)$(RESET)"
+	@echo "  $(GREEN)make stack$(RESET)        Pull GHCR images and start API+UI+DB  (~30s)"
+	@echo "  $(GREEN)make stack-down$(RESET)   Stop and remove stack containers"
+	@echo "  $(GREEN)make stack-logs$(RESET)   Tail logs from all stack containers"
+	@echo "  $(GREEN)make stack-status$(RESET) Show container status"
+	@echo "  $(GREEN)make stack-pull$(RESET)   Pull latest images without starting"
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🔧 Backend (Rust)$(RESET)"
 	@echo "  $(GREEN)make backend-dev$(RESET)  Run backend with PostgreSQL (DEFAULT)"
@@ -406,8 +419,8 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 		(cd $(BACKEND_DIR) && \
 			DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
 			OLLAMA_HOST="http://localhost:11434" \
-			OLLAMA_MODEL="gemma3:latest" \
-			OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+			OLLAMA_MODEL="gemma4:latest" \
+			OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
 			cargo run 2>&1 | sed 's/^/[backend] /') & \
 		BACKEND_PID=$$!; \
 	fi; \
@@ -469,8 +482,8 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 			DATABASE_URL="$(DATABASE_URL)" \
 			EDGEQUAKE_LLM_PROVIDER="ollama" \
 			OLLAMA_HOST="http://localhost:11434" \
-			OLLAMA_MODEL="gemma3:latest" \
-			OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+			OLLAMA_MODEL="gemma4:latest" \
+			OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
 			nohup cargo run > /tmp/edgequake-backend.log 2>&1 & \
 	fi
 	@echo "$(GREEN)✓ Backend starting (log: /tmp/edgequake-backend.log)$(RESET)"
@@ -492,8 +505,8 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 		echo "  $(BLUE)LLM Provider$(RESET): openai (gpt-5-nano)"; \
 		echo "  $(BLUE)Embedding$(RESET): openai (text-embedding-3-small, 1536d)"; \
 	else \
-		echo "  $(BLUE)LLM Provider$(RESET): ollama (gemma3:latest)"; \
-		echo "  $(BLUE)Embedding$(RESET): ollama (nomic-embed-text, 768d)"; \
+		echo "  $(BLUE)LLM Provider$(RESET): ollama (gemma4:latest)"; \
+		echo "  $(BLUE)Embedding$(RESET): ollama (embeddinggemma:latest, 768d)"; \
 	fi
 	@echo ""
 	@echo "  Use $(BOLD)make status$(RESET) to check service health"
@@ -547,8 +560,8 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 		EDGEQUAKE_VISION_PROVIDER="$(EDGEQUAKE_VISION_PROVIDER)" \
 		EDGEQUAKE_VISION_MODEL="$(EDGEQUAKE_VISION_MODEL)" \
 		OLLAMA_HOST="http://localhost:11434" \
-		OLLAMA_MODEL="gemma3:latest" \
-		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OLLAMA_MODEL="gemma4:latest" \
+		OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
 		cargo run
 
 backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configuration)
@@ -567,8 +580,8 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 		EDGEQUAKE_VISION_PROVIDER="$(EDGEQUAKE_VISION_PROVIDER)" \
 		EDGEQUAKE_VISION_MODEL="$(EDGEQUAKE_VISION_MODEL)" \
 		OLLAMA_HOST="http://localhost:11434" \
-		OLLAMA_MODEL="gemma3:latest" \
-		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OLLAMA_MODEL="gemma4:latest" \
+		OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
 		cargo run
 
 # OODA-03: In-memory storage has been REMOVED for production consistency.
@@ -603,8 +616,8 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENA
 		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_HOST=\"http://localhost:11434\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export OLLAMA_MODEL=\"gemma3:latest\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export OLLAMA_EMBEDDING_MODEL=\"nomic-embed-text\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export OLLAMA_MODEL=\"gemma4:latest\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export OLLAMA_EMBEDDING_MODEL=\"embeddinggemma:latest\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
 		chmod +x /tmp/edgequake-start.sh; \
 		nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 & \
@@ -860,8 +873,101 @@ docker-api-only: ## Start API only using prebuilt GHCR image (bring your own Pos
 	@echo "$(GREEN)✓ EdgeQuake API started (http://localhost:8080/health)$(RESET)"
 
 # ============================================================================
-# Quality Assurance
+# Stack — One-Command Quickstart (pulls all images from GHCR, no local build)
 # ============================================================================
+#
+# These targets use docker-compose.quickstart.yml at the repo root.
+# All three images (API, frontend, PostgreSQL) are pulled from GHCR so
+# the entire stack starts from scratch in under 30 seconds after caching.
+#
+# Usage:
+#   make stack                # pull images and start all services
+#   make stack-down           # stop and remove containers
+#   make stack-logs           # tail all logs
+#   make stack-status         # show container status
+#   make stack-restart        # stop then start
+#
+# Override LLM provider at runtime:
+#   EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... make stack
+# Pin to a specific version:
+#   EDGEQUAKE_VERSION=0.9.4 make stack
+
+QUICKSTART_COMPOSE := $(ROOT_DIR)/docker-compose.quickstart.yml
+
+.PHONY: stack stack-down stack-logs stack-status stack-restart stack-pull
+
+stack: ## ⚡ One command: pull all GHCR images and start API + Web UI + DB  (<30s)
+	@echo ""
+	@echo "$(BOLD)$(BLUE)⚡ EdgeQuake Quickstart — One Command Stack$(RESET)"
+	@echo ""
+	@echo "  No Rust toolchain, no Node.js, no local build needed."
+	@echo "  Pulling prebuilt images from GitHub Container Registry..."
+	@echo ""
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "  $(GREEN)OPENAI_API_KEY detected → using OpenAI provider$(RESET)"; \
+	else \
+		echo "  $(YELLOW)No API key → using Ollama (ensure Ollama runs on port 11434)$(RESET)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)→ Pulling images...$(RESET)"
+	@EDGEQUAKE_LLM_PROVIDER=$${EDGEQUAKE_LLM_PROVIDER:-$$([ -n "$(OPENAI_API_KEY)" ] && echo "openai" || echo "ollama")} \
+	OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+	EDGEQUAKE_VERSION=$${EDGEQUAKE_VERSION:-latest} \
+	docker compose -f $(QUICKSTART_COMPOSE) pull
+	@echo ""
+	@echo "$(YELLOW)→ Starting services...$(RESET)"
+	@EDGEQUAKE_LLM_PROVIDER=$${EDGEQUAKE_LLM_PROVIDER:-$$([ -n "$(OPENAI_API_KEY)" ] && echo "openai" || echo "ollama")} \
+	OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+	EDGEQUAKE_VERSION=$${EDGEQUAKE_VERSION:-latest} \
+	docker compose -f $(QUICKSTART_COMPOSE) up -d
+	@echo ""
+	@echo "$(YELLOW)→ Waiting for API to be healthy (up to 60s)...$(RESET)"
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:8080/health > /dev/null 2>&1; then \
+			echo "$(GREEN)✓ API is healthy$(RESET)"; break; \
+		fi; \
+		printf "."; sleep 2; \
+	done
+	@echo ""
+	@echo "$(BOLD)$(GREEN)✅ EdgeQuake Stack is Running$(RESET)"
+	@echo ""
+	@echo "$(BOLD)📍 Access Points:$(RESET)"
+	@echo "  🌐 Web UI:  $(BOLD)http://localhost:3000$(RESET)"
+	@echo "  🔗 API:     $(BOLD)http://localhost:8080$(RESET)"
+	@echo "  📚 Swagger: $(BOLD)http://localhost:8080/swagger-ui$(RESET)"
+	@echo "  🏥 Health:  $(BOLD)http://localhost:8080/health$(RESET)"
+	@echo ""
+	@echo "$(BOLD)Next steps:$(RESET)"
+	@echo "  1. Open $(BOLD)http://localhost:3000$(RESET) in your browser"
+	@echo "  2. Upload a PDF or paste text to build your knowledge graph"
+	@echo "  3. Ask questions — EdgeQuake will retrieve graph-aware answers"
+	@echo ""
+	@echo "$(YELLOW)Management:$(RESET)"
+	@echo "  $(BOLD)make stack-logs$(RESET)    tail logs"
+	@echo "  $(BOLD)make stack-status$(RESET)  check containers"
+	@echo "  $(BOLD)make stack-down$(RESET)    stop and remove containers"
+	@echo ""
+
+stack-down: ## Stop and remove all quickstart containers
+	@echo "$(YELLOW)Stopping EdgeQuake quickstart stack...$(RESET)"
+	@docker compose -f $(QUICKSTART_COMPOSE) down
+	@echo "$(GREEN)✓ Stack stopped$(RESET)"
+
+stack-logs: ## Tail logs from all quickstart stack containers
+	@docker compose -f $(QUICKSTART_COMPOSE) logs -f
+
+stack-status: ## Show container status for quickstart stack
+	@docker compose -f $(QUICKSTART_COMPOSE) ps
+
+stack-restart: stack-down stack ## Restart the quickstart stack (pull fresh images)
+	@echo "$(GREEN)✓ Stack restarted$(RESET)"
+
+stack-pull: ## Pull latest GHCR images without starting
+	@echo "$(YELLOW)Pulling latest EdgeQuake images from GHCR...$(RESET)"
+	@docker compose -f $(QUICKSTART_COMPOSE) pull
+	@echo "$(GREEN)✓ Images updated$(RESET)"
+
+
 
 lint: backend-clippy frontend-lint ## Lint all code
 	@echo "$(GREEN)✓ All linting passed$(RESET)"

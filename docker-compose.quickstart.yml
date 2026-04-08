@@ -1,0 +1,114 @@
+# EdgeQuake — One-Command Quickstart
+#
+# Pulls all three services from prebuilt GHCR images.
+# No Rust toolchain, no Node.js, no local build step required.
+#
+# Usage:
+#   docker compose -f docker-compose.quickstart.yml up -d
+#
+# Or via Makefile:
+#   make stack
+#
+# Access:
+#   Web UI  → http://localhost:3000
+#   API     → http://localhost:8080
+#   Swagger → http://localhost:8080/swagger-ui
+#   Health  → http://localhost:8080/health
+#
+# LLM provider (default: Ollama on the host at port 11434)
+# To use OpenAI:
+#   EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... \
+#     docker compose -f docker-compose.quickstart.yml up -d
+#
+# Pin to a specific release:
+#   EDGEQUAKE_VERSION=0.9.4 docker compose -f docker-compose.quickstart.yml up -d
+
+services:
+  # ── PostgreSQL with pgvector + Apache AGE ──────────────────────────────────
+  postgres:
+    image: ghcr.io/raphaelmansuy/edgequake-postgres:${EDGEQUAKE_VERSION:-latest}
+    container_name: edgequake-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     edgequake
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edgequake_secret}
+      POSTGRES_DB:       edgequake
+    volumes:
+      - edgequake-pg-data:/var/lib/postgresql/data
+    networks:
+      - edgequake
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edgequake -d edgequake"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── EdgeQuake API ──────────────────────────────────────────────────────────
+  api:
+    image: ghcr.io/raphaelmansuy/edgequake:${EDGEQUAKE_VERSION:-latest}
+    container_name: edgequake-api
+    restart: unless-stopped
+    ports:
+      - "${EDGEQUAKE_PORT:-8080}:8080"
+    environment:
+      EDGEQUAKE_HOST: 0.0.0.0
+      EDGEQUAKE_PORT: 8080
+      DATABASE_URL: postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
+      # ── LLM Provider ────────────────────────────────────────────────────────
+      # Default: Ollama running on the host machine.
+      # Override: EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-...
+      EDGEQUAKE_LLM_PROVIDER:       ${EDGEQUAKE_LLM_PROVIDER:-ollama}
+      EDGEQUAKE_EMBEDDING_PROVIDER: ${EDGEQUAKE_EMBEDDING_PROVIDER:-}
+      OPENAI_API_KEY:               ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL:              ${OPENAI_BASE_URL:-}
+      ANTHROPIC_API_KEY:            ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY:               ${GEMINI_API_KEY:-}
+      MISTRAL_API_KEY:              ${MISTRAL_API_KEY:-}
+      # host.docker.internal resolves to the Docker host on macOS + Windows.
+      # On Linux it resolves via the extra_hosts entry below.
+      OLLAMA_HOST:                  ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      PDFIUM_AUTO_CACHE_DIR:        /tmp/edgequake-pdfium-cache
+      RUST_LOG:                     ${RUST_LOG:-info}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edgequake
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # ── Next.js Web UI ─────────────────────────────────────────────────────────
+  frontend:
+    image: ghcr.io/raphaelmansuy/edgequake-frontend:${EDGEQUAKE_VERSION:-latest}
+    container_name: edgequake-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - edgequake
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  edgequake-pg-data:
+    driver: local
+
+networks:
+  edgequake:
+    driver: bridge

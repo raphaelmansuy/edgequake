@@ -88,13 +88,13 @@ const endpoints: Endpoint[] = [
   
   // Tenants
   { method: 'GET', path: '/tenants', description: 'List all tenants', category: 'Tenants' },
-  { method: 'POST', path: '/tenants', description: 'Create a new tenant', category: 'Tenants', body: '{\n  "name": "My Tenant",\n  "description": "Tenant description",\n  "default_llm_provider": "ollama",\n  "default_llm_model": "gemma3:12b"\n}' },
+  { method: 'POST', path: '/tenants', description: 'Create a new tenant', category: 'Tenants', body: '{\n  "name": "My Tenant",\n  "description": "Tenant description",\n  "default_llm_provider": "ollama",\n  "default_llm_model": "gemma4:latest"\n}' },
   { method: 'GET', path: '/tenants/{id}', description: 'Get tenant by ID', category: 'Tenants' },
   { method: 'DELETE', path: '/tenants/{id}', description: 'Delete tenant', category: 'Tenants' },
   
   // Workspaces
   { method: 'GET', path: '/tenants/{tenant_id}/workspaces', description: 'List workspaces in tenant', category: 'Workspaces' },
-  { method: 'POST', path: '/tenants/{tenant_id}/workspaces', description: 'Create workspace', category: 'Workspaces', body: '{\n  "name": "My Workspace",\n  "llm_provider": "ollama",\n  "llm_model": "gemma3:12b",\n  "embedding_provider": "ollama",\n  "embedding_model": "embeddinggemma",\n  "embedding_dimension": 768\n}' },
+  { method: 'POST', path: '/tenants/{tenant_id}/workspaces', description: 'Create workspace', category: 'Workspaces', body: '{\n  "name": "My Workspace",\n  "llm_provider": "ollama",\n  "llm_model": "gemma4:latest",\n  "embedding_provider": "ollama",\n  "embedding_model": "embeddinggemma:latest",\n  "embedding_dimension": 768\n}' },
 ];
 
 const methodColors = {

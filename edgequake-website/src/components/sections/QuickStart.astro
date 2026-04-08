@@ -33,18 +33,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   {
     id: "docker",
     label: "Docker",
-    title: "Bootstrap the full stack",
+    title: "One command — no build step",
     lang: "bash",
     summary:
-      "Download the Compose file, launch the services, and verify API health.",
-    code: `# Start EdgeQuake with Docker Compose
-curl -O https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.yml
+      "Paste one line into any terminal that has Docker. Three prebuilt images start in ~30 seconds.",
+    code: `# No git clone, no Rust, no Node.js needed
+curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.quickstart.yml \\
+  | docker compose -f - up -d
 
-# Launch all services
-docker compose up -d
+# Web UI  → http://localhost:3000
+# API     → http://localhost:8080
+# Swagger → http://localhost:8080/swagger-ui
 
-# Check health
-curl http://localhost:8080/health`,
+# Use OpenAI instead of the default Ollama provider:
+# EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... \\
+#   docker compose -f docker-compose.quickstart.yml up -d
+
+# Or with make (after git clone):
+# make stack`,
   },
   {
     id: "api",
@@ -70,11 +76,11 @@ curl -X POST http://localhost:8080/api/v1/query \\
   <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
     <div class="text-center max-w-3xl mx-auto">
       <h2 class="text-3xl font-bold tracking-tight mkt-text sm:text-4xl">
-        Up and Running in Minutes
+        Up and Running in 30 Seconds
       </h2>
       <p class="mt-4 text-lg mkt-text-muted">
-        Start where you are: embed the Rust crate, launch the full stack with
-        Docker, or hit the API directly.
+        One Docker command pulls the full stack — no build step, no toolchain needed.
+        Or embed the Rust crate, hit the REST API, or clone and build from source.
       </p>
     </div>
 

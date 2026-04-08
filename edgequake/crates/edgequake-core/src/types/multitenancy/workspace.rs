@@ -35,15 +35,15 @@ use uuid::Uuid;
 //   # Workspace will be created with gpt-4o-mini / text-embedding-3-small
 //   # No need to override the model unless you want a specific one.
 
-/// Default LLM model (Ollama gemma3:12b - 128K context, vision support).
-pub const DEFAULT_LLM_MODEL: &str = "gemma3:12b";
+/// Default LLM model (Ollama gemma4:latest - 128K context, vision support).
+pub const DEFAULT_LLM_MODEL: &str = "gemma4:latest";
 
 /// Default LLM provider.
 pub const DEFAULT_LLM_PROVIDER: &str = "ollama";
 
-/// Default embedding model (Ollama embeddinggemma - 768 dimensions, 2K context).
+/// Default embedding model (Ollama embeddinggemma:latest - 768 dimensions, 2K context).
 /// Synced with models.toml [defaults] section.
-pub const DEFAULT_EMBEDDING_MODEL: &str = "embeddinggemma";
+pub const DEFAULT_EMBEDDING_MODEL: &str = "embeddinggemma:latest";
 
 /// Default embedding provider.
 /// Synced with models.toml [defaults] section.
@@ -63,12 +63,12 @@ pub const DEFAULT_EMBEDDING_DIMENSION: usize = 768;
 ///
 /// Different workspaces can use different models, allowing:
 /// - Workspace A: OpenAI GPT-4o + text-embedding-3-small (1536 dims)
-/// - Workspace B: Ollama gemma3:12b + embeddinggemma:latest (768 dims)
+/// - Workspace B: Ollama gemma4:latest + embeddinggemma:latest (768 dims)
 ///
 /// ## Model ID Format
 ///
 /// Models are identified by `provider/model_name` format:
-/// - `"ollama/gemma3:12b"` - Ollama with Gemma 3 12B
+/// - `"ollama/gemma4:latest"` - Ollama with Gemma 4
 /// - `"openai/gpt-4o-mini"` - OpenAI GPT-4o Mini
 /// - `"lmstudio/gemma-3n-e4b-it"` - LM Studio local model
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -10,13 +10,62 @@ This guide covers deploying EdgeQuake in production environments, from single-se
 
 ---
 
+## ⚡ Quickstart — One Command (~30 seconds)
+
+> **Fastest path:** no Rust toolchain, no Node.js, no `cargo build`.  
+> Prebuilt multi-arch images (amd64 + arm64) are pulled from GitHub Container Registry.
+
+```bash
+# Clone repo (or just download the compose file)
+git clone https://github.com/raphaelmansuy/edgequake.git
+cd edgequake
+
+# Pull images and start all services
+make stack
+```
+
+Without `make`:
+```bash
+docker compose -f docker-compose.quickstart.yml up -d
+```
+
+**Access:**
+
+| Service   | URL                              |
+| --------- | -------------------------------- |
+| 🌐 Web UI  | http://localhost:3000            |
+| 🔗 API     | http://localhost:8080            |
+| 📚 Swagger | http://localhost:8080/swagger-ui |
+| 🏥 Health  | http://localhost:8080/health     |
+
+**Stop:**
+```bash
+make stack-down
+```
+
+**Use OpenAI instead of Ollama:**
+```bash
+EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... make stack
+```
+
+**Pin to a specific version:**
+```bash
+EDGEQUAKE_VERSION=0.9.4 make stack
+```
+
+For full documentation see: [Docker Quickstart Guide](./docker-quickstart.md)
+
+---
+
 ## Deployment Options
 
-| Option              | Complexity | Best For                             |
-| ------------------- | ---------- | ------------------------------------ |
-| Binary + PostgreSQL | Low        | Single server, simple setups         |
-| Docker Compose      | Medium     | Standard production deployments      |
-| Kubernetes          | High       | Scale, high availability, enterprise |
+| Option                            | Complexity | Cold Start | Best For                                 |
+| --------------------------------- | ---------- | ---------- | ---------------------------------------- |
+| **`make stack`** (GHCR images)    | ⭐ Lowest   | ~30 s      | Local dev, demos, quick evaluation       |
+| `make docker-prebuilt` (GHCR)     | Low        | ~45 s      | Staging / production with pinned version |
+| `make docker-up` (build from src) | Medium     | 5–15 min   | Custom builds, self-hosted               |
+| Binary + PostgreSQL               | Low        | N/A        | Bare metal / VMs                         |
+| Kubernetes                        | High       | N/A        | Scale, HA, enterprise                    |
 
 ---
 
