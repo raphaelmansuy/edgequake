@@ -1,0 +1,40 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../edgeparse"
+		},
+		{
+			"path": "../edgecrab"
+		}
+	],
+	"settings": {
+		"php.validate.enable": false,
+		"php.suggest.basic": false,
+		"php.executablePath": "/usr/bin/php",
+		"rust-analyzer.cargo.buildScripts.enable": true,
+		"rust-analyzer.procMacro.enable": true,
+		"rust-analyzer.workspace.symbol.search.scope": "workspace",
+		"rust-analyzer.diagnostics.disabled": [
+			"unresolved-proc-macro"
+		],
+		"explorer.confirmDragAndDrop": false,
+		"explorer.confirmDelete": false,
+		"typescript.tsdk": "lightrag_webui/node_modules/typescript/lib",
+		"chat.tools.terminal.ignoreDefaultAutoApproveRules": true,
+		"chat.tools.eligibleForAutoApproval": {
+			"execute/*": true
+		},
+		"chat.tools.terminal.autoApprove": {
+			"/^git log --oneline -15 \\| cat$/": {
+				"approve": true,
+				"matchCommandLine": true
+			}
+		},
+		"files.watcherExclude": {
+			"**/target": true
+		}
+	}
+}
