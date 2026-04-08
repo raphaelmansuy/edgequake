@@ -16,7 +16,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, GitBranch, Maximize2, RefreshCw } from 'lucide-react';
+import { GitBranch, Maximize2, RefreshCw } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { memo, useEffect, useId, useRef, useState } from 'react';
 
@@ -103,6 +103,17 @@ export function sanitizeMermaidCode(code: string): { sanitized: string; issues: 
   if (sanitized.startsWith('```')) {
     sanitized = sanitized.replace(/^```(?:mermaid)?\n?/, '').replace(/\n?```$/, '');
     issues.push('Removed code block markers');
+  }
+
+  // Strip HTML tags from node labels.
+  // WHY: LLMs frequently emit <br>, <br/>, <b>, <i> etc. inside Mermaid node labels.
+  // Mermaid's tokeniser treats `<` as a shape delimiter (asymmetric node shape),
+  // so `<br>` in a label causes a parse error even with htmlLabels:true.
+  // We strip all HTML tags here; Mermaid's own \n handling is sufficient for layout.
+  if (/<[a-zA-Z][^>]*>|<\/[a-zA-Z]+>/.test(sanitized)) {
+    sanitized = sanitized.replace(/<br\s*\/?>/gi, ' ')  // <br> → space (most common)
+                          .replace(/<[^>]+>/g, '');     // strip any remaining HTML tags
+    issues.push('Stripped HTML tags from diagram source');
   }
 
   const lines = sanitized.split('\n');
@@ -198,7 +209,63 @@ export function sanitizeMermaidCode(code: string): { sanitized: string; issues: 
   return { sanitized, issues };
 }
 
-
+/**
+ * MermaidFallback — renders Mermaid source as a styled code block.
+ *
+ * Single Responsibility: display diagram syntax as readable text when SVG
+ * rendering is impossible. Never shows a red error panel; always preserves
+ * the diagram's information content so the user can read or copy it.
+ *
+ * WHY (First Principle): a diagram that can't be rendered still carries
+ * its full information in source form. Hiding it behind an error panel
+ * destroys that information; a code block exposes it.
+ */
+function MermaidFallback({
+  code,
+  className,
+  onRetry,
+}: {
+  code: string;
+  className?: string;
+  onRetry?: () => void;
+}) {
+  // Strip markdown fences — the plain source is what we display.
+  let source = code.trim();
+  if (source.startsWith('```')) {
+    source = source.replace(/^```(?:mermaid)?\n?/, '').replace(/\n?```$/, '').trim();
+  }
+  return (
+    <div
+      className={cn('my-4 rounded-lg border border-border overflow-hidden', className)}
+      role="figure"
+      aria-label="Mermaid diagram source"
+    >
+      {/* Header bar — minimal, non-alarming */}
+      <div className="flex items-center justify-between gap-2 px-4 py-2 bg-muted/60 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <GitBranch className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          <span className="text-xs text-muted-foreground font-medium">Mermaid diagram (source)</span>
+        </div>
+        {onRetry && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+            onClick={onRetry}
+            aria-label="Retry rendering diagram"
+            title="Retry"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        )}
+      </div>
+      {/* Source code — plain, selectable, scrollable */}
+      <pre className="overflow-x-auto p-4 text-xs leading-relaxed text-foreground/80 bg-muted/20 whitespace-pre">
+        <code>{source}</code>
+      </pre>
+    </div>
+  );
+}
 
 export const MermaidBlock = memo(function MermaidBlock({
   code,
@@ -343,53 +410,14 @@ export const MermaidBlock = memo(function MermaidBlock({
     );
   }
 
-  // Error state — graceful <pre> fallback showing raw source with friendly message
-  // instead of propagating the error to the Next.js overlay.
+  // Fallback: when Mermaid parsing fails even after sanitization, display the source
+  // as a styled code block instead of an error panel.
+  //
+  // WHY (First Principle): The diagram's information content lives in its source.
+  // A red error panel blocks that content; a code block preserves it.
+  // SOLID-SRP: MermaidFallback owns exactly one concern — rendering Mermaid as text.
   if (error) {
-    return (
-      <div
-        className={cn(
-          'my-4 rounded-lg border border-destructive/50 bg-destructive/5 p-4',
-          className
-        )}
-        role="alert"
-        aria-label="Diagram rendering failed"
-      >
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-destructive">
-              Failed to render Mermaid diagram
-            </p>
-            <p className="mt-1 text-xs text-destructive/70 break-words">{error}</p>
-            {/* Always show the raw source so users can inspect / copy it */}
-            <p className="mt-3 text-xs text-muted-foreground font-medium">Source (raw):</p>
-            <pre className="mt-1 overflow-x-auto rounded bg-muted p-3 text-xs text-muted-foreground whitespace-pre-wrap">
-              <code>{code}</code>
-            </pre>
-            {sanitizedCode && sanitizedCode !== code && (
-              <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                  Show sanitized version
-                </summary>
-                <pre className="mt-1 overflow-x-auto rounded bg-muted p-3 text-xs text-muted-foreground whitespace-pre-wrap">
-                  <code>{sanitizedCode}</code>
-                </pre>
-              </details>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={handleRetry}
-            aria-label="Retry rendering diagram"
-          >
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-      </div>
-    );
+    return <MermaidFallback code={code} className={className} onRetry={handleRetry} />;
   }
 
   // Success - render the SVG with full-view button
