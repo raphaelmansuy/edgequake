@@ -11,12 +11,29 @@ use uuid::Uuid;
 // Ollama is used by default for both LLM and embedding to enable
 // development without requiring API keys.
 //
-// To use OpenAI or other providers, set environment variables:
-//   - EDGEQUAKE_DEFAULT_LLM_PROVIDER=openai
-//   - EDGEQUAKE_DEFAULT_LLM_MODEL=gpt-4o-mini
-//   - EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
-//   - EDGEQUAKE_DEFAULT_EMBEDDING_MODEL=text-embedding-3-small
-//   - EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1536
+// Runtime configuration – environment variable resolution order
+// (each step falls back to the next if the variable is absent):
+//
+//   LLM provider  : EDGEQUAKE_DEFAULT_LLM_PROVIDER
+//                   → EDGEQUAKE_LLM_PROVIDER
+//                   → "ollama" (constant below)
+//   LLM model     : EDGEQUAKE_DEFAULT_LLM_MODEL
+//                   → EDGEQUAKE_LLM_MODEL
+//                   → sensible default for the resolved provider
+//   Embedding provider: EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER
+//                       → EDGEQUAKE_EMBEDDING_PROVIDER
+//                       → "ollama" (constant below)
+//   Embedding model   : EDGEQUAKE_DEFAULT_EMBEDDING_MODEL
+//                       → EDGEQUAKE_EMBEDDING_MODEL
+//                       → sensible default for the resolved provider
+//   Embedding dim     : EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION
+//                       → auto-detected from embedding model name
+//
+// Example – OpenAI in Docker / Portainer (issue #147):
+//   EDGEQUAKE_LLM_PROVIDER=openai
+//   OPENAI_API_KEY=sk-…
+//   # Workspace will be created with gpt-4o-mini / text-embedding-3-small
+//   # No need to override the model unless you want a specific one.
 
 /// Default LLM model (Ollama gemma3:12b - 128K context, vision support).
 pub const DEFAULT_LLM_MODEL: &str = "gemma3:12b";
@@ -114,12 +131,12 @@ pub struct Workspace {
 impl Workspace {
     /// Create a new workspace with default model configuration.
     ///
-    /// Uses server defaults from environment variables if set:
-    /// - `EDGEQUAKE_DEFAULT_LLM_MODEL`
-    /// - `EDGEQUAKE_DEFAULT_LLM_PROVIDER`
-    /// - `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL`
-    /// - `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER`
-    /// - `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION`
+    /// Reads server defaults from environment variables; see the crate-level
+    /// constants block for the full resolution order (issue #147).  The key
+    /// change vs earlier versions: `EDGEQUAKE_LLM_PROVIDER` (used by the
+    /// provider factory) is now also accepted as a fallback so that single-env
+    /// deployments (Docker, Portainer) work without duplicating the provider
+    /// name in a separate `EDGEQUAKE_DEFAULT_LLM_PROVIDER` variable.
     pub fn new(tenant_id: Uuid, name: impl Into<String>, slug: impl Into<String>) -> Self {
         let now = chrono::Utc::now();
         let (llm_model, llm_provider) = Self::default_llm_config();
@@ -148,32 +165,80 @@ impl Workspace {
 
     /// Get default LLM configuration from environment.
     ///
-    /// Returns (model, provider) tuple.
+    /// Returns `(model, provider)`.  Resolution order (first non-empty wins):
+    ///
+    /// | Priority | Provider variable             | Model variable             |
+    /// |----------|-------------------------------|----------------------------|
+    /// | 1        | `EDGEQUAKE_DEFAULT_LLM_PROVIDER` | `EDGEQUAKE_DEFAULT_LLM_MODEL` |
+    /// | 2        | `EDGEQUAKE_LLM_PROVIDER`      | `EDGEQUAKE_LLM_MODEL`      |
+    /// | 3        | `"ollama"` (constant)         | sensible default for provider |
+    ///
+    /// When only `EDGEQUAKE_LLM_PROVIDER` is set (typical single-env deployment
+    /// with Docker / Portainer), the workspace is initialised with a sensible
+    /// model for that provider instead of the hard-coded Ollama default.
     pub fn default_llm_config() -> (String, String) {
-        let model = std::env::var("EDGEQUAKE_DEFAULT_LLM_MODEL")
-            .unwrap_or_else(|_| DEFAULT_LLM_MODEL.to_string());
-
+        // Resolve provider first so the model default can depend on it.
         let provider = std::env::var("EDGEQUAKE_DEFAULT_LLM_PROVIDER")
+            .or_else(|_| std::env::var("EDGEQUAKE_LLM_PROVIDER"))
             .unwrap_or_else(|_| DEFAULT_LLM_PROVIDER.to_string());
+
+        let model = std::env::var("EDGEQUAKE_DEFAULT_LLM_MODEL")
+            .or_else(|_| std::env::var("EDGEQUAKE_LLM_MODEL"))
+            .unwrap_or_else(|_| Self::default_model_for_provider(&provider));
 
         (model, provider)
     }
 
     /// Get default embedding configuration from environment.
     ///
-    /// Returns (model, provider, dimension) tuple.
+    /// Returns `(model, provider, dimension)`.  Resolution order mirrors
+    /// [`Self::default_llm_config`]: explicit `DEFAULT_*` vars take priority,
+    /// then `EDGEQUAKE_EMBEDDING_PROVIDER / MODEL` as a single-env fallback.
     pub fn default_embedding_config() -> (String, String, usize) {
-        let model = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL")
-            .unwrap_or_else(|_| DEFAULT_EMBEDDING_MODEL.to_string());
-
+        // Resolve provider first so the model default can depend on it.
         let provider = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER")
-            .unwrap_or_else(|_| Self::detect_provider_from_model(&model));
+            .or_else(|_| std::env::var("EDGEQUAKE_EMBEDDING_PROVIDER"))
+            .unwrap_or_else(|_| DEFAULT_EMBEDDING_PROVIDER.to_string());
+
+        let model = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL")
+            .or_else(|_| std::env::var("EDGEQUAKE_EMBEDDING_MODEL"))
+            .unwrap_or_else(|_| Self::default_embedding_model_for_provider(&provider));
 
         let dimension = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION")
             .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
             .unwrap_or_else(|_| Self::detect_dimension_from_model(&model));
 
         (model, provider, dimension)
+    }
+
+    /// Return the recommended LLM model name for a given provider.
+    ///
+    /// Called when the user has not explicitly configured a model name, so
+    /// that the workspace is initialised with a sensible default that is
+    /// actually compatible with the chosen provider.
+    pub fn default_model_for_provider(provider: &str) -> String {
+        match provider {
+            "openai" => "gpt-4o-mini".to_string(),
+            "anthropic" => "claude-3-haiku-20240307".to_string(),
+            "gemini" => "gemini-1.5-flash".to_string(),
+            "mistral" => "mistral-small-latest".to_string(),
+            "xai" => "grok-beta".to_string(),
+            "lmstudio" | "openai-compatible" => "local-model".to_string(),
+            // ollama and everything else: use the compiled-in Ollama default.
+            _ => DEFAULT_LLM_MODEL.to_string(),
+        }
+    }
+
+    /// Return the recommended embedding model for a given provider.
+    ///
+    /// Called when the user has not explicitly configured an embedding model.
+    pub fn default_embedding_model_for_provider(provider: &str) -> String {
+        match provider {
+            "openai" | "openai-compatible" => "text-embedding-3-small".to_string(),
+            "lmstudio" => "nomic-embed-text".to_string(),
+            // ollama and everything else: use the compiled-in Ollama default.
+            _ => DEFAULT_EMBEDDING_MODEL.to_string(),
+        }
     }
 
     /// Auto-detect provider from model name conventions.
@@ -425,5 +490,146 @@ impl Workspace {
     pub fn with_vision_model(mut self, model: impl Into<String>) -> Self {
         self.vision_llm_model = Some(model.into());
         self
+    }
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── default_model_for_provider ─────────────────────────────────────────
+
+    #[test]
+    fn test_default_model_openai() {
+        assert_eq!(Workspace::default_model_for_provider("openai"), "gpt-4o-mini");
+    }
+
+    #[test]
+    fn test_default_model_ollama() {
+        assert_eq!(
+            Workspace::default_model_for_provider("ollama"),
+            DEFAULT_LLM_MODEL
+        );
+    }
+
+    #[test]
+    fn test_default_model_unknown_falls_back_to_ollama_default() {
+        assert_eq!(
+            Workspace::default_model_for_provider("unknown-provider"),
+            DEFAULT_LLM_MODEL
+        );
+    }
+
+    // ── default_embedding_model_for_provider ──────────────────────────────
+
+    #[test]
+    fn test_default_embedding_model_openai() {
+        assert_eq!(
+            Workspace::default_embedding_model_for_provider("openai"),
+            "text-embedding-3-small"
+        );
+    }
+
+    #[test]
+    fn test_default_embedding_model_ollama() {
+        assert_eq!(
+            Workspace::default_embedding_model_for_provider("ollama"),
+            DEFAULT_EMBEDDING_MODEL
+        );
+    }
+
+    // ── default_llm_config env-var resolution (issue #147) ────────────────
+
+    #[test]
+    fn test_llm_config_reads_edgequake_llm_provider_as_fallback() {
+        // Simulate a Portainer / Docker deployment where only the factory var is set.
+        // EDGEQUAKE_DEFAULT_LLM_PROVIDER is NOT set; EDGEQUAKE_LLM_PROVIDER IS set.
+        // The workspace must honour it and pick a sensible model for OpenAI.
+        let key_provider = "EDGEQUAKE_LLM_PROVIDER";
+        let key_model = "EDGEQUAKE_LLM_MODEL";
+        let key_default_provider = "EDGEQUAKE_DEFAULT_LLM_PROVIDER";
+        let key_default_model = "EDGEQUAKE_DEFAULT_LLM_MODEL";
+
+        // Remove both DEFAULT vars to test fallback path.
+        std::env::remove_var(key_default_provider);
+        std::env::remove_var(key_default_model);
+        std::env::set_var(key_provider, "openai");
+        std::env::remove_var(key_model);
+
+        let (model, provider) = Workspace::default_llm_config();
+
+        // Restore environment.
+        std::env::remove_var(key_provider);
+
+        assert_eq!(provider, "openai");
+        assert_eq!(
+            model, "gpt-4o-mini",
+            "Should pick the sensible OpenAI default when no model is explicitly set"
+        );
+    }
+
+    #[test]
+    fn test_llm_config_default_vars_take_priority_over_llm_provider() {
+        // EDGEQUAKE_DEFAULT_LLM_PROVIDER takes priority over EDGEQUAKE_LLM_PROVIDER.
+        let key_default_provider = "EDGEQUAKE_DEFAULT_LLM_PROVIDER";
+        let key_default_model = "EDGEQUAKE_DEFAULT_LLM_MODEL";
+        let key_provider = "EDGEQUAKE_LLM_PROVIDER";
+
+        std::env::set_var(key_default_provider, "anthropic");
+        std::env::set_var(key_default_model, "claude-3-opus-20240229");
+        std::env::set_var(key_provider, "openai"); // should be ignored
+
+        let (model, provider) = Workspace::default_llm_config();
+
+        std::env::remove_var(key_default_provider);
+        std::env::remove_var(key_default_model);
+        std::env::remove_var(key_provider);
+
+        assert_eq!(provider, "anthropic");
+        assert_eq!(model, "claude-3-opus-20240229");
+    }
+
+    #[test]
+    fn test_llm_config_constant_fallback_when_no_env_set() {
+        let key_default_provider = "EDGEQUAKE_DEFAULT_LLM_PROVIDER";
+        let key_default_model = "EDGEQUAKE_DEFAULT_LLM_MODEL";
+        let key_provider = "EDGEQUAKE_LLM_PROVIDER";
+        let key_model = "EDGEQUAKE_LLM_MODEL";
+
+        std::env::remove_var(key_default_provider);
+        std::env::remove_var(key_default_model);
+        std::env::remove_var(key_provider);
+        std::env::remove_var(key_model);
+
+        let (model, provider) = Workspace::default_llm_config();
+
+        assert_eq!(provider, DEFAULT_LLM_PROVIDER);
+        assert_eq!(model, DEFAULT_LLM_MODEL);
+    }
+
+    // ── default_embedding_config env-var resolution ────────────────────────
+
+    #[test]
+    fn test_embedding_config_reads_edgequake_embedding_provider_as_fallback() {
+        let key_provider = "EDGEQUAKE_EMBEDDING_PROVIDER";
+        let key_default_provider = "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER";
+        let key_default_model = "EDGEQUAKE_DEFAULT_EMBEDDING_MODEL";
+        let key_model = "EDGEQUAKE_EMBEDDING_MODEL";
+
+        std::env::remove_var(key_default_provider);
+        std::env::remove_var(key_default_model);
+        std::env::set_var(key_provider, "openai");
+        std::env::remove_var(key_model);
+
+        let (model, provider, dim) = Workspace::default_embedding_config();
+
+        std::env::remove_var(key_provider);
+
+        assert_eq!(provider, "openai");
+        assert_eq!(model, "text-embedding-3-small");
+        assert_eq!(dim, 1536);
     }
 }

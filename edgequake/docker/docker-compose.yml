@@ -18,18 +18,48 @@ services:
       - EDGEQUAKE_HOST=0.0.0.0
       - EDGEQUAKE_PORT=8080
       - DATABASE_URL=postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
+      # ── LLM / Embedding provider selection ─────────────────────────────────
+      # The provider is resolved in this order (first non-empty variable wins):
+      #   EDGEQUAKE_DEFAULT_LLM_PROVIDER → EDGEQUAKE_LLM_PROVIDER → "ollama"
+      #
+      # Quick-start recipes:
+      #
+      #   Ollama (default, local):
+      #     EDGEQUAKE_LLM_PROVIDER=ollama          (or omit — ollama is default)
+      #     OLLAMA_HOST=http://host.docker.internal:11434
+      #
+      #   OpenAI / OpenAI-compatible:
+      #     EDGEQUAKE_LLM_PROVIDER=openai
+      #     OPENAI_API_KEY=sk-…
+      #     OPENAI_BASE_URL=https://api.openai.com/v1   # optional override
+      #
+      #   LM Studio (local OpenAI-compatible):
+      #     EDGEQUAKE_LLM_PROVIDER=lmstudio
+      #     LMSTUDIO_HOST=http://host.docker.internal:1234
+      #
+      # Do NOT set OLLAMA_HOST when using OpenAI — the provider factory detects
+      # Ollama via OLLAMA_HOST presence and will prefer it over OPENAI_API_KEY
+      # unless EDGEQUAKE_LLM_PROVIDER is set explicitly (see issue #147).
+      # ────────────────────────────────────────────────────────────────────────
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Optional: override the OpenAI-compatible base URL (e.g. Azure, vLLM, etc.)
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       # FIX-DOCKER-OLLAMA: Use host.docker.internal to reach Ollama on the host
       # machine. Without this, the container tries localhost:11434 which points
       # to the container itself, causing "connection refused" and vision extraction
       # timeouts that leave documents stuck in "processing" forever.
       # On macOS/Windows Docker Desktop, host.docker.internal resolves to the host.
       # On Linux, add `extra_hosts: ["host.docker.internal:host-gateway"]` below.
+      # NOTE: Only set OLLAMA_HOST when you actually want to use Ollama.
+      #       Remove or leave blank when using OpenAI / another cloud provider.
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
       - EDGEQUAKE_LLM_PROVIDER=${EDGEQUAKE_LLM_PROVIDER:-ollama}
       - EDGEQUAKE_EMBEDDING_PROVIDER=${EDGEQUAKE_EMBEDDING_PROVIDER:-}
       # Vision extraction timeout (seconds). Default 600s (10 min).
       - EDGEQUAKE_VISION_TIMEOUT_SECS=${EDGEQUAKE_VISION_TIMEOUT_SECS:-600}
+      # pdfium-auto cache dir — writable by the non-root container user.
+      # Override with PDFIUM_AUTO_CACHE_DIR if you mount a persistent volume.
+      - PDFIUM_AUTO_CACHE_DIR=${PDFIUM_AUTO_CACHE_DIR:-/tmp/edgequake-pdfium-cache}
       - RUST_LOG=info,edgequake=debug
     # Linux only: enable host.docker.internal resolution
     extra_hosts:

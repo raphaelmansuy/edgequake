@@ -11,12 +11,16 @@
 # ============================================
 # Stage 1: Build
 # ============================================
-# Use TARGETPLATFORM so QEMU/BuildKit handles cross-compilation transparently.
-# For native builds this is a no-op; for multi-platform buildx this enables
-# correct arch-native pdfium download inside pdfium-auto.
+# TARGETPLATFORM / BUILDPLATFORM are populated automatically by Docker BuildKit
+# when using `docker buildx build --platform ...`.  In a plain `docker build`
+# or `docker compose build` the variables are empty, so we must NOT interpolate
+# them into `FROM --platform=` (an empty value is rejected by the daemon with an
+# "invalid component" error – issue #92).  We therefore let Docker choose the
+# base-image platform from the manifest, which gives native builds for free and
+# keeps cross-compilation working via buildx without extra flags.
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
-FROM --platform=${TARGETPLATFORM} rust:bookworm AS builder
+FROM rust:bookworm AS builder
 
 WORKDIR /app
 
@@ -41,18 +45,28 @@ RUN cargo build --release --locked
 # ============================================
 # Stage 2: Runtime
 # ============================================
-ARG TARGETPLATFORM
-FROM --platform=${TARGETPLATFORM} debian:bookworm-slim AS runtime
+# See builder-stage comment above for why --platform is omitted.
+FROM debian:bookworm-slim AS runtime
 
 WORKDIR /app
 
 # Install runtime dependencies (no pdfium dylib needed — embedded in binary)
+# Also create the pdfium-auto cache directory that is writable by the non-root
+# edgequake user at runtime (fix #100: "Permission denied" when pdfium-auto
+# tries to extract its embedded library on first use).
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
     curl \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd -r -s /bin/false edgequake
+    && useradd -r -s /bin/false edgequake \
+    && mkdir -p /tmp/edgequake-pdfium-cache \
+    && chmod 1777 /tmp/edgequake-pdfium-cache
+
+# Tell pdfium-auto where to write its extracted shared library.  /tmp is always
+# writable by all users; the sticky-bit above prevents other processes from
+# removing files they do not own.  Users may override via PDFIUM_AUTO_CACHE_DIR.
+ENV PDFIUM_AUTO_CACHE_DIR=/tmp/edgequake-pdfium-cache
 
 # Copy binary from builder
 COPY --from=builder /app/target/release/edgequake /usr/local/bin/
