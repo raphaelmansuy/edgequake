@@ -429,16 +429,15 @@ async fn test_delete_completed_document_allowed() {
 }
 
 #[tokio::test]
-async fn test_delete_pending_document_rejected() {
-    // Test OODA-02: Documents with status "pending" cannot be deleted
-    // This prevents race conditions with background processing
+async fn test_delete_pending_document_succeeds() {
+    // First Principle: a user must always be able to delete their document.
+    // Documents with status "pending" (queued but not yet processing) should
+    // be deletable — the handler cancels the task first, then cascade-deletes.
 
-    // Create a test state and router
     let state = AppState::test_state();
     let server = Server::new(create_test_config(), state.clone());
     let app = server.build_router();
 
-    // Directly insert a document with "pending" status into KV storage
     let doc_id = "test-pending-doc-12345";
     let metadata_key = format!("{}-metadata", doc_id);
     let metadata = serde_json::json!({
@@ -449,14 +448,12 @@ async fn test_delete_pending_document_rejected() {
         "workspace_id": "default"
     });
 
-    // Store the metadata directly
     state
         .kv_storage
         .upsert(&[(metadata_key.clone(), metadata)])
         .await
         .expect("Should be able to store test document");
 
-    // Also add content key to make it a valid document
     let content_key = format!("{}-content", doc_id);
     let content = serde_json::json!({
         "content": "Test content for pending document"
@@ -467,56 +464,26 @@ async fn test_delete_pending_document_rejected() {
         .await
         .expect("Should be able to store content");
 
-    // Try to delete - should be rejected with 409 Conflict
-    let (status, body) = delete_document_http(&app, doc_id).await;
+    // Delete should succeed immediately — no blocking on status
+    let (status, _body) = delete_document_http(&app, doc_id).await;
 
     assert_eq!(
         status,
-        StatusCode::CONFLICT,
-        "Should reject deletion of pending document with 409 Conflict"
-    );
-
-    // Error message should explain why deletion was rejected
-    let error_message = body.get("message").and_then(|v| v.as_str()).unwrap_or("");
-    assert!(
-        error_message.contains("pending") || error_message.contains("Cannot delete"),
-        "Error should mention pending status, got: {}",
-        error_message
-    );
-
-    // Clean up: Change status to allow deletion
-    let cleanup_metadata = serde_json::json!({
-        "id": doc_id,
-        "title": "Pending Document",
-        "status": "completed",
-        "created_at": "2026-01-26T00:00:00Z",
-        "workspace_id": "default"
-    });
-    state
-        .kv_storage
-        .upsert(&[(metadata_key, cleanup_metadata)])
-        .await
-        .expect("Should be able to update status");
-
-    // Now deletion should succeed
-    let (cleanup_status, _) = delete_document_http(&app, doc_id).await;
-    assert_eq!(
-        cleanup_status,
         StatusCode::OK,
-        "Should be able to delete after changing status to completed"
+        "Should allow deletion of pending document: got {status}"
     );
 }
 
 #[tokio::test]
-async fn test_delete_processing_document_rejected() {
-    // Test OODA-02: Documents with status "processing" cannot be deleted
-    // This prevents data corruption from concurrent processing and deletion
+async fn test_delete_processing_document_succeeds() {
+    // First Principle: a user must always be able to delete their document.
+    // Documents with status "processing" should be deletable — the handler
+    // cancels the task (best-effort) then cascade-deletes without blocking.
 
     let state = AppState::test_state();
     let server = Server::new(create_test_config(), state.clone());
     let app = server.build_router();
 
-    // Directly insert a document with "processing" status
     let doc_id = "test-processing-doc-67890";
     let metadata_key = format!("{}-metadata", doc_id);
     let metadata = serde_json::json!({
@@ -543,38 +510,14 @@ async fn test_delete_processing_document_rejected() {
         .await
         .expect("Should be able to store content");
 
-    // Try to delete - should be rejected with 409 Conflict
-    let (status, body) = delete_document_http(&app, doc_id).await;
+    // Delete should succeed immediately — no blocking on status
+    let (status, _body) = delete_document_http(&app, doc_id).await;
 
     assert_eq!(
         status,
-        StatusCode::CONFLICT,
-        "Should reject deletion of processing document with 409 Conflict"
+        StatusCode::OK,
+        "Should allow deletion of processing document: got {status}"
     );
-
-    let error_message = body.get("message").and_then(|v| v.as_str()).unwrap_or("");
-    assert!(
-        error_message.contains("processing") || error_message.contains("Cannot delete"),
-        "Error should mention processing status, got: {}",
-        error_message
-    );
-
-    // Clean up
-    let cleanup_metadata = serde_json::json!({
-        "id": doc_id,
-        "title": "Processing Document",
-        "status": "completed",
-        "created_at": "2026-01-26T00:00:00Z",
-        "workspace_id": "default"
-    });
-    state
-        .kv_storage
-        .upsert(&[(metadata_key, cleanup_metadata)])
-        .await
-        .expect("Should be able to update status");
-
-    let (cleanup_status, _) = delete_document_http(&app, doc_id).await;
-    assert_eq!(cleanup_status, StatusCode::OK);
 }
 
 #[tokio::test]

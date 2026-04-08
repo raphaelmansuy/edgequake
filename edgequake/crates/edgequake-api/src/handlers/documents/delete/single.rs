@@ -122,97 +122,85 @@ pub async fn delete_document(
     };
 
     // SPEC-033: Get workspace_id from document metadata for vector storage isolation
-    // OODA-02: Also check document status for safe deletion
-    // OODA-90: Extract content_hash for hash key cleanup
+    // OADA-90: Extract content_hash for hash key cleanup
     // FIX-ISSUE-73: Extract pdf_id for pdf_documents cleanup
-    let (workspace_id_for_storage, document_status, content_hash_opt, _pdf_id_opt) = if has_metadata
-    {
-        if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
-            let workspace = metadata
-                .get("workspace_id")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "default".to_string());
-            let status = metadata
-                .get("status")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "unknown".to_string());
-            // OODA-90: Extract content hash for duplicate detection key cleanup
-            let content_hash = metadata
-                .get("content_hash")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-            // FIX-ISSUE-73: Extract pdf_id for pdf_documents cascade cleanup
-            let pdf_id = metadata
-                .get("pdf_id")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-            (workspace, status, content_hash, pdf_id)
+    let (workspace_id_for_storage, document_status, content_hash_opt, _pdf_id_opt, track_id_opt) =
+        if has_metadata {
+            if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
+                let workspace = metadata
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "default".to_string());
+                let status = metadata
+                    .get("status")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
+                // OADA-90: Extract content hash for duplicate detection key cleanup
+                let content_hash = metadata
+                    .get("content_hash")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                // FIX-ISSUE-73: Extract pdf_id for pdf_documents cascade cleanup
+                let pdf_id = metadata
+                    .get("pdf_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                // Extract track_id so we can cancel any in-flight processing task
+                let track_id = metadata
+                    .get("track_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                (workspace, status, content_hash, pdf_id, track_id)
+            } else {
+                (
+                    "default".to_string(),
+                    "unknown".to_string(),
+                    None,
+                    None,
+                    None,
+                )
+            }
         } else {
-            ("default".to_string(), "unknown".to_string(), None, None)
-        }
-    } else {
-        ("default".to_string(), "unknown".to_string(), None, None)
-    };
+            (
+                "default".to_string(),
+                "unknown".to_string(),
+                None,
+                None,
+                None,
+            )
+        };
 
-    // OODA-02: Safety check - prevent deletion of documents that are still being processed
-    // WHY: Deleting a document while it's being processed can cause:
-    //   1. Race condition: Background task writes data while deletion removes it
-    //   2. Orphaned data: Entities/edges created AFTER deletion check starts
-    //   3. Partial deletion: Some entities exist, others don't
+    // First Principle: a user must always be able to delete their own document.
     //
-    // Status lifecycle (FIX-5: Added partial_failure):
-    //   "pending"         → Cannot delete (queued for processing)
-    //   "processing"      → Cannot delete (actively being processed)
-    //   "completed"       → Can delete (processing finished successfully with entities)
-    //   "processed"       → Can delete (legacy status, same as completed)
-    //   "partial_failure" → Can delete (processed but 0 entities extracted - FIX-5)
-    //   "failed"          → Can delete (processing failed, cleanup partial data)
-    //   "unknown"         → Can delete (legacy documents without status)
-    match document_status.as_str() {
-        "pending" => {
-            tracing::warn!(
-                document_id = %document_id,
-                status = %document_status,
-                "Rejecting deletion of pending document"
-            );
-            return Err(ApiError::Conflict(format!(
-                "Cannot delete document '{}' with status 'pending'. \
-                 The document is queued for processing. \
-                 Please wait for processing to complete or cancel the task.",
-                document_id
-            )));
-        }
-        "processing" => {
-            tracing::warn!(
-                document_id = %document_id,
-                status = %document_status,
-                "Rejecting deletion of processing document"
-            );
-            return Err(ApiError::Conflict(format!(
-                "Cannot delete document '{}' with status 'processing'. \
-                 The document is currently being processed. \
-                 Please wait for processing to complete or cancel the task.",
-                document_id
-            )));
-        }
-        "completed" | "processed" | "partial_failure" | "failed" | "cancelled" | "unknown" => {
-            // OK to delete
-            // OODA-13: Added "cancelled" status to explicitly allow deletion after task cancellation
-            tracing::debug!(
-                document_id = %document_id,
-                status = %document_status,
-                "Document status allows deletion"
-            );
-        }
-        other => {
-            // Unknown status - allow deletion with warning
-            tracing::warn!(
-                document_id = %document_id,
-                status = %other,
-                "Unknown document status, allowing deletion"
-            );
+    // If the document is still being processed (pending/processing), cancel its
+    // task first so the processor stops writing — then proceed with the cascade
+    // delete.  The processor already handles missing-document cases gracefully
+    // (update_document_status is a no-op when the KV key is gone), so there is
+    // no orphan risk from the race window.
+    //
+    // SRP: the delete handler's only job is data removal; lifecycle management
+    // belongs to the processor.  Blocking deletion here was the wrong layer.
+    if matches!(document_status.as_str(), "pending" | "processing") {
+        match &track_id_opt {
+            Some(track_id) => {
+                let cancelled = state.cancellation_registry.cancel(track_id).await;
+                tracing::info!(
+                    document_id = %document_id,
+                    track_id = %track_id,
+                    status = %document_status,
+                    cancelled,
+                    "Cancelled in-flight task before cascade delete"
+                );
+            }
+            None => {
+                tracing::warn!(
+                    document_id = %document_id,
+                    status = %document_status,
+                    "No track_id in metadata — proceeding with delete without task cancellation"
+                );
+            }
         }
     }
 
