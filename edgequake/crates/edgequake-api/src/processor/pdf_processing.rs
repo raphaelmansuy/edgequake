@@ -1,6 +1,99 @@
 use super::*;
 use tokio_util::sync::CancellationToken;
 
+const PDFIUM_CACHE_DIR_NAME: &str = "edgequake-pdfium-cache";
+const PDFIUM_CACHE_DIR_FALLBACK: &str = "/tmp/edgequake-pdfium-cache";
+
+fn default_pdfium_auto_cache_dir() -> std::path::PathBuf {
+    std::env::temp_dir().join(PDFIUM_CACHE_DIR_NAME)
+}
+
+fn cache_dir_is_writable(cache_dir: &std::path::Path) -> bool {
+    if let Err(error) = std::fs::create_dir_all(cache_dir) {
+        tracing::debug!(
+            cache_dir = %cache_dir.display(),
+            error = %error,
+            "PDFium cache directory could not be created"
+        );
+        return false;
+    }
+
+    let probe_path = cache_dir.join(format!(
+        ".edgequake-pdfium-probe-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    ));
+
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&probe_path)
+    {
+        Ok(_) => {
+            let _ = std::fs::remove_file(&probe_path);
+            true
+        }
+        Err(error) => {
+            tracing::debug!(
+                cache_dir = %cache_dir.display(),
+                error = %error,
+                "PDFium cache directory is not writable"
+            );
+            false
+        }
+    }
+}
+
+fn select_pdfium_auto_cache_dir(preferred: std::path::PathBuf) -> std::path::PathBuf {
+    if cache_dir_is_writable(&preferred) {
+        return preferred;
+    }
+
+    let fallback = std::path::PathBuf::from(PDFIUM_CACHE_DIR_FALLBACK);
+    if cache_dir_is_writable(&fallback) {
+        warn!(
+            preferred_cache_dir = %preferred.display(),
+            fallback_cache_dir = %fallback.display(),
+            "PDFium cache directory was not writable; using fallback"
+        );
+        return fallback;
+    }
+
+    warn!(
+        preferred_cache_dir = %preferred.display(),
+        fallback_cache_dir = %fallback.display(),
+        "PDFium cache directories were not writable; continuing with the preferred path"
+    );
+    preferred
+}
+
+fn resolve_pdfium_auto_cache_dir() -> std::path::PathBuf {
+    let preferred = std::env::var_os("PDFIUM_AUTO_CACHE_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(default_pdfium_auto_cache_dir);
+    select_pdfium_auto_cache_dir(preferred)
+}
+
+#[cfg(not(test))]
+pub(super) fn ensure_pdfium_auto_cache_dir() -> std::path::PathBuf {
+    static CACHE_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+    CACHE_DIR
+        .get_or_init(|| {
+            let cache_dir = resolve_pdfium_auto_cache_dir();
+            std::env::set_var("PDFIUM_AUTO_CACHE_DIR", &cache_dir);
+            tracing::debug!(
+                cache_dir = %cache_dir.display(),
+                "Using PDFium cache directory"
+            );
+            cache_dir
+        })
+        .clone()
+}
+
 impl DocumentTaskProcessor {
     /// Process PDF processing task (SPEC-007).
     ///
@@ -572,5 +665,60 @@ impl DocumentTaskProcessor {
         Err(edgequake_tasks::TaskError::UnsupportedOperation(
             "PDF processing requires postgres feature".to_string(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use serial_test::serial;
+    use tempfile::tempdir;
+
+    #[test]
+    fn default_pdfium_cache_dir_uses_temp_dir() {
+        let cache_dir = default_pdfium_auto_cache_dir();
+
+        assert!(cache_dir.ends_with(PDFIUM_CACHE_DIR_NAME));
+    }
+
+    #[test]
+    fn writable_cache_dir_is_selected() {
+        let temp_dir = tempdir().expect("temp dir");
+        let candidate = temp_dir.path().join(PDFIUM_CACHE_DIR_NAME);
+
+        let resolved = select_pdfium_auto_cache_dir(candidate.clone());
+
+        assert_eq!(resolved, candidate);
+        assert!(resolved.exists());
+    }
+
+    #[test]
+    fn unwritable_cache_dir_falls_back_to_tmp() {
+        let temp_dir = tempdir().expect("temp dir");
+        let candidate = temp_dir.path().join("blocked-cache-dir");
+        std::fs::write(&candidate, b"not a directory").expect("create blocking file");
+
+        let resolved = select_pdfium_auto_cache_dir(candidate);
+
+        assert_eq!(
+            resolved,
+            std::path::PathBuf::from(PDFIUM_CACHE_DIR_FALLBACK)
+        );
+        assert!(resolved.exists());
+    }
+
+    #[test]
+    #[serial]
+    fn explicit_pdfium_cache_dir_is_respected_when_writable() {
+        let temp_dir = tempdir().expect("temp dir");
+        let custom_cache_dir = temp_dir.path().join("custom-pdfium-cache");
+
+        std::env::set_var("PDFIUM_AUTO_CACHE_DIR", &custom_cache_dir);
+        let resolved = resolve_pdfium_auto_cache_dir();
+        std::env::remove_var("PDFIUM_AUTO_CACHE_DIR");
+
+        assert_eq!(resolved, custom_cache_dir);
+        assert!(resolved.exists());
     }
 }

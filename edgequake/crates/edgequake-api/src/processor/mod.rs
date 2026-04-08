@@ -160,6 +160,14 @@ pub struct DocumentTaskProcessor {
 }
 
 impl DocumentTaskProcessor {
+    #[cfg(not(test))]
+    fn initialize_pdfium_auto_cache_dir() {
+        let _ = pdf_processing::ensure_pdfium_auto_cache_dir();
+    }
+
+    #[cfg(test)]
+    fn initialize_pdfium_auto_cache_dir() {}
+
     /// Create a new document task processor (legacy, without workspace support).
     /// OODA-223: Uses non-strict mode (allows fallback) for backward compatibility.
     pub fn new(
@@ -171,6 +179,8 @@ impl DocumentTaskProcessor {
         graph_storage: Arc<dyn GraphStorage>,
         pipeline_state: PipelineState,
     ) -> Self {
+        Self::initialize_pdfium_auto_cache_dir();
+
         Self {
             pipeline,
             llm_provider,
@@ -208,6 +218,8 @@ impl DocumentTaskProcessor {
         workspace_service: SharedWorkspaceService,
         models_config: Arc<ModelsConfig>,
     ) -> Self {
+        Self::initialize_pdfium_auto_cache_dir();
+
         Self {
             pipeline,
             llm_provider,
@@ -242,6 +254,8 @@ impl DocumentTaskProcessor {
         workspace_service: SharedWorkspaceService,
         models_config: Arc<ModelsConfig>,
     ) -> Self {
+        Self::initialize_pdfium_auto_cache_dir();
+
         Self {
             pipeline,
             llm_provider,
