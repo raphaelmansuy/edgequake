@@ -12,7 +12,7 @@ use crate::services::ContentHasher;
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 
-use super::super::storage_helpers::{extract_source_docs, get_workspace_vector_storage_strict};
+use super::super::storage_helpers::{extract_source_docs, get_workspace_vector_storage_for_delete};
 
 /// Resolve the actual KV key prefix for a document.
 ///
@@ -220,11 +220,13 @@ pub async fn delete_document(
     // Clone chunk_ids before workspace_vector_storage operations
     let keys_to_delete_for_vectors: Vec<String> = chunk_ids.clone();
 
-    // SPEC-033: Get workspace-specific vector storage for deletion
-    // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
-    // to ensure we delete from the correct workspace table, not a fallback
+    // SPEC-033: Get workspace-specific vector storage for deletion.
+    // WHY-OODA223: Use lenient resolver so that documents whose workspace
+    // record no longer exists in the DB are not permanently stuck ("zombie"
+    // documents).  Orphaned vector rows from the missing workspace are an
+    // acceptable trade-off vs. an undeleteable document.
     let workspace_vector_storage =
-        get_workspace_vector_storage_strict(&state, &workspace_id_for_storage).await?;
+        get_workspace_vector_storage_for_delete(&state, &workspace_id_for_storage).await;
 
     let chunks_deleted = chunk_ids.len();
     let mut entities_removed = 0usize;

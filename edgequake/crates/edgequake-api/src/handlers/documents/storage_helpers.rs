@@ -215,6 +215,53 @@ pub(super) async fn get_workspace_vector_storage_with_fallback(
     }
 }
 
+/// Get workspace-specific vector storage for **deletion** operations.
+///
+/// This variant is intentionally lenient about missing workspaces.  During
+/// document deletion the primary goals are:
+///   1. Remove KV entries (content, chunks, metadata, hash key).
+///   2. Remove graph nodes / edges whose only source is this document.
+///   3. Remove the corresponding rows from the PostgreSQL `documents` table.
+///   4. Best-effort: delete chunk embeddings from the vector index.
+///
+/// If the workspace record no longer exists in the database (e.g., it was
+/// deleted, or this is a legacy "default" workspace without a DB row), we
+/// MUST NOT block the entire delete.  Instead we degrade gracefully:
+///
+/// - Return the **default** vector storage so embedding cleanup is still
+///   attempted against the global index.
+/// - Log a `WARN` so operators can find orphaned vector rows later.
+///
+/// # WHY NOT STRICT
+///
+/// Using `get_workspace_vector_storage_strict` for deletion created a
+/// permanent "zombie document" trap:
+///   - User uploads document → processing fails → document stuck in "failed"
+///   - Workspace deleted or default workspace has no DB row
+///   - `get_workspace_vector_storage_strict` returns NotFound
+///   - Delete API returns 404 / 500 → document is undeleteable forever
+///
+/// This is worse than potentially orphaning a few vector rows. The correct
+/// trade-off is: always allow deletion, degrade vector cleanup gracefully.
+pub(super) async fn get_workspace_vector_storage_for_delete(
+    state: &AppState,
+    workspace_id: &str,
+) -> Arc<dyn VectorStorage> {
+    match get_workspace_vector_storage_strict(state, workspace_id).await {
+        Ok(storage) => storage,
+        Err(e) => {
+            warn!(
+                workspace_id = %workspace_id,
+                error = %e,
+                "Workspace not found or vector storage unavailable during document deletion. \
+                 Proceeding with default storage. Orphaned vector rows (if any) can be \
+                 cleaned up later via the vector storage maintenance API."
+            );
+            state.vector_registry.default_storage()
+        }
+    }
+}
+
 // ============================================
 // OODA-08: Reusable Document Graph Cleanup
 // ============================================
