@@ -504,7 +504,10 @@ mod tests {
 
     #[test]
     fn test_default_model_openai() {
-        assert_eq!(Workspace::default_model_for_provider("openai"), "gpt-4o-mini");
+        assert_eq!(
+            Workspace::default_model_for_provider("openai"),
+            "gpt-4o-mini"
+        );
     }
 
     #[test]
