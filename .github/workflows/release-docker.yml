@@ -144,3 +144,89 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/edgequake-frontend:latest
           cache-from: type=gha,scope=frontend
           cache-to:   type=gha,scope=frontend,mode=max
+
+  # ── Build PostgreSQL (AGE + pgvector) — needed for all-prebuilt quickstart ───
+  # Building postgres once in CI lets users pull a ready-to-go image instead of
+  # waiting for a local `docker build` every time they run `make stack`.
+  build-postgres:
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push postgres (amd64 + arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: edgequake/docker
+          file: edgequake/docker/Dockerfile.postgres
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/edgequake-postgres:${{ needs.meta.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/edgequake-postgres:latest
+          cache-from: type=gha,scope=postgres
+          cache-to:   type=gha,scope=postgres,mode=max
+
+  # ── Trigger GitHub Release after all images are published ────────────────────
+  release:
+    needs: [meta, merge, build-frontend, build-postgres]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION:  ${{ needs.meta.outputs.version }}
+          TAG:      ${{ needs.meta.outputs.tag_name }}
+        run: |
+          NOTES="## Docker Quickstart
+
+          \`\`\`bash
+          # One command — no build required (~30 s on first pull, <5 s on cached)
+          curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.quickstart.yml \\
+            -o docker-compose.quickstart.yml
+          docker compose -f docker-compose.quickstart.yml up -d
+          # → Web UI:  http://localhost:3000
+          # → API:     http://localhost:8080
+          # → Swagger: http://localhost:8080/swagger-ui
+          \`\`\`
+
+          Or with the Makefile:
+          \`\`\`bash
+          make stack           # start all three services (pulls from GHCR)
+          make stack-down      # stop and remove containers
+          make stack-logs      # tail logs
+          \`\`\`
+
+          ## Images (v${VERSION})
+
+          | Image | Architecture |
+          |-------|-------------|
+          | \`ghcr.io/raphaelmansuy/edgequake:${VERSION}\` | linux/amd64, linux/arm64 |
+          | \`ghcr.io/raphaelmansuy/edgequake-frontend:${VERSION}\` | linux/amd64, linux/arm64 |
+          | \`ghcr.io/raphaelmansuy/edgequake-postgres:${VERSION}\` | linux/amd64, linux/arm64 |
+
+          Full CHANGELOG: https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/CHANGELOG.md"
+
+          gh release create "$TAG" \
+            --title "EdgeQuake $TAG" \
+            --notes "$NOTES" \
+            --repo "$GITHUB_REPOSITORY" \
+            2>/dev/null || \
+          gh release edit "$TAG" \
+            --title "EdgeQuake $TAG" \
+            --notes "$NOTES" \
+            --repo "$GITHUB_REPOSITORY"

@@ -2,6 +2,68 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.4] - 2026-04-08
+
+### Added
+
+#### ⚡ One-Command Full Stack — Zero Build Time (~30 seconds)
+
+The entire EdgeQuake stack (API, Web UI + PostgreSQL) is now available as three prebuilt multi-arch GHCR images. No Rust toolchain, no Node.js, no `cargo build` needed.
+
+```bash
+# Clone and start everything
+git clone https://github.com/raphaelmansuy/edgequake.git
+cd edgequake
+make stack          # pulls images, starts all services, waits for health
+```
+
+Or one-liner without `make`:
+
+```bash
+docker compose -f docker-compose.quickstart.yml up -d
+```
+
+- **New `docker-compose.quickstart.yml`** at repo root — pulls all three images from GHCR:
+  - `ghcr.io/raphaelmansuy/edgequake:latest` (API, amd64 + arm64)
+  - `ghcr.io/raphaelmansuy/edgequake-frontend:latest` (Next.js Web UI, amd64 + arm64)
+  - `ghcr.io/raphaelmansuy/edgequake-postgres:latest` (PostgreSQL + pgvector + Apache AGE, **new**, amd64 + arm64)
+- **New `make stack` target** (and siblings):
+  - `make stack` — pull + start API, Web UI, PostgreSQL from GHCR
+  - `make stack-down` — stop and remove containers
+  - `make stack-logs` — tail all container logs
+  - `make stack-status` — show container status
+  - `make stack-pull` — update images without starting
+  - `make stack-restart` — pull + restart
+- **`release-docker.yml`** CI: added `build-postgres` job that builds and publishes the custom PostgreSQL image (`ghcr.io/raphaelmansuy/edgequake-postgres`) on every `v*.*.*` tag push. Also added `release` job that automatically creates a GitHub Release with image table + quickstart notes after all images are published.
+
+#### Bug Fix — Zombie Documents (cannot delete/reprocess)
+
+Documents whose workspace record was missing from the PostgreSQL `workspaces` table were permanently undeleteable ("zombie documents"). The strict vector storage resolver returned `404 Workspace not found` before any rows were cleaned up.
+
+**Fix:** `delete/single.rs` now calls `get_workspace_vector_storage_for_delete` which gracefully falls back to default storage when the workspace record is absent. All KV, graph, and PostgreSQL rows are cleaned up correctly; any orphaned vector rows in the missing workspace are an acceptable trade-off vs. a permanently stuck document.
+
+#### Multi-Provider Workspace Defaults (fixes #147, #145)
+
+Two-tier environment variable resolution for `default_llm_config()`:
+- `EDGEQUAKE_DEFAULT_LLM_PROVIDER` → `EDGEQUAKE_LLM_PROVIDER` → `"ollama"` (provider)
+- `EDGEQUAKE_DEFAULT_LLM_MODEL` → `EDGEQUAKE_LLM_MODEL` → provider default model
+
+`OPENAI_BASE_URL` passthrough added to `docker-compose.yml` for Azure, vLLM, and other OpenAI-compatible endpoints.
+
+### Fixed
+
+- **#92** Docker `--platform=${TARGETPLATFORM}` build error on plain `docker build` / `docker compose build`
+- **#100** PDFium cache `Permission denied` on container startup — writable `/tmp/edgequake-pdfium-cache` + `ENV PDFIUM_AUTO_CACHE_DIR` set in Dockerfile
+- **#147** Ollama workspace defaults not respected when `OPENAI_API_KEY` is set alongside `EDGEQUAKE_LLM_PROVIDER=ollama`
+- **#145** Workspace default model config not reading `EDGEQUAKE_LLM_MODEL` env var
+
+### Infrastructure
+
+- Version bumped `0.9.1` → `0.9.4` across all crates and `VERSION` file
+- CI `Check` jobs (fmt + clippy) fixed: `workspace.rs` test reformatted + `Cargo.lock` updated
+
+---
+
 ## [0.9.3] - 2026-04-08
 
 ### Added

@@ -4,8 +4,58 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.78+-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-GHCR-blue.svg)](https://github.com/raphaelmansuy/edgequake/pkgs/container/edgequake)
 
 EdgeQuake is a next-generation Retrieval-Augmented Generation (RAG) system built in Rust, designed for high performance, reliability, and scalability. It combines vector similarity search with knowledge graph traversal to provide contextually rich answers.
+
+---
+
+## ⚡ Quickstart — One Command, Full Stack (~30 seconds)
+
+> **No Rust toolchain, no Node.js, no build step required.**  
+> Three prebuilt images (API, Web UI, PostgreSQL) are pulled from GitHub Container Registry.
+
+```bash
+# Clone (or just download the compose file)
+git clone https://github.com/raphaelmansuy/edgequake.git
+cd edgequake
+
+# Start everything
+make stack
+```
+
+Or without `make`:
+
+```bash
+docker compose -f docker-compose.quickstart.yml up -d
+```
+
+**Access:**
+| Service   | URL                              |
+| --------- | -------------------------------- |
+| 🌐 Web UI  | http://localhost:3000            |
+| 🔗 API     | http://localhost:8080            |
+| 📚 Swagger | http://localhost:8080/swagger-ui |
+| 🏥 Health  | http://localhost:8080/health     |
+
+**Stop:**
+```bash
+make stack-down
+# or
+docker compose -f docker-compose.quickstart.yml down
+```
+
+**Use OpenAI instead of the default Ollama provider:**
+```bash
+EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... make stack
+```
+
+**Pin to a specific version:**
+```bash
+EDGEQUAKE_VERSION=0.9.4 make stack
+```
+
+---
 
 ## Features
 

@@ -99,7 +99,7 @@ export function ProviderStatusCard() {
       'ollama': {
         label: 'Ollama Configuration',
         code: `export OLLAMA_HOST="http://localhost:11434"
-export OLLAMA_MODEL="gemma3:12b"
+export OLLAMA_MODEL="gemma4:latest"
 export OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest"`,
       },
       'openai': {
