@@ -83,45 +83,9 @@ jobs:
 
       # Note: Examples and binaries require postgres feature, tested in postgres-integration.yml
 
-  coverage:
-    name: Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Free disk space
-        run: |
-          # Remove unused tools to free disk space for coverage generation
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          df -h
-
-      - name: Install cargo-tarpaulin
-        # WHY: Use pre-built binary to avoid compiling native-tls v0.2.17 which fails on Rust 1.85+
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-tarpaulin
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: edgequake
-
-      - name: Generate coverage
-        working-directory: edgequake
-        run: cargo tarpaulin --workspace --timeout 300 --out xml
-        # WHY: continue-on-error - Coverage generation can run out of disk space on GitHub runners
-        continue-on-error: true
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: edgequake/cobertura.xml
-          fail_ci_if_error: false
+  # Coverage is intentionally NOT run on automatic CI.
+  # Trigger manually via: Actions → "Coverage (Manual)" → Run workflow
+  # See .github/workflows/coverage.yml
 
   security:
     name: Security Audit

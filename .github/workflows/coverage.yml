@@ -1,0 +1,65 @@
+# Coverage — Manual only
+#
+# WHY: Coverage via cargo-tarpaulin takes 20-40 minutes and frequently runs out
+# of disk space on GitHub-hosted runners, making it a poor fit for the automatic
+# CI gate that runs on every push/PR.  Moving it to workflow_dispatch keeps the
+# automatic CI fast and reliable while still allowing engineers to run coverage
+# on demand (e.g. before a release or after a significant refactor).
+#
+# Trigger: Actions → "Coverage (Manual)" → Run workflow  (select branch)
+# Or via CLI: gh workflow run coverage.yml -R raphaelmansuy/edgequake
+
+name: "Coverage (Manual)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to run coverage on"
+        required: false
+        default: "edgequake-main"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Free disk space
+        run: |
+          # Remove unused tools to free disk space for coverage generation
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          df -h
+
+      - name: Install cargo-tarpaulin
+        # WHY: Use pre-built binary to avoid compiling native-tls v0.2.17 which fails on Rust 1.85+
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+
+      - name: Generate coverage
+        working-directory: edgequake
+        run: cargo tarpaulin --workspace --timeout 300 --out xml
+        # WHY: continue-on-error — Coverage generation can run out of disk space on GitHub runners
+        continue-on-error: true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: edgequake/cobertura.xml
+          fail_ci_if_error: false
