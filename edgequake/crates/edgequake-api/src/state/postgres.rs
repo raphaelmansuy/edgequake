@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
+use edgequake_core::env::apply_model_env_aliases;
 use edgequake_core::{ConversationServiceImpl, WorkspaceServiceImpl};
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
@@ -88,6 +89,8 @@ impl AppState {
         llm_api_key: impl Into<String>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         use edgequake_llm::ProviderFactory;
+
+        apply_model_env_aliases();
 
         let database_url = database_url.into();
         let llm_api_key = llm_api_key.into();

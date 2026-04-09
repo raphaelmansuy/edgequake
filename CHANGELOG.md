@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.18] - 2026-04-09
+
+### Fixed
+
+- **Issue #144 fully closed: prebuilt Docker path, env compatibility aliases, and OSS onboarding**.
+
+  **Implementation**
+  1. Added deterministic compatibility aliases for LightRAG-style environment names:
+     `MODEL_PROVIDER`, `CHAT_MODEL`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`,
+     `EMBEDDING_DIMENSION`.
+  2. Aliases are normalized into canonical `EDGEQUAKE_*` variables at startup and in app-state
+     constructors, so the rest of the provider stack keeps a single code path.
+  3. Workspace default resolution now honors the same aliases directly with explicit precedence:
+     `EDGEQUAKE_DEFAULT_*` → `EDGEQUAKE_*` → compatibility alias → compiled default.
+  4. Added unit and E2E coverage for the alias path to prevent regressions and empty-string /
+     Docker Compose edge cases.
+
+  **Docker / release**
+  1. `edgequake/docker/docker-compose.prebuilt.yml` now pulls the published
+     `ghcr.io/raphaelmansuy/edgequake-postgres` image instead of building PostgreSQL locally.
+  2. The documented prebuilt path is now truly all-prebuilt: API, frontend, and PostgreSQL are
+     all versioned GHCR images.
+
+  **Documentation**
+  1. Rewrote `CONTRIBUTING.md` to standard open-source contribution flow.
+  2. Updated Docker and configuration docs with the compatibility alias mapping and the versioned
+     prebuilt-image workflow.
+  3. Updated the LightRAG migration guide with alias examples and explicit tenant/workspace
+     guidance: for 1,000 businesses, use 1,000 tenants and then add workspaces inside each tenant.
+  4. Normalized project-owned release metadata and SDK manifests to Apache-2.0 only so published
+     artifacts match the repository `LICENSE`.
+
 ## [0.9.17] - 2026-04-09
 
 ### Fixed

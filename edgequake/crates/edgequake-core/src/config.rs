@@ -258,6 +258,8 @@ impl Config {
     pub fn from_env() -> Self {
         let mut config = Self::default();
 
+        crate::env::apply_model_env_aliases();
+
         // Storage
         if let Ok(url) = std::env::var("EDGEQUAKE_DATABASE_URL") {
             config.storage.database_url = url;
@@ -302,6 +304,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_default_config() {
@@ -322,5 +325,29 @@ mod tests {
     fn test_socket_addr() {
         let config = Config::default();
         assert_eq!(config.socket_addr(), "0.0.0.0:8080");
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_env_supports_model_aliases() {
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_LLM_MODEL");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_MODEL");
+        std::env::set_var("MODEL_PROVIDER", "mock");
+        std::env::set_var("CHAT_MODEL", "gpt-5-mini");
+        std::env::set_var("EMBEDDING_MODEL", "text-embedding-3-small");
+
+        let config = Config::from_env();
+
+        std::env::remove_var("MODEL_PROVIDER");
+        std::env::remove_var("CHAT_MODEL");
+        std::env::remove_var("EMBEDDING_MODEL");
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_LLM_MODEL");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_MODEL");
+
+        assert_eq!(config.llm.provider, "mock");
+        assert_eq!(config.llm.model, "gpt-5-mini");
+        assert_eq!(config.llm.embedding_model, "text-embedding-3-small");
     }
 }

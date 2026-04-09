@@ -38,6 +38,7 @@
 pub mod cache;
 pub mod config;
 pub mod conversation_service;
+pub mod env;
 pub mod error;
 pub mod keyword_extractor;
 #[cfg(feature = "pipeline")]

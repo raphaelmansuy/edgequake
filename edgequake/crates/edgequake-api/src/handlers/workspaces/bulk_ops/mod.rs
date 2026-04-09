@@ -160,7 +160,7 @@ pub(super) fn build_pdf_task(
         .vision_llm_provider
         .as_deref()
         .filter(|p| !p.is_empty())
-        .unwrap_or_else(|| workspace.llm_provider.as_str())
+        .unwrap_or(workspace.llm_provider.as_str())
         .to_string();
     let vision_model = workspace.vision_llm_model.clone().filter(|m| !m.is_empty());
 

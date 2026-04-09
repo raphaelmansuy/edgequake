@@ -50,7 +50,7 @@ EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework implemen
 - [Troubleshooting](docs/troubleshooting/)
 
 ## License
-EdgeQuake is licensed under the MIT License.
+EdgeQuake is licensed under the Apache License, Version 2.0.
 
 ---
 For more details, see the README and documentation in the repository.

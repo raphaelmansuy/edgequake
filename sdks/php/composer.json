@@ -2,7 +2,7 @@
   "name": "edgequake/sdk",
   "description": "PHP SDK for the EdgeQuake RAG API",
   "type": "library",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "require": {
     "php": ">=8.1"
   },

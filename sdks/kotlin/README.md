@@ -322,4 +322,4 @@ mvn compile -q  # Kotlin compiler checks
 
 ## License
 
-MIT
+Apache-2.0

@@ -1,54 +1,81 @@
 # EdgeQuake Docker Deployment
 
-This directory contains Docker configuration for deploying EdgeQuake.
+This directory ships two supported Docker flows:
 
-## ⚠️ Disclaimer
+- `docker-compose.prebuilt.yml`: pull versioned GHCR images for API, frontend, and PostgreSQL
+- `docker-compose.yml`: build the API and frontend locally, then run the PostgreSQL image locally
 
-**PDF to Markdown Integration Status**: The PDF-to-Markdown feature is currently integrated in an **early prototype** stage. For testing and evaluating EdgeQuake's core functionality, please use **markdown documents** rather than PDFs. This ensures you can fully leverage the stable features of the system while we continue to refine the PDF extraction pipeline.
+## Prebuilt Flow
 
-## Quick Start
+Use this when you want the fastest install path and a repeatable release version.
 
 ```bash
-# Build and start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f edgequake
-
-# Stop services
-docker-compose down
+cd edgequake/docker
+docker compose -f docker-compose.prebuilt.yml up -d
 ```
+
+Pin a specific release:
+
+```bash
+EDGEQUAKE_VERSION=0.9.18 docker compose -f docker-compose.prebuilt.yml up -d
+```
+
+Use OpenAI:
+
+```bash
+EDGEQUAKE_LLM_PROVIDER=openai \
+OPENAI_API_KEY=sk-... \
+docker compose -f docker-compose.prebuilt.yml up -d
+```
+
+## Source-Build Flow
+
+Use this when you are changing the backend or frontend locally and want Docker to rebuild them.
+
+```bash
+cd edgequake/docker
+docker compose -f docker-compose.yml up -d --build
+```
+
+## Provider Configuration
+
+Canonical EdgeQuake names:
+
+```bash
+EDGEQUAKE_LLM_PROVIDER=openai
+EDGEQUAKE_LLM_MODEL=gpt-5-mini
+EDGEQUAKE_EMBEDDING_PROVIDER=openai
+EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
+```
+
+Compatibility aliases for migration from LightRAG-style env files:
+
+```bash
+MODEL_PROVIDER=openai
+CHAT_MODEL=gpt-5-mini
+EMBEDDING_PROVIDER=openai
+EMBEDDING_MODEL=text-embedding-3-small
+```
+
+Canonical `EDGEQUAKE_*` variables take precedence when both are set.
 
 ## Services
 
-| Service     | Port | Description              |
-| ----------- | ---- | ------------------------ |
-| `edgequake` | 8080 | EdgeQuake API server     |
-| `postgres`  | 5432 | PostgreSQL with pgvector |
+| Service | Port | Description |
+| --- | --- | --- |
+| `edgequake` | `8080` | EdgeQuake API server |
+| `frontend` | `3000` | Next.js web UI |
+| `postgres` | `5432` | PostgreSQL with `pgvector` and Apache AGE |
 
-## Environment Variables
-
-Create a `.env` file:
-
-```bash
-# Required
-OPENAI_API_KEY=sk-your-api-key
-
-# Optional
-EDGEQUAKE_PORT=8080
-POSTGRES_PASSWORD=edgequake_secret
-```
-
-## Production Deployment
-
-For production, use `docker-compose.prod.yml`:
+## Common Commands
 
 ```bash
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-```
+# Logs
+docker compose -f docker-compose.prebuilt.yml logs -f
 
-## Building the Image
+# Stop
+docker compose -f docker-compose.prebuilt.yml down
 
-```bash
-docker build -t edgequake:latest -f Dockerfile ..
+# Stop and remove data
+docker compose -f docker-compose.prebuilt.yml down -v
 ```

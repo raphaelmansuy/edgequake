@@ -31,6 +31,53 @@ pub const TEST_USER_ID: &str = "bbbbbbbb-0019-0019-0019-bbbbbbbbbbbb";
 /// Default test workspace ID (valid UUID for workspace-scoped operations).
 pub const TEST_WORKSPACE_ID: &str = "cccccccc-0019-0019-0019-cccccccccccc";
 
+/// Environment variables that influence provider auto-detection.
+///
+/// WHY: E2E tests must not depend on whatever third-party credentials happen to
+/// exist on the developer machine or CI runner. Keeping this list centralized
+/// makes provider-related tests deterministic and easier to maintain.
+const PROVIDER_DETECTION_ENV_VARS: &[&str] = &[
+    "EDGEQUAKE_LLM_PROVIDER",
+    "EDGEQUAKE_LLM_MODEL",
+    "EDGEQUAKE_EMBEDDING_PROVIDER",
+    "EDGEQUAKE_EMBEDDING_MODEL",
+    "EDGEQUAKE_EMBEDDING_DIMENSION",
+    "EDGEQUAKE_DEFAULT_LLM_PROVIDER",
+    "EDGEQUAKE_DEFAULT_LLM_MODEL",
+    "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER",
+    "EDGEQUAKE_DEFAULT_EMBEDDING_MODEL",
+    "EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION",
+    "MODEL_PROVIDER",
+    "CHAT_MODEL",
+    "EMBEDDING_PROVIDER",
+    "EMBEDDING_MODEL",
+    "EMBEDDING_DIMENSION",
+    "OLLAMA_HOST",
+    "OLLAMA_MODEL",
+    "LMSTUDIO_HOST",
+    "LMSTUDIO_MODEL",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GOOGLE_ACCESS_TOKEN",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_REGION",
+    "GOOGLE_CLOUD_LOCATION",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "MISTRAL_API_KEY",
+    "XAI_API_KEY",
+    "OPENROUTER_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_OPENAI_CONTENTGEN_API_KEY",
+    "AZURE_OPENAI_CONTENTGEN_API_ENDPOINT",
+    "MINIMAX_API_KEY",
+    "HF_TOKEN",
+    "HUGGINGFACE_TOKEN",
+];
+
 // ============================================================================
 // App Setup
 // ============================================================================
@@ -50,6 +97,13 @@ pub fn create_test_app() -> axum::Router {
     };
     let server = Server::new(config, AppState::test_state());
     server.build_router()
+}
+
+/// Remove all environment variables that can change provider selection.
+pub fn clear_provider_detection_env() {
+    for key in PROVIDER_DETECTION_ENV_VARS {
+        std::env::remove_var(key);
+    }
 }
 
 // ============================================================================

@@ -4,17 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-/// Read an environment variable and return `None` when the variable is
-/// absent **or** set to an empty string.
-///
-/// WHY: Docker Compose expands `${VAR:-}` to an empty string when `VAR` is
-/// not set on the host.  `std::env::var` returns `Ok("")` for those values,
-/// which silently overrides the hard-coded fallback.  This helper treats
-/// empty strings the same as missing variables so callers can chain
-/// `.or_else(|| …)` safely.
-fn non_empty_env_var(key: &str) -> Option<String> {
-    std::env::var(key).ok().filter(|s| !s.is_empty())
-}
+use crate::env::{
+    first_non_empty_env_var, non_empty_env_var, EMBEDDING_DIMENSION_ALIASES,
+    EMBEDDING_MODEL_ALIASES, EMBEDDING_PROVIDER_ALIASES, LLM_MODEL_ALIASES, LLM_PROVIDER_ALIASES,
+};
 
 // ============================================================================
 // Model Configuration Constants (SPEC-032)
@@ -196,11 +189,23 @@ impl Workspace {
         // explicitly filter out empty strings before falling back to the next
         // candidate in the resolution chain.
         let provider = non_empty_env_var("EDGEQUAKE_DEFAULT_LLM_PROVIDER")
-            .or_else(|| non_empty_env_var("EDGEQUAKE_LLM_PROVIDER"))
+            .or_else(|| {
+                first_non_empty_env_var(&[
+                    "EDGEQUAKE_LLM_PROVIDER",
+                    LLM_PROVIDER_ALIASES[0],
+                    LLM_PROVIDER_ALIASES[1],
+                ])
+            })
             .unwrap_or_else(|| DEFAULT_LLM_PROVIDER.to_string());
 
         let model = non_empty_env_var("EDGEQUAKE_DEFAULT_LLM_MODEL")
-            .or_else(|| non_empty_env_var("EDGEQUAKE_LLM_MODEL"))
+            .or_else(|| {
+                first_non_empty_env_var(&[
+                    "EDGEQUAKE_LLM_MODEL",
+                    LLM_MODEL_ALIASES[0],
+                    LLM_MODEL_ALIASES[1],
+                ])
+            })
             .unwrap_or_else(|| Self::default_model_for_provider(&provider));
 
         (model, provider)
@@ -217,18 +222,27 @@ impl Workspace {
         // compose expansion of `${VAR:-}` produces Ok("") not Err, so we
         // must filter those out before falling back to the next candidate.
         let provider = non_empty_env_var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER")
-            .or_else(|| non_empty_env_var("EDGEQUAKE_EMBEDDING_PROVIDER"))
+            .or_else(|| {
+                first_non_empty_env_var(&[
+                    "EDGEQUAKE_EMBEDDING_PROVIDER",
+                    EMBEDDING_PROVIDER_ALIASES[0],
+                ])
+            })
             .unwrap_or_else(|| DEFAULT_EMBEDDING_PROVIDER.to_string());
 
         let model = non_empty_env_var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL")
-            .or_else(|| non_empty_env_var("EDGEQUAKE_EMBEDDING_MODEL"))
+            .or_else(|| {
+                first_non_empty_env_var(&["EDGEQUAKE_EMBEDDING_MODEL", EMBEDDING_MODEL_ALIASES[0]])
+            })
             .unwrap_or_else(|| Self::default_embedding_model_for_provider(&provider));
 
-        let dimension = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION")
-            .ok()
-            .filter(|s| !s.is_empty())
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| Self::detect_dimension_from_model(&model));
+        let dimension = first_non_empty_env_var(&[
+            "EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION",
+            "EDGEQUAKE_EMBEDDING_DIMENSION",
+            EMBEDDING_DIMENSION_ALIASES[0],
+        ])
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(|| Self::detect_dimension_from_model(&model));
 
         (model, provider, dimension)
     }
@@ -732,5 +746,50 @@ mod tests {
             model, DEFAULT_LLM_MODEL,
             "empty env var must not override the default model"
         );
+    }
+
+    #[test]
+    fn test_llm_config_supports_light_rag_style_aliases() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
+
+        std::env::remove_var("EDGEQUAKE_DEFAULT_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_DEFAULT_LLM_MODEL");
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_LLM_MODEL");
+        std::env::set_var("MODEL_PROVIDER", "openai");
+        std::env::set_var("CHAT_MODEL", "gpt-5-nano");
+
+        let (model, provider) = Workspace::default_llm_config();
+
+        std::env::remove_var("MODEL_PROVIDER");
+        std::env::remove_var("CHAT_MODEL");
+
+        assert_eq!(provider, "openai");
+        assert_eq!(model, "gpt-5-nano");
+    }
+
+    #[test]
+    fn test_embedding_config_supports_compatibility_aliases() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
+
+        std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL");
+        std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_MODEL");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_DIMENSION");
+        std::env::set_var("EMBEDDING_PROVIDER", "openai");
+        std::env::set_var("EMBEDDING_MODEL", "text-embedding-3-small");
+        std::env::set_var("EMBEDDING_DIMENSION", "1536");
+
+        let (model, provider, dimension) = Workspace::default_embedding_config();
+
+        std::env::remove_var("EMBEDDING_PROVIDER");
+        std::env::remove_var("EMBEDDING_MODEL");
+        std::env::remove_var("EMBEDDING_DIMENSION");
+
+        assert_eq!(provider, "openai");
+        assert_eq!(model, "text-embedding-3-small");
+        assert_eq!(dimension, 1536);
     }
 }

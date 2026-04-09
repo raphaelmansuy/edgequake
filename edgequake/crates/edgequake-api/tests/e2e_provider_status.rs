@@ -3,20 +3,20 @@
 //! @implements SPEC-032: Ollama/LM Studio provider support - Status API tests
 //! @iteration OODA Loop #5 - Phase 5E.8
 
+mod common;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use common::clear_provider_detection_env;
 use serial_test::serial;
 use tower::ServiceExt;
 
 #[tokio::test]
 #[serial]
 async fn test_provider_status_mock() {
-    // Setup: Use Mock provider
-    std::env::remove_var("OPENAI_API_KEY");
-    std::env::remove_var("OLLAMA_HOST");
-    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+    clear_provider_detection_env();
 
     let app_state = edgequake_api::AppState::new_memory(None::<String>);
     let app = edgequake_api::create_router(app_state);
@@ -57,10 +57,8 @@ async fn test_provider_status_mock() {
 #[tokio::test]
 #[serial]
 async fn test_provider_status_ollama() {
-    // Setup: Use Ollama provider
+    clear_provider_detection_env();
     std::env::set_var("OLLAMA_HOST", "http://localhost:11434");
-    std::env::remove_var("OPENAI_API_KEY");
-    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
 
     let app_state = edgequake_api::AppState::new_memory(None::<String>);
     let app = edgequake_api::create_router(app_state);
@@ -90,16 +88,13 @@ async fn test_provider_status_ollama() {
     assert_eq!(status["storage"]["dimension"], 768);
 
     // Cleanup
-    std::env::remove_var("OLLAMA_HOST");
+    clear_provider_detection_env();
 }
 
 #[tokio::test]
 #[serial]
 async fn test_provider_status_uptime() {
-    // Setup
-    std::env::remove_var("OPENAI_API_KEY");
-    std::env::remove_var("OLLAMA_HOST");
-    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+    clear_provider_detection_env();
 
     let app_state = edgequake_api::AppState::new_memory(None::<String>);
     let app = edgequake_api::create_router(app_state);
@@ -148,9 +143,7 @@ async fn test_provider_status_uptime() {
 async fn test_provider_status_dimension_mismatch() {
     // Setup: Create state with mismatched dimensions (if possible in future)
     // For now, just verify the field exists
-    std::env::remove_var("OPENAI_API_KEY");
-    std::env::remove_var("OLLAMA_HOST");
-    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+    clear_provider_detection_env();
 
     let app_state = edgequake_api::AppState::new_memory(None::<String>);
     let app = edgequake_api::create_router(app_state);

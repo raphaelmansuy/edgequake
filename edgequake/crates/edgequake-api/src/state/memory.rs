@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
+use edgequake_core::env::apply_model_env_aliases;
 use edgequake_core::{InMemoryConversationService, InMemoryWorkspaceService};
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
@@ -105,6 +106,8 @@ impl AppState {
     /// 4. Fallback to Mock provider
     pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
         use edgequake_llm::ProviderFactory;
+
+        apply_model_env_aliases();
 
         // If API key provided, set it in environment for factory to use
         if let Some(key) = llm_api_key {

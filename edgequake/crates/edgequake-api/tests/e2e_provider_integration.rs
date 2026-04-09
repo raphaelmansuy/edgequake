@@ -10,6 +10,9 @@
 //! @implements SPEC-032: Ollama/LM Studio provider support - Configuration validation
 //! @iteration OODA Loop #3 - Phase 5B
 
+mod common;
+
+use common::clear_provider_detection_env;
 use edgequake_api::state::AppState;
 use serial_test::serial;
 
@@ -32,10 +35,7 @@ fn is_ollama_available() -> bool {
 #[tokio::test]
 #[serial]
 async fn test_appstate_default_mock_provider() {
-    // Clean all provider environment variables
-    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
-    std::env::remove_var("OLLAMA_HOST");
-    std::env::remove_var("OPENAI_API_KEY");
+    clear_provider_detection_env();
 
     // Create AppState - should use Mock provider
     let state = AppState::new_memory(None::<String>);
@@ -64,10 +64,8 @@ async fn test_appstate_default_mock_provider() {
 #[tokio::test]
 #[serial]
 async fn test_appstate_explicit_mock_selection() {
-    // Set explicit provider selection
+    clear_provider_detection_env();
     std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
-    std::env::remove_var("OLLAMA_HOST");
-    std::env::remove_var("OPENAI_API_KEY");
 
     let state = AppState::new_memory(None::<String>);
 
@@ -75,7 +73,30 @@ async fn test_appstate_explicit_mock_selection() {
     assert_eq!(state.embedding_provider.dimension(), 1536);
 
     // Cleanup
-    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+    clear_provider_detection_env();
+}
+
+/// Test that compatibility aliases are normalized before provider factory use.
+#[tokio::test]
+#[serial]
+async fn test_appstate_model_provider_alias_selection() {
+    clear_provider_detection_env();
+    std::env::set_var("MODEL_PROVIDER", "mock");
+    std::env::set_var("CHAT_MODEL", "gpt-5-mini");
+    std::env::set_var("EMBEDDING_MODEL", "text-embedding-3-small");
+
+    let state = AppState::new_memory(None::<String>);
+
+    assert_eq!(state.llm_provider.name(), "mock");
+    assert_eq!(state.embedding_provider.name(), "mock");
+    assert_eq!(std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap(), "mock");
+    assert_eq!(std::env::var("EDGEQUAKE_LLM_MODEL").unwrap(), "gpt-5-mini");
+    assert_eq!(
+        std::env::var("EDGEQUAKE_EMBEDDING_MODEL").unwrap(),
+        "text-embedding-3-small"
+    );
+
+    clear_provider_detection_env();
 }
 
 /// Test dimension differences between Mock and Ollama providers.
@@ -83,9 +104,7 @@ async fn test_appstate_explicit_mock_selection() {
 #[serial]
 async fn test_provider_dimension_matrix() {
     // Test 1: Mock provider
-    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
-    std::env::remove_var("OLLAMA_HOST");
-    std::env::remove_var("OPENAI_API_KEY");
+    clear_provider_detection_env();
 
     let state_mock = AppState::new_memory(None::<String>);
     let mock_dimension = state_mock.embedding_provider.dimension();

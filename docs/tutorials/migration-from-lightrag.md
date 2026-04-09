@@ -279,6 +279,17 @@ curl -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
   }'
 ```
 
+Compatibility aliases are also supported if you want to reuse an existing env file during migration:
+
+```bash
+export MODEL_PROVIDER="openai"
+export CHAT_MODEL="gpt-5-nano"
+export EMBEDDING_MODEL="text-embedding-3-small"
+```
+
+EdgeQuake normalizes those aliases to its canonical `EDGEQUAKE_*` variables at startup. If both are
+set, the canonical `EDGEQUAKE_*` values take precedence.
+
 ### Storage Configuration
 
 **LightRAG**:
@@ -321,6 +332,20 @@ edgequake
 | Relationship extraction      | Same algorithm                     |
 | Query modes                  | Same: naive, local, global, hybrid |
 | Neo4j storage                | Apache AGE (PostgreSQL)            |
+
+---
+
+## Tenant and Workspace Planning
+
+For multi-business SaaS deployments, use **one tenant per business** and then create one or more
+workspaces inside that tenant for internal separation.
+
+Example for 1,000 businesses:
+
+- `1,000 tenants`
+- `N workspaces per tenant` for departments, environments, or use cases
+
+This keeps billing, permissions, quotas, and data isolation aligned with the business boundary.
 
 ---
 

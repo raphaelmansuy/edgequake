@@ -1,10 +1,8 @@
 # EdgeQuake — Full stack using prebuilt GHCR images
 #
 # This is the fastest way to get EdgeQuake running locally.
-# The EdgeQuake API binary is pulled from GitHub Container Registry (no Rust
-# toolchain or cargo build required).
-# PostgreSQL is built locally from the minimal Dockerfile.postgres because the
-# Apache AGE + pgvector extensions require a patched image that is not on Docker Hub.
+# The API, frontend, and PostgreSQL images are all pulled from GitHub Container
+# Registry, so there is no Rust, Node.js, or local Docker build requirement.
 #
 # Quick start:
 #   cd edgequake/docker
@@ -95,12 +93,8 @@ services:
       start_period: 20s
 
   # ── PostgreSQL with pgvector + Apache AGE ─────────────────────────────────
-  # WHY built locally: Apache AGE requires a custom build — no official prebuilt
-  # Docker Hub image provides both pgvector AND apache_age in one image.
   postgres:
-    build:
-      context: .
-      dockerfile: Dockerfile.postgres
+    image: ghcr.io/raphaelmansuy/edgequake-postgres:${EDGEQUAKE_VERSION:-latest}
     container_name: edgequake-postgres
     restart: unless-stopped
     ports:

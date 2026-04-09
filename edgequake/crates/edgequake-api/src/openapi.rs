@@ -11,7 +11,7 @@ use crate::handlers;
         title = "EdgeQuake API",
         version = "0.1.0",
         description = "High-performance RAG system with Knowledge Graph",
-        license(name = "MIT OR Apache-2.0"),
+        license(name = "Apache-2.0"),
         contact(
             name = "EdgeQuake Team"
         )

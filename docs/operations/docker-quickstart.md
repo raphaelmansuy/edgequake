@@ -19,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-m
   | docker compose -f - up -d
 ```
 
-That's it. Three images (API, Web UI, PostgreSQL) are pulled from GitHub Container Registry and started.
+That's it. Three versioned images (API, Web UI, PostgreSQL) are pulled from GitHub Container Registry and started.
 
 **Then open:** http://localhost:3000
 
@@ -114,6 +114,9 @@ OPENAI_BASE_URL=http://localhost:1234/v1 \
 | Variable                 | Default                             | Description                            |
 | ------------------------ | ----------------------------------- | -------------------------------------- |
 | `EDGEQUAKE_LLM_PROVIDER` | `ollama`                            | `ollama`, `openai`, `lmstudio`, `mock` |
+| `EDGEQUAKE_LLM_MODEL`    | provider-specific default           | Main chat / extraction model           |
+| `EDGEQUAKE_EMBEDDING_PROVIDER` | same as LLM                   | Override embedding provider            |
+| `EDGEQUAKE_EMBEDDING_MODEL` | provider-specific default        | Embedding model override               |
 | `OPENAI_API_KEY`         | _(empty)_                           | Required when provider is `openai`     |
 | `OPENAI_BASE_URL`        | _(empty)_                           | Override OpenAI base URL               |
 | `OLLAMA_HOST`            | `http://host.docker.internal:11434` | Ollama server address                  |
@@ -121,6 +124,20 @@ OPENAI_BASE_URL=http://localhost:1234/v1 \
 | `EDGEQUAKE_PORT`         | `8080`                              | API port                               |
 | `FRONTEND_PORT`          | `3000`                              | Web UI port                            |
 | `POSTGRES_PASSWORD`      | `edgequake_secret`                  | PostgreSQL password                    |
+
+### Migration aliases
+
+If you are migrating from a LightRAG-style environment file, EdgeQuake also accepts:
+
+| Alias | Canonical variable |
+| --- | --- |
+| `MODEL_PROVIDER` | `EDGEQUAKE_LLM_PROVIDER` |
+| `CHAT_MODEL` | `EDGEQUAKE_LLM_MODEL` |
+| `EMBEDDING_PROVIDER` | `EDGEQUAKE_EMBEDDING_PROVIDER` |
+| `EMBEDDING_MODEL` | `EDGEQUAKE_EMBEDDING_MODEL` |
+| `EMBEDDING_DIMENSION` | `EDGEQUAKE_EMBEDDING_DIMENSION` |
+
+Canonical `EDGEQUAKE_*` variables always win when both are set.
 
 ---
 

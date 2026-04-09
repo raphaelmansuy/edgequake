@@ -35,3 +35,4 @@ tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
 tokio-test = { workspace = true }
 edgequake-query = { path = "../edgequake-query" }
 tempfile = "3.10"
+serial_test = "3"

@@ -142,9 +142,25 @@ DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
 | --------------------------------- | ------- | -------- | -------------------------------------------------- |
 | `EDGEQUAKE_MODELS_CONFIG`         | String  | None     | Path to custom models.toml                         |
 | `EDGEQUAKE_LLM_PROVIDER`          | String  | `ollama` | Default LLM provider                               |
+| `EDGEQUAKE_LLM_MODEL`             | String  | None     | Override LLM model name                            |
 | `EDGEQUAKE_EMBEDDING_PROVIDER`    | String  | `ollama` | Override embedding provider type (hybrid mode)     |
 | `EDGEQUAKE_EMBEDDING_MODEL`       | String  | None     | Override embedding model name                      |
 | `EDGEQUAKE_EMBEDDING_DIMENSION`   | Integer | `768`    | Override embedding vector dimension                |
+
+### Compatibility aliases
+
+EdgeQuake also accepts the following migration aliases. They are normalized at startup so the rest
+of the application continues to use the canonical `EDGEQUAKE_*` names:
+
+| Alias | Canonical variable |
+| --- | --- |
+| `MODEL_PROVIDER` | `EDGEQUAKE_LLM_PROVIDER` |
+| `CHAT_MODEL` | `EDGEQUAKE_LLM_MODEL` |
+| `EMBEDDING_PROVIDER` | `EDGEQUAKE_EMBEDDING_PROVIDER` |
+| `EMBEDDING_MODEL` | `EDGEQUAKE_EMBEDDING_MODEL` |
+| `EMBEDDING_DIMENSION` | `EDGEQUAKE_EMBEDDING_DIMENSION` |
+
+When both an alias and a canonical variable are set, the canonical variable wins.
 
 ### Hybrid Provider Mode (closes [#140](https://github.com/raphaelmansuy/edgequake/issues/140))
 

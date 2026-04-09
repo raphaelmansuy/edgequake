@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.summary       = "Ruby SDK for the EdgeQuake RAG API"
   spec.description   = "Zero-dependency Ruby client for EdgeQuake REST API with full CRUD support."
   spec.homepage      = "https://github.com/edgequake/edgequake"
-  spec.license       = "MIT"
+  spec.license       = "Apache-2.0"
   spec.required_ruby_version = ">= 3.0"
 
   spec.files = Dir["lib/**/*.rb"]
