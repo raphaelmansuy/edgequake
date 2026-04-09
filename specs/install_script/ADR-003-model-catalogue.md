@@ -25,36 +25,36 @@ After provider selection, present a two-step model wizard:
 
 ### OpenAI Model Catalogue (as of v0.9.12)
 
-| # | Model | Position | Cost (in/out per MTok) |
-|---|-------|----------|------------------------|
-| 1 | `gpt-5-mini` ★ | Recommended — fast & affordable | $0.40 / $1.60 |
-| 2 | `gpt-5-nano` | Ultra-cheap, great for testing | $0.20 / $0.80 |
-| 3 | `gpt-5.4` | Premium quality, large context | $2.50 / $15.00 |
-| 4 | `gpt-5.4-mini` | Fast with larger context | $0.75 / $4.50 |
+| #   | Model          | Position                        | Cost (in/out per MTok) |
+| --- | -------------- | ------------------------------- | ---------------------- |
+| 1   | `gpt-5-mini` ★ | Recommended — fast & affordable | $0.40 / $1.60          |
+| 2   | `gpt-5-nano`   | Ultra-cheap, great for testing  | $0.20 / $0.80          |
+| 3   | `gpt-5.4`      | Premium quality, large context  | $2.50 / $15.00         |
+| 4   | `gpt-5.4-mini` | Fast with larger context        | $0.75 / $4.50          |
 
 ### OpenAI Embedding Catalogue
 
-| # | Model | Notes |
-|---|-------|-------|
-| 1 | `text-embedding-3-small` ★ | Recommended — 1536 dims, fast |
-| 2 | `text-embedding-3-large` | Higher quality, 3072 dims |
+| #   | Model                      | Notes                         |
+| --- | -------------------------- | ----------------------------- |
+| 1   | `text-embedding-3-small` ★ | Recommended — 1536 dims, fast |
+| 2   | `text-embedding-3-large`   | Higher quality, 3072 dims     |
 
 ### Ollama LLM Catalogue (as of v0.9.12)
 
-| # | Model | Notes | Disk |
-|---|-------|-------|------|
-| 1 | `gemma4:e4b` ★ | Recommended — balanced quality/size | 9.6 GB |
-| 2 | `gemma4:e2b` | Lighter, faster startup | 7.2 GB |
-| 3 | `gemma4:26b` | Large MoE, best quality (needs ≥16GB RAM) | ~17 GB |
-| 4 | `qwen2.5:latest` | Strong at structured tasks | ~5 GB |
-| 5 | `llama3.2:latest` | Meta's general-purpose model | ~2 GB |
+| #   | Model             | Notes                                     | Disk   |
+| --- | ----------------- | ----------------------------------------- | ------ |
+| 1   | `gemma4:e4b` ★    | Recommended — balanced quality/size       | 9.6 GB |
+| 2   | `gemma4:e2b`      | Lighter, faster startup                   | 7.2 GB |
+| 3   | `gemma4:26b`      | Large MoE, best quality (needs ≥16GB RAM) | ~17 GB |
+| 4   | `qwen2.5:latest`  | Strong at structured tasks                | ~5 GB  |
+| 5   | `llama3.2:latest` | Meta's general-purpose model              | ~2 GB  |
 
 ### Ollama Embedding Catalogue
 
-| # | Model | Notes |
-|---|-------|-------|
-| 1 | `embeddinggemma:latest` ★ | Recommended — fast, high quality |
-| 2 | `nomic-embed-text:latest` | Alternative — well-tested |
+| #   | Model                     | Notes                            |
+| --- | ------------------------- | -------------------------------- |
+| 1   | `embeddinggemma:latest` ★ | Recommended — fast, high quality |
+| 2   | `nomic-embed-text:latest` | Alternative — well-tested        |
 
 ## Embedding Provider
 
@@ -86,9 +86,9 @@ When adding/removing a model from the catalogue:
 
 ## Edge Cases
 
-| Edge case | Handling |
-|---|---|
-| Ollama model not pulled | Warn with `ollama pull <model>` command; non-blocking |
-| OpenAI model deprecated | API returns error at inference time; user sees actionable message from API |
-| User selects large Ollama model on low-RAM machine | Warning on `gemma4:26b` option label |
-| Embedding model unavailable in Ollama | Same warn-and-continue as LLM model |
+| Edge case                                          | Handling                                                                   |
+| -------------------------------------------------- | -------------------------------------------------------------------------- |
+| Ollama model not pulled                            | Warn with `ollama pull <model>` command; non-blocking                      |
+| OpenAI model deprecated                            | API returns error at inference time; user sees actionable message from API |
+| User selects large Ollama model on low-RAM machine | Warning on `gemma4:26b` option label                                       |
+| Embedding model unavailable in Ollama              | Same warn-and-continue as LLM model                                        |

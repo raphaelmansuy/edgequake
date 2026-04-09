@@ -18,16 +18,16 @@ Terminal-based installers vary wildly in quality. The goals for EdgeQuake's wiza
 
 ## Design Tokens
 
-| Token | ANSI Code | Semantic meaning |
-|-------|-----------|-----------------|
-| `C_BOLD` | `\033[1m` | Headings, important values |
-| `C_DIM` | `\033[2m` | Decorative separators, secondary text |
-| `C_RESET` | `\033[0m` | Returns to default style |
-| `C_GREEN` | `\033[32m` | Success, confirmation |
-| `C_YELLOW` | `\033[33m` | Warning, advisory |
-| `C_RED` | `\033[31m` | Error, failure |
-| `C_BLUE` | `\033[34m` | Informational, progress |
-| `C_CYAN` | `\033[36m` | Interactive elements (menu keys) |
+| Token      | ANSI Code  | Semantic meaning                      |
+| ---------- | ---------- | ------------------------------------- |
+| `C_BOLD`   | `\033[1m`  | Headings, important values            |
+| `C_DIM`    | `\033[2m`  | Decorative separators, secondary text |
+| `C_RESET`  | `\033[0m`  | Returns to default style              |
+| `C_GREEN`  | `\033[32m` | Success, confirmation                 |
+| `C_YELLOW` | `\033[33m` | Warning, advisory                     |
+| `C_RED`    | `\033[31m` | Error, failure                        |
+| `C_BLUE`   | `\033[34m` | Informational, progress               |
+| `C_CYAN`   | `\033[36m` | Interactive elements (menu keys)      |
 
 All tokens collapse to empty string when stdout is not a TTY.
 
@@ -120,12 +120,12 @@ End-state after successful start. Bold green double-rule, all URLs listed.
 
 ## Tested Configurations
 
-| Terminal | OS | Result |
-|----------|------|--------|
-| Terminal.app (default) | macOS 15 | Full colour + Unicode ✓ |
-| iTerm2 | macOS 15 | Full colour + Unicode ✓ |
-| GNOME Terminal | Ubuntu 24.04 | Full colour + Unicode ✓ |
-| VS Code integrated terminal | macOS / Linux | Full colour + Unicode ✓ |
-| ssh (PTY allocated) | Linux → Linux | Full colour + Unicode ✓ |
-| Piped to file (`| tee out.txt`) | Any | No colour, readable ASCII ✓ |
-| CI (no TTY) | GitHub Actions | Clear error with env-var guidance ✓ |
+| Terminal                    | OS             | Result                              |
+| --------------------------- | -------------- | ----------------------------------- |
+| Terminal.app (default)      | macOS 15       | Full colour + Unicode ✓             |
+| iTerm2                      | macOS 15       | Full colour + Unicode ✓             |
+| GNOME Terminal              | Ubuntu 24.04   | Full colour + Unicode ✓             |
+| VS Code integrated terminal | macOS / Linux  | Full colour + Unicode ✓             |
+| ssh (PTY allocated)         | Linux → Linux  | Full colour + Unicode ✓             |
+| Piped to file (`            | tee out.txt`)  | Any                                 | No colour, readable ASCII ✓ |
+| CI (no TTY)                 | GitHub Actions | Clear error with env-var guidance ✓ |

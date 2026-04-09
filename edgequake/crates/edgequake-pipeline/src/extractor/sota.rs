@@ -274,10 +274,18 @@ where
         let mut current_max_tokens = base_max_tokens;
 
         for attempt in 1..=MAX_RETRIES {
-            // Create completion options with adaptive max_tokens
+            // Create completion options with adaptive max_tokens.
+            //
+            // WHY reasoning_effort="none": Reasoning models (gpt-5-nano, gpt-5-mini, o-series)
+            // allocate their entire completion budget to chain-of-thought by default. When
+            // max_tokens=8192 and reasoning_tokens=8192, output tokens = 0 → empty response
+            // → "Invalid JSON: EOF while parsing a value". Setting reasoning_effort="none"
+            // disables CoT for extraction tasks where structured JSON output is required.
+            // Non-reasoning models silently ignore this field.
             let options = CompletionOptions {
                 max_tokens: Some(current_max_tokens),
                 temperature: Some(0.0), // Deterministic for extraction
+                reasoning_effort: Some("none".to_string()),
                 ..Default::default()
             };
 
@@ -367,18 +375,32 @@ where
             );
 
             // CRITICAL: Validate response is not empty
-            // WHY: Empty LLM responses cause "Invalid JSON: expected value at line 1 column 1" errors
-            // This provides actionable error message instead of cryptic JSON parse errors
+            // WHY: Empty LLM responses cause "Invalid JSON: expected value at line 1 column 1" errors.
+            // COMMON CAUSE: Reasoning models (gpt-5-nano, gpt-5-mini, o-series) exhaust all
+            // completion tokens on internal chain-of-thought when no reasoning_effort limit is set.
+            // reasoning_tokens=8192, completion_tokens=8192 → net output tokens = 0 → empty content.
+            // We already set reasoning_effort="none" in options above; this guard handles any
+            // remaining edge cases (e.g. Ollama OOM, model crash, network errors).
             let trimmed_response = response.content.trim();
             if trimmed_response.is_empty() {
+                let reasoning_warn = if response.completion_tokens > 0 {
+                    format!(
+                        " (completion_tokens={}, reasoning may have consumed all tokens)",
+                        response.completion_tokens
+                    )
+                } else {
+                    String::new()
+                };
                 let error_msg = format!(
-                    "LLM returned EMPTY response. Chunk: {}KB (~{} tokens). \
-                    This usually indicates:\n\
-                    1. LLM timeout (check Ollama logs: journalctl -u ollama -f)\n\
-                    2. Model crashed or OOM (check ollama ps)\n\
-                    3. Context window exhausted (reduce chunk_size)\n\
-                    4. Network issue with Ollama server\n\
+                    "LLM returned EMPTY response{}. Chunk: {}KB (~{} tokens). \
+                    Possible causes:\n\
+                    1. REASONING MODEL: gpt-5-nano/gpt-5-mini use all tokens for CoT — \
+                       switch to gpt-5.4-mini or gpt-5.4-nano (support reasoning_effort=none)\n\
+                    2. LLM timeout (check Ollama logs: journalctl -u ollama -f)\n\
+                    3. Model crashed or OOM (check: ollama ps)\n\
+                    4. Context window exhausted (reduce chunk_size)\n\
                     Chunk ID: {} | Attempt: {}/{} | Prompt tokens: {}",
+                    reasoning_warn,
                     chunk_size_bytes / 1024,
                     estimated_tokens,
                     chunk.id,

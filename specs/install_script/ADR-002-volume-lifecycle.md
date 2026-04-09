@@ -11,12 +11,12 @@
 The v0.9.11 script detected only **running containers** for the prior-install check.
 Two additional states were not surfaced:
 
-| State | v0.9.11 behaviour | Problem |
-|---|---|---|
-| Running containers | Warning + Update/Quit prompt | ✓ OK |
-| Stopped containers + volumes | Silent restart (force-recreate) | User unaware data exists |
-| Volumes only (no containers) | Silent fresh start | User's data deleted without consent |
-| Nothing → fresh install | Silent install | ✓ OK |
+| State                        | v0.9.11 behaviour               | Problem                             |
+| ---------------------------- | ------------------------------- | ----------------------------------- |
+| Running containers           | Warning + Update/Quit prompt    | ✓ OK                                |
+| Stopped containers + volumes | Silent restart (force-recreate) | User unaware data exists            |
+| Volumes only (no containers) | Silent fresh start              | User's data deleted without consent |
+| Nothing → fresh install      | Silent install                  | ✓ OK                                |
 
 The script also lacked a "fresh start" option (wipe all data), which users hitting a broken
 state needed to recover cleanly.
@@ -80,13 +80,13 @@ The compose file must be downloaded **before** the lifecycle detection step so t
 
 ## Edge Cases
 
-| Edge case | Handling |
-|---|---|
-| `docker ps` returns error (Docker not running) | `|| true` prevents abort; counts default to 0 → fresh install path |
-| Compose file changed between installs | Always download fresh → `down -v` uses the new file |
-| User presses Ctrl+C during fresh start | `set -e` exits; data may be partially removed → documented |
-| Volumes present but with different prefix | Only scoped to `name=edgequake` filter |
-| Mixed state (some containers running, some stopped) | `_running > 0` check fires first |
+| Edge case                                           | Handling                                                   |
+| --------------------------------------------------- | ---------------------------------------------------------- |
+| `docker ps` returns error (Docker not running)      | `                                                          |  | true` prevents abort; counts default to 0 → fresh install path |
+| Compose file changed between installs               | Always download fresh → `down -v` uses the new file        |
+| User presses Ctrl+C during fresh start              | `set -e` exits; data may be partially removed → documented |
+| Volumes present but with different prefix           | Only scoped to `name=edgequake` filter                     |
+| Mixed state (some containers running, some stopped) | `_running > 0` check fires first                           |
 
 ## Implementation Notes
 

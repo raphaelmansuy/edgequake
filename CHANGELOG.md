@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.13] - 2026-04-09
+
+### Fixed
+
+- **Reasoning-model token exhaustion → "0 Sources" regression (ADR-006)** — Models such as
+  `gpt-5-mini` and `gpt-5-nano` are reasoning-only: they allocate their entire
+  `completion_tokens` budget to internal chain-of-thought, leaving zero tokens for visible JSON
+  output. The extractor received an empty string, raised "Invalid JSON: EOF while parsing a
+  value", and the chunk was never stored — so **all vector tables stayed empty** and every
+  document query returned "0 Sources".
+  The fix is two-pronged:
+  1. **quickstart.sh** now offers `gpt-5.4-mini` (default) and `gpt-5.4-nano` — models from the
+     GPT-5.4 adjustable-reasoning family that support `reasoning_effort=none`.
+  2. **`sota.rs` and `llm.rs`** now always pass `reasoning_effort="none"` and an explicit
+     `max_tokens` cap to every entity-extraction LLM call. Non-reasoning models silently ignore
+     the field; reasoning-capable models disable CoT and emit direct JSON output.
+  Documented in `specs/install_script/ADR-006-reasoning-model-exclusion.md`.
+
+- **Empty-response diagnostic message** — The "LLM returned EMPTY response" error in `sota.rs`
+  now prominently names the reasoning-model root cause (reasoning_tokens = completion_tokens → 0
+  net output) and recommends the correct model alternatives, speeding up operator diagnosis.
+
 ## [0.9.12] - 2026-04-09
 
 ### Added
@@ -16,7 +38,7 @@ All notable changes to this project will be documented in this file.
   set for an unrelated purpose.
 
 - **In-wizard model catalogue (ADR-003)** — Users choose from a curated, priced menu:
-  - OpenAI LLM: `gpt-5-mini` (default), `gpt-5-nano`, `gpt-5.4`, `gpt-5.4-mini`
+  - OpenAI LLM: `gpt-5.4-mini` (default), `gpt-5.4-nano`, `gpt-5.4`, `gpt-5.4-mini`
   - OpenAI Embeddings: `text-embedding-3-small` (default), `text-embedding-3-large`
   - Ollama LLM: `gemma4:e4b` (default), `gemma4:e2b`, `gemma4:26b`, `qwen2.5:latest`, `llama3.2:latest`
   - Ollama Embeddings: `embeddinggemma:latest` (default), `nomic-embed-text:latest`

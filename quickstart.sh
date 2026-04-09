@@ -348,8 +348,8 @@ choose_provider() {
   ui_blank
 
   ui_menu "Which LLM provider do you want to use?" \
-    "OpenAI   — cloud API (GPT-5 family)  · requires OPENAI_API_KEY" \
-    "Ollama   — fully local, free to run  · requires Ollama daemon on port 11434"
+    "OpenAI   — cloud API (GPT-5.4 family) · requires OPENAI_API_KEY" \
+    "Ollama   — fully local, free to run   · requires Ollama daemon on port 11434"
 
   case "$MENU_RESULT" in
     1) LLM_PROVIDER="openai" ;;
@@ -369,13 +369,16 @@ choose_models() {
   if [ "$LLM_PROVIDER" = "openai" ]; then
 
     ui_menu "Which OpenAI model for LLM inference?" \
-      "gpt-5-mini     Recommended — fast & affordable   (in:\$0.40 out:\$1.60 per MTok)" \
-      "gpt-5-nano       Ultra-cheap, great for testing  (in:\$0.20 out:\$0.80 per MTok)" \
-      "gpt-5.4          Premium quality, large context  (in:\$2.50 out:\$15.00 per MTok)" \
-      "gpt-5.4-mini     Fast with larger context window (in:\$0.75 out:\$4.50 per MTok)"
+      "gpt-5.4-mini   Recommended — fast, affordable, reliable JSON output   (in:\$0.75 out:\$4.50 per MTok)" \
+      "gpt-5.4-nano     Ultra-cheap, great for testing, direct output         (in:\$0.20 out:\$1.25 per MTok)" \
+      "gpt-5.4          Premium quality, large context                        (in:\$2.50 out:\$15.00 per MTok)" \
+      "gpt-5.4-mini     Fast with larger context window                       (in:\$0.75 out:\$4.50 per MTok)"
+    # NOTE: gpt-5-* and gpt-5-nano/-mini are reasoning-only models; they
+    # consume all completion tokens for chain-of-thought, leaving none for
+    # JSON output. Always prefer gpt-5.4-* models for entity extraction.
     case "$MENU_RESULT" in
-      1) LLM_MODEL="gpt-5-mini"   ;;
-      2) LLM_MODEL="gpt-5-nano"   ;;
+      1) LLM_MODEL="gpt-5.4-mini" ;;
+      2) LLM_MODEL="gpt-5.4-nano" ;;
       3) LLM_MODEL="gpt-5.4"      ;;
       4) LLM_MODEL="gpt-5.4-mini" ;;
     esac

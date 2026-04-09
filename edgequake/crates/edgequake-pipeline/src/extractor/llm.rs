@@ -150,9 +150,22 @@ where
     async fn extract(&self, chunk: &TextChunk) -> Result<ExtractionResult> {
         let prompt = self.build_prompt(&chunk.content);
 
+        // WHY reasoning_effort="none" + explicit max_tokens:
+        // Reasoning models (gpt-5-nano, gpt-5-mini, o-series) exhaust all completion_tokens
+        // on chain-of-thought when no limit is set (reasoning_tokens = completion_tokens → 0
+        // net output tokens → empty JSON → parse error). Setting reasoning_effort="none"
+        // disables CoT for extraction tasks where structured JSON output is required.
+        // Non-reasoning models silently ignore this field.
+        let options = edgequake_llm::traits::CompletionOptions {
+            max_tokens: Some(16384),
+            temperature: Some(0.0), // Deterministic for extraction
+            reasoning_effort: Some("none".to_string()),
+            ..Default::default()
+        };
+
         let response = self
             .llm_provider
-            .complete(&prompt)
+            .complete_with_options(&prompt, &options)
             .await
             .map_err(|e| PipelineError::ExtractionError(format!("LLM error: {}", e)))?;
 

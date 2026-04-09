@@ -20,12 +20,12 @@ fi
 
 This is a **flaky heuristic** with multiple failure modes:
 
-| Scenario | Heuristic result | User expectation |
-|---|---|---|
-| Key exported in shell profile but user wants Ollama | OpenAI | Ollama |
-| Using a custom OpenAI-compatible endpoint via Ollama compat mode | Ollama | OpenAI with OPENAI_BASE_URL |
-| CI/CD with key in secrets but Ollama on sidecar | OpenAI | Could be either |
-| Testing different providers in the same session | Last exported key wins | Explicit choice each time |
+| Scenario                                                         | Heuristic result       | User expectation            |
+| ---------------------------------------------------------------- | ---------------------- | --------------------------- |
+| Key exported in shell profile but user wants Ollama              | OpenAI                 | Ollama                      |
+| Using a custom OpenAI-compatible endpoint via Ollama compat mode | Ollama                 | OpenAI with OPENAI_BASE_URL |
+| CI/CD with key in secrets but Ollama on sidecar                  | OpenAI                 | Could be either             |
+| Testing different providers in the same session                  | Last exported key wins | Explicit choice each time   |
 
 The heuristic also bypasses the user entirely — they get no confirmation that the correct
 provider was selected, and must understand the invisible env-var logic to override it.
@@ -67,11 +67,11 @@ Rules:
 
 ## Alternatives Rejected
 
-| Alternative | Reason rejected |
-|---|---|
-| Auto-detect from `OPENAI_API_KEY` | Flaky; fails in hybrid / edge scenarios |
-| Pre-fill menu default from env | Still requires verification; adds hidden state |
-| `--provider` CLI flag | Breaks `curl \| sh` UX; env vars are the right override mechanism |
+| Alternative                       | Reason rejected                                                   |
+| --------------------------------- | ----------------------------------------------------------------- |
+| Auto-detect from `OPENAI_API_KEY` | Flaky; fails in hybrid / edge scenarios                           |
+| Pre-fill menu default from env    | Still requires verification; adds hidden state                    |
+| `--provider` CLI flag             | Breaks `curl \| sh` UX; env vars are the right override mechanism |
 
 ## Implementation Notes
 
