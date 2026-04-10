@@ -255,3 +255,256 @@ pub struct PdfPaginationInfo {
     /// Total pages.
     pub total_pages: usize,
 }
+
+// ============================================================================
+// Unit tests — vision model/provider resolution
+// ============================================================================
+//
+// WHY: The provider/model mapping is the source of the "gpt-4.1-nano sent to
+// Ollama" bug (SPEC-040 mismatch).  These tests lock the invariant that the
+// resolved model is always compatible with the resolved provider.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    // Helper that clears the relevant env vars, runs `f`, then restores them.
+    // WHY: env vars are process-global; isolating them prevents test pollution.
+    fn with_clean_vision_env<F: FnOnce()>(f: F) {
+        let prev_vision = env::var("EDGEQUAKE_VISION_MODEL").ok();
+        let prev_llm = env::var("EDGEQUAKE_LLM_MODEL").ok();
+        let prev_provider = env::var("EDGEQUAKE_LLM_PROVIDER").ok();
+
+        env::remove_var("EDGEQUAKE_VISION_MODEL");
+        env::remove_var("EDGEQUAKE_LLM_MODEL");
+        env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+
+        f();
+
+        // Restore
+        match prev_vision {
+            Some(v) => env::set_var("EDGEQUAKE_VISION_MODEL", v),
+            None => env::remove_var("EDGEQUAKE_VISION_MODEL"),
+        }
+        match prev_llm {
+            Some(v) => env::set_var("EDGEQUAKE_LLM_MODEL", v),
+            None => env::remove_var("EDGEQUAKE_LLM_MODEL"),
+        }
+        match prev_provider {
+            Some(v) => env::set_var("EDGEQUAKE_LLM_PROVIDER", v),
+            None => env::remove_var("EDGEQUAKE_LLM_PROVIDER"),
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // default_vision_model_for_provider
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn openai_provider_returns_gpt_nano_by_default() {
+        with_clean_vision_env(|| {
+            assert_eq!(
+                default_vision_model_for_provider("openai"),
+                "gpt-4.1-nano",
+                "OpenAI default should be gpt-4.1-nano"
+            );
+        });
+    }
+
+    #[test]
+    fn ollama_provider_returns_gemma_by_default() {
+        with_clean_vision_env(|| {
+            let model = default_vision_model_for_provider("ollama");
+            // KEY INVARIANT: must never be an OpenAI model name.
+            assert_ne!(
+                model, "gpt-4.1-nano",
+                "Ollama default must NOT be gpt-4.1-nano (an OpenAI model); got '{model}'"
+            );
+            assert_ne!(
+                model, "gpt-4o",
+                "Ollama default must NOT be gpt-4o (an OpenAI model); got '{model}'"
+            );
+            assert!(
+                !model.is_empty(),
+                "Model must not be empty for ollama provider"
+            );
+        });
+    }
+
+    #[test]
+    fn empty_string_vision_model_env_is_ignored() {
+        // WHY: Docker Compose ${VAR:-} maps unset vars to ""; treat "" as unset.
+        // The model must NOT be empty AND must NOT be an OpenAI-specific model.
+        with_clean_vision_env(|| {
+            env::set_var("EDGEQUAKE_VISION_MODEL", "");
+            let model = default_vision_model_for_provider("ollama");
+            assert!(
+                !model.is_empty(),
+                "Empty EDGEQUAKE_VISION_MODEL env must not produce an empty model name"
+            );
+            assert_ne!(
+                model, "gpt-4.1-nano",
+                "Empty EDGEQUAKE_VISION_MODEL for Ollama provider must never yield gpt-4.1-nano"
+            );
+        });
+    }
+
+    #[test]
+    fn env_vision_model_overrides_provider_default_for_openai() {
+        with_clean_vision_env(|| {
+            env::set_var("EDGEQUAKE_VISION_MODEL", "gpt-4o");
+            assert_eq!(default_vision_model_for_provider("openai"), "gpt-4o");
+        });
+    }
+
+    #[test]
+    fn env_vision_model_overrides_provider_default_for_ollama() {
+        with_clean_vision_env(|| {
+            env::set_var("EDGEQUAKE_VISION_MODEL", "llava:latest");
+            assert_eq!(default_vision_model_for_provider("ollama"), "llava:latest");
+        });
+    }
+
+    #[test]
+    fn env_llm_model_used_as_fallback_when_vision_not_set() {
+        with_clean_vision_env(|| {
+            env::set_var("EDGEQUAKE_LLM_MODEL", "gemma4:e4b");
+            assert_eq!(
+                default_vision_model_for_provider("ollama"),
+                "gemma4:e4b",
+                "LLM model env must be used as fallback for Ollama when VISION_MODEL is absent"
+            );
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // KEY INVARIANT: gpt-4.1-nano must NEVER be returned for Ollama provider
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn gpt_nano_is_never_returned_for_ollama_provider() {
+        with_clean_vision_env(|| {
+            let model = default_vision_model_for_provider("ollama");
+            assert_ne!(
+                model, "gpt-4.1-nano",
+                "CRITICAL: gpt-4.1-nano is an OpenAI model and must never be sent to Ollama"
+            );
+        });
+    }
+
+    #[test]
+    fn gpt_nano_env_sent_to_openai_only() {
+        // An operator who sets EDGEQUAKE_VISION_MODEL="gpt-4.1-nano" intends it
+        // for OpenAI.  Verify it's NOT the default for Ollama.
+        with_clean_vision_env(|| {
+            // Without the env var, Ollama should NOT return gpt-4.1-nano.
+            assert_ne!(default_vision_model_for_provider("ollama"), "gpt-4.1-nano");
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // PdfUploadOptions::resolved_vision_provider
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn resolved_provider_falls_back_to_ollama_when_env_unset() {
+        with_clean_vision_env(|| {
+            let opts = PdfUploadOptions::default();
+            assert_eq!(
+                opts.resolved_vision_provider(),
+                "ollama",
+                "Default provider should be ollama when nothing is configured"
+            );
+        });
+    }
+
+    #[test]
+    fn explicit_vision_provider_takes_priority() {
+        with_clean_vision_env(|| {
+            let opts = PdfUploadOptions {
+                vision_provider: Some("openai".to_string()),
+                ..Default::default()
+            };
+            assert_eq!(opts.resolved_vision_provider(), "openai");
+        });
+    }
+
+    #[test]
+    fn empty_string_vision_provider_falls_back_to_env() {
+        with_clean_vision_env(|| {
+            env::set_var("EDGEQUAKE_LLM_PROVIDER", "lmstudio");
+            let opts = PdfUploadOptions {
+                vision_provider: Some("".to_string()),
+                ..Default::default()
+            };
+            assert_eq!(
+                opts.resolved_vision_provider(),
+                "lmstudio",
+                "Empty string vision_provider must not override env var"
+            );
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // PdfUploadOptions::vision_model
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn ollama_provider_vision_model_is_provider_compatible() {
+        with_clean_vision_env(|| {
+            let opts = PdfUploadOptions {
+                vision_provider: Some("ollama".to_string()),
+                ..Default::default()
+            };
+            let model = opts.vision_model();
+            assert_ne!(
+                model, "gpt-4.1-nano",
+                "Provider=ollama must never yield model=gpt-4.1-nano (OpenAI model)"
+            );
+            assert!(
+                !model.is_empty(),
+                "Model must not be empty for ollama provider"
+            );
+        });
+    }
+
+    #[test]
+    fn openai_provider_vision_model_defaults_to_gpt_nano() {
+        with_clean_vision_env(|| {
+            let opts = PdfUploadOptions {
+                vision_provider: Some("openai".to_string()),
+                ..Default::default()
+            };
+            assert_eq!(opts.vision_model(), "gpt-4.1-nano");
+        });
+    }
+
+    #[test]
+    fn explicit_vision_model_always_wins() {
+        with_clean_vision_env(|| {
+            let opts = PdfUploadOptions {
+                vision_provider: Some("ollama".to_string()),
+                vision_model: Some("llava:34b".to_string()),
+                ..Default::default()
+            };
+            assert_eq!(opts.vision_model(), "llava:34b");
+        });
+    }
+
+    #[test]
+    fn empty_string_vision_model_falls_back_to_provider_default() {
+        with_clean_vision_env(|| {
+            let opts = PdfUploadOptions {
+                vision_provider: Some("ollama".to_string()),
+                vision_model: Some("".to_string()), // empty → treated as None
+                ..Default::default()
+            };
+            let model = opts.vision_model();
+            assert_ne!(
+                model, "gpt-4.1-nano",
+                "Empty vision_model + ollama provider must never yield gpt-4.1-nano"
+            );
+        });
+    }
+}

@@ -4754,3 +4754,745 @@ async fn test_complete_add_delete_cycle() {
     println!("✅ OODA-50 TEST PASSED: Complete add/delete cycle verified");
     println!("🎉 50 OODA ITERATIONS COMPLETE!");
 }
+
+// ============================================================================
+// MISSION-02: Hyper-Reliable Deletion — Gap Coverage Tests
+//
+// These tests target the 9 specific gaps identified in mission/02-delete-document.md
+// and verify the fixes are correct and non-regressive.
+// ============================================================================
+
+// ── GAP-4: Entity embeddings must be removed during single-document deletion ─
+
+/// MISSION-02 GAP-4: Entity embeddings deleted when document is deleted.
+///
+/// When a document is deleted and an entity has no remaining sources,
+/// the entity embedding in vector storage must also be deleted.
+/// Previously, `single.rs` did not call `vs.delete_entity()`, leaving
+/// stale vectors that consumed memory and polluted future query results.
+#[tokio::test]
+async fn test_gap4_entity_embeddings_deleted_on_single_delete() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let doc_id = "gap4-doc-single";
+    let chunk_id = format!("{}-chunk-0", doc_id);
+    let entity_name = "GAP4_ENTITY_ALICE";
+
+    // 1. Insert a graph node referencing only this document.
+    let mut props = std::collections::HashMap::new();
+    props.insert("entity_type".to_string(), json!("PERSON"));
+    props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
+    state
+        .graph_storage
+        .upsert_node(entity_name, props)
+        .await
+        .expect("upsert graph node");
+
+    // 2. Insert a matching embedding in vector storage (keyed by entity name).
+    // NOTE: MemoryVectorStorage enforces 1536-dimension vectors.
+    let dummy_vec: Vec<f32> = vec![0.1; 1536];
+    state
+        .vector_storage
+        .upsert(&[(entity_name.to_string(), dummy_vec, json!({}))])
+        .await
+        .expect("upsert entity embedding");
+
+    let count_before = state.vector_storage.count().await.expect("count");
+    assert!(
+        count_before >= 1,
+        "Vector store should have at least 1 entry before delete"
+    );
+
+    // 3. Create document KV metadata + content keys.
+    let metadata_key = format!("{}-metadata", doc_id);
+    state
+        .kv_storage
+        .upsert(&[(
+            metadata_key,
+            json!({
+                "id": doc_id,
+                "title": "GAP-4 Test Doc",
+                "status": "completed",
+                "workspace_id": "default"
+            }),
+        )])
+        .await
+        .expect("upsert metadata");
+
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-content", doc_id),
+            json!({"content": "gap4 test content"}),
+        )])
+        .await
+        .expect("upsert content");
+
+    state
+        .kv_storage
+        .upsert(&[(chunk_id.clone(), json!({"content": "chunk data"}))])
+        .await
+        .expect("upsert chunk");
+
+    // 4. Delete document.
+    let (status, resp) = delete_document_http(&app, doc_id).await;
+    assert_eq!(status, StatusCode::OK, "Delete should succeed: {:?}", resp);
+    assert_eq!(resp.get("deleted").and_then(|v| v.as_bool()), Some(true));
+
+    // 5. Verify graph node removed.
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        !nodes_after.iter().any(|n| n.id == entity_name),
+        "GAP-4: Graph node should be removed, but it still exists"
+    );
+
+    // 6. Verify entity embedding removed.
+    let embedding_after = state
+        .vector_storage
+        .get_by_id(entity_name)
+        .await
+        .expect("get_by_id");
+    assert!(
+        embedding_after.is_none(),
+        "GAP-4 REGRESSION: Entity embedding still present after document deletion. \
+         The fix in cleanup_document_graph_data must call vs.delete_entity()."
+    );
+}
+
+// ── GAP-5: Content-hash key cleared after single-document deletion ─────────
+
+/// MISSION-02 GAP-5: Content-hash key cleared after single-document deletion.
+///
+/// The hash key `doc:hash:{workspace_id}:{sha256}` in KV storage blocks
+/// re-upload of the same document content.  After deletion, this key must
+/// be removed so the same content can be re-ingested.
+/// Previously this was only done in `bulk.rs`, not in `single.rs`.
+#[tokio::test]
+async fn test_gap5_hash_key_cleared_after_single_delete() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    // Default workspace used by upload_document_http helper.
+    let workspace_id = "00000000-0000-0000-0000-000000000002";
+    let unique_content = "gap5-unique-sentinel-content-9a7f3c";
+
+    // 1. Upload document; this stores a hash key in KV.
+    let (status, body) = upload_document_http(&app, "GAP-5 Hash Test", unique_content).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let doc_id = body["document_id"].as_str().unwrap().to_string();
+
+    // 2. Verify hash key exists in KV.
+    let hash_hex = format!("{:x}", {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        unique_content.hash(&mut h);
+        h.finish()
+    });
+    // The actual hash is SHA-256 computed by ContentHasher::hash_str.
+    // We can verify indirectly: after upload + delete, re-upload must succeed (not 409).
+
+    // 3. Delete document.
+    let (del_status, _) = delete_document_http(&app, &doc_id).await;
+    assert_eq!(del_status, StatusCode::OK);
+
+    // 4. Re-upload the SAME content — should succeed (not 409 or re-routing to old doc).
+    let (status2, body2) = upload_document_http(&app, "GAP-5 Hash Test v2", unique_content).await;
+    assert_eq!(
+        status2,
+        StatusCode::CREATED,
+        "GAP-5 REGRESSION: Content cannot be re-uploaded after deletion. \
+         Hash key was not cleared. workspace_id={}, hash_check={}",
+        workspace_id,
+        hash_hex
+    );
+
+    let doc_id2 = body2["document_id"].as_str().unwrap();
+    assert_ne!(
+        doc_id2,
+        doc_id.as_str(),
+        "Re-upload should create a new document with a different ID"
+    );
+
+    // 5. Verify KV state has no lingering references to the first document.
+    let all_keys = state.kv_storage.keys().await.expect("keys");
+    let orphaned = all_keys.iter().any(|k| k.contains(&doc_id));
+    assert!(
+        !orphaned,
+        "GAP-5: KV contains stale keys for deleted document {}: {:?}",
+        doc_id,
+        all_keys
+            .iter()
+            .filter(|k| k.contains(&doc_id))
+            .collect::<Vec<_>>()
+    );
+
+    // Cleanup.
+    delete_document_http(&app, doc_id2).await;
+}
+
+// ── GAP-9: Injected (Knowledge Document) entities survive source deletion ───
+
+/// MISSION-02 GAP-9: Injected entities must not be deleted when their source
+/// documents are removed.
+///
+/// A node with `injected: true` (created via the Knowledge Document injection
+/// endpoint) represents stand-alone knowledge, not derived from a specific
+/// document.  Deleting the document that referenced it must leave the node
+/// intact.
+#[tokio::test]
+async fn test_gap9_injected_entity_survives_document_deletion() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let doc_id = "gap9-doc";
+    let chunk_id = format!("{}-chunk-0", doc_id);
+    let entity_name = "GAP9_KNOWLEDGE_ENTITY";
+
+    // 1. Create an injected entity (injected: true) that references the document.
+    let mut props = std::collections::HashMap::new();
+    props.insert("entity_type".to_string(), json!("CONCEPT"));
+    props.insert(
+        "description".to_string(),
+        json!("Stand-alone knowledge node"),
+    );
+    props.insert("injected".to_string(), json!(true));
+    props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
+    state
+        .graph_storage
+        .upsert_node(entity_name, props)
+        .await
+        .expect("upsert injected node");
+
+    // 2. Create a regular (non-injected) entity referencing the same document.
+    let regular_entity = "GAP9_REGULAR_ENTITY";
+    let mut regular_props = std::collections::HashMap::new();
+    regular_props.insert("entity_type".to_string(), json!("PERSON"));
+    regular_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
+    state
+        .graph_storage
+        .upsert_node(regular_entity, regular_props)
+        .await
+        .expect("upsert regular node");
+
+    // 3. Store document KV data.
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-metadata", doc_id),
+            json!({
+                "id": doc_id,
+                "title": "GAP-9 Injected Test",
+                "status": "completed",
+                "workspace_id": "default"
+            }),
+        )])
+        .await
+        .expect("upsert metadata");
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-content", doc_id),
+            json!({"content": "gap9 content"}),
+        )])
+        .await
+        .expect("upsert content");
+    state
+        .kv_storage
+        .upsert(&[(chunk_id, json!({"content": "chunk"}))])
+        .await
+        .expect("upsert chunk");
+
+    // 4. Delete document.
+    let (status, resp) = delete_document_http(&app, doc_id).await;
+    assert_eq!(status, StatusCode::OK, "Delete should succeed: {:?}", resp);
+
+    // 5. Injected entity MUST survive.
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        nodes_after.iter().any(|n| n.id == entity_name),
+        "GAP-9 REGRESSION: Injected entity '{}' was deleted when its source document was removed. \
+         Injected nodes must not be affected by source document deletion.",
+        entity_name
+    );
+
+    // 6. Regular entity MUST be removed (no remaining non-injected sources).
+    assert!(
+        !nodes_after.iter().any(|n| n.id == regular_entity),
+        "GAP-9: Regular entity '{}' should have been removed but still exists.",
+        regular_entity
+    );
+}
+
+// ── KV key ID mismatch: legacy prefix ≠ JSON id cleanup ────────────────────
+
+/// MISSION-02 EDGE-CASE: KV key prefix mismatch (legacy documents).
+///
+/// Some documents were created where the KV key prefix differs from the
+/// document ID stored in the JSON metadata `id` field.  After deletion,
+/// keys under BOTH prefixes must be removed so no orphaned KV entries remain.
+#[tokio::test]
+async fn test_edge_case_kv_id_mismatch_cleanup() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    // Simulate a legacy document where kv key prefix ≠ JSON id.
+    let kv_prefix = "legacy-prefix-abc123"; // the key used for KV lookup
+    let json_id = "actual-uuid-def456"; // the id stored inside the JSON
+
+    // Insert metadata with the KEY being kv_prefix but id inside JSON being json_id.
+    let metadata_key = format!("{}-metadata", kv_prefix);
+    state
+        .kv_storage
+        .upsert(&[(
+            metadata_key.clone(),
+            json!({
+                "id": json_id,         // JSON id differs from KV prefix
+                "title": "Legacy Mismatch Doc",
+                "status": "completed",
+                "workspace_id": "default"
+            }),
+        )])
+        .await
+        .expect("upsert metadata");
+
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-content", kv_prefix),
+            json!({"content": "legacy content"}),
+        )])
+        .await
+        .expect("upsert content under kv_prefix");
+
+    // Also insert keys under json_id prefix (can happen in mismatch scenarios).
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-chunk-0", json_id),
+            json!({"content": "chunk under json id"}),
+        )])
+        .await
+        .expect("upsert chunk under json_id");
+
+    // Verify both prefixes are in KV before deletion.
+    let keys_before = state.kv_storage.keys().await.expect("keys");
+    assert!(
+        keys_before.iter().any(|k| k.starts_with(kv_prefix)),
+        "Should have keys under kv_prefix before deletion"
+    );
+    assert!(
+        keys_before.iter().any(|k| k.starts_with(json_id)),
+        "Should have keys under json_id before deletion"
+    );
+
+    // Delete using the JSON id (the value inside the metadata, not the KV key prefix).
+    // This is the real mismatch scenario: the frontend sends the JSON id but the KV
+    // key was created with a different prefix.  The handler must resolve the real
+    // prefix and clean up keys under BOTH identifiers.
+    let (status, resp) = delete_document_http(&app, json_id).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "Delete should succeed for legacy mismatch doc: {:?}",
+        resp
+    );
+
+    // All KV keys under BOTH prefixes should be cleaned up.
+    let keys_after = state.kv_storage.keys().await.expect("keys");
+    let orphans_kv_prefix: Vec<_> = keys_after
+        .iter()
+        .filter(|k| k.starts_with(kv_prefix))
+        .collect();
+    let orphans_json_id: Vec<_> = keys_after
+        .iter()
+        .filter(|k| k.starts_with(json_id))
+        .collect();
+
+    assert!(
+        orphans_kv_prefix.is_empty(),
+        "Orphaned KV keys under kv_prefix after mismatch deletion: {:?}",
+        orphans_kv_prefix
+    );
+    assert!(
+        orphans_json_id.is_empty(),
+        "Orphaned KV keys under json_id after mismatch deletion: {:?}",
+        orphans_json_id
+    );
+}
+
+// ── Both source prefixes cleaned from graph ─────────────────────────────────
+
+/// MISSION-02 EDGE-CASE: Graph cleanup covers both the kv-prefix-based chunk IDs
+/// and id-based chunk IDs in a mismatch scenario.
+///
+/// In a mismatch scenario the entity `source_ids` may contain chunk IDs under
+/// both `{kv_prefix}-chunk-N` and `{json_id}-chunk-N`.  Deletion must remove
+/// the entity when ALL those sources belong to the document being deleted.
+#[tokio::test]
+async fn test_edge_case_both_source_prefixes_cleaned_from_graph() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let kv_prefix = "mismatch-pfx-111";
+    let json_id = "mismatch-uid-222";
+
+    // Entity whose source_ids span both prefix and id variants.
+    let entity_name = "MISMATCH_ENTITY";
+    let mut props = std::collections::HashMap::new();
+    props.insert("entity_type".to_string(), json!("ORGANIZATION"));
+    props.insert(
+        "source_ids".to_string(),
+        json!([
+            format!("{}-chunk-0", kv_prefix),
+            format!("{}-chunk-0", json_id)
+        ]),
+    );
+    state
+        .graph_storage
+        .upsert_node(entity_name, props)
+        .await
+        .expect("upsert entity");
+
+    // KV metadata under kv_prefix but JSON id is json_id.
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-metadata", kv_prefix),
+            json!({
+                "id": json_id,
+                "title": "Mismatch Prefix Doc",
+                "status": "completed",
+                "workspace_id": "default"
+            }),
+        )])
+        .await
+        .expect("upsert metadata");
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-content", kv_prefix),
+            json!({"content": "mismatch content"}),
+        )])
+        .await
+        .expect("upsert content");
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-chunk-0", kv_prefix),
+            json!({"content": "chunk kv prefix"}),
+        )])
+        .await
+        .expect("upsert chunk kv_prefix");
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-chunk-0", json_id),
+            json!({"content": "chunk json id"}),
+        )])
+        .await
+        .expect("upsert chunk json_id");
+
+    // Verify entity exists before deletion.
+    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        nodes_before.iter().any(|n| n.id == entity_name),
+        "Entity should exist before deletion"
+    );
+
+    // Delete document via the JSON id (the real mismatch scenario: frontend sends
+    // the JSON id, handler resolves the kv_prefix and covers both in source_prefixes).
+    let (status, resp) = delete_document_http(&app, json_id).await;
+    assert_eq!(status, StatusCode::OK, "Delete should succeed: {:?}", resp);
+
+    // Entity must be gone: both source prefixes belong to this document.
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        !nodes_after.iter().any(|n| n.id == entity_name),
+        "EDGE-CASE: Entity '{}' still exists after deleting doc whose source_ids \
+         covered both kv_prefix and json_id chunks. Both prefixes must be in the cleanup set.",
+        entity_name
+    );
+}
+
+// ── Single delete: all KV keys removed ─────────────────────────────────────
+
+/// MISSION-02 EDGE-CASE: Single-document deletion removes all KV keys.
+///
+/// After deletion, no KV key with the document ID prefix should remain:
+/// `-metadata`, `-content`, `-chunk-*`, `-lineage`, and the hash key.
+#[tokio::test]
+async fn test_edge_case_single_delete_clears_all_kv_keys() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    // Upload a real document so all KV keys are created by the handler.
+    let (status, body) = upload_document_http(
+        &app,
+        "KV Keys Cleanup Test",
+        "All KV keys for this document must be removed after deletion.",
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let doc_id = body["document_id"].as_str().unwrap().to_string();
+
+    // Verify KV keys exist before deletion.
+    let keys_before = state.kv_storage.keys().await.expect("keys before");
+    let doc_keys_before: Vec<_> = keys_before
+        .iter()
+        .filter(|k| k.contains(&doc_id))
+        .cloned()
+        .collect();
+    assert!(
+        !doc_keys_before.is_empty(),
+        "Should have KV keys for doc {} before deletion",
+        doc_id
+    );
+
+    // Delete document.
+    let (del_status, _) = delete_document_http(&app, &doc_id).await;
+    assert_eq!(del_status, StatusCode::OK);
+
+    // No KV key should reference this document after deletion.
+    let keys_after = state.kv_storage.keys().await.expect("keys after");
+    let doc_keys_after: Vec<_> = keys_after
+        .iter()
+        .filter(|k| k.contains(&doc_id))
+        .cloned()
+        .collect();
+
+    assert!(
+        doc_keys_after.is_empty(),
+        "Orphaned KV keys for deleted document '{}': {:?}",
+        doc_id,
+        doc_keys_after
+    );
+}
+
+// ── Bulk delete: all KV keys removed ───────────────────────────────────────
+
+/// MISSION-02 EDGE-CASE: Bulk-route deletion removes all KV keys for every doc.
+///
+/// This is the symmetric test of the single-delete KV cleanup, but exercised
+/// via the `DELETE /api/v1/documents` bulk route.
+#[tokio::test]
+async fn test_edge_case_bulk_delete_clears_all_kv_keys() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let mut doc_ids = Vec::new();
+
+    // Upload 3 documents.
+    for i in 0..3 {
+        let (status, body) = upload_document_http(
+            &app,
+            &format!("Bulk KV Cleanup Doc {}", i),
+            &format!("Unique content for bulk KV cleanup test, document {}.", i),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        doc_ids.push(body["document_id"].as_str().unwrap().to_string());
+    }
+
+    // Verify KV keys exist for all docs.
+    let keys_before = state.kv_storage.keys().await.expect("keys before");
+    for doc_id in &doc_ids {
+        let count = keys_before.iter().filter(|k| k.contains(doc_id)).count();
+        assert!(
+            count > 0,
+            "Should have KV keys for doc {} before bulk delete",
+            doc_id
+        );
+    }
+
+    // Bulk delete all documents via individual delete calls (simulating bulk behavior).
+    // Note: the bulk HTTP endpoint is DELETE /api/v1/documents (no ID).
+    let bulk_resp_status = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/documents")
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", "00000000-0000-0000-0000-000000000002")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Bulk delete returns 200.
+    assert_eq!(
+        bulk_resp_status.status(),
+        StatusCode::OK,
+        "Bulk delete should return 200"
+    );
+
+    // All doc KV keys should be gone.
+    let keys_after = state.kv_storage.keys().await.expect("keys after");
+    for doc_id in &doc_ids {
+        let orphans: Vec<_> = keys_after
+            .iter()
+            .filter(|k| k.contains(doc_id.as_str()))
+            .collect();
+        assert!(
+            orphans.is_empty(),
+            "Orphaned KV keys for bulk-deleted doc '{}': {:?}",
+            doc_id,
+            orphans
+        );
+    }
+}
+
+// ── Shared entity reference-counting stays correct after partial deletion ───
+
+/// MISSION-02: Entity with two sources — delete one doc, entity preserved,
+/// then delete second doc, entity removed.
+#[tokio::test]
+async fn test_shared_entity_reference_count_two_phase_deletion() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let doc_a = "refcount-doc-a";
+    let doc_b = "refcount-doc-b";
+    let chunk_a = format!("{}-chunk-0", doc_a);
+    let chunk_b = format!("{}-chunk-0", doc_b);
+    let entity = "REFCOUNT_ENTITY";
+
+    // Entity is shared by both documents.
+    let mut props = std::collections::HashMap::new();
+    props.insert("entity_type".to_string(), json!("PERSON"));
+    props.insert(
+        "source_ids".to_string(),
+        json!([chunk_a.clone(), chunk_b.clone()]),
+    );
+    state
+        .graph_storage
+        .upsert_node(entity, props)
+        .await
+        .expect("upsert shared entity");
+
+    // Store both documents.
+    for (doc_id, chunk_id) in [(&doc_a, &chunk_a), (&doc_b, &chunk_b)] {
+        state
+            .kv_storage
+            .upsert(&[(
+                format!("{}-metadata", doc_id),
+                json!({
+                    "id": doc_id,
+                    "title": format!("Refcount Doc {}", doc_id),
+                    "status": "completed",
+                    "workspace_id": "default"
+                }),
+            )])
+            .await
+            .expect("upsert metadata");
+        state
+            .kv_storage
+            .upsert(&[(
+                format!("{}-content", doc_id),
+                json!({"content": format!("content {}", doc_id)}),
+            )])
+            .await
+            .unwrap();
+        state
+            .kv_storage
+            .upsert(&[(chunk_id.clone(), json!({"content": "chunk"}))])
+            .await
+            .unwrap();
+    }
+
+    // Phase 1: delete doc A — entity must survive with only doc B source.
+    let (s1, _) = delete_document_http(&app, doc_a).await;
+    assert_eq!(s1, StatusCode::OK, "Phase 1 delete failed");
+
+    let nodes_phase1 = state.graph_storage.get_all_nodes().await.unwrap();
+    let entity_phase1 = nodes_phase1.iter().find(|n| n.id == entity);
+    assert!(
+        entity_phase1.is_some(),
+        "Entity should survive after deleting doc A (still referenced by doc B)"
+    );
+    // Verify doc A chunk no longer in source_ids.
+    if let Some(e) = entity_phase1 {
+        let srcs = e
+            .properties
+            .get("source_ids")
+            .and_then(|v| v.as_array())
+            .map(|a| a.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        assert!(
+            !srcs.iter().any(|s| s.contains(doc_a)),
+            "Doc A chunk should be removed from source_ids: {:?}",
+            srcs
+        );
+        assert!(
+            srcs.iter().any(|s| s.contains(doc_b)),
+            "Doc B chunk must remain in source_ids: {:?}",
+            srcs
+        );
+    }
+
+    // Phase 2: delete doc B — entity must now be removed (no sources left).
+    let (s2, _) = delete_document_http(&app, doc_b).await;
+    assert_eq!(s2, StatusCode::OK, "Phase 2 delete failed");
+
+    let nodes_phase2 = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        !nodes_phase2.iter().any(|n| n.id == entity),
+        "Entity must be removed after its last source document is deleted"
+    );
+}
+
+// ── Idempotency: second delete of same document returns 404 ─────────────────
+
+/// MISSION-02 EDGE-CASE: Deleting an already-deleted document must return 404,
+/// not crash or return 200 again.  This is a critical invariant for callers
+/// that need to distinguish "delete succeeded" from "already deleted".
+///
+/// This test complements `test_idempotent_deletion_returns_404` with state
+/// inspection to ensure no side-effects on the second call.
+#[tokio::test]
+async fn test_mission02_second_delete_returns_404_no_side_effects() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let (status, body) = upload_document_http(
+        &app,
+        "Idempotent Delete Test",
+        "Content for idempotent deletion test mission-02.",
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let doc_id = body["document_id"].as_str().unwrap().to_string();
+
+    // First delete.
+    let (s1, r1) = delete_document_http(&app, &doc_id).await;
+    assert_eq!(s1, StatusCode::OK);
+    assert_eq!(r1.get("deleted").and_then(|v| v.as_bool()), Some(true));
+
+    let nodes_after_first = state.graph_storage.get_all_nodes().await.unwrap().len();
+    let keys_after_first = state.kv_storage.keys().await.unwrap().len();
+
+    // Second delete — must return 404.
+    let (s2, r2) = delete_document_http(&app, &doc_id).await;
+    assert_eq!(
+        s2,
+        StatusCode::NOT_FOUND,
+        "Second delete must return 404, got: {:?}",
+        r2
+    );
+
+    // No side-effects: node count and key count unchanged.
+    let nodes_after_second = state.graph_storage.get_all_nodes().await.unwrap().len();
+    let keys_after_second = state.kv_storage.keys().await.unwrap().len();
+
+    assert_eq!(
+        nodes_after_first, nodes_after_second,
+        "Second delete must not mutate graph storage"
+    );
+    assert_eq!(
+        keys_after_first, keys_after_second,
+        "Second delete must not mutate KV storage"
+    );
+}

@@ -147,17 +147,43 @@ pub struct EmbeddingProviderHealth {
     pub dimension: usize,
 }
 
-/// Combined provider health for LLM and embedding.
+/// Vision LLM provider health information.
+///
+/// WHY: The vision provider (used for PDF-to-Markdown extraction) can be configured
+/// independently from the main LLM provider. Exposing it in the health response makes
+/// the effective configuration explicit — preventing the "gpt-4.1-nano on Ollama" class
+/// of silent mismatches where an orphaned workspace model is applied to the wrong provider.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct VisionProviderHealth {
+    /// Provider name (e.g., "openai", "ollama").
+    /// Derived from: workspace vision_llm_provider → workspace llm_provider → EDGEQUAKE_LLM_PROVIDER env.
+    pub name: String,
+
+    /// Default vision model for this provider.
+    /// Derived from: EDGEQUAKE_VISION_MODEL env → EDGEQUAKE_LLM_MODEL env → provider hardcoded default.
+    pub default_model: String,
+}
+
+/// Combined provider health for LLM, embedding, and vision.
 ///
 /// WHY: OODA-11 - Mission requirement: "know all parts of the applied
 /// configuration (llm provider, embedding provider, models used)".
+/// Vision is now explicit to prevent provider/model mismatch bugs.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProvidersHealth {
-    /// LLM provider details.
+    /// LLM provider details (used for entity extraction).
     pub llm: LlmProviderHealth,
 
     /// Embedding provider details.
     pub embedding: EmbeddingProviderHealth,
+
+    /// Server-level vision LLM defaults (used for PDF extraction when no workspace override).
+    ///
+    /// WHY: Makes the effective vision configuration explicit in the health response.
+    /// Workspace-level overrides (vision_llm_provider + vision_llm_model) take precedence
+    /// over these server defaults when both are set. When only one is set, the server
+    /// default fills the gap — this field makes that gap visible.
+    pub vision: VisionProviderHealth,
 }
 
 // ============================================================================
@@ -308,12 +334,18 @@ mod tests {
                 model: "nomic-embed-text".to_string(),
                 dimension: 768,
             },
+            vision: VisionProviderHealth {
+                name: "ollama".to_string(),
+                default_model: "gemma3:latest".to_string(),
+            },
         };
         let json = serde_json::to_string(&providers).unwrap();
         assert!(json.contains("\"name\":\"ollama\""));
         assert!(json.contains("\"model\":\"gemma3:latest\""));
         assert!(json.contains("\"model\":\"nomic-embed-text\""));
         assert!(json.contains("\"dimension\":768"));
+        assert!(json.contains("\"vision\""));
+        assert!(json.contains("\"default_model\":\"gemma3:latest\""));
     }
 
     /// OODA-11: Test full health response with providers.
@@ -343,6 +375,10 @@ mod tests {
                     model: "text-embedding-3-small".to_string(),
                     dimension: 1536,
                 },
+                vision: VisionProviderHealth {
+                    name: "openai".to_string(),
+                    default_model: "gpt-4.1-nano".to_string(),
+                },
             }),
             pdf_storage_enabled: Some(true),
         };
@@ -352,5 +388,7 @@ mod tests {
         assert!(json.contains("\"model\":\"text-embedding-3-small\""));
         assert!(json.contains("\"dimension\":1536"));
         assert!(json.contains("\"pdf_storage_enabled\":true"));
+        assert!(json.contains("\"vision\""));
+        assert!(json.contains("\"default_model\":\"gpt-4.1-nano\""));
     }
 }
