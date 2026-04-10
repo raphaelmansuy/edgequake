@@ -4,7 +4,7 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 use super::types::PdfUploadOptions;
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::PdfDocumentStorage;
@@ -79,7 +79,7 @@ pub(super) async fn create_pdf_processing_task(
         consecutive_timeout_failures: 0,
         circuit_breaker_tripped: false,
         task_data: serde_json::to_value(&task_data)
-            .map_err(|e| ApiError::Internal(format!("Failed to serialize task data: {}", e)))?,
+            .internal_err("serialize task data")?,
         metadata: None,
         progress: None,
         result: None,
@@ -90,14 +90,14 @@ pub(super) async fn create_pdf_processing_task(
         .task_storage
         .create_task(&task)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+        .internal_err("create task")?;
 
     // Queue task for background processing (critical - missing this causes tasks to stay in pending)
     state
         .task_queue
         .send(task)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+        .internal_err("queue task")?;
 
     debug!(
         "Created and queued PDF processing task: id={}, pdf_id={}",

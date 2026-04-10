@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::helpers::get_pdf_storage;
 use super::types::*;
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::ListPdfFilter;
@@ -55,7 +55,7 @@ pub async fn get_pdf_status(
     let pdf = pdf_storage
         .get_pdf(&pdf_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
+        .internal_err("get PDF")?
         .ok_or_else(|| ApiError::NotFound("PDF not found".to_string()))?;
 
     // Verify workspace access
@@ -133,7 +133,7 @@ pub async fn list_pdfs(
             page_size: Some(query.page_size),
         })
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to list PDFs: {}", e)))?;
+        .internal_err("list PDFs")?;
 
     let items: Vec<PdfListItem> = list
         .items
@@ -203,7 +203,7 @@ pub async fn delete_pdf(
     let pdf = pdf_storage
         .get_pdf(&pdf_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
+        .internal_err("get PDF")?
         .ok_or_else(|| ApiError::NotFound("PDF not found".to_string()))?;
 
     let workspace_id = context
@@ -217,7 +217,7 @@ pub async fn delete_pdf(
     pdf_storage
         .delete_pdf(&pdf_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to delete PDF: {}", e)))?;
+        .internal_err("delete PDF")?;
 
     info!("PDF deleted: id={}", pdf_id);
 
@@ -273,7 +273,7 @@ pub async fn get_pdf_progress(
 
     // Serialize to JSON value to avoid utoipa schema requirements
     let json_value = serde_json::to_value(&progress)
-        .map_err(|e| ApiError::Internal(format!("Failed to serialize progress: {}", e)))?;
+        .internal_err("serialize progress")?;
 
     Ok(Json(json_value))
 }
