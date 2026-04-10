@@ -9,7 +9,7 @@ use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{parse_uuid, ApiError, ApiResult, ResultExt};
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -220,12 +220,8 @@ pub async fn reprocess_failed(
 
                         let pdf_task = PdfProcessingData {
                             pdf_id: pdf_id_uuid,
-                            tenant_id: uuid::Uuid::parse_str(&tenant_id).map_err(|_| {
-                                ApiError::ValidationError("Invalid tenant ID".to_string())
-                            })?,
-                            workspace_id: uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
-                                ApiError::ValidationError("Invalid workspace ID".to_string())
-                            })?,
+                            tenant_id: parse_uuid(&tenant_id, "tenant ID")?,
+                            workspace_id: parse_uuid(&workspace_id, "workspace ID")?,
                             enable_vision: true,
                             vision_provider,
                             vision_model,
@@ -234,25 +230,19 @@ pub async fn reprocess_failed(
                         };
 
                         let task = Task::new(
-                            uuid::Uuid::parse_str(&tenant_id).map_err(|_| {
-                                ApiError::ValidationError("Invalid tenant ID".to_string())
-                            })?,
-                            uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
-                                ApiError::ValidationError("Invalid workspace ID".to_string())
-                            })?,
+                            parse_uuid(&tenant_id, "tenant ID")?,
+                            parse_uuid(&workspace_id, "workspace ID")?,
                             TaskType::PdfProcessing,
                             // WHY expect: PdfProcessingData fields are all primitives/Strings → always serializable
                             serde_json::to_value(&pdf_task)
                                 .expect("PdfProcessingData is always serializable"),
                         );
 
-                        state.task_storage.create_task(&task).await.map_err(|e| {
-                            ApiError::Internal(format!("Failed to create task: {}", e))
-                        })?;
+                        state.task_storage.create_task(&task).await
+                            .internal_err("create PDF reprocess task")?;
 
-                        state.task_queue.send(task).await.map_err(|e| {
-                            ApiError::Internal(format!("Failed to queue task: {}", e))
-                        })?;
+                        state.task_queue.send(task).await
+                            .internal_err("queue PDF reprocess task")?;
 
                         tracing::info!(
                             document_id = %doc_id,
@@ -307,12 +297,8 @@ pub async fn reprocess_failed(
                     };
 
                     let task = Task::new(
-                        uuid::Uuid::parse_str(&tenant_id).map_err(|_| {
-                            ApiError::ValidationError("Invalid tenant ID".to_string())
-                        })?,
-                        uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
-                            ApiError::ValidationError("Invalid workspace ID".to_string())
-                        })?,
+                        parse_uuid(&tenant_id, "tenant ID")?,
+                        parse_uuid(&workspace_id, "workspace ID")?,
                         TaskType::Insert,
                         // WHY expect: TextInsertData fields are all primitives/Strings → always serializable
                         serde_json::to_value(task_data)
@@ -323,13 +309,13 @@ pub async fn reprocess_failed(
                         .task_storage
                         .create_task(&task)
                         .await
-                        .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+                        .internal_err("create text reprocess task")?;
 
                     state
                         .task_queue
                         .send(task)
                         .await
-                        .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+                        .internal_err("queue text reprocess task")?;
 
                     requeued_ids.push(doc_id.clone());
                 }
