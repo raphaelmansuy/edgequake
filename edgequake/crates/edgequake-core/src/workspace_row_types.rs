@@ -11,59 +11,8 @@ use uuid::Uuid;
 #[cfg(feature = "postgres")]
 use crate::types::{Membership, MembershipRole, Tenant, TenantPlan, Workspace};
 
-// ============ Parsing Helpers ============
-
-/// Parse TenantPlan from a string stored in metadata JSONB.
-#[cfg(feature = "postgres")]
-pub(crate) fn parse_plan(s: &str) -> TenantPlan {
-    match s.to_lowercase().as_str() {
-        "basic" => TenantPlan::Basic,
-        "pro" => TenantPlan::Pro,
-        "enterprise" => TenantPlan::Enterprise,
-        _ => TenantPlan::Free,
-    }
-}
-
-/// Parse MembershipRole from a string stored in the role column.
-#[cfg(feature = "postgres")]
-pub(crate) fn parse_role(s: &str) -> MembershipRole {
-    match s.to_lowercase().as_str() {
-        "readonly" => MembershipRole::Readonly,
-        "admin" => MembershipRole::Admin,
-        "owner" => MembershipRole::Owner,
-        _ => MembershipRole::Member,
-    }
-}
-
-// ============ Entity Type Normalization ============
-
-/// Rules (per SPEC-085):
-/// - Trim whitespace
-/// - Convert to UPPERCASE
-/// - Replace spaces/hyphens with underscores
-/// - Skip empty strings
-/// - Deduplicate (preserving first occurrence order)
-/// - Cap at 50 types to avoid prompt bloat
-///
-/// @implements SPEC-085: Custom entity configuration normalization
-pub(crate) fn normalize_entity_types(types: &[String]) -> Vec<String> {
-    const MAX_ENTITY_TYPES: usize = 50;
-
-    let mut seen = std::collections::HashSet::new();
-    types
-        .iter()
-        .filter_map(|t| {
-            let normalized = t.trim().to_uppercase().replace([' ', '-'], "_");
-            if normalized.is_empty() {
-                None
-            } else {
-                Some(normalized)
-            }
-        })
-        .filter(|t| seen.insert(t.clone()))
-        .take(MAX_ENTITY_TYPES)
-        .collect()
-}
+// Pure parsing helpers live in workspace_utils.rs (always compiled, testable)
+use crate::workspace_utils::{parse_plan, parse_role};
 
 // ============ Database Row Types ============
 
@@ -310,3 +259,4 @@ impl MembershipRow {
         }
     }
 }
+// Tests for pure parsing functions live in workspace_utils.rs (always compiled)
