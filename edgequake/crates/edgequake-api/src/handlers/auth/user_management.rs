@@ -13,7 +13,7 @@ use chrono::Utc;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::error::ApiError;
+use crate::error::{ApiError, ResultExt};
 use crate::state::AppState;
 use edgequake_auth::{Role, User};
 
@@ -67,7 +67,7 @@ pub async fn create_user(
         .kv_storage
         .get_by_id(&username_key)
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
+        .internal_err("check username uniqueness")?
         .is_some()
     {
         return Err(ApiError::Conflict("Username already exists".to_string()));
@@ -79,7 +79,7 @@ pub async fn create_user(
         .kv_storage
         .get_by_id(&email_key)
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
+        .internal_err("check email uniqueness")?
         .is_some()
     {
         return Err(ApiError::Conflict("Email already exists".to_string()));
@@ -114,7 +114,7 @@ pub async fn create_user(
     let user_key = format!("{}{}", USER_KEY_PREFIX, user_id);
     let user_record = UserRecord::from(&user);
     let user_value = serde_json::to_value(&user_record)
-        .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
+        .internal_err("serialize user record")?;
 
     // Store username index
     let username_value = serde_json::Value::String(user_id.clone());
@@ -130,7 +130,7 @@ pub async fn create_user(
             (email_key, email_value),
         ])
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+        .internal_err("store user records")?;
 
     info!("User created: {} ({})", user.username, user.user_id);
 
@@ -242,7 +242,7 @@ pub async fn delete_user(
         .kv_storage
         .delete(&[user_key, username_key, email_key])
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+        .internal_err("delete user records")?;
 
     info!("User deleted: {} ({})", user.username, user.user_id);
 

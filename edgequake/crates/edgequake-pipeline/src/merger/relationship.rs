@@ -161,7 +161,11 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
         let new_weight = (existing_weight + rel.weight) / 2.0;
         edge.properties.insert(
             "weight".to_string(),
-            serde_json::Value::Number(serde_json::Number::from_f64(new_weight as f64).unwrap()),
+            // WHY unwrap_or: from_f64 returns None for NaN/Inf → clamp to 0
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(new_weight as f64)
+                    .unwrap_or(serde_json::Number::from(0)),
+            ),
         );
 
         // Merge keywords
@@ -206,7 +210,11 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
         );
         properties.insert(
             "weight".to_string(),
-            serde_json::Value::Number(serde_json::Number::from_f64(rel.weight as f64).unwrap()),
+            // WHY unwrap_or: from_f64 returns None for NaN/Inf → clamp to 0
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(rel.weight as f64)
+                    .unwrap_or(serde_json::Number::from(0)),
+            ),
         );
         properties.insert("keywords".to_string(), serde_json::json!(rel.keywords));
         properties.insert(

@@ -314,6 +314,9 @@ pub(super) fn extract_source_docs(
 ///
 /// @implements GAP-08: Cleanup before reprocessing
 /// @implements SPEC-033: Per-workspace vector storage isolation
+/// @implements MISSION-02-GAP-1: DRY — single source of truth for graph cleanup
+/// @implements MISSION-02-GAP-2: Workspace isolation — skip foreign-workspace nodes
+/// @implements MISSION-02-GAP-3: Perf — 2 graph calls instead of 3
 ///
 /// This function removes the document from entity/edge source_ids and
 /// deletes entities/edges that have no remaining sources.
@@ -322,24 +325,30 @@ pub(super) fn extract_source_docs(
 ///
 /// - **reprocess_failed**: Clean partial data from failed attempt before requeueing
 /// - **recover_stuck**: Clean partial data from interrupted processing before requeueing
-/// - **delete_document**: Clean graph data as part of full deletion
+/// - **delete_document**: Clean graph data as part of full deletion (via delegate)
 ///
 /// # What It Does
 ///
-/// 1. Process all nodes - remove document_id from source_ids
-/// 2. Delete nodes with empty source_ids
-/// 3. Process all edges - remove document_id from source_ids
-/// 4. Delete edges with empty source_ids OR orphaned (connects to deleted node)
-/// 5. Delete entity embeddings for removed entities
+/// 1. Load all nodes (optionally workspace-filtered via `workspace_id`)
+/// 2. Remove each `source_prefix` from every node's `source_ids`
+/// 3. Delete nodes with empty source_ids; update those still referenced
+/// 4. Load all edges; detect orphaned edges from the node step (no second node scan)
+/// 5. Remove each `source_prefix` from every edge's `source_ids`
+/// 6. Delete edges with empty source_ids OR orphaned; update partially-referenced ones
+/// 7. Delete entity embeddings for removed nodes
 ///
 /// # What It Does NOT Do
 ///
-/// - Delete KV entries (metadata, content, chunks) - these are needed for reprocessing
-/// - Delete chunk embeddings - handled separately in delete_document
+/// - Delete KV entries (metadata, content, chunks) — handled by callers
+/// - Delete chunk embeddings                        — handled by callers
 ///
 /// # Arguments
 ///
-/// * `document_id` - The document ID to clean up
+/// * `source_prefixes` - One or more document-related prefixes whose sources should be
+///   removed.  For the normal case this is `[document_id]`.  When the KV key prefix
+///   diverges from the JSON `id`, pass both so nodes referencing either form are cleaned.
+/// * `workspace_id` - When provided, only nodes whose `workspace_id` property matches are
+///   processed.  `None` = process all nodes (legacy / reprocess path).
 /// * `graph_storage` - Graph storage adapter
 /// * `vector_storage` - Optional vector storage for entity embedding cleanup
 ///
@@ -348,43 +357,103 @@ pub(super) fn extract_source_docs(
 /// * `Ok(CleanupStats)` - Cleanup statistics
 /// * `Err(ApiError)` - If cleanup fails
 pub(crate) async fn cleanup_document_graph_data(
-    document_id: &str,
+    source_prefixes: &[&str],
+    workspace_id: Option<&str>,
     graph_storage: &Arc<dyn edgequake_storage::traits::GraphStorage>,
     vector_storage: Option<&Arc<dyn VectorStorage>>,
 ) -> Result<CleanupStats, ApiError> {
     let mut stats = CleanupStats::default();
 
-    // Build chunk prefix for source matching
-    let chunk_prefix = format!("{}-chunk-", document_id);
+    // Build chunk prefixes for every supplied source prefix (e.g. "doc-abc-chunk-").
+    // WHY: chunk sources are stored as "{doc_id}-chunk-{n}" inside source_ids.
+    let chunk_prefixes: Vec<String> = source_prefixes
+        .iter()
+        .map(|p| format!("{}-chunk-", p))
+        .collect();
 
-    // Process graph entities - remove document sources
+    // Helper: returns true when a source reference belongs to the document being removed.
+    let source_belongs_to_doc = |s: &str| -> bool {
+        for prefix in source_prefixes {
+            if s == *prefix || s.starts_with(*prefix) {
+                return true;
+            }
+        }
+        for cp in &chunk_prefixes {
+            if s.starts_with(cp.as_str()) {
+                return true;
+            }
+        }
+        false
+    };
+
+    // Helper: returns true when a node should be skipped due to workspace isolation.
+    // When workspace_id is None we process every node (reprocess/legacy path).
+    let node_belongs_to_workspace =
+        |props: &std::collections::HashMap<String, serde_json::Value>| -> bool {
+            match workspace_id {
+                None => true,
+                Some(wid) => props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .map(|v| v == wid)
+                    .unwrap_or(true), // paranoid fallback: process nodes without workspace_id tag
+            }
+        };
+
+    // ── Step 1: Process nodes ──────────────────────────────────────────────────
+    // Track surviving node IDs locally so we can detect orphaned edges in Step 2
+    // without a second graph round-trip.
     let all_nodes = graph_storage.get_all_nodes().await?;
-    for node in all_nodes {
+
+    // Pre-compute the set of ALL node IDs before any deletions (used for orphan check).
+    let mut surviving_node_ids: std::collections::HashSet<String> =
+        all_nodes.iter().map(|n| n.id.clone()).collect();
+
+    for node in &all_nodes {
+        // MISSION-02-GAP-2: Skip nodes that belong to a different workspace.
+        if !node_belongs_to_workspace(&node.properties) {
+            continue;
+        }
+
         let sources = extract_source_docs(&node.properties);
         if sources.is_empty() {
             continue;
         }
 
-        // Filter out sources that belong to this document
         let remaining_sources: Vec<String> = sources
             .iter()
-            .filter(|s| {
-                !s.starts_with(&chunk_prefix) && *s != document_id && !s.starts_with(document_id)
-            })
+            .filter(|s| !source_belongs_to_doc(s))
             .cloned()
             .collect();
 
         if remaining_sources.is_empty() {
-            // No sources left - delete the entity entirely
+            // No sources left — delete the entity.
+            // MISSION-02-GAP-9: Preserve injected entities (Knowledge Documents).
+            // An injected node has `injected: true` in its properties.
+            let is_injected = node
+                .properties
+                .get("injected")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if is_injected {
+                tracing::debug!(
+                    node_id = %node.id,
+                    "Skipping deletion of injected (Knowledge Document) entity"
+                );
+                // Keep it in surviving set; do NOT decrement sources.
+                continue;
+            }
+
             graph_storage.delete_node(&node.id).await?;
-            // Delete entity embedding if vector storage provided
+            // Update local orphan-detection set.
+            surviving_node_ids.remove(&node.id);
+            // Delete entity embedding if vector storage provided.
             if let Some(vs) = vector_storage {
                 let _ = vs.delete_entity(&node.id).await;
                 stats.embeddings_deleted += 1;
             }
             stats.entities_removed += 1;
         } else if remaining_sources.len() < sources.len() {
-            // Some sources were removed - update the entity
             let mut updated_props = node.properties.clone();
             updated_props.insert(
                 "source_ids".to_string(),
@@ -395,21 +464,16 @@ pub(crate) async fn cleanup_document_graph_data(
         }
     }
 
-    // Process graph edges - remove document sources and orphaned edges
+    // ── Step 2: Process edges ──────────────────────────────────────────────────
+    // MISSION-02-GAP-3: Reuse `surviving_node_ids` from Step 1 — no third graph call.
     let all_edges = graph_storage.get_all_edges().await?;
 
-    // Get current node IDs for orphan detection
-    let existing_nodes = graph_storage.get_all_nodes().await?;
-    let existing_node_ids: std::collections::HashSet<String> =
-        existing_nodes.iter().map(|n| n.id.clone()).collect();
-
     for edge in all_edges {
-        // Check if edge is orphaned (connects to deleted node)
-        let is_orphaned =
-            !existing_node_ids.contains(&edge.source) || !existing_node_ids.contains(&edge.target);
+        // Check if edge is orphaned (connects to a node deleted in Step 1).
+        let is_orphaned = !surviving_node_ids.contains(&edge.source)
+            || !surviving_node_ids.contains(&edge.target);
 
         if is_orphaned {
-            // Edge connects to a deleted node - delete it
             graph_storage
                 .delete_edge(&edge.source, &edge.target)
                 .await?;
@@ -417,7 +481,7 @@ pub(crate) async fn cleanup_document_graph_data(
             tracing::debug!(
                 source = %edge.source,
                 target = %edge.target,
-                "Deleted orphaned edge (connects to deleted node)"
+                "Deleted orphaned edge (endpoint node deleted)"
             );
             continue;
         }
@@ -427,23 +491,18 @@ pub(crate) async fn cleanup_document_graph_data(
             continue;
         }
 
-        // Filter out sources that belong to this document
         let remaining_sources: Vec<String> = sources
             .iter()
-            .filter(|s| {
-                !s.starts_with(&chunk_prefix) && *s != document_id && !s.starts_with(document_id)
-            })
+            .filter(|s| !source_belongs_to_doc(s))
             .cloned()
             .collect();
 
         if remaining_sources.is_empty() {
-            // No sources left - delete the relationship
             graph_storage
                 .delete_edge(&edge.source, &edge.target)
                 .await?;
             stats.relationships_removed += 1;
         } else if remaining_sources.len() < sources.len() {
-            // Some sources were removed - update the relationship
             let mut updated_props = edge.properties.clone();
             updated_props.insert(
                 "source_ids".to_string(),
@@ -457,7 +516,8 @@ pub(crate) async fn cleanup_document_graph_data(
     }
 
     tracing::info!(
-        document_id = %document_id,
+        source_prefixes = ?source_prefixes,
+        workspace_id = ?workspace_id,
         entities_removed = stats.entities_removed,
         entities_updated = stats.entities_updated,
         relationships_removed = stats.relationships_removed,
@@ -467,6 +527,21 @@ pub(crate) async fn cleanup_document_graph_data(
     );
 
     Ok(stats)
+}
+
+/// Convenience wrapper: clean graph data for a single document ID.
+///
+/// This is the path used by the reprocess / re-ingestion helpers which already
+/// validate the workspace before calling here.  When no `workspace_id` filter is
+/// needed (e.g. the caller has already ensured workspace scope) pass `None`.
+#[inline]
+pub(crate) async fn cleanup_document_graph_data_single(
+    document_id: &str,
+    workspace_id: Option<&str>,
+    graph_storage: &Arc<dyn edgequake_storage::traits::GraphStorage>,
+    vector_storage: Option<&Arc<dyn VectorStorage>>,
+) -> Result<CleanupStats, ApiError> {
+    cleanup_document_graph_data(&[document_id], workspace_id, graph_storage, vector_storage).await
 }
 
 /// Delete all document data for re-ingestion.
@@ -576,8 +651,9 @@ pub(super) async fn delete_document_for_reingestion(
     let workspace_vector_storage = get_workspace_vector_storage_strict(state, workspace_id).await?;
 
     // Clean up graph data (entities, relationships, embeddings)
-    let cleanup_stats = cleanup_document_graph_data(
+    let cleanup_stats = cleanup_document_graph_data_single(
         document_id,
+        Some(workspace_id),
         &state.graph_storage,
         Some(&workspace_vector_storage),
     )

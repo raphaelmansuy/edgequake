@@ -8,12 +8,12 @@ use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{parse_uuid, ApiResult, ResultExt};
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
-use super::super::storage_helpers::cleanup_document_graph_data;
+use super::super::storage_helpers::cleanup_document_graph_data_single;
 
 /// Recover documents stuck in "processing" status.
 ///
@@ -113,7 +113,7 @@ pub async fn recover_stuck(
         //
         // A "stuck" document may have partially created entities before the process
         // died or timed out. Without cleanup, reprocessing would create duplicates.
-        match cleanup_document_graph_data(doc_id, &state.graph_storage, None).await {
+        match cleanup_document_graph_data_single(doc_id, None, &state.graph_storage, None).await {
             Ok(stats) => {
                 tracing::info!(
                     document_id = %doc_id,
@@ -183,26 +183,24 @@ pub async fn recover_stuck(
                 };
 
                 let task = Task::new(
-                    uuid::Uuid::parse_str(&tenant_id)
-                        .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
-                    uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
-                        ApiError::ValidationError("Invalid workspace ID".to_string())
-                    })?,
+                    parse_uuid(&tenant_id, "tenant ID")?,
+                    parse_uuid(&workspace_id, "workspace ID")?,
                     TaskType::Insert,
-                    serde_json::to_value(task_data).unwrap(),
+                    // WHY expect: TextInsertData fields are all primitives/Strings → always serializable
+                    serde_json::to_value(task_data).expect("TextInsertData is always serializable"),
                 );
 
                 state
                     .task_storage
                     .create_task(&task)
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+                    .internal_err("create recovery task")?;
 
                 state
                     .task_queue
                     .send(task)
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+                    .internal_err("queue recovery task")?;
 
                 requeued_ids.push(doc_id.clone());
                 requeued_titles.push(doc_title.clone());

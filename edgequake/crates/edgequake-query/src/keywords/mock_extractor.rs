@@ -31,7 +31,7 @@ impl MockKeywordExtractor {
 
     /// Add a response to return.
     pub fn add_response(&self, keywords: Keywords) {
-        self.responses.write().unwrap().push(keywords);
+        self.responses.write().unwrap_or_else(|e| e.into_inner()).push(keywords);
     }
 
     /// Create a mock with simple word extraction (splits on spaces).

@@ -209,6 +209,47 @@ impl IntoResponse for ApiError {
     }
 }
 
+// ============================================================================
+// DRY helpers — reduce boilerplate across handlers
+// ============================================================================
+
+/// Extension trait for `Result<T, E>` to simplify error mapping to `ApiError`.
+///
+/// WHY: 57+ sites use `.map_err(|e| ApiError::Internal(format!("Failed to ...: {}", e)))`.
+/// This trait eliminates the boilerplate and ensures consistent error messages.
+///
+/// ## Usage
+///
+/// ```ignore
+/// use crate::error::ResultExt;
+///
+/// storage.get_by_id(&key).await.internal_err("fetch document metadata")?;
+/// ```
+pub trait ResultExt<T> {
+    /// Map any error to `ApiError::Internal` with a context message.
+    fn internal_err(self, context: &str) -> std::result::Result<T, ApiError>;
+}
+
+impl<T, E: std::fmt::Display> ResultExt<T> for std::result::Result<T, E> {
+    fn internal_err(self, context: &str) -> std::result::Result<T, ApiError> {
+        self.map_err(|e| ApiError::Internal(format!("Failed to {}: {}", context, e)))
+    }
+}
+
+/// Parse a UUID string, returning `ApiError::ValidationError` on failure.
+///
+/// WHY: 12+ sites use `uuid::Uuid::parse_str(&id).map_err(|_| ApiError::ValidationError(...))`.
+///
+/// ## Usage
+///
+/// ```ignore
+/// let tenant = parse_uuid(&tenant_id, "tenant ID")?;
+/// let workspace = parse_uuid(&workspace_id, "workspace ID")?;
+/// ```
+pub fn parse_uuid(s: &str, label: &str) -> std::result::Result<uuid::Uuid, ApiError> {
+    uuid::Uuid::parse_str(s).map_err(|_| ApiError::ValidationError(format!("Invalid {}", label)))
+}
+
 /// Convert ProviderResolutionError to ApiError.
 ///
 /// This implementation provides a unified way to convert provider resolution
@@ -447,7 +488,7 @@ mod tests {
 
         // Verify serialization skips None details
         let json = serde_json::to_value(&error).unwrap();
-        assert!(!json.get("details").is_some());
+        assert!(json.get("details").is_none());
     }
 
     #[test]

@@ -1,5 +1,12 @@
 //! EdgeQuake Query - SOTA Query Engine for RAG
 //!
+//! ## WHY: Flat Re-Export Facade
+//!
+//! This crate re-exports all public types at the root so downstream
+//! crates can write `use edgequake_query::QueryMode` instead of
+//! `use edgequake_query::modes::QueryMode`. The flat API surface
+//! reduces import churn when internal modules are refactored.
+//!
 //! # Implements
 //!
 //! - **FEAT0007**: Multi-Mode Query Execution

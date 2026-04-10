@@ -266,4 +266,49 @@ mod tests {
         assert!(system.contains("Alex"));
         assert!(system.contains("Sarah Chen"));
     }
+
+    #[test]
+    fn test_default_delimiters() {
+        let prompts = EntityExtractionPrompts::default();
+        assert_eq!(prompts.tuple_delimiter, "<|#|>");
+        assert_eq!(prompts.completion_delimiter, "<|COMPLETE|>");
+    }
+
+    #[test]
+    fn test_custom_delimiters() {
+        let prompts = EntityExtractionPrompts::new("|||", "[DONE]");
+        let system = prompts.system_prompt(&["PERSON"], "English");
+        assert!(system.contains("|||"));
+        assert!(system.contains("[DONE]"));
+        assert!(!system.contains("<|#|>"));
+    }
+
+    #[test]
+    fn test_empty_entity_types() {
+        let prompts = EntityExtractionPrompts::default();
+        let empty: Vec<&str> = vec![];
+        let system = prompts.system_prompt(&empty, "French");
+        // Should still produce valid prompt with empty types list
+        assert!(system.contains("French"));
+        assert!(system.contains("Knowledge Graph Specialist"));
+    }
+
+    #[test]
+    fn test_user_prompt_contains_input_text() {
+        let prompts = EntityExtractionPrompts::default();
+        let user = prompts.user_prompt(
+            "Alice met Bob at the park.",
+            &["PERSON", "LOCATION"],
+            "English",
+        );
+        assert!(user.contains("Alice met Bob at the park."));
+        assert!(user.contains("PERSON, LOCATION"));
+    }
+
+    #[test]
+    fn test_continue_extraction_language() {
+        let prompts = EntityExtractionPrompts::default();
+        let prompt = prompts.continue_extraction_prompt("日本語");
+        assert!(prompt.contains("日本語"));
+    }
 }

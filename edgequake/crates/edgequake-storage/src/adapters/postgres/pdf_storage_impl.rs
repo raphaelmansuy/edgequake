@@ -140,7 +140,11 @@ impl PdfDocumentStorage for PostgresPdfStorage {
             sha256_checksum: r.sha256_checksum,
             page_count: r.page_count,
             pdf_data: r.pdf_data,
-            processing_status: r.processing_status.parse().unwrap(),
+            // WHY unwrap_or: DB may contain invalid status after migration → treat as Pending
+            processing_status: r
+                .processing_status
+                .parse()
+                .unwrap_or(PdfProcessingStatus::Pending),
             extraction_method: r.extraction_method.as_ref().and_then(|m| m.parse().ok()),
             vision_model: r.vision_model,
             markdown_content: r.markdown_content,
@@ -197,7 +201,11 @@ impl PdfDocumentStorage for PostgresPdfStorage {
             sha256_checksum: r.sha256_checksum,
             page_count: r.page_count,
             pdf_data: r.pdf_data,
-            processing_status: r.processing_status.parse().unwrap(),
+            // WHY unwrap_or: DB may contain invalid status after migration → treat as Pending
+            processing_status: r
+                .processing_status
+                .parse()
+                .unwrap_or(PdfProcessingStatus::Pending),
             extraction_method: r.extraction_method.as_ref().and_then(|m| m.parse().ok()),
             vision_model: r.vision_model,
             markdown_content: r.markdown_content,

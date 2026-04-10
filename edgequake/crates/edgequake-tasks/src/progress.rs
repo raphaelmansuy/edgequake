@@ -689,4 +689,120 @@ mod tests {
         assert!(progress.error.is_some());
         assert!(progress.error.as_ref().unwrap().retryable);
     }
+
+    // =========================================================================
+    // OODA-25: Edge case tests for progress
+    // =========================================================================
+
+    #[test]
+    fn test_phase_progress_update_zero_total() {
+        // WHY: Zero total items must not divide by zero
+        let mut progress = PhaseProgress::new(PipelinePhase::Chunking);
+        progress.start(0);
+        progress.update(0, "Nothing to do");
+        // percentage should be 0 or 100, not NaN/Inf
+        assert!(progress.percentage.is_finite());
+    }
+
+    #[test]
+    fn test_phase_progress_start_indeterminate() {
+        let mut progress = PhaseProgress::new(PipelinePhase::Extraction);
+        progress.start_indeterminate();
+        assert_eq!(progress.status, PhaseStatus::Active);
+        assert_eq!(progress.total, 0); // indeterminate = no known total
+    }
+
+    #[test]
+    fn test_phase_progress_skip() {
+        let mut progress = PhaseProgress::new(PipelinePhase::PdfConversion);
+        progress.skip("Not a PDF document");
+        assert_eq!(progress.status, PhaseStatus::Skipped);
+        assert!(progress.is_finished());
+    }
+
+    #[test]
+    fn test_phase_progress_is_finished() {
+        let mut progress = PhaseProgress::new(PipelinePhase::Upload);
+        assert!(!progress.is_finished());
+
+        progress.start(1);
+        assert!(!progress.is_finished());
+
+        progress.complete();
+        assert!(progress.is_finished());
+    }
+
+    #[test]
+    fn test_phase_progress_is_finished_on_fail() {
+        let mut progress = PhaseProgress::new(PipelinePhase::Upload);
+        progress.fail(PhaseError::rate_limit());
+        assert!(progress.is_finished());
+    }
+
+    #[test]
+    fn test_phase_progress_duration_before_complete() {
+        let progress = PhaseProgress::new(PipelinePhase::Upload);
+        // Not started, no duration
+        assert!(progress.duration_ms().is_none());
+    }
+
+    #[test]
+    fn test_pipeline_phase_all_count() {
+        // WHY: Must match actual variant count — catches forgotten additions
+        assert_eq!(PipelinePhase::all().len(), 6);
+    }
+
+    #[test]
+    fn test_pipeline_phase_display_names() {
+        // WHY: Display names are shown to users — verify they're human-readable
+        for phase in PipelinePhase::all() {
+            let name = phase.display_name();
+            assert!(!name.is_empty(), "Phase {:?} has empty display name", phase);
+            let desc = phase.description();
+            assert!(!desc.is_empty(), "Phase {:?} has empty description", phase);
+        }
+    }
+
+    #[test]
+    fn test_phase_error_with_item() {
+        let error = PhaseError::new("TEST_ERROR", "Something failed", false, "Try again")
+            .with_item("page-3");
+        assert_eq!(error.affected_item, Some("page-3".to_string()));
+    }
+
+    #[test]
+    fn test_pdf_upload_progress_status_summary() {
+        let upload = PdfUploadProgress::new(
+            "t1".to_string(), "p1".to_string(), "test.pdf".to_string(),
+        );
+        let summary = upload.status_summary();
+        assert!(!summary.is_empty());
+    }
+
+    #[test]
+    fn test_pdf_upload_progress_fail_phase() {
+        let mut upload = PdfUploadProgress::new(
+            "t1".to_string(), "p1".to_string(), "test.pdf".to_string(),
+        );
+        upload.start_phase(PipelinePhase::Upload, 1);
+        upload.fail_phase(
+            PipelinePhase::Upload,
+            PhaseError::new("UPLOAD_FAIL", "Disk full", false, "Free up space"),
+        );
+        let phase = upload.phase(PipelinePhase::Upload).unwrap();
+        assert_eq!(phase.status, PhaseStatus::Failed);
+    }
+
+    #[test]
+    fn test_pdf_upload_progress_active_phase() {
+        let mut upload = PdfUploadProgress::new(
+            "t1".to_string(), "p1".to_string(), "test.pdf".to_string(),
+        );
+        // No active phase initially
+        assert!(upload.active_phase().is_none());
+
+        upload.start_phase(PipelinePhase::Upload, 1);
+        let active = upload.active_phase().unwrap();
+        assert_eq!(active.phase, PipelinePhase::Upload);
+    }
 }

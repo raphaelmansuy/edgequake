@@ -9,6 +9,7 @@
 use edgequake_storage::traits::KVStorage;
 use tracing::{debug, warn};
 
+use crate::error::{ApiError, ResultExt};
 use crate::handlers::query_types::DocumentFilter;
 
 /// Resolve a `DocumentFilter` into a list of matching document IDs.
@@ -30,17 +31,14 @@ pub async fn resolve_document_filter(
     filter: &DocumentFilter,
     tenant_id: &Option<String>,
     workspace_id: &Option<String>,
-) -> Result<Option<Vec<String>>, crate::error::ApiError> {
+) -> Result<Option<Vec<String>>, ApiError> {
     // If all filter fields are None, return None (no filtering)
     if filter.date_from.is_none() && filter.date_to.is_none() && filter.document_pattern.is_none() {
         return Ok(None);
     }
 
     // Fetch all KV keys and find metadata keys
-    let keys = kv_storage
-        .keys()
-        .await
-        .map_err(|e| crate::error::ApiError::Internal(format!("Failed to list KV keys: {}", e)))?;
+    let keys = kv_storage.keys().await.internal_err("list KV keys")?;
 
     let metadata_keys: Vec<String> = keys
         .into_iter()
@@ -53,9 +51,10 @@ pub async fn resolve_document_filter(
     }
 
     // Batch-fetch all metadata values
-    let metadata_values = kv_storage.get_by_ids(&metadata_keys).await.map_err(|e| {
-        crate::error::ApiError::Internal(format!("Failed to fetch document metadata: {}", e))
-    })?;
+    let metadata_values = kv_storage
+        .get_by_ids(&metadata_keys)
+        .await
+        .internal_err("fetch document metadata")?;
 
     // Pre-parse the pattern into lowercase substrings for matching
     let patterns: Vec<String> = filter

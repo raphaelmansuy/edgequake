@@ -16,7 +16,7 @@
 
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode},
 };
 use edgequake_api::{AppState, Server, ServerConfig};
 use serde_json::{json, Value};
@@ -49,12 +49,6 @@ async fn extract_json(response: axum::response::Response) -> Value {
         .await
         .expect("Failed to read response body");
     serde_json::from_slice(&bytes).unwrap_or(json!({}))
-}
-
-async fn extract_status_and_json(response: axum::response::Response) -> (StatusCode, Value) {
-    let status = response.status();
-    let json = extract_json(response).await;
-    (status, json)
 }
 
 // ============================================================================
@@ -1005,7 +999,7 @@ mod workspace_tests {
             .oneshot(
                 Request::builder()
                     .method("GET")
-                    .uri(&format!("/api/v1/tenants/{}/workspaces", tenant_id))
+                    .uri(format!("/api/v1/tenants/{}/workspaces", tenant_id))
                     .body(Body::empty())
                     .unwrap(),
             )

@@ -403,4 +403,74 @@ mod tests {
         assert_eq!(deserialized.document_type, Some("pdf".to_string()));
         assert_eq!(deserialized.pdf_id, Some("pdf-uuid-456".to_string()));
     }
+
+    // ── Edge case tests (OODA-49) ──────────────────────────────────
+
+    #[test]
+    fn test_document_status_default_is_pending() {
+        assert_eq!(DocumentStatus::default(), DocumentStatus::Pending);
+    }
+
+    #[test]
+    fn test_document_status_processing_cannot_process() {
+        assert!(!DocumentStatus::Processing.can_process());
+        assert!(!DocumentStatus::Processing.is_terminal());
+    }
+
+    #[test]
+    fn test_document_status_processed_is_terminal_not_processable() {
+        assert!(DocumentStatus::Processed.is_terminal());
+        assert!(!DocumentStatus::Processed.can_process());
+    }
+
+    #[test]
+    fn test_document_status_failed_is_terminal_and_retriable() {
+        assert!(DocumentStatus::Failed.is_terminal());
+        assert!(DocumentStatus::Failed.can_process()); // retry
+    }
+
+    #[test]
+    fn test_document_content_len() {
+        let doc = Document::new("Hello".into(), None);
+        assert_eq!(doc.content_len(), 5);
+    }
+
+    #[test]
+    fn test_document_content_summary_truncated() {
+        let long = "x".repeat(200);
+        let doc = Document::new(long.clone(), None);
+        assert_eq!(doc.content_summary.as_ref().unwrap().len(), 100);
+    }
+
+    #[test]
+    fn test_document_new_with_track_id() {
+        let doc = Document::new_with_track_id("c".into(), None, "batch-1".into());
+        assert_eq!(doc.track_id, Some("batch-1".into()));
+    }
+
+    #[test]
+    fn test_mark_processed_with_chunks() {
+        let mut doc = Document::new("c".into(), None);
+        doc.mark_processed_with_chunks(vec!["c1".into(), "c2".into(), "c3".into()]);
+        assert_eq!(doc.status, DocumentStatus::Processed);
+        assert_eq!(doc.chunks_count, Some(3));
+        assert_eq!(doc.chunk_ids.as_ref().unwrap().len(), 3);
+        assert!(doc.processed_at.is_some());
+    }
+
+    #[test]
+    fn test_mark_processed_clears_error() {
+        let mut doc = Document::new("c".into(), None);
+        doc.mark_failed("oops".into());
+        assert!(doc.error.is_some());
+        doc.mark_processed(1);
+        assert!(doc.error.is_none());
+    }
+
+    #[test]
+    fn test_document_id_deterministic() {
+        let id1 = Document::generate_id("same");
+        let id2 = Document::generate_id("same");
+        assert_eq!(id1, id2);
+    }
 }

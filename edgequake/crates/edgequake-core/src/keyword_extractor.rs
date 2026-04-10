@@ -358,4 +358,81 @@ mod tests {
         assert!(keywords.is_empty());
         assert_eq!(keywords.len(), 0);
     }
+
+    // ── Edge case tests (OODA-46) ──────────────────────────────────
+
+    #[test]
+    fn test_default_keywords_are_empty() {
+        let k = ExtractedKeywords::default();
+        assert!(k.is_empty());
+        assert_eq!(k.len(), 0);
+        assert!(k.all().is_empty());
+    }
+
+    #[test]
+    fn test_extract_json_bare_json() {
+        let extractor = KeywordExtractor::new(Arc::new(edgequake_llm::MockProvider::new()));
+        let input = r#"Some preamble {"key": "val"} some suffix"#;
+        let result = extractor.extract_json(input);
+        assert_eq!(result, r#"{"key": "val"}"#);
+    }
+
+    #[test]
+    fn test_extract_json_generic_code_block() {
+        let extractor = KeywordExtractor::new(Arc::new(edgequake_llm::MockProvider::new()));
+        let input = "Here:\n```\n{\"a\": 1}\n```\n";
+        let result = extractor.extract_json(input);
+        assert_eq!(result, r#"{"a": 1}"#);
+    }
+
+    #[test]
+    fn test_extract_json_no_json() {
+        let extractor = KeywordExtractor::new(Arc::new(edgequake_llm::MockProvider::new()));
+        let input = "just plain text";
+        let result = extractor.extract_json(input);
+        assert_eq!(result, "just plain text");
+    }
+
+    #[test]
+    fn test_try_alternative_parse_sections() {
+        let extractor = KeywordExtractor::new(Arc::new(edgequake_llm::MockProvider::new()));
+        let input = "High-level keywords:\n- Climate change\n- Sustainability\nLow-level keywords:\n- Carbon dioxide\n- Deforestation";
+        let result = extractor.try_alternative_parse(input);
+        assert!(result.is_some());
+        let kw = result.unwrap();
+        assert!(!kw.high_level.is_empty());
+        assert!(!kw.low_level.is_empty());
+    }
+
+    #[test]
+    fn test_try_alternative_parse_empty() {
+        let extractor = KeywordExtractor::new(Arc::new(edgequake_llm::MockProvider::new()));
+        assert!(extractor.try_alternative_parse("").is_none());
+    }
+
+    #[test]
+    fn test_build_prompt_contains_query() {
+        let extractor = KeywordExtractor::new(Arc::new(edgequake_llm::MockProvider::new()));
+        let prompt = extractor.build_extraction_prompt("test query");
+        assert!(prompt.contains("test query"));
+    }
+
+    #[test]
+    fn test_parse_keywords_partial_json() {
+        let extractor = KeywordExtractor::new(Arc::new(edgequake_llm::MockProvider::new()));
+        // Only high_level present
+        let json = r#"{"high_level_keywords": ["AI"]}"#;
+        let result = extractor.parse_keywords(json).unwrap();
+        assert_eq!(result.high_level, vec!["AI"]);
+        assert!(result.low_level.is_empty());
+    }
+
+    #[test]
+    fn test_keywords_all_with_both_levels() {
+        let kw = ExtractedKeywords {
+            high_level: vec!["A".into()],
+            low_level: vec!["B".into(), "C".into()],
+        };
+        assert_eq!(kw.all(), vec!["A", "B", "C"]);
+    }
 }

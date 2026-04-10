@@ -130,3 +130,109 @@ impl std::str::FromStr for MembershipRole {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_role_default_is_member() {
+        assert_eq!(MembershipRole::default(), MembershipRole::Member);
+    }
+
+    #[test]
+    fn test_role_levels_ascending() {
+        assert!(MembershipRole::Readonly.level() < MembershipRole::Member.level());
+        assert!(MembershipRole::Member.level() < MembershipRole::Admin.level());
+        assert!(MembershipRole::Admin.level() < MembershipRole::Owner.level());
+    }
+
+    #[test]
+    fn test_role_can_write() {
+        assert!(!MembershipRole::Readonly.can_write());
+        assert!(MembershipRole::Member.can_write());
+        assert!(MembershipRole::Admin.can_write());
+        assert!(MembershipRole::Owner.can_write());
+    }
+
+    #[test]
+    fn test_role_can_manage_users() {
+        assert!(!MembershipRole::Readonly.can_manage_users());
+        assert!(!MembershipRole::Member.can_manage_users());
+        assert!(MembershipRole::Admin.can_manage_users());
+        assert!(MembershipRole::Owner.can_manage_users());
+    }
+
+    #[test]
+    fn test_role_can_delete_tenant() {
+        assert!(!MembershipRole::Admin.can_delete_tenant());
+        assert!(MembershipRole::Owner.can_delete_tenant());
+    }
+
+    #[test]
+    fn test_role_display_roundtrip() {
+        let roles = [
+            MembershipRole::Readonly,
+            MembershipRole::Member,
+            MembershipRole::Admin,
+            MembershipRole::Owner,
+        ];
+        for role in &roles {
+            let s = role.to_string();
+            let parsed: MembershipRole = s.parse().unwrap();
+            assert_eq!(*role, parsed);
+        }
+    }
+
+    #[test]
+    fn test_role_from_str_error() {
+        assert!("superadmin".parse::<MembershipRole>().is_err());
+    }
+
+    #[test]
+    fn test_membership_new_defaults() {
+        let uid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let m = Membership::new(uid, tid, MembershipRole::Admin);
+        assert_eq!(m.user_id, uid);
+        assert_eq!(m.tenant_id, tid);
+        assert_eq!(m.role, MembershipRole::Admin);
+        assert!(m.is_active);
+        assert!(m.workspace_id.is_none());
+        assert!(m.metadata.is_empty());
+    }
+
+    #[test]
+    fn test_membership_has_role() {
+        let uid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let m = Membership::new(uid, tid, MembershipRole::Admin);
+        assert!(m.has_role(MembershipRole::Member));
+        assert!(m.has_role(MembershipRole::Admin));
+        assert!(!m.has_role(MembershipRole::Owner));
+    }
+
+    #[test]
+    fn test_membership_can_access_workspace() {
+        let uid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let wid = Uuid::new_v4();
+        // No workspace scope = access to all
+        let m = Membership::new(uid, tid, MembershipRole::Member);
+        assert!(m.can_access_workspace(&wid));
+        // Scoped to specific workspace
+        let m2 = m.clone().for_workspace(wid);
+        assert!(m2.can_access_workspace(&wid));
+        assert!(!m2.can_access_workspace(&Uuid::new_v4()));
+    }
+
+    #[test]
+    fn test_inactive_membership_no_access() {
+        let uid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let wid = Uuid::new_v4();
+        let mut m = Membership::new(uid, tid, MembershipRole::Owner);
+        m.is_active = false;
+        assert!(!m.can_access_workspace(&wid));
+    }
+}

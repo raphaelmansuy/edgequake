@@ -4,7 +4,7 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 use super::types::PdfUploadOptions;
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::PdfDocumentStorage;
@@ -33,7 +33,84 @@ pub(super) fn get_pdf_storage(_state: &AppState) -> ApiResult<Arc<dyn PdfDocumen
     ))
 }
 
-/// Create PDF processing background task.
+/// Resolve workspace-level vision provider/model into `options`.
+///
+/// # Priority
+///
+/// ```text
+/// explicit form field  >  workspace explicit pair  >  workspace main LLM  >  server env
+/// ```
+///
+/// # Invariant
+///
+/// `vision_model` is only applied from workspace settings when `vision_llm_provider` is
+/// **also explicitly set** in the workspace.  An orphaned `vision_llm_model` (stored
+/// without a matching `vision_llm_provider`) would cause a provider/model mismatch —
+/// e.g. `"gpt-4.1-nano"` sent to Ollama → 404 Not Found.  When the effective provider
+/// is derived from the workspace main LLM (fallback), `default_vision_model_for_provider()`
+/// selects a provider-appropriate model instead.
+///
+/// @implements SPEC-040: Provider-specific vision config
+pub(super) async fn resolve_workspace_vision_options(
+    state: &AppState,
+    workspace_id: Uuid,
+    options: &mut PdfUploadOptions,
+) {
+    if options.vision_provider.is_some() && options.vision_model.is_some() {
+        return; // Both already set by caller — nothing to resolve.
+    }
+
+    let ws = match state.workspace_service.get_workspace(workspace_id).await {
+        Ok(Some(ws)) => ws,
+        _ => return, // Workspace not found or service error — fall through to env defaults.
+    };
+
+    if options.vision_provider.is_none() {
+        let effective = ws
+            .vision_llm_provider
+            .as_deref()
+            .filter(|p| !p.is_empty())
+            .unwrap_or(&ws.llm_provider);
+        debug!(
+            "SPEC-040: Resolved vision_provider={} (workspace vision={:?}, main={})",
+            effective, ws.vision_llm_provider, ws.llm_provider
+        );
+        options.vision_provider = Some(effective.to_string());
+    }
+
+    if options.vision_model.is_none() {
+        // INVARIANT: only apply workspace vision_model when vision_provider is also
+        // explicitly configured in the workspace.  Applying an orphaned model (one saved
+        // for a different provider) causes provider/model mismatch errors.
+        let has_explicit_vision_provider = ws
+            .vision_llm_provider
+            .as_deref()
+            .filter(|p| !p.is_empty())
+            .is_some();
+
+        if has_explicit_vision_provider {
+            if let Some(ref wm) = ws.vision_llm_model {
+                if !wm.is_empty() {
+                    debug!(
+                        "SPEC-040: Applying workspace vision_model={} (explicit provider={})",
+                        wm,
+                        ws.vision_llm_provider.as_deref().unwrap_or("")
+                    );
+                    options.vision_model = Some(wm.clone());
+                }
+            }
+        } else {
+            debug!(
+                "SPEC-040: Skipping workspace vision_model={:?} — no explicit vision_provider; \
+                 will derive from resolved provider via default_vision_model_for_provider()",
+                ws.vision_llm_model
+            );
+        }
+        // If vision_model is still None, resolved_vision_provider() +
+        // default_vision_model_for_provider() pick the right model at task creation.
+    }
+}
+
 pub(super) async fn create_pdf_processing_task(
     state: &AppState,
     context: &TenantContext,
@@ -78,8 +155,7 @@ pub(super) async fn create_pdf_processing_task(
         max_retries: 3,
         consecutive_timeout_failures: 0,
         circuit_breaker_tripped: false,
-        task_data: serde_json::to_value(&task_data)
-            .map_err(|e| ApiError::Internal(format!("Failed to serialize task data: {}", e)))?,
+        task_data: serde_json::to_value(&task_data).internal_err("serialize task data")?,
         metadata: None,
         progress: None,
         result: None,
@@ -90,14 +166,14 @@ pub(super) async fn create_pdf_processing_task(
         .task_storage
         .create_task(&task)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+        .internal_err("create task")?;
 
     // Queue task for background processing (critical - missing this causes tasks to stay in pending)
     state
         .task_queue
         .send(task)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+        .internal_err("queue task")?;
 
     debug!(
         "Created and queued PDF processing task: id={}, pdf_id={}",

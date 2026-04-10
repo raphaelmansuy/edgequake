@@ -50,10 +50,13 @@ pub mod token_budget;
 pub mod types;
 pub mod utils;
 pub mod workspace_service;
+mod workspace_utils;
 
 // Production service implementations (feature-gated)
 #[cfg(feature = "postgres")]
 mod conversation_service_impl;
+#[cfg(feature = "postgres")]
+mod workspace_row_types;
 #[cfg(feature = "postgres")]
 mod workspace_service_impl;
 

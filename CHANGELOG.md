@@ -2,6 +2,72 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.19] - 2026-04-10
+
+### Added
+
+- **Explicit provider/model transparency in UI** — All three server-level provider
+  configurations (Extraction LLM, Embedding, Vision) are now visible everywhere in the
+  interface with their actual provider name and model identifier, replacing the opaque
+  "Server Default" label that hid effective runtime configuration.
+
+  **Backend (`/health` endpoint):**
+  - Added `VisionProviderHealth` struct (`name`, `default_model`) to `ProvidersHealth`.
+  - `/health` response now carries `providers.vision.{name, default_model}` — derived using
+    the same `default_vision_model_for_provider()` single source of truth used by the PDF
+    upload path. No new endpoint needed; vision defaults piggyback on existing `/health`.
+
+  **Frontend (`effective-provider-badge.tsx`):**
+  - New `EffectiveProviderBadge` component renders `provider / model` with a clear source
+    indicator: Server icon for "server default", Sparkles for "workspace override".
+  - Pure resolver functions `resolveEffectiveLlmConfig()`, `resolveEffectiveEmbeddingConfig()`,
+    `resolveEffectiveVisionConfig()` mirror the backend priority rules exactly — including the
+    orphaned-model invariant (a workspace model without a matching provider is silently ignored,
+    consistent with `helpers.rs`).
+
+  **Dashboard System Status card (`system-status.tsx`):**
+  - Rewritten to show three explicit rows: **Extraction LLM**, **Embedding**, **Vision LLM**,
+    each with the actual resolved provider name and model string. Previously showed only the
+    LLM provider name badge.
+
+  **Workspace settings page (`workspace/page.tsx`):**
+  - LLM, Embedding, and Vision view-mode panels now render `EffectiveProviderBadge` instead
+    of the opaque "Server Default" text, so operators always see what will actually run.
+
+- **Retry button on failed documents** — The document detail page now shows a "Retry" button
+  inline with the error message when a PDF document has failed processing. This calls the backend
+  retry endpoint with the current server/workspace vision config, resolving the stale-task
+  provider mismatch without requiring a re-upload.
+
+- **Vision provider model mismatch E2E spec** (`e2e/vision-provider-model-mismatch.spec.ts`) —
+  Playwright test covering the orphaned-model scenario and explicit provider display.
+
+### Fixed
+
+- **MISSION-02 — Document deletion correctness (bulk and single)**:
+  - **GAP-4**: Entity embeddings are now deleted when graph nodes are removed, eliminating
+    dangling vector store entries after bulk delete.
+  - **GAP-5**: Content-hash duplicate-detection keys are now cleared on deletion so a
+    re-upload of the same file is correctly processed instead of silently skipped.
+  - **GAP-6**: In-flight tasks are cancelled before skipped documents are ignored during bulk
+    delete, preventing the processor from writing into an otherwise cleared system.
+  - `storage_helpers.rs` refactored: `cleanup_document_graph_data_single()` is the new DRY
+    single-path for per-document graph cleanup with workspace isolation and 2-call graph
+    efficiency (down from 3); old name removed.
+
+- **Compiler regressions** — Restored missing `ApiError` import in `reprocess.rs` and missing
+  `ResultExt` import in `operations.rs` that caused `cargo check` failures on the full workspace.
+
+- **Stuck document recovery** — `recover_stuck` now calls the correct renamed helper
+  `cleanup_document_graph_data_single()` instead of the removed `cleanup_document_graph_data()`.
+
+### Tests
+
+- 1,072 Rust unit tests — all passing (up from 1,030 in v0.9.18).
+- New E2E document deletion test suite (`tests/e2e_document_deletion.rs`, 742 lines) covering
+  bulk delete, single delete, stuck-document recovery, and content-hash re-upload scenarios.
+- `health_types.rs` unit tests extended to assert `vision` field serialization.
+
 ## [0.9.18] - 2026-04-09
 
 ### Fixed

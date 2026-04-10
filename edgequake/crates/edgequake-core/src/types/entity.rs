@@ -242,4 +242,109 @@ mod tests {
         assert!(entity1.file_path.as_ref().unwrap().contains("/file1.txt"));
         assert!(entity1.file_path.as_ref().unwrap().contains("/file2.txt"));
     }
+
+    // ── Edge case tests (OODA-45) ──────────────────────────────────
+
+    #[test]
+    fn test_normalize_name_empty() {
+        assert_eq!(GraphEntity::normalize_name(""), "");
+    }
+
+    #[test]
+    fn test_normalize_name_whitespace_only() {
+        assert_eq!(GraphEntity::normalize_name("   "), "");
+    }
+
+    #[test]
+    fn test_generate_id_matches_normalize_name() {
+        assert_eq!(
+            GraphEntity::generate_id("  foo Bar "),
+            GraphEntity::normalize_name("  foo Bar ")
+        );
+    }
+
+    #[test]
+    fn test_entity_type_uppercased() {
+        let e = GraphEntity::new(
+            "x".into(),
+            "person".into(),
+            "d".into(),
+            "c".into(),
+            None,
+        );
+        assert_eq!(e.entity_type, "PERSON");
+    }
+
+    #[test]
+    fn test_source_count_empty_source_id() {
+        let mut e = GraphEntity::new("x".into(), "T".into(), "d".into(), "".into(), None);
+        // Constructor sets source_id to provided value
+        e.source_id = String::new();
+        assert_eq!(e.source_count(), 0);
+        assert!(e.get_sources().is_empty());
+    }
+
+    #[test]
+    fn test_add_source_to_empty() {
+        let mut e = GraphEntity::new("x".into(), "T".into(), "d".into(), "".into(), None);
+        e.source_id = String::new();
+        e.add_source("chunk-A");
+        assert_eq!(e.source_id, "chunk-A");
+        assert_eq!(e.source_count(), 1);
+    }
+
+    #[test]
+    fn test_merge_empty_description_into_nonempty() {
+        let mut e1 = GraphEntity::new("E".into(), "T".into(), "Desc".into(), "c1".into(), None);
+        let e2 = GraphEntity::new("E".into(), "T".into(), "".into(), "c2".into(), None);
+        e1.merge(&e2);
+        assert_eq!(e1.description, "Desc");
+    }
+
+    #[test]
+    fn test_merge_nonempty_into_empty_description() {
+        let mut e1 = GraphEntity::new("E".into(), "T".into(), "".into(), "c1".into(), None);
+        let e2 = GraphEntity::new("E".into(), "T".into(), "New".into(), "c2".into(), None);
+        e1.merge(&e2);
+        assert_eq!(e1.description, "New");
+    }
+
+    #[test]
+    fn test_merge_no_file_path() {
+        let mut e1 = GraphEntity::new("E".into(), "T".into(), "d".into(), "c1".into(), None);
+        let e2 = GraphEntity::new("E".into(), "T".into(), "d2".into(), "c2".into(), None);
+        e1.merge(&e2);
+        assert!(e1.file_path.is_none());
+    }
+
+    #[test]
+    fn test_merge_duplicate_file_path() {
+        let mut e1 = GraphEntity::new(
+            "E".into(), "T".into(), "d".into(), "c1".into(),
+            Some("/a.txt".into()),
+        );
+        let e2 = GraphEntity::new(
+            "E".into(), "T".into(), "d2".into(), "c2".into(),
+            Some("/a.txt".into()),
+        );
+        e1.merge(&e2);
+        // Should NOT duplicate the same file path
+        assert_eq!(e1.file_path.as_ref().unwrap(), "/a.txt");
+    }
+
+    #[test]
+    fn test_merge_adds_file_path_when_self_has_none() {
+        let mut e1 = GraphEntity::new("E".into(), "T".into(), "d".into(), "c1".into(), None);
+        let e2 = GraphEntity::new(
+            "E".into(), "T".into(), "d2".into(), "c2".into(),
+            Some("/new.txt".into()),
+        );
+        e1.merge(&e2);
+        assert_eq!(e1.file_path.as_ref().unwrap(), "/new.txt");
+    }
+
+    #[test]
+    fn test_max_source_ids_constant() {
+        assert_eq!(GraphEntity::MAX_SOURCE_IDS, 300);
+    }
 }

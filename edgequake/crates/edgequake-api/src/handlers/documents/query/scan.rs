@@ -5,7 +5,7 @@ use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{parse_uuid, ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
@@ -198,25 +198,24 @@ pub async fn scan_directory(
             };
 
             let task = Task::new(
-                uuid::Uuid::parse_str(&tenant_id)
-                    .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
-                uuid::Uuid::parse_str(&workspace_id)
-                    .map_err(|_| ApiError::ValidationError("Invalid workspace ID".to_string()))?,
+                parse_uuid(&tenant_id, "tenant ID")?,
+                parse_uuid(&workspace_id, "workspace ID")?,
                 TaskType::Insert,
-                serde_json::to_value(task_data).unwrap(),
+                // WHY expect: TextInsertData fields are all primitives/Strings → always serializable
+                serde_json::to_value(task_data).expect("TextInsertData is always serializable"),
             );
 
             state
                 .task_storage
                 .create_task(&task)
                 .await
-                .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+                .internal_err("create scan task")?;
 
             state
                 .task_queue
                 .send(task)
                 .await
-                .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+                .internal_err("queue scan task")?;
         }
 
         queued_files.push(file_path.display().to_string());

@@ -21,14 +21,46 @@ use uuid::Uuid;
 
 /// Test helper: Clean environment for isolated provider tests
 fn clean_provider_env() {
-    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
-    std::env::remove_var("OLLAMA_HOST");
-    std::env::remove_var("OLLAMA_MODEL");
-    std::env::remove_var("LMSTUDIO_HOST");
-    std::env::remove_var("LMSTUDIO_MODEL");
-    std::env::remove_var("OPENAI_API_KEY");
-    std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL");
-    std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER");
+    // WHY: provider auto-detection inspects several third-party credentials.
+    // Tests must clear the whole surface so local secrets do not change results.
+    for key in [
+        "EDGEQUAKE_LLM_PROVIDER",
+        "EDGEQUAKE_LLM_MODEL",
+        "EDGEQUAKE_EMBEDDING_PROVIDER",
+        "EDGEQUAKE_EMBEDDING_MODEL",
+        "EDGEQUAKE_EMBEDDING_DIMENSION",
+        "EDGEQUAKE_DEFAULT_LLM_PROVIDER",
+        "EDGEQUAKE_DEFAULT_LLM_MODEL",
+        "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER",
+        "EDGEQUAKE_DEFAULT_EMBEDDING_MODEL",
+        "EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION",
+        "OLLAMA_HOST",
+        "OLLAMA_MODEL",
+        "LMSTUDIO_HOST",
+        "LMSTUDIO_MODEL",
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "GOOGLE_ACCESS_TOKEN",
+        "GOOGLE_CLOUD_PROJECT",
+        "GOOGLE_CLOUD_REGION",
+        "GOOGLE_CLOUD_LOCATION",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "MISTRAL_API_KEY",
+        "XAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_CONTENTGEN_API_KEY",
+        "AZURE_OPENAI_CONTENTGEN_API_ENDPOINT",
+        "MINIMAX_API_KEY",
+        "HF_TOKEN",
+        "HUGGINGFACE_TOKEN",
+    ] {
+        std::env::remove_var(key);
+    }
 }
 
 // ============================================================================
@@ -88,7 +120,7 @@ async fn test_workspace_custom_embedding_config() {
     let service = InMemoryWorkspaceService::new();
 
     // Create a tenant first
-    let tenant = Tenant::new("Test Tenant", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Test Tenant", format!("test-{}", Uuid::new_v4()));
     let created_tenant = service.create_tenant(tenant).await.unwrap();
 
     // Create workspace with custom embedding config
@@ -126,7 +158,7 @@ async fn test_workspace_default_embedding_config() {
 
     let service = InMemoryWorkspaceService::new();
 
-    let tenant = Tenant::new("Test Tenant", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Test Tenant", format!("test-{}", Uuid::new_v4()));
     let created_tenant = service.create_tenant(tenant).await.unwrap();
 
     let request = CreateWorkspaceRequest {
@@ -194,7 +226,7 @@ async fn test_workspace_provider_switching() {
 
     let service = InMemoryWorkspaceService::new();
 
-    let tenant = Tenant::new("Test Tenant", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Test Tenant", format!("test-{}", Uuid::new_v4()));
     let created_tenant = service.create_tenant(tenant).await.unwrap();
 
     // Create OpenAI-configured workspace
@@ -389,7 +421,7 @@ async fn test_empty_workspace_embedding_config() {
 
     let service = InMemoryWorkspaceService::new();
 
-    let tenant = Tenant::new("Test Tenant", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Test Tenant", format!("test-{}", Uuid::new_v4()));
     let created_tenant = service.create_tenant(tenant).await.unwrap();
 
     let request = CreateWorkspaceRequest {
@@ -427,7 +459,7 @@ async fn test_concurrent_workspace_creation() {
 
     let service = std::sync::Arc::new(InMemoryWorkspaceService::new());
 
-    let tenant = Tenant::new("Test Tenant", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Test Tenant", format!("test-{}", Uuid::new_v4()));
     let created_tenant = service.create_tenant(tenant).await.unwrap();
     let tenant_id = created_tenant.tenant_id;
 
@@ -477,7 +509,7 @@ async fn test_lmstudio_workspace_config() {
 
     let service = InMemoryWorkspaceService::new();
 
-    let tenant = Tenant::new("Test Tenant", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Test Tenant", format!("test-{}", Uuid::new_v4()));
     let created_tenant = service.create_tenant(tenant).await.unwrap();
 
     let request = CreateWorkspaceRequest {

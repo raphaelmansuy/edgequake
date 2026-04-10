@@ -470,8 +470,9 @@ pub async fn delete_injection(
     //    WHY: Injection pipeline writes graph nodes with source_ids pointing to doc_id.
     //    Leaving those nodes pollutes future queries with stale knowledge (TS-004).
     //    This reuses the same cleanup path as document deletion (SRP/DRY).
-    if let Err(e) = crate::handlers::documents::storage_helpers::cleanup_document_graph_data(
+    if let Err(e) = crate::handlers::documents::storage_helpers::cleanup_document_graph_data_single(
         &doc_id,
+        None,
         &state.graph_storage,
         Some(&vector_storage),
     )
@@ -1014,4 +1015,186 @@ async fn process_injection_pipeline(
         "Injection pipeline processing complete"
     );
     Ok((entity_count, stored_chunk_ids))
+}
+
+// =========================================================================
+// OODA-24: Unit tests for injection helper functions
+// =========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_injection_doc_id_format() {
+        let id = injection_doc_id("ws-1", "inj-42");
+        assert_eq!(id, "injection::ws-1::inj-42");
+    }
+
+    #[test]
+    fn test_injection_meta_key_format() {
+        let key = injection_meta_key("ws-1", "inj-42");
+        assert_eq!(key, "injection::ws-1::inj-42-metadata");
+    }
+
+    #[test]
+    fn test_validate_name_empty() {
+        assert!(validate_name("").is_err());
+    }
+
+    #[test]
+    fn test_validate_name_too_long() {
+        let long = "a".repeat(101);
+        assert!(validate_name(&long).is_err());
+    }
+
+    #[test]
+    fn test_validate_name_at_boundary() {
+        // Exactly 100 chars = valid
+        let name = "a".repeat(100);
+        assert!(validate_name(&name).is_ok());
+        // Single char = valid
+        assert!(validate_name("x").is_ok());
+    }
+
+    #[test]
+    fn test_validate_content_empty() {
+        assert!(validate_content("").is_err());
+    }
+
+    #[test]
+    fn test_validate_content_whitespace_only() {
+        // WHY: trim() makes whitespace-only "empty"
+        assert!(validate_content("   \n\t  ").is_err());
+    }
+
+    #[test]
+    fn test_validate_content_over_limit() {
+        let big = "x".repeat(MAX_INJECTION_CONTENT_BYTES + 1);
+        assert!(validate_content(&big).is_err());
+    }
+
+    #[test]
+    fn test_validate_content_at_limit() {
+        let exact = "x".repeat(MAX_INJECTION_CONTENT_BYTES);
+        assert!(validate_content(&exact).is_ok());
+    }
+
+    #[test]
+    fn test_str_field_present() {
+        let val = serde_json::json!({"name": "Alice"});
+        assert_eq!(str_field(&val, "name"), "Alice");
+    }
+
+    #[test]
+    fn test_str_field_missing() {
+        let val = serde_json::json!({});
+        assert_eq!(str_field(&val, "name"), "");
+    }
+
+    #[test]
+    fn test_str_field_wrong_type() {
+        // WHY: Non-string value must not panic, returns ""
+        let val = serde_json::json!({"name": 42});
+        assert_eq!(str_field(&val, "name"), "");
+    }
+
+    #[test]
+    fn test_str_field_or_default() {
+        let val = serde_json::json!({});
+        assert_eq!(str_field_or(&val, "status", "unknown"), "unknown");
+    }
+
+    #[test]
+    fn test_str_field_or_present() {
+        let val = serde_json::json!({"status": "active"});
+        assert_eq!(str_field_or(&val, "status", "unknown"), "active");
+    }
+
+    #[test]
+    fn test_build_meta_minimal() {
+        let meta = build_meta(
+            "inj-1",
+            "Test",
+            "Content",
+            "ws-1",
+            "text",
+            None,
+            "pending",
+            1,
+            0,
+            None,
+            "doc-1",
+            "2025-01-01T00:00:00Z",
+            "2025-01-01T00:00:00Z",
+            None,
+        );
+        assert_eq!(meta["id"], "inj-1");
+        assert_eq!(meta["status"], "pending");
+        assert!(meta.get("source_filename").is_none());
+        assert!(meta.get("error").is_none());
+    }
+
+    #[test]
+    fn test_build_meta_with_optional_fields() {
+        let chunk_ids = vec!["c1".to_string(), "c2".to_string()];
+        let meta = build_meta(
+            "inj-1",
+            "Test",
+            "Content",
+            "ws-1",
+            "file",
+            Some("test.pdf"),
+            "completed",
+            2,
+            5,
+            Some(&chunk_ids),
+            "doc-1",
+            "2025-01-01T00:00:00Z",
+            "2025-01-02T00:00:00Z",
+            Some("timeout"),
+        );
+        assert_eq!(meta["source_filename"], "test.pdf");
+        assert_eq!(meta["error"], "timeout");
+        assert_eq!(meta["chunk_ids"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_summary_from_meta_full() {
+        let meta = serde_json::json!({
+            "id": "inj-1",
+            "name": "Test Injection",
+            "status": "completed",
+            "entity_count": 5,
+            "source_type": "text",
+            "error": null,
+            "created_at": "2025-01-01",
+            "updated_at": "2025-01-02",
+        });
+        let summary = summary_from_meta(&meta);
+        assert_eq!(summary.injection_id, "inj-1");
+        assert_eq!(summary.name, "Test Injection");
+        assert_eq!(summary.entity_count, 5);
+        assert!(summary.error.is_none());
+    }
+
+    #[test]
+    fn test_summary_from_meta_empty() {
+        // WHY: Missing fields should use defaults, not panic
+        let meta = serde_json::json!({});
+        let summary = summary_from_meta(&meta);
+        assert_eq!(summary.injection_id, "");
+        assert_eq!(summary.status, "unknown");
+        assert_eq!(summary.entity_count, 0);
+        assert_eq!(summary.source_type, "text");
+    }
+
+    #[test]
+    fn test_detail_from_meta_defaults() {
+        let meta = serde_json::json!({});
+        let detail = detail_from_meta(&meta);
+        assert_eq!(detail.injection_id, "");
+        assert_eq!(detail.version, 1); // default version
+        assert_eq!(detail.status, "unknown");
+    }
 }

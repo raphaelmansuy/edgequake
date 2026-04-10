@@ -274,4 +274,77 @@ mod tests {
         let config_large = EmbeddingConfig::openai_large();
         assert_eq!(config_large.embedding_dim, 3072);
     }
+
+    // ── Edge case tests (OODA-46) ──────────────────────────────────
+
+    #[test]
+    fn test_cosine_similarity_zero_vectors() {
+        let z1 = Embedding::new("a".into(), vec![0.0, 0.0], None);
+        let z2 = Embedding::new("b".into(), vec![0.0, 0.0], None);
+        assert!((z1.cosine_similarity(&z2) - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_normalize_zero_vector() {
+        let mut emb = Embedding::new("z".into(), vec![0.0, 0.0, 0.0], None);
+        emb.normalize();
+        assert!(emb.vector.iter().all(|&v| v == 0.0));
+    }
+
+    #[test]
+    fn test_normalized_returns_copy() {
+        let emb = Embedding::new("x".into(), vec![3.0, 4.0], None);
+        let normed = emb.normalized();
+        // Original unchanged
+        assert!((emb.vector[0] - 3.0).abs() < f32::EPSILON);
+        // Copy is unit length
+        let norm: f32 = normed.vector.iter().map(|x| x * x).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_euclidean_distance_same_point() {
+        let e = Embedding::new("a".into(), vec![1.0, 2.0, 3.0], None);
+        assert!((e.euclidean_distance(&e) - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_empty_vector_dimension() {
+        let e = Embedding::new("e".into(), vec![], None);
+        assert_eq!(e.dimension(), 0);
+    }
+
+    #[test]
+    fn test_with_metadata_constructor() {
+        let mut meta = HashMap::new();
+        meta.insert("source".into(), serde_json::json!("doc1"));
+        let e = Embedding::with_metadata("id".into(), vec![1.0], Some("text".into()), meta);
+        assert_eq!(e.get_metadata("source"), Some(&serde_json::json!("doc1")));
+    }
+
+    #[test]
+    fn test_embedding_config_default() {
+        let c = EmbeddingConfig::default();
+        assert_eq!(c.embedding_dim, 1536);
+        assert_eq!(c.max_token_size, 8192);
+        assert_eq!(c.batch_size, 100);
+        assert_eq!(c.model_name, "text-embedding-3-small");
+    }
+
+    #[test]
+    fn test_embedding_config_new() {
+        let c = EmbeddingConfig::new(768, 512, "custom-model".into());
+        assert_eq!(c.embedding_dim, 768);
+        assert_eq!(c.max_token_size, 512);
+        assert_eq!(c.model_name, "custom-model");
+        assert_eq!(c.batch_size, 100);
+    }
+
+    #[test]
+    fn test_cosine_similarity_opposite_vectors() {
+        let e1 = Embedding::new("a".into(), vec![1.0, 0.0], None);
+        let e2 = Embedding::new("b".into(), vec![-1.0, 0.0], None);
+        let sim = e1.cosine_similarity(&e2);
+        assert!((sim - (-1.0)).abs() < 1e-6);
+    }
 }

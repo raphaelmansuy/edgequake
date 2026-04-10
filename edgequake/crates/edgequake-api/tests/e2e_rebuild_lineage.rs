@@ -6,21 +6,14 @@
 //! @implements SPEC-032: Provider Lineage Tracking
 //! @implements OODA-207-210: Rebuild Lineage Verification
 
+mod common;
+
+use common::clear_provider_detection_env;
 use edgequake_core::types::CreateWorkspaceRequest;
 use edgequake_core::Tenant;
 use edgequake_pipeline::ProcessingStats;
 use serial_test::serial;
 use uuid::Uuid;
-
-/// Test helper: Clean environment for isolated tests
-fn clean_provider_env() {
-    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
-    std::env::remove_var("OLLAMA_HOST");
-    std::env::remove_var("OLLAMA_MODEL");
-    std::env::remove_var("LMSTUDIO_HOST");
-    std::env::remove_var("LMSTUDIO_MODEL");
-    std::env::remove_var("OPENAI_API_KEY");
-}
 
 // ============================================================================
 // OODA 207: ProcessingStats Provider Fields Tests
@@ -30,16 +23,16 @@ fn clean_provider_env() {
 #[tokio::test]
 #[serial]
 async fn test_processing_stats_stores_provider_lineage() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
-    let mut stats = ProcessingStats::default();
-
-    // Set provider lineage
-    stats.llm_provider = Some("openai".to_string());
-    stats.llm_model = Some("gpt-4o-mini".to_string());
-    stats.embedding_provider = Some("openai".to_string());
-    stats.embedding_model = Some("text-embedding-3-small".to_string());
-    stats.embedding_dimensions = Some(1536);
+    let stats = ProcessingStats {
+        llm_provider: Some("openai".to_string()),
+        llm_model: Some("gpt-4o-mini".to_string()),
+        embedding_provider: Some("openai".to_string()),
+        embedding_model: Some("text-embedding-3-small".to_string()),
+        embedding_dimensions: Some(1536),
+        ..ProcessingStats::default()
+    };
 
     // Verify
     assert_eq!(stats.llm_provider, Some("openai".to_string()));
@@ -51,22 +44,24 @@ async fn test_processing_stats_stores_provider_lineage() {
     );
     assert_eq!(stats.embedding_dimensions, Some(1536));
 
-    clean_provider_env();
+    clear_provider_detection_env();
 }
 
 /// Test that ProcessingStats serializes provider lineage to JSON.
 #[tokio::test]
 #[serial]
 async fn test_processing_stats_serializes_lineage() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
-    let mut stats = ProcessingStats::default();
-    stats.llm_provider = Some("ollama".to_string());
-    stats.llm_model = Some("gemma3:12b".to_string());
-    stats.embedding_provider = Some("ollama".to_string());
-    stats.embedding_model = Some("nomic-embed-text:latest".to_string());
-    stats.embedding_dimensions = Some(768);
-    stats.chunk_count = 5;
+    let stats = ProcessingStats {
+        llm_provider: Some("ollama".to_string()),
+        llm_model: Some("gemma3:12b".to_string()),
+        embedding_provider: Some("ollama".to_string()),
+        embedding_model: Some("nomic-embed-text:latest".to_string()),
+        embedding_dimensions: Some(768),
+        chunk_count: 5,
+        ..ProcessingStats::default()
+    };
 
     // Serialize and deserialize
     let json = serde_json::to_string(&stats).expect("Should serialize");
@@ -80,7 +75,7 @@ async fn test_processing_stats_serializes_lineage() {
     assert_eq!(parsed["embedding_dimensions"], 768);
     assert_eq!(parsed["chunk_count"], 5);
 
-    clean_provider_env();
+    clear_provider_detection_env();
 }
 
 // ============================================================================
@@ -91,12 +86,12 @@ async fn test_processing_stats_serializes_lineage() {
 #[tokio::test]
 #[serial]
 async fn test_workspace_pipeline_uses_workspace_config_for_lineage() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
     let state = edgequake_api::AppState::new_memory(None::<String>);
 
     // Create tenant
-    let tenant = Tenant::new("Lineage Test", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Lineage Test", format!("test-{}", Uuid::new_v4()));
     let created_tenant = state
         .workspace_service
         .create_tenant(tenant)
@@ -140,7 +135,7 @@ async fn test_workspace_pipeline_uses_workspace_config_for_lineage() {
     // Pipeline should exist
     assert!(std::sync::Arc::strong_count(&pipeline) >= 1);
 
-    clean_provider_env();
+    clear_provider_detection_env();
 }
 
 // ============================================================================
@@ -151,12 +146,12 @@ async fn test_workspace_pipeline_uses_workspace_config_for_lineage() {
 #[tokio::test]
 #[serial]
 async fn test_workspace_update_changes_lineage_source() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
     let state = edgequake_api::AppState::new_memory(None::<String>);
 
     // Create tenant and workspace
-    let tenant = Tenant::new("Update Test", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Update Test", format!("test-{}", Uuid::new_v4()));
     let created_tenant = state
         .workspace_service
         .create_tenant(tenant)
@@ -214,7 +209,7 @@ async fn test_workspace_update_changes_lineage_source() {
     // Pipeline should exist with new config
     assert!(std::sync::Arc::strong_count(&pipeline) >= 1);
 
-    clean_provider_env();
+    clear_provider_detection_env();
 }
 
 // ============================================================================
@@ -225,12 +220,12 @@ async fn test_workspace_update_changes_lineage_source() {
 #[tokio::test]
 #[serial]
 async fn test_workspaces_have_isolated_lineage_config() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
     let state = edgequake_api::AppState::new_memory(None::<String>);
 
     // Create tenant
-    let tenant = Tenant::new("Isolation Test", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Isolation Test", format!("test-{}", Uuid::new_v4()));
     let created_tenant = state
         .workspace_service
         .create_tenant(tenant)
@@ -303,32 +298,36 @@ async fn test_workspaces_have_isolated_lineage_config() {
     // Pipelines should be different instances
     assert!(!std::sync::Arc::ptr_eq(&pipeline_a, &pipeline_b));
 
-    clean_provider_env();
+    clear_provider_detection_env();
 }
 
 /// Test that ProcessingStats can differentiate between workspaces.
 #[tokio::test]
 #[serial]
 async fn test_processing_stats_workspace_differentiation() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
     // Create stats for workspace A (OpenAI)
-    let mut stats_a = ProcessingStats::default();
-    stats_a.llm_provider = Some("openai".to_string());
-    stats_a.llm_model = Some("gpt-4o-mini".to_string());
-    stats_a.embedding_provider = Some("openai".to_string());
-    stats_a.embedding_model = Some("text-embedding-3-small".to_string());
-    stats_a.embedding_dimensions = Some(1536);
-    stats_a.chunk_count = 10;
+    let stats_a = ProcessingStats {
+        llm_provider: Some("openai".to_string()),
+        llm_model: Some("gpt-4o-mini".to_string()),
+        embedding_provider: Some("openai".to_string()),
+        embedding_model: Some("text-embedding-3-small".to_string()),
+        embedding_dimensions: Some(1536),
+        chunk_count: 10,
+        ..ProcessingStats::default()
+    };
 
     // Create stats for workspace B (Ollama)
-    let mut stats_b = ProcessingStats::default();
-    stats_b.llm_provider = Some("ollama".to_string());
-    stats_b.llm_model = Some("gemma3:12b".to_string());
-    stats_b.embedding_provider = Some("ollama".to_string());
-    stats_b.embedding_model = Some("nomic-embed-text:latest".to_string());
-    stats_b.embedding_dimensions = Some(768);
-    stats_b.chunk_count = 10;
+    let stats_b = ProcessingStats {
+        llm_provider: Some("ollama".to_string()),
+        llm_model: Some("gemma3:12b".to_string()),
+        embedding_provider: Some("ollama".to_string()),
+        embedding_model: Some("nomic-embed-text:latest".to_string()),
+        embedding_dimensions: Some(768),
+        chunk_count: 10,
+        ..ProcessingStats::default()
+    };
 
     // Verify they are different
     assert_ne!(stats_a.llm_provider, stats_b.llm_provider);
@@ -340,5 +339,5 @@ async fn test_processing_stats_workspace_differentiation() {
     // Same chunk count (data isolation, not lineage)
     assert_eq!(stats_a.chunk_count, stats_b.chunk_count);
 
-    clean_provider_env();
+    clear_provider_detection_env();
 }

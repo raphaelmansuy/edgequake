@@ -53,8 +53,8 @@ async fn create_test_workspace(
 ) -> edgequake_core::Workspace {
     // Create tenant first
     let tenant = Tenant::new(
-        &format!("Test Tenant {}", name),
-        &format!("test-{}", Uuid::new_v4()),
+        format!("Test Tenant {}", name),
+        format!("test-{}", Uuid::new_v4()),
     );
     let created_tenant = state
         .workspace_service

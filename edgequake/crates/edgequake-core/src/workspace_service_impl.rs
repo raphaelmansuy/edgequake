@@ -29,8 +29,6 @@ use async_trait::async_trait;
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
 #[cfg(feature = "postgres")]
-use std::collections::HashMap;
-#[cfg(feature = "postgres")]
 use uuid::Uuid;
 
 #[cfg(feature = "postgres")]
@@ -38,7 +36,7 @@ use crate::{
     error::{Error, Result},
     types::{
         CreateWorkspaceRequest, Membership, MembershipRole, MetricsSnapshot, MetricsTriggerType,
-        Tenant, TenantContext, TenantPlan, UpdateWorkspaceRequest, Workspace, WorkspaceStats,
+        Tenant, TenantContext, UpdateWorkspaceRequest, Workspace, WorkspaceStats,
     },
     workspace_service::{UpdateTenantQuotaResult, WorkspaceService},
 };
@@ -117,26 +115,6 @@ impl WorkspaceServiceImpl {
         );
 
         Ok((default_tenant_id, default_workspace_id))
-    }
-
-    /// Parse TenantPlan from string
-    fn parse_plan(s: &str) -> TenantPlan {
-        match s.to_lowercase().as_str() {
-            "basic" => TenantPlan::Basic,
-            "pro" => TenantPlan::Pro,
-            "enterprise" => TenantPlan::Enterprise,
-            _ => TenantPlan::Free,
-        }
-    }
-
-    /// Parse MembershipRole from string
-    fn parse_role(s: &str) -> MembershipRole {
-        match s.to_lowercase().as_str() {
-            "readonly" => MembershipRole::Readonly,
-            "admin" => MembershipRole::Admin,
-            "owner" => MembershipRole::Owner,
-            _ => MembershipRole::Member,
-        }
     }
 
     /// Build metadata JSON with tenant configuration.
@@ -1010,7 +988,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .await
         .map_err(|e| Error::internal(format!("Failed to get user role: {}", e)))?;
 
-        Ok(role.map(|(r,)| Self::parse_role(&r)))
+        Ok(role.map(|(r,)| parse_role(&r)))
     }
 
     // ============ Context Operations ============
@@ -1217,276 +1195,8 @@ impl WorkspaceService for WorkspaceServiceImpl {
 /// WHY: Consistent normalization ensures that types like "machine" and "MACHINE"
 /// map to the same entity type, preventing duplicate type entries in the graph.
 ///
-/// Rules (per SPEC-085):
-/// - Trim whitespace
-/// - Convert to UPPERCASE
-/// - Replace spaces/hyphens with underscores
-/// - Skip empty strings
-/// - Deduplicate (preserving first occurrence order)
-/// - Cap at 50 types to avoid prompt bloat
-///
-/// @implements SPEC-085: Custom entity configuration normalization
-fn normalize_entity_types(types: &[String]) -> Vec<String> {
-    const MAX_ENTITY_TYPES: usize = 50;
-
-    let mut seen = std::collections::HashSet::new();
-    types
-        .iter()
-        .filter_map(|t| {
-            let normalized = t.trim().to_uppercase().replace([' ', '-'], "_");
-            if normalized.is_empty() {
-                None
-            } else {
-                Some(normalized)
-            }
-        })
-        .filter(|t| seen.insert(t.clone()))
-        .take(MAX_ENTITY_TYPES)
-        .collect()
-}
-
-// ============ Database Row Types ============
-
-/// Tenant row from PostgreSQL.
-/// The actual schema uses metadata JSONB for plan, max_workspaces, max_users, description.
+// Row types extracted to workspace_row_types.rs, pure helpers to workspace_utils.rs (SRP: OODA-16/17)
 #[cfg(feature = "postgres")]
-#[derive(sqlx::FromRow)]
-struct TenantRow {
-    tenant_id: Uuid,
-    name: String,
-    slug: Option<String>,
-    is_active: bool,
-    metadata: serde_json::Value,
-    created_at: chrono::DateTime<chrono::Utc>,
-    updated_at: chrono::DateTime<chrono::Utc>,
-}
-
+use crate::workspace_row_types::{MembershipRow, TenantRow, WorkspaceRow};
 #[cfg(feature = "postgres")]
-impl TenantRow {
-    fn into_tenant(self) -> Tenant {
-        // Extract values from metadata JSONB
-        let plan_str = self
-            .metadata
-            .get("plan")
-            .and_then(|v| v.as_str())
-            .unwrap_or("free");
-        let max_workspaces = self
-            .metadata
-            .get("max_workspaces")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(5) as usize;
-        let max_users = self
-            .metadata
-            .get("max_users")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(10) as usize;
-        let description = self
-            .metadata
-            .get("description")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        // SPEC-032: Extract default LLM config from metadata.
-        // WHY: Use env-aware defaults (same as Workspace::default_llm_config)
-        // so Docker deployments with EDGEQUAKE_LLM_PROVIDER=openai propagate
-        // correctly to new workspaces created under this tenant.
-        let (env_llm_model, env_llm_provider) = Workspace::default_llm_config();
-        let default_llm_model = self
-            .metadata
-            .get("default_llm_model")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or(env_llm_model);
-        let default_llm_provider = self
-            .metadata
-            .get("default_llm_provider")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or(env_llm_provider);
-
-        // SPEC-032: Extract default embedding config from metadata.
-        let (env_emb_model, env_emb_provider, env_emb_dim) = Workspace::default_embedding_config();
-        let default_embedding_model = self
-            .metadata
-            .get("default_embedding_model")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or(env_emb_model);
-        let default_embedding_provider = self
-            .metadata
-            .get("default_embedding_provider")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or(env_emb_provider);
-        let default_embedding_dimension = self
-            .metadata
-            .get("default_embedding_dimension")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as usize)
-            .unwrap_or(env_emb_dim);
-
-        // SPEC-041: Extract default vision LLM config from metadata
-        let default_vision_llm_provider = self
-            .metadata
-            .get("default_vision_llm_provider")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
-        let default_vision_llm_model = self
-            .metadata
-            .get("default_vision_llm_model")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
-
-        Tenant {
-            tenant_id: self.tenant_id,
-            name: self.name,
-            slug: self.slug.unwrap_or_default(),
-            description,
-            plan: WorkspaceServiceImpl::parse_plan(plan_str),
-            is_active: self.is_active,
-            max_workspaces,
-            max_users,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-            metadata: HashMap::new(),
-            default_llm_model,
-            default_llm_provider,
-            default_embedding_model,
-            default_embedding_provider,
-            default_embedding_dimension,
-            default_vision_llm_provider,
-            default_vision_llm_model,
-        }
-    }
-}
-
-/// Workspace row from PostgreSQL.
-#[cfg(feature = "postgres")]
-#[derive(sqlx::FromRow)]
-struct WorkspaceRow {
-    workspace_id: Uuid,
-    tenant_id: Uuid,
-    name: String,
-    slug: Option<String>,
-    description: Option<String>,
-    is_active: bool,
-    metadata: serde_json::Value,
-    created_at: chrono::DateTime<chrono::Utc>,
-    updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[cfg(feature = "postgres")]
-impl WorkspaceRow {
-    fn into_workspace(self) -> Workspace {
-        // Convert metadata from serde_json::Value to HashMap
-        let metadata: HashMap<String, serde_json::Value> =
-            if let serde_json::Value::Object(map) = self.metadata {
-                map.into_iter().collect()
-            } else {
-                HashMap::new()
-            };
-
-        // SPEC-032: Extract LLM config from metadata.
-        // WHY: When the workspace has no LLM config in metadata (empty `{}`),
-        // we must fall back to env-aware defaults (Workspace::default_llm_config)
-        // instead of hardcoded Ollama constants. This ensures Docker/Portainer
-        // deployments that set EDGEQUAKE_LLM_PROVIDER=openai get OpenAI for
-        // entity extraction, not a broken Ollama fallback.
-        let (env_llm_model, env_llm_provider) = Workspace::default_llm_config();
-        let llm_model = metadata
-            .get("llm_model")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty()) // WHY: empty string stored from Docker ${VAR:-} must not override env default
-            .map(|s| s.to_string())
-            .unwrap_or(env_llm_model);
-        let llm_provider = metadata
-            .get("llm_provider")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty()) // WHY: same empty-string guard as llm_model
-            .map(|s| s.to_string())
-            .unwrap_or(env_llm_provider);
-
-        // SPEC-032: Extract embedding config from metadata.
-        // Same env-aware fallback as LLM config above.
-        let (env_emb_model, env_emb_provider, env_emb_dim) = Workspace::default_embedding_config();
-        let embedding_model = metadata
-            .get("embedding_model")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty()) // WHY: empty string from Docker ${VAR:-} must not override env default
-            .map(|s| s.to_string())
-            .unwrap_or(env_emb_model);
-        let embedding_provider = metadata
-            .get("embedding_provider")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty()) // WHY: same empty-string guard — prevents "Unknown embedding provider: ''"
-            .map(|s| s.to_string())
-            .unwrap_or(env_emb_provider);
-        let embedding_dimension = metadata
-            .get("embedding_dimension")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as usize)
-            .unwrap_or(env_emb_dim);
-
-        // SPEC-040: Extract vision LLM config from metadata
-        let vision_llm_provider = metadata
-            .get("vision_llm_provider")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
-        let vision_llm_model = metadata
-            .get("vision_llm_model")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
-
-        Workspace {
-            workspace_id: self.workspace_id,
-            tenant_id: self.tenant_id,
-            name: self.name,
-            slug: self.slug.unwrap_or_default(),
-            description: self.description,
-            is_active: self.is_active,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-            metadata,
-            llm_model,
-            llm_provider,
-            embedding_model,
-            embedding_provider,
-            embedding_dimension,
-            vision_llm_provider,
-            vision_llm_model,
-        }
-    }
-}
-
-/// Membership row from PostgreSQL.
-#[cfg(feature = "postgres")]
-#[derive(sqlx::FromRow)]
-struct MembershipRow {
-    membership_id: Uuid,
-    tenant_id: Uuid,
-    workspace_id: Option<Uuid>,
-    user_id: Uuid,
-    role: String,
-    is_active: bool,
-    joined_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[cfg(feature = "postgres")]
-impl MembershipRow {
-    fn into_membership(self) -> Membership {
-        Membership {
-            membership_id: self.membership_id,
-            tenant_id: self.tenant_id,
-            workspace_id: self.workspace_id,
-            user_id: self.user_id,
-            role: WorkspaceServiceImpl::parse_role(&self.role),
-            is_active: self.is_active,
-            joined_at: self.joined_at,
-            metadata: HashMap::new(),
-        }
-    }
-}
+use crate::workspace_utils::{normalize_entity_types, parse_role};

@@ -137,7 +137,8 @@ pub async fn ollama_generate(
             .header(header::CACHE_CONTROL, "no-cache")
             .header("X-Accel-Buffering", "no")
             .body(body)
-            .unwrap())
+            // WHY expect: Builder is freshly created with static header names — infallible
+            .expect("static headers always produce a valid response"))
     } else {
         // Non-streaming response
         let engine_request = if let Some(query_mode) = mode.to_query_mode() {

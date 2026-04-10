@@ -1,5 +1,36 @@
 //! Query context building and management.
 //!
+//! ## WHY: Separate Collections Per Retrieval Type
+//!
+//! QueryContext keeps chunks, entities, and relationships in distinct
+//! vectors rather than a single mixed list because:
+//!
+//! 1. **Token budgets differ per type** — truncation (FEAT0108) allocates
+//!    separate budgets to graph data vs. raw chunks.
+//! 2. **Rendering order matters** — `to_context_string()` renders graph
+//!    context (entities → relationships) before chunks so the LLM sees
+//!    structured knowledge first (BR0102: graph context priority).
+//! 3. **Provenance tracking** — entities and relationships carry source
+//!    chunk/document IDs for citation generation; mixing them would
+//!    require runtime type dispatch.
+//!
+//! ```text
+//!   QueryContext
+//!   ┌──────────────────────────────────────┐
+//!   │  entities: Vec<RetrievedEntity>      │ ← graph knowledge
+//!   │  relationships: Vec<RetrievedRel>    │ ← graph edges
+//!   │  chunks: Vec<RetrievedChunk>         │ ← raw text evidence
+//!   │  token_count: usize                  │ ← incremental counter
+//!   │  is_truncated: bool                  │ ← budget-exceeded flag
+//!   └──────────────────────────────────────┘
+//! ```
+//!
+//! ## WHY: Incremental Token Counting
+//!
+//! `token_count` is updated on every `add_chunk()` call instead of
+//! recomputing from scratch. This is O(1) per addition vs. O(n) rescan,
+//! enabling early budget-exceeded detection during retrieval.
+//!
 //! ## Implements
 //!
 //! - **FEAT0116**: Query context data structure
@@ -65,6 +96,10 @@ impl QueryContext {
     }
 
     /// Build a text representation for LLM context.
+    ///
+    /// WHY: Section order is entities → relationships → chunks.
+    /// Graph context appears first because BR0102 requires graph data
+    /// to take priority over naive chunks in the LLM prompt.
     pub fn to_context_string(&self) -> String {
         let mut parts = Vec::new();
 
@@ -428,5 +463,114 @@ mod tests {
         assert_eq!(rel.source_chunk_id, Some("chunk-005".to_string()));
         assert_eq!(rel.source_document_id, Some("doc-xyz789".to_string()));
         assert_eq!(rel.source_file_path, Some("/documents/team.md".to_string()));
+    }
+
+    // ── Edge case tests (OODA-26) ──────────────────────────────────
+
+    #[test]
+    fn test_empty_context_to_string_is_empty() {
+        let ctx = QueryContext::new();
+        assert!(ctx.to_context_string().is_empty());
+    }
+
+    #[test]
+    fn test_empty_context_is_empty() {
+        let ctx = QueryContext::new();
+        assert!(ctx.is_empty());
+        assert_eq!(ctx.token_count, 0);
+        assert!(!ctx.is_truncated);
+    }
+
+    #[test]
+    fn test_token_count_accumulates_on_add_chunk() {
+        let mut ctx = QueryContext::new();
+        let c1 = RetrievedChunk::new("a", "hello", 1.0); // 5 chars → ceil(5/4)=2 tokens
+        let c2 = RetrievedChunk::new("b", "world!!!", 1.0); // 8 chars → ceil(8/4)=2 tokens
+        let t1 = c1.token_count;
+        let t2 = c2.token_count;
+        ctx.add_chunk(c1);
+        ctx.add_chunk(c2);
+        assert_eq!(ctx.token_count, t1 + t2);
+    }
+
+    #[test]
+    fn test_entity_degree_display_in_context_string() {
+        let mut ctx = QueryContext::new();
+        // Entity WITH connections
+        ctx.add_entity(
+            RetrievedEntity::new("Alice", "PERSON", "A researcher").with_degree(5),
+        );
+        // Entity WITHOUT connections (degree=0 → no "[connections: N]")
+        ctx.add_entity(
+            RetrievedEntity::new("Bob", "PERSON", "An engineer").with_degree(0),
+        );
+        let s = ctx.to_context_string();
+        assert!(s.contains("[connections: 5]"));
+        assert!(!s.contains("[connections: 0]"));
+    }
+
+    #[test]
+    fn test_relationship_with_description_rendering() {
+        let mut ctx = QueryContext::new();
+        ctx.add_relationship(
+            RetrievedRelationship::new("A", "B", "KNOWS").with_description("since 2020"),
+        );
+        let s = ctx.to_context_string();
+        assert!(s.contains("A --[KNOWS]--> B: since 2020"));
+    }
+
+    #[test]
+    fn test_relationship_without_description_rendering() {
+        let mut ctx = QueryContext::new();
+        ctx.add_relationship(RetrievedRelationship::new("X", "Y", "USES"));
+        let s = ctx.to_context_string();
+        assert!(s.contains("X --[USES]--> Y"));
+        // Should NOT have a trailing colon
+        assert!(!s.contains("X --[USES]--> Y:"));
+    }
+
+    #[test]
+    fn test_chunk_score_formatting_in_context_string() {
+        let mut ctx = QueryContext::new();
+        ctx.add_chunk(RetrievedChunk::new("c1", "content here", 0.12345));
+        let s = ctx.to_context_string();
+        // Score formatted to 3 decimal places
+        assert!(s.contains("(score: 0.123)"));
+    }
+
+    #[test]
+    fn test_chunk_reference_ids_are_one_based() {
+        let mut ctx = QueryContext::new();
+        ctx.add_chunk(RetrievedChunk::new("a", "first", 0.9));
+        ctx.add_chunk(RetrievedChunk::new("b", "second", 0.8));
+        let s = ctx.to_context_string();
+        assert!(s.contains("[1]"));
+        assert!(s.contains("[2]"));
+        assert!(!s.contains("[0]"));
+    }
+
+    #[test]
+    fn test_retrieved_chunk_token_count_empty_content() {
+        let chunk = RetrievedChunk::new("id", "", 0.5);
+        assert_eq!(chunk.token_count, 0);
+    }
+
+    #[test]
+    fn test_retrieved_chunk_builder_chain() {
+        let chunk = RetrievedChunk::new("id", "text", 0.5)
+            .with_document_id("doc")
+            .with_lines(10, 20)
+            .with_chunk_index(3);
+        assert_eq!(chunk.start_line, Some(10));
+        assert_eq!(chunk.end_line, Some(20));
+        assert_eq!(chunk.chunk_index, Some(3));
+    }
+
+    #[test]
+    fn test_retrieved_context_default() {
+        let rc = RetrievedContext::default();
+        assert!(rc.vector_results.is_empty());
+        assert!(rc.graph_entities.is_empty());
+        assert!(rc.graph_edges.is_empty());
     }
 }

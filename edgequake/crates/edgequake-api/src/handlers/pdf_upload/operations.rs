@@ -3,13 +3,13 @@ use axum::Json;
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 // WHY: These imports are only used inside #[cfg(feature = "postgres")] blocks.
 #[cfg(feature = "postgres")]
-use super::helpers::create_pdf_processing_task;
+use super::helpers::{create_pdf_processing_task, resolve_workspace_vision_options};
 #[cfg(feature = "postgres")]
 use super::types::PdfUploadOptions;
 #[cfg(feature = "postgres")]
@@ -106,7 +106,7 @@ pub async fn retry_pdf_processing(
         let pdf = pdf_storage
             .get_pdf(&pdf_uuid)
             .await
-            .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
+            .internal_err("get PDF")?
             .ok_or_else(|| ApiError::NotFound(format!("PDF not found: {}", pdf_id)))?;
 
         // Only allow retry of failed PDFs
@@ -121,15 +121,21 @@ pub async fn retry_pdf_processing(
         pdf_storage
             .update_pdf_status(&pdf_uuid, PdfProcessingStatus::Pending)
             .await
-            .map_err(|e| ApiError::Internal(format!("Failed to reset PDF status: {}", e)))?;
+            .internal_err("reset PDF status")?;
 
         // OODA-17: Create new processing task
-        let options = PdfUploadOptions {
+        // WHY: Build fresh options (no stale vision config) then apply workspace
+        // settings via the shared resolver so the same provider/model invariant
+        // enforced during upload is also enforced for retries.
+        let mut options = PdfUploadOptions {
             enable_vision: true,
-            vision_provider: None, // will be resolved from workspace config or server default
+            vision_provider: None,
             vision_model: None,
             ..Default::default()
         };
+
+        let workspace_id = _workspace_id; // already validated above
+        resolve_workspace_vision_options(&state, workspace_id, &mut options).await;
 
         let task_id = create_pdf_processing_task(&state, &tenant, pdf_uuid, &options).await?;
 
@@ -214,7 +220,7 @@ pub async fn cancel_pdf_processing(
         let pdf = pdf_storage
             .get_pdf(&pdf_uuid)
             .await
-            .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
+            .internal_err("get PDF")?
             .ok_or_else(|| ApiError::NotFound(format!("PDF not found: {}", pdf_id)))?;
 
         // Allow cancel of Processing or Pending PDFs
@@ -241,7 +247,7 @@ pub async fn cancel_pdf_processing(
         pdf_storage
             .update_pdf_status(&pdf_uuid, PdfProcessingStatus::Failed)
             .await
-            .map_err(|e| ApiError::Internal(format!("Failed to update PDF status: {}", e)))?;
+            .internal_err("update PDF status")?;
 
         info!(
             pdf_id = %pdf_id,

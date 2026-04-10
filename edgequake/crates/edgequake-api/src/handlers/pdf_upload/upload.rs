@@ -5,10 +5,10 @@ use tracing::{debug, info, warn};
 
 use super::helpers::{
     clear_document_derived_data, create_pdf_processing_task, estimate_processing_time,
-    extract_page_count, get_pdf_storage,
+    extract_page_count, get_pdf_storage, resolve_workspace_vision_options,
 };
 use super::types::*;
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::{
@@ -174,46 +174,18 @@ pub async fn upload_pdf_document(
         .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
 
     // 5b. SPEC-040: Apply workspace-level vision LLM config as defaults.
-    // Priority: form explicit > workspace config > server default.
-    // WHY: Workspace can pin a specific vision provider/model for all PDF uploads,
-    // avoiding the need for callers to pass vision_provider/vision_model every time.
-    // 5b. SPEC-040: Apply workspace-level vision LLM config as defaults.
     // Priority: form explicit > workspace vision config > workspace main LLM > server env default.
-    // WHY: When vision_llm_provider is not set in the workspace, fall back to the workspace's
-    // main llm_provider so that Ollama users don't silently hit the "openai" hard-coded default.
-    if options.vision_provider.is_none() || options.vision_model.is_none() {
-        if let Ok(Some(ws)) = state.workspace_service.get_workspace(workspace_id).await {
-            if options.vision_provider.is_none() {
-                let effective_vision_provider = ws
-                    .vision_llm_provider
-                    .as_deref()
-                    .filter(|p| !p.is_empty())
-                    .unwrap_or(&ws.llm_provider);
-                debug!(
-                    "SPEC-040: Resolved vision_provider={} (workspace vision={:?}, main={})",
-                    effective_vision_provider, ws.vision_llm_provider, ws.llm_provider
-                );
-                options.vision_provider = Some(effective_vision_provider.to_string());
-            }
-            if options.vision_model.is_none() {
-                if let Some(ref wm) = ws.vision_llm_model {
-                    debug!(
-                        "SPEC-040: Applying workspace vision_model={} from workspace config",
-                        wm
-                    );
-                    options.vision_model = Some(wm.clone());
-                }
-                // Note: if ws.vision_llm_model is also None, resolved_vision_provider() +
-                // default_vision_model_for_provider() will derive the right default at task creation.
-            }
-        }
-    }
+    //
+    // INVARIANT: vision_provider and vision_model must be a compatible pair.  The shared
+    // helper enforces this — see resolve_workspace_vision_options() in helpers.rs for full
+    // rationale.
+    resolve_workspace_vision_options(&state, workspace_id, &mut options).await;
 
     // 6. Check for duplicates
     if let Some(existing) = pdf_storage
         .find_pdf_by_checksum(&workspace_id, &checksum)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to check for duplicates: {}", e)))?
+        .internal_err("check for duplicates")?
     {
         // OODA-08: Handle force_reindex parameter
         // WHY: When user explicitly requests re-indexing, we should:
@@ -241,7 +213,7 @@ pub async fn upload_pdf_document(
             pdf_storage
                 .update_pdf_status(&existing.pdf_id, PdfProcessingStatus::Processing)
                 .await
-                .map_err(|e| ApiError::Internal(format!("Failed to reset PDF status: {}", e)))?;
+                .internal_err("reset PDF status")?;
 
             // Create new processing task
             let task_id =

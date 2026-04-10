@@ -145,3 +145,60 @@ impl MessageSource {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_message_context_default_empty() {
+        let ctx = MessageContext::default();
+        assert!(ctx.sources.is_empty());
+        assert!(ctx.entities.is_empty());
+        assert!(ctx.relationships.is_empty());
+    }
+
+    #[test]
+    fn test_message_context_with_source() {
+        let src = MessageSource::new("s1", 0.9);
+        let ctx = MessageContext::new().with_source(src);
+        assert_eq!(ctx.sources.len(), 1);
+        assert_eq!(ctx.sources[0].id, "s1");
+    }
+
+    #[test]
+    fn test_message_context_with_sources() {
+        let sources = vec![MessageSource::new("a", 0.8), MessageSource::new("b", 0.7)];
+        let ctx = MessageContext::new().with_sources(sources);
+        assert_eq!(ctx.sources.len(), 2);
+    }
+
+    #[test]
+    fn test_message_context_entity_from_name() {
+        let e = MessageContextEntity::from_name("ALICE", 0.95);
+        assert_eq!(e.name, "ALICE");
+        assert_eq!(e.entity_type, "UNKNOWN");
+        assert!(e.description.is_none());
+        assert_eq!(e.score, 0.95);
+        assert!(e.source_chunk_ids.is_empty());
+    }
+
+    #[test]
+    fn test_message_context_relationship_new() {
+        let r = MessageContextRelationship::new("A", "B", "KNOWS", 0.8);
+        assert_eq!(r.source, "A");
+        assert_eq!(r.target, "B");
+        assert_eq!(r.relation_type, "KNOWS");
+        assert_eq!(r.score, 0.8);
+        assert!(r.description.is_none());
+    }
+
+    #[test]
+    fn test_message_source_new() {
+        let s = MessageSource::new("chunk-123", 0.75);
+        assert_eq!(s.id, "chunk-123");
+        assert_eq!(s.score, 0.75);
+        assert!(s.title.is_none());
+        assert!(s.document_id.is_none());
+    }
+}

@@ -25,6 +25,10 @@ pub enum Role {
 
 impl Role {
     /// Parse role from string. Defaults to User if not recognized.
+    ///
+    /// WHY default to User: Unknown role strings should not grant elevated
+    /// privileges. User role is the least-privilege default that still allows
+    /// standard operations. Admin must be explicitly assigned.
     pub fn parse(s: &str) -> Self {
         s.parse().unwrap_or_default()
     }
@@ -484,6 +488,136 @@ mod tests {
             metadata: HashMap::new(),
         };
 
+        assert!(key.has_scope("anything"));
+    }
+
+    // --- Role edge cases ---
+
+    #[test]
+    fn test_role_default_is_user() {
+        assert_eq!(Role::default(), Role::User);
+    }
+
+    #[test]
+    fn test_role_display_roundtrip() {
+        for role in [Role::Admin, Role::User, Role::Readonly] {
+            let s = role.to_string();
+            let parsed = Role::parse(&s);
+            assert_eq!(parsed, role, "Display → parse roundtrip failed for {s}");
+        }
+    }
+
+    #[test]
+    fn test_role_fromstr_error_message() {
+        let err = "garbage".parse::<Role>().unwrap_err();
+        assert!(err.contains("Unknown role"), "Error: {err}");
+    }
+
+    // --- User::new defaults ---
+
+    #[test]
+    fn test_user_new_defaults() {
+        let user = User::new("u1", "alice", "alice@example.com", "hash", Role::User);
+        assert!(user.is_active);
+        assert!(user.last_login_at.is_none());
+        assert!(user.metadata.is_empty());
+        assert_eq!(user.user_id, "u1");
+        assert_eq!(user.username, "alice");
+        assert_eq!(user.email, "alice@example.com");
+        assert_eq!(user.role, Role::User);
+    }
+
+    // --- UserInfo::from ---
+
+    #[test]
+    fn test_user_info_from_user() {
+        let user = User::new("u1", "bob", "bob@x.com", "hash", Role::Admin);
+        let info = UserInfo::from(&user);
+        assert_eq!(info.user_id, "u1");
+        assert_eq!(info.username, "bob");
+        assert_eq!(info.role, "admin");
+    }
+
+    // --- ApiKey::is_expired ---
+
+    #[test]
+    fn test_api_key_not_expired_when_no_expiry() {
+        let key = ApiKey {
+            key_id: "k".into(),
+            user_id: "u".into(),
+            key_hash: "h".into(),
+            key_prefix: "sk_".into(),
+            name: None,
+            scopes: vec![],
+            rate_limit_tier: None,
+            is_active: true,
+            created_at: Utc::now(),
+            last_used_at: None,
+            expires_at: None,
+            metadata: HashMap::new(),
+        };
+        assert!(!key.is_expired());
+    }
+
+    #[test]
+    fn test_api_key_expired_in_past() {
+        let key = ApiKey {
+            key_id: "k".into(),
+            user_id: "u".into(),
+            key_hash: "h".into(),
+            key_prefix: "sk_".into(),
+            name: None,
+            scopes: vec![],
+            rate_limit_tier: None,
+            is_active: true,
+            created_at: Utc::now(),
+            last_used_at: None,
+            expires_at: Some(Utc::now() - chrono::Duration::hours(1)),
+            metadata: HashMap::new(),
+        };
+        assert!(key.is_expired());
+    }
+
+    #[test]
+    fn test_api_key_not_expired_in_future() {
+        let key = ApiKey {
+            key_id: "k".into(),
+            user_id: "u".into(),
+            key_hash: "h".into(),
+            key_prefix: "sk_".into(),
+            name: None,
+            scopes: vec![],
+            rate_limit_tier: None,
+            is_active: true,
+            created_at: Utc::now(),
+            last_used_at: None,
+            expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
+            metadata: HashMap::new(),
+        };
+        assert!(!key.is_expired());
+    }
+
+    // --- ApiKey::has_scope with empty scopes ---
+
+    #[test]
+    fn test_api_key_empty_scopes_allows_all() {
+        let key = ApiKey {
+            key_id: "k".into(),
+            user_id: "u".into(),
+            key_hash: "h".into(),
+            key_prefix: "sk_".into(),
+            name: None,
+            scopes: vec![],
+            rate_limit_tier: None,
+            is_active: true,
+            created_at: Utc::now(),
+            last_used_at: None,
+            expires_at: None,
+            metadata: HashMap::new(),
+        };
+        // WHY: Empty scopes = backward-compat allow-all
+        assert!(key.has_scope("read"));
+        assert!(key.has_scope("write"));
         assert!(key.has_scope("anything"));
     }
 }

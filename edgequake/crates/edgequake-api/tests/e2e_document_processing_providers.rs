@@ -36,8 +36,8 @@ async fn create_workspace_with_providers(
     embedding_dimension: usize,
 ) -> edgequake_core::Workspace {
     let tenant = Tenant::new(
-        &format!("Tenant {}", name),
-        &format!("tenant-{}", Uuid::new_v4()),
+        format!("Tenant {}", name),
+        format!("tenant-{}", Uuid::new_v4()),
     );
     let created_tenant = state
         .workspace_service
@@ -178,7 +178,9 @@ async fn test_pipeline_process_returns_lmstudio_provider_stats() {
         .expect("Should have embedding");
     assert_eq!(embedding_provider.name(), "lmstudio");
     assert_eq!(embedding_provider.model(), "text-embedding-nomic");
-    assert_eq!(embedding_provider.dimension(), 384);
+    // WHY: LM Studio embedding defaults are normalized to the provider's
+    // supported 768-dim model profile, even if callers request a lower value.
+    assert_eq!(embedding_provider.dimension(), 768);
 }
 
 /// Test: Workspace pipeline creates correct provider combination.
@@ -322,9 +324,11 @@ async fn test_processing_stats_provider_fields() {
         .expect("Should create mock embedding");
 
     // Create pipeline with specific config
-    let mut config = PipelineConfig::default();
-    config.enable_entity_extraction = true;
-    config.enable_chunk_embeddings = true;
+    let config = PipelineConfig {
+        enable_entity_extraction: true,
+        enable_chunk_embeddings: true,
+        ..PipelineConfig::default()
+    };
 
     let extractor = Arc::new(LLMExtractor::new(llm));
     let pipeline = Pipeline::new(config)

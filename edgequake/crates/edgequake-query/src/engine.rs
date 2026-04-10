@@ -751,5 +751,155 @@ mod tests {
         assert_eq!(config.default_mode, QueryMode::Hybrid);
         assert_eq!(config.max_chunks, 20);
         assert!(config.include_sources);
+        assert_eq!(config.max_entities, 60);
+        assert_eq!(config.max_context_tokens, 30000);
+        assert_eq!(config.graph_depth, 2);
+        assert!((config.min_score - 0.1).abs() < f32::EPSILON);
+        assert!(!config.use_keyword_extraction);
+        // Truncation sub-config defaults
+        assert_eq!(config.truncation.max_entity_tokens, 10000);
+        assert_eq!(config.truncation.max_relation_tokens, 10000);
+        assert_eq!(config.truncation.max_total_tokens, 30000);
+    }
+
+    // --- StrategyConfig tests ---
+
+    #[test]
+    fn test_strategy_config_default_all_fields() {
+        use crate::strategies::StrategyConfig;
+        let cfg = StrategyConfig::default();
+        assert_eq!(cfg.max_chunks, 20);
+        assert_eq!(cfg.max_entities, 60);
+        assert_eq!(cfg.max_relationships_per_entity, 5);
+        assert_eq!(cfg.graph_depth, 2);
+        assert!((cfg.min_score - 0.1).abs() < f32::EPSILON);
+        assert!((cfg.vector_weight - 0.5).abs() < f32::EPSILON);
+        assert!((cfg.graph_weight - 0.5).abs() < f32::EPSILON);
+    }
+
+    // --- QueryRequest builder edge cases ---
+
+    #[test]
+    fn test_query_request_new_defaults() {
+        let req = QueryRequest::new("hello");
+        assert_eq!(req.query, "hello");
+        assert!(req.mode.is_none());
+        assert!(req.max_results.is_none());
+        assert!(!req.context_only);
+        assert!(!req.prompt_only);
+        assert!(req.params.is_empty());
+        assert!(req.conversation_history.is_empty());
+        assert!(req.enable_rerank.is_none());
+        assert!(req.rerank_top_k.is_none());
+        assert!(req.llm_provider.is_none());
+        assert!(req.llm_model.is_none());
+        assert!(req.system_prompt.is_none());
+        assert!(req.allowed_document_ids.is_none());
+    }
+
+    #[test]
+    fn test_with_llm_full_id_with_slash() {
+        let req = QueryRequest::new("q").with_llm_full_id("ollama/gemma3:12b");
+        assert_eq!(req.llm_provider.as_deref(), Some("ollama"));
+        assert_eq!(req.llm_model.as_deref(), Some("gemma3:12b"));
+    }
+
+    #[test]
+    fn test_with_llm_full_id_no_slash() {
+        let req = QueryRequest::new("q").with_llm_full_id("openai");
+        assert_eq!(req.llm_provider.as_deref(), Some("openai"));
+        assert!(req.llm_model.is_none());
+    }
+
+    #[test]
+    fn test_with_llm_full_id_multiple_slashes() {
+        // "a/b/c" → split_once gives provider="a", model="b/c"
+        let req = QueryRequest::new("q").with_llm_full_id("a/b/c");
+        assert_eq!(req.llm_provider.as_deref(), Some("a"));
+        assert_eq!(req.llm_model.as_deref(), Some("b/c"));
+    }
+
+    #[test]
+    fn test_with_llm_full_id_empty() {
+        let req = QueryRequest::new("q").with_llm_full_id("");
+        // Empty string has no slash → treated as provider-only
+        assert_eq!(req.llm_provider.as_deref(), Some(""));
+        assert!(req.llm_model.is_none());
+    }
+
+    #[test]
+    fn test_tenant_workspace_id_round_trip() {
+        let req = QueryRequest::new("q")
+            .with_tenant_id("t1")
+            .with_workspace_id("ws1");
+        assert_eq!(req.tenant_id().as_deref(), Some("t1"));
+        assert_eq!(req.workspace_id().as_deref(), Some("ws1"));
+    }
+
+    #[test]
+    fn test_tenant_workspace_id_absent() {
+        let req = QueryRequest::new("q");
+        assert!(req.tenant_id().is_none());
+        assert!(req.workspace_id().is_none());
+    }
+
+    #[test]
+    fn test_rerank_overrides() {
+        let req = QueryRequest::new("q")
+            .with_rerank(true)
+            .with_rerank_top_k(5);
+        assert_eq!(req.enable_rerank, Some(true));
+        assert_eq!(req.rerank_top_k, Some(5));
+    }
+
+    #[test]
+    fn test_allowed_document_ids() {
+        let ids = vec!["doc1".to_string(), "doc2".to_string()];
+        let req = QueryRequest::new("q").with_allowed_document_ids(ids.clone());
+        assert_eq!(req.allowed_document_ids, Some(ids));
+    }
+
+    #[test]
+    fn test_conversation_history_builder() {
+        let history = vec![
+            ConversationMessage {
+                role: "user".into(),
+                content: "Hi".into(),
+            },
+            ConversationMessage {
+                role: "assistant".into(),
+                content: "Hello!".into(),
+            },
+        ];
+        let req = QueryRequest::new("q").with_conversation_history(history.clone());
+        assert_eq!(req.conversation_history.len(), 2);
+        assert_eq!(req.conversation_history[0].role, "user");
+        assert_eq!(req.conversation_history[1].content, "Hello!");
+    }
+
+    #[test]
+    fn test_builder_chain_all_methods() {
+        // Verify all builders can be chained without conflict
+        let req = QueryRequest::new("q")
+            .with_mode(QueryMode::Global)
+            .context_only()
+            .with_llm_provider("ollama")
+            .with_llm_model("gemma3")
+            .with_system_prompt("Be brief")
+            .with_tenant_id("t")
+            .with_workspace_id("w")
+            .with_rerank(false)
+            .with_rerank_top_k(10)
+            .with_allowed_document_ids(vec!["d1".into()]);
+        assert_eq!(req.mode, Some(QueryMode::Global));
+        assert!(req.context_only);
+        assert_eq!(req.llm_provider.as_deref(), Some("ollama"));
+        assert_eq!(req.llm_model.as_deref(), Some("gemma3"));
+        assert_eq!(req.system_prompt.as_deref(), Some("Be brief"));
+        assert_eq!(req.tenant_id().as_deref(), Some("t"));
+        assert_eq!(req.workspace_id().as_deref(), Some("w"));
+        assert_eq!(req.enable_rerank, Some(false));
+        assert_eq!(req.rerank_top_k, Some(10));
+        assert_eq!(req.allowed_document_ids.unwrap().len(), 1);
     }
 }

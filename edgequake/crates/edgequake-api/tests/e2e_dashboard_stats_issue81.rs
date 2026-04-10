@@ -31,7 +31,7 @@ fn test_config() -> ServerConfig {
 
 /// Create a workspace via workspace_service. Returns its UUID.
 async fn setup_workspace(state: &AppState, suffix: &str) -> uuid::Uuid {
-    let tenant = Tenant::new(&format!("Tenant-{}", suffix), &format!("tenant-{}", suffix))
+    let tenant = Tenant::new(format!("Tenant-{}", suffix), format!("tenant-{}", suffix))
         .with_plan(TenantPlan::Pro);
     let tenant = state.workspace_service.create_tenant(tenant).await.unwrap();
     let ws = state
@@ -79,7 +79,7 @@ async fn get_stats(app: &axum::Router, ws_id: uuid::Uuid) -> (StatusCode, Value)
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/workspaces/{}/stats", ws_id))
+                .uri(format!("/api/v1/workspaces/{}/stats", ws_id))
                 .body(Body::empty())
                 .unwrap(),
         )
