@@ -11,6 +11,10 @@
 //! use common::*;
 //! ```
 
+#![allow(dead_code)]
+// WHY: this module is a shared E2E harness. Individual binaries pull only the
+// helpers they need, so unused items here are an intentional reuse surface.
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},

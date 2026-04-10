@@ -447,7 +447,7 @@ mod tests {
 
         // Verify serialization skips None details
         let json = serde_json::to_value(&error).unwrap();
-        assert!(!json.get("details").is_some());
+        assert!(json.get("details").is_none());
     }
 
     #[test]

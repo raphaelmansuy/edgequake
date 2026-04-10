@@ -116,7 +116,7 @@ async fn test_workspace_pipeline_uses_workspace_provider() {
     let state = edgequake_api::AppState::new_memory(None::<String>);
 
     // Create a tenant
-    let tenant = Tenant::new("Test Tenant", &format!("test-{}", Uuid::new_v4()));
+    let tenant = Tenant::new("Test Tenant", format!("test-{}", Uuid::new_v4()));
     let created_tenant = state.workspace_service.create_tenant(tenant).await.unwrap();
 
     // Create workspace with Mock provider (should work without API keys)
@@ -164,10 +164,7 @@ async fn test_multiple_workspaces_different_providers() {
     let state = edgequake_api::AppState::new_memory(None::<String>);
 
     // Create a tenant
-    let tenant = Tenant::new(
-        "Multi-Provider Tenant",
-        &format!("multi-{}", Uuid::new_v4()),
-    );
+    let tenant = Tenant::new("Multi-Provider Tenant", format!("multi-{}", Uuid::new_v4()));
     let created_tenant = state.workspace_service.create_tenant(tenant).await.unwrap();
 
     // Create workspace 1 with specific configuration

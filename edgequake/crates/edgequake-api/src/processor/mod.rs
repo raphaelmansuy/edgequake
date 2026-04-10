@@ -290,6 +290,16 @@ mod tests {
     };
     use tokio_util::sync::CancellationToken;
 
+    type TestStorages = (
+        Arc<dyn KVStorage>,
+        Arc<dyn VectorStorage>,
+        Arc<dyn WorkspaceVectorRegistry>,
+        Arc<dyn GraphStorage>,
+    );
+
+    const TEST_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
+    const TEST_WORKSPACE_ID: &str = "00000000-0000-0000-0000-000000000002";
+
     /// Create a test pipeline instance using default configuration
     fn create_test_pipeline() -> Arc<Pipeline> {
         Arc::new(Pipeline::default_pipeline())
@@ -302,12 +312,7 @@ mod tests {
     }
 
     /// Create test storage instances for testing
-    fn create_test_storages() -> (
-        Arc<dyn KVStorage>,
-        Arc<dyn VectorStorage>,
-        Arc<dyn WorkspaceVectorRegistry>,
-        Arc<dyn GraphStorage>,
-    ) {
+    fn create_test_storages() -> TestStorages {
         let kv = Arc::new(MemoryKVStorage::new("test_processor"));
         // MemoryVectorStorage requires dimension - use 1536 (common embedding size)
         let vector: Arc<dyn VectorStorage> =
@@ -316,6 +321,14 @@ mod tests {
             Arc::new(MemoryWorkspaceVectorRegistry::new(Arc::clone(&vector)));
         let graph = Arc::new(MemoryGraphStorage::new("test_processor"));
         (kv, vector, vector_registry, graph)
+    }
+
+    fn test_task(task_type: TaskType, data: serde_json::Value) -> Task {
+        // WHY: task routing is keyed by tenant/workspace in several code paths, so
+        // tests should use stable UUIDs instead of ad hoc parsing at each callsite.
+        let tenant = uuid::Uuid::parse_str(TEST_TENANT_ID).unwrap();
+        let workspace = uuid::Uuid::parse_str(TEST_WORKSPACE_ID).unwrap();
+        Task::new(tenant, workspace, task_type, data)
     }
 
     #[test]
@@ -374,10 +387,7 @@ mod tests {
             pipeline_state,
         );
 
-        // Use test UUIDs for tenant and workspace
-        let test_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-        let mut task = Task::new(test_tenant, test_workspace, TaskType::Scan, json!({}));
+        let mut task = test_task(TaskType::Scan, json!({}));
 
         let result = processor.process(&mut task, CancellationToken::new()).await;
 
@@ -405,10 +415,7 @@ mod tests {
             pipeline_state,
         );
 
-        // Use test UUIDs for tenant and workspace
-        let test_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-        let mut task = Task::new(test_tenant, test_workspace, TaskType::Reindex, json!({}));
+        let mut task = test_task(TaskType::Reindex, json!({}));
 
         let result = processor.process(&mut task, CancellationToken::new()).await;
 
@@ -441,10 +448,7 @@ mod tests {
             "invalid_field": "this is not TextInsertData"
         });
 
-        // Use test UUIDs for tenant and workspace
-        let test_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-        let mut task = Task::new(test_tenant, test_workspace, TaskType::Insert, invalid_data);
+        let mut task = test_task(TaskType::Insert, invalid_data);
 
         let result = processor.process(&mut task, CancellationToken::new()).await;
 
@@ -608,12 +612,8 @@ mod tests {
         // Test that each unsupported task type goes through the right path
         let types = [TaskType::Scan, TaskType::Reindex];
 
-        // Use test UUIDs for tenant and workspace
-        let test_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let test_workspace = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-
         for task_type in types {
-            let mut task = Task::new(test_tenant, test_workspace, task_type.clone(), json!({}));
+            let mut task = test_task(task_type, json!({}));
 
             let result = processor.process(&mut task, CancellationToken::new()).await;
 

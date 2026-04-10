@@ -29,8 +29,8 @@ async fn create_test_workspace(
     embedding_dimension: usize,
 ) -> edgequake_core::Workspace {
     let tenant = Tenant::new(
-        &format!("Lineage Test Tenant {}", name),
-        &format!("lineage-{}", Uuid::new_v4()),
+        format!("Lineage Test Tenant {}", name),
+        format!("lineage-{}", Uuid::new_v4()),
     );
     let created_tenant = state
         .workspace_service
@@ -67,14 +67,14 @@ async fn create_test_workspace(
 /// Test that ProcessingStats correctly stores provider fields.
 #[test]
 fn test_processing_stats_has_provider_fields() {
-    let mut stats = ProcessingStats::default();
-
-    // Set provider fields
-    stats.llm_provider = Some("openai".to_string());
-    stats.llm_model = Some("gpt-4o-mini".to_string());
-    stats.embedding_provider = Some("openai".to_string());
-    stats.embedding_model = Some("text-embedding-3-small".to_string());
-    stats.embedding_dimensions = Some(1536);
+    let stats = ProcessingStats {
+        llm_provider: Some("openai".to_string()),
+        llm_model: Some("gpt-4o-mini".to_string()),
+        embedding_provider: Some("openai".to_string()),
+        embedding_model: Some("text-embedding-3-small".to_string()),
+        embedding_dimensions: Some(1536),
+        ..ProcessingStats::default()
+    };
 
     // Verify they're stored
     assert_eq!(stats.llm_provider, Some("openai".to_string()));
@@ -90,14 +90,16 @@ fn test_processing_stats_has_provider_fields() {
 /// Test that ProcessingStats serializes provider fields correctly.
 #[test]
 fn test_processing_stats_serialization() {
-    let mut stats = ProcessingStats::default();
-    stats.llm_provider = Some("ollama".to_string());
-    stats.llm_model = Some("gemma3:12b".to_string());
-    stats.embedding_provider = Some("ollama".to_string());
-    stats.embedding_model = Some("nomic-embed-text".to_string());
-    stats.embedding_dimensions = Some(768);
-    stats.chunk_count = 5;
-    stats.entity_count = 10;
+    let stats = ProcessingStats {
+        llm_provider: Some("ollama".to_string()),
+        llm_model: Some("gemma3:12b".to_string()),
+        embedding_provider: Some("ollama".to_string()),
+        embedding_model: Some("nomic-embed-text".to_string()),
+        embedding_dimensions: Some(768),
+        chunk_count: 5,
+        entity_count: 10,
+        ..ProcessingStats::default()
+    };
 
     // Serialize to JSON
     let json = serde_json::to_value(&stats).expect("Should serialize");

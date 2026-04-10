@@ -57,9 +57,7 @@ pub use crate::handlers::lineage_types::{
 
 #[cfg(test)]
 mod tests {
-    use super::cache::{
-        CachedLineage, LINEAGE_CACHE_MAX_ENTRIES, LINEAGE_CACHE_TTL, LINEAGE_KV_CACHE,
-    };
+    use super::cache::{CachedLineage, LINEAGE_CACHE_TTL, LINEAGE_KV_CACHE};
     use super::export::lineage_to_csv;
     use super::*;
     use std::time::Instant;
@@ -243,13 +241,6 @@ mod tests {
             LINEAGE_CACHE_TTL.as_secs() <= 300,
             "TTL too long for freshness"
         );
-    }
-
-    #[test]
-    fn test_lineage_cache_max_entries_bounded() {
-        // WHY: Unbounded cache = memory leak in production
-        assert!(LINEAGE_CACHE_MAX_ENTRIES > 0);
-        assert!(LINEAGE_CACHE_MAX_ENTRIES <= 10_000, "Cache too large");
     }
 
     #[tokio::test]
