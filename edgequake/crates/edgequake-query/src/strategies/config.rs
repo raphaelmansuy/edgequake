@@ -70,3 +70,35 @@ pub trait QueryStrategy: Send + Sync {
     /// Get the query mode for this strategy.
     fn mode(&self) -> QueryMode;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strategy_config_defaults() {
+        let c = StrategyConfig::default();
+        assert_eq!(c.max_chunks, 20);
+        assert_eq!(c.max_entities, 60);
+        assert_eq!(c.max_relationships_per_entity, 5);
+        assert_eq!(c.graph_depth, 2);
+        assert!((c.min_score - 0.1).abs() < f32::EPSILON);
+        assert!((c.vector_weight - 0.5).abs() < f32::EPSILON);
+        assert!((c.graph_weight - 0.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_strategy_config_custom() {
+        let c = StrategyConfig {
+            max_chunks: 10,
+            max_entities: 30,
+            max_relationships_per_entity: 3,
+            graph_depth: 1,
+            min_score: 0.5,
+            vector_weight: 0.7,
+            graph_weight: 0.3,
+        };
+        assert_eq!(c.max_chunks, 10);
+        assert!((c.vector_weight - 0.7).abs() < f32::EPSILON);
+    }
+}
