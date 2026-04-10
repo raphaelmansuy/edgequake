@@ -266,3 +266,113 @@ impl Folder {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── Conversation ───────────────────────────────────────
+
+    #[test]
+    fn test_conversation_new_defaults() {
+        let tid = Uuid::new_v4();
+        let uid = Uuid::new_v4();
+        let c = Conversation::new(tid, uid);
+        assert_eq!(c.tenant_id, tid);
+        assert_eq!(c.user_id, uid);
+        assert_eq!(c.title, "New Conversation");
+        assert_eq!(c.mode, ConversationMode::Hybrid);
+        assert!(!c.is_pinned);
+        assert!(!c.is_archived);
+        assert!(c.workspace_id.is_none());
+        assert!(c.folder_id.is_none());
+        assert!(c.share_id.is_none());
+        assert!(c.meta.is_empty());
+        assert_eq!(c.message_count, Some(0));
+        assert!(c.last_message_preview.is_none());
+    }
+
+    #[test]
+    fn test_conversation_builder() {
+        let tid = Uuid::new_v4();
+        let uid = Uuid::new_v4();
+        let wid = Uuid::new_v4();
+        let fid = Uuid::new_v4();
+        let c = Conversation::new(tid, uid)
+            .with_title("My Chat")
+            .with_mode(ConversationMode::Local)
+            .with_workspace(wid)
+            .with_folder(fid);
+        assert_eq!(c.title, "My Chat");
+        assert_eq!(c.mode, ConversationMode::Local);
+        assert_eq!(c.workspace_id, Some(wid));
+        assert_eq!(c.folder_id, Some(fid));
+    }
+
+    // ── Message ────────────────────────────────────────────
+
+    #[test]
+    fn test_message_user() {
+        let cid = Uuid::new_v4();
+        let m = Message::user(cid, "Hello");
+        assert_eq!(m.role, MessageRole::User);
+        assert_eq!(m.content, "Hello");
+        assert_eq!(m.conversation_id, cid);
+        assert!(!m.is_error);
+        assert!(m.parent_id.is_none());
+        assert!(m.context.is_none());
+    }
+
+    #[test]
+    fn test_message_assistant() {
+        let cid = Uuid::new_v4();
+        let m = Message::assistant(cid, "Hi there");
+        assert_eq!(m.role, MessageRole::Assistant);
+    }
+
+    #[test]
+    fn test_message_system() {
+        let cid = Uuid::new_v4();
+        let m = Message::system(cid, "System prompt");
+        assert_eq!(m.role, MessageRole::System);
+    }
+
+    #[test]
+    fn test_message_with_parent_and_mode() {
+        let cid = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let m = Message::user(cid, "Q")
+            .with_parent(pid)
+            .with_mode(ConversationMode::Naive);
+        assert_eq!(m.parent_id, Some(pid));
+        assert_eq!(m.mode, Some(ConversationMode::Naive));
+    }
+
+    // ── Folder ─────────────────────────────────────────────
+
+    #[test]
+    fn test_folder_new_defaults() {
+        let tid = Uuid::new_v4();
+        let uid = Uuid::new_v4();
+        let f = Folder::new(tid, uid, "Research");
+        assert_eq!(f.name, "Research");
+        assert_eq!(f.position, 0);
+        assert!(f.parent_id.is_none());
+        assert!(f.workspace_id.is_none());
+    }
+
+    #[test]
+    fn test_folder_builder() {
+        let tid = Uuid::new_v4();
+        let uid = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let wid = Uuid::new_v4();
+        let f = Folder::new(tid, uid, "Sub")
+            .with_parent(pid)
+            .with_workspace(wid)
+            .with_position(3);
+        assert_eq!(f.parent_id, Some(pid));
+        assert_eq!(f.workspace_id, Some(wid));
+        assert_eq!(f.position, 3);
+    }
+}
