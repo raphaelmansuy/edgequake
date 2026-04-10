@@ -492,4 +492,128 @@ mod tests {
         assert!(!result.contains('\u{200B}'));
         assert!(!result.contains('\u{0000}'));
     }
+
+    // =========================================================================
+    // OODA-20: Edge case tests for sanitizer
+    // =========================================================================
+
+    #[test]
+    fn test_sanitize_empty_string() {
+        let sanitizer = Sanitizer::default();
+        assert_eq!(sanitizer.sanitize(""), "");
+    }
+
+    #[test]
+    fn test_sanitize_with_report_tracks_removal() {
+        // WHY: sanitize_with_report must correctly track bytes removed
+        let sanitizer = Sanitizer::default();
+        let input = "Hello\u{200B}\u{200C}World"; // 2 zero-width chars (3 bytes each)
+        let report = sanitizer.sanitize_with_report(input);
+
+        assert_eq!(report.sanitized_text, "HelloWorld");
+        assert!(report.chars_removed > 0);
+        assert!(report.sanitized_length < report.original_length);
+    }
+
+    #[test]
+    fn test_sanitize_with_report_no_changes() {
+        let sanitizer = Sanitizer::default();
+        let input = "Clean text";
+        let report = sanitizer.sanitize_with_report(input);
+
+        assert_eq!(report.chars_removed, 0);
+        assert_eq!(report.original_length, report.sanitized_length);
+    }
+
+    #[test]
+    fn test_limit_newlines_zero_means_unlimited() {
+        // WHY: max_consecutive_newlines=0 skips the limiter entirely
+        let sanitizer = Sanitizer::new(SanitizeConfig {
+            max_consecutive_newlines: 0,
+            ..Default::default()
+        });
+        let input = "A\n\n\n\n\n\n\nB";
+        let result = sanitizer.sanitize(input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn test_collapse_whitespace_preserves_newlines() {
+        // WHY: Newlines are structural separators; collapse must not merge them
+        let sanitizer = Sanitizer::new(SanitizeConfig {
+            collapse_whitespace: true,
+            ..Default::default()
+        });
+        let input = "Line 1  \nLine 2";
+        let result = sanitizer.sanitize(input);
+        assert!(result.contains('\n'));
+    }
+
+    #[test]
+    fn test_emoji_replace_consecutive_emojis_single_placeholder() {
+        // WHY: Multiple consecutive emojis should collapse into one [EMOJI]
+        let sanitizer = Sanitizer::new(SanitizeConfig {
+            emoji_mode: EmojiMode::ReplaceWithPlaceholder,
+            ..Default::default()
+        });
+        let input = "Hello 👋🌍🎉 World";
+        let result = sanitizer.sanitize(input);
+        // Consecutive emojis → single [EMOJI]
+        assert_eq!(result.matches("[EMOJI]").count(), 1);
+    }
+
+    #[test]
+    fn test_all_features_disabled() {
+        // WHY: With everything off, input passes through unchanged
+        let sanitizer = Sanitizer::new(SanitizeConfig {
+            normalize_unicode: false,
+            emoji_mode: EmojiMode::Preserve,
+            remove_control_chars: false,
+            remove_zero_width: false,
+            remove_directional_markers: false,
+            collapse_whitespace: false,
+            max_consecutive_newlines: 0,
+        });
+        let input = "Dirty\u{0000}\u{200B}\u{200E}text 👋\n\n\n\n";
+        let result = sanitizer.sanitize(input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn test_mixed_dirty_input() {
+        // WHY: Real-world text combines multiple issues — test they compose correctly
+        let sanitizer = Sanitizer::default();
+        let input = "Hello\u{0000}\u{200B}\u{200E} World\n\n\n\nEnd";
+        let result = sanitizer.sanitize(input);
+
+        // Control char removed
+        assert!(!result.contains('\u{0000}'));
+        // Zero-width removed
+        assert!(!result.contains('\u{200B}'));
+        // Directional removed
+        assert!(!result.contains('\u{200E}'));
+        // Newlines limited to 3 (default)
+        assert_eq!(result, "Hello World\n\n\nEnd");
+    }
+
+    #[test]
+    fn test_only_control_chars() {
+        // WHY: Input that's entirely control chars → empty after sanitization
+        let sanitizer = Sanitizer::default();
+        let input = "\u{0000}\u{0001}\u{001F}";
+        let result = sanitizer.sanitize(input);
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_tabs_and_newlines_preserved() {
+        // WHY: \t and \n are meaningful whitespace — must survive control char removal
+        let sanitizer = Sanitizer::new(SanitizeConfig {
+            remove_control_chars: true,
+            ..Default::default()
+        });
+        let input = "col1\tcol2\nrow2";
+        let result = sanitizer.sanitize(input);
+        assert_eq!(result, "col1\tcol2\nrow2");
+    }
 }
