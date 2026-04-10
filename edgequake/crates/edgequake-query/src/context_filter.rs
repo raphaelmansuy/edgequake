@@ -1,5 +1,25 @@
 //! Post-retrieval context filtering by document IDs.
 //!
+//! ## WHY: Strict Chunks vs. Lenient Entities/Relationships
+//!
+//! Chunks always belong to a single document, so filtering is strict:
+//! if `document_id` doesn't match the allowed set, the chunk is dropped.
+//!
+//! Entities and relationships are **lenient**: items *without* a
+//! `source_document_id` are kept because they may represent
+//! cross-document knowledge (e.g., an entity mentioned in many papers).
+//! Removing them would silently drop graph-level insights that don't
+//! trace back to a single source.
+//!
+//! ```text
+//!   filter_context_by_document_ids(ctx, allowed_ids)
+//!   ┌─────────────────────────────────────────────┐
+//!   │ chunks:        STRICT  (must match)         │
+//!   │ entities:      LENIENT (keep if no doc_id)  │
+//!   │ relationships: LENIENT (keep if no doc_id)  │
+//!   └─────────────────────────────────────────────┘
+//! ```
+//!
 //! Filters a `QueryContext` to only include items from allowed documents.
 //! Applied after vector search / mode-specific retrieval but BEFORE
 //! truncation and LLM answer generation.
