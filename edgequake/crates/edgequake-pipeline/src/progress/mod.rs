@@ -537,4 +537,91 @@ mod tests {
         let snapshot = tracker.snapshot().await;
         assert_eq!(snapshot.status, IngestionStatus::Completed);
     }
+
+    #[test]
+    fn test_ingestion_status_default_is_pending() {
+        assert_eq!(IngestionStatus::default(), IngestionStatus::Pending);
+    }
+
+    #[test]
+    fn test_stage_status_default_is_pending() {
+        assert_eq!(StageStatus::default(), StageStatus::Pending);
+    }
+
+    #[test]
+    fn test_pipeline_stage_names() {
+        assert_eq!(PipelineStage::Preprocessing.name(), "Preprocessing");
+        assert_eq!(PipelineStage::Extracting.name(), "Extracting");
+        assert_eq!(PipelineStage::Finalizing.name(), "Finalizing");
+    }
+
+    #[test]
+    fn test_stage_progress_fail() {
+        let mut sp = StageProgress::new(PipelineStage::Embedding, 100);
+        sp.start();
+        sp.fail();
+        assert_eq!(sp.status, StageStatus::Failed);
+        assert!(sp.completed_at.is_some());
+    }
+
+    #[test]
+    fn test_stage_progress_skip() {
+        let mut sp = StageProgress::new(PipelineStage::Gleaning, 0);
+        sp.skip();
+        assert_eq!(sp.status, StageStatus::Skipped);
+        assert!(sp.completed_at.is_some());
+    }
+
+    #[test]
+    fn test_stage_progress_update_zero_total() {
+        let mut sp = StageProgress::new(PipelineStage::Chunking, 0);
+        sp.start();
+        sp.update(5);
+        // WHY: Division by zero guard — percentage stays 0 when total_items is 0
+        assert_eq!(sp.completion_percentage, 0.0);
+        assert_eq!(sp.completed_items, 5);
+    }
+
+    #[test]
+    fn test_progress_message_warning() {
+        let msg = ProgressMessage::warning("Rate limited");
+        assert_eq!(msg.level, MessageLevel::Warning);
+    }
+
+    #[test]
+    fn test_progress_message_error() {
+        let msg = ProgressMessage::error("Connection lost");
+        assert_eq!(msg.level, MessageLevel::Error);
+    }
+
+    #[test]
+    fn test_ingestion_progress_new() {
+        let p = IngestionProgress::new("j1", "d1");
+        assert_eq!(p.job_id, "j1");
+        assert_eq!(p.document_id, "d1");
+        assert_eq!(p.status, IngestionStatus::Pending);
+        assert_eq!(p.stages.len(), 9);
+        assert_eq!(p.completion_percentage, 0.0);
+    }
+
+    #[test]
+    fn test_ingestion_progress_calculate_completion() {
+        let mut p = IngestionProgress::new("j", "d");
+        // Complete first 3 stages
+        p.stages[0].complete();
+        p.stages[1].complete();
+        p.stages[2].complete();
+        p.calculate_completion();
+        // 3/9 = 33.33%
+        assert!((p.completion_percentage - 33.33).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_ingestion_error_without_optionals() {
+        let err = IngestionError::new("E002", "Timeout", PipelineStage::Merging);
+        assert!(!err.recoverable);
+        assert!(err.details.is_none());
+        assert!(err.item_id.is_none());
+        assert_eq!(err.retry_count, 0);
+    }
 }
