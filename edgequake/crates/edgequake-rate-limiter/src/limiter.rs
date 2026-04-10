@@ -360,4 +360,75 @@ mod tests {
         limiter.cleanup_stale_buckets(Duration::from_secs(0));
         assert_eq!(limiter.buckets.len(), 0);
     }
+
+    // --- round_positive_retry_delay edge cases ---
+
+    #[test]
+    fn test_round_positive_zero_duration() {
+        // WHY: Duration::ZERO → ceil(0.0) = 0, then max(1) = 1
+        // Prevents Retry-After: 0 which would cause client hot-loops
+        assert_eq!(round_positive_retry_delay(Duration::ZERO), 1);
+    }
+
+    #[test]
+    fn test_round_positive_sub_second() {
+        // 100ms → ceil(0.1) = 1
+        assert_eq!(
+            round_positive_retry_delay(Duration::from_millis(100)),
+            1
+        );
+    }
+
+    #[test]
+    fn test_round_positive_exact_seconds() {
+        assert_eq!(
+            round_positive_retry_delay(Duration::from_secs(3)),
+            3
+        );
+    }
+
+    #[test]
+    fn test_round_positive_fractional_seconds() {
+        // 2.1s → ceil = 3
+        assert_eq!(
+            round_positive_retry_delay(Duration::from_millis(2100)),
+            3
+        );
+    }
+
+    // --- get_state + reset ---
+
+    #[test]
+    fn test_get_state_absent_key() {
+        let config = RateLimitConfig::new(10, 60);
+        let limiter = RateLimiter::new(config);
+        assert!(limiter.get_state("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_get_state_after_check() {
+        let config = RateLimitConfig::strict(10, 60);
+        let limiter = RateLimiter::new(config);
+        limiter.check_rate_limit("k");
+        let state = limiter.get_state("k").unwrap();
+        // After consuming 1 of 10 tokens, 9 remain
+        assert_eq!(state.available_tokens, 9);
+        assert_eq!(state.capacity, 10);
+    }
+
+    #[test]
+    fn test_reset_restores_capacity() {
+        let config = RateLimitConfig::strict(5, 60);
+        let limiter = RateLimiter::new(config);
+
+        // Exhaust tokens
+        for _ in 0..5 {
+            limiter.check_rate_limit("k");
+        }
+        assert!(!limiter.check_rate_limit("k").0);
+
+        // Reset restores capacity
+        limiter.reset("k");
+        assert!(limiter.check_rate_limit("k").0);
+    }
 }
