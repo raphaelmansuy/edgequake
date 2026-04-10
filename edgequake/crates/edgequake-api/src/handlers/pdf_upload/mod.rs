@@ -31,18 +31,20 @@ mod tests {
         // Small PDF, few pages
         let data = vec![0u8; 100_000]; // 100KB
         let time = helpers::estimate_processing_time(&data, Some(5));
-        assert!(time >= 15 && time <= 30); // 5 pages * 3s + 0.1MB * 0.5
+        assert!((15..=30).contains(&time)); // 5 pages * 3s + 0.1MB * 0.5
 
         // Large PDF, many pages
         let data = vec![0u8; 10_000_000]; // 10MB
         let time = helpers::estimate_processing_time(&data, Some(50));
-        assert!(time >= 150 && time <= 200); // 50 pages * 3s + 10MB * 0.5
+        assert!((150..=200).contains(&time)); // 50 pages * 3s + 10MB * 0.5
     }
 
     #[test]
     fn test_pdf_upload_options_vision_model() {
-        let mut opts = PdfUploadOptions::default();
-        opts.vision_provider = Some("openai".to_string());
+        let mut opts = PdfUploadOptions {
+            vision_provider: Some("openai".to_string()),
+            ..PdfUploadOptions::default()
+        };
         // OODA-04: Updated from gpt-4o-mini to gpt-4.1-nano per mission directive
         assert_eq!(opts.vision_model(), "gpt-4.1-nano");
 

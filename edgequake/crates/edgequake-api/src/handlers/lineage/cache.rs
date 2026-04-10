@@ -18,6 +18,12 @@ pub(super) const LINEAGE_CACHE_TTL: Duration = Duration::from_secs(120);
 /// Maximum entries before evicting oldest. Prevents unbounded memory growth.
 pub(super) const LINEAGE_CACHE_MAX_ENTRIES: usize = 500;
 
+const _: () = {
+    // WHY: cache sizing is a configuration invariant, not a runtime behavior.
+    assert!(LINEAGE_CACHE_MAX_ENTRIES > 0);
+    assert!(LINEAGE_CACHE_MAX_ENTRIES <= 10_000);
+};
+
 #[derive(Clone)]
 pub(super) struct CachedLineage {
     pub(super) data: serde_json::Value,

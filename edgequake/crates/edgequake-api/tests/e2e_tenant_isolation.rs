@@ -16,7 +16,7 @@
 
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode},
 };
 use edgequake_api::{AppState, Server, ServerConfig};
 use serde_json::{json, Value};

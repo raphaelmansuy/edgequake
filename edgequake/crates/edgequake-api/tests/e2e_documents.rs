@@ -392,7 +392,7 @@ async fn test_get_document_success() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/documents/{}", document_id))
+                .uri(format!("/api/v1/documents/{}", document_id))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -466,7 +466,7 @@ async fn test_delete_document_success() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(&format!("/api/v1/documents/{}", document_id))
+                .uri(format!("/api/v1/documents/{}", document_id))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -488,7 +488,7 @@ async fn test_delete_document_success() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/documents/{}", document_id))
+                .uri(format!("/api/v1/documents/{}", document_id))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -575,7 +575,7 @@ async fn test_complete_document_lifecycle() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/documents/{}", document_id))
+                .uri(format!("/api/v1/documents/{}", document_id))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -596,7 +596,7 @@ async fn test_complete_document_lifecycle() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(&format!("/api/v1/documents/{}", document_id))
+                .uri(format!("/api/v1/documents/{}", document_id))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -611,7 +611,7 @@ async fn test_complete_document_lifecycle() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/documents/{}", document_id))
+                .uri(format!("/api/v1/documents/{}", document_id))
                 .body(Body::empty())
                 .unwrap(),
         )
