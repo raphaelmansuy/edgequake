@@ -364,4 +364,91 @@ mod tests {
             Some("/documents/team.md")
         );
     }
+
+    // ── MergerConfig defaults ──────────────────────────────
+
+    #[test]
+    fn test_merger_config_defaults() {
+        let cfg = MergerConfig::default();
+        assert_eq!(cfg.max_description_length, 4096);
+        assert!((cfg.description_decay - 0.9).abs() < f32::EPSILON);
+        assert!((cfg.min_importance - 0.1).abs() < f32::EPSILON);
+        assert_eq!(cfg.max_sources, 10);
+        assert!(cfg.use_llm_summarization);
+    }
+
+    // ── MergeStats defaults + methods ──────────────────────
+
+    #[test]
+    fn test_merge_stats_default_all_zero() {
+        let s = MergeStats::default();
+        assert_eq!(s.entities_created, 0);
+        assert_eq!(s.entities_updated, 0);
+        assert_eq!(s.relationships_created, 0);
+        assert_eq!(s.relationships_updated, 0);
+        assert_eq!(s.errors, 0);
+        assert_eq!(s.total_entities(), 0);
+        assert_eq!(s.total_relationships(), 0);
+    }
+
+    // ── normalize_entity_name edge cases ───────────────────
+
+    #[test]
+    fn test_normalize_unicode() {
+        // Unicode letters pass through (no alphanum filter in this impl)
+        let result = normalize_entity_name("Café");
+        assert_eq!(result, "CAFÉ");
+    }
+
+    #[test]
+    fn test_normalize_numeric() {
+        assert_eq!(normalize_entity_name("Agent 47"), "AGENT_47");
+    }
+
+    #[test]
+    fn test_normalize_single_char() {
+        assert_eq!(normalize_entity_name("X"), "X");
+    }
+
+    #[test]
+    fn test_normalize_tabs_and_newlines() {
+        // WHY: merger's normalize strips non-alphanumeric (except space), so
+        // \n and \t are removed. trim() handles leading/trailing, but internal
+        // newlines become empty → words collapse.
+        assert_eq!(normalize_entity_name("\tFoo Bar\r"), "FOO_BAR");
+    }
+
+    // ── merge_descriptions edge cases ──────────────────────
+
+    #[test]
+    fn test_merge_descriptions_new_is_substring() {
+        // If new is contained in existing, return existing unchanged
+        let result = merge_descriptions("Alice is a researcher.", "researcher", 1000);
+        assert_eq!(result, "Alice is a researcher.");
+    }
+
+    #[test]
+    fn test_merge_descriptions_truncated_at_max_length() {
+        let existing = "First.";
+        let new_text = "Second sentence. Third sentence. Fourth sentence.";
+        let result = merge_descriptions(existing, new_text, 30);
+        assert!(result.len() <= 30, "Result too long: {} chars", result.len());
+    }
+
+    // ── truncate_description edge cases ────────────────────
+
+    #[test]
+    fn test_truncate_at_exact_boundary() {
+        let text = "Short.";
+        assert_eq!(truncate_description(text, 6), "Short.");
+    }
+
+    #[test]
+    fn test_truncate_no_sentence_end() {
+        // If there's no sentence-ending punctuation within max_length,
+        // falls back to max_length position
+        let text = "A word stream without any period or end mark that goes on and on";
+        let result = truncate_description(text, 20);
+        assert!(result.len() <= 20);
+    }
 }
