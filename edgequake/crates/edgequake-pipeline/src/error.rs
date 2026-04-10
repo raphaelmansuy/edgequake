@@ -389,3 +389,199 @@ pub enum PipelineError {
     #[error("Validation error: {0}")]
     Validation(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_success(idx: usize, chunk_id: &str, time_ms: u64) -> ChunkExtractionOutcome {
+        let mut result = ExtractionResult::new(chunk_id);
+        result.extraction_time_ms = time_ms;
+        ChunkExtractionOutcome::Success {
+            chunk_index: idx,
+            result,
+        }
+    }
+
+    fn make_failure(idx: usize, chunk_id: &str, time_ms: u64) -> ChunkExtractionOutcome {
+        ChunkExtractionOutcome::Failed(ChunkFailure {
+            chunk_index: idx,
+            chunk_id: chunk_id.to_string(),
+            error: "test error".to_string(),
+            retry_attempts: 3,
+            was_timeout: false,
+            processing_time_ms: time_ms,
+        })
+    }
+
+    // ── ChunkExtractionOutcome ─────────────────────────────
+
+    #[test]
+    fn test_outcome_success_flags() {
+        let outcome = make_success(0, "c0", 100);
+        assert!(outcome.is_success());
+        assert!(!outcome.is_failure());
+    }
+
+    #[test]
+    fn test_outcome_failure_flags() {
+        let outcome = make_failure(1, "c1", 200);
+        assert!(!outcome.is_success());
+        assert!(outcome.is_failure());
+    }
+
+    #[test]
+    fn test_outcome_chunk_index() {
+        assert_eq!(make_success(5, "c5", 0).chunk_index(), 5);
+        assert_eq!(make_failure(7, "c7", 0).chunk_index(), 7);
+    }
+
+    #[test]
+    fn test_outcome_as_result() {
+        let success = make_success(0, "c0", 0);
+        assert!(success.as_result().is_some());
+        assert_eq!(success.as_result().unwrap().source_chunk_id, "c0");
+
+        let failure = make_failure(1, "c1", 0);
+        assert!(failure.as_result().is_none());
+    }
+
+    #[test]
+    fn test_outcome_into_result() {
+        let success = make_success(0, "c0", 0);
+        let result = success.into_result();
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().source_chunk_id, "c0");
+
+        let failure = make_failure(1, "c1", 0);
+        assert!(failure.into_result().is_none());
+    }
+
+    #[test]
+    fn test_outcome_as_failure() {
+        let success = make_success(0, "c0", 0);
+        assert!(success.as_failure().is_none());
+
+        let failure = make_failure(1, "c1", 0);
+        let f = failure.as_failure().unwrap();
+        assert_eq!(f.chunk_index, 1);
+        assert_eq!(f.retry_attempts, 3);
+    }
+
+    // ── ResilientExtractionResult ──────────────────────────
+
+    #[test]
+    fn test_from_outcomes_empty() {
+        let r = ResilientExtractionResult::from_outcomes(vec![]);
+        assert_eq!(r.total_chunks, 0);
+        assert!(r.is_complete_success());
+        assert!(!r.has_any_success());
+        assert!(!r.is_complete_failure());
+    }
+
+    #[test]
+    fn test_from_outcomes_all_success() {
+        let r = ResilientExtractionResult::from_outcomes(vec![
+            make_success(0, "c0", 100),
+            make_success(1, "c1", 200),
+        ]);
+        assert_eq!(r.successful_extractions.len(), 2);
+        assert_eq!(r.failed_chunks.len(), 0);
+        assert!(r.is_complete_success());
+        assert!(r.has_any_success());
+        assert_eq!(r.total_processing_time_ms, 300);
+    }
+
+    #[test]
+    fn test_from_outcomes_all_failure() {
+        let r = ResilientExtractionResult::from_outcomes(vec![
+            make_failure(0, "c0", 50),
+            make_failure(1, "c1", 60),
+        ]);
+        assert_eq!(r.successful_extractions.len(), 0);
+        assert_eq!(r.failed_chunks.len(), 2);
+        assert!(r.is_complete_failure());
+        assert!(!r.has_any_success());
+        assert_eq!(r.total_processing_time_ms, 110);
+    }
+
+    #[test]
+    fn test_from_outcomes_mixed() {
+        let r = ResilientExtractionResult::from_outcomes(vec![
+            make_success(0, "c0", 100),
+            make_failure(1, "c1", 50),
+            make_success(2, "c2", 200),
+        ]);
+        assert_eq!(r.successful_extractions.len(), 2);
+        assert_eq!(r.failed_chunks.len(), 1);
+        assert!(!r.is_complete_success());
+        assert!(!r.is_complete_failure());
+        assert!(r.has_any_success());
+    }
+
+    #[test]
+    fn test_success_rate_zero_chunks() {
+        let r = ResilientExtractionResult::from_outcomes(vec![]);
+        assert!((r.success_rate() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_success_rate_three_of_four() {
+        let r = ResilientExtractionResult::from_outcomes(vec![
+            make_success(0, "c0", 0),
+            make_success(1, "c1", 0),
+            make_success(2, "c2", 0),
+            make_failure(3, "c3", 0),
+        ]);
+        assert!((r.success_rate() - 0.75).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_summary_format() {
+        let r = ResilientExtractionResult::from_outcomes(vec![
+            make_success(0, "c0", 1000),
+            make_failure(1, "c1", 500),
+        ]);
+        let s = r.summary();
+        assert!(s.contains("1/2"), "Summary should show 1/2: {s}");
+        assert!(s.contains("50.0%"), "Summary should show 50.0%: {s}");
+        assert!(s.contains("1 failed"), "Summary should show 1 failed: {s}");
+    }
+
+    // ── PipelineError Display ──────────────────────────────
+
+    #[test]
+    fn test_extraction_timeout_display() {
+        let e = PipelineError::ExtractionTimeout {
+            chunk_index: 3,
+            timeout_secs: 30,
+            message: "network".to_string(),
+        };
+        let msg = e.to_string();
+        assert!(msg.contains("30s"));
+        assert!(msg.contains("chunk 3"));
+    }
+
+    #[test]
+    fn test_retry_exhausted_display() {
+        let e = PipelineError::RetryExhausted {
+            chunk_index: 2,
+            attempts: 5,
+            message: "rate limit".to_string(),
+        };
+        let msg = e.to_string();
+        assert!(msg.contains("5 retries"));
+        assert!(msg.contains("chunk 2"));
+    }
+
+    #[test]
+    fn test_circuit_breaker_display() {
+        let e = PipelineError::CircuitBreakerOpen {
+            failures: 10,
+            retry_after_secs: 60,
+        };
+        let msg = e.to_string();
+        assert!(msg.contains("10 consecutive"));
+        assert!(msg.contains("60s"));
+    }
+}
