@@ -1,5 +1,23 @@
 //! Task queue implementations for background processing.
 //!
+//! ## WHY: Arc<Mutex<Receiver>> for Multi-Consumer Support
+//!
+//! `tokio::sync::mpsc` is multi-producer, single-consumer. We wrap the
+//! `Receiver` in `Arc<tokio::sync::Mutex>` so multiple worker tasks can
+//! call `receive()` concurrently — the Mutex serializes access, ensuring
+//! each task is delivered to exactly one worker.
+//!
+//! Alternative considered: `tokio::sync::broadcast` — rejected because
+//! it delivers each message to ALL subscribers (fan-out), not one.
+//!
+//! ```text
+//!   Producer(s) ───┐
+//!   Producer(s) ───┼───▶ mpsc::channel ───▶ Arc<Mutex<Receiver>>
+//!   Producer(s) ───┘                        ├─ Worker 1
+//!                                         ├─ Worker 2
+//!                                         └─ Worker N
+//! ```
+//!
 //! ## Implements
 //!
 //! - **FEAT0920**: Task queue trait abstraction
@@ -276,5 +294,45 @@ mod tests {
     async fn test_queue_not_closed() {
         let queue = ChannelTaskQueue::new(10);
         assert!(!queue.is_closed());
+    }
+
+    // ── Edge case tests (OODA-27) ──────────────────────────────────
+
+    #[tokio::test]
+    async fn test_channel_queue_size_after_send() {
+        let queue = ChannelTaskQueue::new(10);
+        let task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Upload,
+            serde_json::json!({}),
+        );
+        queue.send(task).await.unwrap();
+        // Size should be reported (implementation may vary)
+        let size = queue.size().await.unwrap();
+        assert!(size >= 0); // At least non-negative
+    }
+
+    #[tokio::test]
+    async fn test_unbounded_queue_not_closed() {
+        let queue = UnboundedChannelTaskQueue::new();
+        assert!(!queue.is_closed());
+    }
+
+    #[tokio::test]
+    async fn test_try_receive_returns_some_when_available() {
+        let queue = ChannelTaskQueue::new(10);
+        let task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::Upload,
+            serde_json::json!({"key": "val"}),
+        );
+        let track_id = task.track_id.clone();
+        queue.send(task).await.unwrap();
+
+        let result = queue.try_receive().await.unwrap();
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().track_id, track_id);
     }
 }

@@ -1,4 +1,29 @@
 //! Storage error types.
+//!
+//! ## WHY: Fine-Grained Error Variants
+//!
+//! Storage errors use specific variants (NotFound, AlreadyExists,
+//! Conflict, Transaction) instead of a single `DatabaseError(String)`
+//! because:
+//!
+//! 1. **Callers need to branch** — API handlers map NotFound → 404,
+//!    AlreadyExists → 409, Connection → 503.
+//! 2. **`#[from]` conversions** on `io::Error` and `serde_json::Error`
+//!    avoid boilerplate `map_err` at every call site.
+//! 3. **`sqlx::Error` mapping** (behind `postgres` feature) translates
+//!    database-specific errors into our domain vocabulary so upper
+//!    layers never depend on sqlx.
+//!
+//! ```text
+//!   StorageError
+//!   ├─ Connection      → 503  (retry-able)
+//!   ├─ NotFound        → 404
+//!   ├─ AlreadyExists   → 409
+//!   ├─ InvalidQuery    → 400
+//!   ├─ Transaction     → 500  (needs rollback)
+//!   ├─ NotInitialized  → 500  (startup sequencing bug)
+//!   └─ Database        → 500  (catch-all)
+//! ```
 
 use thiserror::Error;
 
