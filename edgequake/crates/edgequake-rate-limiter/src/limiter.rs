@@ -92,6 +92,30 @@ impl TokenBucket {
         let seconds = deficit / self.refill_rate;
         Duration::from_secs_f64(seconds)
     }
+
+    /// Get seconds until enough tokens are available, rounded up for HTTP headers.
+    ///
+    /// WHY: `Duration::as_secs()` floors sub-second values to 0, which would emit
+    /// `Retry-After: 0` even though the request is still blocked. Rounding up keeps
+    /// retry guidance conservative and prevents clients from hot-looping.
+    fn retry_after_seconds(&self, amount: f64) -> u64 {
+        round_positive_retry_delay(self.time_until_available(amount))
+    }
+
+    /// Get seconds until the bucket is fully refilled.
+    fn seconds_until_full(&self) -> u64 {
+        let deficit = (self.capacity - self.tokens).max(0.0);
+        if deficit == 0.0 {
+            return 0;
+        }
+        let seconds = deficit / self.refill_rate;
+        round_positive_retry_delay(Duration::from_secs_f64(seconds))
+    }
+}
+
+fn round_positive_retry_delay(delay: Duration) -> u64 {
+    let secs = delay.as_secs_f64().ceil() as u64;
+    secs.max(1)
 }
 
 /// Rate limiter using token bucket algorithm
@@ -134,8 +158,7 @@ impl RateLimiter {
         if bucket.try_consume(cost) {
             (true, None)
         } else {
-            let retry_after = bucket.time_until_available(cost);
-            (false, Some(retry_after.as_secs()))
+            (false, Some(bucket.retry_after_seconds(cost)))
         }
     }
 
@@ -147,6 +170,7 @@ impl RateLimiter {
                 available_tokens: bucket.tokens as u32,
                 capacity: bucket.capacity as u32,
                 refill_rate: bucket.refill_rate,
+                reset_after_seconds: bucket.seconds_until_full(),
             }
         })
     }
@@ -195,6 +219,7 @@ pub struct RateLimitState {
     pub available_tokens: u32,
     pub capacity: u32,
     pub refill_rate: f64,
+    pub reset_after_seconds: u64,
 }
 
 #[cfg(test)]
@@ -296,6 +321,23 @@ mod tests {
 
         // No tokens left
         assert!(!limiter.check_rate_limit("test-key").0);
+    }
+
+    #[test]
+    fn test_retry_after_rounds_up_subsecond_delay() {
+        let config = RateLimitConfig {
+            requests_per_window: 1,
+            window_seconds: 1,
+            burst_size: 0,
+            refill_rate: 100.0,
+        };
+        let limiter = RateLimiter::new(config);
+
+        assert!(limiter.check_rate_limit("test-key").0);
+
+        let (allowed, retry_after) = limiter.check_rate_limit("test-key");
+        assert!(!allowed);
+        assert_eq!(retry_after, Some(1));
     }
 
     #[test]
