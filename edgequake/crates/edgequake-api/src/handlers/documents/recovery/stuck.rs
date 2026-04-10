@@ -8,7 +8,7 @@ use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{parse_uuid, ApiError, ApiResult, ResultExt};
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -183,11 +183,8 @@ pub async fn recover_stuck(
                 };
 
                 let task = Task::new(
-                    uuid::Uuid::parse_str(&tenant_id)
-                        .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
-                    uuid::Uuid::parse_str(&workspace_id).map_err(|_| {
-                        ApiError::ValidationError("Invalid workspace ID".to_string())
-                    })?,
+                    parse_uuid(&tenant_id, "tenant ID")?,
+                    parse_uuid(&workspace_id, "workspace ID")?,
                     TaskType::Insert,
                     // WHY expect: TextInsertData fields are all primitives/Strings → always serializable
                     serde_json::to_value(task_data).expect("TextInsertData is always serializable"),
@@ -197,13 +194,13 @@ pub async fn recover_stuck(
                     .task_storage
                     .create_task(&task)
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+                    .internal_err("create recovery task")?;
 
                 state
                     .task_queue
                     .send(task)
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+                    .internal_err("queue recovery task")?;
 
                 requeued_ids.push(doc_id.clone());
                 requeued_titles.push(doc_title.clone());
