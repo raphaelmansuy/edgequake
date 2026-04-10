@@ -393,4 +393,83 @@ mod tests {
         let budget = TokenBudget::default();
         assert_eq!(budget.max_tokens(), 128_000);
     }
+
+    // ── Edge case tests (OODA-47) ──────────────────────────────────
+
+    #[test]
+    fn test_available_tokens_saturating() {
+        // reserves exceed max → available should be 0, not underflow
+        let budget = TokenBudget::new("gpt-4", 100).with_reserves(500, 500);
+        assert_eq!(budget.available_tokens(), 0);
+    }
+
+    #[test]
+    fn test_budget_source_default() {
+        let s = BudgetSource::default();
+        assert_eq!(s.name, "");
+        assert!((s.weight - 1.0).abs() < f64::EPSILON);
+        assert_eq!(s.min_tokens, 100);
+    }
+
+    #[test]
+    fn test_context_source_builder() {
+        let cs = ContextSource::new("test", "content")
+            .with_weight(2.5)
+            .with_min_tokens(50);
+        assert_eq!(cs.name, "test");
+        assert_eq!(cs.content, "content");
+        assert!((cs.weight - 2.5).abs() < f64::EPSILON);
+        assert_eq!(cs.min_tokens, 50);
+    }
+
+    #[test]
+    fn test_model_limits_constants() {
+        assert_eq!(model_limits::GPT4_TURBO, 128_000);
+        assert_eq!(model_limits::GPT4O, 128_000);
+        assert_eq!(model_limits::GPT35_TURBO, 16_385);
+        assert_eq!(model_limits::CLAUDE3_OPUS, 200_000);
+        assert_eq!(model_limits::CLAUDE3_SONNET, 200_000);
+    }
+
+    #[test]
+    fn test_build_context_empty_content() {
+        let budget = TokenBudget::new("gpt-4", 4000);
+        let sources = vec![
+            ContextSource::new("empty1", ""),
+            ContextSource::new("empty2", ""),
+        ];
+        let (context, tokens) = budget.build_context(&sources);
+        assert!(context.is_empty());
+        assert_eq!(tokens, 0);
+    }
+
+    #[test]
+    fn test_allocate_budget_minimums_exceed_total() {
+        let budget = TokenBudget::new("gpt-4", 500).with_reserves(0, 0);
+        let sources = vec![
+            BudgetSource { name: "a".into(), weight: 1.0, min_tokens: 400 },
+            BudgetSource { name: "b".into(), weight: 1.0, min_tokens: 600 },
+        ];
+        let allocs = budget.allocate_budget(&sources);
+        // Should distribute proportionally to minimums
+        assert_eq!(allocs.len(), 2);
+        let total: usize = allocs.iter().map(|a| a.tokens).sum();
+        assert!(total <= 500);
+    }
+
+    #[test]
+    fn test_truncate_short_text_unchanged() {
+        let budget = TokenBudget::new("gpt-4", 4000);
+        let text = "Short";
+        let truncated = budget.truncate_to_budget(text, 100);
+        assert_eq!(truncated, "Short");
+    }
+
+    #[test]
+    fn test_unknown_model_falls_back() {
+        // Should not panic — falls back to gpt-4 encoder
+        let budget = TokenBudget::new("nonexistent-model-xyz", 1000);
+        let count = budget.count_tokens("hello");
+        assert!(count > 0);
+    }
 }
