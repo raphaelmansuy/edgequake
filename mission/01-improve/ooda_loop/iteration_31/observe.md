@@ -17,11 +17,11 @@
 
 ### Test Gaps
 
-| Function | Tests | Gap |
-|----------|-------|-----|
-| round_positive_retry_delay | 0 | Edge cases: zero Duration, sub-second, exact seconds |
-| RateLimiter::check_rate_limit | 2 | Basic only; no cost-based, reset, get_state tests |
-| AuditEvent::new defaults | 1 | Not all default fields verified |
-| AuditEvent::with_error | 0 | Sets both error_message AND result=Failure |
-| AuditEventBuilder | 0 | Entirely untested |
-| AuditSeverity ordering | 0 | Low < Medium < High < Critical untested |
+| Function                      | Tests | Gap                                                  |
+| ----------------------------- | ----- | ---------------------------------------------------- |
+| round_positive_retry_delay    | 0     | Edge cases: zero Duration, sub-second, exact seconds |
+| RateLimiter::check_rate_limit | 2     | Basic only; no cost-based, reset, get_state tests    |
+| AuditEvent::new defaults      | 1     | Not all default fields verified                      |
+| AuditEvent::with_error        | 0     | Sets both error_message AND result=Failure           |
+| AuditEventBuilder             | 0     | Entirely untested                                    |
+| AuditSeverity ordering        | 0     | Low < Medium < High < Critical untested              |

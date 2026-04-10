@@ -392,7 +392,10 @@ mod tests {
     fn test_extract_entity_source_tracking_wrong_types() {
         // WHY: Non-array source_chunk_ids should not panic
         let mut props = HashMap::new();
-        props.insert("source_chunk_ids".to_string(), serde_json::json!("not-array"));
+        props.insert(
+            "source_chunk_ids".to_string(),
+            serde_json::json!("not-array"),
+        );
         props.insert("source_document_id".to_string(), serde_json::json!(42));
 
         let tracking = extract_entity_source_tracking(&props);

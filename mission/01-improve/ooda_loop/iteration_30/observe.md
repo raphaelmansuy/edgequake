@@ -21,14 +21,14 @@
 
 ### Test Gaps
 
-| Function | Tests | Gap |
-|----------|-------|-----|
-| StrategyConfig::default() | 0 | All 7 fields untested |
-| QueryEngineConfig::default() | 1 (partial) | Only 3 of 9 fields checked |
-| QueryRequest::new() | 1 (partial) | Default fields not fully asserted |
-| with_llm_full_id() | 0 | Provider/model parsing untested |
-| with_tenant_id/workspace_id | 0 | Param insertion untested |
-| tenant_id()/workspace_id() | 0 | Param extraction untested |
-| with_rerank/with_rerank_top_k | 0 | Rerank overrides untested |
-| with_allowed_document_ids | 0 | Document filter untested |
-| with_conversation_history | 0 | History builder untested |
+| Function                      | Tests       | Gap                               |
+| ----------------------------- | ----------- | --------------------------------- |
+| StrategyConfig::default()     | 0           | All 7 fields untested             |
+| QueryEngineConfig::default()  | 1 (partial) | Only 3 of 9 fields checked        |
+| QueryRequest::new()           | 1 (partial) | Default fields not fully asserted |
+| with_llm_full_id()            | 0           | Provider/model parsing untested   |
+| with_tenant_id/workspace_id   | 0           | Param insertion untested          |
+| tenant_id()/workspace_id()    | 0           | Param extraction untested         |
+| with_rerank/with_rerank_top_k | 0           | Rerank overrides untested         |
+| with_allowed_document_ids     | 0           | Document filter untested          |
+| with_conversation_history     | 0           | History builder untested          |

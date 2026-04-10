@@ -71,8 +71,14 @@ mod tests {
 
     #[test]
     fn test_context_limit_exceeded_display() {
-        let e = QueryError::ContextLimitExceeded { max: 4000, got: 5500 };
-        assert_eq!(e.to_string(), "Context limit exceeded: max 4000 tokens, got 5500");
+        let e = QueryError::ContextLimitExceeded {
+            max: 4000,
+            got: 5500,
+        };
+        assert_eq!(
+            e.to_string(),
+            "Context limit exceeded: max 4000 tokens, got 5500"
+        );
     }
 
     #[test]

@@ -181,3 +181,159 @@ impl TupleParser {
         response.contains(&self.completion_delimiter)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn delim() -> &'static str {
+        DEFAULT_TUPLE_DELIMITER
+    }
+
+    fn comp() -> &'static str {
+        DEFAULT_COMPLETION_DELIMITER
+    }
+
+    #[test]
+    fn test_parse_single_entity() {
+        let parser = TupleParser::new();
+        let input = format!("entity{}Alice{}PERSON{}A researcher", delim(), delim(), delim());
+        let result = parser.parse(&input, "c1").unwrap();
+        assert_eq!(result.entities.len(), 1);
+        assert_eq!(result.entities[0].entity_type, "PERSON");
+        assert!(result.entities[0].description.contains("A researcher"));
+    }
+
+    #[test]
+    fn test_parse_single_relationship() {
+        let parser = TupleParser::new();
+        let input = format!(
+            "relation{}Alice{}Bob{}collaboration,research{}They work together",
+            delim(), delim(), delim(), delim()
+        );
+        let result = parser.parse(&input, "c1").unwrap();
+        assert_eq!(result.relationships.len(), 1);
+        assert!(result.relationships[0].description.contains("work together"));
+    }
+
+    #[test]
+    fn test_parse_mixed_entities_and_relationships() {
+        let parser = TupleParser::new();
+        let input = format!(
+            "entity{}Alice{}PERSON{}Researcher\n\
+             entity{}Bob{}PERSON{}Engineer\n\
+             relation{}Alice{}Bob{}collab{}They collaborate",
+            delim(), delim(), delim(),
+            delim(), delim(), delim(),
+            delim(), delim(), delim(), delim()
+        );
+        let result = parser.parse(&input, "c1").unwrap();
+        assert_eq!(result.entities.len(), 2);
+        assert_eq!(result.relationships.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_empty_input() {
+        let parser = TupleParser::new();
+        let result = parser.parse("", "c1").unwrap();
+        assert_eq!(result.entities.len(), 0);
+        assert_eq!(result.relationships.len(), 0);
+    }
+
+    #[test]
+    fn test_br0006_self_referencing_relationship_skipped() {
+        let parser = TupleParser::new();
+        let input = format!(
+            "relation{}Alice{}Alice{}self{}Talks to herself",
+            delim(), delim(), delim(), delim()
+        );
+        let result = parser.parse(&input, "c1").unwrap();
+        assert_eq!(result.relationships.len(), 0, "Self-referencing relationship must be skipped");
+    }
+
+    #[test]
+    fn test_empty_entity_name_skipped() {
+        let parser = TupleParser::new();
+        let input = format!("entity{}{}PERSON{}Description", delim(), delim(), delim());
+        let result = parser.parse(&input, "c1").unwrap();
+        assert_eq!(result.entities.len(), 0);
+        let errors = result.metadata.get("parse_errors").unwrap().as_u64().unwrap();
+        assert_eq!(errors, 1, "Empty name should count as parse error");
+    }
+
+    #[test]
+    fn test_unknown_line_type_counts_parse_error() {
+        let parser = TupleParser::new();
+        let input = format!("foobar{}x{}y{}z", delim(), delim(), delim());
+        let result = parser.parse(&input, "c1").unwrap();
+        assert_eq!(result.entities.len(), 0);
+        assert_eq!(result.relationships.len(), 0);
+        let errors = result.metadata.get("parse_errors").unwrap().as_u64().unwrap();
+        assert!(errors >= 1, "Unknown line with delimiters should be a parse error");
+    }
+
+    #[test]
+    fn test_keyword_limit_five() {
+        let parser = TupleParser::new();
+        let input = format!(
+            "relation{}Alice{}Bob{}a,b,c,d,e,f,g{}Desc",
+            delim(), delim(), delim(), delim()
+        );
+        let result = parser.parse(&input, "c1").unwrap();
+        assert_eq!(result.relationships.len(), 1);
+        let kw = &result.relationships[0].keywords;
+        assert!(kw.len() <= 5, "Keywords must be limited to 5, got {}", kw.len());
+    }
+
+    #[test]
+    fn test_is_complete_true() {
+        let parser = TupleParser::new();
+        let input = format!("entity{}X{}TYPE{}Desc\n{}", delim(), delim(), delim(), comp());
+        assert!(parser.is_complete(&input));
+    }
+
+    #[test]
+    fn test_is_complete_false() {
+        let parser = TupleParser::new();
+        let input = format!("entity{}X{}TYPE{}Desc", delim(), delim(), delim());
+        assert!(!parser.is_complete(&input));
+    }
+
+    #[test]
+    fn test_is_complete_metadata() {
+        let parser = TupleParser::new();
+        let input = format!("entity{}X{}TYPE{}Desc\n{}", delim(), delim(), delim(), comp());
+        let result = parser.parse(&input, "c1").unwrap();
+        let is_complete = result.metadata.get("is_complete").unwrap().as_bool().unwrap();
+        assert!(is_complete);
+    }
+
+    #[test]
+    fn test_with_delimiters_custom() {
+        let parser = TupleParser::with_delimiters("||", "<<DONE>>");
+        let input = "entity||Alice||PERSON||Researcher\n<<DONE>>";
+        let result = parser.parse(input, "c1").unwrap();
+        assert_eq!(result.entities.len(), 1);
+        assert!(parser.is_complete(input));
+    }
+
+    #[test]
+    fn test_relationship_keyword_also_accepted() {
+        // "relationship" (not just "relation") should parse
+        let parser = TupleParser::new();
+        let input = format!(
+            "relationship{}Alice{}Bob{}kw{}Desc",
+            delim(), delim(), delim(), delim()
+        );
+        let result = parser.parse(&input, "c1").unwrap();
+        assert_eq!(result.relationships.len(), 1);
+    }
+
+    #[test]
+    fn test_parser_metadata_tuple() {
+        let parser = TupleParser::new();
+        let result = parser.parse("", "c1").unwrap();
+        let parser_name = result.metadata.get("parser").unwrap().as_str().unwrap();
+        assert_eq!(parser_name, "tuple");
+    }
+}

@@ -11,11 +11,11 @@
 
 ### Risk Assessment
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| `with_llm_full_id` misparses multi-slash IDs | Medium — wrong model selected | Test "provider/model/version" |
-| Strategy weights sum != 1.0 not validated | Low — weights are advisory | Document in WHY comment |
-| QueryEngineConfig truncation default untested | Medium — could affect context | Assert truncation default |
+| Risk                                          | Impact                        | Mitigation                    |
+| --------------------------------------------- | ----------------------------- | ----------------------------- |
+| `with_llm_full_id` misparses multi-slash IDs  | Medium — wrong model selected | Test "provider/model/version" |
+| Strategy weights sum != 1.0 not validated     | Low — weights are advisory    | Document in WHY comment       |
+| QueryEngineConfig truncation default untested | Medium — could affect context | Assert truncation default     |
 
 ### Approach
 

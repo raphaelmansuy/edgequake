@@ -243,3 +243,150 @@ pub(super) fn extract_json_from_response(response: &str) -> String {
 
     response.to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── extract_json_from_response ──────────────────────────
+
+    #[test]
+    fn test_extract_json_from_code_block() {
+        let input = "Here is the result:\n```json\n{\"entities\":[]}\n```\nDone.";
+        assert_eq!(extract_json_from_response(input), "{\"entities\":[]}");
+    }
+
+    #[test]
+    fn test_extract_json_from_raw_braces() {
+        let input = "Some preamble {\"entities\":[]} trailing text";
+        assert_eq!(extract_json_from_response(input), "{\"entities\":[]}");
+    }
+
+    #[test]
+    fn test_extract_json_no_json_returns_input() {
+        let input = "No JSON here at all";
+        assert_eq!(extract_json_from_response(input), input);
+    }
+
+    #[test]
+    fn test_extract_json_generic_code_block() {
+        let input = "```\n{\"a\": 1}\n```";
+        assert_eq!(extract_json_from_response(input), "{\"a\": 1}");
+    }
+
+    // ── sanitize_json ──────────────────────────────────────
+
+    #[test]
+    fn test_sanitize_trailing_comma() {
+        let input = r#"{"a": 1, "b": 2,}"#;
+        let sanitized = sanitize_json(input);
+        // Should be valid JSON now
+        let _: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+    }
+
+    #[test]
+    fn test_sanitize_single_quotes_key() {
+        let input = "{'name': 'Alice'}";
+        let sanitized = sanitize_json(input);
+        assert!(sanitized.contains("\"name\""));
+    }
+
+    #[test]
+    fn test_sanitize_control_chars_stripped() {
+        let input = "{\"name\": \"Al\x01ice\"}";
+        let sanitized = sanitize_json(input);
+        assert!(!sanitized.contains('\x01'));
+        let _: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+    }
+
+    #[test]
+    fn test_sanitize_single_line_comment_at_end() {
+        // WHY: The regex `//.*$` without multiline flag only strips comments at
+        // end-of-string. This tests the supported case.
+        let input = "{\"a\": 1} // trailing comment";
+        let sanitized = sanitize_json(input);
+        assert!(!sanitized.contains("// trailing"));
+    }
+
+    #[test]
+    fn test_sanitize_unquoted_keys() {
+        let input = r#"{name: "Alice"}"#;
+        let sanitized = sanitize_json(input);
+        assert!(sanitized.contains("\"name\""));
+    }
+
+    // ── Full parse ─────────────────────────────────────────
+
+    #[test]
+    fn test_parse_valid_json_entities_and_relationships() {
+        let parser = JsonExtractionParser::new();
+        let json = r#"{
+            "entities": [
+                {"name": "Alice", "type": "PERSON", "description": "A researcher"}
+            ],
+            "relationships": [
+                {"source": "Alice", "target": "Bob", "type": "WORKS_WITH", "description": "Colleagues", "keywords": ["collab"]}
+            ]
+        }"#;
+        let result = parser.parse(json, "c1").unwrap();
+        assert_eq!(result.entities.len(), 1);
+        assert_eq!(result.relationships.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_br0006_self_ref_skipped() {
+        let parser = JsonExtractionParser::new();
+        let json = r#"{
+            "entities": [],
+            "relationships": [
+                {"source": "Alice", "type": "SELF_REF", "target": "Alice", "description": "Self"}
+            ]
+        }"#;
+        let result = parser.parse(json, "c1").unwrap();
+        assert_eq!(result.relationships.len(), 0, "Self-ref relationship must be skipped");
+    }
+
+    #[test]
+    fn test_parse_empty_entity_name_skipped() {
+        let parser = JsonExtractionParser::new();
+        let json = r#"{
+            "entities": [
+                {"name": "  ", "type": "PERSON", "description": "Empty name"}
+            ],
+            "relationships": []
+        }"#;
+        let result = parser.parse(json, "c1").unwrap();
+        assert_eq!(result.entities.len(), 0, "Whitespace-only name should be skipped");
+    }
+
+    #[test]
+    fn test_parse_metadata_parser_json() {
+        let parser = JsonExtractionParser::new();
+        let json = r#"{"entities": [], "relationships": []}"#;
+        let result = parser.parse(json, "c1").unwrap();
+        let parser_name = result.metadata.get("parser").unwrap().as_str().unwrap();
+        assert_eq!(parser_name, "json");
+    }
+
+    #[test]
+    fn test_parse_invalid_json_returns_error() {
+        let parser = JsonExtractionParser::new();
+        let result = parser.parse("not json at all {{{", "c1");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_keyword_limit_five() {
+        let parser = JsonExtractionParser::new();
+        let json = r#"{
+            "entities": [],
+            "relationships": [
+                {"source": "A", "target": "B", "type": "REL", "description": "D",
+                 "keywords": ["a","b","c","d","e","f","g"]}
+            ]
+        }"#;
+        let result = parser.parse(json, "c1").unwrap();
+        assert_eq!(result.relationships.len(), 1);
+        assert!(result.relationships[0].keywords.len() <= 5);
+    }
+}
