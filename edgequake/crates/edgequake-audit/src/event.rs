@@ -305,4 +305,136 @@ mod tests {
         assert_eq!(event.result, AuditResult::Failure);
         assert_eq!(event.error_message, Some("Invalid token".to_string()));
     }
+
+    // --- AuditEvent::new default fields ---
+
+    #[test]
+    fn test_audit_event_new_defaults() {
+        let event = AuditEvent::new(
+            "t".to_string(),
+            AuditEventType::Authentication,
+            "login".to_string(),
+            AuditResult::Success,
+        );
+        assert!(event.workspace_id.is_none());
+        assert!(event.user_id.is_none());
+        assert_eq!(event.event_category, "General");
+        assert!(event.resource_type.is_none());
+        assert!(event.resource_id.is_none());
+        assert_eq!(event.severity, AuditSeverity::Medium);
+        assert!(event.ip_address.is_none());
+        assert!(event.user_agent.is_none());
+        assert!(event.request_id.is_none());
+        assert!(event.session_id.is_none());
+        assert_eq!(event.metadata, serde_json::json!({}));
+        assert!(event.error_message.is_none());
+        assert_eq!(event.retention_days, 90);
+        assert!(event.duration_ms.is_none());
+    }
+
+    // --- with_error sets both fields ---
+
+    #[test]
+    fn test_with_error_sets_result_to_failure() {
+        let event = AuditEvent::new(
+            "t".to_string(),
+            AuditEventType::Authorization,
+            "access".to_string(),
+            AuditResult::Success, // Start as Success
+        )
+        .with_error("forbidden".to_string());
+
+        // with_error must override result to Failure
+        assert_eq!(event.result, AuditResult::Failure);
+        assert_eq!(event.error_message.as_deref(), Some("forbidden"));
+    }
+
+    // --- AuditSeverity ordering ---
+
+    #[test]
+    fn test_severity_ordering() {
+        assert!(AuditSeverity::Low < AuditSeverity::Medium);
+        assert!(AuditSeverity::Medium < AuditSeverity::High);
+        assert!(AuditSeverity::High < AuditSeverity::Critical);
+    }
+
+    // --- AuditEventBuilder full chain ---
+
+    #[test]
+    fn test_builder_error_sets_result() {
+        let event = AuditEventBuilder::new(
+            "t".to_string(),
+            AuditEventType::RateLimitExceeded,
+            "blocked".to_string(),
+        )
+        .error("rate limit".to_string())
+        .build();
+
+        assert_eq!(event.result, AuditResult::Failure);
+        assert_eq!(event.error_message.as_deref(), Some("rate limit"));
+    }
+
+    #[test]
+    fn test_builder_resource() {
+        let event = AuditEventBuilder::new(
+            "t".to_string(),
+            AuditEventType::DocumentUpload,
+            "upload".to_string(),
+        )
+        .resource("document".to_string(), "doc-123".to_string())
+        .build();
+
+        assert_eq!(event.resource_type.as_deref(), Some("document"));
+        assert_eq!(event.resource_id.as_deref(), Some("doc-123"));
+    }
+
+    #[test]
+    fn test_builder_category_and_duration() {
+        let event = AuditEventBuilder::new(
+            "t".to_string(),
+            AuditEventType::DocumentQuery,
+            "query".to_string(),
+        )
+        .category("RAG".to_string())
+        .duration_ms(150)
+        .build();
+
+        assert_eq!(event.event_category, "RAG");
+        assert_eq!(event.duration_ms, Some(150));
+    }
+
+    #[test]
+    fn test_with_request_context() {
+        use std::net::{IpAddr, Ipv4Addr};
+        let event = AuditEvent::new(
+            "t".to_string(),
+            AuditEventType::TenantAccess,
+            "access".to_string(),
+            AuditResult::Success,
+        )
+        .with_request_context(
+            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
+            Some("curl/8.0".to_string()),
+            Some("req-abc".to_string()),
+        );
+
+        assert_eq!(
+            event.ip_address,
+            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
+        );
+        assert_eq!(event.user_agent.as_deref(), Some("curl/8.0"));
+        assert_eq!(event.request_id.as_deref(), Some("req-abc"));
+    }
+
+    #[test]
+    fn test_with_duration() {
+        let event = AuditEvent::new(
+            "t".to_string(),
+            AuditEventType::GraphTraversal,
+            "traverse".to_string(),
+            AuditResult::Success,
+        )
+        .with_duration(42);
+        assert_eq!(event.duration_ms, Some(42));
+    }
 }
