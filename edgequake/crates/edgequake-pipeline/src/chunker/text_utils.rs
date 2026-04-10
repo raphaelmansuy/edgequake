@@ -195,3 +195,144 @@ pub(super) fn find_split_point_internal(text: &str, target: usize, separators: &
 
     floor_char_boundary(text, target.min(text.len()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- calculate_line_numbers ---
+
+    #[test]
+    fn test_line_numbers_single_line() {
+        let text = "Hello world";
+        assert_eq!(calculate_line_numbers(text, 0, text.len()), (1, 1));
+    }
+
+    #[test]
+    fn test_line_numbers_multi_line() {
+        let text = "line1\nline2\nline3";
+        // Chunk covering line2 (offset 6..11)
+        assert_eq!(calculate_line_numbers(text, 6, 11), (2, 2));
+        // Chunk covering line2-line3
+        assert_eq!(calculate_line_numbers(text, 6, text.len()), (2, 3));
+    }
+
+    #[test]
+    fn test_line_numbers_empty_text() {
+        assert_eq!(calculate_line_numbers("", 0, 0), (1, 1));
+    }
+
+    #[test]
+    fn test_line_numbers_offset_beyond_end() {
+        let text = "abc";
+        // Offsets clamped to text.len()
+        assert_eq!(calculate_line_numbers(text, 0, 100), (1, 1));
+    }
+
+    // --- estimate_tokens ---
+
+    #[test]
+    fn test_estimate_tokens_empty() {
+        assert_eq!(estimate_tokens(""), 0);
+    }
+
+    #[test]
+    fn test_estimate_tokens_short() {
+        // "abc" = 3 chars / 4 = 0.75 → ceil = 1
+        assert_eq!(estimate_tokens("abc"), 1);
+    }
+
+    #[test]
+    fn test_estimate_tokens_exact() {
+        // 8 chars / 4 = 2.0 → ceil = 2
+        assert_eq!(estimate_tokens("12345678"), 2);
+    }
+
+    // --- split_into_sentences ---
+
+    #[test]
+    fn test_split_sentences_basic() {
+        let result = split_into_sentences("Hello world. How are you? Fine!");
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "Hello world.");
+        assert_eq!(result[1], "How are you?");
+        assert_eq!(result[2], "Fine!");
+    }
+
+    #[test]
+    fn test_split_sentences_abbreviation_preserved() {
+        let result = split_into_sentences("Talk to Dr. Smith about it.");
+        // "Dr." should NOT cause a split
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_split_sentences_no_ending_punctuation() {
+        let result = split_into_sentences("No ending punctuation here");
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], "No ending punctuation here");
+    }
+
+    // --- floor_char_boundary ---
+
+    #[test]
+    fn test_floor_boundary_ascii() {
+        let s = "hello";
+        assert_eq!(floor_char_boundary(s, 3), 3);
+    }
+
+    #[test]
+    fn test_floor_boundary_multibyte() {
+        let s = "héllo"; // 'é' is 2 bytes at position 1..3
+        // Position 2 is mid-char → floor to 1
+        assert_eq!(floor_char_boundary(s, 2), 1);
+    }
+
+    #[test]
+    fn test_floor_boundary_beyond_end() {
+        let s = "abc";
+        assert_eq!(floor_char_boundary(s, 100), 3);
+    }
+
+    // --- ceil_char_boundary ---
+
+    #[test]
+    fn test_ceil_boundary_ascii() {
+        let s = "hello";
+        assert_eq!(ceil_char_boundary(s, 3), 3);
+    }
+
+    #[test]
+    fn test_ceil_boundary_multibyte() {
+        let s = "héllo"; // 'é' occupies bytes 1..3
+        // Position 2 is mid-char → ceil to 3
+        assert_eq!(ceil_char_boundary(s, 2), 3);
+    }
+
+    #[test]
+    fn test_ceil_boundary_beyond_end() {
+        let s = "abc";
+        assert_eq!(ceil_char_boundary(s, 100), 3);
+    }
+
+    // --- take_overlap_sentences ---
+
+    #[test]
+    fn test_overlap_empty_buffer() {
+        let result = take_overlap_sentences(&[], 100);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_overlap_takes_from_end() {
+        let buffer = vec![
+            "First sentence.".to_string(),
+            "Second sentence.".to_string(),
+            "Third sentence.".to_string(),
+        ];
+        // Target ~4 tokens = 16 chars → should take last sentence
+        let result = take_overlap_sentences(&buffer, 4);
+        assert!(!result.is_empty());
+        assert_eq!(result.last().unwrap(), "Third sentence.");
+    }
+}
