@@ -8,7 +8,7 @@ use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::error::{parse_uuid, ApiError, ApiResult, ResultExt};
+use crate::error::{parse_uuid, ApiResult, ResultExt};
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;

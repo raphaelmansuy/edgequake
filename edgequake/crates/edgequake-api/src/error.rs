@@ -247,8 +247,7 @@ impl<T, E: std::fmt::Display> ResultExt<T> for std::result::Result<T, E> {
 /// let workspace = parse_uuid(&workspace_id, "workspace ID")?;
 /// ```
 pub fn parse_uuid(s: &str, label: &str) -> std::result::Result<uuid::Uuid, ApiError> {
-    uuid::Uuid::parse_str(s)
-        .map_err(|_| ApiError::ValidationError(format!("Invalid {}", label)))
+    uuid::Uuid::parse_str(s).map_err(|_| ApiError::ValidationError(format!("Invalid {}", label)))
 }
 
 /// Convert ProviderResolutionError to ApiError.

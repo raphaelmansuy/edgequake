@@ -14,7 +14,7 @@ use rand::Rng;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::error::ApiError;
+use crate::error::{ApiError, ResultExt};
 use crate::state::AppState;
 
 use super::{ApiKeyRecord, API_KEY_PREFIX};
@@ -56,7 +56,7 @@ pub async fn create_api_key(
     let key_hash = state
         .password_service
         .hash_password(&full_key)
-        .map_err(|e| ApiError::Internal(format!("Key hashing error: {}", e)))?;
+        .internal_err("hash API key")?;
 
     let now = Utc::now();
     let expires_at = request
@@ -83,13 +83,13 @@ pub async fn create_api_key(
     // Store the API key record
     let key = format!("{}{}", API_KEY_PREFIX, key_id);
     let value = serde_json::to_value(&record)
-        .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
+        .internal_err("serialize API key record")?;
 
     state
         .kv_storage
         .upsert(&[(key, value)])
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+        .internal_err("store API key")?;
 
     info!("API key created: {} ({})", key_id, prefix);
 
@@ -177,23 +177,23 @@ pub async fn revoke_api_key(
         .kv_storage
         .get_by_id(&key)
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
+        .internal_err("fetch API key")?
         .ok_or_else(|| ApiError::NotFound(format!("API key not found: {}", key_id)))?;
 
     let mut record: ApiKeyRecord = serde_json::from_value(value)
-        .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
+        .internal_err("deserialize API key")?;
 
     // Mark as inactive
     record.is_active = false;
 
     let new_value = serde_json::to_value(&record)
-        .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
+        .internal_err("serialize API key record")?;
 
     state
         .kv_storage
         .upsert(&[(key, new_value)])
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+        .internal_err("update API key")?;
 
     info!("API key revoked: {}", key_id);
 

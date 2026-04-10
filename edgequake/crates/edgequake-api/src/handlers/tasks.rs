@@ -31,7 +31,10 @@ use serde_json::json;
 use tracing;
 
 use crate::middleware::TenantContext;
-use crate::{error::{ApiError, ResultExt}, state::AppState};
+use crate::{
+    error::{ApiError, ResultExt},
+    state::AppState,
+};
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::tasks_types::{

@@ -25,7 +25,7 @@ pub use reprocess_documents::reprocess_all_documents;
 
 use uuid::Uuid;
 
-use crate::error::ApiError;
+use crate::error::{ApiError, ResultExt};
 use crate::handlers::isolation::doc_belongs_to_workspace;
 use crate::state::AppState;
 
@@ -67,7 +67,7 @@ pub(super) async fn collect_workspace_documents(
         .kv_storage
         .keys()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to list document keys: {}", e)))?;
+        .internal_err("list document keys")?;
 
     let mut docs = Vec::new();
 

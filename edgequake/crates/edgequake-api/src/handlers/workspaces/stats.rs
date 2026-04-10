@@ -10,7 +10,7 @@ use uuid::Uuid;
 use super::helpers::{
     verify_workspace_tenant_access, CachedStats, STATS_CACHE_TTL, WORKSPACE_STATS_CACHE,
 };
-use crate::error::ApiError;
+use crate::error::{ApiError, ResultExt};
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -138,7 +138,7 @@ async fn try_postgres_stats(
         .workspace_service
         .get_workspace_stats(workspace_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("PostgreSQL stats query failed: {}", e)))?;
+        .internal_err("query PostgreSQL workspace stats")?;
 
     Ok(WorkspaceStatsResponse {
         workspace_id: stats.workspace_id,
@@ -166,7 +166,7 @@ async fn try_kv_storage_stats(
         .kv_storage
         .keys()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get KV storage keys: {}", e)))?;
+        .internal_err("get KV storage keys")?;
 
     // Filter metadata keys
     let metadata_keys: Vec<String> = all_keys
@@ -180,7 +180,7 @@ async fn try_kv_storage_stats(
         .kv_storage
         .get_by_ids(&metadata_keys)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get document metadata: {}", e)))?;
+        .internal_err("get document metadata")?;
 
     // Aggregate stats from documents belonging to this workspace
     let mut document_count = 0;
@@ -247,7 +247,7 @@ async fn try_kv_storage_stats(
                 .kv_storage
                 .get_by_ids(&doc_chunk_keys)
                 .await
-                .map_err(|e| ApiError::Internal(format!("Failed to get chunk data: {}", e)))?;
+                .internal_err("get chunk data")?;
 
             // Count chunks that have embeddings
             for chunk_value in chunk_values {
