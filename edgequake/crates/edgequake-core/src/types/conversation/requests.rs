@@ -182,3 +182,70 @@ pub struct ImportError {
     /// Error message.
     pub error: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_conversation_request_default() {
+        let req = CreateConversationRequest::default();
+        assert!(req.title.is_none());
+        assert!(req.mode.is_none());
+        assert!(req.folder_id.is_none());
+    }
+
+    #[test]
+    fn test_update_conversation_request_default() {
+        let req = UpdateConversationRequest::default();
+        assert!(req.title.is_none());
+        assert!(req.mode.is_none());
+        assert!(req.is_pinned.is_none());
+        assert!(req.is_archived.is_none());
+        assert!(req.folder_id.is_none());
+    }
+
+    #[test]
+    fn test_update_message_request_default() {
+        let req = UpdateMessageRequest::default();
+        assert!(req.content.is_none());
+        assert!(req.tokens_used.is_none());
+        assert!(req.context.is_none());
+        assert!(req.is_error.is_none());
+    }
+
+    #[test]
+    fn test_update_folder_request_default() {
+        let req = UpdateFolderRequest::default();
+        assert!(req.name.is_none());
+        assert!(req.position.is_none());
+    }
+
+    #[test]
+    fn test_conversation_filter_default() {
+        let f = ConversationFilter::default();
+        assert!(f.mode.is_none());
+        assert!(f.archived.is_none());
+        assert!(f.search.is_none());
+        assert!(f.unfiled.is_none());
+    }
+
+    #[test]
+    fn test_conversation_sort_field_default() {
+        assert!(matches!(ConversationSortField::default(), ConversationSortField::UpdatedAt));
+    }
+
+    #[test]
+    fn test_pagination_meta_default() {
+        let meta = PaginationMeta::default();
+        assert!(meta.next_cursor.is_none());
+        assert!(meta.prev_cursor.is_none());
+        assert!(meta.total.is_none());
+        assert!(!meta.has_more);
+    }
+
+    #[test]
+    fn test_default_stream_is_true() {
+        assert!(default_stream());
+    }
+}
