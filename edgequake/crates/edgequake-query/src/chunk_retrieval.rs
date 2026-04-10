@@ -199,7 +199,10 @@ fn rerank_chunks_by_similarity(
         chunk.score = (chunk.content.len() as f32 / 1000.0).min(1.0);
     }
 
-    chunks.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+    // WHY total_cmp: partial_cmp panics on NaN. Scores can be NaN from
+    // invalid embeddings or division-by-zero. total_cmp defines a total
+    // order that treats NaN as greater than all other values.
+    chunks.sort_by(|a, b| b.score.total_cmp(&a.score));
     chunks.truncate(max_chunks);
     chunks
 }
