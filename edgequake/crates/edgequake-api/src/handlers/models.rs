@@ -375,7 +375,8 @@ async fn check_provider_health(
             match std::net::TcpStream::connect_timeout(
                 &host_port
                     .parse()
-                    .unwrap_or_else(|_| "127.0.0.1:11434".parse().unwrap()),
+                    // WHY expect: fallback is a valid literal socket addr
+                    .unwrap_or_else(|_| "127.0.0.1:11434".parse().expect("literal addr is valid")),
                 std::time::Duration::from_secs(2),
             ) {
                 Ok(_) => ProviderHealthResponse {
