@@ -59,6 +59,10 @@ impl CacheStats {
 /// In-memory LRU cache for keywords.
 ///
 /// Fast but limited to single instance. Use as L1 cache.
+///
+/// WHY poison-recovery: Cache data is reconstructible. If a thread panics while
+/// holding the lock, we recover the inner data rather than cascading the panic.
+/// A stale/partial cache entry is always safe — worst case is a cache miss.
 pub struct InMemoryKeywordCache {
     cache: RwLock<HashMap<String, CacheEntry>>,
     max_size: usize,
@@ -83,7 +87,7 @@ impl InMemoryKeywordCache {
 
     /// Evict expired and LRU entries if over capacity.
     fn evict_if_needed(&self) {
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
 
         // First, remove expired entries
         let now = std::time::Instant::now();
@@ -113,13 +117,13 @@ impl KeywordCache for InMemoryKeywordCache {
 
         // Check if entry exists and not expired
         {
-            let cache = self.cache.read().unwrap();
+            let cache = self.cache.read().unwrap_or_else(|e| e.into_inner());
             if let Some(entry) = cache.get(key) {
                 // Check expiration
                 if let Some(expires_at) = entry.expires_at {
                     if expires_at <= now {
                         // Expired, will be cleaned up later
-                        let mut stats = self.stats.write().unwrap();
+                        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
                         stats.misses += 1;
                         return Ok(None);
                     }
@@ -136,14 +140,14 @@ impl KeywordCache for InMemoryKeywordCache {
                     }
                 }
 
-                let mut stats = self.stats.write().unwrap();
+                let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
                 stats.hits += 1;
                 return Ok(Some(keywords));
             }
         }
 
         // Miss
-        let mut stats = self.stats.write().unwrap();
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
         stats.misses += 1;
         Ok(None)
     }
@@ -163,38 +167,38 @@ impl KeywordCache for InMemoryKeywordCache {
             accessed_at: now,
         };
 
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
         cache.insert(key.to_string(), entry);
 
         // Update size stat
-        let mut stats = self.stats.write().unwrap();
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
         stats.size = cache.len();
 
         Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
         cache.remove(key);
 
-        let mut stats = self.stats.write().unwrap();
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
         stats.size = cache.len();
 
         Ok(())
     }
 
     async fn clear(&self) -> Result<()> {
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
         cache.clear();
 
-        let mut stats = self.stats.write().unwrap();
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
         stats.size = 0;
 
         Ok(())
     }
 
     async fn stats(&self) -> CacheStats {
-        self.stats.read().unwrap().clone()
+        self.stats.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -279,7 +283,7 @@ impl KeywordCache for PostgresKeywordCache {
             .await
             .map_err(|e| crate::error::QueryError::Internal(format!("Cache get failed: {}", e)))?;
 
-        let mut stats = self.stats.write().unwrap();
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
         if let Some((json,)) = result {
             stats.hits += 1;
             let keywords: ExtractedKeywords = serde_json::from_value(json).map_err(|e| {
@@ -363,7 +367,7 @@ impl KeywordCache for PostgresKeywordCache {
             .await
             .unwrap_or(0);
 
-        let mut stats = self.stats.read().unwrap().clone();
+        let mut stats = self.stats.read().unwrap_or_else(|e| e.into_inner()).clone();
         stats.size = count as usize;
         stats
     }
