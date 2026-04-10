@@ -7,6 +7,16 @@ use crate::error::Result;
 use crate::modes::QueryMode;
 
 /// Configuration for query strategies.
+///
+/// WHY: vector_weight + graph_weight are advisory blend coefficients, not
+/// required to sum to 1.0. Strategies normalise internally. Defaults
+/// (0.5 / 0.5) give equal weight to semantic similarity and graph
+/// topology — the LightRAG-parity baseline.
+///
+/// ```text
+///  Query ──► VectorSearch ──(× vector_weight)──┐
+///            GraphSearch  ──(× graph_weight)───┤► merge & rank
+/// ```
 #[derive(Debug, Clone)]
 pub struct StrategyConfig {
     /// Maximum chunks to retrieve.
