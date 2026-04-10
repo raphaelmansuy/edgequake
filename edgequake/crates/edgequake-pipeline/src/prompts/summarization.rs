@@ -214,4 +214,38 @@ mod tests {
         assert!(prompt.contains("Summary 2: Summary B content"));
         assert!(prompt.contains("Combine"));
     }
+
+    #[test]
+    fn test_simple_summary_prompt() {
+        let prompts = SummarizationPrompts::new();
+        let prompt = prompts.simple_summary_prompt("Some long text to summarize.");
+        assert!(prompt.contains("Some long text to summarize."));
+        assert!(prompt.contains("Summarize"));
+    }
+
+    #[test]
+    fn test_entity_summary_single_description() {
+        let prompts = SummarizationPrompts::new();
+        let desc = vec!["Only description"];
+        let prompt = prompts.entity_summary_prompt("Entity", &desc);
+        assert!(prompt.contains("1. Only description"));
+        // Should NOT contain "2."
+        assert!(!prompt.contains("2."));
+    }
+
+    #[test]
+    fn test_chunk_summary_empty_descriptions() {
+        let prompts = SummarizationPrompts::new();
+        let prompt = prompts.chunk_summary_prompt::<String>(&[]);
+        // WHY: Empty descriptions should still produce valid prompt structure
+        assert!(prompt.contains("Summarize"));
+        assert!(prompt.contains("---Descriptions---"));
+    }
+
+    #[test]
+    fn test_reduce_summary_single_summary() {
+        let prompts = SummarizationPrompts::new();
+        let prompt = prompts.reduce_summary_prompt(&["Only summary."]);
+        assert!(prompt.contains("Summary 1: Only summary."));
+    }
 }
