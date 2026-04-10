@@ -377,4 +377,57 @@ mod tests {
         assert_eq!(rel.relation_type, "WORKS_FOR");
         assert_eq!(rel.source_chunk_id, Some("chunk-1".to_string()));
     }
+
+    // =========================================================================
+    // OODA-21: Edge case tests for helpers
+    // =========================================================================
+
+    #[test]
+    fn test_extract_document_id_only_chunk_suffix() {
+        // "chunk-0" with no prefix → doc_id would be "" → should return None
+        assert_eq!(extract_document_id("chunk-0"), None);
+    }
+
+    #[test]
+    fn test_extract_entity_source_tracking_wrong_types() {
+        // WHY: Non-array source_chunk_ids should not panic
+        let mut props = HashMap::new();
+        props.insert("source_chunk_ids".to_string(), serde_json::json!("not-array"));
+        props.insert("source_document_id".to_string(), serde_json::json!(42));
+
+        let tracking = extract_entity_source_tracking(&props);
+        // Should gracefully handle wrong types
+        assert!(tracking.source_chunk_ids.is_empty());
+    }
+
+    #[test]
+    fn test_build_entity_from_node_missing_props() {
+        // WHY: Missing properties should use sensible defaults, not panic
+        let props = HashMap::new();
+        let entity = build_entity_from_node("ALICE", &props, 0, 0.0);
+
+        assert_eq!(entity.name, "ALICE");
+        assert_eq!(entity.entity_type, "UNKNOWN");
+        assert!(entity.description.is_empty());
+        assert!(entity.source_chunk_ids.is_empty());
+    }
+
+    #[test]
+    fn test_build_relationship_from_edge_missing_props() {
+        let props = HashMap::new();
+        let rel = build_relationship_from_edge("A", "B", &props);
+
+        assert_eq!(rel.source, "A");
+        assert_eq!(rel.target, "B");
+        assert_eq!(rel.relation_type, "RELATED_TO");
+        assert!(rel.source_chunk_id.is_none());
+    }
+
+    #[test]
+    fn test_extract_relationship_source_tracking_empty() {
+        let props = HashMap::new();
+        let tracking = extract_relationship_source_tracking(&props);
+        assert!(tracking.source_chunk_id.is_none());
+        assert!(tracking.source_document_id.is_none());
+    }
 }
