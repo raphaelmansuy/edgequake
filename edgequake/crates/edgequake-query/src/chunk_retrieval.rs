@@ -1,5 +1,12 @@
 //! Chunk retrieval from entities and relationships.
 //!
+//! ## WHY: Merge Uses First-Seen Wins Deduplication
+//!
+//! `merge_chunks` keeps the first occurrence of each chunk ID and discards
+//! later duplicates. This preserves the original score/ordering from the
+//! primary retrieval source (e.g., vector search) while allowing secondary
+//! sources (e.g., graph-derived chunks) to contribute new IDs only.
+//!
 //! This module provides functionality to retrieve text chunks that are related
 //! to retrieved entities and relationships, using either frequency-based or
 //! vector similarity-based methods.
@@ -340,5 +347,47 @@ mod tests {
 
         // Should be sorted by score
         assert!(reranked[0].score >= reranked[1].score);
+    }
+
+    // ── Edge case tests (OODA-29) ──────────────────────────────────
+
+    #[test]
+    fn test_merge_chunks_empty_lists() {
+        let merged = merge_chunks(vec![]);
+        assert!(merged.is_empty());
+    }
+
+    #[test]
+    fn test_merge_chunks_single_list() {
+        let chunks = vec![RetrievedChunk::new("c1", "content", 0.9)];
+        let merged = merge_chunks(vec![chunks]);
+        assert_eq!(merged.len(), 1);
+    }
+
+    #[test]
+    fn test_merge_chunks_all_duplicates() {
+        let c1 = RetrievedChunk::new("same", "v1", 0.9);
+        let c2 = RetrievedChunk::new("same", "v2", 0.8);
+        let c3 = RetrievedChunk::new("same", "v3", 0.7);
+        let merged = merge_chunks(vec![vec![c1], vec![c2], vec![c3]]);
+        // First-seen wins
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].content, "v1");
+    }
+
+    #[test]
+    fn test_merge_chunks_preserves_order() {
+        let list1 = vec![
+            RetrievedChunk::new("a", "first", 0.9),
+            RetrievedChunk::new("b", "second", 0.8),
+        ];
+        let list2 = vec![
+            RetrievedChunk::new("c", "third", 0.7),
+        ];
+        let merged = merge_chunks(vec![list1, list2]);
+        assert_eq!(merged.len(), 3);
+        assert_eq!(merged[0].id, "a");
+        assert_eq!(merged[1].id, "b");
+        assert_eq!(merged[2].id, "c");
     }
 }

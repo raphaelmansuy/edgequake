@@ -1,5 +1,19 @@
 //! Query intent classification for adaptive retrieval strategy.
 //!
+//! ## WHY: Heuristic Fallback for Intent Classification
+//!
+//! LLM-based intent classification is expensive (one extra LLM call per
+//! query). `classify_heuristic()` provides a zero-cost fallback using
+//! keyword patterns. It runs when:
+//!
+//! 1. LLM provider is unavailable (Ollama not started, quota exhausted)
+//! 2. Latency budget is tight (real-time chat, streaming responses)
+//! 3. Testing without API keys (mock provider can't classify intents)
+//!
+//! The heuristic checks patterns in priority order: Procedural >
+//! Comparative > Relational > Factual > Exploratory, falling through
+//! to Exploratory as the safest default (broadest retrieval).
+//!
 //! Query intent determines which retrieval strategy to use:
 //! - Factual: Entity-focused (Local mode preferred)
 //! - Relational: Relationship-focused (Global mode preferred)  
@@ -219,6 +233,69 @@ mod tests {
         assert_eq!(
             QueryIntent::Relational.recommended_mode(),
             crate::modes::QueryMode::Global
+        );
+    }
+
+    // ── Edge case tests (OODA-29) ──────────────────────────────────
+
+    #[test]
+    fn test_recommended_mode_all_variants() {
+        use crate::modes::QueryMode;
+        assert_eq!(QueryIntent::Factual.recommended_mode(), QueryMode::Local);
+        assert_eq!(QueryIntent::Relational.recommended_mode(), QueryMode::Global);
+        assert_eq!(QueryIntent::Exploratory.recommended_mode(), QueryMode::Hybrid);
+        assert_eq!(QueryIntent::Comparative.recommended_mode(), QueryMode::Hybrid);
+        assert_eq!(QueryIntent::Procedural.recommended_mode(), QueryMode::Mix);
+    }
+
+    #[test]
+    fn test_from_str_loose_all_variants() {
+        assert_eq!(QueryIntent::from_str_loose("factual"), QueryIntent::Factual);
+        assert_eq!(QueryIntent::from_str_loose("RELATIONAL"), QueryIntent::Relational);
+        assert_eq!(QueryIntent::from_str_loose("Exploratory"), QueryIntent::Exploratory);
+        assert_eq!(QueryIntent::from_str_loose("comparative"), QueryIntent::Comparative);
+        assert_eq!(QueryIntent::from_str_loose("procedural"), QueryIntent::Procedural);
+    }
+
+    #[test]
+    fn test_from_str_loose_unknown_defaults_exploratory() {
+        assert_eq!(QueryIntent::from_str_loose("nonsense"), QueryIntent::Exploratory);
+        assert_eq!(QueryIntent::from_str_loose(""), QueryIntent::Exploratory);
+    }
+
+    #[test]
+    fn test_display_roundtrip() {
+        for intent in [
+            QueryIntent::Factual,
+            QueryIntent::Relational,
+            QueryIntent::Exploratory,
+            QueryIntent::Comparative,
+            QueryIntent::Procedural,
+        ] {
+            let s = intent.to_string();
+            assert_eq!(QueryIntent::from_str_loose(&s), intent);
+        }
+    }
+
+    #[test]
+    fn test_default_is_exploratory() {
+        assert_eq!(QueryIntent::default(), QueryIntent::Exploratory);
+    }
+
+    #[test]
+    fn test_classify_empty_query() {
+        assert_eq!(QueryIntent::classify_heuristic(""), QueryIntent::Exploratory);
+    }
+
+    #[test]
+    fn test_classify_case_insensitive() {
+        assert_eq!(
+            QueryIntent::classify_heuristic("WHAT IS machine learning?"),
+            QueryIntent::Factual
+        );
+        assert_eq!(
+            QueryIntent::classify_heuristic("COMPARE X vs Y"),
+            QueryIntent::Comparative
         );
     }
 }
