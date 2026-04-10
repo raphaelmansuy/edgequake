@@ -82,3 +82,62 @@ impl std::str::FromStr for MessageRole {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── ConversationMode ───────────────────────────────────
+
+    #[test]
+    fn test_conversation_mode_default_is_hybrid() {
+        assert_eq!(ConversationMode::default(), ConversationMode::Hybrid);
+    }
+
+    #[test]
+    fn test_conversation_mode_display_roundtrip() {
+        let modes = [
+            ConversationMode::Local,
+            ConversationMode::Global,
+            ConversationMode::Hybrid,
+            ConversationMode::Naive,
+            ConversationMode::Mix,
+        ];
+        for mode in &modes {
+            let s = mode.to_string();
+            let parsed: ConversationMode = s.parse().unwrap();
+            assert_eq!(*mode, parsed);
+        }
+    }
+
+    #[test]
+    fn test_conversation_mode_from_str_case_insensitive() {
+        assert_eq!("LOCAL".parse::<ConversationMode>().unwrap(), ConversationMode::Local);
+        assert_eq!("Hybrid".parse::<ConversationMode>().unwrap(), ConversationMode::Hybrid);
+    }
+
+    #[test]
+    fn test_conversation_mode_from_str_error() {
+        let result = "unknown".parse::<ConversationMode>();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unknown mode"));
+    }
+
+    // ── MessageRole ────────────────────────────────────────
+
+    #[test]
+    fn test_message_role_display_roundtrip() {
+        let roles = [MessageRole::User, MessageRole::Assistant, MessageRole::System];
+        for role in &roles {
+            let s = role.to_string();
+            let parsed: MessageRole = s.parse().unwrap();
+            assert_eq!(*role, parsed);
+        }
+    }
+
+    #[test]
+    fn test_message_role_from_str_error() {
+        let result = "bot".parse::<MessageRole>();
+        assert!(result.is_err());
+    }
+}

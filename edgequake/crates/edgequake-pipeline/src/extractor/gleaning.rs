@@ -299,3 +299,15 @@ impl EntityExtractor for GleaningExtractor {
         self.llm_provider.model()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gleaning_config_defaults() {
+        let cfg = GleaningConfig::default();
+        assert_eq!(cfg.max_gleaning, 1);
+        assert!(!cfg.always_glean);
+    }
+}
