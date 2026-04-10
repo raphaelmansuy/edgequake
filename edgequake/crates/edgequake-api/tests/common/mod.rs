@@ -20,9 +20,12 @@ use axum::{
     http::{Request, StatusCode},
 };
 use edgequake_api::{AppState, Server, ServerConfig};
+use edgequake_core::types::CreateWorkspaceRequest;
+use edgequake_core::{Tenant, Workspace};
 use serde_json::{json, Value};
 use std::time::Duration;
 use tower::ServiceExt;
+use uuid::Uuid;
 
 // ============================================================================
 // Constants
@@ -91,15 +94,28 @@ const PROVIDER_DETECTION_ENV_VARS: &[&str] = &[
 /// WHY: Each test gets an isolated state to avoid cross-test interference.
 /// The mock provider returns "Mock response" for LLM calls and vec![0.1; 1536]
 /// for embeddings, which means entity extraction produces 0 entities.
-pub fn create_test_app() -> axum::Router {
-    let config = ServerConfig {
+pub fn create_test_config() -> ServerConfig {
+    ServerConfig {
         host: "127.0.0.1".to_string(),
         port: 0,
         enable_cors: false,
         enable_compression: false,
         enable_swagger: true,
-    };
-    let server = Server::new(config, AppState::test_state());
+    }
+}
+
+/// Create isolated in-memory application state for a single test.
+pub fn create_test_state() -> AppState {
+    AppState::test_state()
+}
+
+/// Create a server instance backed by isolated in-memory test state.
+pub fn create_test_server() -> Server {
+    Server::new(create_test_config(), create_test_state())
+}
+
+pub fn create_test_app() -> axum::Router {
+    let server = create_test_server();
     server.build_router()
 }
 
@@ -108,6 +124,61 @@ pub fn clear_provider_detection_env() {
     for key in PROVIDER_DETECTION_ENV_VARS {
         std::env::remove_var(key);
     }
+}
+
+/// Create a workspace with explicit LLM and embedding provider configuration.
+///
+/// WHY: Provider-routing tests all follow the same tenant -> workspace setup
+/// flow. Centralizing it keeps test setup deterministic while still making
+/// the provider intent explicit at each call site.
+pub async fn create_workspace_with_providers(
+    state: &AppState,
+    name: &str,
+    llm_provider: &str,
+    llm_model: &str,
+    embedding_provider: &str,
+    embedding_model: &str,
+    embedding_dimension: usize,
+) -> Workspace {
+    let tenant = Tenant::new(
+        format!("Test Tenant {}", name),
+        format!("test-{}", Uuid::new_v4()),
+    );
+    let created_tenant = state
+        .workspace_service
+        .create_tenant(tenant)
+        .await
+        .expect("Should create tenant");
+
+    let request = CreateWorkspaceRequest::new(name)
+        .with_llm_config(llm_model, llm_provider)
+        .with_embedding_config(embedding_model, embedding_provider, embedding_dimension);
+
+    state
+        .workspace_service
+        .create_workspace(created_tenant.tenant_id, request)
+        .await
+        .expect("Should create workspace")
+}
+
+/// Create a workspace whose query tests only care about embedding config.
+pub async fn create_workspace_with_embedding_config(
+    state: &AppState,
+    name: &str,
+    embedding_provider: &str,
+    embedding_model: &str,
+    embedding_dimension: usize,
+) -> Workspace {
+    create_workspace_with_providers(
+        state,
+        name,
+        "mock",
+        "mock-model",
+        embedding_provider,
+        embedding_model,
+        embedding_dimension,
+    )
+    .await
 }
 
 // ============================================================================

@@ -6,66 +6,14 @@
 //! @implements SPEC-032: E2E provider switching verification
 //! @implements OODA-226: Provider tracking in ProcessingStats
 
+mod common;
+
+use common::{clear_provider_detection_env, create_workspace_with_providers};
 use edgequake_api::AppState;
-use edgequake_core::types::{CreateWorkspaceRequest, UpdateWorkspaceRequest};
-use edgequake_core::Tenant;
+use edgequake_core::types::UpdateWorkspaceRequest;
 use edgequake_llm::ProviderFactory;
 use edgequake_pipeline::{EntityExtractor, LLMExtractor};
 use serial_test::serial;
-use uuid::Uuid;
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-fn clean_provider_env() {
-    std::env::remove_var("OPENAI_API_KEY");
-    std::env::remove_var("OLLAMA_HOST");
-    std::env::remove_var("LMSTUDIO_HOST");
-}
-
-/// Create a workspace with specified provider configuration.
-async fn create_workspace_with_providers(
-    state: &AppState,
-    name: &str,
-    llm_provider: &str,
-    llm_model: &str,
-    embedding_provider: &str,
-    embedding_model: &str,
-    embedding_dimension: usize,
-) -> edgequake_core::Workspace {
-    let tenant = Tenant::new(
-        &format!("Tenant {}", name),
-        &format!("tenant-{}", Uuid::new_v4()),
-    );
-    let created_tenant = state
-        .workspace_service
-        .create_tenant(tenant)
-        .await
-        .expect("Should create tenant");
-
-    let request = CreateWorkspaceRequest {
-        name: name.to_string(),
-        slug: Some(format!("ws-{}", Uuid::new_v4())),
-        description: Some(format!("Test workspace with {} provider", llm_provider)),
-        max_documents: None,
-        llm_provider: Some(llm_provider.to_string()),
-        llm_model: Some(llm_model.to_string()),
-        embedding_provider: Some(embedding_provider.to_string()),
-        embedding_model: Some(embedding_model.to_string()),
-        embedding_dimension: Some(embedding_dimension),
-
-        vision_llm_provider: None,
-        vision_llm_model: None,
-        entity_types: None,
-    };
-
-    state
-        .workspace_service
-        .create_workspace(created_tenant.tenant_id, request)
-        .await
-        .expect("Should create workspace")
-}
 
 // ============================================================================
 // Provider Tracking Tests
@@ -75,7 +23,7 @@ async fn create_workspace_with_providers(
 #[tokio::test]
 #[serial]
 async fn test_llm_extractor_provider_name_mock() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
     let llm =
         ProviderFactory::create_llm_provider("mock", "mock-model").expect("Should create mock LLM");
@@ -91,7 +39,7 @@ async fn test_llm_extractor_provider_name_mock() {
 #[tokio::test]
 #[serial]
 async fn test_llm_extractor_provider_name_ollama() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
     let llm = ProviderFactory::create_llm_provider("ollama", "llama3:8b")
         .expect("Should create ollama LLM");
@@ -106,7 +54,7 @@ async fn test_llm_extractor_provider_name_ollama() {
 #[tokio::test]
 #[serial]
 async fn test_llm_extractor_provider_name_lmstudio() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
     let llm = ProviderFactory::create_llm_provider("lmstudio", "qwen2.5-coder")
         .expect("Should create lmstudio LLM");
@@ -254,7 +202,7 @@ async fn test_independent_provider_tracking() {
 #[tokio::test]
 #[serial]
 async fn test_embedding_provider_name_tracking() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
     // Mock provider
     let mock_emb = ProviderFactory::create_embedding_provider("mock", "mock-embedding", 1536)
@@ -277,7 +225,7 @@ async fn test_embedding_provider_name_tracking() {
 #[tokio::test]
 #[serial]
 async fn test_llm_provider_name_tracking() {
-    clean_provider_env();
+    clear_provider_detection_env();
 
     // Mock provider
     let mock_llm =

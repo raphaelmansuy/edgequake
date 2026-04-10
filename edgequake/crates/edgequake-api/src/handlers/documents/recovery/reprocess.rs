@@ -241,7 +241,9 @@ pub async fn reprocess_failed(
                                 ApiError::ValidationError("Invalid workspace ID".to_string())
                             })?,
                             TaskType::PdfProcessing,
-                            serde_json::to_value(&pdf_task).unwrap(),
+                            // WHY expect: PdfProcessingData fields are all primitives/Strings → always serializable
+                            serde_json::to_value(&pdf_task)
+                                .expect("PdfProcessingData is always serializable"),
                         );
 
                         state.task_storage.create_task(&task).await.map_err(|e| {
@@ -312,7 +314,9 @@ pub async fn reprocess_failed(
                             ApiError::ValidationError("Invalid workspace ID".to_string())
                         })?,
                         TaskType::Insert,
-                        serde_json::to_value(task_data).unwrap(),
+                        // WHY expect: TextInsertData fields are all primitives/Strings → always serializable
+                        serde_json::to_value(task_data)
+                            .expect("TextInsertData is always serializable"),
                     );
 
                     state

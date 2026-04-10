@@ -8,86 +8,19 @@
 //! 2. Provider lineage is stored in ProcessingStats
 //! 3. Rebuild operation uses updated workspace provider configuration
 
+mod common;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use edgequake_api::{AppState, Server, ServerConfig};
-use edgequake_core::types::{CreateWorkspaceRequest, UpdateWorkspaceRequest};
-use edgequake_core::Tenant;
-use serde_json::{json, Value};
+use common::{
+    create_test_config, create_test_state, create_workspace_with_providers, extract_json,
+};
+use edgequake_api::Server;
+use edgequake_core::types::UpdateWorkspaceRequest;
+use serde_json::json;
 use tower::ServiceExt;
-use uuid::Uuid;
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-fn create_test_config() -> ServerConfig {
-    ServerConfig {
-        host: "127.0.0.1".to_string(),
-        port: 0,
-        enable_cors: false,
-        enable_compression: false,
-        enable_swagger: true,
-    }
-}
-
-fn create_test_state() -> AppState {
-    AppState::test_state()
-}
-
-async fn extract_json(response: axum::response::Response) -> Value {
-    let bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024)
-        .await
-        .expect("Failed to read response body");
-    serde_json::from_slice(&bytes).expect("Failed to parse JSON")
-}
-
-/// Create a test workspace with specified provider configuration.
-async fn create_test_workspace_with_config(
-    state: &AppState,
-    name: &str,
-    llm_provider: &str,
-    llm_model: &str,
-    embedding_provider: &str,
-    embedding_model: &str,
-    embedding_dimension: usize,
-) -> edgequake_core::Workspace {
-    // Create tenant first
-    let tenant = Tenant::new(
-        &format!("Test Tenant {}", name),
-        &format!("test-{}", Uuid::new_v4()),
-    );
-    let created_tenant = state
-        .workspace_service
-        .create_tenant(tenant)
-        .await
-        .expect("Should create tenant");
-
-    // Create workspace with specific provider config
-    let request = CreateWorkspaceRequest {
-        name: name.to_string(),
-        slug: Some(format!("ws-{}", Uuid::new_v4())),
-        description: Some(format!("Test workspace with {} providers", llm_provider)),
-        max_documents: None,
-        llm_model: Some(llm_model.to_string()),
-        llm_provider: Some(llm_provider.to_string()),
-        embedding_model: Some(embedding_model.to_string()),
-        embedding_provider: Some(embedding_provider.to_string()),
-        embedding_dimension: Some(embedding_dimension),
-
-        vision_llm_provider: None,
-        vision_llm_model: None,
-        entity_types: None,
-    };
-
-    state
-        .workspace_service
-        .create_workspace(created_tenant.tenant_id, request)
-        .await
-        .expect("Should create workspace")
-}
 
 // ============================================================================
 // Document Upload with Workspace Provider Tests
@@ -99,7 +32,7 @@ async fn test_document_upload_workspace_provider_config() {
     let state = create_test_state();
 
     // Create workspace with specific provider config
-    let workspace = create_test_workspace_with_config(
+    let workspace = create_workspace_with_providers(
         &state,
         "doc-upload-ws",
         "mock",           // LLM provider
@@ -136,7 +69,7 @@ async fn test_document_upload_ollama_workspace_config() {
     let state = create_test_state();
 
     // Create workspace with Ollama config
-    let workspace = create_test_workspace_with_config(
+    let workspace = create_workspace_with_providers(
         &state,
         "ollama-doc-ws",
         "ollama",           // LLM provider
@@ -161,7 +94,7 @@ async fn test_document_upload_openai_workspace_config() {
     let state = create_test_state();
 
     // Create workspace with OpenAI config
-    let workspace = create_test_workspace_with_config(
+    let workspace = create_workspace_with_providers(
         &state,
         "openai-doc-ws",
         "openai",                 // LLM provider
@@ -186,7 +119,7 @@ async fn test_document_workspace_provider_isolation() {
     let state = create_test_state();
 
     // Create workspace A with Ollama config
-    let ws_a = create_test_workspace_with_config(
+    let ws_a = create_workspace_with_providers(
         &state,
         "ws-a-isolation",
         "ollama",
@@ -198,7 +131,7 @@ async fn test_document_workspace_provider_isolation() {
     .await;
 
     // Create workspace B with OpenAI config
-    let ws_b = create_test_workspace_with_config(
+    let ws_b = create_workspace_with_providers(
         &state,
         "ws-b-isolation",
         "openai",
@@ -224,7 +157,7 @@ async fn test_document_provider_switch_config() {
     let state = create_test_state();
 
     // Create workspace with initial Ollama config
-    let workspace = create_test_workspace_with_config(
+    let workspace = create_workspace_with_providers(
         &state,
         "switch-doc-ws",
         "ollama",
@@ -287,7 +220,7 @@ async fn test_document_http_upload_with_workspace() {
     let app = Server::new(create_test_config(), state.clone()).build_router();
 
     // Create workspace with mock config
-    let workspace = create_test_workspace_with_config(
+    let workspace = create_workspace_with_providers(
         &state,
         "http-upload-ws",
         "mock",
@@ -369,7 +302,7 @@ async fn test_document_upload_lmstudio_workspace_config() {
     let state = create_test_state();
 
     // Create workspace with LM Studio config
-    let workspace = create_test_workspace_with_config(
+    let workspace = create_workspace_with_providers(
         &state,
         "lmstudio-doc-ws",
         "lmstudio",                             // LLM provider
