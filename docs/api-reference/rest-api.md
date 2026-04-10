@@ -88,7 +88,7 @@ Deep health check with component status for monitoring dashboards.
 ```json
 {
   "status": "healthy",
-  "version": "0.7.0",
+  "version": "0.9.19",
   "storage_mode": "postgres",
   "workspace_id": "default",
   "components": {
@@ -98,6 +98,21 @@ Deep health check with component status for monitoring dashboards.
     "llm_provider": true
   },
   "llm_provider_name": "ollama",
+  "providers": {
+    "llm": {
+      "name": "ollama",
+      "model": "gemma3:latest"
+    },
+    "embedding": {
+      "name": "ollama",
+      "model": "nomic-embed-text",
+      "dimension": 768
+    },
+    "vision": {
+      "name": "ollama",
+      "default_model": "gemma3:latest"
+    }
+  },
   "schema": {
     "latest_version": 20240115001,
     "migrations_applied": 12,
@@ -105,6 +120,12 @@ Deep health check with component status for monitoring dashboards.
   }
 }
 ```
+
+> **`providers.vision`** (added in v0.9.19) — server-level defaults used for PDF extraction
+> when no workspace-level vision override is configured. `name` is always the same as the
+> server LLM provider; `default_model` is derived via `default_vision_model_for_provider()`.
+> A workspace can override both `vision_llm_provider` **and** `vision_llm_model` together
+> (setting only one is ignored — the orphaned-model invariant).
 
 ### GET /ready
 
