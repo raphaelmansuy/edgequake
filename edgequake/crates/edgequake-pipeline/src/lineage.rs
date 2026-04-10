@@ -713,4 +713,125 @@ mod tests {
         let chunks = lineage.chunks_for_entity("entity-1");
         assert_eq!(chunks.len(), 1);
     }
+
+    // =========================================================================
+    // OODA-19: Edge case tests for lineage
+    // =========================================================================
+
+    #[test]
+    fn test_entity_lineage_no_descriptions() {
+        // WHY: current_description returns None when no descriptions added
+        let lineage = EntityLineage::new("e1", "BOB");
+        assert_eq!(lineage.current_description(), None);
+        assert!(lineage.sources.is_empty());
+    }
+
+    #[test]
+    fn test_entity_lineage_multiple_descriptions_returns_last() {
+        let mut lineage = EntityLineage::new("e1", "CAROL");
+        lineage.add_description(DescriptionVersion::from_extraction("v1"));
+        lineage.add_description(DescriptionVersion::from_merge("v2"));
+        lineage.add_description(DescriptionVersion::from_summary("v3"));
+        // current_description returns last
+        assert_eq!(lineage.current_description(), Some("v3"));
+        assert_eq!(lineage.description_history.len(), 3);
+    }
+
+    #[test]
+    fn test_description_version_origins() {
+        let ext = DescriptionVersion::from_extraction("desc");
+        assert_eq!(ext.source, "extraction");
+
+        let merge = DescriptionVersion::from_merge("desc");
+        assert_eq!(merge.source, "merge");
+
+        let summary = DescriptionVersion::from_summary("desc");
+        assert_eq!(summary.source, "summary");
+    }
+
+    #[test]
+    fn test_document_lineage_get_nonexistent_entity() {
+        // WHY: Lookup of missing entity must return None, not panic
+        let lineage = DocumentLineage::new("doc-1", "test.txt", "job-1");
+        assert!(lineage.get_entity("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_document_lineage_chunks_for_nonexistent_entity() {
+        let lineage = DocumentLineage::new("doc-1", "test.txt", "job-1");
+        let chunks = lineage.chunks_for_entity("nonexistent");
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn test_relationship_lineage_construction() {
+        let rel = RelationshipLineage::new("r1", "ALICE", "BOB", "KNOWS");
+        assert_eq!(rel.relationship_id, "r1");
+        assert_eq!(rel.source_entity, "ALICE");
+        assert_eq!(rel.target_entity, "BOB");
+        assert_eq!(rel.relationship_type, "KNOWS");
+    }
+
+    #[test]
+    fn test_entity_source_multiple_chunks() {
+        let mut source = EntitySource::new("doc-1", "test.txt");
+        source.add_chunk("c1", SourceSpan::new(1, 5, 0, 100));
+        source.add_chunk("c2", SourceSpan::new(6, 10, 100, 200));
+        assert_eq!(source.source_spans.len(), 2);
+    }
+
+    #[test]
+    fn test_extraction_metadata_defaults() {
+        // WHY: Verify defaults are sensible (no tokens, no cache, zero time)
+        let meta = ExtractionMetadata::new("model-x");
+        assert_eq!(meta.input_tokens, 0);
+        assert_eq!(meta.output_tokens, 0);
+        assert_eq!(meta.extraction_time_ms, 0);
+        assert!(!meta.cache_hit);
+        assert!(meta.cache_id.is_none());
+    }
+
+    #[test]
+    fn test_lineage_builder_record_relationship() {
+        let mut builder = LineageBuilder::new("doc-1", "test.txt", "job-1");
+
+        builder.record_chunk(
+            "chunk-1", 0, 1, 10, 0, 500,
+            ExtractionMetadata::new("model"),
+        );
+
+        builder.record_entity(
+            "e1", "ALICE", "chunk-1",
+            SourceSpan::new(1, 5, 0, 200),
+            "Alice desc",
+        );
+
+        builder.record_entity(
+            "e2", "BOB", "chunk-1",
+            SourceSpan::new(6, 10, 200, 400),
+            "Bob desc",
+        );
+
+        builder.record_relationship(
+            "r1", "e1", "e2", "KNOWS", "chunk-1",
+            SourceSpan::new(1, 10, 0, 400),
+            "Alice knows Bob",
+        );
+
+        let lineage = builder.build();
+        assert_eq!(lineage.total_entities, 2);
+        assert_eq!(lineage.total_relationships, 1);
+    }
+
+    #[test]
+    fn test_chunk_lineage_with_lines_and_offsets() {
+        let chunk = ChunkLineage::new("c1", 0)
+            .with_lines(5, 15)
+            .with_offsets(100, 500);
+
+        assert_eq!(chunk.start_line, 5);
+        assert_eq!(chunk.end_line, 15);
+        assert_eq!(chunk.start_offset, 100);
+        assert_eq!(chunk.end_offset, 500);
+    }
 }

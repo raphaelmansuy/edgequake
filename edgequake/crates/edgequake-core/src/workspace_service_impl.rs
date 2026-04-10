@@ -29,8 +29,6 @@ use async_trait::async_trait;
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
 #[cfg(feature = "postgres")]
-use std::collections::HashMap;
-#[cfg(feature = "postgres")]
 use uuid::Uuid;
 
 #[cfg(feature = "postgres")]
@@ -38,7 +36,7 @@ use crate::{
     error::{Error, Result},
     types::{
         CreateWorkspaceRequest, Membership, MembershipRole, MetricsSnapshot, MetricsTriggerType,
-        Tenant, TenantContext, TenantPlan, UpdateWorkspaceRequest, Workspace, WorkspaceStats,
+        Tenant, TenantContext, UpdateWorkspaceRequest, Workspace, WorkspaceStats,
     },
     workspace_service::{UpdateTenantQuotaResult, WorkspaceService},
 };
@@ -1201,4 +1199,4 @@ impl WorkspaceService for WorkspaceServiceImpl {
 #[cfg(feature = "postgres")]
 use crate::workspace_row_types::{MembershipRow, TenantRow, WorkspaceRow};
 #[cfg(feature = "postgres")]
-use crate::workspace_utils::{normalize_entity_types, parse_plan, parse_role};
+use crate::workspace_utils::{normalize_entity_types, parse_role};
