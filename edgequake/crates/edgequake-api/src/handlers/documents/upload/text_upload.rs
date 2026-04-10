@@ -6,7 +6,7 @@ use chrono::Utc;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{parse_uuid, ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
 use crate::state::AppState;
@@ -237,10 +237,8 @@ pub async fn upload_document(
         };
 
         let task = Task::new(
-            uuid::Uuid::parse_str(&tenant_id)
-                .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
-            uuid::Uuid::parse_str(&workspace_id)
-                .map_err(|_| ApiError::ValidationError("Invalid workspace ID".to_string()))?,
+            parse_uuid(&tenant_id, "tenant ID")?,
+            parse_uuid(&workspace_id, "workspace ID")?,
             TaskType::Insert,
             // WHY expect: TextInsertData fields are all primitives/Strings → always serializable
             serde_json::to_value(task_data).expect("TextInsertData is always serializable"),
@@ -252,14 +250,14 @@ pub async fn upload_document(
             .task_storage
             .create_task(&task)
             .await
-            .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+            .internal_err("create upload task")?;
 
         // Queue task for processing
         state
             .task_queue
             .send(task)
             .await
-            .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+            .internal_err("queue upload task")?;
 
         Ok((
             StatusCode::CREATED,
