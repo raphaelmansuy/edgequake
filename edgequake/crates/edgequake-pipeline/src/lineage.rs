@@ -796,24 +796,37 @@ mod tests {
         let mut builder = LineageBuilder::new("doc-1", "test.txt", "job-1");
 
         builder.record_chunk(
-            "chunk-1", 0, 1, 10, 0, 500,
+            "chunk-1",
+            0,
+            1,
+            10,
+            0,
+            500,
             ExtractionMetadata::new("model"),
         );
 
         builder.record_entity(
-            "e1", "ALICE", "chunk-1",
+            "e1",
+            "ALICE",
+            "chunk-1",
             SourceSpan::new(1, 5, 0, 200),
             "Alice desc",
         );
 
         builder.record_entity(
-            "e2", "BOB", "chunk-1",
+            "e2",
+            "BOB",
+            "chunk-1",
             SourceSpan::new(6, 10, 200, 400),
             "Bob desc",
         );
 
         builder.record_relationship(
-            "r1", "e1", "e2", "KNOWS", "chunk-1",
+            "r1",
+            "e1",
+            "e2",
+            "KNOWS",
+            "chunk-1",
             SourceSpan::new(1, 10, 0, 400),
             "Alice knows Bob",
         );

@@ -381,9 +381,7 @@ mod tests {
             RetrievedChunk::new("a", "first", 0.9),
             RetrievedChunk::new("b", "second", 0.8),
         ];
-        let list2 = vec![
-            RetrievedChunk::new("c", "third", 0.7),
-        ];
+        let list2 = vec![RetrievedChunk::new("c", "third", 0.7)];
         let merged = merge_chunks(vec![list1, list2]);
         assert_eq!(merged.len(), 3);
         assert_eq!(merged[0].id, "a");
