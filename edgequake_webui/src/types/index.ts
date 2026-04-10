@@ -882,7 +882,7 @@ export interface HealthResponse {
   };
   /** LLM provider name (e.g., "openai", "mock", "ollama") */
   llm_provider_name?: string;
-  /** Current active provider configuration (LLM and embedding) */
+  /** Current active provider configuration (LLM, embedding, and vision). */
   providers?: {
     llm: {
       name: string;
@@ -892,6 +892,13 @@ export interface HealthResponse {
       name: string;
       model: string;
       dimension: number;
+    };
+    /** Server-level vision defaults (PDF extraction). Workspace overrides take precedence. */
+    vision: {
+      /** Server-default vision provider (derived from EDGEQUAKE_LLM_PROVIDER or server main LLM). */
+      name: string;
+      /** Server-default vision model for this provider. */
+      default_model: string;
     };
   };
   /** Database schema health (PostgreSQL only) */

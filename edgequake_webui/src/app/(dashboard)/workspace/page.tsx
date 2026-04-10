@@ -17,6 +17,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    EffectiveProviderBadge,
+    resolveEffectiveEmbeddingConfig,
+    resolveEffectiveLlmConfig,
+    resolveEffectiveVisionConfig,
+} from '@/components/workspace/effective-provider-badge';
 import { EmbeddingModelSelector, type EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
 import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-model-selector';
 import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
@@ -582,31 +588,32 @@ export default function WorkspacePage() {
                 )}
               </>
             ) : (() => {
-              // FIXED: Always show workspace's saved LLM configuration
-              // Do not override with environment defaults even when workspace has 0 documents
-              const displayProvider = workspace.llm_provider;
-              const displayModel = workspace.llm_model;
-              const displayFullId = workspace.llm_full_id;
+              // WHY: Show the *effective* model — workspace override if set, server default otherwise.
+              // "Server Default" as plain text was ambiguous; now we show the actual value so users
+              // can verify the right model runs without digging into server logs or env vars.
+              const effectiveLlm = resolveEffectiveLlmConfig(
+                workspace.llm_provider,
+                workspace.llm_model,
+                healthData?.providers?.llm,
+              );
 
-              return (
-                <>
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    {getProviderIcon(displayProvider)}
-                    <div>
-                      <div className="font-medium">
-                        {displayModel || t('workspace.serverDefault', 'Server Default')}
-                      </div>
-                      <div className="text-sm text-muted-foreground capitalize">
-                        {displayProvider || t('workspace.autoDetect', 'Auto-detected')}
-                      </div>
+              return effectiveLlm ? (
+                <EffectiveProviderBadge
+                  label={t('workspace.extractionLlmLabel', 'Extraction LLM')}
+                  config={effectiveLlm}
+                />
+              ) : (
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  {getProviderIcon(workspace.llm_provider)}
+                  <div>
+                    <div className="font-medium">
+                      {workspace.llm_model || t('workspace.serverDefault', 'Server Default')}
                     </div>
-                    {displayFullId && (
-                      <Badge variant="outline" className="ml-auto">
-                        {displayFullId}
-                      </Badge>
-                    )}
+                    <div className="text-sm text-muted-foreground capitalize">
+                      {workspace.llm_provider || t('workspace.autoDetect', 'Auto-detected')}
+                    </div>
                   </div>
-                </>
+                </div>
               );
             })()}
           </CardContent>
@@ -640,35 +647,31 @@ export default function WorkspacePage() {
                 )}
               </>
             ) : (() => {
-              // FIXED: Always show workspace's saved embedding configuration
-              // Do not override with environment defaults even when workspace has 0 documents
-              const displayProvider = workspace.embedding_provider;
-              const displayModel = workspace.embedding_model;
-              const displayDimension = workspace.embedding_dimension;
-              const displayFullId = workspace.embedding_full_id;
+              // WHY: Show the *effective* embedding — workspace override if set, server default otherwise.
+              const effectiveEmbedding = resolveEffectiveEmbeddingConfig(
+                workspace.embedding_provider,
+                workspace.embedding_model,
+                workspace.embedding_dimension,
+                healthData?.providers?.embedding,
+              );
 
-              return (
-                <>
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    {getProviderIcon(displayProvider)}
-                    <div>
-                      <div className="font-medium">
-                        {displayModel || t('workspace.serverDefault', 'Server Default')}
-                      </div>
-                      <div className="text-sm text-muted-foreground capitalize">
-                        {displayProvider || t('workspace.autoDetect', 'Auto-detected')}
-                        {displayDimension && (
-                          <span className="ml-2">• {displayDimension} dims</span>
-                        )}
-                      </div>
+              return effectiveEmbedding ? (
+                <EffectiveProviderBadge
+                  label={t('workspace.embeddingLabel', 'Embedding')}
+                  config={effectiveEmbedding}
+                />
+              ) : (
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  {getProviderIcon(workspace.embedding_provider)}
+                  <div>
+                    <div className="font-medium">
+                      {workspace.embedding_model || t('workspace.serverDefault', 'Server Default')}
                     </div>
-                    {displayFullId && (
-                      <Badge variant="outline" className="ml-auto">
-                        {displayFullId}
-                      </Badge>
-                    )}
+                    <div className="text-sm text-muted-foreground capitalize">
+                      {workspace.embedding_provider || t('workspace.autoDetect', 'Auto-detected')}
+                    </div>
                   </div>
-                </>
+                </div>
               );
             })()}
           </CardContent>
@@ -703,24 +706,36 @@ export default function WorkspacePage() {
                 </div>
               )}
             </>
-          ) : (
-            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-              {getProviderIcon(workspace.vision_llm_provider)}
-              <div>
-                <div className="font-medium">
-                  {workspace.vision_llm_model || t('workspace.serverDefault', 'Server Default')}
-                </div>
-                <div className="text-sm text-muted-foreground capitalize">
-                  {workspace.vision_llm_provider || t('workspace.autoDetect', 'Auto-detected')}
+          ) : (() => {
+            // WHY: Mirror the backend invariant — vision_model only applied when vision_provider
+            // is also explicitly set. An orphaned model (model without provider) is NOT shown
+            // as the effective value; instead the server default is displayed.
+            // This matches exactly what helpers.rs does at task creation time.
+            const effectiveVision = resolveEffectiveVisionConfig(
+              workspace.vision_llm_provider,
+              workspace.vision_llm_model,
+              healthData?.providers?.vision,
+            );
+
+            return effectiveVision ? (
+              <EffectiveProviderBadge
+                label={t('workspace.visionLlmLabel', 'Vision LLM (PDF Extraction)')}
+                config={effectiveVision}
+              />
+            ) : (
+              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                {getProviderIcon(workspace.vision_llm_provider)}
+                <div>
+                  <div className="font-medium">
+                    {workspace.vision_llm_model || t('workspace.serverDefault', 'Server Default')}
+                  </div>
+                  <div className="text-sm text-muted-foreground capitalize">
+                    {workspace.vision_llm_provider || t('workspace.autoDetect', 'Auto-detected')}
+                  </div>
                 </div>
               </div>
-              {workspace.vision_llm_provider && workspace.vision_llm_model && (
-                <Badge variant="outline" className="ml-auto">
-                  {`${workspace.vision_llm_provider}/${workspace.vision_llm_model}`}
-                </Badge>
-              )}
-            </div>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
 

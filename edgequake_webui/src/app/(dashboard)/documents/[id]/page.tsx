@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ResizablePanel } from '@/components/ui/resizable-panel';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getDocument, getPdfContent, getPdfDownloadUrl } from '@/lib/api/edgequake';
+import { getDocument, getPdfContent, getPdfDownloadUrl, retryPdfProcessing } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -158,6 +158,25 @@ export default function DocumentViewPage() {
     staleTime: 60 * 1000,
   });
 
+  // WHY: Retry button for failed PDF documents. Calls the backend retry endpoint
+  // which creates a fresh task with the current server/workspace vision config.
+  // This clears the stale "gpt-4.1-nano on Ollama" mismatch from any old task data.
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = useCallback(async () => {
+    const pdfId = document?.pdf_id;
+    if (!pdfId) return;
+    setIsRetrying(true);
+    try {
+      await retryPdfProcessing(pdfId);
+      toast.success(t('documents.retry.success', 'Retry initiated — processing will resume shortly'));
+      refetch();
+    } catch (err) {
+      toast.error(t('documents.retry.failed', 'Failed to retry: ') + String(err));
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [document?.pdf_id, refetch, t]);
+
   const handleCopyId = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(documentId);
@@ -290,8 +309,23 @@ export default function DocumentViewPage() {
         </div>
 
         {isFailed && document.error_message && (
-          <div className="px-3 py-2 bg-destructive/10 border-t">
-            <p className="text-xs text-destructive">{document.error_message}</p>
+          <div className="px-3 py-2 bg-destructive/10 border-t flex items-start justify-between gap-2">
+            <p className="text-xs text-destructive flex-1">{document.error_message}</p>
+            {isPdfDocument && document.pdf_id && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs shrink-0 border-destructive/50 text-destructive hover:bg-destructive/10"
+                onClick={handleRetry}
+                disabled={isRetrying}
+                data-testid="retry-button"
+              >
+                <RefreshCw className={`h-3 w-3 mr-1 ${isRetrying ? 'animate-spin' : ''}`} />
+                {isRetrying
+                  ? t('documents.retry.inProgress', 'Retrying…')
+                  : t('documents.retry.button', 'Retry')}
+              </Button>
+            )}
           </div>
         )}
         {isCancelled && (
