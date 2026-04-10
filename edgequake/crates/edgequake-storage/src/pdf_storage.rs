@@ -532,4 +532,102 @@ mod tests {
         let large_data = vec![b'%'; 105_000_000];
         assert!(validate_pdf_data(&large_data).is_err());
     }
+
+    // =========================================================================
+    // OODA-22: Edge case tests for pdf_storage
+    // =========================================================================
+
+    #[test]
+    fn test_checksum_deterministic() {
+        // WHY: Same input must always produce same checksum
+        let data = b"Hello PDF World";
+        let c1 = calculate_pdf_checksum(data);
+        let c2 = calculate_pdf_checksum(data);
+        assert_eq!(c1, c2);
+    }
+
+    #[test]
+    fn test_checksum_empty_data() {
+        // WHY: Empty data should produce a valid SHA-256 (known value)
+        let checksum = calculate_pdf_checksum(b"");
+        assert_eq!(checksum.len(), 64);
+    }
+
+    #[test]
+    fn test_checksum_different_data() {
+        let c1 = calculate_pdf_checksum(b"data1");
+        let c2 = calculate_pdf_checksum(b"data2");
+        assert_ne!(c1, c2);
+    }
+
+    #[test]
+    fn test_validate_pdf_exactly_at_size_limit() {
+        // WHY: Boundary test — exactly 100MB should pass
+        let mut data = vec![0u8; 104_857_600];
+        data[0] = b'%';
+        data[1] = b'P';
+        data[2] = b'D';
+        data[3] = b'F';
+        data[4] = b'-';
+        assert!(validate_pdf_data(&data).is_ok());
+    }
+
+    #[test]
+    fn test_validate_pdf_one_byte_over_limit() {
+        let mut data = vec![0u8; 104_857_601];
+        data[0] = b'%';
+        data[1] = b'P';
+        data[2] = b'D';
+        data[3] = b'F';
+        data[4] = b'-';
+        assert!(validate_pdf_data(&data).is_err());
+    }
+
+    #[test]
+    fn test_pdf_status_display() {
+        // WHY: Display trait used in logging/error messages
+        assert_eq!(format!("{}", PdfProcessingStatus::Pending), "pending");
+        assert_eq!(format!("{}", PdfProcessingStatus::Failed), "failed");
+    }
+
+    #[test]
+    fn test_pdf_status_roundtrip() {
+        // WHY: as_str → from_str must be identity
+        for status in [
+            PdfProcessingStatus::Pending,
+            PdfProcessingStatus::Processing,
+            PdfProcessingStatus::Completed,
+            PdfProcessingStatus::Failed,
+        ] {
+            let s = status.as_str();
+            let parsed = PdfProcessingStatus::from_str(s).unwrap();
+            assert_eq!(parsed, status);
+        }
+    }
+
+    #[test]
+    fn test_extraction_method_roundtrip() {
+        for method in [
+            ExtractionMethod::Text,
+            ExtractionMethod::Vision,
+            ExtractionMethod::Hybrid,
+        ] {
+            let s = method.as_str();
+            let parsed = ExtractionMethod::from_str(s).unwrap();
+            assert_eq!(parsed, method);
+        }
+    }
+
+    #[test]
+    fn test_pdf_status_case_sensitive() {
+        // WHY: "Pending" (capitalized) must fail — DB stores lowercase
+        assert!(PdfProcessingStatus::from_str("Pending").is_err());
+        assert!(PdfProcessingStatus::from_str("COMPLETED").is_err());
+    }
+
+    #[test]
+    fn test_extraction_method_case_sensitive() {
+        assert!(ExtractionMethod::from_str("Text").is_err());
+        assert!(ExtractionMethod::from_str("VISION").is_err());
+    }
 }
