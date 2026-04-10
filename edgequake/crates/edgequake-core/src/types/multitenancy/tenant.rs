@@ -270,3 +270,136 @@ impl std::str::FromStr for TenantPlan {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    // --- TenantPlan ---
+
+    #[test]
+    fn test_tenant_plan_default_is_free() {
+        assert_eq!(TenantPlan::default(), TenantPlan::Free);
+    }
+
+    #[test]
+    fn test_tenant_plan_max_workspaces() {
+        assert_eq!(TenantPlan::Free.default_max_workspaces(), 10);
+        assert_eq!(TenantPlan::Basic.default_max_workspaces(), 100);
+        assert_eq!(TenantPlan::Pro.default_max_workspaces(), 500);
+        assert_eq!(TenantPlan::Enterprise.default_max_workspaces(), 500);
+    }
+
+    #[test]
+    fn test_tenant_plan_max_users() {
+        assert_eq!(TenantPlan::Free.default_max_users(), 3);
+        assert_eq!(TenantPlan::Basic.default_max_users(), 10);
+        assert_eq!(TenantPlan::Pro.default_max_users(), 50);
+        assert_eq!(TenantPlan::Enterprise.default_max_users(), 500);
+    }
+
+    #[test]
+    fn test_tenant_plan_max_documents() {
+        assert_eq!(TenantPlan::Free.default_max_documents(), 100);
+        assert_eq!(TenantPlan::Basic.default_max_documents(), 1000);
+        assert_eq!(TenantPlan::Pro.default_max_documents(), 10000);
+        assert_eq!(TenantPlan::Enterprise.default_max_documents(), 100000);
+    }
+
+    #[test]
+    fn test_tenant_plan_display_roundtrip() {
+        for (plan, label) in [
+            (TenantPlan::Free, "free"),
+            (TenantPlan::Basic, "basic"),
+            (TenantPlan::Pro, "pro"),
+            (TenantPlan::Enterprise, "enterprise"),
+        ] {
+            assert_eq!(plan.to_string(), label);
+            assert_eq!(TenantPlan::from_str(label).unwrap(), plan);
+        }
+    }
+
+    #[test]
+    fn test_tenant_plan_from_str_case_insensitive() {
+        assert_eq!(TenantPlan::from_str("FREE").unwrap(), TenantPlan::Free);
+        assert_eq!(TenantPlan::from_str("Pro").unwrap(), TenantPlan::Pro);
+    }
+
+    #[test]
+    fn test_tenant_plan_from_str_unknown() {
+        let err = TenantPlan::from_str("premium").unwrap_err();
+        assert!(err.contains("Unknown plan"));
+    }
+
+    // --- Tenant ---
+
+    #[test]
+    fn test_tenant_new_defaults() {
+        let t = Tenant::new("Acme Corp", "acme");
+        assert_eq!(t.name, "Acme Corp");
+        assert_eq!(t.slug, "acme");
+        assert_eq!(t.plan, TenantPlan::Free);
+        assert_eq!(t.max_workspaces, 5);
+        assert_eq!(t.max_users, 10);
+        assert!(t.is_active);
+        assert!(t.description.is_none());
+        assert!(t.metadata.is_empty());
+        assert!(t.default_vision_llm_provider.is_none());
+        assert!(t.default_vision_llm_model.is_none());
+    }
+
+    #[test]
+    fn test_tenant_with_plan_updates_limits() {
+        let t = Tenant::new("X", "x").with_plan(TenantPlan::Pro);
+        assert_eq!(t.plan, TenantPlan::Pro);
+        // WHY: with_plan overrides max_workspaces/max_users from plan defaults
+        assert_eq!(t.max_workspaces, 500);
+        assert_eq!(t.max_users, 50);
+    }
+
+    #[test]
+    fn test_tenant_with_description() {
+        let t = Tenant::new("X", "x").with_description("A test tenant");
+        assert_eq!(t.description.as_deref(), Some("A test tenant"));
+    }
+
+    #[test]
+    fn test_tenant_with_llm_config() {
+        let t = Tenant::new("X", "x").with_llm_config("gemma3:12b", "ollama");
+        assert_eq!(t.default_llm_model, "gemma3:12b");
+        assert_eq!(t.default_llm_provider, "ollama");
+    }
+
+    #[test]
+    fn test_tenant_with_embedding_config() {
+        let t = Tenant::new("X", "x")
+            .with_embedding_config("text-embedding-3-small", "openai", 1536);
+        assert_eq!(t.default_embedding_model, "text-embedding-3-small");
+        assert_eq!(t.default_embedding_provider, "openai");
+        assert_eq!(t.default_embedding_dimension, 1536);
+    }
+
+    #[test]
+    fn test_tenant_with_vision_config() {
+        let t = Tenant::new("X", "x").with_vision_config("gpt-4o", "openai");
+        assert_eq!(t.default_vision_llm_model.as_deref(), Some("gpt-4o"));
+        assert_eq!(t.default_vision_llm_provider.as_deref(), Some("openai"));
+    }
+
+    #[test]
+    fn test_tenant_builder_chain() {
+        let t = Tenant::new("Big Co", "big-co")
+            .with_plan(TenantPlan::Enterprise)
+            .with_description("Enterprise tenant")
+            .with_llm_config("gpt-5-nano", "openai")
+            .with_embedding_config("nomic-embed", "ollama", 768)
+            .with_vision_config("gpt-4o", "openai");
+        assert_eq!(t.plan, TenantPlan::Enterprise);
+        assert_eq!(t.max_workspaces, 500);
+        assert_eq!(t.max_users, 500);
+        assert_eq!(t.default_llm_model, "gpt-5-nano");
+        assert_eq!(t.default_embedding_dimension, 768);
+        assert!(t.default_vision_llm_model.is_some());
+    }
+}

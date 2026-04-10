@@ -73,3 +73,63 @@ pub struct MetricsSnapshot {
     /// Storage used in bytes at snapshot time.
     pub storage_bytes: usize,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_trigger_type_as_str() {
+        assert_eq!(MetricsTriggerType::Event.as_str(), "event");
+        assert_eq!(MetricsTriggerType::Scheduled.as_str(), "scheduled");
+        assert_eq!(MetricsTriggerType::Manual.as_str(), "manual");
+    }
+
+    #[test]
+    fn test_trigger_type_display() {
+        assert_eq!(MetricsTriggerType::Event.to_string(), "event");
+        assert_eq!(MetricsTriggerType::Scheduled.to_string(), "scheduled");
+        assert_eq!(MetricsTriggerType::Manual.to_string(), "manual");
+    }
+
+    #[test]
+    fn test_trigger_type_parse_roundtrip() {
+        for variant in [MetricsTriggerType::Event, MetricsTriggerType::Scheduled, MetricsTriggerType::Manual] {
+            let s = variant.as_str();
+            assert_eq!(MetricsTriggerType::parse(s), Some(variant));
+        }
+    }
+
+    #[test]
+    fn test_trigger_type_parse_case_insensitive() {
+        assert_eq!(MetricsTriggerType::parse("EVENT"), Some(MetricsTriggerType::Event));
+        assert_eq!(MetricsTriggerType::parse("Scheduled"), Some(MetricsTriggerType::Scheduled));
+        assert_eq!(MetricsTriggerType::parse("MANUAL"), Some(MetricsTriggerType::Manual));
+    }
+
+    #[test]
+    fn test_trigger_type_parse_unknown() {
+        assert_eq!(MetricsTriggerType::parse("cron"), None);
+        assert_eq!(MetricsTriggerType::parse(""), None);
+    }
+
+    #[test]
+    fn test_metrics_snapshot_construction() {
+        let ws_id = Uuid::new_v4();
+        let snap = MetricsSnapshot {
+            id: Uuid::new_v4(),
+            workspace_id: ws_id,
+            recorded_at: chrono::Utc::now(),
+            trigger_type: MetricsTriggerType::Event,
+            document_count: 42,
+            chunk_count: 200,
+            entity_count: 50,
+            relationship_count: 80,
+            embedding_count: 200,
+            storage_bytes: 1024 * 1024,
+        };
+        assert_eq!(snap.workspace_id, ws_id);
+        assert_eq!(snap.document_count, 42);
+        assert_eq!(snap.storage_bytes, 1024 * 1024);
+    }
+}
