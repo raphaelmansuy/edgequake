@@ -208,7 +208,11 @@ impl DocumentTaskProcessor {
         // .await points inside the process_concurrent state machine, preventing the future
         // from being Send in async_trait contexts.
         // Handle::block_on requires no Send bound on the future, bypassing this.
-        let (markdown, extraction_method, used_vision_model) = if data.enable_vision {
+        let (markdown, extraction_method, used_vision_model): (
+            String,
+            ExtractionMethod,
+            Option<String>,
+        ) = if data.enable_vision {
             #[cfg(feature = "vision")]
             {
                 use edgequake_pdf2md::{convert_from_bytes, ConversionConfig};

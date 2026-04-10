@@ -34,8 +34,10 @@ use crate::state::AppState;
 // Re-export DTOs from health_types for backwards compatibility
 pub use crate::handlers::health_types::{
     BuildInfo, ComponentHealth, EmbeddingProviderHealth, HealthResponse, LlmProviderHealth,
-    ProvidersHealth, SchemaHealth,
+    ProvidersHealth, SchemaHealth, VisionProviderHealth,
 };
+
+use crate::handlers::pdf_upload::types::default_vision_model_for_provider;
 
 /// Deep health check with component status.
 ///
@@ -88,15 +90,23 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     // WHY: OODA-11 - Mission requirement: "know all parts of the applied configuration
     // (llm provider, embedding provider, models used)".
     // Operators need full visibility to debug ingestion/query issues.
+    // Vision is the third provider axis — its server default is exposed so operators
+    // can verify no orphaned workspace model will be silently applied to the wrong provider.
+    let server_llm_provider = state.llm_provider.name().to_string();
+    let vision_default_model = default_vision_model_for_provider(&server_llm_provider);
     let providers = Some(ProvidersHealth {
         llm: LlmProviderHealth {
-            name: state.llm_provider.name().to_string(),
+            name: server_llm_provider.clone(),
             model: state.llm_provider.model().to_string(),
         },
         embedding: EmbeddingProviderHealth {
             name: state.embedding_provider.name().to_string(),
             model: state.embedding_provider.model().to_string(),
             dimension: state.embedding_provider.dimension(),
+        },
+        vision: VisionProviderHealth {
+            name: server_llm_provider,
+            default_model: vision_default_model,
         },
     });
 

@@ -296,7 +296,11 @@ mod tests {
     #[test]
     fn test_user_prompt_contains_input_text() {
         let prompts = EntityExtractionPrompts::default();
-        let user = prompts.user_prompt("Alice met Bob at the park.", &["PERSON", "LOCATION"], "English");
+        let user = prompts.user_prompt(
+            "Alice met Bob at the park.",
+            &["PERSON", "LOCATION"],
+            "English",
+        );
         assert!(user.contains("Alice met Bob at the park."));
         assert!(user.contains("PERSON, LOCATION"));
     }

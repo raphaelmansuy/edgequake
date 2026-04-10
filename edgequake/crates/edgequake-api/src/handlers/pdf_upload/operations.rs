@@ -9,7 +9,7 @@ use crate::state::AppState;
 
 // WHY: These imports are only used inside #[cfg(feature = "postgres")] blocks.
 #[cfg(feature = "postgres")]
-use super::helpers::create_pdf_processing_task;
+use super::helpers::{create_pdf_processing_task, resolve_workspace_vision_options};
 #[cfg(feature = "postgres")]
 use super::types::PdfUploadOptions;
 #[cfg(feature = "postgres")]
@@ -124,12 +124,18 @@ pub async fn retry_pdf_processing(
             .internal_err("reset PDF status")?;
 
         // OODA-17: Create new processing task
-        let options = PdfUploadOptions {
+        // WHY: Build fresh options (no stale vision config) then apply workspace
+        // settings via the shared resolver so the same provider/model invariant
+        // enforced during upload is also enforced for retries.
+        let mut options = PdfUploadOptions {
             enable_vision: true,
-            vision_provider: None, // will be resolved from workspace config or server default
+            vision_provider: None,
             vision_model: None,
             ..Default::default()
         };
+
+        let workspace_id = _workspace_id; // already validated above
+        resolve_workspace_vision_options(&state, workspace_id, &mut options).await;
 
         let task_id = create_pdf_processing_task(&state, &tenant, pdf_uuid, &options).await?;
 

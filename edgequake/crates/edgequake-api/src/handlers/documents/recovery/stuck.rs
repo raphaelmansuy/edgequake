@@ -13,7 +13,7 @@ use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
-use super::super::storage_helpers::cleanup_document_graph_data;
+use super::super::storage_helpers::cleanup_document_graph_data_single;
 
 /// Recover documents stuck in "processing" status.
 ///
@@ -113,7 +113,7 @@ pub async fn recover_stuck(
         //
         // A "stuck" document may have partially created entities before the process
         // died or timed out. Without cleanup, reprocessing would create duplicates.
-        match cleanup_document_graph_data(doc_id, &state.graph_storage, None).await {
+        match cleanup_document_graph_data_single(doc_id, None, &state.graph_storage, None).await {
             Ok(stats) => {
                 tracing::info!(
                     document_id = %doc_id,

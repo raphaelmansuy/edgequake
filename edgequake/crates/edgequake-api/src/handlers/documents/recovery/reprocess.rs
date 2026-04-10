@@ -14,7 +14,7 @@ use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
-use super::super::storage_helpers::cleanup_document_graph_data;
+use super::super::storage_helpers::cleanup_document_graph_data_single;
 
 /// Reprocess failed documents.
 #[utoipa::path(
@@ -120,7 +120,7 @@ pub async fn reprocess_failed(
         //   T4: Document reprocessed → entities A, B created fresh
         //   T5: source_ids correctly = [doc]
         //   T6: Delete document → entities properly deleted
-        match cleanup_document_graph_data(doc_id, &state.graph_storage, None).await {
+        match cleanup_document_graph_data_single(doc_id, None, &state.graph_storage, None).await {
             Ok(stats) => {
                 tracing::info!(
                     document_id = %doc_id,

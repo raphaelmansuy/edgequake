@@ -470,8 +470,9 @@ pub async fn delete_injection(
     //    WHY: Injection pipeline writes graph nodes with source_ids pointing to doc_id.
     //    Leaving those nodes pollutes future queries with stale knowledge (TS-004).
     //    This reuses the same cleanup path as document deletion (SRP/DRY).
-    if let Err(e) = crate::handlers::documents::storage_helpers::cleanup_document_graph_data(
+    if let Err(e) = crate::handlers::documents::storage_helpers::cleanup_document_graph_data_single(
         &doc_id,
+        None,
         &state.graph_storage,
         Some(&vector_storage),
     )
@@ -1113,9 +1114,20 @@ mod tests {
     #[test]
     fn test_build_meta_minimal() {
         let meta = build_meta(
-            "inj-1", "Test", "Content", "ws-1", "text",
-            None, "pending", 1, 0, None, "doc-1",
-            "2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z", None,
+            "inj-1",
+            "Test",
+            "Content",
+            "ws-1",
+            "text",
+            None,
+            "pending",
+            1,
+            0,
+            None,
+            "doc-1",
+            "2025-01-01T00:00:00Z",
+            "2025-01-01T00:00:00Z",
+            None,
         );
         assert_eq!(meta["id"], "inj-1");
         assert_eq!(meta["status"], "pending");
@@ -1127,9 +1139,20 @@ mod tests {
     fn test_build_meta_with_optional_fields() {
         let chunk_ids = vec!["c1".to_string(), "c2".to_string()];
         let meta = build_meta(
-            "inj-1", "Test", "Content", "ws-1", "file",
-            Some("test.pdf"), "completed", 2, 5, Some(&chunk_ids), "doc-1",
-            "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", Some("timeout"),
+            "inj-1",
+            "Test",
+            "Content",
+            "ws-1",
+            "file",
+            Some("test.pdf"),
+            "completed",
+            2,
+            5,
+            Some(&chunk_ids),
+            "doc-1",
+            "2025-01-01T00:00:00Z",
+            "2025-01-02T00:00:00Z",
+            Some("timeout"),
         );
         assert_eq!(meta["source_filename"], "test.pdf");
         assert_eq!(meta["error"], "timeout");
