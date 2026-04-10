@@ -350,4 +350,85 @@ mod tests {
         assert_eq!(config.llm.model, "gpt-5-mini");
         assert_eq!(config.llm.embedding_model, "text-embedding-3-small");
     }
+
+    // ── Edge case tests (OODA-47) ──────────────────────────────────
+
+    #[test]
+    fn test_storage_config_defaults() {
+        let s = StorageConfig::default();
+        assert!(s.database_url.contains("postgres"));
+        assert_eq!(s.max_connections, 10);
+        assert_eq!(s.min_connections, 1);
+        assert_eq!(s.connect_timeout_secs, 30);
+        assert!(s.namespace.is_none());
+    }
+
+    #[test]
+    fn test_llm_config_defaults() {
+        let l = LlmConfig::default();
+        assert_eq!(l.provider, "openai");
+        assert!(l.api_key.is_none());
+        assert!(l.base_url.is_none());
+        assert_eq!(l.embedding_dim, 1536);
+        assert!((l.temperature - 0.0).abs() < f32::EPSILON);
+        assert_eq!(l.max_retries, 3);
+    }
+
+    #[test]
+    fn test_pipeline_config_defaults() {
+        let p = PipelineConfig::default();
+        assert_eq!(p.chunk_size, 1200);
+        assert_eq!(p.chunk_overlap, 100);
+        assert_eq!(p.entity_types.len(), 9);
+        assert!(p.entity_types.contains(&"PERSON".into()));
+        assert!(p.summarize_descriptions);
+        assert_eq!(p.concurrency, 4);
+    }
+
+    #[test]
+    fn test_query_config_defaults() {
+        let q = QueryConfig::default();
+        assert_eq!(q.default_mode, QueryMode::Hybrid);
+        assert_eq!(q.max_vector_results, 20);
+        assert_eq!(q.max_graph_depth, 3);
+        assert!(q.stream_responses);
+    }
+
+    #[test]
+    fn test_api_config_defaults() {
+        let a = ApiConfig::default();
+        assert_eq!(a.host, "0.0.0.0");
+        assert_eq!(a.port, 8080);
+        assert!(a.cors_enabled);
+        assert!(!a.auth_enabled);
+        assert_eq!(a.body_limit, 50 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_query_mode_default_is_hybrid() {
+        assert_eq!(QueryMode::default(), QueryMode::Hybrid);
+    }
+
+    #[test]
+    fn test_query_mode_from_str_all_variants() {
+        assert_eq!("naive".parse::<QueryMode>().unwrap(), QueryMode::Naive);
+        assert_eq!("local".parse::<QueryMode>().unwrap(), QueryMode::Local);
+        assert_eq!("global".parse::<QueryMode>().unwrap(), QueryMode::Global);
+        assert_eq!("hybrid".parse::<QueryMode>().unwrap(), QueryMode::Hybrid);
+        assert_eq!("bypass".parse::<QueryMode>().unwrap(), QueryMode::Bypass);
+    }
+
+    #[test]
+    fn test_query_mode_from_str_error() {
+        let err = "invalid".parse::<QueryMode>().unwrap_err();
+        assert!(err.contains("Unknown query mode"));
+    }
+
+    #[test]
+    fn test_config_new_equals_default() {
+        let c1 = Config::new();
+        let c2 = Config::default();
+        assert_eq!(c1.api.port, c2.api.port);
+        assert_eq!(c1.llm.provider, c2.llm.provider);
+    }
 }
