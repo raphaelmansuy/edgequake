@@ -1,5 +1,19 @@
 //! Document Validation Module
 //!
+//! ## WHY: Blocked Extensions as a Security Boundary
+//!
+//! The `blocked_extensions` set prevents upload of executable payloads
+//! (.exe, .dll, .sh, .jar, etc.) at the validation layer — before any
+//! processing occurs. This is defense-in-depth:
+//!
+//! 1. **Early rejection** — blocks malicious files before they touch
+//!    storage or the LLM pipeline.
+//! 2. **Separate from allowed_extensions** — `allowed_extensions` is
+//!    a whitelist (empty = allow all); `blocked_extensions` is a
+//!    blacklist that always applies regardless of the whitelist.
+//! 3. **Configurable** — deployment environments can adjust the set
+//!    without code changes.
+//!
 //! @implements SPEC-001/Issue-13: Comprehensive Edge Case Handling
 //!
 //! This module handles all documented edge cases in document processing:

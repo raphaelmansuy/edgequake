@@ -1,5 +1,24 @@
 //! LLM Response Caching.
 //!
+//! ## WHY: Cache Key = Content Hash + Model + Prompt Version
+//!
+//! LLM responses are deterministic for a given (input, model, prompt)
+//! triple. Hashing all three into the cache key ensures:
+//!
+//! 1. **No stale hits** — changing the extraction prompt invalidates
+//!    old entries automatically.
+//! 2. **Model isolation** — `gpt-5-nano` and `gemma3` produce different
+//!    extractions for the same chunk; caching must not cross-contaminate.
+//! 3. **Chunk-level granularity** — re-ingesting a single modified chunk
+//!    only invalidates that chunk’s cache entry, not the whole document.
+//!
+//! ```text
+//!   cache_key = SHA-256(chunk_content + model_name + prompt_hash)
+//!             │
+//!             ├─ Hit  → return cached response (0 tokens, 0 cost)
+//!             └─ Miss → call LLM, store CacheEntry with TTL
+//! ```
+//!
 //! Provides caching for LLM extraction responses to avoid redundant API calls.
 //! Supports both in-memory caching and persistent storage.
 //!
@@ -474,5 +493,45 @@ mod tests {
         cache.clear().await.unwrap();
 
         assert!(cache.get("hash1").await.unwrap().is_none());
+    }
+
+    // ── Edge case tests (OODA-27) ──────────────────────────────────
+
+    #[test]
+    fn test_cache_key_empty_inputs() {
+        let key = generate_cache_key("", "");
+        // Should still produce a valid SHA-256 hash (not panic)
+        assert_eq!(key.len(), 64); // SHA-256 hex is 64 chars
+    }
+
+    #[test]
+    fn test_cache_key_model_matters() {
+        let k1 = generate_cache_key("same_prompt", "model_a");
+        let k2 = generate_cache_key("same_prompt", "model_b");
+        assert_ne!(k1, k2, "different models must produce different cache keys");
+    }
+
+    #[test]
+    fn test_cache_entry_default_tokens_zero() {
+        let entry = CacheEntry::new(CacheType::Summary, "h", "r", "m");
+        assert_eq!(entry.input_tokens, 0);
+        assert_eq!(entry.output_tokens, 0);
+        assert!(entry.ttl_seconds.is_none());
+        assert!(entry.chunk_id.is_none());
+    }
+
+    #[test]
+    fn test_cache_type_variants_are_distinct() {
+        assert_ne!(CacheType::Extract, CacheType::Glean);
+        assert_ne!(CacheType::Glean, CacheType::Summary);
+        assert_ne!(CacheType::Summary, CacheType::Embedding);
+    }
+
+    #[tokio::test]
+    async fn test_memory_cache_stats_empty() {
+        let cache = MemoryLLMCache::new();
+        let stats = cache.stats().await;
+        assert_eq!(stats.total_entries, 0);
+        assert_eq!(stats.total_tokens, 0);
     }
 }

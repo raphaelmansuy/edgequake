@@ -1,5 +1,26 @@
 //! Error types for EdgeQuake.
 //!
+//! ## WHY: Two-Level Error Hierarchy
+//!
+//! `Error` wraps crate-level errors (Storage, LLM, Pipeline, Query)
+//! via `#[from]` so the orchestration layer can propagate failures
+//! with `?` without manual mapping. `QueryError` is a separate enum
+//! because query failures have different retry semantics:
+//!
+//! - `EmptyQuery` / `InvalidMode` → client-fixable, no retry
+//! - `Timeout` / `ContextRetrievalFailed` → transient, retry-able
+//! - `ResponseGenerationFailed` → may be LLM-side, retry with backoff
+//!
+//! ```text
+//!   Error (top-level)
+//!   ├─ Storage(StorageError)    ← #[from]
+//!   ├─ Llm(LlmError)            ← #[from]
+//!   ├─ Pipeline(PipelineError)  ← #[from] (feature-gated)
+//!   ├─ Query(QueryError)        ← #[from]
+//!   ├─ Config / Validation      ← user-fixable
+//!   └─ Internal / NotFound      ← system-level
+//! ```
+//!
 //! This module defines the error hierarchy used throughout the EdgeQuake system.
 
 use thiserror::Error;
