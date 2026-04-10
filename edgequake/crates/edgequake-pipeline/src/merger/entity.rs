@@ -130,7 +130,11 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
         let new_importance = existing_importance.max(entity.importance);
         node.properties.insert(
             "importance".to_string(),
-            serde_json::Value::Number(serde_json::Number::from_f64(new_importance as f64).unwrap()),
+            // WHY unwrap_or: from_f64 returns None for NaN/Inf from LLM parsing → clamp to 0.0
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(new_importance as f64)
+                    .unwrap_or(serde_json::Number::from(0)),
+            ),
         );
 
         // Merge source spans
@@ -203,8 +207,10 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
         );
         properties.insert(
             "importance".to_string(),
+            // WHY unwrap_or: from_f64 returns None for NaN/Inf from LLM parsing → clamp to 0.0
             serde_json::Value::Number(
-                serde_json::Number::from_f64(entity.importance as f64).unwrap(),
+                serde_json::Number::from_f64(entity.importance as f64)
+                    .unwrap_or(serde_json::Number::from(0)),
             ),
         );
         properties.insert(

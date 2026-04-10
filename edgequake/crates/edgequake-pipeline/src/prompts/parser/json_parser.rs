@@ -173,33 +173,36 @@ fn sanitize_json(json: &str) -> String {
 
     // Remove JavaScript-style comments
     // Single-line: // comment
-    let re_single_comment = regex::Regex::new(r"//.*$").unwrap();
+    // WHY expect: all regex patterns below are compile-time literals — guaranteed valid
+    let re_single_comment = regex::Regex::new(r"//.*$").expect("static regex");
     sanitized = re_single_comment.replace_all(&sanitized, "").to_string();
 
     // Multi-line: /* comment */
-    let re_multi_comment = regex::Regex::new(r"/\*.*?\*/").unwrap();
+    let re_multi_comment = regex::Regex::new(r"/\*.*?\*/").expect("static regex");
     sanitized = re_multi_comment.replace_all(&sanitized, "").to_string();
 
     // Remove trailing commas before } or ]
-    let re_trailing_comma = regex::Regex::new(r",(\s*[}\]])").unwrap();
+    let re_trailing_comma = regex::Regex::new(r",(\s*[}\]])").expect("static regex");
     sanitized = re_trailing_comma.replace_all(&sanitized, "$1").to_string();
 
     // Fix single quotes to double quotes (be careful with apostrophes in text)
     // This is a simple heuristic: replace ' with " only when it looks like a JSON delimiter
     // Pattern: '{key}' or ':{value}' at JSON structure positions
-    let re_single_quote_key = regex::Regex::new(r"'([a-zA-Z_][a-zA-Z0-9_]*)'(\s*:)").unwrap();
+    let re_single_quote_key =
+        regex::Regex::new(r"'([a-zA-Z_][a-zA-Z0-9_]*)'(\s*:)").expect("static regex");
     sanitized = re_single_quote_key
         .replace_all(&sanitized, "\"$1\"$2")
         .to_string();
 
-    let re_single_quote_val = regex::Regex::new(r":\s*'([^']*)'").unwrap();
+    let re_single_quote_val = regex::Regex::new(r":\s*'([^']*)'").expect("static regex");
     sanitized = re_single_quote_val
         .replace_all(&sanitized, ": \"$1\"")
         .to_string();
 
     // Fix unquoted keys: {name: "value"} → {"name": "value"}
     // Match: word characters followed by colon
-    let re_unquoted_key = regex::Regex::new(r#"([,{]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)"#).unwrap();
+    let re_unquoted_key =
+        regex::Regex::new(r#"([,{]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)"#).expect("static regex");
     sanitized = re_unquoted_key
         .replace_all(&sanitized, "$1\"$2\"$3")
         .to_string();
