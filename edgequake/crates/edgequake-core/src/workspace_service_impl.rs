@@ -1197,8 +1197,8 @@ impl WorkspaceService for WorkspaceServiceImpl {
 /// WHY: Consistent normalization ensures that types like "machine" and "MACHINE"
 /// map to the same entity type, preventing duplicate type entries in the graph.
 ///
-// Row types and parsing helpers extracted to workspace_row_types.rs (SRP: OODA-16)
+// Row types extracted to workspace_row_types.rs, pure helpers to workspace_utils.rs (SRP: OODA-16/17)
 #[cfg(feature = "postgres")]
-use crate::workspace_row_types::{
-    normalize_entity_types, parse_plan, parse_role, MembershipRow, TenantRow, WorkspaceRow,
-};
+use crate::workspace_row_types::{MembershipRow, TenantRow, WorkspaceRow};
+#[cfg(feature = "postgres")]
+use crate::workspace_utils::{normalize_entity_types, parse_plan, parse_role};
