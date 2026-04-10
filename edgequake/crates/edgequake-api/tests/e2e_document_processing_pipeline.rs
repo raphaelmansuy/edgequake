@@ -6,56 +6,12 @@
 //! @implements SPEC-032: Document processing with workspace providers
 //! @implements OODA-222: Document ingestion uses workspace pipeline
 
+mod common;
+
+use common::create_workspace_with_providers;
 use edgequake_api::AppState;
-use edgequake_core::types::{CreateWorkspaceRequest, UpdateWorkspaceRequest};
-use edgequake_core::Tenant;
+use edgequake_core::types::UpdateWorkspaceRequest;
 use uuid::Uuid;
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/// Create a workspace with specified provider configuration.
-async fn create_workspace_with_providers(
-    state: &AppState,
-    name: &str,
-    llm_provider: &str,
-    llm_model: &str,
-    embedding_provider: &str,
-    embedding_model: &str,
-    embedding_dimension: usize,
-) -> edgequake_core::Workspace {
-    let tenant = Tenant::new(
-        &format!("Tenant {}", name),
-        &format!("tenant-{}", Uuid::new_v4()),
-    );
-    let created_tenant = state
-        .workspace_service
-        .create_tenant(tenant)
-        .await
-        .expect("Should create tenant");
-
-    let request = CreateWorkspaceRequest {
-        name: name.to_string(),
-        slug: Some(format!("ws-{}", Uuid::new_v4())),
-        description: Some(format!("Test workspace with {} providers", llm_provider)),
-        max_documents: None,
-        llm_model: Some(llm_model.to_string()),
-        llm_provider: Some(llm_provider.to_string()),
-        embedding_model: Some(embedding_model.to_string()),
-        embedding_provider: Some(embedding_provider.to_string()),
-        embedding_dimension: Some(embedding_dimension),
-        vision_llm_provider: None,
-        vision_llm_model: None,
-        entity_types: None,
-    };
-
-    state
-        .workspace_service
-        .create_workspace(created_tenant.tenant_id, request)
-        .await
-        .expect("Should create workspace")
-}
 
 /// Process a document using workspace pipeline directly.
 /// Returns Result to handle extraction errors gracefully.

@@ -7,90 +7,21 @@
 //! 2. Workspace embedding configuration is used for provider creation
 //! 3. Different workspaces use different embedding providers
 
+mod common;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use edgequake_api::{AppState, Server, ServerConfig};
-use edgequake_core::types::{CreateWorkspaceRequest, UpdateWorkspaceRequest};
-use edgequake_core::Tenant;
-use serde_json::{json, Value};
+use common::{
+    clear_provider_detection_env, create_test_config, create_test_server, create_test_state,
+    create_workspace_with_embedding_config, extract_json,
+};
+use edgequake_api::Server;
+use edgequake_core::types::UpdateWorkspaceRequest;
+use serde_json::json;
 use tower::ServiceExt;
 use uuid::Uuid;
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-fn create_test_config() -> ServerConfig {
-    ServerConfig {
-        host: "127.0.0.1".to_string(),
-        port: 0,
-        enable_cors: false,
-        enable_compression: false,
-        enable_swagger: true,
-    }
-}
-
-fn create_test_state() -> AppState {
-    AppState::test_state()
-}
-
-fn create_test_server() -> Server {
-    Server::new(create_test_config(), create_test_state())
-}
-
-async fn extract_json(response: axum::response::Response) -> Value {
-    let bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024)
-        .await
-        .expect("Failed to read response body");
-    serde_json::from_slice(&bytes).expect("Failed to parse JSON")
-}
-
-/// Create a test workspace with specified provider configuration.
-async fn create_test_workspace_with_config(
-    state: &AppState,
-    name: &str,
-    embedding_provider: &str,
-    embedding_model: &str,
-    embedding_dimension: usize,
-) -> edgequake_core::Workspace {
-    // Create tenant first
-    let tenant = Tenant::new(
-        &format!("Test Tenant {}", name),
-        &format!("test-{}", Uuid::new_v4()),
-    );
-    let created_tenant = state
-        .workspace_service
-        .create_tenant(tenant)
-        .await
-        .expect("Should create tenant");
-
-    // Create workspace with specific provider config
-    let request = CreateWorkspaceRequest {
-        name: name.to_string(),
-        slug: Some(format!("ws-{}", Uuid::new_v4())),
-        description: Some(format!(
-            "Test workspace with {} embedding",
-            embedding_provider
-        )),
-        max_documents: None,
-        llm_model: Some("mock-model".to_string()),
-        llm_provider: Some("mock".to_string()),
-        embedding_model: Some(embedding_model.to_string()),
-        embedding_provider: Some(embedding_provider.to_string()),
-        embedding_dimension: Some(embedding_dimension),
-        vision_llm_provider: None,
-        vision_llm_model: None,
-        entity_types: None,
-    };
-
-    state
-        .workspace_service
-        .create_workspace(created_tenant.tenant_id, request)
-        .await
-        .expect("Should create workspace")
-}
 
 // ============================================================================
 // Query with Workspace Header Tests
@@ -99,6 +30,7 @@ async fn create_test_workspace_with_config(
 /// Test that query without workspace header still works
 #[tokio::test]
 async fn test_query_http_without_workspace_header() {
+    clear_provider_detection_env();
     let app = create_test_server().build_router();
 
     let request = json!({
@@ -124,13 +56,19 @@ async fn test_query_http_without_workspace_header() {
 /// Test query with valid workspace UUID triggers provider lookup
 #[tokio::test]
 async fn test_query_http_with_workspace_header() {
+    clear_provider_detection_env();
     let state = create_test_state();
     let app = Server::new(create_test_config(), state.clone()).build_router();
 
     // Create a workspace with config
-    let workspace =
-        create_test_workspace_with_config(&state, "test-query-ws", "mock", "mock-embedding", 1536)
-            .await;
+    let workspace = create_workspace_with_embedding_config(
+        &state,
+        "test-query-ws",
+        "mock",
+        "mock-embedding",
+        1536,
+    )
+    .await;
 
     let request = json!({
         "query": "What is AI?"
@@ -156,11 +94,12 @@ async fn test_query_http_with_workspace_header() {
 /// Test query with workspace that has custom Ollama embedding config
 #[tokio::test]
 async fn test_query_http_workspace_ollama_config() {
+    clear_provider_detection_env();
     let state = create_test_state();
     let app = Server::new(create_test_config(), state.clone()).build_router();
 
     // Create workspace with Ollama embedding config
-    let workspace = create_test_workspace_with_config(
+    let workspace = create_workspace_with_embedding_config(
         &state,
         "ollama-workspace",
         "ollama",
@@ -202,10 +141,11 @@ async fn test_query_http_workspace_ollama_config() {
 /// Test workspace provider isolation - different workspaces use different configs
 #[tokio::test]
 async fn test_query_http_workspace_provider_isolation() {
+    clear_provider_detection_env();
     let state = create_test_state();
 
     // Create workspace A with OpenAI-style config
-    let ws_a = create_test_workspace_with_config(
+    let ws_a = create_workspace_with_embedding_config(
         &state,
         "ws-openai",
         "openai",
@@ -215,9 +155,14 @@ async fn test_query_http_workspace_provider_isolation() {
     .await;
 
     // Create workspace B with Ollama-style config
-    let ws_b =
-        create_test_workspace_with_config(&state, "ws-ollama", "ollama", "nomic-embed-text", 768)
-            .await;
+    let ws_b = create_workspace_with_embedding_config(
+        &state,
+        "ws-ollama",
+        "ollama",
+        "nomic-embed-text",
+        768,
+    )
+    .await;
 
     // Verify isolation in stored config
     assert_eq!(ws_a.embedding_provider, "openai");
@@ -275,10 +220,11 @@ async fn test_query_http_workspace_provider_isolation() {
 /// to use the new provider. In production with valid API keys, queries would succeed.
 #[tokio::test]
 async fn test_query_http_after_provider_switch() {
+    clear_provider_detection_env();
     let state = create_test_state();
 
     // Create workspace with initial mock config (always works)
-    let workspace = create_test_workspace_with_config(
+    let workspace = create_workspace_with_embedding_config(
         &state,
         "switch-workspace",
         "mock", // mock provider always works
@@ -362,6 +308,7 @@ async fn test_query_http_after_provider_switch() {
 /// Test query with non-existent workspace falls back to default
 #[tokio::test]
 async fn test_query_http_nonexistent_workspace() {
+    clear_provider_detection_env();
     let app = create_test_server().build_router();
 
     let fake_workspace_id = Uuid::new_v4();
@@ -390,6 +337,7 @@ async fn test_query_http_nonexistent_workspace() {
 /// Test query with invalid workspace UUID format falls back to default
 #[tokio::test]
 async fn test_query_http_invalid_workspace_uuid() {
+    clear_provider_detection_env();
     let app = create_test_server().build_router();
 
     let request = json!({
@@ -417,11 +365,12 @@ async fn test_query_http_invalid_workspace_uuid() {
 /// Test query with OpenAI workspace config
 #[tokio::test]
 async fn test_query_http_workspace_openai_config() {
+    clear_provider_detection_env();
     let state = create_test_state();
     let app = Server::new(create_test_config(), state.clone()).build_router();
 
     // Create workspace with OpenAI embedding config
-    let workspace = create_test_workspace_with_config(
+    let workspace = create_workspace_with_embedding_config(
         &state,
         "openai-workspace",
         "openai",

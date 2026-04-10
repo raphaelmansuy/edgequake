@@ -251,7 +251,9 @@ pub(super) async fn build_reprocess_task(
                 let pdf_task = build_pdf_task(workspace, workspace_id, pdf_id_uuid, &doc.doc_id);
                 return Some((
                     TaskType::PdfProcessing,
-                    serde_json::to_value(&pdf_task).unwrap(),
+                    // WHY expect: PdfProcessingData fields are all primitives/Strings → always serializable
+                    serde_json::to_value(&pdf_task)
+                        .expect("PdfProcessingData is always serializable"),
                 ));
             }
             // Malformed pdf_id — log warning and fall through to text path
@@ -289,5 +291,9 @@ pub(super) async fn build_reprocess_task(
         metadata: Some(serde_json::Value::Object(metadata_map)),
     };
 
-    Some((TaskType::Insert, serde_json::to_value(&text_task).unwrap()))
+    // WHY expect: TextInsertData fields are all primitives/Strings → always serializable
+    Some((
+        TaskType::Insert,
+        serde_json::to_value(&text_task).expect("TextInsertData is always serializable"),
+    ))
 }

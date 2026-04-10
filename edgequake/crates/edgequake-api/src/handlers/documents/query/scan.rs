@@ -203,7 +203,8 @@ pub async fn scan_directory(
                 uuid::Uuid::parse_str(&workspace_id)
                     .map_err(|_| ApiError::ValidationError("Invalid workspace ID".to_string()))?,
                 TaskType::Insert,
-                serde_json::to_value(task_data).unwrap(),
+                // WHY expect: TextInsertData fields are all primitives/Strings → always serializable
+                serde_json::to_value(task_data).expect("TextInsertData is always serializable"),
             );
 
             state
