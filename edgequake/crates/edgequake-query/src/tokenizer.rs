@@ -152,4 +152,55 @@ mod tests {
         test_tokenizer(&SimpleTokenizer::new());
         test_tokenizer(&MockTokenizer::new());
     }
+
+    // =========================================================================
+    // OODA-23: Edge case tests for tokenizer
+    // =========================================================================
+
+    #[test]
+    fn test_simple_tokenizer_empty_string() {
+        let t = SimpleTokenizer::new();
+        // WHY: Empty string must not panic; 0 chars → 0 tokens
+        assert_eq!(t.count_tokens(""), 0);
+        assert!(t.encode("").is_empty());
+    }
+
+    #[test]
+    fn test_mock_tokenizer_empty_string() {
+        let t = MockTokenizer::new();
+        assert_eq!(t.count_tokens(""), 0);
+        assert!(t.encode("").is_empty());
+    }
+
+    #[test]
+    fn test_simple_tokenizer_single_char() {
+        let t = SimpleTokenizer::new();
+        // 1 char / 4 = 0.25 → ceil = 1; word count = 1; max(1,1) = 1
+        assert_eq!(t.count_tokens("x"), 1);
+    }
+
+    #[test]
+    fn test_mock_tokenizer_zero_rate() {
+        // WHY: Zero rate means 0 tokens for any input — should not panic
+        let t = MockTokenizer::with_rate(0.0);
+        assert_eq!(t.count_tokens("hello world"), 0);
+    }
+
+    #[test]
+    fn test_simple_tokenizer_encode_count_consistent() {
+        // WHY: encode().len() should approximate count_tokens
+        let t = SimpleTokenizer::new();
+        let text = "Hello world test";
+        let encoded = t.encode(text);
+        // encode and count_tokens use different heuristics, but both > 0
+        assert!(encoded.len() > 0);
+        assert!(t.count_tokens(text) > 0);
+    }
+
+    #[test]
+    fn test_mock_tokenizer_decode_returns_placeholder() {
+        let t = MockTokenizer::new();
+        assert_eq!(t.decode(&[1, 2, 3]), "[mock decoded]");
+        assert_eq!(t.decode(&[]), "[mock decoded]");
+    }
 }
