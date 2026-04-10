@@ -1,5 +1,25 @@
 //! Safety-limited LLM provider wrapper.
 //!
+//! ## WHY: Defense-In-Depth for LLM Calls
+//!
+//! LLM providers can generate unbounded tokens (running up costs) or
+//! hang indefinitely (blocking worker threads). This wrapper applies:
+//!
+//! 1. **Token clamping** — `max_tokens` is clamped to `[1, 32768]` so
+//!    a misconfigured env var can't cause runaway generation.
+//! 2. **Timeout enforcement** — every call is wrapped in `tokio::time::timeout`
+//!    so a stalled provider can't block the async runtime forever.
+//! 3. **API key pre-check** — `check_api_key()` validates that the required
+//!    env var exists before building a provider, producing a clear error
+//!    instead of a cryptic 401 from the provider SDK.
+//!
+//! ```text
+//!   Caller → SafetyLimitedProviderWrapper → Inner LLMProvider
+//!            ├─ clamp max_tokens
+//!            ├─ wrap in timeout
+//!            └─ log enforcement
+//! ```
+//!
 //! This module provides a wrapper around any LLM provider that enforces
 //! hard safety limits on token generation and request timeouts.
 //!
@@ -384,5 +404,127 @@ pub fn default_model_for_provider(provider_name: &str) -> &'static str {
         "minimax" => "MiniMax-M2.7",
         "mock" => "mock-model",
         _ => "gpt-4.1-nano",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── SafetyLimitsConfig tests ───────────────────────────────────
+
+    #[test]
+    fn test_default_config() {
+        let cfg = SafetyLimitsConfig::default();
+        assert_eq!(cfg.max_tokens, DEFAULT_MAX_TOKENS);
+        assert_eq!(cfg.timeout.as_secs(), DEFAULT_TIMEOUT_SECS);
+        assert!(cfg.log_enforcement);
+    }
+
+    #[test]
+    fn test_new_clamps_max_tokens_upper() {
+        let cfg = SafetyLimitsConfig::new(999_999, 60);
+        assert_eq!(cfg.max_tokens, ABSOLUTE_MAX_TOKENS);
+    }
+
+    #[test]
+    fn test_new_clamps_max_tokens_lower() {
+        let cfg = SafetyLimitsConfig::new(0, 60);
+        assert_eq!(cfg.max_tokens, 1);
+    }
+
+    #[test]
+    fn test_new_clamps_timeout_upper() {
+        let cfg = SafetyLimitsConfig::new(1000, 99_999);
+        assert_eq!(cfg.timeout.as_secs(), MAXIMUM_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn test_new_clamps_timeout_lower() {
+        let cfg = SafetyLimitsConfig::new(1000, 1);
+        assert_eq!(cfg.timeout.as_secs(), MINIMUM_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn test_new_within_range() {
+        let cfg = SafetyLimitsConfig::new(4096, 120);
+        assert_eq!(cfg.max_tokens, 4096);
+        assert_eq!(cfg.timeout.as_secs(), 120);
+    }
+
+    #[test]
+    fn test_strict_config() {
+        let cfg = SafetyLimitsConfig::strict();
+        assert_eq!(cfg.max_tokens, 1024);
+        assert_eq!(cfg.timeout.as_secs(), 30);
+    }
+
+    #[test]
+    fn test_permissive_config() {
+        let cfg = SafetyLimitsConfig::permissive();
+        assert_eq!(cfg.max_tokens, ABSOLUTE_MAX_TOKENS);
+        assert_eq!(cfg.timeout.as_secs(), MAXIMUM_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn test_without_logging() {
+        let cfg = SafetyLimitsConfig::default().without_logging();
+        assert!(!cfg.log_enforcement);
+    }
+
+    // ── check_api_key tests ────────────────────────────────────────
+
+    #[test]
+    fn test_check_api_key_local_providers_pass() {
+        // Local providers (ollama, lmstudio, mock) don't need API keys
+        assert!(check_api_key("ollama").is_ok());
+        assert!(check_api_key("lmstudio").is_ok());
+        assert!(check_api_key("mock").is_ok());
+        assert!(check_api_key("unknown_provider").is_ok());
+    }
+
+    #[test]
+    fn test_check_api_key_missing_openai() {
+        // Temporarily unset to test (test isolation caveat)
+        let saved = std::env::var("OPENAI_API_KEY").ok();
+        std::env::remove_var("OPENAI_API_KEY");
+
+        let result = check_api_key("openai");
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("OPENAI_API_KEY"));
+
+        // Restore
+        if let Some(key) = saved {
+            std::env::set_var("OPENAI_API_KEY", key);
+        }
+    }
+
+    // ── default_model_for_provider tests ───────────────────────────
+
+    #[test]
+    fn test_default_model_known_providers() {
+        assert_eq!(default_model_for_provider("openai"), "gpt-4.1-nano");
+        assert_eq!(default_model_for_provider("ollama"), "gemma3:12b");
+        assert_eq!(default_model_for_provider("mock"), "mock-model");
+    }
+
+    #[test]
+    fn test_default_model_case_insensitive() {
+        assert_eq!(default_model_for_provider("OpenAI"), "gpt-4.1-nano");
+        assert_eq!(default_model_for_provider("OLLAMA"), "gemma3:12b");
+    }
+
+    #[test]
+    fn test_default_model_unknown_fallback() {
+        assert_eq!(default_model_for_provider("nonexistent"), "gpt-4.1-nano");
+    }
+
+    #[test]
+    fn test_default_model_lmstudio_aliases() {
+        let expected = "gemma-3n-e4b-it";
+        assert_eq!(default_model_for_provider("lmstudio"), expected);
+        assert_eq!(default_model_for_provider("lm-studio"), expected);
+        assert_eq!(default_model_for_provider("lm_studio"), expected);
     }
 }
