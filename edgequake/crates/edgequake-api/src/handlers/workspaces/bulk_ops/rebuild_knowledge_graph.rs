@@ -9,7 +9,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::error::ApiError;
+use crate::error::{ApiError, ResultExt};
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -114,12 +114,11 @@ pub async fn rebuild_knowledge_graph(
     );
 
     // 5. Clear graph storage (workspace-scoped)
-    let (nodes_cleared, edges_cleared) =
-        state
-            .graph_storage
-            .clear_workspace(&workspace_id)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Failed to clear graph: {}", e)))?;
+    let (nodes_cleared, edges_cleared) = state
+        .graph_storage
+        .clear_workspace(&workspace_id)
+        .await
+        .internal_err("clear workspace graph")?;
 
     info!(
         workspace_id = %workspace_id,
@@ -134,7 +133,7 @@ pub async fn rebuild_knowledge_graph(
             .vector_storage
             .clear_workspace(&workspace_id)
             .await
-            .map_err(|e| ApiError::Internal(format!("Failed to clear vectors: {}", e)))?;
+            .internal_err("clear workspace vectors")?;
 
         // OODA-225: Evict cached workspace vector storage when clearing vectors
         // WHY: If rebuild_embeddings is requested, the embedding model/dimension may change.

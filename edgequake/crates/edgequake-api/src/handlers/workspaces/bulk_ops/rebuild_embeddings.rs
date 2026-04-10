@@ -9,7 +9,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::error::ApiError;
+use crate::error::{ApiError, ResultExt};
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -166,7 +166,7 @@ pub async fn rebuild_embeddings(
         .vector_storage
         .clear_workspace(&workspace_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to clear workspace vectors: {}", e)))?;
+        .internal_err("clear workspace vectors")?;
 
     info!(
         workspace_id = %workspace_id,

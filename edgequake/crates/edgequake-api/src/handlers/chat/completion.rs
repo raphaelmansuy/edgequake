@@ -5,7 +5,7 @@ use axum::Json;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::handlers::query::{
     get_workspace_embedding_provider, get_workspace_vector_storage, resolve_chunk_file_paths,
     QueryStats,
@@ -91,7 +91,7 @@ pub async fn chat_completion(
         .bind(format!("{}@anonymous.local", &user_id.to_string()[..8]))
         .execute(pool)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to ensure user exists: {}", e)))?;
+        .internal_err("ensure user exists")?;
     }
 
     // Validate workspace_id exists in database (may be stale from localStorage)
@@ -125,7 +125,7 @@ pub async fn chat_completion(
             .conversation_service
             .get_conversation(id)
             .await
-            .map_err(|e| ApiError::Internal(format!("Failed to get conversation: {}", e)))?
+            .internal_err("get conversation")?
             .ok_or_else(|| ApiError::NotFound(format!("Conversation {} not found", id)))?;
 
         if conv.tenant_id != tenant_id {
@@ -147,7 +147,7 @@ pub async fn chat_completion(
                 },
             )
             .await
-            .map_err(|e| ApiError::Internal(format!("Failed to create conversation: {}", e)))?;
+            .internal_err("create conversation")?;
 
         info!(conversation_id = %conv.conversation_id, "Created new conversation");
         conv.conversation_id
@@ -166,7 +166,7 @@ pub async fn chat_completion(
             },
         )
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to save user message: {}", e)))?;
+        .internal_err("save user message")?;
 
     debug!(message_id = %user_message.message_id, "Saved user message");
 
@@ -326,7 +326,7 @@ pub async fn chat_completion(
                     llm_override.clone(),
                 )
                 .await
-                .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+                .internal_err("execute full-config query")?
         }
         (Some(embed), None) => {
             // WHY: Same fix as streaming path — use workspace embedding with server
@@ -342,7 +342,7 @@ pub async fn chat_completion(
                     llm_override.clone(),
                 )
                 .await
-                .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+                .internal_err("execute workspace-embedding query")?
         }
         _ => {
             // No workspace-specific config, use default or LLM override only
@@ -351,13 +351,13 @@ pub async fn chat_completion(
                     .sota_engine
                     .query_with_llm_provider(engine_request, llm.clone())
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+                    .internal_err("execute LLM-override query")?
             } else {
                 state
                     .sota_engine
                     .query(engine_request)
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+                    .internal_err("execute default query")?
             }
         }
     };
@@ -380,7 +380,7 @@ pub async fn chat_completion(
             },
         )
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to save assistant message: {}", e)))?;
+        .internal_err("save assistant message")?;
 
     // 6. Update assistant message with metadata
     state
@@ -397,7 +397,7 @@ pub async fn chat_completion(
             },
         )
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to update message metadata: {}", e)))?;
+        .internal_err("update message metadata")?;
 
     info!(
         conversation_id = %conversation_id,

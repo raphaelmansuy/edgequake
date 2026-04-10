@@ -34,7 +34,7 @@ pub use crate::handlers::auth_types::*;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
-use crate::error::ApiError;
+use crate::error::{ApiError, ResultExt};
 use crate::state::AppState;
 use edgequake_auth::{Role, User};
 
@@ -145,7 +145,7 @@ pub(super) async fn find_user_by_login(
         .kv_storage
         .get_by_id(&username_key)
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
+        .internal_err("look up user by username")?
     {
         if let Some(user_id) = user_id_value.as_str() {
             return get_user_by_id(state, user_id).await;
@@ -158,7 +158,7 @@ pub(super) async fn find_user_by_login(
         .kv_storage
         .get_by_id(&email_key)
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
+        .internal_err("look up user by email")?
     {
         if let Some(user_id) = user_id_value.as_str() {
             return get_user_by_id(state, user_id).await;
@@ -176,12 +176,12 @@ pub(super) async fn get_user_by_id(
     let key = format!("{}{}", USER_KEY_PREFIX, user_id);
     match state.kv_storage.get_by_id(&key).await {
         Ok(Some(value)) => {
-            let record: UserRecord = serde_json::from_value(value)
-                .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
+            let record: UserRecord =
+                serde_json::from_value(value).internal_err("deserialize user record")?;
             Ok(Some(record.to_user()))
         }
         Ok(None) => Ok(None),
-        Err(e) => Err(ApiError::Internal(format!("Storage error: {}", e))),
+        Err(e) => Err(ApiError::Internal(format!("Failed to fetch user: {}", e))),
     }
 }
 

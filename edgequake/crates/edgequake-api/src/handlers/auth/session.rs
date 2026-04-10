@@ -9,7 +9,7 @@ use chrono::{Duration, Utc};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::error::ApiError;
+use crate::error::{parse_uuid, ApiError, ResultExt};
 use crate::state::AppState;
 
 use super::{
@@ -101,13 +101,13 @@ pub async fn login(
 
     let key = format!("{}{}", REFRESH_TOKEN_PREFIX, refresh_token);
     let value = serde_json::to_value(&refresh_record)
-        .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
+        .internal_err("serialize refresh token")?;
 
     state
         .kv_storage
         .upsert(&[(key, value)])
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+        .internal_err("store refresh token")?;
 
     let expires_in = state.jwt_service.expiry_duration().as_secs() as i64;
 
@@ -144,12 +144,12 @@ pub async fn refresh_token(
     // Look up refresh token
     let record = match state.kv_storage.get_by_id(&key).await {
         Ok(Some(value)) => serde_json::from_value::<RefreshTokenRecord>(value)
-            .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?,
+            .internal_err("deserialize refresh token")?,
         Ok(None) => {
             return Err(ApiError::Unauthorized);
         }
         Err(e) => {
-            return Err(ApiError::Internal(format!("Storage error: {}", e)));
+            return Err(ApiError::Internal(format!("Failed to fetch refresh token: {}", e)));
         }
     };
 
@@ -169,13 +169,12 @@ pub async fn refresh_token(
         .ok_or(ApiError::Unauthorized)?;
 
     // Generate new access token
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| ApiError::Internal("Invalid user ID format".to_string()))?;
+    let user_uuid = parse_uuid(&user.user_id, "user ID")?;
 
     let access_token = state
         .jwt_service
         .generate_token(user_uuid, user.role)
-        .map_err(|e| ApiError::Internal(format!("Token generation error: {}", e)))?;
+        .internal_err("generate access token")?;
 
     let expires_in = state.jwt_service.expiry_duration().as_secs() as i64;
 
@@ -210,21 +209,21 @@ pub async fn logout(
         .kv_storage
         .get_by_id(&key)
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
+        .internal_err("look up refresh token")?
     {
         let mut record: RefreshTokenRecord = serde_json::from_value(value)
-            .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
+            .internal_err("deserialize refresh token")?;
 
         record.revoked = true;
 
         let new_value = serde_json::to_value(&record)
-            .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
+            .internal_err("serialize refresh token")?;
 
         state
             .kv_storage
             .upsert(&[(key, new_value)])
             .await
-            .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+            .internal_err("revoke refresh token")?;
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -278,11 +277,11 @@ pub async fn get_me(
         .kv_storage
         .get_by_id(&user_key)
         .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
+        .internal_err("fetch user from storage")?
         .ok_or_else(|| ApiError::NotFound(format!("User {} not found", user_id)))?;
 
     let user_record: UserRecord = serde_json::from_value(user_value)
-        .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
+        .internal_err("deserialize user record")?;
 
     // Check if user is active
     if !user_record.is_active {

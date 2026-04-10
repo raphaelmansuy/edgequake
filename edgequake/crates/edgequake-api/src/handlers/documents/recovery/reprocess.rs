@@ -9,7 +9,7 @@ use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::error::{parse_uuid, ApiError, ApiResult, ResultExt};
+use crate::error::{parse_uuid, ApiResult, ResultExt};
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -175,90 +175,94 @@ pub async fn reprocess_failed(
             .unwrap_or_else(|| "default".to_string());
 
         // FIX-REBUILD: Route PDF documents through PdfProcessing for full re-extraction
-        let task_created =
-            if source_type.as_deref() == Some("pdf") {
-                if let Some(ref pid_str) = pdf_id_str {
-                    if let Ok(pdf_id_uuid) = uuid::Uuid::parse_str(pid_str) {
-                        // Update status to pending
-                        if let Some(mut metadata) = metadata_opt.clone() {
-                            if let Some(obj) = metadata.as_object_mut() {
-                                obj.insert("status".to_string(), serde_json::json!("pending"));
-                                obj.insert("track_id".to_string(), serde_json::json!(new_track_id));
-                                obj.insert(
-                                    "retry_at".to_string(),
-                                    serde_json::json!(Utc::now().to_rfc3339()),
-                                );
-                                state
-                                    .kv_storage
-                                    .upsert(&[(metadata_key.clone(), metadata)])
-                                    .await?;
-                            }
+        let task_created = if source_type.as_deref() == Some("pdf") {
+            if let Some(ref pid_str) = pdf_id_str {
+                if let Ok(pdf_id_uuid) = uuid::Uuid::parse_str(pid_str) {
+                    // Update status to pending
+                    if let Some(mut metadata) = metadata_opt.clone() {
+                        if let Some(obj) = metadata.as_object_mut() {
+                            obj.insert("status".to_string(), serde_json::json!("pending"));
+                            obj.insert("track_id".to_string(), serde_json::json!(new_track_id));
+                            obj.insert(
+                                "retry_at".to_string(),
+                                serde_json::json!(Utc::now().to_rfc3339()),
+                            );
+                            state
+                                .kv_storage
+                                .upsert(&[(metadata_key.clone(), metadata)])
+                                .await?;
                         }
-
-                        // Look up workspace to get vision provider/model settings
-                        let (vision_provider, vision_model) =
-                            if let Ok(ws_uuid) = uuid::Uuid::parse_str(&workspace_id) {
-                                if let Ok(Some(ws)) =
-                                    state.workspace_service.get_workspace(ws_uuid).await
-                                {
-                                    let vp = ws
-                                        .vision_llm_provider
-                                        .as_deref()
-                                        .filter(|p| !p.is_empty())
-                                        .unwrap_or("ollama")
-                                        .to_string();
-                                    let vm = ws.vision_llm_model.filter(|m| !m.is_empty());
-                                    (vp, vm)
-                                } else {
-                                    ("ollama".to_string(), None)
-                                }
-                            } else {
-                                ("ollama".to_string(), None)
-                            };
-
-                        use edgequake_tasks::{PdfProcessingData, Task, TaskType};
-
-                        let pdf_task = PdfProcessingData {
-                            pdf_id: pdf_id_uuid,
-                            tenant_id: parse_uuid(&tenant_id, "tenant ID")?,
-                            workspace_id: parse_uuid(&workspace_id, "workspace ID")?,
-                            enable_vision: true,
-                            vision_provider,
-                            vision_model,
-                            // FIX-REBUILD: Reuse existing document ID
-                            existing_document_id: Some(doc_id.clone()),
-                        };
-
-                        let task = Task::new(
-                            parse_uuid(&tenant_id, "tenant ID")?,
-                            parse_uuid(&workspace_id, "workspace ID")?,
-                            TaskType::PdfProcessing,
-                            // WHY expect: PdfProcessingData fields are all primitives/Strings → always serializable
-                            serde_json::to_value(&pdf_task)
-                                .expect("PdfProcessingData is always serializable"),
-                        );
-
-                        state.task_storage.create_task(&task).await
-                            .internal_err("create PDF reprocess task")?;
-
-                        state.task_queue.send(task).await
-                            .internal_err("queue PDF reprocess task")?;
-
-                        tracing::info!(
-                            document_id = %doc_id,
-                            pdf_id = %pid_str,
-                            "Queued PDF reprocessing task (PdfProcessing) with existing document ID"
-                        );
-                        true
-                    } else {
-                        false // Invalid pdf_id, fall through to text reprocess
                     }
+
+                    // Look up workspace to get vision provider/model settings
+                    let (vision_provider, vision_model) = if let Ok(ws_uuid) =
+                        uuid::Uuid::parse_str(&workspace_id)
+                    {
+                        if let Ok(Some(ws)) = state.workspace_service.get_workspace(ws_uuid).await {
+                            let vp = ws
+                                .vision_llm_provider
+                                .as_deref()
+                                .filter(|p| !p.is_empty())
+                                .unwrap_or("ollama")
+                                .to_string();
+                            let vm = ws.vision_llm_model.filter(|m| !m.is_empty());
+                            (vp, vm)
+                        } else {
+                            ("ollama".to_string(), None)
+                        }
+                    } else {
+                        ("ollama".to_string(), None)
+                    };
+
+                    use edgequake_tasks::{PdfProcessingData, Task, TaskType};
+
+                    let pdf_task = PdfProcessingData {
+                        pdf_id: pdf_id_uuid,
+                        tenant_id: parse_uuid(&tenant_id, "tenant ID")?,
+                        workspace_id: parse_uuid(&workspace_id, "workspace ID")?,
+                        enable_vision: true,
+                        vision_provider,
+                        vision_model,
+                        // FIX-REBUILD: Reuse existing document ID
+                        existing_document_id: Some(doc_id.clone()),
+                    };
+
+                    let task = Task::new(
+                        parse_uuid(&tenant_id, "tenant ID")?,
+                        parse_uuid(&workspace_id, "workspace ID")?,
+                        TaskType::PdfProcessing,
+                        // WHY expect: PdfProcessingData fields are all primitives/Strings → always serializable
+                        serde_json::to_value(&pdf_task)
+                            .expect("PdfProcessingData is always serializable"),
+                    );
+
+                    state
+                        .task_storage
+                        .create_task(&task)
+                        .await
+                        .internal_err("create PDF reprocess task")?;
+
+                    state
+                        .task_queue
+                        .send(task)
+                        .await
+                        .internal_err("queue PDF reprocess task")?;
+
+                    tracing::info!(
+                        document_id = %doc_id,
+                        pdf_id = %pid_str,
+                        "Queued PDF reprocessing task (PdfProcessing) with existing document ID"
+                    );
+                    true
                 } else {
-                    false // No pdf_id, fall through to text reprocess
+                    false // Invalid pdf_id, fall through to text reprocess
                 }
             } else {
-                false // Not a PDF document
-            };
+                false // No pdf_id, fall through to text reprocess
+            }
+        } else {
+            false // Not a PDF document
+        };
 
         // Fallback: text/markdown documents or PDF without valid pdf_id
         if !task_created {
