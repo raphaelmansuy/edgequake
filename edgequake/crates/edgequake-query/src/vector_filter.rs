@@ -1,5 +1,18 @@
 //! Vector search result filtering utilities.
 //!
+//! ## WHY: Type Stored as String in JSON Metadata
+//!
+//! Vector storage is type-agnostic — it stores embeddings with a
+//! `serde_json::Value` metadata bag. The type discriminator lives as
+//! a `"type": "chunk"` string inside that JSON rather than a separate
+//! column because:
+//!
+//! 1. **Storage backend independence** — works with pgvector, in-memory,
+//!    or any future adapter without schema changes.
+//! 2. **No enum versioning** — adding a new vector type (e.g., "summary")
+//!    doesn't require a storage migration.
+//! 3. **Debug-friendly** — metadata is human-readable in database queries.
+//!
 //! This module provides utilities for filtering vector search results by type,
 //! supporting the distinction between chunks, entities, and relationships.
 //!
@@ -174,5 +187,44 @@ mod tests {
         let results = vec![result];
         let chunks = filter_by_type(results, VectorType::Chunk);
         assert_eq!(chunks.len(), 0); // Should filter out results without type
+    }
+
+    // ── Edge case tests (OODA-26) ──────────────────────────────────
+
+    #[test]
+    fn test_vector_type_as_str_values() {
+        assert_eq!(VectorType::Chunk.as_str(), "chunk");
+        assert_eq!(VectorType::Entity.as_str(), "entity");
+        assert_eq!(VectorType::Relationship.as_str(), "relationship");
+    }
+
+    #[test]
+    fn test_filter_non_string_type_value() {
+        // Type field is a number instead of string — should be filtered out
+        let result = VectorSearchResult {
+            id: "bad-type".to_string(),
+            score: 0.9,
+            metadata: json!({"type": 42}),
+        };
+        let results = vec![result];
+        let filtered = filter_by_type(results, VectorType::Chunk);
+        assert_eq!(filtered.len(), 0);
+    }
+
+    #[test]
+    fn test_get_typed_vectors_limit_zero() {
+        let results = vec![
+            create_test_result("e1", 0.9, "entity"),
+            create_test_result("e2", 0.8, "entity"),
+        ];
+        let limited = get_typed_vectors(results, VectorType::Entity, 0);
+        assert_eq!(limited.len(), 0);
+    }
+
+    #[test]
+    fn test_get_typed_vectors_limit_exceeds_count() {
+        let results = vec![create_test_result("e1", 0.9, "entity")];
+        let limited = get_typed_vectors(results, VectorType::Entity, 100);
+        assert_eq!(limited.len(), 1);
     }
 }
