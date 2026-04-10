@@ -172,4 +172,45 @@ mod tests {
     fn test_query_mode_display() {
         assert_eq!(format!("{}", QueryMode::Local), "local");
     }
+
+    // =========================================================================
+    // OODA-23: Edge case tests for modes
+    // =========================================================================
+
+    #[test]
+    fn test_query_mode_default_is_hybrid() {
+        // WHY: Default mode documented as Hybrid — must not silently change
+        assert_eq!(QueryMode::default(), QueryMode::Hybrid);
+    }
+
+    #[test]
+    fn test_query_mode_roundtrip() {
+        // WHY: as_str → parse must be identity for all variants
+        for mode in QueryMode::all() {
+            let s = mode.as_str();
+            let parsed = QueryMode::parse(s).unwrap();
+            assert_eq!(parsed, mode, "Roundtrip failed for {:?}", mode);
+        }
+    }
+
+    #[test]
+    fn test_query_mode_from_str_case_insensitive() {
+        // WHY: User input can be any case — FromStr normalizes to lowercase
+        assert_eq!("Naive".parse::<QueryMode>().unwrap(), QueryMode::Naive);
+        assert_eq!("GLOBAL".parse::<QueryMode>().unwrap(), QueryMode::Global);
+        assert_eq!("Mix".parse::<QueryMode>().unwrap(), QueryMode::Mix);
+    }
+
+    #[test]
+    fn test_query_mode_from_str_error() {
+        let err = "invalid".parse::<QueryMode>().unwrap_err();
+        assert!(err.contains("Unknown query mode"));
+    }
+
+    #[test]
+    fn test_global_mode_uses_graph_not_vector() {
+        // WHY: Global mode uses community summaries, not vector search
+        assert!(QueryMode::Global.uses_graph());
+        assert!(!QueryMode::Global.uses_vector_search());
+    }
 }
