@@ -123,10 +123,7 @@ mod tests {
     #[test]
     fn normalize_mixed_valid_and_empty() {
         let input: Vec<String> = vec!["".into(), "valid".into(), "  ".into(), "also-valid".into()];
-        assert_eq!(
-            normalize_entity_types(&input),
-            vec!["VALID", "ALSO_VALID"]
-        );
+        assert_eq!(normalize_entity_types(&input), vec!["VALID", "ALSO_VALID"]);
     }
 
     // ============ parse_plan ============
