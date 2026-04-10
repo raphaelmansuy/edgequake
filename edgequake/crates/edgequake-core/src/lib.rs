@@ -55,6 +55,8 @@ pub mod workspace_service;
 #[cfg(feature = "postgres")]
 mod conversation_service_impl;
 #[cfg(feature = "postgres")]
+mod workspace_row_types;
+#[cfg(feature = "postgres")]
 mod workspace_service_impl;
 
 // Re-export production services when feature is enabled
