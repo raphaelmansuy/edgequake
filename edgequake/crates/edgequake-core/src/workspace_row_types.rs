@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 #[cfg(feature = "postgres")]
-use crate::types::{Membership, MembershipRole, Tenant, TenantPlan, Workspace};
+use crate::types::{Membership, Tenant, Workspace};
 
 // Pure parsing helpers live in workspace_utils.rs (always compiled, testable)
 use crate::workspace_utils::{parse_plan, parse_role};

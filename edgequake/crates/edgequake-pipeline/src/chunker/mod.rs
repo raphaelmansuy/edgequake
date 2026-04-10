@@ -639,4 +639,129 @@ This work is supported by \u{7814}\u{7A76} and \u{5F00}\u{53D1} funding.";
         // Should NOT split on "Dr."
         assert!(sentences.len() <= 2);
     }
+
+    // =========================================================================
+    // OODA-19: Edge case tests for text_utils
+    // =========================================================================
+
+    #[test]
+    fn test_estimate_tokens_empty_string() {
+        // WHY: Empty strings should return 0, not panic on division
+        assert_eq!(estimate_tokens(""), 0);
+    }
+
+    #[test]
+    fn test_estimate_tokens_single_char() {
+        // 1 char / 4 = 0.25, ceil = 1
+        assert_eq!(estimate_tokens("a"), 1);
+    }
+
+    #[test]
+    fn test_estimate_tokens_multibyte() {
+        // WHY: Token estimation uses byte length, so multi-byte chars inflate count
+        let text = "\u{201C}hello\u{201D}"; // "hello" — 5 ASCII + 2×3 bytes = 11 bytes
+        assert!(estimate_tokens(text) >= 2);
+    }
+
+    #[test]
+    fn test_calculate_line_numbers_offsets_beyond_text() {
+        // WHY: Offsets clamped to text length — must not panic
+        let text = "short";
+        let (start, end) = calculate_line_numbers(text, 100, 200);
+        assert_eq!(start, 1);
+        assert_eq!(end, 1);
+    }
+
+    #[test]
+    fn test_calculate_line_numbers_start_equals_end() {
+        let text = "Line 1\nLine 2\n";
+        let (start, end) = calculate_line_numbers(text, 7, 7);
+        // Zero-width span at line 2
+        assert_eq!(start, 2);
+        assert_eq!(end, 2);
+    }
+
+    #[test]
+    fn test_calculate_line_numbers_empty_text() {
+        let (start, end) = calculate_line_numbers("", 0, 0);
+        assert_eq!(start, 1);
+        assert_eq!(end, 1);
+    }
+
+    #[test]
+    fn test_floor_char_boundary_at_zero() {
+        assert_eq!(floor_char_boundary("abc", 0), 0);
+    }
+
+    #[test]
+    fn test_floor_char_boundary_beyond_length() {
+        // WHY: Index beyond string length must return len(), not panic
+        assert_eq!(floor_char_boundary("abc", 100), 3);
+    }
+
+    #[test]
+    fn test_ceil_char_boundary_at_length() {
+        assert_eq!(ceil_char_boundary("abc", 3), 3);
+    }
+
+    #[test]
+    fn test_ceil_char_boundary_beyond_length() {
+        assert_eq!(ceil_char_boundary("abc", 100), 3);
+    }
+
+    #[test]
+    fn test_ceil_char_boundary_at_zero() {
+        assert_eq!(ceil_char_boundary("abc", 0), 0);
+    }
+
+    #[test]
+    fn test_split_into_sentences_empty() {
+        let sentences = split_into_sentences("");
+        assert!(sentences.is_empty());
+    }
+
+    #[test]
+    fn test_split_into_sentences_only_abbreviations() {
+        // WHY: Text with only abbreviations and no real sentence endings
+        let sentences = split_into_sentences("Dr. Smith and Mr. Jones");
+        assert_eq!(sentences.len(), 1);
+    }
+
+    #[test]
+    fn test_split_into_sentences_trailing_text_no_period() {
+        let sentences = split_into_sentences("First sentence. Trailing text without ending");
+        assert_eq!(sentences.len(), 2);
+        assert_eq!(sentences[1], "Trailing text without ending");
+    }
+
+    #[test]
+    fn test_chunk_whitespace_only() {
+        // WHY: Whitespace-only text treated as empty (trim check in chunk_sync)
+        let chunker = Chunker::default_chunker();
+        let chunks = chunker.chunk("   \n\t  \n  ", "doc1").unwrap();
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn test_chunk_single_newline() {
+        let chunker = Chunker::default_chunker();
+        let chunks = chunker.chunk("\n", "doc1").unwrap();
+        // Single newline is whitespace-only after trim
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn test_character_chunker_construction() {
+        let chunker = Chunker::character_chunker(",");
+        assert_eq!(chunker.strategy_name(), "character_based");
+        assert!(chunker.config().split_by_character_only);
+    }
+
+    #[test]
+    fn test_default_chunker_config_values() {
+        let chunker = Chunker::default();
+        // BR0002: defaults are chunk_size=1200, overlap=100
+        assert_eq!(chunker.config().chunk_size, 1200);
+        assert_eq!(chunker.config().chunk_overlap, 100);
+    }
 }
