@@ -194,4 +194,51 @@ mod tests {
         // Relationships: Bob→Charlie (doc-c) kept; Alice→Bob (doc-a) excluded; X→Y (no prov) kept
         assert_eq!(ctx.relationships.len(), 2);
     }
+
+    // ── Edge case tests (OODA-48) ──────────────────────────────────
+
+    #[test]
+    fn test_filter_nonexistent_document() {
+        let mut ctx = sample_context();
+        let allowed = vec!["doc-z".to_string()];
+
+        filter_context_by_document_ids(&mut ctx, Some(&allowed));
+
+        // No chunks match doc-z
+        assert_eq!(ctx.chunks.len(), 0);
+        // Only entities/rels without provenance survive
+        assert_eq!(ctx.entities.len(), 1); // Charlie
+        assert_eq!(ctx.relationships.len(), 1); // X→Y
+    }
+
+    #[test]
+    fn test_filter_all_documents_keeps_everything() {
+        let mut ctx = sample_context();
+        let allowed = vec![
+            "doc-a".to_string(),
+            "doc-b".to_string(),
+            "doc-c".to_string(),
+        ];
+
+        filter_context_by_document_ids(&mut ctx, Some(&allowed));
+
+        // All chunks with doc ID kept, orphan excluded (strict)
+        assert_eq!(ctx.chunks.len(), 3);
+        // All entities kept (all have matching doc or no provenance)
+        assert_eq!(ctx.entities.len(), 3);
+        // All relationships kept
+        assert_eq!(ctx.relationships.len(), 3);
+    }
+
+    #[test]
+    fn test_filter_empty_context() {
+        let mut ctx = QueryContext::new();
+        let allowed = vec!["doc-a".to_string()];
+
+        filter_context_by_document_ids(&mut ctx, Some(&allowed));
+
+        assert!(ctx.chunks.is_empty());
+        assert!(ctx.entities.is_empty());
+        assert!(ctx.relationships.is_empty());
+    }
 }
