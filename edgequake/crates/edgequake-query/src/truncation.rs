@@ -422,4 +422,73 @@ mod tests {
         assert_eq!(config.max_relation_tokens, 10000);
         assert_eq!(config.max_total_tokens, 30000);
     }
+
+    // =========================================================================
+    // OODA-21: Edge case tests for truncation
+    // =========================================================================
+
+    #[test]
+    fn test_truncate_entities_empty_input() {
+        let tokenizer = MockTokenizer::with_rate(0.1);
+        let result = truncate_entities(vec![], 1000, &tokenizer);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_truncate_entities_zero_budget() {
+        // WHY: Zero token budget must return empty, not panic
+        let tokenizer = MockTokenizer::with_rate(1.0);
+        let entities = vec![create_test_entity("E1", "Description")];
+        let result = truncate_entities(entities, 0, &tokenizer);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_truncate_relationships_empty_input() {
+        let tokenizer = MockTokenizer::with_rate(0.1);
+        let result = truncate_relationships(vec![], 1000, &tokenizer);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_truncate_chunks_empty_input() {
+        let tokenizer = MockTokenizer::with_rate(0.1);
+        let result = truncate_chunks(vec![], 1000, &tokenizer);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_truncate_chunks_zero_budget() {
+        let tokenizer = MockTokenizer::with_rate(1.0);
+        let chunks = vec![create_test_chunk("c1", "Content")];
+        let result = truncate_chunks(chunks, 0, &tokenizer);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_balance_context_all_empty() {
+        // WHY: All empty inputs must not panic
+        let tokenizer = MockTokenizer::with_rate(1.0);
+        let config = TruncationConfig::default();
+        let (e, r, c) = balance_context(vec![], vec![], vec![], &config, &tokenizer);
+        assert!(e.is_empty());
+        assert!(r.is_empty());
+        assert!(c.is_empty());
+    }
+
+    #[test]
+    fn test_truncate_entities_preserves_order() {
+        // WHY: Truncation should keep first items (highest relevance assumed pre-sorted)
+        let tokenizer = MockTokenizer::with_rate(0.1);
+        let entities = vec![
+            create_test_entity("E1", "First"),
+            create_test_entity("E2", "Second"),
+            create_test_entity("E3", "Third"),
+        ];
+        let result = truncate_entities(entities, 1000, &tokenizer);
+        assert_eq!(result[0].name, "E1");
+        if result.len() > 1 {
+            assert_eq!(result[1].name, "E2");
+        }
+    }
 }
