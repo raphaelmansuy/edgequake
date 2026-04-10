@@ -7,7 +7,7 @@
 use axum::{extract::State, Json};
 use tracing::{debug, error, warn};
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use crate::validation::validate_query;
@@ -201,7 +201,7 @@ pub async fn execute_query(
                         llm_override,
                     )
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+                    .internal_err("execute query")?
             }
             (Ok(Some(embedding_provider)), _) => {
                 // Workspace-specific embedding only
@@ -213,7 +213,7 @@ pub async fn execute_query(
                     .sota_engine
                     .query_with_embedding_provider(engine_request, embedding_provider)
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+                    .internal_err("execute query")?
             }
             (Ok(None), Ok(Some(vector_storage))) => {
                 // Workspace uses default embedding model but has its own vector storage table.
@@ -228,7 +228,7 @@ pub async fn execute_query(
                     .sota_engine
                     .query_with_vector_storage(engine_request, vector_storage)
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+                    .internal_err("execute query")?
             }
             (Ok(None), _) => {
                 // No workspace-specific config and no workspace vector storage — use defaults.
@@ -240,7 +240,7 @@ pub async fn execute_query(
                     .sota_engine
                     .query(engine_request)
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+                    .internal_err("execute query")?
             }
             (Err(e), _) => {
                 // OODA-229: Return configuration errors to the user instead of silent fallback
@@ -266,7 +266,7 @@ pub async fn execute_query(
                     .sota_engine
                     .query(engine_request)
                     .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+                    .internal_err("execute query")?
             }
         }
     } else {
@@ -275,7 +275,7 @@ pub async fn execute_query(
             .sota_engine
             .query(engine_request)
             .await
-            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            .internal_err("execute query")?
     };
 
     // Convert sources from context

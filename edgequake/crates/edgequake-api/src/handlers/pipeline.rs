@@ -25,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 use utoipa::IntoParams;
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
@@ -58,7 +58,7 @@ pub async fn get_pipeline_status(
         .task_storage
         .get_statistics(edgequake_tasks::storage::TaskFilter::default())
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
+        .internal_err("get statistics")?;
 
     Ok(Json(EnhancedPipelineStatusResponse {
         is_busy: snapshot.is_busy || stats.processing > 0,
@@ -195,7 +195,7 @@ pub async fn get_queue_metrics(
         .task_storage
         .get_queue_metrics_filtered(tenant_id, workspace_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get queue metrics: {}", e)))?;
+        .internal_err("get queue metrics")?;
 
     Ok(Json(QueueMetricsResponse {
         pending_count: metrics.pending_count,

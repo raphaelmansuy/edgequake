@@ -16,7 +16,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, error, info, warn};
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::handlers::chat::build_sources;
 use crate::handlers::query::resolve_chunk_file_paths;
 use crate::middleware::TenantContext;
@@ -167,7 +167,7 @@ pub async fn stream_query(
             .sota_engine
             .query_stream(engine_request)
             .await
-            .map_err(|e| ApiError::Internal(format!("Streaming query failed: {}", e)))?;
+            .internal_err("execute streaming query")?;
 
         let sse_stream: BoxedSseStream = Box::pin(stream.map(|res| match res {
             Ok(text) => Ok(Event::default().data(text)),

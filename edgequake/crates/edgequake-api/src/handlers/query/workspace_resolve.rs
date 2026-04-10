@@ -6,7 +6,7 @@
 
 use tracing::debug;
 
-use crate::error::ApiError;
+use crate::error::{ApiError, ResultExt};
 use crate::providers::WorkspaceProviderResolver;
 use crate::state::AppState;
 
@@ -26,7 +26,7 @@ pub(super) async fn get_workspace(
         .workspace_service
         .get_workspace(workspace_uuid)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get workspace: {}", e)))
+        .internal_err("get workspace")
 }
 
 /// Get workspace-specific embedding provider for query execution.
@@ -100,7 +100,7 @@ pub async fn get_workspace_vector_storage(
         .workspace_service
         .get_workspace(workspace_uuid)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get workspace: {}", e)))?
+        .internal_err("get workspace")?
         .ok_or_else(|| ApiError::NotFound(format!("Workspace not found: {}", workspace_id)))?;
 
     // Create workspace-specific vector storage config

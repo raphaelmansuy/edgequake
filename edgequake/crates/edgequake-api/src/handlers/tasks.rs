@@ -31,7 +31,7 @@ use serde_json::json;
 use tracing;
 
 use crate::middleware::TenantContext;
-use crate::{error::ApiError, state::AppState};
+use crate::{error::{ApiError, ResultExt}, state::AppState};
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::tasks_types::{
@@ -57,7 +57,7 @@ pub async fn get_task(
         .task_storage
         .get_task(&track_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?;
+        .internal_err("get task")?;
 
     match task {
         Some(task) => {
@@ -172,7 +172,7 @@ pub async fn list_tasks(
         .task_storage
         .list_tasks(filter.clone(), pagination)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to list tasks: {}", e)))?;
+        .internal_err("list tasks")?;
 
     // Get statistics with the same filter to ensure tenant isolation
     // WHY: Statistics must respect the same tenant/workspace filters as the task list
@@ -180,7 +180,7 @@ pub async fn list_tasks(
         .task_storage
         .get_statistics(filter)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
+        .internal_err("get statistics")?;
 
     Ok(Json(TaskListResponse {
         tasks: task_list
@@ -278,7 +278,7 @@ pub async fn cancel_task(
         .task_storage
         .get_task(&track_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?;
+        .internal_err("get task")?;
 
     match task {
         Some(mut task) => {
@@ -323,7 +323,7 @@ pub async fn cancel_task(
                 .task_storage
                 .update_task(&task)
                 .await
-                .map_err(|e| ApiError::Internal(format!("Failed to cancel task: {}", e)))?;
+                .internal_err("cancel task")?;
 
             Ok(Json(TaskResponse::from(task)))
         }
@@ -385,7 +385,7 @@ pub async fn retry_task(
         .task_storage
         .get_task(&track_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?
+        .internal_err("get task")?
         .ok_or_else(|| ApiError::NotFound(format!("Task not found: {}", track_id)))?;
 
     // SECURITY: Verify task belongs to the requester's workspace
@@ -411,14 +411,14 @@ pub async fn retry_task(
         .task_storage
         .update_task(&task)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to update task: {}", e)))?;
+        .internal_err("update task")?;
 
     // Re-enqueue task
     state
         .task_queue
         .send(task.clone())
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to enqueue task: {}", e)))?;
+        .internal_err("enqueue task")?;
 
     Ok(Json(TaskResponse::from(task)))
 }
