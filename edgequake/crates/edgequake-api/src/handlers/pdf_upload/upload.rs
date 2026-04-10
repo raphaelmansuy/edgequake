@@ -8,7 +8,7 @@ use super::helpers::{
     extract_page_count, get_pdf_storage,
 };
 use super::types::*;
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::{
@@ -213,7 +213,7 @@ pub async fn upload_pdf_document(
     if let Some(existing) = pdf_storage
         .find_pdf_by_checksum(&workspace_id, &checksum)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to check for duplicates: {}", e)))?
+        .internal_err("check for duplicates")?
     {
         // OODA-08: Handle force_reindex parameter
         // WHY: When user explicitly requests re-indexing, we should:
@@ -241,7 +241,7 @@ pub async fn upload_pdf_document(
             pdf_storage
                 .update_pdf_status(&existing.pdf_id, PdfProcessingStatus::Processing)
                 .await
-                .map_err(|e| ApiError::Internal(format!("Failed to reset PDF status: {}", e)))?;
+                .internal_err("reset PDF status")?;
 
             // Create new processing task
             let task_id =

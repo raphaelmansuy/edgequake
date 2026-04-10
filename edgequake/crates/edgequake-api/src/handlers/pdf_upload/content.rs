@@ -6,7 +6,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::helpers::get_pdf_storage;
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ResultExt};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::PdfProcessingStatus;
@@ -82,7 +82,7 @@ pub async fn download_pdf(
     let pdf = pdf_storage
         .get_pdf(&pdf_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
+        .internal_err("get PDF")?
         .ok_or_else(|| ApiError::NotFound("PDF not found".to_string()))?;
 
     // OODA-51: Make workspace verification optional for PDF viewer compatibility
@@ -164,7 +164,7 @@ pub async fn get_pdf_content(
     let pdf = pdf_storage
         .get_pdf(&pdf_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get PDF: {}", e)))?
+        .internal_err("get PDF")?
         .ok_or_else(|| ApiError::NotFound("PDF not found".to_string()))?;
 
     // OODA-51: Make workspace verification optional for PDF viewer compatibility
