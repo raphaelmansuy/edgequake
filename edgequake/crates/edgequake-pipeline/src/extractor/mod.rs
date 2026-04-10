@@ -455,4 +455,117 @@ mod tests {
         assert_eq!(result.entities.len(), 1);
         assert_eq!(result.relationships.len(), 1);
     }
+
+    // ── ExtractedEntity edge cases ─────────────────────────
+
+    #[test]
+    fn test_entity_new_defaults() {
+        let e = ExtractedEntity::new("X", "TYPE", "desc");
+        assert_eq!(e.importance, 0.5);
+        assert!(e.source_spans.is_empty());
+        assert!(e.embedding.is_none());
+        assert!(e.source_chunk_ids.is_empty());
+        assert!(e.source_document_id.is_none());
+        assert!(e.source_file_path.is_none());
+    }
+
+    #[test]
+    fn test_entity_importance_clamped_below() {
+        let e = ExtractedEntity::new("X", "T", "d").with_importance(-0.5);
+        assert_eq!(e.importance, 0.0);
+    }
+
+    #[test]
+    fn test_entity_importance_clamped_above() {
+        let e = ExtractedEntity::new("X", "T", "d").with_importance(2.0);
+        assert_eq!(e.importance, 1.0);
+    }
+
+    #[test]
+    fn test_entity_source_chunk_id_dedup() {
+        let e = ExtractedEntity::new("X", "T", "d")
+            .with_source_chunk_id("c1")
+            .with_source_chunk_id("c1");
+        assert_eq!(e.source_chunk_ids.len(), 1);
+    }
+
+    #[test]
+    fn test_entity_add_source_chunk_id_dedup() {
+        let mut e = ExtractedEntity::new("X", "T", "d");
+        e.add_source_chunk_id("c1");
+        e.add_source_chunk_id("c1");
+        assert_eq!(e.source_chunk_ids.len(), 1);
+    }
+
+    // ── ExtractedRelationship edge cases ───────────────────
+
+    #[test]
+    fn test_relationship_new_defaults() {
+        let r = ExtractedRelationship::new("A", "B", "REL");
+        assert_eq!(r.weight, 0.5);
+        assert!(r.description.is_empty());
+        assert!(r.keywords.is_empty());
+        assert!(r.embedding.is_none());
+        assert!(r.source_chunk_id.is_none());
+        assert!(r.source_document_id.is_none());
+    }
+
+    #[test]
+    fn test_relationship_weight_clamped_below() {
+        let r = ExtractedRelationship::new("A", "B", "R").with_weight(-1.0);
+        assert_eq!(r.weight, 0.0);
+    }
+
+    #[test]
+    fn test_relationship_weight_clamped_above() {
+        let r = ExtractedRelationship::new("A", "B", "R").with_weight(5.0);
+        assert_eq!(r.weight, 1.0);
+    }
+
+    // ── ExtractionResult edge cases ────────────────────────
+
+    #[test]
+    fn test_extraction_result_defaults() {
+        let r = ExtractionResult::new("c1");
+        assert_eq!(r.source_chunk_id, "c1");
+        assert!(r.entities.is_empty());
+        assert!(r.relationships.is_empty());
+        assert!(r.metadata.is_empty());
+        assert_eq!(r.input_tokens, 0);
+        assert_eq!(r.output_tokens, 0);
+        assert_eq!(r.extraction_time_ms, 0);
+    }
+
+    #[test]
+    fn test_extraction_result_with_token_usage() {
+        let r = ExtractionResult::new("c1").with_token_usage(100, 50);
+        assert_eq!(r.input_tokens, 100);
+        assert_eq!(r.output_tokens, 50);
+    }
+
+    #[test]
+    fn test_extraction_result_with_timing() {
+        let r = ExtractionResult::new("c1").with_timing(500);
+        assert_eq!(r.extraction_time_ms, 500);
+    }
+
+    // ── extract_json_from_response ─────────────────────────
+
+    #[test]
+    fn test_extract_json_code_block() {
+        let input = "text\n```json\n{\"a\":1}\n```\nmore";
+        assert_eq!(extract_json_from_response(input), "{\"a\":1}");
+    }
+
+    #[test]
+    fn test_extract_json_raw_braces() {
+        let input = "prefix {\"x\":2} suffix";
+        assert_eq!(extract_json_from_response(input), "{\"x\":2}");
+    }
+
+    #[test]
+    fn test_extract_json_no_json() {
+        let input = "no json here";
+        assert_eq!(extract_json_from_response(input), input);
+    }
 }
