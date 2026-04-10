@@ -341,4 +341,84 @@ mod tests {
         assert!(pricing.contains_key("claude-3-haiku"));
         assert!(pricing.contains_key("text-embedding-3-small"));
     }
+
+    #[test]
+    fn test_model_pricing_zero_tokens() {
+        let pricing = ModelPricing::new("test", 0.001, 0.002);
+        assert_eq!(pricing.calculate_cost(0, 0), 0.0);
+    }
+
+    #[test]
+    fn test_model_pricing_only_input() {
+        let pricing = ModelPricing::new("test", 1.0, 2.0);
+        // 2000 input tokens = 2.0 * (2000/1000) = 2.0
+        let cost = pricing.calculate_cost(2000, 0);
+        assert!((cost - 2.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_model_pricing_only_output() {
+        let pricing = ModelPricing::new("test", 1.0, 2.0);
+        // 500 output tokens = 2.0 * (500/1000) = 1.0
+        let cost = pricing.calculate_cost(0, 500);
+        assert!((cost - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_operation_cost_new() {
+        let op = OperationCost::new("extract");
+        assert_eq!(op.operation, "extract");
+        assert_eq!(op.call_count, 0);
+        assert_eq!(op.input_tokens, 0);
+        assert_eq!(op.output_tokens, 0);
+        assert_eq!(op.total_cost_usd, 0.0);
+    }
+
+    #[test]
+    fn test_operation_cost_add_accumulates() {
+        let mut op = OperationCost::new("embed");
+        op.add(100, 50, 0.01);
+        op.add(200, 100, 0.02);
+        assert_eq!(op.call_count, 2);
+        assert_eq!(op.input_tokens, 300);
+        assert_eq!(op.output_tokens, 150);
+        assert!((op.total_cost_usd - 0.03).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_cost_breakdown_new() {
+        let cb = CostBreakdown::new("job-1", "gpt-4o");
+        assert_eq!(cb.job_id, "job-1");
+        assert_eq!(cb.model, "gpt-4o");
+        assert!(cb.operations.is_empty());
+        assert_eq!(cb.total_cost_usd, 0.0);
+    }
+
+    #[test]
+    fn test_cost_breakdown_add_operation_cost() {
+        let mut cb = CostBreakdown::new("j", "m");
+        cb.add_operation_cost("extract", 1000, 500, 0.05);
+        cb.add_operation_cost("extract", 2000, 1000, 0.10);
+        cb.add_operation_cost("embed", 500, 0, 0.01);
+
+        assert_eq!(cb.operations.len(), 2);
+        assert_eq!(cb.operations["extract"].call_count, 2);
+        assert_eq!(cb.operations["embed"].call_count, 1);
+        assert_eq!(cb.total_input_tokens, 3500);
+        assert_eq!(cb.total_output_tokens, 1500);
+        assert!((cb.total_cost_usd - 0.16).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_cost_breakdown_formatted_cost() {
+        let mut cb = CostBreakdown::new("j", "m");
+        cb.total_cost_usd = 0.1234;
+        assert_eq!(cb.formatted_cost(), "$0.1234");
+    }
+
+    #[test]
+    fn test_cost_breakdown_formatted_cost_zero() {
+        let cb = CostBreakdown::new("j", "m");
+        assert_eq!(cb.formatted_cost(), "$0.0000");
+    }
 }

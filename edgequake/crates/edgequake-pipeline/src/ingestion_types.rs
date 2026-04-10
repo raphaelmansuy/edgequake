@@ -558,4 +558,129 @@ mod tests {
         assert!(error.recoverable);
         assert!(error.details.is_some());
     }
+
+    // --- SourceType ---
+
+    #[test]
+    fn test_source_type_display() {
+        assert_eq!(SourceType::Pdf.to_string(), "pdf");
+        assert_eq!(SourceType::Markdown.to_string(), "markdown");
+        assert_eq!(SourceType::Text.to_string(), "text");
+    }
+
+    // --- UnifiedStage ---
+
+    #[test]
+    fn test_unified_stage_default_is_uploading() {
+        assert_eq!(UnifiedStage::default(), UnifiedStage::Uploading);
+    }
+
+    #[test]
+    fn test_unified_stage_is_terminal() {
+        assert!(UnifiedStage::Completed.is_terminal());
+        assert!(UnifiedStage::Failed.is_terminal());
+        assert!(!UnifiedStage::Extracting.is_terminal());
+        assert!(!UnifiedStage::Uploading.is_terminal());
+    }
+
+    #[test]
+    fn test_unified_stage_is_active() {
+        assert!(UnifiedStage::Extracting.is_active());
+        assert!(!UnifiedStage::Completed.is_active());
+        assert!(!UnifiedStage::Failed.is_active());
+    }
+
+    #[test]
+    fn test_unified_stage_index() {
+        // Uploading is first processing stage
+        assert_eq!(UnifiedStage::Uploading.index(), Some(0));
+        // Terminal states return None
+        assert_eq!(UnifiedStage::Completed.index(), None);
+        assert_eq!(UnifiedStage::Failed.index(), None);
+    }
+
+    #[test]
+    fn test_unified_stage_display_name() {
+        assert_eq!(UnifiedStage::Converting.display_name(), "Converting PDF");
+        assert_eq!(UnifiedStage::Extracting.display_name(), "Extracting Entities");
+        assert_eq!(UnifiedStage::Completed.display_name(), "Completed");
+    }
+
+    #[test]
+    fn test_unified_stage_to_pipeline_stage_roundtrip() {
+        // Stages that map both ways
+        let stage = UnifiedStage::Extracting;
+        let ps = stage.to_pipeline_stage().unwrap();
+        let back = UnifiedStage::from_pipeline_stage(ps);
+        assert_eq!(back, stage);
+    }
+
+    #[test]
+    fn test_unified_stage_to_pipeline_stage_none_for_uploading() {
+        assert!(UnifiedStage::Uploading.to_pipeline_stage().is_none());
+        assert!(UnifiedStage::Converting.to_pipeline_stage().is_none());
+        assert!(UnifiedStage::Completed.to_pipeline_stage().is_none());
+        assert!(UnifiedStage::Failed.to_pipeline_stage().is_none());
+    }
+
+    #[test]
+    fn test_stages_for_text_same_as_markdown() {
+        let md = UnifiedStage::stages_for_source(SourceType::Markdown);
+        let txt = UnifiedStage::stages_for_source(SourceType::Text);
+        assert_eq!(md, txt);
+    }
+
+    // --- StageStatus ---
+
+    #[test]
+    fn test_stage_status_default_is_pending() {
+        assert_eq!(StageStatus::default(), StageStatus::Pending);
+    }
+
+    // --- StageProgress ---
+
+    #[test]
+    fn test_stage_progress_new_defaults() {
+        let sp = StageProgress::new(UnifiedStage::Chunking);
+        assert_eq!(sp.stage, UnifiedStage::Chunking);
+        assert_eq!(sp.status, StageStatus::Pending);
+        assert_eq!(sp.progress, 0.0);
+        assert!(sp.message.is_none());
+    }
+
+    #[test]
+    fn test_stage_progress_skipped() {
+        let sp = StageProgress::skipped(UnifiedStage::Converting);
+        assert_eq!(sp.status, StageStatus::Skipped);
+        assert_eq!(sp.progress, 1.0);
+        assert_eq!(sp.message.as_deref(), Some("Skipped"));
+    }
+
+    // --- IngestionError ---
+
+    #[test]
+    fn test_ingestion_error_defaults_not_recoverable() {
+        let err = IngestionError::new("CODE", "msg", UnifiedStage::Extracting);
+        assert!(!err.recoverable);
+        assert!(err.details.is_none());
+    }
+
+    // --- IngestionProgress ---
+
+    #[test]
+    fn test_ingestion_progress_pdf_has_10_stages() {
+        let p = IngestionProgress::new("t".into(), SourceType::Pdf, None);
+        assert_eq!(p.stages.len(), 10);
+        assert_eq!(p.current_stage, UnifiedStage::Uploading);
+    }
+
+    #[test]
+    fn test_ingestion_progress_fail() {
+        let mut p = IngestionProgress::new("t".into(), SourceType::Text, None);
+        let err = IngestionError::new("FAIL", "boom", UnifiedStage::Extracting);
+        p.fail(err);
+        assert_eq!(p.current_stage, UnifiedStage::Failed);
+        assert!(p.error.is_some());
+        assert_eq!(p.message, "boom");
+    }
 }
