@@ -175,3 +175,53 @@ impl TextChunk {
         self.end_line = end_line;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chunker_config_defaults() {
+        let cfg = ChunkerConfig::default();
+        assert_eq!(cfg.chunk_size, 1200);
+        assert_eq!(cfg.chunk_overlap, 100);
+        assert_eq!(cfg.min_chunk_size, 100);
+        assert!(cfg.preserve_sentences);
+        assert!(cfg.split_by_character.is_none());
+        assert!(!cfg.split_by_character_only);
+        // First separator is paragraph break
+        assert_eq!(cfg.separators[0], "\n\n");
+        assert!(cfg.separators.len() >= 7);
+    }
+
+    #[test]
+    fn test_text_chunk_new_token_count() {
+        let chunk = TextChunk::new("id1", "hello world!!", 0, 0, 13);
+        // 13 chars / 4 = 3.25 → ceil = 4
+        assert_eq!(chunk.token_count, 4);
+        assert_eq!(chunk.id, "id1");
+        assert_eq!(chunk.index, 0);
+        assert!(chunk.embedding.is_none());
+        // Default line numbers
+        assert_eq!(chunk.start_line, 1);
+        assert_eq!(chunk.end_line, 1);
+    }
+
+    #[test]
+    fn test_text_chunk_with_line_numbers() {
+        let chunk = TextChunk::with_line_numbers("id2", "text", 1, 10, 14, 3, 5);
+        assert_eq!(chunk.start_line, 3);
+        assert_eq!(chunk.end_line, 5);
+        assert_eq!(chunk.start_offset, 10);
+        assert_eq!(chunk.end_offset, 14);
+    }
+
+    #[test]
+    fn test_set_line_numbers() {
+        let mut chunk = TextChunk::new("id3", "abc", 0, 0, 3);
+        assert_eq!(chunk.start_line, 1);
+        chunk.set_line_numbers(10, 20);
+        assert_eq!(chunk.start_line, 10);
+        assert_eq!(chunk.end_line, 20);
+    }
+}
