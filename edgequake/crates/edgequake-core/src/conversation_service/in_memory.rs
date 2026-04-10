@@ -17,6 +17,12 @@ use crate::types::{
 use super::ConversationService;
 
 /// In-memory implementation of ConversationService for testing.
+///
+/// WHY `unwrap_or_else(|e| e.into_inner())` on every RwLock access:
+/// A poisoned RwLock means a previous writer panicked while holding the lock.
+/// Rather than propagating the panic (which crashes the server), we recover
+/// the inner data — it may be partially inconsistent, but for an in-memory
+/// store that is acceptable vs. total process abort.
 pub struct InMemoryConversationService {
     conversations: RwLock<HashMap<Uuid, Conversation>>,
     messages: RwLock<HashMap<Uuid, Message>>,
@@ -36,9 +42,11 @@ impl InMemoryConversationService {
     /// Generate a share ID.
     fn generate_share_id() -> String {
         use std::time::{SystemTime, UNIX_EPOCH};
+        // WHY: unwrap_or_default — clock can't be before UNIX_EPOCH on any real system,
+        // but we avoid panicking if the impossible happens (e.g. VM clock drift).
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis();
         format!("share_{}", ts)
     }
@@ -74,7 +82,10 @@ impl ConversationService for InMemoryConversationService {
         }
 
         let id = conv.conversation_id;
-        self.conversations.write().unwrap().insert(id, conv.clone());
+        self.conversations
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id, conv.clone());
         Ok(conv)
     }
 
@@ -94,7 +105,10 @@ impl ConversationService for InMemoryConversationService {
         conversation_id: Uuid,
         request: UpdateConversationRequest,
     ) -> Result<Conversation> {
-        let mut convs = self.conversations.write().unwrap();
+        let mut convs = self
+            .conversations
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let conv = convs
             .get_mut(&conversation_id)
             .ok_or_else(|| crate::error::Error::not_found("Conversation not found"))?;
@@ -122,9 +136,12 @@ impl ConversationService for InMemoryConversationService {
     }
 
     async fn delete_conversation(&self, conversation_id: Uuid) -> Result<()> {
-        self.conversations.write().unwrap().remove(&conversation_id);
+        self.conversations
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&conversation_id);
         // Also remove associated messages
-        let mut msgs = self.messages.write().unwrap();
+        let mut msgs = self.messages.write().unwrap_or_else(|e| e.into_inner());
         msgs.retain(|_, m| m.conversation_id != conversation_id);
         Ok(())
     }
@@ -139,7 +156,7 @@ impl ConversationService for InMemoryConversationService {
         _cursor: Option<String>,
         limit: usize,
     ) -> Result<PaginatedConversations> {
-        let convs = self.conversations.read().unwrap();
+        let convs = self.conversations.read().unwrap_or_else(|e| e.into_inner());
         let mut items: Vec<_> = convs
             .values()
             .filter(|c| c.tenant_id == tenant_id && c.user_id == user_id)
@@ -210,7 +227,10 @@ impl ConversationService for InMemoryConversationService {
     }
 
     async fn share_conversation(&self, conversation_id: Uuid) -> Result<String> {
-        let mut convs = self.conversations.write().unwrap();
+        let mut convs = self
+            .conversations
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let conv = convs
             .get_mut(&conversation_id)
             .ok_or_else(|| crate::error::Error::not_found("Conversation not found"))?;
@@ -222,7 +242,10 @@ impl ConversationService for InMemoryConversationService {
     }
 
     async fn unshare_conversation(&self, conversation_id: Uuid) -> Result<()> {
-        let mut convs = self.conversations.write().unwrap();
+        let mut convs = self
+            .conversations
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let conv = convs
             .get_mut(&conversation_id)
             .ok_or_else(|| crate::error::Error::not_found("Conversation not found"))?;
@@ -231,7 +254,7 @@ impl ConversationService for InMemoryConversationService {
     }
 
     async fn get_shared_conversation(&self, share_id: &str) -> Result<Option<Conversation>> {
-        let convs = self.conversations.read().unwrap();
+        let convs = self.conversations.read().unwrap_or_else(|e| e.into_inner());
         Ok(convs
             .values()
             .find(|c| c.share_id.as_deref() == Some(share_id))
@@ -261,7 +284,10 @@ impl ConversationService for InMemoryConversationService {
         };
 
         let id = msg.message_id;
-        self.messages.write().unwrap().insert(id, msg.clone());
+        self.messages
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id, msg.clone());
 
         // Update conversation's updated_at
         if let Some(conv) = self
@@ -281,7 +307,7 @@ impl ConversationService for InMemoryConversationService {
         message_id: Uuid,
         request: UpdateMessageRequest,
     ) -> Result<Message> {
-        let mut msgs = self.messages.write().unwrap();
+        let mut msgs = self.messages.write().unwrap_or_else(|e| e.into_inner());
         let msg = msgs
             .get_mut(&message_id)
             .ok_or_else(|| crate::error::Error::not_found("Message not found"))?;
@@ -310,7 +336,10 @@ impl ConversationService for InMemoryConversationService {
     }
 
     async fn delete_message(&self, message_id: Uuid) -> Result<()> {
-        self.messages.write().unwrap().remove(&message_id);
+        self.messages
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&message_id);
         Ok(())
     }
 
@@ -320,7 +349,7 @@ impl ConversationService for InMemoryConversationService {
         _cursor: Option<String>,
         limit: usize,
     ) -> Result<PaginatedMessages> {
-        let msgs = self.messages.read().unwrap();
+        let msgs = self.messages.read().unwrap_or_else(|e| e.into_inner());
         let mut items: Vec<_> = msgs
             .values()
             .filter(|m| m.conversation_id == conversation_id)
@@ -356,12 +385,15 @@ impl ConversationService for InMemoryConversationService {
         }
 
         let id = folder.folder_id;
-        self.folders.write().unwrap().insert(id, folder.clone());
+        self.folders
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id, folder.clone());
         Ok(folder)
     }
 
     async fn list_folders(&self, tenant_id: Uuid, user_id: Uuid) -> Result<Vec<Folder>> {
-        let folders = self.folders.read().unwrap();
+        let folders = self.folders.read().unwrap_or_else(|e| e.into_inner());
         let mut items: Vec<_> = folders
             .values()
             .filter(|f| f.tenant_id == tenant_id && f.user_id == user_id)
@@ -381,7 +413,7 @@ impl ConversationService for InMemoryConversationService {
         parent_id: Option<Uuid>,
         position: Option<i32>,
     ) -> Result<Folder> {
-        let mut folders = self.folders.write().unwrap();
+        let mut folders = self.folders.write().unwrap_or_else(|e| e.into_inner());
         let folder = folders
             .get_mut(&folder_id)
             .ok_or_else(|| crate::error::Error::not_found("Folder not found"))?;
@@ -401,9 +433,15 @@ impl ConversationService for InMemoryConversationService {
     }
 
     async fn delete_folder(&self, _tenant_id: Uuid, _user_id: Uuid, folder_id: Uuid) -> Result<()> {
-        self.folders.write().unwrap().remove(&folder_id);
+        self.folders
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&folder_id);
         // Move conversations out of folder
-        let mut convs = self.conversations.write().unwrap();
+        let mut convs = self
+            .conversations
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         for conv in convs.values_mut() {
             if conv.folder_id == Some(folder_id) {
                 conv.folder_id = None;
@@ -453,8 +491,11 @@ impl ConversationService for InMemoryConversationService {
     }
 
     async fn bulk_delete(&self, conversation_ids: Vec<Uuid>) -> Result<usize> {
-        let mut convs = self.conversations.write().unwrap();
-        let mut msgs = self.messages.write().unwrap();
+        let mut convs = self
+            .conversations
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
+        let mut msgs = self.messages.write().unwrap_or_else(|e| e.into_inner());
         let mut count = 0;
 
         for id in conversation_ids {
@@ -468,7 +509,10 @@ impl ConversationService for InMemoryConversationService {
     }
 
     async fn bulk_archive(&self, conversation_ids: Vec<Uuid>, archive: bool) -> Result<usize> {
-        let mut convs = self.conversations.write().unwrap();
+        let mut convs = self
+            .conversations
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let mut count = 0;
 
         for id in conversation_ids {
@@ -487,7 +531,10 @@ impl ConversationService for InMemoryConversationService {
         conversation_ids: Vec<Uuid>,
         folder_id: Option<Uuid>,
     ) -> Result<usize> {
-        let mut convs = self.conversations.write().unwrap();
+        let mut convs = self
+            .conversations
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let mut count = 0;
 
         for id in conversation_ids {

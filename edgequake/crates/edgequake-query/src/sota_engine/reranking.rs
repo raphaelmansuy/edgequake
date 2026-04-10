@@ -19,7 +19,8 @@ impl SOTAQueryEngine {
             return chunks;
         }
 
-        let reranker = self.reranker.as_ref().unwrap();
+        // WHY expect: guarded by `self.reranker.is_none()` → early return above
+        let reranker = self.reranker.as_ref().expect("reranker checked above");
 
         // Extract contents for reranking
         let documents: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();

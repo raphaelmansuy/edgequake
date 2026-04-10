@@ -202,7 +202,10 @@ async fn louvain_communities<G: GraphStorage>(
 
         for node in &nodes {
             let node_id = &node.id;
-            let current_community = *node_to_community.get(node_id).unwrap();
+            // WHY expect: node_to_community is populated for all nodes in init loop above
+            let current_community = *node_to_community
+                .get(node_id)
+                .expect("node must be in community map");
 
             let neighbors = adjacency.get(node_id).cloned().unwrap_or_default();
             let node_weight: f64 = neighbors.iter().map(|(_, w)| w).sum();
@@ -357,7 +360,8 @@ async fn label_propagation<G: GraphStorage>(
 
             // Find most common label
             if let Some((&best_label, _)) = label_counts.iter().max_by_key(|(_, &count)| count) {
-                let current_label = *labels.get(&node.id).unwrap();
+                // WHY expect: labels is populated for all nodes in init loop above
+                let current_label = *labels.get(&node.id).expect("node must have label");
                 if best_label != current_label {
                     labels.insert(node.id.clone(), best_label);
                     changed = true;

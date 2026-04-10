@@ -325,7 +325,8 @@ pub async fn tenant_rate_limit(
         if let Some(retry) = retry_after {
             response.headers_mut().insert(
                 "Retry-After",
-                HeaderValue::from_str(&retry.to_string()).unwrap(),
+                // WHY expect: integer.to_string() is always valid ASCII
+                HeaderValue::from_str(&retry.to_string()).expect("integer string is valid header"),
             );
         }
         response
@@ -343,11 +344,14 @@ pub async fn tenant_rate_limit(
     if let Some(s) = state {
         response.headers_mut().insert(
             "X-RateLimit-Limit",
-            HeaderValue::from_str(&s.capacity.to_string()).unwrap(),
+            // WHY expect: integer.to_string() is always valid ASCII
+            HeaderValue::from_str(&s.capacity.to_string()).expect("integer string is valid header"),
         );
         response.headers_mut().insert(
             "X-RateLimit-Remaining",
-            HeaderValue::from_str(&(s.available_tokens as u64).to_string()).unwrap(),
+            // WHY expect: integer.to_string() is always valid ASCII
+            HeaderValue::from_str(&(s.available_tokens as u64).to_string())
+                .expect("integer string is valid header"),
         );
     }
 

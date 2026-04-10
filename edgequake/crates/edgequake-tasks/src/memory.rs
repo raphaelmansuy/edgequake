@@ -35,7 +35,7 @@ impl Default for MemoryTaskStorage {
 #[async_trait]
 impl TaskStorage for MemoryTaskStorage {
     async fn create_task(&self, task: &Task) -> TaskResult<()> {
-        let mut tasks = self.tasks.write().unwrap();
+        let mut tasks = self.tasks.write().unwrap_or_else(|e| e.into_inner());
 
         if tasks.contains_key(&task.track_id) {
             return Err(TaskError::StorageError(format!(
@@ -49,12 +49,12 @@ impl TaskStorage for MemoryTaskStorage {
     }
 
     async fn get_task(&self, track_id: &str) -> TaskResult<Option<Task>> {
-        let tasks = self.tasks.read().unwrap();
+        let tasks = self.tasks.read().unwrap_or_else(|e| e.into_inner());
         Ok(tasks.get(track_id).cloned())
     }
 
     async fn update_task(&self, task: &Task) -> TaskResult<()> {
-        let mut tasks = self.tasks.write().unwrap();
+        let mut tasks = self.tasks.write().unwrap_or_else(|e| e.into_inner());
 
         if !tasks.contains_key(&task.track_id) {
             return Err(TaskError::TaskNotFound(task.track_id.clone()));
@@ -65,7 +65,7 @@ impl TaskStorage for MemoryTaskStorage {
     }
 
     async fn delete_task(&self, track_id: &str) -> TaskResult<()> {
-        let mut tasks = self.tasks.write().unwrap();
+        let mut tasks = self.tasks.write().unwrap_or_else(|e| e.into_inner());
 
         if tasks.remove(track_id).is_none() {
             return Err(TaskError::TaskNotFound(track_id.to_string()));
@@ -75,7 +75,7 @@ impl TaskStorage for MemoryTaskStorage {
     }
 
     async fn list_tasks(&self, filter: TaskFilter, pagination: Pagination) -> TaskResult<TaskList> {
-        let tasks = self.tasks.read().unwrap();
+        let tasks = self.tasks.read().unwrap_or_else(|e| e.into_inner());
 
         // Filter tasks
         let mut filtered: Vec<Task> = tasks
@@ -122,7 +122,7 @@ impl TaskStorage for MemoryTaskStorage {
     async fn get_statistics(&self, filter: TaskFilter) -> TaskResult<TaskStatistics> {
         use crate::types::TaskStatus;
 
-        let tasks = self.tasks.read().unwrap();
+        let tasks = self.tasks.read().unwrap_or_else(|e| e.into_inner());
 
         let mut stats = TaskStatistics {
             pending: 0,
@@ -182,7 +182,7 @@ impl TaskStorage for MemoryTaskStorage {
         use crate::types::TaskStatus;
         use chrono::Utc;
 
-        let tasks = self.tasks.read().unwrap();
+        let tasks = self.tasks.read().unwrap_or_else(|e| e.into_inner());
         let now = Utc::now();
 
         let mut pending_count = 0u64;
