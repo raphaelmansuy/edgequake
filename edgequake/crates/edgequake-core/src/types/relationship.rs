@@ -352,4 +352,149 @@ mod tests {
         assert_eq!(rel.get_other_entity("bob"), Some("ALICE"));
         assert_eq!(rel.get_other_entity("charlie"), None);
     }
+
+    // ── Edge case tests (OODA-45) ──────────────────────────────────
+
+    #[test]
+    fn test_generate_id_same_entity_both_sides() {
+        let id = GraphRelationship::generate_id("Alice", "Alice");
+        assert_eq!(id, format!("ALICE{}ALICE", RELATIONSHIP_SEP));
+    }
+
+    #[test]
+    fn test_generate_id_whitespace_trimmed() {
+        let id1 = GraphRelationship::generate_id("  Alice ", " Bob ");
+        let id2 = GraphRelationship::generate_id("Alice", "Bob");
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn test_parse_id_with_extra_separators() {
+        // ID with more than one <SEP> → None (only 2 parts expected)
+        let bad = format!("A{}B{}C", RELATIONSHIP_SEP, RELATIONSHIP_SEP);
+        assert!(GraphRelationship::parse_id(&bad).is_none());
+    }
+
+    #[test]
+    fn test_parse_id_empty() {
+        assert!(GraphRelationship::parse_id("").is_none());
+    }
+
+    #[test]
+    fn test_add_source_to_empty_relationship() {
+        let mut rel = GraphRelationship::new(
+            "A".into(), "B".into(), "d".into(), None, 1.0, "".into(), None,
+        );
+        rel.source_id = String::new();
+        rel.add_source("s1");
+        assert_eq!(rel.source_id, "s1");
+    }
+
+    #[test]
+    fn test_add_source_duplicate_skipped() {
+        let mut rel = GraphRelationship::new(
+            "A".into(), "B".into(), "d".into(), None, 1.0, "s1".into(), None,
+        );
+        rel.add_source("s1");
+        assert_eq!(rel.source_count(), 1);
+    }
+
+    #[test]
+    fn test_source_count_empty() {
+        let mut rel = GraphRelationship::new(
+            "A".into(), "B".into(), "d".into(), None, 1.0, "".into(), None,
+        );
+        rel.source_id = String::new();
+        assert_eq!(rel.source_count(), 0);
+        assert!(rel.get_sources().is_empty());
+    }
+
+    #[test]
+    fn test_increment_weight() {
+        let mut rel = GraphRelationship::new(
+            "A".into(), "B".into(), "d".into(), None, 1.0, "s".into(), None,
+        );
+        rel.increment_weight(0.5);
+        assert!((rel.weight - 1.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_merge_no_keywords() {
+        let mut r1 = GraphRelationship::new(
+            "A".into(), "B".into(), "d1".into(), None, 1.0, "s1".into(), None,
+        );
+        let r2 = GraphRelationship::new(
+            "A".into(), "B".into(), "d2".into(), None, 0.5, "s2".into(), None,
+        );
+        r1.merge(&r2);
+        assert!(r1.keywords.is_none());
+    }
+
+    #[test]
+    fn test_merge_keywords_into_none() {
+        let mut r1 = GraphRelationship::new(
+            "A".into(), "B".into(), "d1".into(), None, 1.0, "s1".into(), None,
+        );
+        let r2 = GraphRelationship::new(
+            "A".into(), "B".into(), "d2".into(),
+            Some("kw1|kw2".into()), 0.5, "s2".into(), None,
+        );
+        r1.merge(&r2);
+        assert_eq!(r1.keywords.as_deref(), Some("kw1|kw2"));
+    }
+
+    #[test]
+    fn test_merge_duplicate_keywords() {
+        let mut r1 = GraphRelationship::new(
+            "A".into(), "B".into(), "d1".into(),
+            Some("kw1".into()), 1.0, "s1".into(), None,
+        );
+        let r2 = GraphRelationship::new(
+            "A".into(), "B".into(), "d2".into(),
+            Some("kw1".into()), 0.5, "s2".into(), None,
+        );
+        r1.merge(&r2);
+        // kw1 should not be duplicated
+        assert_eq!(r1.keywords.as_deref(), Some("kw1"));
+    }
+
+    #[test]
+    fn test_merge_file_paths_duplicate() {
+        let mut r1 = GraphRelationship::new(
+            "A".into(), "B".into(), "d".into(), None, 1.0, "s1".into(),
+            Some("/a.txt".into()),
+        );
+        let r2 = GraphRelationship::new(
+            "A".into(), "B".into(), "d".into(), None, 0.5, "s2".into(),
+            Some("/a.txt".into()),
+        );
+        r1.merge(&r2);
+        assert_eq!(r1.file_path.as_deref(), Some("/a.txt"));
+    }
+
+    #[test]
+    fn test_merge_empty_description_into_nonempty() {
+        let mut r1 = GraphRelationship::new(
+            "A".into(), "B".into(), "d1".into(), None, 1.0, "s1".into(), None,
+        );
+        let r2 = GraphRelationship::new(
+            "A".into(), "B".into(), "".into(), None, 0.5, "s2".into(), None,
+        );
+        r1.merge(&r2);
+        assert_eq!(r1.description, "d1");
+    }
+
+    #[test]
+    fn test_involves_entity_with_whitespace() {
+        let rel = GraphRelationship::new(
+            "Alice".into(), "Bob".into(), "d".into(), None, 1.0, "s".into(), None,
+        );
+        assert!(rel.involves_entity("  alice  "));
+        assert!(rel.involves_entity("  BOB  "));
+    }
+
+    #[test]
+    fn test_max_source_ids_constant() {
+        assert_eq!(GraphRelationship::MAX_SOURCE_IDS, 300);
+    }
 }
