@@ -82,13 +82,12 @@ services:
       context: ../../
       dockerfile: edgequake_webui/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8080
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
     container_name: edgequake-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080
       - NODE_ENV=production
     depends_on:
       - edgequake
