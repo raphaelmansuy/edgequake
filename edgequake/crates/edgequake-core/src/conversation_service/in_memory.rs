@@ -182,10 +182,10 @@ impl ConversationService for InMemoryConversationService {
         // Sort
         match sort {
             ConversationSortField::UpdatedAt => {
-                items.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
+                items.sort_by_key(|item| item.updated_at);
             }
             ConversationSortField::CreatedAt => {
-                items.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+                items.sort_by_key(|item| item.created_at);
             }
             ConversationSortField::Title => {
                 items.sort_by(|a, b| a.title.cmp(&b.title));
@@ -327,7 +327,7 @@ impl ConversationService for InMemoryConversationService {
             .cloned()
             .collect();
 
-        items.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        items.sort_by_key(|item| item.created_at);
 
         let has_more = items.len() > limit;
         items.truncate(limit);
@@ -368,7 +368,7 @@ impl ConversationService for InMemoryConversationService {
             .cloned()
             .collect();
 
-        items.sort_by(|a, b| a.position.cmp(&b.position));
+        items.sort_by_key(|item| item.position);
         Ok(items)
     }
 
