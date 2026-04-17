@@ -9,6 +9,8 @@ on:
 env:
     CARGO_TERM_COLOR: always
     RUST_BACKTRACE: 1
+    CARGO_INCREMENTAL: 0
+    RUSTFLAGS: -C debuginfo=0
     # Test timing thresholds (in seconds)
     UNIT_TEST_TIMEOUT: 30
     INTEGRATION_TEST_TIMEOUT: 120
@@ -106,7 +108,9 @@ jobs:
               working-directory: edgequake
               run: |
                   START_TIME=$(date +%s)
-                  cargo test --package edgequake-api --no-default-features --no-fail-fast 2>&1 | tee api_output.txt
+                  # Keep this gate focused on the API crate's library/unit coverage.
+                  # Heavier end-to-end paths already run in dedicated E2E workflows.
+                  cargo test --package edgequake-api --lib --no-default-features --no-fail-fast 2>&1 | tee api_output.txt
                   END_TIME=$(date +%s)
                   DURATION=$((END_TIME - START_TIME))
                   echo "::notice::API tests completed in ${DURATION}s"

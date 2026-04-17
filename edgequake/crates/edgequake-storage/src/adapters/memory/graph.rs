@@ -467,7 +467,7 @@ impl GraphStorage for MemoryGraphStorage {
             .map(|(id, neighbors)| (id.clone(), neighbors.len()))
             .collect();
 
-        node_degrees.sort_by(|a, b| b.1.cmp(&a.1));
+        node_degrees.sort_by_key(|entry| std::cmp::Reverse(entry.1));
 
         Ok(node_degrees
             .into_iter()
@@ -574,7 +574,7 @@ impl GraphStorage for MemoryGraphStorage {
             .collect();
 
         // Sort by degree descending
-        results.sort_by(|a, b| b.1.cmp(&a.1));
+        results.sort_by_key(|entry| std::cmp::Reverse(entry.1));
         results.truncate(limit);
 
         Ok(results)
