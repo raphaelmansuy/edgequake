@@ -334,9 +334,7 @@ impl Workspace {
         match model {
             "text-embedding-3-small" | "text-embedding-ada-002" => Some(1536),
             "text-embedding-3-large" => Some(3072),
-            "embeddinggemma:latest" | "nomic-embed-text" | "nomic-embed-text:latest" => {
-                Some(768)
-            }
+            "embeddinggemma:latest" | "nomic-embed-text" | "nomic-embed-text:latest" => Some(768),
             "mxbai-embed-large" | "mxbai-embed-large:latest" => Some(1024),
             _ if model.contains("768") => Some(768),
             _ if model.contains("1024") => Some(1024),
