@@ -16,7 +16,7 @@ pub enum QueryMode {
 }
 
 /// Query request.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct QueryRequest {
     pub query: String,
     #[serde(skip_serializing_if = "Option::is_none")]

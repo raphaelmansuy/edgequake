@@ -22,7 +22,9 @@ impl<'a> DocumentsResource<'a> {
 
     /// `DELETE /api/v1/documents/{id}`
     pub async fn delete(&self, id: &str) -> Result<()> {
-        self.client.delete_no_content(&format!("/api/v1/documents/{id}")).await
+        self.client
+            .delete_no_content(&format!("/api/v1/documents/{id}"))
+            .await
     }
 
     /// `GET /api/v1/documents/{id}/status`
@@ -108,10 +110,7 @@ impl<'a> DocumentsResource<'a> {
     /// `POST /api/v1/documents/{id}/retry-chunks` — Retry failed chunks for a document.
     pub async fn retry_chunks(&self, id: &str) -> Result<serde_json::Value> {
         self.client
-            .post::<(), serde_json::Value>(
-                &format!("/api/v1/documents/{id}/retry-chunks"),
-                None,
-            )
+            .post::<(), serde_json::Value>(&format!("/api/v1/documents/{id}/retry-chunks"), None)
             .await
     }
 

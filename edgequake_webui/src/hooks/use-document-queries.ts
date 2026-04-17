@@ -1,6 +1,7 @@
 "use client";
 
 import { getDocuments, getPipelineStatus } from "@/lib/api/edgequake";
+import { getAutomationAwareRefetchInterval } from "@/lib/runtime/browser-detection";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
@@ -126,7 +127,8 @@ export function useDocumentQueries({
       // temporarily mark documents as "failed" before the worker resumes
       // and sets them back to "processing". Without fallback polling the
       // frontend never picks up the status change and shows stale data.
-      return hasProcessingDocs || hasTransitioningDocs ? 2000 : 30000;
+      const interval = hasProcessingDocs || hasTransitioningDocs ? 2000 : 30000;
+      return getAutomationAwareRefetchInterval(interval);
     },
   });
 
@@ -159,7 +161,9 @@ export function useDocumentQueries({
     queryFn: () =>
       getPipelineStatus(tenantId ?? undefined, workspaceId ?? undefined),
     // Poll only when documents are processing; otherwise refresh every 30s
-    refetchInterval: hasProcessingDocuments ? 2000 : 30000,
+    refetchInterval: getAutomationAwareRefetchInterval(
+      hasProcessingDocuments ? 2000 : 30000,
+    ),
     // When not processing, data is stable – keep it fresh for 10s
     staleTime: hasProcessingDocuments ? 0 : 10000,
   });

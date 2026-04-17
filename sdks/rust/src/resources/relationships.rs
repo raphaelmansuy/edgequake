@@ -38,16 +38,9 @@ impl<'a> RelationshipsResource<'a> {
     }
 
     /// `PUT /api/v1/graph/relationships/{id}` — Update a relationship.
-    pub async fn update(
-        &self,
-        id: &str,
-        body: &serde_json::Value,
-    ) -> Result<serde_json::Value> {
+    pub async fn update(&self, id: &str, body: &serde_json::Value) -> Result<serde_json::Value> {
         self.client
-            .put(
-                &format!("/api/v1/graph/relationships/{id}"),
-                Some(body),
-            )
+            .put(&format!("/api/v1/graph/relationships/{id}"), Some(body))
             .await
     }
 }

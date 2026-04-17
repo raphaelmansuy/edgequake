@@ -71,7 +71,7 @@ pub struct ApiKeyInfo {
 }
 
 /// Create tenant request.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct CreateTenantRequest {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]

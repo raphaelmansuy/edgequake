@@ -136,7 +136,7 @@ pub struct PdfUploadResponse {
 impl PdfUploadResponse {
     /// Return the canonical PDF ID regardless of which field the server used.
     pub fn canonical_id(&self) -> Option<&str> {
-        self.pdf_id.as_deref().or_else(|| self.id.as_deref())
+        self.pdf_id.as_deref().or(self.id.as_deref())
     }
 }
 

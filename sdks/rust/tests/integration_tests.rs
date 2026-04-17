@@ -37,9 +37,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_invalid_url() {
-        let result = EdgeQuakeClient::builder()
-            .base_url("not a url")
-            .build();
+        let result = EdgeQuakeClient::builder().base_url("not a url").build();
         assert!(result.is_err());
     }
 
@@ -346,10 +344,8 @@ mod tests {
         let client = test_client(&mock_server).await;
         let req = types::query::QueryRequest {
             query: "meaning of life".into(),
-            mode: None,
             top_k: Some(5),
-            stream: None,
-            only_need_context: None,
+            ..Default::default()
         };
         let r = client.query().execute(&req).await.unwrap();
         assert_eq!(r.answer.as_deref(), Some("42"));
@@ -378,14 +374,7 @@ mod tests {
         let req = types::chat::ChatCompletionRequest {
             message: "Hi".into(),
             stream: Some(false),
-            mode: None,
-            conversation_id: None,
-            max_tokens: None,
-            temperature: None,
-            top_k: None,
-            parent_id: None,
-            provider: None,
-            model: None,
+            ..Default::default()
         };
         let r = client.chat().completions(&req).await.unwrap();
         assert_eq!(r.content.as_deref(), Some("Hello!"));
@@ -519,7 +508,7 @@ mod tests {
         let client = test_client(&mock_server).await;
         let req = types::auth::CreateTenantRequest {
             name: "NewCo".into(),
-            slug: None,
+            ..Default::default()
         };
         let t = client.tenants().create(&req).await.unwrap();
         assert_eq!(t.id, "t2");
@@ -563,7 +552,11 @@ mod tests {
             role: "user".into(),
             content: "Hello".into(),
         };
-        let msg = client.conversations().create_message("c1", &req).await.unwrap();
+        let msg = client
+            .conversations()
+            .create_message("c1", &req)
+            .await
+            .unwrap();
         assert_eq!(msg.id, "m1");
     }
 
@@ -814,8 +807,7 @@ mod tests {
         let client = test_client(&mock_server).await;
         let req = types::workspaces::CreateWorkspaceRequest {
             name: "new-ws".into(),
-            slug: None,
-            description: None,
+            ..Default::default()
         };
         let ws = client.workspaces().create("t1", &req).await.unwrap();
         assert_eq!(ws.name, "new-ws");
@@ -1323,7 +1315,11 @@ mod tests {
             .await;
 
         let client = test_client(&mock_server).await;
-        let full = client.lineage().document_full_lineage("doc-456").await.unwrap();
+        let full = client
+            .lineage()
+            .document_full_lineage("doc-456")
+            .await
+            .unwrap();
         assert_eq!(full.document_id, "doc-456");
         assert!(full.metadata.is_some());
         assert!(full.lineage.is_some());
@@ -1344,7 +1340,11 @@ mod tests {
             .await;
 
         let client = test_client(&mock_server).await;
-        let bytes = client.lineage().export_lineage("doc-789", "json").await.unwrap();
+        let bytes = client
+            .lineage()
+            .export_lineage("doc-789", "json")
+            .await
+            .unwrap();
         let text = String::from_utf8(bytes).unwrap();
         assert!(text.contains("nodes"));
     }
@@ -1357,14 +1357,17 @@ mod tests {
             .and(path("/api/v1/documents/doc-789/lineage/export"))
             .and(query_param("format", "csv"))
             .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_raw(csv_body.as_bytes().to_vec(), "text/csv"),
+                ResponseTemplate::new(200).set_body_raw(csv_body.as_bytes().to_vec(), "text/csv"),
             )
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
-        let bytes = client.lineage().export_lineage("doc-789", "csv").await.unwrap();
+        let bytes = client
+            .lineage()
+            .export_lineage("doc-789", "csv")
+            .await
+            .unwrap();
         let text = String::from_utf8(bytes).unwrap();
         assert!(text.contains("ALICE"));
         assert!(text.contains("KNOWS"));
@@ -1853,7 +1856,11 @@ mod tests {
             .await;
         let client = test_client(&mock_server).await;
         let ids = vec!["c1".to_string(), "c2".to_string()];
-        let val = client.conversations().bulk_move(&ids, "folder-1").await.unwrap();
+        let val = client
+            .conversations()
+            .bulk_move(&ids, "folder-1")
+            .await
+            .unwrap();
         assert_eq!(val["moved"], 2);
     }
 
@@ -2001,7 +2008,11 @@ mod tests {
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
-        let val = client.workspaces().rebuild_knowledge_graph("ws1").await.unwrap();
+        let val = client
+            .workspaces()
+            .rebuild_knowledge_graph("ws1")
+            .await
+            .unwrap();
         assert_eq!(val["status"], "started");
     }
 
@@ -2014,7 +2025,11 @@ mod tests {
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
-        let val = client.workspaces().reprocess_documents("ws1").await.unwrap();
+        let val = client
+            .workspaces()
+            .reprocess_documents("ws1")
+            .await
+            .unwrap();
         assert_eq!(val["reprocessed"], 5);
     }
 

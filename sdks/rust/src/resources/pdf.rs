@@ -20,7 +20,7 @@ impl<'a> PdfResource<'a> {
     /// ```no_run
     /// # use edgequake_sdk::{EdgeQuakeClient, types::documents::PdfUploadOptions};
     /// # async fn example(client: &EdgeQuakeClient) -> edgequake_sdk::error::Result<()> {
-    /// let bytes = std::fs::read("report.pdf")?;
+    /// let bytes = std::fs::read("report.pdf").expect("failed to read PDF file");
     /// let resp = client.pdf().upload(bytes, "report.pdf", PdfUploadOptions {
     ///     enable_vision: true,
     ///     vision_model: Some("gpt-4o".into()),

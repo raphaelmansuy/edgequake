@@ -59,7 +59,7 @@ mod tests {
         // Ollama-only deployments. Default to "ollama" (safe, no API key needed).
         let default_opts = PdfUploadOptions::default();
         // In test environments EDGEQUAKE_LLM_PROVIDER is unset, so defaults to "ollama"
-        // which gives "gemma4:latest" as the default model.
+        // which gives a safe local default model for vision extraction.
         let resolved_provider = default_opts.resolved_vision_provider();
         assert_ne!(
             resolved_provider, "openai",

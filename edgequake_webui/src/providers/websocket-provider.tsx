@@ -11,6 +11,7 @@
  */
 'use client';
 
+import { shouldAutoConnectRealtime } from '@/lib/runtime/browser-detection';
 import type { ProgressWebSocket } from '@/lib/websocket';
 import { disconnectWebSocket, getWebSocketClient } from '@/lib/websocket';
 import { useCostStore } from '@/stores/use-cost-store';
@@ -182,8 +183,9 @@ export function WebSocketProvider({
       handleMessage(message as WebSocketProgressMessage);
     });
 
-    // Auto-connect if enabled
-    if (autoConnect) {
+    // Keep automated browsers quiet during page bootstrap to avoid flaky E2E
+    // readiness checks. Real connections still start on first subscription.
+    if (autoConnect && shouldAutoConnectRealtime()) {
       client.connect();
     }
 

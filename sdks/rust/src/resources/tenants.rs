@@ -32,11 +32,7 @@ impl<'a> TenantsResource<'a> {
     }
 
     /// `PUT /api/v1/tenants/{id}` — Update tenant.
-    pub async fn update(
-        &self,
-        id: &str,
-        body: &serde_json::Value,
-    ) -> Result<TenantInfo> {
+    pub async fn update(&self, id: &str, body: &serde_json::Value) -> Result<TenantInfo> {
         self.client
             .put(&format!("/api/v1/tenants/{id}"), Some(body))
             .await

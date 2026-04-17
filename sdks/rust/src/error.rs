@@ -119,10 +119,7 @@ impl Error {
             403 => Error::Forbidden { message },
             404 => Error::NotFound { message },
             409 => Error::Conflict { message },
-            422 => Error::Validation {
-                message,
-                details,
-            },
+            422 => Error::Validation { message, details },
             429 => Error::RateLimited {
                 message,
                 retry_after,

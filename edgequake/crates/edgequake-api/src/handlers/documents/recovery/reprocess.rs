@@ -241,6 +241,7 @@ pub async fn reprocess_failed(
                             // FIX-REBUILD: Reuse existing document ID
                             existing_document_id: Some(doc_id.clone()),
                             pdf_parser_backend,
+                            restart_from_scratch: false,
                         };
 
                         let task = Task::new(
@@ -415,6 +416,7 @@ pub async fn reprocess_failed(
                     vision_model: vision_model.clone(),
                     existing_document_id: pdf.document_id.map(|id| id.to_string()),
                     pdf_parser_backend,
+                    restart_from_scratch: false,
                 };
 
                 let track_id = format!("pdf-{}", Uuid::new_v4());

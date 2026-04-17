@@ -50,9 +50,7 @@ impl<'a> ConversationsResource<'a> {
     /// `GET /api/v1/conversations/{id}/messages`
     pub async fn list_messages(&self, conversation_id: &str) -> Result<Vec<Message>> {
         self.client
-            .get(&format!(
-                "/api/v1/conversations/{conversation_id}/messages"
-            ))
+            .get(&format!("/api/v1/conversations/{conversation_id}/messages"))
             .await
     }
 
@@ -93,11 +91,7 @@ impl<'a> ConversationsResource<'a> {
     }
 
     /// `PATCH /api/v1/conversations/{id}` — Update conversation title/metadata.
-    pub async fn update(
-        &self,
-        id: &str,
-        body: &serde_json::Value,
-    ) -> Result<ConversationInfo> {
+    pub async fn update(&self, id: &str, body: &serde_json::Value) -> Result<ConversationInfo> {
         self.client
             .patch(&format!("/api/v1/conversations/{id}"), Some(body))
             .await
@@ -119,11 +113,7 @@ impl<'a> ConversationsResource<'a> {
     }
 
     /// `POST /api/v1/conversations/bulk/move` — Bulk move conversations to folder.
-    pub async fn bulk_move(
-        &self,
-        ids: &[String],
-        folder_id: &str,
-    ) -> Result<serde_json::Value> {
+    pub async fn bulk_move(&self, ids: &[String], folder_id: &str) -> Result<serde_json::Value> {
         let body = serde_json::json!({ "ids": ids, "folder_id": folder_id });
         self.client
             .post("/api/v1/conversations/bulk/move", Some(&body))

@@ -67,6 +67,7 @@ pub(super) async fn create_pdf_processing_task(
         },
         existing_document_id: None, // Fresh upload — create new document
         pdf_parser_backend: options.resolved_backend(workspace),
+        restart_from_scratch: false,
     };
 
     let track_id = format!("pdf-{}", Uuid::new_v4());

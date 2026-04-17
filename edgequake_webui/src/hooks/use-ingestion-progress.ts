@@ -15,6 +15,7 @@
  */
 
 import { getTrackProgress } from "@/lib/api/edgequake";
+import { getAutomationAwareRefetchInterval } from "@/lib/runtime/browser-detection";
 import { useCostStore } from "@/stores/use-cost-store";
 import { useIngestionStore } from "@/stores/use-ingestion-store";
 import type { IngestionProgress } from "@/types/ingestion";
@@ -101,30 +102,21 @@ export function useIngestionProgress(
     queryKey: ["ingestion-progress", trackId],
     queryFn: () => getTrackProgress(trackId!),
     enabled: !!trackId && !!shouldPoll,
-    refetchInterval: shouldPoll ? effectiveInterval : false,
+    refetchInterval: shouldPoll
+      ? getAutomationAwareRefetchInterval(effectiveInterval)
+      : false,
   });
 
   // Subscribe to WebSocket updates
   useEffect(() => {
     if (!trackId || !enableWebSocket || !autoSubscribe) return;
 
-    if (connected) {
-      subscribe([trackId]);
-    }
+    subscribe([trackId]);
 
     return () => {
-      if (connected) {
-        unsubscribe([trackId]);
-      }
+      unsubscribe([trackId]);
     };
-  }, [
-    trackId,
-    connected,
-    enableWebSocket,
-    autoSubscribe,
-    subscribe,
-    unsubscribe,
-  ]);
+  }, [trackId, enableWebSocket, autoSubscribe, subscribe, unsubscribe]);
 
   // Update store from polled data
   useEffect(() => {

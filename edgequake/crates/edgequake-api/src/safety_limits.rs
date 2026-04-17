@@ -573,7 +573,10 @@ pub fn is_model_provider_mismatch(provider_name: &str, model: &str) -> bool {
     if model.is_empty() {
         return false;
     }
+
     let provider = provider_name.to_lowercase();
+    let model = model.to_lowercase();
+
     // OpenAI model patterns: gpt-*, o1-*, o3-*, o4-*, text-embedding-*
     let is_openai_model = model.starts_with("gpt-")
         || model.starts_with("o1-")
@@ -584,11 +587,25 @@ pub fn is_model_provider_mismatch(provider_name: &str, model: &str) -> bool {
     let is_anthropic_model = model.starts_with("claude-");
     // Gemini model patterns: gemini-*
     let is_gemini_model = model.starts_with("gemini-") || model.starts_with("text-embedding-004");
+    // Common local/self-hosted model patterns.
+    let is_local_style_model = model.contains(':')
+        || model.starts_with("gemma")
+        || model.starts_with("llama")
+        || model.starts_with("qwen")
+        || model.starts_with("mistral")
+        || model.starts_with("phi")
+        || model.starts_with("deepseek")
+        || model.starts_with("glm")
+        || model.starts_with("minicpm");
 
     match provider.as_str() {
         "ollama" | "lmstudio" | "lm-studio" | "lm_studio" => {
-            // Local providers cannot run cloud-hosted models
+            // Local providers cannot run cloud-hosted models.
             is_openai_model || is_anthropic_model || is_gemini_model
+        }
+        "openai" | "anthropic" | "gemini" | "xai" | "minimax" => {
+            // Cloud providers should not inherit self-hosted model names.
+            is_local_style_model || model.contains('/')
         }
         _ => false,
     }

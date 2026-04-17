@@ -46,17 +46,11 @@ impl<'a> ModelsResource<'a> {
 
     /// `GET /api/v1/models/{provider}` — Get models for a specific provider.
     pub async fn get_provider(&self, provider: &str) -> Result<serde_json::Value> {
-        self.client
-            .get(&format!("/api/v1/models/{provider}"))
-            .await
+        self.client.get(&format!("/api/v1/models/{provider}")).await
     }
 
     /// `GET /api/v1/models/{provider}/{model}` — Get specific model details.
-    pub async fn get_model(
-        &self,
-        provider: &str,
-        model: &str,
-    ) -> Result<serde_json::Value> {
+    pub async fn get_model(&self, provider: &str, model: &str) -> Result<serde_json::Value> {
         self.client
             .get(&format!("/api/v1/models/{provider}/{model}"))
             .await

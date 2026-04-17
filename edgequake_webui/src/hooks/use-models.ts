@@ -12,16 +12,17 @@
  * - Provider health status
  */
 
+import { getAutomationAwareRefetchInterval } from "@/lib/runtime/browser-detection";
 import { useQuery } from "@tanstack/react-query";
 import {
-  EmbeddingModelsResponse,
-  fetchEmbeddingModels,
-  fetchLlmModels,
-  fetchModelsConfig,
-  fetchProvidersHealth,
-  LlmModelsResponse,
-  ModelsListResponse,
-  ProviderResponse,
+    EmbeddingModelsResponse,
+    fetchEmbeddingModels,
+    fetchLlmModels,
+    fetchModelsConfig,
+    fetchProvidersHealth,
+    LlmModelsResponse,
+    ModelsListResponse,
+    ProviderResponse,
 } from "../lib/api/models";
 
 /**
@@ -94,7 +95,9 @@ export function useProvidersHealth(options?: {
     queryKey: modelsQueryKeys.health,
     queryFn: fetchProvidersHealth,
     staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: options?.refetchInterval ?? 60 * 1000, // 1 minute
+    refetchInterval: getAutomationAwareRefetchInterval(
+      options?.refetchInterval ?? 60 * 1000,
+    ), // 1 minute
     enabled: options?.enabled ?? true,
     refetchOnWindowFocus: true,
   });

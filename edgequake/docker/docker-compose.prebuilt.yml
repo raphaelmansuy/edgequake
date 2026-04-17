@@ -11,7 +11,7 @@
 #   curl http://localhost:8080/health
 #
 # Use a specific version:
-#   EDGEQUAKE_VERSION=0.10.3 docker compose -f docker-compose.prebuilt.yml up -d
+#   EDGEQUAKE_VERSION=0.10.4 docker compose -f docker-compose.prebuilt.yml up -d
 #
 # Use OPENAI instead of Ollama:
 #   EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... \

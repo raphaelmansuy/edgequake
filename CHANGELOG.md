@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.4] - 2026-04-17
+
+### Fixed
+
+- **PDF retries now resume safely from saved checkpoints.** Reprocessing and recovery flows keep the existing document and continue conversion progress instead of restarting from page 1 unless a full reset is explicitly requested.
+
+- **Vision PDF failures now degrade gracefully to EdgeParse.** Timeout and provider-setup failures no longer leave documents stuck in a flaky failed loop when a deterministic text path is available.
+
+- **Release branches stay clean during E2E verification.** Generated screenshot and test artifact folders are now ignored so publication commits and PRs are not polluted by transient PNG output.
+
+### Changed
+
+- Aligned release metadata and publish defaults to `0.10.4` across the workspace, frontend package, quickstart surfaces, and Docker workflow defaults.
+- Verified the release path with fresh build, health, and Docker-oriented publication checks.
+
 ## [0.10.3] - 2026-04-17
 
 ### Fixed

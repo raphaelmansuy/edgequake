@@ -289,8 +289,9 @@ impl AppState {
 
         // Create default workspace within the tenant
         // SPEC-032: Uses server defaults for embedding configuration
-        let workspace_request = CreateWorkspaceRequest::new("Default Workspace")
+        let mut workspace_request = CreateWorkspaceRequest::new("Default Workspace")
             .with_embedding_model("text-embedding-3-small");
+        workspace_request.slug = Some("default".to_string());
 
         let workspace = self
             .workspace_service
