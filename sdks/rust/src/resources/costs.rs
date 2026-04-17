@@ -26,9 +26,7 @@ impl<'a> CostsResource<'a> {
 
     /// `PATCH /api/v1/costs/budget` — Update budget settings.
     pub async fn update_budget(&self, body: &serde_json::Value) -> Result<BudgetInfo> {
-        self.client
-            .patch("/api/v1/costs/budget", Some(body))
-            .await
+        self.client.patch("/api/v1/costs/budget", Some(body)).await
     }
 
     /// `GET /api/v1/pipeline/costs/pricing` — Get model pricing.

@@ -61,6 +61,12 @@ pub struct PdfProcessingData {
     /// Old queued tasks omit this field and therefore default to Vision.
     #[serde(default)]
     pub pdf_parser_backend: PdfParserBackend,
+
+    /// If true, ignore any saved conversion checkpoint and restart from page 1.
+    /// WHY: Resume should be the safe default for long-running PDFs. A full restart
+    /// must be an explicit choice, not an accidental side effect of reprocessing.
+    #[serde(default)]
+    pub restart_from_scratch: bool,
 }
 
 /// Text insert task payload

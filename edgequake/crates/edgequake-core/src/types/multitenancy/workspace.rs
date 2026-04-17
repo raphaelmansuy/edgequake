@@ -249,13 +249,20 @@ impl Workspace {
             })
             .unwrap_or_else(|| Self::default_embedding_model_for_provider(&provider));
 
+        // WHY: When the provider/model switches (for example from Ollama to OpenAI),
+        // a stale dimension env var like 768 must not override a known model-specific
+        // dimension such as 1536 for text-embedding-3-small.
+        let detected_dimension = Self::detect_dimension_from_model(&model);
+        let known_model_dimension = Self::known_embedding_dimension(&model);
+
         let dimension = first_non_empty_env_var(&[
             "EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION",
             "EDGEQUAKE_EMBEDDING_DIMENSION",
             EMBEDDING_DIMENSION_ALIASES[0],
         ])
         .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| Self::detect_dimension_from_model(&model));
+        .filter(|dim| known_model_dimension.is_none() || *dim == detected_dimension)
+        .unwrap_or(detected_dimension);
 
         (model, provider, dimension)
     }
@@ -323,17 +330,23 @@ impl Workspace {
     /// | embeddinggemma:latest | 768 |
     /// | nomic-embed-text | 768 |
     /// | mxbai-embed-large | 1024 |
-    pub fn detect_dimension_from_model(model: &str) -> usize {
+    pub fn known_embedding_dimension(model: &str) -> Option<usize> {
         match model {
-            "text-embedding-3-small" | "text-embedding-ada-002" => 1536,
-            "text-embedding-3-large" => 3072,
-            "embeddinggemma:latest" | "nomic-embed-text" | "nomic-embed-text:latest" => 768,
-            "mxbai-embed-large" | "mxbai-embed-large:latest" => 1024,
-            _ if model.contains("768") => 768,
-            _ if model.contains("1024") => 1024,
-            _ if model.contains("3072") => 3072,
-            _ => DEFAULT_EMBEDDING_DIMENSION, // Safe default
+            "text-embedding-3-small" | "text-embedding-ada-002" => Some(1536),
+            "text-embedding-3-large" => Some(3072),
+            "embeddinggemma:latest" | "nomic-embed-text" | "nomic-embed-text:latest" => {
+                Some(768)
+            }
+            "mxbai-embed-large" | "mxbai-embed-large:latest" => Some(1024),
+            _ if model.contains("768") => Some(768),
+            _ if model.contains("1024") => Some(1024),
+            _ if model.contains("3072") => Some(3072),
+            _ => None,
         }
+    }
+
+    pub fn detect_dimension_from_model(model: &str) -> usize {
+        Self::known_embedding_dimension(model).unwrap_or(DEFAULT_EMBEDDING_DIMENSION)
     }
 
     /// Set the description.
@@ -554,6 +567,12 @@ mod tests {
     // without pulling in external crates.
     static ENV_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    fn lock_env_tests() -> std::sync::MutexGuard<'static, ()> {
+        ENV_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     // ── default_model_for_provider ─────────────────────────────────────────
 
     #[test]
@@ -602,7 +621,7 @@ mod tests {
 
     #[test]
     fn test_llm_config_reads_edgequake_llm_provider_as_fallback() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_env_tests();
         // Simulate a Portainer / Docker deployment where only the factory var is set.
         // EDGEQUAKE_DEFAULT_LLM_PROVIDER is NOT set; EDGEQUAKE_LLM_PROVIDER IS set.
         // The workspace must honour it and pick a sensible model for OpenAI.
@@ -631,7 +650,7 @@ mod tests {
 
     #[test]
     fn test_llm_config_default_vars_take_priority_over_llm_provider() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_env_tests();
         // EDGEQUAKE_DEFAULT_LLM_PROVIDER takes priority over EDGEQUAKE_LLM_PROVIDER.
         let key_default_provider = "EDGEQUAKE_DEFAULT_LLM_PROVIDER";
         let key_default_model = "EDGEQUAKE_DEFAULT_LLM_MODEL";
@@ -653,7 +672,7 @@ mod tests {
 
     #[test]
     fn test_llm_config_constant_fallback_when_no_env_set() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_env_tests();
         let key_default_provider = "EDGEQUAKE_DEFAULT_LLM_PROVIDER";
         let key_default_model = "EDGEQUAKE_DEFAULT_LLM_MODEL";
         let key_provider = "EDGEQUAKE_LLM_PROVIDER";
@@ -674,7 +693,7 @@ mod tests {
 
     #[test]
     fn test_embedding_config_reads_edgequake_embedding_provider_as_fallback() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_env_tests();
         let key_provider = "EDGEQUAKE_EMBEDDING_PROVIDER";
         let key_default_provider = "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER";
         let key_default_model = "EDGEQUAKE_DEFAULT_EMBEDDING_MODEL";
@@ -700,7 +719,7 @@ mod tests {
     /// as absent and fall through to the next candidate / hard-coded default.
     #[test]
     fn test_embedding_config_ignores_empty_string_env_vars() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_env_tests();
         let key_default_provider = "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER";
         let key_provider = "EDGEQUAKE_EMBEDDING_PROVIDER";
         let key_default_model = "EDGEQUAKE_DEFAULT_EMBEDDING_MODEL";
@@ -733,7 +752,7 @@ mod tests {
     /// Same empty-string guard for LLM config.
     #[test]
     fn test_llm_config_ignores_empty_string_env_vars() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_env_tests();
         let key_default_provider = "EDGEQUAKE_DEFAULT_LLM_PROVIDER";
         let key_provider = "EDGEQUAKE_LLM_PROVIDER";
         let key_default_model = "EDGEQUAKE_DEFAULT_LLM_MODEL";
@@ -763,7 +782,7 @@ mod tests {
 
     #[test]
     fn test_llm_config_supports_light_rag_style_aliases() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_env_tests();
 
         std::env::remove_var("EDGEQUAKE_DEFAULT_LLM_PROVIDER");
         std::env::remove_var("EDGEQUAKE_DEFAULT_LLM_MODEL");
@@ -783,7 +802,7 @@ mod tests {
 
     #[test]
     fn test_embedding_config_supports_compatibility_aliases() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_env_tests();
 
         std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER");
         std::env::remove_var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL");

@@ -10,12 +10,13 @@
 
 import { SERVER_BASE_URL } from "@/lib/api/client";
 import type {
-  EmbeddingModelsResponse,
-  LlmModelsResponse,
+    EmbeddingModelsResponse,
+    LlmModelsResponse,
 } from "@/lib/api/models";
+import { getAutomationAwareRefetchInterval } from "@/lib/runtime/browser-detection";
 import type {
-  AvailableProvidersResponse,
-  ProviderStatusResponse,
+    AvailableProvidersResponse,
+    ProviderStatusResponse,
 } from "@/types/provider";
 import { useQuery } from "@tanstack/react-query";
 
@@ -76,7 +77,7 @@ export function useProviderStatus(refreshInterval = 30000) {
   return useQuery({
     queryKey: ["provider-status"],
     queryFn: fetchProviderStatus,
-    refetchInterval: refreshInterval,
+    refetchInterval: getAutomationAwareRefetchInterval(refreshInterval),
     staleTime: 10000,
   });
 }

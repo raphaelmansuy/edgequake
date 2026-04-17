@@ -16,7 +16,7 @@ pub struct ChatMessage {
 ///
 /// WHY: EdgeQuake uses `message` (singular string). The conversation threading
 /// is handled server-side via `conversation_id`.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct ChatCompletionRequest {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]

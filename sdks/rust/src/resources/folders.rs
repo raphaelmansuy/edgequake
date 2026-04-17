@@ -27,11 +27,7 @@ impl<'a> FoldersResource<'a> {
     }
 
     /// `PATCH /api/v1/folders/{id}` — Update folder name or settings.
-    pub async fn update(
-        &self,
-        id: &str,
-        body: &serde_json::Value,
-    ) -> Result<FolderInfo> {
+    pub async fn update(&self, id: &str, body: &serde_json::Value) -> Result<FolderInfo> {
         self.client
             .patch(&format!("/api/v1/folders/{id}"), Some(body))
             .await

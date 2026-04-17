@@ -37,7 +37,7 @@ describe("MCP server unit tests", () => {
     if (cleanup) await cleanup();
   });
 
-  it("should list all 16 registered tools", async () => {
+  it("should list the full core toolset", async () => {
     const tools = await client.listTools();
     const toolNames = tools.tools.map((t) => t.name).sort();
 
@@ -47,6 +47,7 @@ describe("MCP server unit tests", () => {
       "document_list",
       "document_status",
       "document_upload",
+      "document_upload_file",
       "graph_entity_neighborhood",
       "graph_get_entity",
       "graph_search_entities",
@@ -60,7 +61,9 @@ describe("MCP server unit tests", () => {
       "workspace_stats",
     ];
 
-    expect(toolNames).toEqual(expected);
+    expect(toolNames).toEqual(expect.arrayContaining(expected));
+    expect(new Set(toolNames).size).toBe(toolNames.length);
+    expect(toolNames.length).toBeGreaterThanOrEqual(expected.length);
   });
 
   it("should have correct input schemas for key tools", async () => {

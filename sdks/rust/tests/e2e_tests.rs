@@ -30,7 +30,10 @@ fn e2e_client() -> EdgeQuakeClient {
         builder = builder.workspace_id(&wid);
     }
 
-    builder.max_retries(0).build().expect("failed to build client")
+    builder
+        .max_retries(0)
+        .build()
+        .expect("failed to build client")
 }
 
 // ── Health ───────────────────────────────────────────────────────
@@ -40,7 +43,10 @@ async fn e2e_health() {
     let c = e2e_client();
     let h = c.health().check().await.unwrap();
     assert_eq!(h.status, "healthy");
-    println!("Health: status={} version={:?} storage={:?}", h.status, h.version, h.storage_mode);
+    println!(
+        "Health: status={} version={:?} storage={:?}",
+        h.status, h.version, h.storage_mode
+    );
 }
 
 // ── Documents ────────────────────────────────────────────────────
@@ -90,7 +96,11 @@ async fn e2e_entities_list_and_create() {
     };
     let created = c.entities().create(&req).await.unwrap();
     assert_eq!(created.status, "success");
-    println!("Created: {:?} status={}", created.entity.as_ref().map(|e| &e.entity_name), created.status);
+    println!(
+        "Created: {:?} status={}",
+        created.entity.as_ref().map(|e| &e.entity_name),
+        created.status
+    );
 
     // Exists
     let exists = c.entities().exists("E2E_RUST_TEST").await.unwrap();
@@ -99,7 +109,10 @@ async fn e2e_entities_list_and_create() {
     // Get (detail)
     let detail = c.entities().get("E2E_RUST_TEST").await.unwrap();
     assert_eq!(detail.entity.entity_name, "E2E_RUST_TEST");
-    println!("Detail: entity_name={} degree={:?}", detail.entity.entity_name, detail.entity.degree);
+    println!(
+        "Detail: entity_name={} degree={:?}",
+        detail.entity.entity_name, detail.entity.degree
+    );
 
     // Delete
     let del_result = c.entities().delete("E2E_RUST_TEST").await;
@@ -124,13 +137,15 @@ async fn e2e_query_execute() {
     let c = e2e_client();
     let req = types::query::QueryRequest {
         query: "What is EdgeQuake?".into(),
-        mode: None,
         top_k: Some(3),
-        stream: None,
-        only_need_context: None,
+        ..Default::default()
     };
     let r = c.query().execute(&req).await.unwrap();
-    println!("Query: answer_len={} sources={}", r.answer.as_deref().unwrap_or("").len(), r.sources.len());
+    println!(
+        "Query: answer_len={} sources={}",
+        r.answer.as_deref().unwrap_or("").len(),
+        r.sources.len()
+    );
 }
 
 // ── Chat ─────────────────────────────────────────────────────────
@@ -142,19 +157,14 @@ async fn e2e_chat_completions() {
     let req = types::chat::ChatCompletionRequest {
         message: "Say hello".into(),
         stream: Some(false),
-        mode: None,
-        conversation_id: None,
-        max_tokens: None,
-        temperature: None,
-        top_k: None,
-        parent_id: None,
-        provider: None,
-        model: None,
+        ..Default::default()
     };
     match c.chat().completions(&req).await {
-        Ok(r) => println!("Chat: content_len={} conversation_id={:?}",
+        Ok(r) => println!(
+            "Chat: content_len={} conversation_id={:?}",
             r.content.as_deref().unwrap_or("").len(),
-            r.conversation_id),
+            r.conversation_id
+        ),
         Err(e) => println!("Chat: error (may need LLM configured): {e}"),
     }
 }
@@ -174,14 +184,20 @@ async fn e2e_tasks_list() {
 async fn e2e_pipeline_status() {
     let c = e2e_client();
     let r = c.pipeline().status().await.unwrap();
-    println!("Pipeline: is_busy={} pending={} processing={}", r.is_busy, r.pending_tasks, r.processing_tasks);
+    println!(
+        "Pipeline: is_busy={} pending={} processing={}",
+        r.is_busy, r.pending_tasks, r.processing_tasks
+    );
 }
 
 #[tokio::test]
 async fn e2e_pipeline_metrics() {
     let c = e2e_client();
     let r = c.pipeline().metrics().await.unwrap();
-    println!("Queue metrics: depth={} processing={}", r.queue_depth, r.processing);
+    println!(
+        "Queue metrics: depth={} processing={}",
+        r.queue_depth, r.processing
+    );
 }
 
 // ── Costs ────────────────────────────────────────────────────────
@@ -190,7 +206,10 @@ async fn e2e_pipeline_metrics() {
 async fn e2e_costs_summary() {
     let c = e2e_client();
     let r = c.costs().summary().await.unwrap();
-    println!("Costs: total=${:.4} tokens={}", r.total_cost_usd, r.total_tokens);
+    println!(
+        "Costs: total=${:.4} tokens={}",
+        r.total_cost_usd, r.total_tokens
+    );
 }
 
 #[tokio::test]
@@ -208,7 +227,12 @@ async fn e2e_models_list() {
     let catalog = c.models().list().await.unwrap();
     println!("Models: {} providers", catalog.providers.len());
     for p in &catalog.providers {
-        println!("  - {} ({:?}): {} models", p.name, p.display_name, p.models.len());
+        println!(
+            "  - {} ({:?}): {} models",
+            p.name,
+            p.display_name,
+            p.models.len()
+        );
     }
 }
 
@@ -274,7 +298,10 @@ async fn e2e_document_metadata() {
     if let Some(doc) = docs.documents.first() {
         match c.documents().get_metadata(&doc.id).await {
             Ok(metadata) => {
-                println!("Document metadata: {} keys", metadata.as_object().map(|o| o.len()).unwrap_or(0));
+                println!(
+                    "Document metadata: {} keys",
+                    metadata.as_object().map(|o| o.len()).unwrap_or(0)
+                );
                 // Metadata should be an object with at least an id
                 assert!(metadata.is_object(), "metadata should be a JSON object");
             }
@@ -296,7 +323,8 @@ async fn e2e_chunk_lineage() {
             Ok(lineage) => {
                 println!(
                     "Chunk lineage: chunk={} doc={:?} entities={}",
-                    lineage.chunk_id, lineage.document_id,
+                    lineage.chunk_id,
+                    lineage.document_id,
                     lineage.entity_names.len()
                 );
                 assert_eq!(lineage.document_id, Some(doc.id.clone()));

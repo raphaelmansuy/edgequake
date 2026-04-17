@@ -24,9 +24,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_documents_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/documents"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let err = c.documents().list().await.unwrap_err();
         assert_eq!(err.status_code(), Some(500));
@@ -35,9 +37,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_documents_get_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/documents/missing"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/missing"))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!({"message":"not found"})))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let err = c.documents().get("missing").await.unwrap_err();
         assert_eq!(err.status_code(), Some(404));
@@ -46,9 +50,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_documents_upload_text_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/documents/upload/text"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/documents/upload/text"))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!({"message":"bad"})))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let err = c.documents().upload_text(&json!({})).await.unwrap_err();
         assert_eq!(err.status_code(), Some(400));
@@ -57,9 +63,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_documents_delete_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE")).and(path("/api/v1/documents/missing"))
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/documents/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let err = c.documents().delete("missing").await.unwrap_err();
         assert_eq!(err.status_code(), Some(404));
@@ -68,9 +76,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_documents_track_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/documents/track/missing"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/track/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.documents().track("missing").await.is_err());
     }
@@ -78,9 +88,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_documents_status_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/documents/missing/status"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/missing/status"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.documents().status("missing").await.is_err());
     }
@@ -90,9 +102,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_graph_get_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/graph"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/graph"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.graph().get().await.is_err());
     }
@@ -100,9 +114,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_graph_search_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path_regex("/api/v1/graph/nodes/search.*"))
+        Mock::given(method("GET"))
+            .and(path_regex("/api/v1/graph/nodes/search.*"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.graph().search("q").await.is_err());
     }
@@ -112,9 +128,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_entities_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/graph/entities"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/graph/entities"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.entities().list().await.is_err());
     }
@@ -122,9 +140,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_entities_get_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path_regex("/api/v1/graph/entities/.*"))
+        Mock::given(method("GET"))
+            .and(path_regex("/api/v1/graph/entities/.*"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.entities().get("MISSING").await.is_err());
     }
@@ -132,13 +152,18 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_entities_create_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/graph/entities"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/graph/entities"))
             .respond_with(ResponseTemplate::new(422))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let req = types::graph::CreateEntityRequest {
-            entity_name: "".into(), entity_type: "".into(),
-            description: "".into(), source_id: "".into(), metadata: None,
+            entity_name: "".into(),
+            entity_type: "".into(),
+            description: "".into(),
+            source_id: "".into(),
+            metadata: None,
         };
         assert!(c.entities().create(&req).await.is_err());
     }
@@ -146,9 +171,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_entities_merge_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/graph/entities/merge"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/graph/entities/merge"))
             .respond_with(ResponseTemplate::new(400))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.entities().merge("a", "b").await.is_err());
     }
@@ -156,9 +183,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_entities_delete_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE")).and(path_regex("/api/v1/graph/entities/.*"))
+        Mock::given(method("DELETE"))
+            .and(path_regex("/api/v1/graph/entities/.*"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.entities().delete("X").await.is_err());
     }
@@ -168,9 +197,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_relationships_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/graph/relationships"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/graph/relationships"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.relationships().list().await.is_err());
     }
@@ -178,13 +209,18 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_relationships_create_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/graph/relationships"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/graph/relationships"))
             .respond_with(ResponseTemplate::new(422))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let req = types::graph::CreateRelationshipRequest {
-            source: "a".into(), target: "b".into(),
-            relationship_type: "x".into(), weight: None, description: None,
+            source: "a".into(),
+            target: "b".into(),
+            relationship_type: "x".into(),
+            weight: None,
+            description: None,
         };
         assert!(c.relationships().create(&req).await.is_err());
     }
@@ -192,9 +228,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_relationships_delete_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE")).and(path_regex("/api/v1/graph/relationships/.*"))
+        Mock::given(method("DELETE"))
+            .and(path_regex("/api/v1/graph/relationships/.*"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.relationships().delete("missing").await.is_err());
     }
@@ -204,12 +242,15 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_query_execute_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/query"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/query"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let req = types::query::QueryRequest {
-            query: "test".into(), mode: None, top_k: None, stream: None, only_need_context: None,
+            query: "test".into(),
+            ..Default::default()
         };
         assert!(c.query().execute(&req).await.is_err());
     }
@@ -219,21 +260,16 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_chat_completions_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/chat/completions"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/chat/completions"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let req = types::chat::ChatCompletionRequest {
             message: String::new(),
             stream: Some(false),
-            mode: None,
-            conversation_id: None,
-            max_tokens: None,
-            temperature: None,
-            top_k: None,
-            parent_id: None,
-            provider: None,
-            model: None,
+            ..Default::default()
         };
         assert!(c.chat().completions(&req).await.is_err());
     }
@@ -243,11 +279,16 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_auth_login_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/auth/login"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/login"))
             .respond_with(ResponseTemplate::new(401))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
-        let req = types::auth::LoginRequest { username: "bad".into(), password: "bad".into() };
+        let req = types::auth::LoginRequest {
+            username: "bad".into(),
+            password: "bad".into(),
+        };
         let err = c.auth().login(&req).await.unwrap_err();
         assert_eq!(err.status_code(), Some(401));
     }
@@ -255,9 +296,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_auth_me_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/auth/me"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/auth/me"))
             .respond_with(ResponseTemplate::new(401))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.auth().me().await.is_err());
     }
@@ -265,11 +308,15 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_auth_refresh_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/auth/refresh"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/refresh"))
             .respond_with(ResponseTemplate::new(401))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
-        let req = types::auth::RefreshRequest { refresh_token: "expired".into() };
+        let req = types::auth::RefreshRequest {
+            refresh_token: "expired".into(),
+        };
         assert!(c.auth().refresh(&req).await.is_err());
     }
 
@@ -278,9 +325,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_users_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/users"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/users"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.users().list().await.is_err());
     }
@@ -288,13 +337,17 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_users_create_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/users"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/users"))
             .respond_with(ResponseTemplate::new(409))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let req = types::auth::CreateUserRequest {
-            username: "dup".into(), email: "dup@x.com".into(),
-            password: "p".into(), role: None,
+            username: "dup".into(),
+            email: "dup@x.com".into(),
+            password: "p".into(),
+            role: None,
         };
         assert!(c.users().create(&req).await.is_err());
     }
@@ -302,9 +355,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_users_get_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/users/missing"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/users/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.users().get("missing").await.is_err());
     }
@@ -312,9 +367,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_users_delete_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE")).and(path("/api/v1/users/missing"))
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/users/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.users().delete("missing").await.is_err());
     }
@@ -324,9 +381,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_api_keys_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/api-keys"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/api-keys"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.api_keys().list().await.is_err());
     }
@@ -334,9 +393,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_api_keys_create_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/api-keys"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/api-keys"))
             .respond_with(ResponseTemplate::new(409))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.api_keys().create("dup").await.is_err());
     }
@@ -344,9 +405,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_api_keys_revoke_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE")).and(path("/api/v1/api-keys/missing"))
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/api-keys/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.api_keys().revoke("missing").await.is_err());
     }
@@ -356,9 +419,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_tenants_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/tenants"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/tenants"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.tenants().list().await.is_err());
     }
@@ -366,20 +431,27 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_tenants_create_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/tenants"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/tenants"))
             .respond_with(ResponseTemplate::new(409))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
-        let req = types::auth::CreateTenantRequest { name: "dup".into(), slug: None };
+        let req = types::auth::CreateTenantRequest {
+            name: "dup".into(),
+            ..Default::default()
+        };
         assert!(c.tenants().create(&req).await.is_err());
     }
 
     #[tokio::test]
     async fn test_tenants_get_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/tenants/missing"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/tenants/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.tenants().get("missing").await.is_err());
     }
@@ -387,9 +459,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_tenants_delete_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE")).and(path("/api/v1/tenants/missing"))
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/tenants/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.tenants().delete("missing").await.is_err());
     }
@@ -399,9 +473,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/conversations"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/conversations"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.conversations().list().await.is_err());
     }
@@ -409,20 +485,27 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_create_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/conversations"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/conversations"))
             .respond_with(ResponseTemplate::new(400))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
-        let req = types::conversations::CreateConversationRequest { title: None, folder_id: None };
+        let req = types::conversations::CreateConversationRequest {
+            title: None,
+            folder_id: None,
+        };
         assert!(c.conversations().create(&req).await.is_err());
     }
 
     #[tokio::test]
     async fn test_conversations_get_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/conversations/missing"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/conversations/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.conversations().get("missing").await.is_err());
     }
@@ -430,9 +513,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_delete_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE")).and(path("/api/v1/conversations/missing"))
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/conversations/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.conversations().delete("missing").await.is_err());
     }
@@ -440,12 +525,15 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_create_message_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/conversations/c1/messages"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/conversations/c1/messages"))
             .respond_with(ResponseTemplate::new(400))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let req = types::conversations::CreateMessageRequest {
-            role: "user".into(), content: "hi".into(),
+            role: "user".into(),
+            content: "hi".into(),
         };
         assert!(c.conversations().create_message("c1", &req).await.is_err());
     }
@@ -453,9 +541,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_share_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/conversations/missing/share"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/conversations/missing/share"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.conversations().share("missing").await.is_err());
     }
@@ -463,9 +553,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_bulk_delete_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/conversations/bulk/delete"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/conversations/bulk/delete"))
             .respond_with(ResponseTemplate::new(400))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.conversations().bulk_delete(&[]).await.is_err());
     }
@@ -473,9 +565,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_pin_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/conversations/missing/pin"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/conversations/missing/pin"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.conversations().pin("missing").await.is_err());
     }
@@ -483,9 +577,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_unpin_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE")).and(path("/api/v1/conversations/missing/pin"))
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/conversations/missing/pin"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.conversations().unpin("missing").await.is_err());
     }
@@ -495,9 +591,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_folders_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/folders"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/folders"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.folders().list().await.is_err());
     }
@@ -505,20 +603,27 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_folders_create_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/folders"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/folders"))
             .respond_with(ResponseTemplate::new(400))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
-        let req = types::conversations::CreateFolderRequest { name: "".into(), parent_id: None };
+        let req = types::conversations::CreateFolderRequest {
+            name: "".into(),
+            parent_id: None,
+        };
         assert!(c.folders().create(&req).await.is_err());
     }
 
     #[tokio::test]
     async fn test_folders_delete_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE")).and(path("/api/v1/folders/missing"))
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/folders/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.folders().delete("missing").await.is_err());
     }
@@ -528,9 +633,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_tasks_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/tasks"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/tasks"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.tasks().list().await.is_err());
     }
@@ -538,9 +645,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_tasks_get_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/tasks/missing"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/tasks/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.tasks().get("missing").await.is_err());
     }
@@ -548,9 +657,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_tasks_cancel_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/tasks/missing/cancel"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/tasks/missing/cancel"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.tasks().cancel("missing").await.is_err());
     }
@@ -560,9 +671,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_pipeline_status_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/pipeline/status"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/pipeline/status"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.pipeline().status().await.is_err());
     }
@@ -570,9 +683,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_pipeline_metrics_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/pipeline/queue-metrics"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/pipeline/queue-metrics"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.pipeline().metrics().await.is_err());
     }
@@ -582,9 +697,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_costs_summary_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/costs/summary"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/costs/summary"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.costs().summary().await.is_err());
     }
@@ -592,9 +709,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_costs_history_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/costs/history"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/costs/history"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.costs().history().await.is_err());
     }
@@ -602,9 +721,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_costs_budget_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/costs/budget"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/costs/budget"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.costs().budget().await.is_err());
     }
@@ -614,9 +735,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_chunks_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/documents/missing/chunks"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/missing/chunks"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.chunks().list("missing").await.is_err());
     }
@@ -624,9 +747,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_chunks_get_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/chunks/missing"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/chunks/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.chunks().get("missing").await.is_err());
     }
@@ -636,9 +761,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_provenance_for_entity_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path_regex("/api/v1/entities/.*/provenance"))
+        Mock::given(method("GET"))
+            .and(path_regex("/api/v1/entities/.*/provenance"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.provenance().for_entity("MISSING").await.is_err());
     }
@@ -646,9 +773,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_provenance_lineage_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path_regex("/api/v1/entities/.*/lineage"))
+        Mock::given(method("GET"))
+            .and(path_regex("/api/v1/entities/.*/lineage"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.provenance().lineage("MISSING").await.is_err());
     }
@@ -658,9 +787,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_models_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/models"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/models"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.models().list().await.is_err());
     }
@@ -668,9 +799,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_models_current_provider_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/settings/provider"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/settings/provider"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.models().current_provider().await.is_err());
     }
@@ -678,9 +811,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_models_providers_health_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/settings/providers/health"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/settings/providers/health"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.models().providers_health().await.is_err());
     }
@@ -688,9 +823,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_models_set_provider_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("PUT")).and(path("/api/v1/settings/provider"))
+        Mock::given(method("PUT"))
+            .and(path("/api/v1/settings/provider"))
             .respond_with(ResponseTemplate::new(400))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.models().set_provider("invalid").await.is_err());
     }
@@ -700,9 +837,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_workspaces_list_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/tenants/t1/workspaces"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/tenants/t1/workspaces"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.workspaces().list("t1").await.is_err());
     }
@@ -710,12 +849,15 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_workspaces_create_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST")).and(path("/api/v1/tenants/t1/workspaces"))
+        Mock::given(method("POST"))
+            .and(path("/api/v1/tenants/t1/workspaces"))
             .respond_with(ResponseTemplate::new(400))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         let req = types::workspaces::CreateWorkspaceRequest {
-            name: "".into(), slug: None, description: None,
+            name: "".into(),
+            ..Default::default()
         };
         assert!(c.workspaces().create("t1", &req).await.is_err());
     }
@@ -723,9 +865,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_workspaces_stats_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/workspaces/missing/stats"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/workspaces/missing/stats"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.workspaces().stats("missing").await.is_err());
     }
@@ -735,9 +879,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_pdf_progress_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/documents/pdf/progress/missing"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/pdf/progress/missing"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.pdf().progress("missing").await.is_err());
     }
@@ -745,9 +891,11 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_pdf_content_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/documents/pdf/missing/content"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/pdf/missing/content"))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = client_no_retry(&ms).await;
         assert!(c.pdf().content("missing").await.is_err());
     }
@@ -757,14 +905,17 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_builder_bearer_token() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/health"))
+        Mock::given(method("GET"))
+            .and(path("/health"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status":"ok"})))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = EdgeQuakeClient::builder()
             .base_url(ms.uri())
             .bearer_token("jwt-token")
             .max_retries(0)
-            .build().unwrap();
+            .build()
+            .unwrap();
         let h = c.health().check().await.unwrap();
         assert_eq!(h.status, "ok");
     }
@@ -774,7 +925,8 @@ mod error_path_tests {
         let c = EdgeQuakeClient::builder()
             .timeout(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(10))
-            .build().unwrap();
+            .build()
+            .unwrap();
         assert_eq!(c.base_url(), "http://localhost:8080");
     }
 
@@ -782,22 +934,26 @@ mod error_path_tests {
     async fn test_builder_custom_user_agent() {
         let c = EdgeQuakeClient::builder()
             .user_agent("custom/1.0")
-            .build().unwrap();
+            .build()
+            .unwrap();
         assert_eq!(c.base_url(), "http://localhost:8080");
     }
 
     #[tokio::test]
     async fn test_builder_workspace_and_tenant() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/health"))
+        Mock::given(method("GET"))
+            .and(path("/health"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status":"ok"})))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = EdgeQuakeClient::builder()
             .base_url(ms.uri())
             .tenant_id("t-123")
             .workspace_id("ws-456")
             .max_retries(0)
-            .build().unwrap();
+            .build()
+            .unwrap();
         let h = c.health().check().await.unwrap();
         assert_eq!(h.status, "ok");
     }
@@ -816,47 +972,68 @@ mod error_path_tests {
 
     #[test]
     fn test_error_is_retryable_server_500() {
-        let err = Error::Server { status: 500, message: "oops".into(), code: None };
+        let err = Error::Server {
+            status: 500,
+            message: "oops".into(),
+            code: None,
+        };
         assert!(err.is_retryable());
     }
 
     #[test]
     fn test_error_is_retryable_server_502() {
-        let err = Error::Server { status: 502, message: "bad gw".into(), code: None };
+        let err = Error::Server {
+            status: 502,
+            message: "bad gw".into(),
+            code: None,
+        };
         assert!(err.is_retryable());
     }
 
     #[test]
     fn test_error_not_retryable_400() {
-        let err = Error::BadRequest { message: "bad".into(), code: None, details: None };
+        let err = Error::BadRequest {
+            message: "bad".into(),
+            code: None,
+            details: None,
+        };
         assert!(!err.is_retryable());
         assert_eq!(err.status_code(), Some(400));
     }
 
     #[test]
     fn test_error_not_retryable_403() {
-        let err = Error::Forbidden { message: "denied".into() };
+        let err = Error::Forbidden {
+            message: "denied".into(),
+        };
         assert!(!err.is_retryable());
         assert_eq!(err.status_code(), Some(403));
     }
 
     #[test]
     fn test_error_not_retryable_404() {
-        let err = Error::NotFound { message: "gone".into() };
+        let err = Error::NotFound {
+            message: "gone".into(),
+        };
         assert!(!err.is_retryable());
         assert_eq!(err.status_code(), Some(404));
     }
 
     #[test]
     fn test_error_not_retryable_409() {
-        let err = Error::Conflict { message: "conflict".into() };
+        let err = Error::Conflict {
+            message: "conflict".into(),
+        };
         assert!(!err.is_retryable());
         assert_eq!(err.status_code(), Some(409));
     }
 
     #[test]
     fn test_error_not_retryable_422() {
-        let err = Error::Validation { message: "invalid".into(), details: None };
+        let err = Error::Validation {
+            message: "invalid".into(),
+            details: None,
+        };
         assert!(!err.is_retryable());
         assert_eq!(err.status_code(), Some(422));
     }
@@ -880,7 +1057,9 @@ mod error_path_tests {
 
     #[test]
     fn test_error_display() {
-        let err = Error::NotFound { message: "doc not found".into() };
+        let err = Error::NotFound {
+            message: "doc not found".into(),
+        };
         assert!(format!("{err}").contains("not found"));
     }
 
@@ -889,17 +1068,22 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_retry_on_500_then_success() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/health"))
+        Mock::given(method("GET"))
+            .and(path("/health"))
             .respond_with(ResponseTemplate::new(500))
             .up_to_n_times(1)
-            .mount(&ms).await;
-        Mock::given(method("GET")).and(path("/health"))
+            .mount(&ms)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/health"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status":"ok"})))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = EdgeQuakeClient::builder()
             .base_url(ms.uri())
             .max_retries(2)
-            .build().unwrap();
+            .build()
+            .unwrap();
         let h = c.health().check().await.unwrap();
         assert_eq!(h.status, "ok");
     }
@@ -907,13 +1091,16 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_retry_exhausted() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/health"))
+        Mock::given(method("GET"))
+            .and(path("/health"))
             .respond_with(ResponseTemplate::new(500))
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = EdgeQuakeClient::builder()
             .base_url(ms.uri())
             .max_retries(1)
-            .build().unwrap();
+            .build()
+            .unwrap();
         // With max_retries=1, it does attempt 0 + attempt 1 = 2 total attempts
         // Both return 500, so the last 500 response is returned (not retried further)
         let err = c.health().check().await.unwrap_err();
@@ -923,14 +1110,17 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_no_retry_on_404() {
         let ms = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/api/v1/documents/missing"))
+        Mock::given(method("GET"))
+            .and(path("/api/v1/documents/missing"))
             .respond_with(ResponseTemplate::new(404))
             .expect(1)
-            .mount(&ms).await;
+            .mount(&ms)
+            .await;
         let c = EdgeQuakeClient::builder()
             .base_url(ms.uri())
             .max_retries(3)
-            .build().unwrap();
+            .build()
+            .unwrap();
         let err = c.documents().get("missing").await.unwrap_err();
         assert_eq!(err.status_code(), Some(404));
     }
@@ -951,7 +1141,8 @@ mod error_path_tests {
     fn test_url_with_leading_slash() {
         let c = EdgeQuakeClient::builder()
             .base_url("http://localhost:8080")
-            .build().unwrap();
+            .build()
+            .unwrap();
         assert_eq!(c.base_url(), "http://localhost:8080");
     }
 }

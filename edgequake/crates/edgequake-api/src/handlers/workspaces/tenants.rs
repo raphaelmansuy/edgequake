@@ -116,6 +116,7 @@ pub async fn create_tenant(
                 &created_tenant.default_embedding_provider,
                 created_tenant.default_embedding_dimension,
             );
+    default_workspace_request.slug = Some("default".to_string());
     // SPEC-041: Inherit vision LLM config if set on tenant
     if let (Some(model), Some(provider)) = (
         created_tenant.default_vision_llm_model.as_ref(),

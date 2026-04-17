@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { checkHealth } from '@/lib/api/edgequake';
+import { getAutomationAwareRefetchInterval } from '@/lib/runtime/browser-detection';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle, Circle, Server, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -26,7 +27,7 @@ export function SystemStatus() {
   const { data: health, isLoading, isError } = useQuery({
     queryKey: ['health'],
     queryFn: checkHealth,
-    refetchInterval: 30000,
+    refetchInterval: getAutomationAwareRefetchInterval(30000),
     retry: 2,
   });
 

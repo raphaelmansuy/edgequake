@@ -50,7 +50,7 @@ EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... make stack
 
 **Pin to a specific version:**
 ```bash
-EDGEQUAKE_VERSION=0.10.3 make stack
+EDGEQUAKE_VERSION=0.10.4 make stack
 ```
 
 For full documentation see: [Docker Quickstart Guide](./docker-quickstart.md)

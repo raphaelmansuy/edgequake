@@ -61,10 +61,7 @@ impl<'a> WorkspacesResource<'a> {
         body: &serde_json::Value,
     ) -> Result<WorkspaceInfo> {
         self.client
-            .put(
-                &format!("/api/v1/workspaces/{workspace_id}"),
-                Some(body),
-            )
+            .put(&format!("/api/v1/workspaces/{workspace_id}"), Some(body))
             .await
     }
 
@@ -78,7 +75,9 @@ impl<'a> WorkspacesResource<'a> {
     /// `GET /api/v1/workspaces/{id}/metrics-history`
     pub async fn metrics_history(&self, workspace_id: &str) -> Result<Vec<serde_json::Value>> {
         self.client
-            .get(&format!("/api/v1/workspaces/{workspace_id}/metrics-history"))
+            .get(&format!(
+                "/api/v1/workspaces/{workspace_id}/metrics-history"
+            ))
             .await
     }
 

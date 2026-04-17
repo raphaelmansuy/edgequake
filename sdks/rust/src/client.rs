@@ -173,12 +173,15 @@ impl EdgeQuakeClient {
 
     /// Execute a DELETE request.
     pub(crate) async fn delete<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        self.request(Method::DELETE, path, Option::<&()>::None).await
+        self.request(Method::DELETE, path, Option::<&()>::None)
+            .await
     }
 
     /// Execute a DELETE and discard the body (returns `()`).
     pub(crate) async fn delete_no_content(&self, path: &str) -> Result<()> {
-        let resp = self.send_with_retry(Method::DELETE, path, Option::<&()>::None).await?;
+        let resp = self
+            .send_with_retry(Method::DELETE, path, Option::<&()>::None)
+            .await?;
         let status = resp.status();
         if status.is_success() {
             Ok(())
@@ -189,10 +192,15 @@ impl EdgeQuakeClient {
 
     /// Execute a GET request and return raw bytes (for CSV/binary downloads).
     pub(crate) async fn get_raw(&self, path: &str) -> Result<Vec<u8>> {
-        let resp = self.send_with_retry(Method::GET, path, Option::<&()>::None).await?;
+        let resp = self
+            .send_with_retry(Method::GET, path, Option::<&()>::None)
+            .await?;
         let status = resp.status();
         if status.is_success() {
-            resp.bytes().await.map(|b| b.to_vec()).map_err(Error::Network)
+            resp.bytes()
+                .await
+                .map(|b| b.to_vec())
+                .map_err(Error::Network)
         } else {
             Err(Error::from_response(resp).await)
         }
@@ -308,10 +316,11 @@ impl EdgeQuakeClient {
                     // Only retry on 429 / 5xx
                     if (resp.status() == StatusCode::TOO_MANY_REQUESTS
                         || resp.status().is_server_error())
-                        && attempt < max_retries {
-                            last_err = Some(Error::from_response(resp).await);
-                            continue;
-                        }
+                        && attempt < max_retries
+                    {
+                        last_err = Some(Error::from_response(resp).await);
+                        continue;
+                    }
                     return Ok(resp);
                 }
                 Err(e) if e.is_retryable() && attempt < max_retries => {
@@ -342,10 +351,7 @@ impl EdgeQuakeClient {
                 req = req.header("X-API-Key", key.as_str());
             }
             Auth::Bearer(token) => {
-                req = req.header(
-                    AUTHORIZATION,
-                    format!("Bearer {}", token),
-                );
+                req = req.header(AUTHORIZATION, format!("Bearer {}", token));
             }
         }
 
@@ -370,7 +376,8 @@ impl EdgeQuakeClient {
 
     /// Get a raw response (for streaming).
     pub(crate) async fn raw_get(&self, path: &str) -> Result<Response> {
-        self.send_with_retry(Method::GET, path, Option::<&()>::None).await
+        self.send_with_retry(Method::GET, path, Option::<&()>::None)
+            .await
     }
 
     /// Get the base URL.

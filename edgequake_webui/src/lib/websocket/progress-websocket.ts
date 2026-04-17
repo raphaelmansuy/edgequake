@@ -15,8 +15,8 @@
  */
 
 import type {
-  ClientCommand,
-  WebSocketProgressMessage,
+    ClientCommand,
+    WebSocketProgressMessage,
 } from "@/types/ingestion";
 
 export interface ProgressWebSocketOptions {
@@ -275,6 +275,10 @@ export class ProgressWebSocket {
    * Subscribe to ingestion progress updates for specific track IDs.
    */
   subscribe(trackIds: string[]): void {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      this.connect();
+    }
+
     this.send({ type: "subscribe", track_ids: trackIds });
   }
 

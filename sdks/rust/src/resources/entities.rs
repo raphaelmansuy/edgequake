@@ -29,9 +29,7 @@ impl<'a> EntitiesResource<'a> {
 
     /// `POST /api/v1/graph/entities` — create a new entity.
     pub async fn create(&self, req: &CreateEntityRequest) -> Result<CreateEntityResponse> {
-        self.client
-            .post("/api/v1/graph/entities", Some(req))
-            .await
+        self.client.post("/api/v1/graph/entities", Some(req)).await
     }
 
     /// `DELETE /api/v1/graph/entities/{name}?confirm=true`
@@ -83,17 +81,10 @@ impl<'a> EntitiesResource<'a> {
     }
 
     /// `PUT /api/v1/graph/entities/{name}` — Update entity.
-    pub async fn update(
-        &self,
-        name: &str,
-        body: &serde_json::Value,
-    ) -> Result<serde_json::Value> {
+    pub async fn update(&self, name: &str, body: &serde_json::Value) -> Result<serde_json::Value> {
         self.client
             .put(
-                &format!(
-                    "/api/v1/graph/entities/{}",
-                    urlencoding::encode(name)
-                ),
+                &format!("/api/v1/graph/entities/{}", urlencoding::encode(name)),
                 Some(body),
             )
             .await
