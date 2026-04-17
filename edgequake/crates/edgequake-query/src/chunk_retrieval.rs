@@ -79,7 +79,7 @@ pub async fn retrieve_chunks_from_entities(
     let selected = match method {
         ChunkSelectionMethod::Weight => {
             // Sort by frequency (weight)
-            chunks_with_freq.sort_by(|a, b| b.1.cmp(&a.1));
+            chunks_with_freq.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             chunks_with_freq
                 .into_iter()
                 .take(max_chunks)
@@ -100,7 +100,7 @@ pub async fn retrieve_chunks_from_entities(
                 )
             } else {
                 // Fallback to weight-based
-                chunks_with_freq.sort_by(|a, b| b.1.cmp(&a.1));
+                chunks_with_freq.sort_by_key(|entry| std::cmp::Reverse(entry.1));
                 chunks_with_freq
                     .into_iter()
                     .take(max_chunks)
@@ -153,7 +153,7 @@ pub async fn retrieve_chunks_from_relationships(
 
     let selected = match method {
         ChunkSelectionMethod::Weight => {
-            chunks_with_freq.sort_by(|a, b| b.1.cmp(&a.1));
+            chunks_with_freq.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             chunks_with_freq
                 .into_iter()
                 .take(max_chunks)
@@ -172,7 +172,7 @@ pub async fn retrieve_chunks_from_relationships(
                     max_chunks,
                 )
             } else {
-                chunks_with_freq.sort_by(|a, b| b.1.cmp(&a.1));
+                chunks_with_freq.sort_by_key(|entry| std::cmp::Reverse(entry.1));
                 chunks_with_freq
                     .into_iter()
                     .take(max_chunks)
