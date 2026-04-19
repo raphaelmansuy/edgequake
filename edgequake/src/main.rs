@@ -58,7 +58,10 @@ fn humanize_duration(d: Duration) -> String {
 fn clear_empty_env_var(name: &str) {
     if matches!(std::env::var(name), Ok(value) if value.trim().is_empty()) {
         std::env::remove_var(name);
-        info!("Removed empty env var '{}' to keep provider configuration valid", name);
+        info!(
+            "Removed empty env var '{}' to keep provider configuration valid",
+            name
+        );
     }
 }
 
@@ -486,15 +489,18 @@ async fn main() -> Result<()> {
     // Get API key from environment (optional - Ollama doesn't need it)
     let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .context("DATABASE_URL is required; start PostgreSQL and rerun make dev or make dev-auth")?;
+    let database_url = std::env::var("DATABASE_URL").context(
+        "DATABASE_URL is required; start PostgreSQL and rerun make dev or make dev-auth",
+    )?;
 
     let redacted_database_url = redact_database_url(&database_url);
     info!("🐘 PostgreSQL storage mode using {}", redacted_database_url);
     let mut state = AppState::new_postgres(&database_url, &api_key)
         .await
         .map_err(|error| anyhow::anyhow!(error.to_string()))
-        .with_context(|| format!("failed to initialize PostgreSQL storage at {redacted_database_url}"))?;
+        .with_context(|| {
+            format!("failed to initialize PostgreSQL storage at {redacted_database_url}")
+        })?;
 
     // Initialize default tenant and workspace for non-authenticated mode
     if let Err(e) = state.initialize_defaults().await {
