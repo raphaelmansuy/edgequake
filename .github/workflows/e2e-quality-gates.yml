@@ -12,8 +12,13 @@ on:
       - "edgequake_webui/**"
       - "edgequake/crates/edgequake-api/**"
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   E2E_TEST_TIMEOUT: 300
+  RUST_TOOLCHAIN: 1.95.0
 
 jobs:
   # Build and start services for E2E
@@ -34,13 +39,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    outputs:
-      backend-ready: ${{ steps.backend.outputs.ready }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -93,9 +98,9 @@ jobs:
           node-version: "20"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10.13.1
 
       - name: Install frontend dependencies
         working-directory: edgequake_webui
@@ -111,8 +116,15 @@ jobs:
           DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edgequake_test" \
           EDGEQUAKE_LLM_PROVIDER=mock \
           ./backend/edgequake &
-          sleep 15
-          curl -f http://localhost:8080/health || exit 1
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend failed to become healthy in time"
+          exit 1
         env:
           RUST_LOG: info
 
@@ -120,8 +132,15 @@ jobs:
         working-directory: edgequake_webui
         run: |
           pnpm dev &
-          sleep 10
-          curl -f http://localhost:3000 || exit 1
+          for i in {1..30}; do
+            if curl -fsS http://localhost:3000 >/dev/null 2>&1; then
+              echo "Frontend is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend failed to become healthy in time"
+          exit 1
 
       - name: Run critical path tests
         working-directory: edgequake_webui
@@ -168,9 +187,9 @@ jobs:
           node-version: "20"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10.13.1
 
       - name: Install frontend dependencies
         working-directory: edgequake_webui
@@ -187,7 +206,15 @@ jobs:
           EDGEQUAKE_LLM_PROVIDER=mock \
           ./backend/edgequake &
           cd edgequake_webui && pnpm dev &
-          sleep 15
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1 && curl -fsS http://localhost:3000 >/dev/null 2>&1; then
+              echo "Services are healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Services failed to become healthy in time"
+          exit 1
 
       - name: Run dialog tests
         working-directory: edgequake_webui
@@ -230,9 +257,9 @@ jobs:
           node-version: "20"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10.13.1
 
       - name: Install frontend dependencies
         working-directory: edgequake_webui
@@ -249,7 +276,15 @@ jobs:
           EDGEQUAKE_LLM_PROVIDER=mock \
           ./backend/edgequake &
           cd edgequake_webui && pnpm dev &
-          sleep 15
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1 && curl -fsS http://localhost:3000 >/dev/null 2>&1; then
+              echo "Services are healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Services failed to become healthy in time"
+          exit 1
 
       - name: Run full E2E suite
         working-directory: edgequake_webui
@@ -311,7 +346,6 @@ jobs:
           echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Critical Path | ${{ needs.e2e-critical.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Dialog Tests | ${{ needs.e2e-dialogs.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Full Suite | ${{ needs.e2e-full.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Quality Targets" >> $GITHUB_STEP_SUMMARY
           echo "- Critical path: <30s, 100% pass" >> $GITHUB_STEP_SUMMARY

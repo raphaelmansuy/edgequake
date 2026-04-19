@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -74,7 +75,7 @@ function MessageItem({ message }: { message: PipelineMessage }) {
     <div className={`flex items-start gap-2 py-1.5 px-2 rounded text-xs ${config.bgColor}`}>
       <Icon className={`h-3 w-3 mt-0.5 shrink-0 ${config.color}`} />
       <div className="flex-1 min-w-0">
-        <p className="break-words">{message.message}</p>
+        <p className="wrap-break-word">{message.message}</p>
         <p className="text-[10px] text-muted-foreground mt-0.5">
           {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
         </p>
@@ -287,7 +288,7 @@ function RebuildPhaseIndicator({
   };
 
   return (
-    <div className="p-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+    <div className="p-3 bg-linear-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
         <Activity className="h-4 w-4 text-blue-600" />
@@ -544,9 +545,9 @@ export function PipelineStatusDialog({
                 </Badge>
               )}
             </DialogTitle>
-            {subtitle && (
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
-            )}
+            <DialogDescription>
+              {subtitle ?? t('pipeline.statusDialogDescription', 'Monitor progress, review recent activity, and cancel long-running work safely if needed.')}
+            </DialogDescription>
           </DialogHeader>
 
           {isLoading ? (

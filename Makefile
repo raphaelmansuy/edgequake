@@ -133,7 +133,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 .PHONY: help install dev dev-bg dev-memory stop clean build test lint format \
         backend-dev backend-db backend-memory backend-bg backend-build backend-build-online backend-sqlx-prepare backend-test backend-run \
         frontend-dev frontend-bg frontend-build frontend-test frontend-lint \
-        db-start db-stop db-wait db-logs db-shell \
+        db-start db-stop db-wait db-logs db-shell docker-network-diagnose stop-docker-services \
         docker-build docker-up docker-prebuilt docker-prebuilt-down docker-prebuilt-logs docker-ps-prebuilt docker-api-only docker-down docker-logs \
         stack stack-down stack-logs stack-status stack-restart stack-pull \
         check-deps status \
@@ -177,6 +177,28 @@ ROOT_DIR := $(shell pwd)
 BACKEND_DIR := $(ROOT_DIR)/edgequake
 FRONTEND_DIR := $(ROOT_DIR)/edgequake_webui
 DOCKER_DIR := $(BACKEND_DIR)/docker
+
+# Local development ports.
+# WHY: Other local stacks may already occupy common web ports. EdgeQuake now
+# deterministically reuses its own running port or selects the next free one so
+# it does not interfere with unrelated services.
+DEFAULT_BACKEND_PORT ?= 8080
+DEFAULT_FRONTEND_PORT ?= 3001
+PORT_SCAN_WINDOW ?= 20
+ifndef BACKEND_PORT
+BACKEND_PORT := $(shell python3 $(ROOT_DIR)/scripts/select_edgequake_port.py backend $(DEFAULT_BACKEND_PORT) $(PORT_SCAN_WINDOW))
+endif
+ifndef FRONTEND_PORT
+FRONTEND_PORT := $(shell python3 $(ROOT_DIR)/scripts/select_edgequake_port.py frontend $(DEFAULT_FRONTEND_PORT) $(PORT_SCAN_WINDOW))
+endif
+BACKEND_URL := http://localhost:$(BACKEND_PORT)
+FRONTEND_URL := http://localhost:$(FRONTEND_PORT)
+
+# WHY: A fixed Compose project name keeps the local Docker network/container
+# namespace stable across repeated invocations and different working directories.
+# This reduces needless network churn and makes startup behavior more deterministic.
+COMPOSE_PROJECT_NAME ?= edgequake-dev
+export COMPOSE_PROJECT_NAME
 
 # Load environment variables from .env file if it exists
 -include $(ROOT_DIR)/.env
@@ -228,7 +250,7 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Quick Start$(RESET)"
 	@echo "  $(GREEN)make install$(RESET)      Install all dependencies"
-	@echo "  $(GREEN)make dev$(RESET)          Start full development stack (PostgreSQL)"
+	@echo "  $(GREEN)make dev$(RESET)          Start full development stack (PostgreSQL, UI on port 3001 by default)"
 	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND (for agents)"
 	@echo "  $(GREEN)make dev-memory$(RESET)   Start with in-memory storage (for testing)"
 	@echo "  $(GREEN)make stop$(RESET)         Stop all services"
@@ -337,21 +359,35 @@ check-deps: ## Check that required dependencies are installed
 	@command -v docker >/dev/null 2>&1 || { echo "$(YELLOW)⚠️  docker not found. Some features require Docker$(RESET)"; }
 	@echo "$(GREEN)✓ All required dependencies found$(RESET)"
 
-check-ports: ## Check and clear ports 8080 and 3000 if in use
-	@echo "$(BLUE)Checking ports 8080 and 3000...$(RESET)"
-	@PORT_8080=$$(lsof -ti:8080 2>/dev/null || true); \
-	PORT_3000=$$(lsof -ti:3000 2>/dev/null || true); \
-	if [ -n "$$PORT_8080" ]; then \
-		echo "$(YELLOW)⚠️  Port 8080 in use by PID $$PORT_8080 - killing...$(RESET)"; \
-		kill -9 $$PORT_8080 2>/dev/null || true; \
-		sleep 1; \
-	fi; \
-	if [ -n "$$PORT_3000" ]; then \
-		echo "$(YELLOW)⚠️  Port 3000 in use by PID $$PORT_3000 - killing...$(RESET)"; \
-		kill -9 $$PORT_3000 2>/dev/null || true; \
-		sleep 1; \
+check-ports: ## Validate configured ports without killing unrelated processes
+	@echo "$(BLUE)Checking selected ports $(BACKEND_PORT) and $(FRONTEND_PORT)...$(RESET)"
+	@if [ "$(BACKEND_PORT)" != "$(DEFAULT_BACKEND_PORT)" ]; then \
+		echo "$(YELLOW)→ Preferred backend port $(DEFAULT_BACKEND_PORT) is busy; using $(BACKEND_PORT) to avoid interference$(RESET)"; \
 	fi
-	@echo "$(GREEN)✓ Ports 8080 and 3000 are available$(RESET)"
+	@if [ "$(FRONTEND_PORT)" != "$(DEFAULT_FRONTEND_PORT)" ]; then \
+		echo "$(YELLOW)→ Preferred frontend port $(DEFAULT_FRONTEND_PORT) is busy; using $(FRONTEND_PORT) to avoid interference$(RESET)"; \
+	fi
+	@for port in $(BACKEND_PORT) $(FRONTEND_PORT); do \
+		PID=$$(lsof -nP -iTCP:$$port -sTCP:LISTEN -t 2>/dev/null | head -n 1 || true); \
+		if [ -z "$$PID" ]; then \
+			continue; \
+		fi; \
+		CMD=$$(ps -p "$$PID" -o command= 2>/dev/null || true); \
+		if [ "$$port" = "$(BACKEND_PORT)" ] && curl -fsS "$(BACKEND_URL)/health" 2>/dev/null | grep -q '"status"'; then \
+			echo "$(YELLOW)→ Port $(BACKEND_PORT) is already serving EdgeQuake; reusing it$(RESET)"; \
+			continue; \
+		fi; \
+		if [ "$$port" = "$(FRONTEND_PORT)" ] && curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
+			echo "$(YELLOW)→ Port $(FRONTEND_PORT) is already serving the EdgeQuake UI; reusing it$(RESET)"; \
+			continue; \
+		fi; \
+		echo "$(RED)✗ Selected port $$port is already bound by another application$(RESET)"; \
+		echo "  PID: $$PID"; \
+		echo "  CMD: $$CMD"; \
+		echo "  Hint: EdgeQuake auto-selects safe ports, but you can also override BACKEND_PORT or FRONTEND_PORT explicitly."; \
+		exit 1; \
+	done
+	@echo "$(GREEN)✓ Port check complete$(RESET)"
 
 # ============================================================================
 # Installation
@@ -379,6 +415,7 @@ install: check-deps ## Install all project dependencies
 dev: check-deps check-ports ## Start full development stack (DB + Backend + Frontend) with Ollama
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
+	@echo "$(YELLOW)→ Incremental startup: healthy services are reused; nothing is killed blindly$(RESET)"
 	@# OODA-09: Dynamically select provider based on OPENAI_API_KEY
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "$(BOLD)$(YELLOW)📝 Using OpenAI provider (OPENAI_API_KEY detected)$(RESET)"; \
@@ -386,45 +423,59 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
 	fi
 	@echo ""
-	@echo "$(YELLOW)→ Stopping any existing services...$(RESET)"
-	@$(MAKE) stop --no-print-directory 2>/dev/null || true
-	@sleep 2
-	@echo ""
-	@echo "$(YELLOW)→ Starting PostgreSQL...$(RESET)"
+	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1 && curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
+		echo "$(YELLOW)→ Existing EdgeQuake services detected; continuing with reuse checks$(RESET)"; \
+	fi
+	@echo "$(YELLOW)→ Ensuring PostgreSQL availability...$(RESET)"
 	@$(MAKE) db-start --no-print-directory
 	@echo ""
-	@echo "$(YELLOW)→ Starting services in parallel...$(RESET)"
-	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
-	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
-	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
+	@echo "  $(BLUE)Backend$(RESET):  $(BACKEND_URL)"
+	@echo "  $(BLUE)Frontend$(RESET): $(FRONTEND_URL)"
+	@echo "  $(BLUE)Swagger$(RESET):  $(BACKEND_URL)/swagger-ui"
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "  $(BLUE)Provider$(RESET): OpenAI"; \
 	else \
 		echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"; \
 	fi
 	@echo ""
-	@echo "$(GREEN)✓ Services starting...$(RESET)"
-	@echo "$(YELLOW)Press Ctrl+C to stop all services$(RESET)"
-	@echo ""
-	@trap 'echo ""; echo "$(YELLOW)Stopping services...$(RESET)"; $(MAKE) stop --no-print-directory; exit 0' INT; \
-	if [ -n "$(OPENAI_API_KEY)" ]; then \
-		(cd $(BACKEND_DIR) && \
-			DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
-			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-			cargo run 2>&1 | sed 's/^/[backend] /') & \
-		BACKEND_PID=$$!; \
+	@trap 'echo ""; echo "$(YELLOW)Stopping only the processes started by this make dev session...$(RESET)"; [ -n "$$BACKEND_PID" ] && kill "$$BACKEND_PID" 2>/dev/null || true; [ -n "$$FRONTEND_PID" ] && kill "$$FRONTEND_PID" 2>/dev/null || true; echo "$(GREEN)✓ App processes stopped. PostgreSQL is left running for faster restarts.$(RESET)"; exit 0' INT; \
+	BACKEND_PID=""; \
+	FRONTEND_PID=""; \
+	if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
+		echo "$(GREEN)✓ Reusing running backend on port $(BACKEND_PORT)$(RESET)"; \
 	else \
-		(cd $(BACKEND_DIR) && \
-			DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
-			OLLAMA_HOST="http://localhost:11434" \
-			OLLAMA_MODEL="gemma4:latest" \
-			OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
-			cargo run 2>&1 | sed 's/^/[backend] /') & \
-		BACKEND_PID=$$!; \
+		echo "$(YELLOW)→ Starting backend...$(RESET)"; \
+		if [ -n "$(OPENAI_API_KEY)" ]; then \
+			(cd $(BACKEND_DIR) && \
+				PORT="$(BACKEND_PORT)" \
+				DATABASE_URL="$(DATABASE_URL)" \
+				OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+				cargo run 2>&1 | sed 's/^/[backend] /') & \
+			BACKEND_PID=$$!; \
+		else \
+			(cd $(BACKEND_DIR) && \
+				PORT="$(BACKEND_PORT)" \
+				DATABASE_URL="$(DATABASE_URL)" \
+				OLLAMA_HOST="http://localhost:11434" \
+				OLLAMA_MODEL="gemma4:latest" \
+				OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
+				cargo run 2>&1 | sed 's/^/[backend] /') & \
+			BACKEND_PID=$$!; \
+		fi; \
 	fi; \
-	(sleep 5 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
-	FRONTEND_PID=$$!; \
-	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
+	if curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
+		echo "$(GREEN)✓ Reusing running frontend on port $(FRONTEND_PORT)$(RESET)"; \
+	else \
+		echo "$(YELLOW)→ Starting frontend on port $(FRONTEND_PORT)...$(RESET)"; \
+		(sleep 2 && cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" sh -c '(bun run dev 2>/dev/null || npm run dev)' 2>&1 | sed 's/^/[frontend] /') & \
+		FRONTEND_PID=$$!; \
+	fi; \
+	if [ -z "$$BACKEND_PID$$FRONTEND_PID" ]; then \
+		echo "$(GREEN)✓ Stack already running; nothing new to start$(RESET)"; \
+		exit 0; \
+	fi; \
+	echo "$(GREEN)✓ Startup in progress$(RESET)"; \
+	echo "$(YELLOW)Press Ctrl+C to stop only this session's app processes$(RESET)"; \
 	wait
 
 dev-frontend: ## Start only frontend dev server
@@ -450,29 +501,39 @@ dev-memory: check-deps check-ports ## Start development with in-memory storage (
 dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (agentic mode)
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🤖 Starting EdgeQuake in Background Mode (Agentic)$(RESET)"
+	@echo "$(YELLOW)→ Incremental startup: healthy services are reused; Docker is touched only when needed$(RESET)"
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "$(BOLD)$(YELLOW)📝 Using OpenAI provider$(RESET)"; \
 	else \
 		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
 	fi
 	@echo ""
-	@$(MAKE) stop --no-print-directory 2>/dev/null || true
-	@sleep 1
-	@echo "$(YELLOW)→ Starting PostgreSQL...$(RESET)"
+	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1 && curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
+		echo "$(YELLOW)→ Existing EdgeQuake services detected; continuing with reuse checks$(RESET)"; \
+	fi
+	@echo "$(YELLOW)→ Ensuring PostgreSQL availability...$(RESET)"
 	@$(MAKE) db-start --no-print-directory
 	@echo ""
 	@echo "$(YELLOW)→ Waiting for database...$(RESET)"
-	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		docker exec edgequake-postgres pg_isready -U edgequake -d edgequake 2>/dev/null && break || sleep 2; \
+	@DB_READY_CMD='pg_isready -h localhost -p 5432'; \
+	if ! printf '%s' "$(DATABASE_URL)" | grep -Eiq '@(localhost|127\.0\.0\.1)(:|/)|://(localhost|127\.0\.0\.1)(:|/)'; then \
+		DB_READY_CMD='pg_isready -d "$(DATABASE_URL)"'; \
+	fi; \
+	for i in 1 2 3 4 5 6 7 8 9 10; do \
+		eval "$$DB_READY_CMD" >/dev/null 2>&1 && break || sleep 2; \
 	done
 	@echo ""
-	@echo "$(YELLOW)→ Starting backend in background...$(RESET)"
-	@$(MAKE) backend-bg --no-print-directory
+	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
+		echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
+	else \
+		echo "$(YELLOW)→ Starting backend in background...$(RESET)"; \
+		$(MAKE) backend-bg --no-print-directory; \
+	fi
 	@echo ""
 	@echo "$(YELLOW)→ Waiting for backend to start...$(RESET)"
 	@BACKEND_OK=""; \
 	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do \
-		if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then \
+		if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
 			BACKEND_OK=1; \
 			break; \
 		fi; \
@@ -489,12 +550,16 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 		exit 1; \
 	fi
 	@echo ""
-	@echo "$(YELLOW)→ Starting frontend in background...$(RESET)"
-	@$(MAKE) frontend-bg --no-print-directory
+	@if curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
+		echo "$(GREEN)✓ Frontend already reachable on port $(FRONTEND_PORT)$(RESET)"; \
+	else \
+		echo "$(YELLOW)→ Starting frontend in background...$(RESET)"; \
+		$(MAKE) frontend-bg --no-print-directory; \
+	fi
 	@echo ""
 	@FRONTEND_OK=""; \
 	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
-		if curl -fsS http://localhost:3000 >/dev/null 2>&1; then \
+		if curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
 			FRONTEND_OK=1; \
 			break; \
 		fi; \
@@ -512,9 +577,9 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 	fi
 	@echo "$(BOLD)$(GREEN)✅ EdgeQuake Background Stack Started$(RESET)"
 	@echo ""
-	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
-	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
-	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
+	@echo "  $(BLUE)Backend$(RESET):  $(BACKEND_URL)"
+	@echo "  $(BLUE)Frontend$(RESET): $(FRONTEND_URL)"
+	@echo "  $(BLUE)Swagger$(RESET):  $(BACKEND_URL)/swagger-ui"
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "  $(BLUE)LLM Provider$(RESET): openai (gpt-5-nano)"; \
 		echo "  $(BLUE)Embedding$(RESET): openai (text-embedding-3-small, 1536d)"; \
@@ -527,30 +592,38 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 	@echo "  Use $(BOLD)make stop$(RESET) to stop all services"
 	@echo ""
 
+stop-docker-services: ## Stop Docker/OrbStack-backed EdgeQuake containers if they are running
+	@if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
+		echo "$(BLUE)→ Stopping Docker/OrbStack EdgeQuake containers...$(RESET)"; \
+		cd $(DOCKER_DIR) && docker compose down --remove-orphans 2>/dev/null || true; \
+		cd $(DOCKER_DIR) && docker compose -f docker-compose.prebuilt.yml down --remove-orphans 2>/dev/null || true; \
+		docker compose -f $(QUICKSTART_COMPOSE) down --remove-orphans 2>/dev/null || true; \
+		docker stop edgequake-api edgequake-frontend edgequake-postgres 2>/dev/null || true; \
+	else \
+		echo "$(YELLOW)→ Docker daemon unavailable; skipping container stop$(RESET)"; \
+	fi
+
 stop: ## Stop all development services
 	@echo "$(YELLOW)Stopping services...$(RESET)"
-	@echo "$(BLUE)→ Stopping backend processes...$(RESET)"
+	@echo "$(BLUE)→ Stopping backend processes started by this workspace...$(RESET)"
 	@-if [ -f /tmp/edgequake-backend.pid ]; then kill -9 $$(cat /tmp/edgequake-backend.pid) 2>/dev/null || true; fi
-	@-pkill -f "cargo run" 2>/dev/null || true
-	@-pkill -9 -f "edgequake-api" 2>/dev/null || true
 	@-pkill -9 -f "target/debug/edgequake" 2>/dev/null || true
 	@-pkill -9 -f "target/release/edgequake" 2>/dev/null || true
 	@-rm -f /tmp/edgequake-backend.pid /tmp/edgequake-start.sh
-	@# OODA-256: Force-kill any process on port 8080
-	@-lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
-	@echo "$(BLUE)→ Stopping frontend processes...$(RESET)"
+	@echo "$(BLUE)→ Stopping frontend processes started by this workspace...$(RESET)"
 	@-if [ -f /tmp/edgequake-frontend.pid ]; then kill -9 $$(cat /tmp/edgequake-frontend.pid) 2>/dev/null || true; fi
-	@-pkill -f "next dev" 2>/dev/null || true
 	@-pkill -f "node.*edgequake_webui" 2>/dev/null || true
-	@-pkill -9 -f "bun.*dev" 2>/dev/null || true
-	@-pkill -9 -f "next-server" 2>/dev/null || true
 	@-rm -f /tmp/edgequake-frontend.pid /tmp/edgequake-frontend-start.sh
-	@# OODA-256: Force-kill any process on port 3000
-	@-lsof -ti:3000 | xargs -r kill -9 2>/dev/null || true
-	@echo "$(BLUE)→ Stopping database...$(RESET)"
-	@$(MAKE) db-stop --no-print-directory 2>/dev/null || true
-	@sleep 1
-	@echo "$(GREEN)✓ All services stopped$(RESET)"
+	@$(MAKE) stop-docker-services --no-print-directory 2>/dev/null || true
+	@BACKEND_STILL_UP=0; FRONTEND_STILL_UP=0; DB_STILL_UP=0; \
+	if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then BACKEND_STILL_UP=1; fi; \
+	if curl -fsS "$(FRONTEND_URL)" >/dev/null 2>&1; then FRONTEND_STILL_UP=1; fi; \
+	if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then DB_STILL_UP=1; fi; \
+	if [ "$$BACKEND_STILL_UP$$FRONTEND_STILL_UP$$DB_STILL_UP" = "000" ]; then \
+		echo "$(GREEN)✓ All services stopped$(RESET)"; \
+	else \
+		echo "$(YELLOW)⚠ Some EdgeQuake services are still reachable; check 'make status' for details$(RESET)"; \
+	fi
 
 # ============================================================================
 # Backend
@@ -559,9 +632,17 @@ stop: ## Stop all development services
 # Database URL for PostgreSQL mode.
 # WHY: Some shells / .env setups export DATABASE_URL as an empty string, which
 # causes the backend to panic with `RelativeUrlWithoutBase`. Treat empty as
-# unset and fall back to the local development PostgreSQL container.
+# unset and fall back to the local development PostgreSQL container, while
+# still respecting any explicit external DATABASE_URL provided by the user.
 DEFAULT_DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
-DATABASE_URL := $(if $(strip $(DATABASE_URL)),$(strip $(DATABASE_URL)),$(DEFAULT_DATABASE_URL))
+ENV_DATABASE_URL := $(strip $(shell printf '%s' "$$DATABASE_URL"))
+ifneq ($(ENV_DATABASE_URL),)
+  DATABASE_URL := $(ENV_DATABASE_URL)
+endif
+ifeq ($(strip $(DATABASE_URL)),)
+  DATABASE_URL := $(DEFAULT_DATABASE_URL)
+endif
+export DATABASE_URL
 
 # SPEC-040 v0.4.1: pdfium is now EMBEDDED in the edgequake-pdf2md 0.4.1 binary
 # via pdfium-auto at compile time. No external libpdfium.dylib, no env vars needed.
@@ -572,6 +653,7 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 		echo "$(GREEN)✓ LLM Provider: $(EDGEQUAKE_DEFAULT_LLM_PROVIDER) ($(EDGEQUAKE_DEFAULT_LLM_MODEL))$(RESET)"; \
 	fi
 	@cd $(BACKEND_DIR) && \
+		PORT="$(BACKEND_PORT)" \
 		DATABASE_URL="$(DATABASE_URL)" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
@@ -592,6 +674,7 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 		echo "$(GREEN)✓ LLM Provider: $(EDGEQUAKE_DEFAULT_LLM_PROVIDER) ($(EDGEQUAKE_DEFAULT_LLM_MODEL))$(RESET)"; \
 	fi
 	@cd $(BACKEND_DIR) && \
+		PORT="$(BACKEND_PORT)" \
 		DATABASE_URL="$(DATABASE_URL)" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
@@ -622,10 +705,15 @@ backend-memory: ## DEPRECATED - In-memory storage removed, use backend-dev with 
 	@exit 1
 
 backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENAI_API_KEY if set)
+	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
+		echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
+		exit 0; \
+	fi
 	@echo "$(BLUE)Starting backend in background...$(RESET)"
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "$(YELLOW)→ OPENAI_API_KEY detected - using OpenAI as default provider$(RESET)"; \
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
+		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"openai\"" >> /tmp/edgequake-start.sh; \
@@ -635,6 +723,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENA
 	else \
 		echo "$(YELLOW)→ No OPENAI_API_KEY, using Ollama provider$(RESET)"; \
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
+		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_HOST=\"http://localhost:11434\"" >> /tmp/edgequake-start.sh; \
@@ -686,13 +775,19 @@ backend-fmt: ## Format backend code
 # ============================================================================
 
 frontend-dev: ## Start frontend development server
-	@echo "$(BLUE)Starting frontend development server...$(RESET)"
-	@cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev)
+	@echo "$(BLUE)Starting frontend development server on port $(FRONTEND_PORT)...$(RESET)"
+	@cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" sh -c '(bun run dev 2>/dev/null || npm run dev)'
 
 frontend-bg: ## Start frontend development server in background
+	@if curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
+		echo "$(GREEN)✓ Frontend already reachable on port $(FRONTEND_PORT)$(RESET)"; \
+		exit 0; \
+	fi
 	@echo "$(BLUE)Starting frontend in background...$(RESET)"
 	@printf '%s\n' "#!/bin/bash" > /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "cd $(FRONTEND_DIR)" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "export PORT=\"$(FRONTEND_PORT)\"" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "export NEXT_PUBLIC_API_URL=\"$(BACKEND_URL)\"" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "if command -v bun >/dev/null 2>&1; then" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "  exec bun run dev" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "fi" >> /tmp/edgequake-frontend-start.sh
@@ -724,29 +819,111 @@ frontend-test: ## Run frontend tests
 
 db-wait: db-start ## Wait for database to be ready (used by other targets)
 	@echo "$(YELLOW)Waiting for database to be ready...$(RESET)"
-	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		docker exec edgequake-postgres pg_isready -U edgequake -d edgequake 2>/dev/null && break || sleep 2; \
-	done
-	@docker exec edgequake-postgres pg_isready -U edgequake -d edgequake 2>/dev/null && \
+	@DB_READY_CMD='pg_isready -h localhost -p 5432'; \
+	if ! printf '%s' "$(DATABASE_URL)" | grep -Eiq '@(localhost|127\.0\.0\.1)(:|/)|://(localhost|127\.0\.0\.1)(:|/)'; then \
+		DB_READY_CMD='pg_isready -d "$(DATABASE_URL)"'; \
+	fi; \
+	for i in 1 2 3 4 5 6 7 8 9 10; do \
+		eval "$$DB_READY_CMD" >/dev/null 2>&1 && break || sleep 2; \
+	done; \
+	eval "$$DB_READY_CMD" >/dev/null 2>&1 && \
 		echo "$(GREEN)✓ Database is ready$(RESET)" || \
 		(echo "$(RED)✗ Database failed to start$(RESET)" && exit 1)
 
+docker-network-diagnose: ## Diagnose common OrbStack/Docker network route conflicts
+	@ROUTES=$$(netstat -rn 2>/dev/null | egrep '(^10[[:space:]]|^172\.16/12|^192\.168\.0/16)' || true); \
+	if [ -n "$$ROUTES" ]; then \
+		echo "$(YELLOW)→ Detected broad private-network routes on this host:$(RESET)"; \
+		echo "$$ROUTES"; \
+		echo "$(YELLOW)  WHY this matters: OrbStack/Docker bridge networks also use private ranges.$(RESET)"; \
+		echo "$(YELLOW)  If those ranges are already claimed by VPN/Homebridge/router software, Docker may fail with 'failed to add network' or 'conflict with existing route'.$(RESET)"; \
+	else \
+		echo "$(GREEN)✓ No broad private-network route collision detected from the local route table$(RESET)"; \
+	fi
+
+
 db-start: ## Start PostgreSQL container
 	@echo "$(BLUE)Starting PostgreSQL...$(RESET)"
-	@cd $(DOCKER_DIR) && docker compose up -d postgres
-	@echo "$(GREEN)✓ PostgreSQL started on port 5432$(RESET)"
-	@echo "$(YELLOW)Waiting for database to be ready...$(RESET)"
-	@sleep 3
-	@until docker exec edgequake-postgres pg_isready -U edgequake -d edgequake 2>/dev/null; do \
-		echo "Waiting..."; \
-		sleep 2; \
-	done
-	@echo "$(GREEN)✓ Database is ready$(RESET)"
+	@# WHY: Prefer a single lightweight probe before touching Docker. When
+	@# OrbStack/Docker is down, repeated docker exec/compose retries can amplify
+	@# the failure and make the local environment feel unstable.
+	@LOCAL_DB_PATTERN='@(localhost|127\.0\.0\.1)(:|/)|://(localhost|127\.0\.0\.1)(:|/)'; \
+	if ! printf '%s' "$(DATABASE_URL)" | grep -Eiq "$$LOCAL_DB_PATTERN"; then \
+		echo "$(GREEN)✓ Using external PostgreSQL from DATABASE_URL; skipping Docker startup$(RESET)"; \
+		exit 0; \
+	fi; \
+	if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
+		echo "$(GREEN)✓ PostgreSQL already reachable on port 5432$(RESET)"; \
+		exit 0; \
+	fi; \
+	if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
+		for i in 1 2 3 4 5; do \
+			if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
+				echo "$(GREEN)✓ Existing edgequake-postgres container is already running and reachable$(RESET)"; \
+				exit 0; \
+			fi; \
+			sleep 2; \
+		done; \
+		echo "$(YELLOW)→ Existing edgequake-postgres container is running but not reachable on localhost:5432; recreating it$(RESET)"; \
+		docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+	fi; \
+	if command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
+		echo "$(YELLOW)→ Starting existing edgequake-postgres container...$(RESET)"; \
+		docker start edgequake-postgres >/dev/null 2>&1 || true; \
+		for i in 1 2 3 4 5; do \
+			if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
+				echo "$(GREEN)✓ Existing edgequake-postgres container is ready$(RESET)"; \
+				exit 0; \
+			fi; \
+			sleep 2; \
+		done; \
+		echo "$(YELLOW)→ Existing edgequake-postgres container is not reachable on localhost:5432; recreating it with the current compose settings$(RESET)"; \
+		docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+	fi; \
+	if ! command -v docker >/dev/null 2>&1; then \
+		echo "$(RED)✗ Docker is not installed; cannot start the PostgreSQL container$(RESET)"; \
+		exit 1; \
+	fi; \
+	if ! docker info >/dev/null 2>&1; then \
+		echo "$(YELLOW)⚠️  Docker daemon is unavailable; EdgeQuake will not retry aggressively to avoid destabilizing OrbStack$(RESET)"; \
+		$(MAKE) docker-network-diagnose --no-print-directory || true; \
+		echo "$(RED)✗ PostgreSQL is not reachable and Docker cannot currently start it$(RESET)"; \
+		echo "$(YELLOW)  Common root cause on OrbStack: a VPN / Homebridge / host route already claims the private subnet range that Docker wants for its bridge network.$(RESET)"; \
+		echo "$(YELLOW)  Recovery: stop the conflicting network tool, restart OrbStack, then rerun 'make dev' or 'make dev-bg'.$(RESET)"; \
+		exit 1; \
+	fi; \
+	TMP_LOG=$$(mktemp); \
+	if cd $(DOCKER_DIR) && docker compose up -d postgres >"$$TMP_LOG" 2>&1; then \
+		cat "$$TMP_LOG"; \
+		rm -f "$$TMP_LOG"; \
+	else \
+		cat "$$TMP_LOG"; \
+		echo "$(RED)✗ Failed to start PostgreSQL container$(RESET)"; \
+		if grep -Eiq 'failed to add network|conflict with existing route|invalid IP Prefix' "$$TMP_LOG"; then \
+			echo "$(YELLOW)→ Detected a Docker/OrbStack bridge-network conflict rather than an EdgeQuake application error$(RESET)"; \
+			$(MAKE) docker-network-diagnose --no-print-directory || true; \
+		fi; \
+		rm -f "$$TMP_LOG"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)✓ PostgreSQL container started on port 5432$(RESET)"; \
+	echo "$(YELLOW)Waiting for database to be ready...$(RESET)"; \
+	for i in 1 2 3 4 5 6 7 8 9 10; do \
+		pg_isready -h localhost -p 5432 >/dev/null 2>&1 && break || { echo "Waiting..."; sleep 2; }; \
+	done; \
+	pg_isready -h localhost -p 5432 >/dev/null 2>&1 && echo "$(GREEN)✓ Database is ready$(RESET)" || { echo "$(RED)✗ Database failed to start$(RESET)"; exit 1; }
 
 db-stop: ## Stop PostgreSQL container
 	@echo "$(BLUE)Stopping PostgreSQL...$(RESET)"
-	@cd $(DOCKER_DIR) && docker compose stop postgres 2>/dev/null || true
-	@echo "$(GREEN)✓ PostgreSQL stopped$(RESET)"
+	@if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
+		cd $(DOCKER_DIR) && docker compose stop postgres 2>/dev/null || true; \
+		cd $(DOCKER_DIR) && docker compose -f docker-compose.prebuilt.yml stop postgres 2>/dev/null || true; \
+		docker compose -f $(QUICKSTART_COMPOSE) stop postgres 2>/dev/null || true; \
+		docker stop edgequake-postgres 2>/dev/null || true; \
+	else \
+		echo "$(YELLOW)→ Docker daemon unavailable; nothing to stop$(RESET)"; \
+	fi
+	@echo "$(GREEN)✓ PostgreSQL stop check complete$(RESET)"
 
 db-logs: ## View PostgreSQL logs
 	@cd $(DOCKER_DIR) && docker compose logs -f postgres
@@ -1206,7 +1383,7 @@ rebuild: ## Full rebuild: stop + clean + dev (ensures latest code is running)
 
 swagger: ## Open Swagger UI in browser
 	@echo "$(BLUE)Opening Swagger UI...$(RESET)"
-	@open http://localhost:8080/swagger-ui 2>/dev/null || xdg-open http://localhost:8080/swagger-ui 2>/dev/null || echo "Open http://localhost:8080/swagger-ui in your browser"
+	@open "$(BACKEND_URL)/swagger-ui" 2>/dev/null || xdg-open "$(BACKEND_URL)/swagger-ui" 2>/dev/null || echo "Open $(BACKEND_URL)/swagger-ui in your browser"
 
 logs: ## Show recent logs from all services
 	@echo "$(BOLD)Recent Backend Logs:$(RESET)"
@@ -1221,11 +1398,15 @@ status: ## Show status of all services
 	@echo "========================="
 	@echo ""
 	@echo "$(BOLD)Backend:$(RESET)"
-	@curl -s http://localhost:8080/health | jq . 2>/dev/null || echo "  $(RED)Not running$(RESET)"
+	@curl -s "$(BACKEND_URL)/health" | jq . 2>/dev/null || echo "  $(RED)Not running$(RESET)"
 	@echo ""
 	@echo "$(BOLD)Frontend:$(RESET)"
-	@curl -s http://localhost:3000 >/dev/null 2>&1 && echo "  $(GREEN)Running on http://localhost:3000$(RESET)" || echo "  $(RED)Not running$(RESET)"
+	@curl -s "$(FRONTEND_URL)" >/dev/null 2>&1 && echo "  $(GREEN)Running on $(FRONTEND_URL)$(RESET)" || echo "  $(RED)Not running$(RESET)"
 	@echo ""
 	@echo "$(BOLD)Database:$(RESET)"
-	@docker exec edgequake-postgres pg_isready -U edgequake -d edgequake 2>/dev/null && echo "  $(GREEN)Running on localhost:5432$(RESET)" || echo "  $(RED)Not running$(RESET)"
+	@if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
+		echo "  $(GREEN)Running on localhost:5432$(RESET)"; \
+	else \
+		echo "  $(RED)Not running$(RESET)"; \
+	fi
 	@echo ""

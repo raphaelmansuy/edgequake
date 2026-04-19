@@ -11,7 +11,12 @@ use edgequake_storage::ListPdfFilter;
 
 use crate::error::ApiResult;
 use crate::handlers::documents_types::*;
+use crate::middleware::TenantContext;
 use crate::state::AppState;
+
+use super::super::storage_helpers::{
+    metadata_matches_tenant_context, purge_persisted_tasks_for_document,
+};
 
 /// Delete all documents in the system (bulk deletion).
 ///
@@ -32,8 +37,9 @@ use crate::state::AppState;
 )]
 pub async fn delete_all_documents(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
 ) -> ApiResult<Json<DeleteAllDocumentsResponse>> {
-    tracing::info!("Bulk delete all documents requested");
+    tracing::info!(workspace_id = ?tenant_ctx.workspace_id, "Bulk delete documents requested");
 
     let keys = state.kv_storage.keys().await?;
 
@@ -59,8 +65,15 @@ pub async fn delete_all_documents(
         let document_id = metadata_key.trim_end_matches("-metadata").to_string();
 
         // Get document status and metadata to check if safe to delete
-        let (status, updated_at_opt, stage_progress_opt) =
+        let (status, updated_at_opt, stage_progress_opt, track_id_opt, workspace_id_opt) =
             if let Ok(Some(metadata)) = state.kv_storage.get_by_id(metadata_key).await {
+                // WHY: "Clear all" in the UI is scoped to the current workspace.
+                // Never trust raw metadata scans without re-checking the request context.
+                if !metadata_matches_tenant_context(&metadata, &tenant_ctx) {
+                    tracing::debug!(document_id = %document_id, "Skipping out-of-scope document during bulk delete");
+                    continue;
+                }
+
                 let status = metadata
                     .get("status")
                     .and_then(|v| v.as_str())
@@ -72,9 +85,17 @@ pub async fn delete_all_documents(
                     .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                     .map(|dt| dt.with_timezone(&chrono::Utc));
                 let stage_progress = metadata.get("stage_progress").and_then(|v| v.as_f64());
-                (status, updated_at, stage_progress)
+                let track_id = metadata
+                    .get("track_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let workspace_id = metadata
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                (status, updated_at, stage_progress, track_id, workspace_id)
             } else {
-                ("unknown".to_string(), None, None)
+                ("unknown".to_string(), None, None, None, None)
             };
 
         // Skip documents that are actively being processed (unless stuck)
@@ -113,9 +134,17 @@ pub async fn delete_all_documents(
             );
         }
 
-        // Attempt to delete this document
-        // We'll use a simplified version that doesn't require workspace isolation
-        // since we're doing a full system clear
+        // WHY: Deleting KV data without purging persisted tasks allows startup
+        // recovery to resurrect documents the user explicitly cleared.
+        let _ = purge_persisted_tasks_for_document(
+            &state,
+            &document_id,
+            track_id_opt.as_deref(),
+            workspace_id_opt.as_deref(),
+        )
+        .await;
+
+        // Attempt to delete this document within the validated workspace scope.
         let chunk_prefix = format!("{}-chunk-", document_id);
         let chunk_ids: Vec<String> = keys
             .iter()

@@ -176,6 +176,27 @@ async fn test_pipeline_status() {
     assert!(result.is_ok(), "Pipeline status: {}", result.unwrap_err());
 }
 
+/// OODA-17: Cancelling an already-idle pipeline is treated as success.
+#[tokio::test]
+async fn test_cancel_pipeline_is_idempotent_when_idle() {
+    let result = with_timeout(Duration::from_secs(5), async {
+        let app = create_test_app();
+
+        let (status, body) = post_json(&app, "/api/v1/pipeline/cancel", &json!({})).await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "Idle pipeline cancel should return 200"
+        );
+        assert_eq!(body["status"].as_str(), Some("already_idle"));
+
+        body
+    })
+    .await;
+
+    assert!(result.is_ok(), "Pipeline cancel: {}", result.unwrap_err());
+}
+
 /// OODA-17: Queue metrics endpoint works.
 #[tokio::test]
 async fn test_queue_metrics() {

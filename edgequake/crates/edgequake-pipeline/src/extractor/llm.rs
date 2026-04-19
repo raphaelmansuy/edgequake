@@ -3,8 +3,8 @@
 use async_trait::async_trait;
 
 use super::{
-    extract_json_from_response, EntityExtractor, ExtractedEntity, ExtractedRelationship,
-    ExtractionResult,
+    effective_temperature_for_model, extract_json_from_response, EntityExtractor, ExtractedEntity,
+    ExtractedRelationship, ExtractionResult,
 };
 use crate::chunker::TextChunk;
 use crate::error::{PipelineError, Result};
@@ -158,7 +158,9 @@ where
         // Non-reasoning models silently ignore this field.
         let options = edgequake_llm::traits::CompletionOptions {
             max_tokens: Some(16384),
-            temperature: Some(0.0), // Deterministic for extraction
+            // WHY: GPT-5/o-series and some nano models reject explicit temperature values.
+            // Omitting the field preserves compatibility while keeping deterministic prompts.
+            temperature: effective_temperature_for_model(self.llm_provider.model(), 0.0),
             reasoning_effort: Some("none".to_string()),
             ..Default::default()
         };

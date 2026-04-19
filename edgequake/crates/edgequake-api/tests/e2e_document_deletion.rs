@@ -28,6 +28,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use edgequake_api::{AppState, Server, ServerConfig};
+use edgequake_tasks::{Task, TaskStatus, TaskType};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
@@ -106,6 +107,53 @@ async fn delete_document_http(app: &axum::Router, document_id: &str) -> (StatusC
             Request::builder()
                 .method("DELETE")
                 .uri(format!("/api/v1/documents/{}", document_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+async fn delete_document_http_scoped(
+    app: &axum::Router,
+    document_id: &str,
+    workspace_id: &str,
+) -> (StatusCode, Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/documents/{}", document_id))
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", workspace_id)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+async fn delete_all_documents_http_scoped(
+    app: &axum::Router,
+    workspace_id: &str,
+) -> (StatusCode, Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/documents")
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", workspace_id)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1717,6 +1765,68 @@ async fn test_recover_stuck_cleans_partial_graph_data() {
     println!("✅ GAP-08 FIX VERIFIED: recover_stuck cleaned up partial entity before requeueing");
 }
 
+#[tokio::test]
+async fn test_recover_stuck_only_requeues_current_workspace() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let workspace_a = "00000000-0000-0000-0000-000000000002";
+    let workspace_b = "00000000-0000-0000-0000-0000000000e2";
+    let doc_a = "recover-scope-doc-a";
+    let doc_b = "recover-scope-doc-b";
+
+    for (doc_id, workspace_id) in [(doc_a, workspace_a), (doc_b, workspace_b)] {
+        state
+            .kv_storage
+            .upsert(&[(
+                format!("{}-metadata", doc_id),
+                json!({
+                    "id": doc_id,
+                    "title": format!("{} title", doc_id),
+                    "status": "processing",
+                    "workspace_id": workspace_id,
+                    "updated_at": "2020-01-01T00:00:00Z"
+                }),
+            )])
+            .await
+            .unwrap();
+        state
+            .kv_storage
+            .upsert(&[(
+                format!("{}-content", doc_id),
+                json!({"content": format!("{} content", doc_id)}),
+            )])
+            .await
+            .unwrap();
+    }
+
+    let request = json!({ "stuck_threshold_minutes": 1, "max_documents": 10 });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/recover-stuck")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", workspace_a)
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["requeued"].as_u64(), Some(1));
+    let ids = body["document_ids"].as_array().cloned().unwrap_or_default();
+    assert!(ids.iter().any(|v| v.as_str() == Some(doc_a)));
+    assert!(!ids.iter().any(|v| v.as_str() == Some(doc_b)));
+
+    println!("✅ GAP-08 TEST PASSED: recover-stuck respects workspace scope");
+}
+
 /// Test that reprocess preserves entities shared with other completed documents.
 ///
 /// @tests GAP-08 + GAP-07: Reprocess must respect shared entity references
@@ -2679,6 +2789,67 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
     );
 
     println!("✅ OODA-18 TEST PASSED: All entities and relationships cleaned during reprocess");
+}
+
+#[tokio::test]
+async fn test_reprocess_only_requeues_current_workspace_failed_docs() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let workspace_a = "00000000-0000-0000-0000-000000000002";
+    let workspace_b = "00000000-0000-0000-0000-0000000000f2";
+    let doc_a = "reprocess-scope-doc-a";
+    let doc_b = "reprocess-scope-doc-b";
+
+    for (doc_id, workspace_id) in [(doc_a, workspace_a), (doc_b, workspace_b)] {
+        state
+            .kv_storage
+            .upsert(&[(
+                format!("{}-metadata", doc_id),
+                json!({
+                    "id": doc_id,
+                    "title": format!("{} title", doc_id),
+                    "status": "failed",
+                    "workspace_id": workspace_id,
+                }),
+            )])
+            .await
+            .unwrap();
+        state
+            .kv_storage
+            .upsert(&[(
+                format!("{}-content", doc_id),
+                json!({"content": format!("{} content", doc_id)}),
+            )])
+            .await
+            .unwrap();
+    }
+
+    let request = json!({ "force": false, "max_documents": 10 });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/reprocess")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")
+                .header("X-Workspace-ID", workspace_a)
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["requeued"].as_u64(), Some(1));
+    let ids = body["document_ids"].as_array().cloned().unwrap_or_default();
+    assert!(ids.iter().any(|v| v.as_str() == Some(doc_a)));
+    assert!(!ids.iter().any(|v| v.as_str() == Some(doc_b)));
+
+    println!("✅ OODA-18 TEST PASSED: reprocess respects workspace scope");
 }
 
 // ============================================================================
@@ -3695,6 +3866,85 @@ async fn test_delete_isolation_between_workspaces() {
 
 /// OODA-37: Test same-named documents in different workspaces.
 #[tokio::test]
+async fn test_delete_document_rejects_cross_workspace_uuid_context() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let doc_id = "cross-workspace-protected-doc";
+    let owner_workspace = "00000000-0000-0000-0000-0000000000a2";
+    let requester_workspace = "00000000-0000-0000-0000-0000000000b2";
+
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-metadata", doc_id),
+            json!({
+                "id": doc_id,
+                "title": "Protected Workspace Document",
+                "status": "completed",
+                "workspace_id": owner_workspace,
+            }),
+        )])
+        .await
+        .unwrap();
+    state
+        .kv_storage
+        .upsert(&[(format!("{}-content", doc_id), json!({"content": "secret"}))])
+        .await
+        .unwrap();
+
+    let (status, _) = delete_document_http_scoped(&app, doc_id, requester_workspace).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(state
+        .kv_storage
+        .get_by_id(&format!("{}-metadata", doc_id))
+        .await
+        .unwrap()
+        .is_some());
+
+    println!("✅ OODA-37 TEST PASSED: Cross-workspace delete is blocked");
+}
+
+#[tokio::test]
+async fn test_delete_legacy_default_document_rejects_random_workspace_context() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let doc_id = "legacy-default-workspace-doc";
+    let random_workspace = "00000000-0000-0000-0000-0000000000ff";
+
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-metadata", doc_id),
+            json!({
+                "id": doc_id,
+                "title": "Legacy Default Document",
+                "status": "completed",
+                "workspace_id": "default",
+            }),
+        )])
+        .await
+        .unwrap();
+    state
+        .kv_storage
+        .upsert(&[(format!("{}-content", doc_id), json!({"content": "legacy"}))])
+        .await
+        .unwrap();
+
+    let (status, _) = delete_document_http_scoped(&app, doc_id, random_workspace).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(state
+        .kv_storage
+        .get_by_id(&format!("{}-metadata", doc_id))
+        .await
+        .unwrap()
+        .is_some());
+
+    println!("✅ OODA-37 TEST PASSED: Legacy default docs stay out of random workspaces");
+}
+
+#[tokio::test]
 async fn test_delete_same_name_different_workspaces() {
     let app = create_test_app();
 
@@ -3732,6 +3982,108 @@ async fn test_delete_same_name_different_workspaces() {
     );
 
     println!("✅ OODA-37 TEST PASSED: Same-named docs in different workspaces");
+}
+
+#[tokio::test]
+async fn test_bulk_delete_only_clears_current_workspace_and_purges_tasks() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let workspace_a = uuid::Uuid::parse_str("00000000-0000-0000-0000-0000000000c2").unwrap();
+    let workspace_b = "00000000-0000-0000-0000-0000000000d2";
+    let doc_a = "bulk-scope-doc-a";
+    let doc_b = "bulk-scope-doc-b";
+    let track_id = "bulk-scope-stuck-track";
+
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-metadata", doc_a),
+            json!({
+                "id": doc_a,
+                "title": "Scoped Delete A",
+                "status": "processing",
+                "workspace_id": workspace_a.to_string(),
+                "track_id": track_id,
+                "stage_progress": 1.0,
+                "updated_at": "2020-01-01T00:00:00Z"
+            }),
+        )])
+        .await
+        .unwrap();
+    state
+        .kv_storage
+        .upsert(&[(format!("{}-content", doc_a), json!({"content": "A"}))])
+        .await
+        .unwrap();
+    state
+        .kv_storage
+        .upsert(&[(format!("{}-chunk-0", doc_a), json!({"content": "chunk a"}))])
+        .await
+        .unwrap();
+
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-metadata", doc_b),
+            json!({
+                "id": doc_b,
+                "title": "Scoped Delete B",
+                "status": "completed",
+                "workspace_id": workspace_b,
+            }),
+        )])
+        .await
+        .unwrap();
+    state
+        .kv_storage
+        .upsert(&[(format!("{}-content", doc_b), json!({"content": "B"}))])
+        .await
+        .unwrap();
+    state
+        .kv_storage
+        .upsert(&[(format!("{}-chunk-0", doc_b), json!({"content": "chunk b"}))])
+        .await
+        .unwrap();
+
+    let mut task = Task::new(
+        uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
+        workspace_a,
+        TaskType::Insert,
+        json!({
+            "text": "A",
+            "file_source": "a.md",
+            "workspace_id": workspace_a.to_string(),
+            "metadata": { "document_id": doc_a, "workspace_id": workspace_a.to_string() }
+        }),
+    );
+    task.track_id = track_id.to_string();
+    task.status = TaskStatus::Processing;
+    state.task_storage.create_task(&task).await.unwrap();
+
+    let (status, body) = delete_all_documents_http_scoped(&app, &workspace_a.to_string()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["deleted_count"].as_u64(), Some(1));
+    assert!(state
+        .task_storage
+        .get_task(track_id)
+        .await
+        .unwrap()
+        .is_none());
+    assert!(state
+        .kv_storage
+        .get_by_id(&format!("{}-metadata", doc_a))
+        .await
+        .unwrap()
+        .is_none());
+    assert!(state
+        .kv_storage
+        .get_by_id(&format!("{}-metadata", doc_b))
+        .await
+        .unwrap()
+        .is_some());
+
+    println!("✅ OODA-37 TEST PASSED: Bulk delete stays in-scope and purges stale tasks");
 }
 
 // ============================================================================
@@ -4465,6 +4817,77 @@ async fn test_same_track_id_deletion() {
     );
 
     println!("✅ OODA-46 TEST PASSED: Same track_id deletion");
+}
+
+/// Issue #179 regression: deleting a processing document must also remove the
+/// persisted task row so backend restart recovery cannot resurrect deleted work.
+#[tokio::test]
+async fn test_delete_processing_document_removes_persisted_task() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+
+    let tenant_id = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+    let workspace_id = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+    let doc_id = "issue-179-processing-doc";
+    let track_id = "issue-179-processing-track";
+
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-metadata", doc_id),
+            json!({
+                "id": doc_id,
+                "title": "Issue 179 Processing Doc",
+                "status": "processing",
+                "workspace_id": "default",
+                "track_id": track_id,
+            }),
+        )])
+        .await
+        .unwrap();
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-content", doc_id),
+            json!({"content": "Large ingestion content"}),
+        )])
+        .await
+        .unwrap();
+
+    let mut task = Task::new(
+        tenant_id,
+        workspace_id,
+        TaskType::Insert,
+        json!({
+            "text": "Large ingestion content",
+            "file_source": "issue-179.md",
+            "workspace_id": workspace_id.to_string(),
+            "metadata": {
+                "document_id": doc_id,
+                "workspace_id": "default",
+                "track_id": track_id,
+                "source_type": "markdown"
+            }
+        }),
+    );
+    task.track_id = track_id.to_string();
+    task.status = TaskStatus::Processing;
+    state.task_storage.create_task(&task).await.unwrap();
+
+    assert!(state
+        .task_storage
+        .get_task(track_id)
+        .await
+        .unwrap()
+        .is_some());
+
+    let (delete_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+
+    assert!(
+        state.task_storage.get_task(track_id).await.unwrap().is_none(),
+        "Deleting a processing document must remove its persisted task so startup recovery cannot resurrect it"
+    );
 }
 
 // ============================================================================

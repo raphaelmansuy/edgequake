@@ -26,7 +26,7 @@ use crate::streaming::StreamAccumulator;
 use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
-use super::workspace_resolve::get_workspace;
+use super::workspace_resolve::resolve_query_workspace;
 use crate::handlers::query::{get_workspace_embedding_provider, get_workspace_vector_storage};
 pub use crate::handlers::query_types::{QueryStreamEvent, QueryStreamStats, StreamQueryRequest};
 
@@ -84,14 +84,13 @@ pub async fn stream_query(
         engine_request = engine_request.with_system_prompt(system_prompt);
     }
 
-    // OODA-231.1: Fetch workspace to get correct tenant_id for data queries
-    let workspace = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
-        get_workspace(&state, workspace_id).await.ok().flatten()
-    } else {
-        None
-    };
+    // OODA-231.1: Resolve the workspace before the SSE stream starts.
+    // WHY: If the client explicitly names a workspace and it is invalid or
+    // missing, returning a normal 200 stream would hide an isolation failure.
+    let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
     // Use workspace's tenant_id for data queries, fall back to header tenant_id
+    // only for the legacy no-workspace path.
     let data_tenant_id = workspace
         .as_ref()
         .map(|ws| ws.tenant_id.to_string())

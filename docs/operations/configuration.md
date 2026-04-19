@@ -80,12 +80,12 @@ DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
 
 #### Ollama
 
-| Variable                   | Type   | Default                  | Description                              |
-| -------------------------- | ------ | ------------------------ | ---------------------------------------- |
-| `OLLAMA_HOST`              | String | `http://localhost:11434` | Ollama server URL (LLM and embeddings)   |
-| `OLLAMA_MODEL`             | String | `gemma3:latest`          | Default LLM model                        |
-| `OLLAMA_EMBEDDING_MODEL`   | String | `nomic-embed-text`       | Default embedding model                  |
-| `OLLAMA_EMBEDDING_HOST`    | String | value of `OLLAMA_HOST`   | Dedicated Ollama host for embeddings only (closes [#140](https://github.com/raphaelmansuy/edgequake/issues/140)) |
+| Variable                 | Type   | Default                  | Description                                                                                                      |
+| ------------------------ | ------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `OLLAMA_HOST`            | String | `http://localhost:11434` | Ollama server URL (LLM and embeddings)                                                                           |
+| `OLLAMA_MODEL`           | String | `gemma3:latest`          | Default LLM model                                                                                                |
+| `OLLAMA_EMBEDDING_MODEL` | String | `nomic-embed-text`       | Default embedding model                                                                                          |
+| `OLLAMA_EMBEDDING_HOST`  | String | value of `OLLAMA_HOST`   | Dedicated Ollama host for embeddings only (closes [#140](https://github.com/raphaelmansuy/edgequake/issues/140)) |
 
 #### LM Studio
 
@@ -138,26 +138,26 @@ DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
 
 ### Models Configuration
 
-| Variable                          | Type    | Default  | Description                                        |
-| --------------------------------- | ------- | -------- | -------------------------------------------------- |
-| `EDGEQUAKE_MODELS_CONFIG`         | String  | None     | Path to custom models.toml                         |
-| `EDGEQUAKE_LLM_PROVIDER`          | String  | `ollama` | Default LLM provider                               |
-| `EDGEQUAKE_LLM_MODEL`             | String  | None     | Override LLM model name                            |
-| `EDGEQUAKE_EMBEDDING_PROVIDER`    | String  | `ollama` | Override embedding provider type (hybrid mode)     |
-| `EDGEQUAKE_EMBEDDING_MODEL`       | String  | None     | Override embedding model name                      |
-| `EDGEQUAKE_EMBEDDING_DIMENSION`   | Integer | `768`    | Override embedding vector dimension                |
+| Variable                        | Type    | Default  | Description                                    |
+| ------------------------------- | ------- | -------- | ---------------------------------------------- |
+| `EDGEQUAKE_MODELS_CONFIG`       | String  | None     | Path to custom models.toml                     |
+| `EDGEQUAKE_LLM_PROVIDER`        | String  | `ollama` | Default LLM provider                           |
+| `EDGEQUAKE_LLM_MODEL`           | String  | None     | Override LLM model name                        |
+| `EDGEQUAKE_EMBEDDING_PROVIDER`  | String  | `ollama` | Override embedding provider type (hybrid mode) |
+| `EDGEQUAKE_EMBEDDING_MODEL`     | String  | None     | Override embedding model name                  |
+| `EDGEQUAKE_EMBEDDING_DIMENSION` | Integer | `768`    | Override embedding vector dimension            |
 
 ### Compatibility aliases
 
 EdgeQuake also accepts the following migration aliases. They are normalized at startup so the rest
 of the application continues to use the canonical `EDGEQUAKE_*` names:
 
-| Alias | Canonical variable |
-| --- | --- |
-| `MODEL_PROVIDER` | `EDGEQUAKE_LLM_PROVIDER` |
-| `CHAT_MODEL` | `EDGEQUAKE_LLM_MODEL` |
-| `EMBEDDING_PROVIDER` | `EDGEQUAKE_EMBEDDING_PROVIDER` |
-| `EMBEDDING_MODEL` | `EDGEQUAKE_EMBEDDING_MODEL` |
+| Alias                 | Canonical variable              |
+| --------------------- | ------------------------------- |
+| `MODEL_PROVIDER`      | `EDGEQUAKE_LLM_PROVIDER`        |
+| `CHAT_MODEL`          | `EDGEQUAKE_LLM_MODEL`           |
+| `EMBEDDING_PROVIDER`  | `EDGEQUAKE_EMBEDDING_PROVIDER`  |
+| `EMBEDDING_MODEL`     | `EDGEQUAKE_EMBEDDING_MODEL`     |
 | `EMBEDDING_DIMENSION` | `EDGEQUAKE_EMBEDDING_DIMENSION` |
 
 When both an alias and a canonical variable are set, the canonical variable wins.
@@ -166,12 +166,12 @@ When both an alias and a canonical variable are set, the canonical variable wins
 
 Run a different provider or Ollama instance for embeddings vs. LLM inference:
 
-| Variable                          | Type   | Default              | Description                                |
-| --------------------------------- | ------ | -------------------- | ------------------------------------------ |
-| `OLLAMA_EMBEDDING_HOST`           | String | value of `OLLAMA_HOST` | Dedicated Ollama host for embeddings     |
-| `EDGEQUAKE_EMBEDDING_PROVIDER`    | String | (same as LLM)        | Explicit embedding provider (`ollama`, `openai`, …) |
-| `EDGEQUAKE_EMBEDDING_MODEL`       | String | provider default     | Model for the embedding override           |
-| `EDGEQUAKE_EMBEDDING_DIMENSION`   | Integer | `768`               | Vector dimension for the embedding override|
+| Variable                        | Type    | Default                | Description                                         |
+| ------------------------------- | ------- | ---------------------- | --------------------------------------------------- |
+| `OLLAMA_EMBEDDING_HOST`         | String  | value of `OLLAMA_HOST` | Dedicated Ollama host for embeddings                |
+| `EDGEQUAKE_EMBEDDING_PROVIDER`  | String  | (same as LLM)          | Explicit embedding provider (`ollama`, `openai`, …) |
+| `EDGEQUAKE_EMBEDDING_MODEL`     | String  | provider default       | Model for the embedding override                    |
+| `EDGEQUAKE_EMBEDDING_DIMENSION` | Integer | `768`                  | Vector dimension for the embedding override         |
 
 **Priority:** `EDGEQUAKE_EMBEDDING_PROVIDER` → `OLLAMA_EMBEDDING_HOST` → default (from `from_env()`).
 
@@ -186,9 +186,9 @@ export OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
 ### Security / Frontend
 
-| Variable                          | Type   | Default | Description                                              |
-| --------------------------------- | ------ | ------- | -------------------------------------------------------- |
-| `NEXT_PUBLIC_DISABLE_DEMO_LOGIN`  | String | `false` | Set to `true` to hide the demo "skip login" button in production (closes [#139](https://github.com/raphaelmansuy/edgequake/issues/139)) |
+| Variable                         | Type   | Default | Description                                                                                                                             |
+| -------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_DISABLE_DEMO_LOGIN` | String | `false` | Set to `true` to hide the demo "skip login" button in production (closes [#139](https://github.com/raphaelmansuy/edgequake/issues/139)) |
 
 > **Production tip:** Always set `NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true` in
 > your frontend build when deploying EdgeQuake to a public-facing environment.
@@ -658,7 +658,7 @@ EdgeQuake validates configuration at startup:
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║   ⚡ EdgeQuake v0.7.0                                         ║
+║   ⚡ EdgeQuake v0.10.x                                        ║
 ║                                                              ║
 ║   🐘 Storage: POSTGRESQL (persistent)
 ║   🌐 Server:  http://0.0.0.0:8080

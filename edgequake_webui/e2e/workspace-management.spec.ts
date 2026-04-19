@@ -9,6 +9,8 @@
  */
 import { expect, test } from "@playwright/test";
 
+const BACKEND_URL = process.env.EQ_BACKEND_URL || "http://localhost:8080";
+
 test.describe("Workspace Management (specs/21-workspace)", () => {
   test.beforeEach(async ({ page }) => {
     // Clear localStorage before each test for fresh state
@@ -77,6 +79,41 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
     await expect(errorToast).not.toBeVisible();
   });
 
+  test("query API rejects invalid workspace ids instead of falling back", async ({
+    request,
+  }) => {
+    const response = await request.post(`${BACKEND_URL}/api/v1/query`, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-ID": "not-a-valid-uuid",
+      },
+      data: {
+        query: "What is EdgeQuake?",
+      },
+    });
+
+    // WHY: An explicit workspace id is part of the query isolation boundary.
+    // Silently falling back here would turn a malformed scoped request into an
+    // unscoped default query, so the API must fail closed.
+    expect(response.status()).toBe(400);
+  });
+
+  test("query API rejects nonexistent workspaces instead of using defaults", async ({
+    request,
+  }) => {
+    const response = await request.post(`${BACKEND_URL}/api/v1/query`, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-ID": "00000000-0000-0000-0000-000000000123",
+      },
+      data: {
+        query: "What is EdgeQuake?",
+      },
+    });
+
+    expect(response.status()).toBe(404);
+  });
+
   test("workspace slug endpoint works correctly", async ({ page, request }) => {
     // First get the current tenant ID from the page
     await page.goto("/");
@@ -84,7 +121,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
 
     // Get tenants from API
     const tenantsResponse = await request.get(
-      "http://localhost:8080/api/v1/tenants"
+      `${BACKEND_URL}/api/v1/tenants`
     );
     expect(tenantsResponse.ok()).toBe(true);
 
@@ -95,7 +132,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
 
     // Get workspaces for this tenant
     const workspacesResponse = await request.get(
-      `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      `${BACKEND_URL}/api/v1/tenants/${tenantId}/workspaces`
     );
     expect(workspacesResponse.ok()).toBe(true);
 
@@ -106,7 +143,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
 
     // Test the by-slug endpoint
     const bySlugResponse = await request.get(
-      `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces/by-slug/${workspaceSlug}`
+      `${BACKEND_URL}/api/v1/tenants/${tenantId}/workspaces/by-slug/${workspaceSlug}`
     );
     expect(bySlugResponse.ok()).toBe(true);
 
@@ -174,7 +211,7 @@ test.describe("Workspace Creation with Slug", () => {
   }) => {
     // Create a new tenant
     const createTenantResponse = await request.post(
-      "http://localhost:8080/api/v1/tenants",
+      `${BACKEND_URL}/api/v1/tenants`,
       {
         data: {
           name: `Test Tenant ${Date.now()}`,
@@ -188,7 +225,7 @@ test.describe("Workspace Creation with Slug", () => {
 
     // Get workspaces for this new tenant - should have default workspace
     const workspacesResponse = await request.get(
-      `http://localhost:8080/api/v1/tenants/${newTenant.id}/workspaces`
+      `${BACKEND_URL}/api/v1/tenants/${newTenant.id}/workspaces`
     );
     expect(workspacesResponse.ok()).toBe(true);
 
@@ -201,14 +238,14 @@ test.describe("Workspace Creation with Slug", () => {
 
     // Cleanup: Delete the test tenant
     await request.delete(
-      `http://localhost:8080/api/v1/tenants/${newTenant.id}`
+      `${BACKEND_URL}/api/v1/tenants/${newTenant.id}`
     );
   });
 
   test("can create workspace with custom slug via API", async ({ request }) => {
     // Get existing tenant - prefer Default tenant which has higher limits
     const tenantsResponse = await request.get(
-      "http://localhost:8080/api/v1/tenants"
+      `${BACKEND_URL}/api/v1/tenants`
     );
     const tenantsBody = await tenantsResponse.json();
     const tenants = tenantsBody.items || tenantsBody;
@@ -224,7 +261,7 @@ test.describe("Workspace Creation with Slug", () => {
 
     // Create workspace with custom slug
     const createResponse = await request.post(
-      `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`,
+      `${BACKEND_URL}/api/v1/tenants/${tenantId}/workspaces`,
       {
         data: {
           name: "Test Workspace",
@@ -247,7 +284,7 @@ test.describe("Workspace Creation with Slug", () => {
 
     // Verify we can fetch by slug
     const bySlugResponse = await request.get(
-      `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces/by-slug/${customSlug}`
+      `${BACKEND_URL}/api/v1/tenants/${tenantId}/workspaces/by-slug/${customSlug}`
     );
     expect(bySlugResponse.ok()).toBe(true);
 
@@ -256,7 +293,7 @@ test.describe("Workspace Creation with Slug", () => {
 
     // Cleanup: Delete the test workspace
     await request.delete(
-      `http://localhost:8080/api/v1/workspaces/${newWorkspace.id}`
+      `${BACKEND_URL}/api/v1/workspaces/${newWorkspace.id}`
     );
   });
 });

@@ -20,6 +20,7 @@ use std::sync::Arc;
 use tracing::{debug, warn};
 
 use edgequake_llm::traits::{ChatMessage, CompletionOptions, LLMProvider};
+use edgequake_pipeline::extractor::effective_temperature_for_model;
 
 /// System prompt for title generation.
 const TITLE_SYSTEM_PROMPT: &str = "\
@@ -57,7 +58,9 @@ pub async fn generate_title(llm_provider: Arc<dyn LLMProvider>, first_message: &
 
     let options = CompletionOptions {
         max_tokens: Some(30),
-        temperature: Some(0.3),
+        // WHY: Keep auto-title generation compatible with GPT-5/o-series models that
+        // reject explicit temperature overrides and only accept their built-in default.
+        temperature: effective_temperature_for_model(llm_provider.model(), 0.3),
         ..Default::default()
     };
 

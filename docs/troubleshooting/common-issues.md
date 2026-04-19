@@ -19,7 +19,7 @@ This guide helps you identify and fix common problems when running EdgeQuake.
 curl http://localhost:8080/health
 
 # Check readiness with dependencies
-curl http://localhost:8080/health/ready
+curl http://localhost:8080/ready
 
 # Check if backend is responding
 curl -I http://localhost:8080/api/v1/workspaces
@@ -31,8 +31,8 @@ curl -I http://localhost:8080/api/v1/workspaces
 # Check all services (if using make)
 make status
 
-# Check PostgreSQL
-docker exec edgequake-postgres pg_isready -U edgequake
+# Check PostgreSQL reachability
+pg_isready -h localhost -p 5432
 
 # Check Ollama
 curl http://localhost:11434/api/tags
@@ -119,9 +119,9 @@ kill -9 <PID>
 PORT=9090 cargo run
 ```
 
-#### Symptom: "DATABASE_URL is not valid"
+#### Symptom: "DATABASE_URL is not valid" or a startup log says PostgreSQL storage failed to initialize
 
-**Cause**: Invalid PostgreSQL connection string.
+**Cause**: Invalid PostgreSQL connection string, unreachable database, or a database daemon that is not running.
 
 **Solution**:
 
@@ -129,8 +129,32 @@ PORT=9090 cargo run
 # Check format
 DATABASE_URL="postgresql://user:password@host:port/database"
 
-# Test connection
+# Test connection directly
 psql "$DATABASE_URL" -c "SELECT 1"
+
+# Or use a lightweight readiness probe
+pg_isready -h localhost -p 5432
+```
+
+**Why this matters**: EdgeQuake now fails fast and clearly at startup when PostgreSQL is unavailable. This is intentional and prevents flaky half-started server states.
+
+#### Symptom: OrbStack stops unexpectedly or `make dev` says Docker daemon is unavailable
+
+**Cause**: this is usually a **host network route conflict**, not an EdgeQuake crash. On the affected machine, the route table already claims broad private ranges such as `10/8`, `172.16/12`, or `192.168/16` through another interface (for example a VPN, Homebridge, or router helper). OrbStack/Docker then cannot create its bridge network and reports errors such as "failed to add network" or "conflict with existing route".
+
+**What changed**: `make dev` and `make dev-bg` now use **incremental startup**. They reuse healthy services, avoid blind stop/start cycles, and fail with a clear diagnosis instead of hammering Docker repeatedly.
+
+**Solution**:
+
+```bash
+# Show the targeted diagnosis
+make db-start
+
+# If OrbStack still reports route conflicts:
+# 1. stop the conflicting VPN / bridge helper
+# 2. restart OrbStack
+# 3. rerun the stack
+make dev-bg
 ```
 
 #### Symptom: "Extension 'vector' not found"
@@ -153,7 +177,7 @@ docker compose up -d
 
 ---
 
-### 2. Document Processing Stuck
+### 3. Document Processing Stuck
 
 #### Symptom: Documents stay in "processing" status
 
@@ -182,7 +206,7 @@ tail -f /tmp/edgequake-backend.log
 **Solution**:
 
 ```bash
-# Restart workers
+# Restart workers cleanly
 make stop
 make dev
 
@@ -190,9 +214,26 @@ make dev
 curl -X POST "http://localhost:8080/api/v1/documents/$DOC_ID/reprocess"
 ```
 
+**Reliability note**: delete, reprocess, and recovery flows are workspace-scoped and restart-safe. A deleted document should not be resurrected by stale task recovery after a backend restart.
+
 ---
 
-### 3. PDF Extraction Issues
+### 3. CI or local runs feel flaky
+
+#### Symptom: repeated pushes trigger too many redundant CI runs
+
+**Cause**: multiple in-progress jobs for the same branch create stale signal and wasted runner time.
+
+**Solution**:
+
+- use the repository workflow concurrency settings so newer runs cancel older ones
+- keep heavy coverage and full-E2E flows out of the fastest blocking loop
+- prefer readiness probes over fixed sleeps when starting backend and frontend services
+- keep the pinned Rust toolchain active locally so clippy and formatting results match CI
+
+---
+
+### 4. PDF Extraction Issues
 
 PDF extraction can fail or produce poor quality results due to PDF structure, encoding, or layout complexity. This section covers the most common PDF-specific problems.
 
