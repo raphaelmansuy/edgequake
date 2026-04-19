@@ -6,12 +6,12 @@
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
 [![Version](https://img.shields.io/badge/version-0.10.4-blue.svg?style=flat)](CHANGELOG.md)
-[![Rust](https://img.shields.io/badge/rust-1.78+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.10.4** — Resumable PDF recovery, automatic vision fallback, cleaner release hygiene, and aligned publication metadata. See [CHANGELOG](CHANGELOG.md) for full details.
+> **v0.10.4** — Resumable PDF recovery, restart-safe task cleanup, workspace-scoped deletion/recovery, safer large-PDF resource limits, and cleaner local startup that avoids interfering with other stacks. See [CHANGELOG](CHANGELOG.md) for full details.
 
 ---
 
@@ -29,7 +29,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **6 Query Modes**: From fast naive vector search to graph-traversing hybrid queries, each mode optimizes for different question types
 - **Rust Performance**: Async-first Tokio architecture with zero-copy operations — handles thousands of concurrent requests
 - **PDF LLM Vision Pipeline ✅ NEW in 0.4.0**: Multimodal LLMs (GPT-4o, Claude, Gemini) read PDF pages as images — handles scanned documents, complex tables, and multi-column layouts out of the box
-- **Production Ready**: OpenAPI 3.0 REST API, SSE streaming, health checks, multi-tenant workspace isolation
+- **Production Ready**: OpenAPI 3.0 REST API, SSE streaming, health checks, fail-closed multi-tenant workspace isolation for query/delete flows, and workspace-scoped destructive/recovery operations
 - **Modern Frontend**: React 19 with interactive Sigma.js graph visualizations
 
 ### Performance Benchmarks
@@ -91,6 +91,10 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Text Mode**: Fast pdfium-based extraction for standard PDFs (default, zero-config)
 - **Vision Mode** ✨: LLM reads each page as an image — GPT-4o, Claude 3.5+, Gemini 2.5 supported
 - **Automatic Fallback**: Vision failures gracefully fall back to text extraction (BR1010)
+- **Safe Large-PDF Guardrails**: Adaptive DPI/concurrency limits and early byte release reduce memory spikes and make local-model ingestion more reliable for large files
+- **Restart-Safe Recovery**: Deleted or cancelled PDFs do not reappear from stale background jobs after a server restart
+- **Fail-Closed Query Isolation**: Invalid or missing explicit workspace selectors are rejected instead of being silently remapped to defaults
+- **Safer Dev Service Checks**: Health/status flows now rely on lightweight database port checks first, which is less disruptive when Docker/OrbStack is unavailable
 - **Table Reconstruction**: Vision mode recovers complex tables that text parsers mangle
 - **Multi-Column Layout**: LLM understands reading order across multi-column pages
 - **Embedded pdfium**: No `PDFIUM_DYNAMIC_LIB_PATH` env var needed — binary ships inside the binary
@@ -110,6 +114,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Streaming**: Server-Sent Events (SSE) for real-time responses
 - **Versioned**: `/api/v1/*` with backward compatibility
 - **Health Checks**: Kubernetes-ready `/health`, `/ready`, `/live`
+- **Safer Local Startup**: Make-based development prefers UI port 3001 and auto-selects the next free ports if another local stack is already using the defaults
 
 ### 🎯 React 19 Frontend
 
@@ -146,6 +151,8 @@ The wizard guides you through:
 3. **Validation** — API key check (OpenAI) or Ollama ping + model-availability check
 4. **Stack startup** — pulls images, starts services, and polls health for up to 90 seconds
 5. **Re-run aware** — detects running/stopped containers and existing data volumes; offers "Update & Reconfigure" or safe "Fresh Start" (requires typing `DELETE`)
+
+> For local Make-based development, the UI now prefers port 3001 and automatically moves to a safe free port if 3001 or 8080 are already occupied.
 
 Or with `docker compose` directly (pipe to compose):
 

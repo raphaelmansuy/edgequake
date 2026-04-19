@@ -9,8 +9,183 @@ use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::error::ApiError;
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::traits::VectorStorage;
+use edgequake_tasks::{Pagination, TaskFilter, TaskStatus};
+
+/// Parse a workspace identifier into a UUID while preserving the legacy
+/// `default` workspace mapping used by older document metadata.
+///
+/// WHY: reliability fixes must work for both new UUID-based workspaces and the
+/// historical `workspace_id = "default"` representation.
+pub(crate) fn parse_workspace_uuid_or_default(workspace_id: Option<&str>) -> Option<Uuid> {
+    match workspace_id.map(str::trim) {
+        Some("") | Some("default") => Some(Uuid::from_u128(3)),
+        Some(value) => Uuid::parse_str(value).ok(),
+        None => None,
+    }
+}
+
+fn is_legacy_default_workspace_context(workspace_id: Option<&str>) -> bool {
+    match workspace_id.map(str::trim) {
+        None | Some("") | Some("default") => true,
+        Some(value) => match Uuid::parse_str(value) {
+            Ok(uuid) => uuid == Uuid::from_u128(2) || uuid == Uuid::from_u128(3),
+            Err(_) => false,
+        },
+    }
+}
+
+fn parse_explicit_workspace_uuid(workspace_id: Option<&str>) -> Option<Uuid> {
+    match workspace_id.map(str::trim) {
+        None | Some("") | Some("default") => None,
+        Some(value) => Uuid::parse_str(value).ok(),
+    }
+}
+
+/// Check whether a metadata payload belongs to the requester's workspace.
+///
+/// WHY: destructive and recovery operations must fail closed across workspaces.
+/// When no tenant context is present (tests or legacy callers), we preserve the
+/// old permissive behavior to avoid breaking non-multi-tenant flows.
+pub(crate) fn metadata_matches_tenant_context(
+    metadata: &serde_json::Value,
+    tenant_ctx: &TenantContext,
+) -> bool {
+    // WHY: Older documents stored `workspace_id = "default"` (or omitted the
+    // field entirely) before strict workspace scoping existed. Those rows must
+    // remain operable from the default workspace for backward compatibility,
+    // but they must NOT become visible to arbitrary explicit workspaces.
+    let stored_workspace_raw = metadata
+        .get("workspace_id")
+        .and_then(|value| value.as_str())
+        .map(str::trim);
+
+    if matches!(stored_workspace_raw, None | Some("") | Some("default")) {
+        return is_legacy_default_workspace_context(tenant_ctx.workspace_id.as_deref());
+    }
+
+    let Some(ctx_workspace_id) =
+        parse_workspace_uuid_or_default(tenant_ctx.workspace_id.as_deref())
+    else {
+        return true;
+    };
+
+    let Some(stored_workspace_id) = parse_workspace_uuid_or_default(stored_workspace_raw) else {
+        return false;
+    };
+
+    stored_workspace_id == ctx_workspace_id
+}
+
+fn task_references_document(task: &edgequake_tasks::Task, document_id: &str) -> bool {
+    task.task_data
+        .get("existing_document_id")
+        .and_then(|v| v.as_str())
+        == Some(document_id)
+        || task.task_data.get("document_id").and_then(|v| v.as_str()) == Some(document_id)
+        || task
+            .task_data
+            .get("metadata")
+            .and_then(|v| v.get("document_id"))
+            .and_then(|v| v.as_str())
+            == Some(document_id)
+}
+
+async fn cancel_and_delete_task(state: &AppState, task: &edgequake_tasks::Task) -> bool {
+    if matches!(task.status, TaskStatus::Pending | TaskStatus::Processing) {
+        let cancelled = state.cancellation_registry.cancel(&task.track_id).await;
+        tracing::info!(
+            track_id = %task.track_id,
+            cancelled,
+            "Cancelled in-flight task during lifecycle cleanup"
+        );
+    }
+
+    state
+        .pipeline_state
+        .remove_pdf_progress(&task.track_id)
+        .await;
+
+    if let Ok(Some(mut persisted_task)) = state.task_storage.get_task(&task.track_id).await {
+        persisted_task.mark_cancelled();
+        let _ = state.task_storage.update_task(&persisted_task).await;
+    }
+
+    state.task_storage.delete_task(&task.track_id).await.is_ok()
+}
+
+/// Remove persisted tasks associated with a single document.
+///
+/// WHY: deleting document data without deleting the persisted task row allows
+/// startup recovery to resurrect work that the user already removed.
+pub(crate) async fn purge_persisted_tasks_for_document(
+    state: &AppState,
+    document_id: &str,
+    track_id_opt: Option<&str>,
+    workspace_id_opt: Option<&str>,
+) -> usize {
+    let pagination = Pagination {
+        page: 1,
+        page_size: 10_000,
+        ..Default::default()
+    };
+    let filter = TaskFilter {
+        workspace_id: parse_explicit_workspace_uuid(workspace_id_opt),
+        ..Default::default()
+    };
+
+    let Ok(task_list) = state.task_storage.list_tasks(filter, pagination).await else {
+        return 0;
+    };
+
+    let mut deleted_count = 0usize;
+
+    for task in task_list.tasks {
+        let matches_track = track_id_opt
+            .map(|track_id| task.track_id == track_id)
+            .unwrap_or(false);
+        if !matches_track && !task_references_document(&task, document_id) {
+            continue;
+        }
+
+        if cancel_and_delete_task(state, &task).await {
+            deleted_count += 1;
+        }
+    }
+
+    deleted_count
+}
+
+/// Remove all persisted tasks belonging to a workspace.
+///
+/// WHY: workspace deletion must clear background jobs first so a restart cannot
+/// repopulate rows, progress entries, or graph data for a workspace that is gone.
+pub(crate) async fn purge_workspace_tasks(state: &AppState, workspace_id: Uuid) -> usize {
+    let pagination = Pagination {
+        page: 1,
+        page_size: 10_000,
+        ..Default::default()
+    };
+    let filter = TaskFilter {
+        workspace_id: Some(workspace_id),
+        ..Default::default()
+    };
+
+    let Ok(task_list) = state.task_storage.list_tasks(filter, pagination).await else {
+        return 0;
+    };
+
+    let mut deleted = 0usize;
+    for task in task_list.tasks {
+        if cancel_and_delete_task(state, &task).await {
+            deleted += 1;
+        }
+    }
+
+    deleted
+}
 
 /// Get workspace-specific vector storage for document ingestion (STRICT mode).
 ///

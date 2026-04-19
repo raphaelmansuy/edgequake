@@ -350,6 +350,36 @@ fn extract_json_from_response(response: &str) -> String {
     response.to_string()
 }
 
+/// Returns the effective temperature override to send for a model.
+///
+/// WHY: Some OpenAI model families only accept their built-in default temperature
+/// and reject any explicit override with an API error. Omitting the field is the
+/// most compatible behavior for those models while preserving overrides for models
+/// that still support them.
+pub fn effective_temperature_for_model(model: &str, preferred_temperature: f32) -> Option<f32> {
+    if model_requires_default_temperature(model) {
+        None
+    } else {
+        Some(preferred_temperature)
+    }
+}
+
+fn model_requires_default_temperature(model: &str) -> bool {
+    let normalized = model
+        .trim()
+        .rsplit('/')
+        .next()
+        .unwrap_or(model)
+        .to_ascii_lowercase();
+
+    normalized.contains("gpt-5")
+        || normalized.contains("gpt-4.1-nano")
+        || normalized.contains("gpt-4.1-mini")
+        || normalized.starts_with("o1")
+        || normalized.starts_with("o3")
+        || normalized.starts_with("o4")
+}
+
 mod gleaning;
 mod llm;
 mod simple;
@@ -419,6 +449,22 @@ mod tests {
         assert_eq!(rel.source_chunk_id, Some("chunk-005".to_string()));
         assert_eq!(rel.source_document_id, Some("doc-xyz789".to_string()));
         assert_eq!(rel.source_file_path, Some("/documents/team.md".to_string()));
+    }
+
+    #[test]
+    fn test_effective_temperature_omits_override_for_reasoning_models() {
+        assert_eq!(effective_temperature_for_model("gpt-5-nano", 0.0), None);
+        assert_eq!(effective_temperature_for_model("gpt-5-mini", 0.0), None);
+        assert_eq!(effective_temperature_for_model("o4-mini", 0.0), None);
+    }
+
+    #[test]
+    fn test_effective_temperature_preserves_standard_models() {
+        assert_eq!(effective_temperature_for_model("gpt-4o", 0.3), Some(0.3));
+        assert_eq!(
+            effective_temperature_for_model("claude-sonnet", 0.0),
+            Some(0.0)
+        );
     }
 
     #[test]

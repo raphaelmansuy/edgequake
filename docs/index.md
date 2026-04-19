@@ -23,7 +23,7 @@ hero:
 - **[Tutorials](/docs/tutorials/)** — Step-by-step guides for common EdgeQuake workflows.
 - **[API Reference](/docs/api-reference/)** — Complete REST API documentation with examples.
 - **[Deep Dives](/docs/deep-dives/)** — In-depth technical explorations.
-- **[Operations](/docs/operations/)** — Deployment, monitoring, and production guides.
+- **[Operations](/docs/operations/)** — Deployment, monitoring, deterministic toolchain guidance, and no-flake CI/CD practices.
 - **[Integrations](/docs/integrations/)** — Connect EdgeQuake with your existing stack.
 - **[Comparisons](/docs/comparisons/)** — See how EdgeQuake compares to other solutions.
 - **[Security](/docs/security/)** — Best practices for securing EdgeQuake deployments.

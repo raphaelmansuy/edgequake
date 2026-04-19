@@ -59,7 +59,7 @@ curl http://localhost:8080/health
 Expected response:
 
 ```json
-{ "status": "ok", "version": "0.7.0", "storage_mode": "postgresql" }
+{ "status": "healthy", "version": "0.10.x", "storage_mode": "postgresql" }
 ```
 
 ---
@@ -411,7 +411,7 @@ Notice how each mode provides slightly different perspectives based on its retri
 
 Open the EdgeQuake Web UI for a visual experience:
 
-1. Open http://localhost:3000 in your browser
+1. Open <http://localhost:3001> in your browser when using local `make dev`
 2. Select your workspace "My First RAG App"
 3. Navigate to the **Documents** tab to see your uploads
 4. Navigate to the **Graph** tab to visualize the knowledge graph

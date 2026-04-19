@@ -5,7 +5,7 @@
 //! @implements FEAT0101-0106 (Query modes)
 
 use axum::{extract::State, Json};
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
@@ -16,8 +16,8 @@ use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 use super::{
     resolve_chunk_file_paths,
     workspace_resolve::{
-        get_workspace, get_workspace_embedding_provider, get_workspace_llm_info,
-        get_workspace_vector_storage,
+        get_workspace_embedding_provider, get_workspace_llm_info, get_workspace_vector_storage,
+        resolve_query_workspace,
     },
 };
 pub use crate::handlers::query_types::{QueryRequest, QueryResponse, QueryStats, SourceReference};
@@ -105,17 +105,15 @@ pub async fn execute_query(
         engine_request = engine_request.with_system_prompt(system_prompt);
     }
 
-    // OODA-231.1: Fetch workspace to get correct tenant_id for data queries
-    // WHY: Header tenant_id is for authentication (random UUID from frontend).
-    // But the graph data was ingested with the workspace's actual tenant_id.
-    // Using header tenant_id causes 0 results because of tenant_id mismatch.
-    let workspace = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
-        get_workspace(&state, workspace_id).await.ok().flatten()
-    } else {
-        None
-    };
+    // OODA-231.1: Fetch workspace to get correct tenant_id for data queries.
+    // WHY: The header tenant_id is an access-context hint, but stored graph and
+    // vector data are scoped by the workspace's persisted tenant_id. If an
+    // explicit workspace header is invalid, we must fail closed instead of
+    // silently falling back to the default workspace.
+    let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
-    // Use workspace's tenant_id for data queries, fall back to header tenant_id
+    // Use the workspace tenant_id when a workspace is selected; otherwise fall
+    // back to the legacy header-only path for default-workspace requests.
     let data_tenant_id = workspace
         .as_ref()
         .map(|ws| ws.tenant_id.to_string())
@@ -207,7 +205,7 @@ pub async fn execute_query(
 
         match (embedding_result, vector_result) {
             (Ok(Some(embedding_provider)), Ok(Some(vector_storage))) => {
-                // Full workspace isolation: use both workspace-specific embedding and vector storage
+                // Full workspace isolation: use both workspace-specific embedding and vector storage.
                 debug!(
                     workspace_id = %workspace_id,
                     has_llm_override = llm_override.is_some(),
@@ -224,9 +222,10 @@ pub async fn execute_query(
                     .await
                     .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
             }
-            (Ok(Some(embedding_provider)), _) => {
-                // Workspace-specific embedding only, no workspace vector storage.
-                // FIX #168: Use query_with_full_config to propagate LLM override.
+            (Ok(Some(embedding_provider)), Ok(None)) => {
+                // WHY: A workspace may intentionally share the default vector table while
+                // still overriding its embedding provider. This path is only allowed when
+                // the resolver explicitly confirms there is no workspace vector override.
                 debug!(
                     workspace_id = %workspace_id,
                     has_llm_override = llm_override.is_some(),
@@ -245,7 +244,6 @@ pub async fn execute_query(
             }
             (Ok(None), Ok(Some(vector_storage))) => {
                 // Workspace uses default embedding model but has its own vector storage table.
-                // FIX #168: Use query_with_full_config to propagate LLM override.
                 debug!(
                     workspace_id = %workspace_id,
                     has_llm_override = llm_override.is_some(),
@@ -262,8 +260,7 @@ pub async fn execute_query(
                     .await
                     .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
             }
-            (Ok(None), _) => {
-                // No workspace-specific config and no workspace vector storage — use defaults.
+            (Ok(None), Ok(None)) => {
                 debug!(
                     workspace_id = %workspace_id,
                     has_llm_override = llm_override.is_some(),
@@ -272,28 +269,16 @@ pub async fn execute_query(
                 run_query_with_optional_llm_override(&state, engine_request, llm_override.clone())
                     .await?
             }
-            (Err(e), _) => {
-                // OODA-229: Return configuration errors to the user instead of silent fallback
-                // WHY: If workspace is configured for OpenAI but API key is missing, using
-                // the default provider would return wrong results (different embeddings).
-                // Better to fail fast with a clear error message.
-                if matches!(&e, ApiError::ConfigError(_)) {
-                    error!(
-                        workspace_id = %workspace_id,
-                        error = %e,
-                        "Workspace embedding configuration error - returning to user"
-                    );
-                    return Err(e);
-                }
-
-                // For other errors, fallback to default with warning
-                warn!(
+            (Err(e), _) | (_, Err(e)) => {
+                // WHY: Once a request is explicitly scoped to a workspace, silently
+                // degrading to the server default would query a different isolation
+                // boundary. That is more dangerous than failing fast.
+                error!(
                     workspace_id = %workspace_id,
                     error = %e,
-                    "Failed to get workspace embedding config, using default"
+                    "Workspace-specific query resolution failed - returning error instead of falling back"
                 );
-                run_query_with_optional_llm_override(&state, engine_request, llm_override.clone())
-                    .await?
+                return Err(e);
             }
         }
     } else {

@@ -69,6 +69,48 @@ fn should_restart_pdf_conversion(has_existing_document: bool, restart_from_scrat
     has_existing_document && restart_from_scratch
 }
 
+#[cfg(feature = "postgres")]
+fn compute_safe_pdf_resource_profile(
+    page_count: usize,
+    file_size_bytes: i64,
+    vision_provider: &str,
+) -> (usize, u32) {
+    use crate::safety_limits::is_local_provider;
+
+    let is_local = is_local_provider(vision_provider);
+    let large_file = file_size_bytes >= 25 * 1024 * 1024;
+    let huge_file = file_size_bytes >= 50 * 1024 * 1024;
+
+    let concurrency = if is_local {
+        if huge_file || page_count >= 200 {
+            1
+        } else {
+            2
+        }
+    } else if huge_file || page_count >= 1000 {
+        1
+    } else {
+        match page_count {
+            0..=49 => 8,
+            50..=199 => 6,
+            200..=499 => 3,
+            _ => 2,
+        }
+    };
+
+    let dpi = if huge_file || page_count >= 1000 {
+        96
+    } else if large_file || page_count >= 500 {
+        110
+    } else if page_count >= 200 {
+        120
+    } else {
+        150
+    };
+
+    (concurrency.max(1), dpi)
+}
+
 impl DocumentTaskProcessor {
     /// Process PDF processing task (SPEC-007).
     ///
@@ -130,6 +172,12 @@ impl DocumentTaskProcessor {
             "Loaded PDF from storage"
         );
 
+        let filename = pdf.filename.clone();
+        let file_size_bytes = pdf.file_size_bytes;
+        let page_count_opt = pdf.page_count;
+        let sha256_checksum = pdf.sha256_checksum.clone();
+        let pdf_data = pdf.pdf_data;
+
         // 3. Update status to processing
         pdf_storage
             .update_pdf_status(&data.pdf_id, PdfProcessingStatus::Processing)
@@ -181,28 +229,28 @@ impl DocumentTaskProcessor {
         // Without these, users see metadata gaps until processing completes.
         let metadata_json = json!({
             "id": early_doc_id,
-            "title": pdf.filename.clone(),
-            "file_name": pdf.filename.clone(),
+            "title": filename.clone(),
+            "file_name": filename.clone(),
             "source_type": "pdf",
             "document_type": "pdf",
             "status": "processing",
             "current_stage": "converting",
             "stage_message": if should_resume_from_checkpoint {
-                match pdf.page_count {
+                match page_count_opt {
                     Some(n) if n > 0 => format!("Resuming PDF to Markdown conversion from saved progress (up to {} pages)", n),
                     _ => "Resuming PDF to Markdown conversion from saved progress...".to_string(),
                 }
             } else {
-                match pdf.page_count {
+                match page_count_opt {
                     Some(n) if n > 0 => format!("Converting PDF to Markdown (0/{} pages)", n),
                     _ => "Converting PDF to Markdown (detecting pages...)".to_string(),
                 }
             },
             "stage_progress": 0.0,
             "pdf_id": data.pdf_id.to_string(),
-            "file_size_bytes": pdf.file_size_bytes,
-            "sha256_checksum": pdf.sha256_checksum,
-            "page_count": pdf.page_count,
+            "file_size_bytes": file_size_bytes,
+            "sha256_checksum": sha256_checksum,
+            "page_count": page_count_opt,
             "tenant_id": data.tenant_id.to_string(),
             "workspace_id": data.workspace_id.to_string(),
             "track_id": task.track_id.clone(),
@@ -270,7 +318,7 @@ impl DocumentTaskProcessor {
             data.pdf_id.to_string(),
             task.track_id.clone(),
         )
-        .with_filename(pdf.filename.clone())
+        .with_filename(filename.clone())
         .with_document_metadata(early_doc_id.clone(), Arc::clone(&self.kv_storage));
 
         if let Some(ref broadcaster) = self.progress_broadcaster {
@@ -288,7 +336,7 @@ impl DocumentTaskProcessor {
             .await?;
 
         let backend = data.pdf_parser_backend;
-        let page_count = pdf.page_count.unwrap_or(0) as usize;
+        let page_count = page_count_opt.unwrap_or(0) as usize;
         let mut extraction_method = match backend {
             edgequake_pdf::PdfParserBackend::Vision => ExtractionMethod::Vision,
             edgequake_pdf::PdfParserBackend::EdgeParse => ExtractionMethod::EdgeParse,
@@ -407,39 +455,28 @@ impl DocumentTaskProcessor {
         // total conversion time. Cap local concurrency at 2. Cloud providers
         // retain the original scale-with-page-count formula.
         // See ADR-04-003 in mission/04-heavy-pdf.md.
+        let (safe_concurrency, safe_dpi) =
+            compute_safe_pdf_resource_profile(page_count, file_size_bytes, &data.vision_provider);
         let concurrency = std::env::var("EDGEQUAKE_PDF_CONCURRENCY")
             .ok()
             .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or_else(|| {
-                use crate::safety_limits::is_local_provider;
-                if is_local_provider(&data.vision_provider) {
-                    2 // Local GPU: sequential-ish to avoid VRAM thrashing
-                } else {
-                    match page_count {
-                        0..=49 => 10,
-                        50..=199 => 8,
-                        200..=499 => 5,
-                        _ => 3,
-                    }
-                }
-            });
+            .unwrap_or(safe_concurrency)
+            .max(1)
+            .min(safe_concurrency);
         let dpi = std::env::var("EDGEQUAKE_PDF_DPI")
             .ok()
             .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(match page_count {
-                0..=499 => 150,
-                500..=999 => 120,
-                _ => 100,
-            });
+            .unwrap_or(safe_dpi)
+            .clamp(96, safe_dpi.max(96));
         let checkpoint_dir = std::env::var("EDGEQUAKE_CHECKPOINT_DIR").unwrap_or_else(|_| {
             let mut dir = std::env::temp_dir();
             dir.push("edgequake-checkpoints");
             dir.to_string_lossy().to_string()
         });
         let conversion_config = edgequake_pdf::PdfConversionConfig {
-            page_count_hint: pdf.page_count.map(|count| count as usize),
+            page_count_hint: page_count_opt.map(|count| count as usize),
             table_method: None,
-            filename: Some(pdf.filename.clone()),
+            filename: Some(filename.clone()),
             vision: vision_model
                 .clone()
                 .map(|model| edgequake_pdf::VisionConversionConfig {
@@ -490,7 +527,7 @@ impl DocumentTaskProcessor {
 
                 match tokio::time::timeout(
                     vision_timeout,
-                    converter.convert(&pdf.pdf_data, &conversion_config),
+                    converter.convert(&pdf_data, &conversion_config),
                 )
                 .await
                 {
@@ -521,7 +558,7 @@ impl DocumentTaskProcessor {
                             edgequake_pdf::PdfParserBackend::EdgeParse,
                             None,
                         )
-                        .convert(&pdf.pdf_data, &edgeparse_config)
+                        .convert(&pdf_data, &edgeparse_config)
                         .await
                         .map_err(|e| {
                             edgequake_tasks::TaskError::Processing(format!(
@@ -558,7 +595,7 @@ impl DocumentTaskProcessor {
                             edgequake_pdf::PdfParserBackend::EdgeParse,
                             None,
                         )
-                        .convert(&pdf.pdf_data, &edgeparse_config)
+                        .convert(&pdf_data, &edgeparse_config)
                         .await
                         .map_err(|e| {
                             edgequake_tasks::TaskError::Processing(format!(
@@ -575,7 +612,7 @@ impl DocumentTaskProcessor {
                     "Starting EdgeParse PDF conversion"
                 );
                 converter
-                    .convert(&pdf.pdf_data, &edgeparse_config)
+                    .convert(&pdf_data, &edgeparse_config)
                     .await
                     .map_err(|e| {
                         edgequake_tasks::TaskError::Processing(format!(
@@ -586,6 +623,7 @@ impl DocumentTaskProcessor {
         };
 
         let markdown = strip_nul_bytes(markdown);
+        drop(pdf_data);
 
         let mut extraction_errors = if extraction_method == ExtractionMethod::EdgeParse {
             let avg_chars_per_page = markdown.len() / page_count.max(1);
@@ -662,7 +700,7 @@ impl DocumentTaskProcessor {
         // WHY: Downstream ensure_document_source_type needs checksum for integrity verification
         let text_data = edgequake_tasks::TextInsertData {
             text: markdown.clone(),
-            file_source: pdf.filename.clone(),
+            file_source: filename.clone(),
             workspace_id: data.workspace_id.to_string(),
             metadata: Some(json!({
                 "document_id": early_doc_id.clone(),  // Reuse early document ID
@@ -670,10 +708,10 @@ impl DocumentTaskProcessor {
                 "source_type": "pdf",
                 "document_type": "pdf",
                 "pdf_id": data.pdf_id.to_string(),
-                "filename": pdf.filename,
-                "page_count": pdf.page_count,
-                "file_size_bytes": pdf.file_size_bytes,
-                "sha256_checksum": pdf.sha256_checksum,
+                "filename": filename.clone(),
+                "page_count": page_count_opt,
+                "file_size_bytes": file_size_bytes,
+                "sha256_checksum": sha256_checksum.clone(),
                 "tenant_id": data.tenant_id.to_string(),
                 "workspace_id": data.workspace_id.to_string(),
                 // SPEC-040: Store PDF extraction lineage for document detail view
@@ -720,7 +758,7 @@ impl DocumentTaskProcessor {
                     &document_uuid,
                     &workspace_uuid,
                     tenant_uuid.as_ref(),
-                    &pdf.filename,
+                    &filename,
                     &markdown[..truncate_at],
                     // WHY: The relational `documents` table has a CHECK constraint
                     // that only allows 'pending', 'processing', 'indexed', 'failed'.
@@ -817,5 +855,19 @@ mod tests {
     fn explicit_restart_starts_clean() {
         assert!(!should_resume_pdf_conversion(true, true));
         assert!(should_restart_pdf_conversion(true, true));
+    }
+
+    #[test]
+    fn large_local_pdfs_are_throttled_aggressively() {
+        let (concurrency, dpi) = compute_safe_pdf_resource_profile(250, 60 * 1024 * 1024, "ollama");
+        assert_eq!(concurrency, 1);
+        assert_eq!(dpi, 96);
+    }
+
+    #[test]
+    fn small_cloud_pdfs_keep_reasonable_parallelism() {
+        let (concurrency, dpi) = compute_safe_pdf_resource_profile(40, 4 * 1024 * 1024, "openai");
+        assert_eq!(concurrency, 8);
+        assert_eq!(dpi, 150);
     }
 }

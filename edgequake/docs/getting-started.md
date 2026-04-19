@@ -4,9 +4,9 @@ EdgeQuake is a high-performance Retrieval-Augmented Generation (RAG) system buil
 
 ## Prerequisites
 
-- **Rust 1.78+** - Install via [rustup](https://rustup.rs/)
-- **OpenAI API Key** - For LLM and embedding operations
-- **PostgreSQL (optional)** - For production deployments
+- **Rust 1.95+** - Install via [rustup](https://rustup.rs/)
+- **PostgreSQL** - Required for server mode and local verification
+- **LLM provider access** - OpenAI, Ollama, or the mock provider for tests
 
 ## Installation
 
@@ -58,6 +58,8 @@ cargo run
 # Production mode
 cargo run --release
 ```
+
+If PostgreSQL is unavailable, the server now exits with a clear startup error instead of continuing in a partially broken state.
 
 The API will be available at `http://localhost:8080`.
 
@@ -215,8 +217,8 @@ curl http://localhost:8080/health
 
 Once the server is running, access the OpenAPI documentation at:
 
-- **Swagger UI**: http://localhost:8080/swagger-ui/
-- **OpenAPI JSON**: http://localhost:8080/api-docs/openapi.json
+- **Swagger UI**: <http://localhost:8080/swagger-ui/>
+- **OpenAPI JSON**: <http://localhost:8080/api-docs/openapi.json>
 
 ## Next Steps
 
@@ -229,17 +231,17 @@ Once the server is running, access the OpenAPI documentation at:
 
 ### Common Issues
 
-**"LLM API error"**
+#### LLM API error
 
 - Verify your `OPENAI_API_KEY` is set correctly
 - Check your API quota
 
-**"Storage initialization failed"**
+#### Storage initialization failed
 
-- For PostgreSQL: Verify connection string
+- For PostgreSQL: verify the connection string
 - Check that required extensions (pgvector, Apache AGE) are installed
 
-**"Rate limit exceeded"**
+#### Rate limit exceeded
 
 - EdgeQuake includes automatic retry with backoff
 - Consider increasing `llm_model_max_async` for parallel requests

@@ -13,7 +13,7 @@ use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
-use super::super::storage_helpers::cleanup_document_graph_data;
+use super::super::storage_helpers::{cleanup_document_graph_data, metadata_matches_tenant_context};
 
 /// Recover documents stuck in "processing" status.
 ///
@@ -66,6 +66,10 @@ pub async fn recover_stuck(
         }
 
         if let Some(value) = state.kv_storage.get_by_id(key).await? {
+            if !metadata_matches_tenant_context(&value, &tenant_ctx) {
+                continue;
+            }
+
             if let Some(obj) = value.as_object() {
                 let status = obj.get("status").and_then(|v| v.as_str());
                 let doc_id = obj.get("id").and_then(|v| v.as_str());

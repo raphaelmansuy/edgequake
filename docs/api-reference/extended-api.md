@@ -40,7 +40,7 @@ curl http://localhost:8080/api/version
 
 ```json
 {
-  "version": "0.7.0"
+  "version": "0.10.x"
 }
 ```
 

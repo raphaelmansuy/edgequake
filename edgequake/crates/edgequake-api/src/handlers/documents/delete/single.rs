@@ -8,11 +8,15 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::documents_types::*;
+use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 
-use super::super::storage_helpers::{extract_source_docs, get_workspace_vector_storage_for_delete};
+use super::super::storage_helpers::{
+    extract_source_docs, get_workspace_vector_storage_for_delete, metadata_matches_tenant_context,
+    purge_persisted_tasks_for_document,
+};
 
 /// Resolve the actual KV key prefix for a document.
 ///
@@ -68,6 +72,7 @@ async fn resolve_kv_key_prefix(
 pub async fn delete_document(
     State(state): State<AppState>,
     axum::extract::Path(document_id): axum::extract::Path<String>,
+    tenant_ctx: TenantContext,
 ) -> ApiResult<Json<DeleteDocumentResponse>> {
     let keys = state.kv_storage.keys().await?;
 
@@ -127,6 +132,16 @@ pub async fn delete_document(
     let (workspace_id_for_storage, document_status, content_hash_opt, _pdf_id_opt, track_id_opt) =
         if has_metadata {
             if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
+                // WHY: document IDs must not be enough to delete across workspace
+                // boundaries. If the request carries workspace context, the stored
+                // document metadata must match that scope or we fail closed.
+                if !metadata_matches_tenant_context(&metadata, &tenant_ctx) {
+                    return Err(ApiError::NotFound(format!(
+                        "Document {} not found",
+                        document_id
+                    )));
+                }
+
                 let workspace = metadata
                     .get("workspace_id")
                     .and_then(|v| v.as_str())
@@ -198,11 +213,19 @@ pub async fn delete_document(
                 tracing::warn!(
                     document_id = %document_id,
                     status = %document_status,
-                    "No track_id in metadata — proceeding with delete without task cancellation"
+                    "No track_id in metadata — falling back to persisted task scan during delete"
                 );
             }
         }
     }
+
+    let persisted_tasks_removed = purge_persisted_tasks_for_document(
+        &state,
+        &document_id,
+        track_id_opt.as_deref(),
+        Some(&workspace_id_for_storage),
+    )
+    .await;
 
     // SPEC-028: Collect chunk IDs for vector storage deletion
     // Clone chunk_ids before workspace_vector_storage operations
@@ -498,6 +521,7 @@ pub async fn delete_document(
         entities_updated = entities_updated,
         relationships_removed = relationships_removed,
         relationships_updated = relationships_updated,
+        persisted_tasks_removed = persisted_tasks_removed,
         "Document cascade delete complete"
     );
 
@@ -650,6 +674,7 @@ mod tests {
         let result = delete_document(
             State(state.clone()),
             axum::extract::Path(json_id.to_string()),
+            TenantContext::default(),
         )
         .await;
 
@@ -686,6 +711,7 @@ mod tests {
         let result = delete_document(
             State(state.clone()),
             axum::extract::Path("nonexistent-id-0000".to_string()),
+            TenantContext::default(),
         )
         .await;
 
@@ -729,6 +755,7 @@ mod tests {
         let result = delete_document(
             State(state.clone()),
             axum::extract::Path(json_id.to_string()),
+            TenantContext::default(),
         )
         .await;
 

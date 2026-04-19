@@ -37,11 +37,11 @@ This guide covers monitoring, logging, and alerting for EdgeQuake in production 
 
 EdgeQuake provides built-in health endpoints:
 
-| Endpoint            | Purpose             | Response              |
-| ------------------- | ------------------- | --------------------- |
-| `GET /health`       | Basic liveness      | `{ "status": "ok" }`  |
-| `GET /health/ready` | Readiness check     | Database + LLM status |
-| `GET /health/live`  | Kubernetes liveness | Process check         |
+| Endpoint      | Purpose             | Response                  |
+| ------------- | ------------------- | ------------------------- |
+| `GET /health` | Basic health        | `{ "status": "healthy" }` |
+| `GET /ready`  | Readiness check     | Database + LLM status     |
+| `GET /live`   | Kubernetes liveness | Process check             |
 
 ### Basic Health Check
 
@@ -51,8 +51,8 @@ curl http://localhost:8080/health
 
 ```json
 {
-  "status": "ok",
-  "version": "0.7.0",
+  "status": "healthy",
+  "version": "0.10.x",
   "storage_mode": "postgresql"
 }
 ```
@@ -60,7 +60,7 @@ curl http://localhost:8080/health
 ### Readiness Check
 
 ```bash
-curl http://localhost:8080/health/ready
+curl http://localhost:8080/ready
 ```
 
 ```json

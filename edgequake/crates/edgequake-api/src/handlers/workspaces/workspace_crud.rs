@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use super::helpers::{verify_workspace_tenant_access, workspace_to_response};
 use crate::error::ApiError;
+use crate::handlers::documents::storage_helpers::purge_workspace_tasks;
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -328,6 +329,7 @@ pub async fn delete_workspace(
     tracing::info!(workspace_id = %workspace_id, "Starting workspace cascade delete");
 
     let workspace_id_str = workspace_id.to_string();
+    let tasks_deleted = purge_workspace_tasks(&state, workspace_id).await;
 
     // 1. Clear vector storage for this workspace
     // WHY: Remove all embeddings (chunks + entities) before deleting workspace
@@ -428,6 +430,38 @@ pub async fn delete_workspace(
         );
     }
 
+    // 3b. Delete workspace-scoped PDF rows so duplicate detection and document
+    // listings cannot surface stale uploads after the workspace is gone.
+    let pdfs_deleted = {
+        #[cfg(feature = "postgres")]
+        {
+            use edgequake_storage::ListPdfFilter;
+
+            let mut deleted = 0usize;
+            if let Some(ref pdf_storage) = state.pdf_storage {
+                let filter = ListPdfFilter {
+                    workspace_id: Some(workspace_id),
+                    processing_status: None,
+                    page: Some(1),
+                    page_size: Some(10_000),
+                };
+
+                if let Ok(pdf_list) = pdf_storage.list_pdfs(filter).await {
+                    for pdf in pdf_list.items {
+                        if pdf_storage.delete_pdf(&pdf.pdf_id).await.is_ok() {
+                            deleted += 1;
+                        }
+                    }
+                }
+            }
+            deleted
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            0usize
+        }
+    };
+
     // 4. Evict workspace from vector registry cache
     // WHY: Ensure cached storage instances are cleaned up
     state.vector_registry.evict(&workspace_id).await;
@@ -441,11 +475,13 @@ pub async fn delete_workspace(
 
     tracing::info!(
         workspace_id = %workspace_id,
+        tasks_deleted = tasks_deleted,
         vectors_cleared = vectors_cleared,
         nodes_cleared = nodes_cleared,
         edges_cleared = edges_cleared,
         documents_deleted = documents_deleted,
         chunks_deleted = chunks_deleted,
+        pdfs_deleted = pdfs_deleted,
         "Workspace cascade delete completed"
     );
 

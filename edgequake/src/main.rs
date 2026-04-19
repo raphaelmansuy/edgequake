@@ -559,7 +559,7 @@ async fn periodic_orphan_check(
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Initialize tracing
     tracing_subscriber::registry()
         .with(
@@ -614,9 +614,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     info!("🐘 PostgreSQL storage mode (DATABASE_URL detected)");
-    let mut state = AppState::new_postgres(&database_url, &api_key)
-        .await
-        .expect("Failed to initialize PostgreSQL storage");
+    let mut state = match AppState::new_postgres(&database_url, &api_key).await {
+        Ok(state) => state,
+        Err(e) => {
+            // WHY: Database outages and daemon restarts are operational failures, not
+            // programmer bugs. Panicking here produces a noisy crash and can trigger
+            // cascading restarts in local tooling. Return a clear startup error instead.
+            error!("═══════════════════════════════════════════════════════════════════════");
+            error!(" FATAL: Failed to initialize PostgreSQL storage: {}", e);
+            error!("═══════════════════════════════════════════════════════════════════════");
+            error!(" EdgeQuake requires a reachable PostgreSQL database at startup.");
+            error!(" Verify DATABASE_URL and start your database before retrying.");
+            error!("═══════════════════════════════════════════════════════════════════════");
+            return Err(e);
+        }
+    };
 
     // Initialize default tenant and workspace for non-authenticated mode
     if let Err(e) = state.initialize_defaults().await {

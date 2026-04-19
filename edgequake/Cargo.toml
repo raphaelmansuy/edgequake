@@ -71,7 +71,7 @@ tokio-test = { workspace = true }
 [workspace.package]
 version = "0.10.4"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.95"
 license = "Apache-2.0"
 authors = ["EdgeQuake Team"]
 repository = "https://github.com/edgequake/edgequake"

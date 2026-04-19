@@ -365,7 +365,7 @@ async fn test_query_http_after_provider_switch() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
-/// Test query with non-existent workspace falls back to default
+/// Test query with non-existent workspace fails closed.
 #[tokio::test]
 async fn test_query_http_nonexistent_workspace() {
     let app = create_test_server().build_router();
@@ -388,12 +388,13 @@ async fn test_query_http_nonexistent_workspace() {
         .await
         .unwrap();
 
-    // Non-existent workspace falls back to default provider (graceful fallback)
-    // This is the expected behavior - system continues with default rather than failing
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: An explicit workspace selector is a security boundary.
+    // Falling back to the default workspace would turn a bad request into a
+    // cross-workspace read risk, so the handler must reject it.
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
-/// Test query with invalid workspace UUID format falls back to default
+/// Test query with invalid workspace UUID format fails closed.
 #[tokio::test]
 async fn test_query_http_invalid_workspace_uuid() {
     let app = create_test_server().build_router();
@@ -415,9 +416,58 @@ async fn test_query_http_invalid_workspace_uuid() {
         .await
         .unwrap();
 
-    // Invalid UUID format causes graceful fallback to default provider
-    // The query still succeeds with the default provider
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+/// Test streaming query with non-existent workspace fails closed.
+#[tokio::test]
+async fn test_stream_query_http_nonexistent_workspace() {
+    let app = create_test_server().build_router();
+
+    let fake_workspace_id = Uuid::new_v4();
+    let request = json!({
+        "query": "What is AI?"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query/stream")
+                .header("Content-Type", "application/json")
+                .header("X-Workspace-ID", fake_workspace_id.to_string())
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+/// Test streaming query with invalid workspace UUID format fails closed.
+#[tokio::test]
+async fn test_stream_query_http_invalid_workspace_uuid() {
+    let app = create_test_server().build_router();
+
+    let request = json!({
+        "query": "What is AI?"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query/stream")
+                .header("Content-Type", "application/json")
+                .header("X-Workspace-ID", "not-a-valid-uuid")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 /// Test query with OpenAI workspace config

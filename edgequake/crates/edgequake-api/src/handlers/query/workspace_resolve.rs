@@ -29,6 +29,28 @@ pub(super) async fn get_workspace(
         .map_err(|e| ApiError::Internal(format!("Failed to get workspace: {}", e)))
 }
 
+/// Resolve the query workspace when the caller supplied an explicit workspace ID.
+///
+/// WHY: An explicit workspace selector is a hard isolation boundary. If the
+/// caller asks for workspace A and that workspace is invalid or missing, falling
+/// back to the server default would silently turn a scoped query into an
+/// unscoped one. Query handlers should therefore fail closed for explicit
+/// workspace requests and only use default behavior when no workspace was sent.
+pub(super) async fn resolve_query_workspace(
+    state: &AppState,
+    workspace_id: Option<&str>,
+) -> Result<Option<edgequake_core::Workspace>, ApiError> {
+    match workspace_id {
+        Some(workspace_id) => {
+            let workspace = get_workspace(state, workspace_id).await?.ok_or_else(|| {
+                ApiError::NotFound(format!("Workspace not found: {}", workspace_id))
+            })?;
+            Ok(Some(workspace))
+        }
+        None => Ok(None),
+    }
+}
+
 /// Get workspace-specific embedding provider for query execution.
 ///
 /// @implements SPEC-032: Workspace-specific embedding in query process

@@ -12,13 +12,13 @@ title: "Installation Guide"
 
 Before installing, ensure you have:
 
-| Requirement | Version | Check Command      | Purpose               |
-| ----------- | ------- | ------------------ | --------------------- |
-| **Rust**    | 1.78+   | `rustc --version`  | Build backend         |
-| **Cargo**   | Latest  | `cargo --version`  | Package manager       |
-| **Docker**  | 24+     | `docker --version` | PostgreSQL (optional) |
-| **Node.js** | 20+     | `node --version`   | WebUI (optional)      |
-| **pnpm**    | 8+      | `pnpm --version`   | Package manager       |
+| Requirement | Version    | Check Command      | Purpose                                  |
+| ----------- | ---------- | ------------------ | ---------------------------------------- |
+| **Rust**    | 1.95.x     | `rustc --version`  | Build backend with the pinned toolchain  |
+| **Cargo**   | via rustup | `cargo --version`  | Package manager and workspace tooling    |
+| **Docker**  | 24+        | `docker --version` | Recommended path for required PostgreSQL |
+| **Node.js** | 20+        | `node --version`   | WebUI and Playwright                     |
+| **pnpm**    | 10+        | `pnpm --version`   | Frontend package manager                 |
 
 ---
 
@@ -59,21 +59,23 @@ make dev
 
 **What happens**:
 
-1. Starts PostgreSQL in Docker (port 5432)
+1. Ensures PostgreSQL is reachable on port 5432
 2. Runs database migrations
-3. Builds and starts Rust backend (port 8080)
-4. Starts Next.js frontend (port 3000)
+3. Builds and starts the Rust backend on port 8080
+4. Starts the Next.js frontend, preferring port 3001 and automatically shifting if that port is already in use
 
 **Verify**:
 
 ```bash
 # In a new terminal
 curl http://localhost:8080/health
-# Expected: {"status":"ok","version":"..."}
+# Expected: JSON containing "status":"healthy"
 
-# Open WebUI
-open http://localhost:3000
+# Open WebUI (default local Make-based port)
+open <http://localhost:3001>
 ```
+
+> If another stack is already using 3001, run `make status` to see the exact frontend URL that was selected.
 
 ---
 
@@ -114,13 +116,16 @@ cargo build --release
 # Binary location
 ls target/release/edgequake
 
-# Run directly
+# Run directly (PostgreSQL is required)
+export DATABASE_URL="postgresql://postgres:edgequake@localhost:5432/edgequake"
 ./target/release/edgequake
 ```
 
 ---
 
 ### Option 4: Development Mode (Watch + Hot Reload)
+
+> Principle: prefer explicit health checks and the repository-pinned toolchain over ad-hoc local variations. That keeps local behavior consistent with CI.
 
 ```bash
 # Terminal 1: Start PostgreSQL
@@ -192,7 +197,7 @@ EdgeQuake uses PostgreSQL as its storage backend for all modes (since v0.4.0):
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │         ┌─────────────────────────────────────┐            │
-│         │          PostgreSQL 16+              │            │
+│         │          PostgreSQL 15+              │            │
 │         │                                     │            │
 │         │  ┌──────────┐  ┌──────────────────┐ │            │
 │         │  │ pgvector  │  │   Apache AGE     │ │            │
@@ -231,30 +236,39 @@ cd edgequake && sqlx database setup
 Run these commands to verify your installation:
 
 ```bash
-# 1. Check backend health
-curl -s http://localhost:8080/health | jq
-# ✅ Expected: {"status":"ok","version":"0.7.0",...}
+# 1. Confirm the pinned compiler is active
+cd edgequake
+cargo --version
+rustc --version
 
-# 2. Check API docs
+# 2. Check backend health
+curl -s http://localhost:8080/health | jq
+# ✅ Expected: JSON containing "status":"healthy" and "storage_mode":"postgresql"
+
+# 3. Check API docs
 curl -s http://localhost:8080/api-docs/openapi.json | jq .info.title
 # ✅ Expected: "EdgeQuake API"
 
-# 3. Check LLM provider
-curl -s http://localhost:8080/api/v1/config | jq .llm_provider
-# ✅ Expected: "ollama" or "openai"
+# 4. Check Ollama if using the local provider
+curl -s http://localhost:11434/api/tags | jq
 
-# 4. Test document ingestion
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -d '{"content":"Marie Curie discovered radium in 1898.","title":"Test"}'
-# ✅ Expected: {"document_id":"...","entities_extracted":...}
-
-# 5. Test query
-curl -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -d '{"query":"Who discovered radium?"}'
-# ✅ Expected: {"response":"Marie Curie...","sources":[...]}
+# 5. Let the repo verify itself
+cargo fmt --all --check
+cargo clippy --workspace --lib -- -D warnings
+cargo test --workspace --lib --no-fail-fast
 ```
+
+### No-flake local workflow
+
+For the most reproducible local setup:
+
+```bash
+cd edgequake
+rustup show active-toolchain
+make status
+```
+
+If PostgreSQL is unavailable, EdgeQuake now exits with a clear startup error instead of crashing later in a harder-to-debug state.
 
 ---
 

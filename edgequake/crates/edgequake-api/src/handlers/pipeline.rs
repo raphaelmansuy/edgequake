@@ -92,21 +92,22 @@ pub async fn get_pipeline_status(
     path = "/api/v1/pipeline/cancel",
     tag = "Pipeline",
     responses(
-        (status = 200, description = "Cancellation requested", body = CancelPipelineResponse),
-        (status = 409, description = "No job is currently running")
+        (status = 200, description = "Cancellation requested or pipeline already idle", body = CancelPipelineResponse)
     )
 )]
 pub async fn cancel_pipeline(
     State(state): State<AppState>,
 ) -> ApiResult<Json<CancelPipelineResponse>> {
-    // Check if pipeline is busy
+    // WHY: Cancellation is an idempotent user action. If the pipeline already
+    // finished between dialog open and confirm click, the desired state is
+    // already achieved, so return success instead of surfacing a noisy 409.
     if !state.pipeline_state.is_busy().await {
-        return Err(ApiError::Conflict(
-            "No job is currently running".to_string(),
-        ));
+        return Ok(Json(CancelPipelineResponse {
+            status: "already_idle".to_string(),
+            message: "Pipeline is already idle; there is nothing left to cancel.".to_string(),
+        }));
     }
 
-    // Request cancellation
     state.pipeline_state.request_cancellation().await;
 
     Ok(Json(CancelPipelineResponse {

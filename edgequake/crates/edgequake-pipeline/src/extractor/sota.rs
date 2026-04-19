@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use edgequake_llm::traits::{ChatMessage, CompletionOptions};
 
-use super::{EntityExtractor, ExtractionResult};
+use super::{effective_temperature_for_model, EntityExtractor, ExtractionResult};
 use crate::chunker::TextChunk;
 use crate::error::{PipelineError, Result};
 
@@ -284,7 +284,9 @@ where
             // Non-reasoning models silently ignore this field.
             let options = CompletionOptions {
                 max_tokens: Some(current_max_tokens),
-                temperature: Some(0.0), // Deterministic for extraction
+                // WHY: Some OpenAI reasoning-capable models only support their default
+                // temperature and fail if we force 0.0. Omit the override for those models.
+                temperature: effective_temperature_for_model(self.llm_provider.model(), 0.0),
                 reasoning_effort: Some("none".to_string()),
                 ..Default::default()
             };

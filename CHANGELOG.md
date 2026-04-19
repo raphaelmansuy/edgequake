@@ -6,14 +6,30 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Deleted documents no longer come back after restart.** Single-document delete, bulk delete, and workspace delete now purge persisted task rows and in-flight progress state before removing document data, preventing stale recovery jobs from resurrecting work the user already removed.
+
+- **Destructive and recovery flows now stay inside the active workspace.** Delete, bulk clear, stuck-recovery, and reprocess handlers now re-check document workspace ownership before acting, so cross-workspace scans cannot accidentally touch unrelated data.
+
+- **Large PDF ingestion is more memory-stable under local and cloud vision providers.** The pipeline now computes a safe per-file resource profile, lowers DPI/concurrency for heavy PDFs, and drops raw PDF bytes as soon as conversion is complete to reduce spikes and flaky retries.
+
 - **PDF retries now resume safely from saved checkpoints.** Reprocessing and recovery flows keep the existing document and continue conversion progress instead of restarting from page 1 unless a full reset is explicitly requested.
 
 - **Vision PDF failures now degrade gracefully to EdgeParse.** Timeout and provider-setup failures no longer leave documents stuck in a flaky failed loop when a deterministic text path is available.
+
+- **Pipeline cancellation and destructive UI actions are more robust and accessible.** Cancel is now idempotent when the queue is already idle, destructive buttons use correct contrast, and keyboard focus stays on real app controls during browser navigation.
+
+- **Query endpoints now fail closed on invalid workspace context.** If a client explicitly sends an invalid or nonexistent workspace ID, the API now returns a clear error instead of silently falling back to the default workspace. This closes a multi-tenant isolation gap in the query path.
+
+- **Service health checks are gentler on Docker/OrbStack.** Development commands now prefer lightweight port probes for PostgreSQL readiness and skip repeated Docker exec retries when the daemon is unavailable, reducing local environment instability during E2E work.
+
+- **Local development now avoids interfering with other stacks.** `make dev` and `make dev-bg` now use listener-only checks, prefer the UI on port 3001, and automatically shift the API/UI to the next safe free ports when 8080 or 3001 are already in use.
 
 - **Release branches stay clean during E2E verification.** Generated screenshot and test artifact folders are now ignored so publication commits and PRs are not polluted by transient PNG output.
 
 ### Changed
 
+- Added explicit WHY-comments around task lifecycle cleanup, workspace-scope enforcement, and development-overlay accessibility so the reliability invariants are easy to audit and maintain.
+- Verified the hardening with fresh Rust E2E coverage (`78 passed`) plus Playwright browser regression coverage (`16 passed, 2 skipped`).
 - Aligned release metadata and publish defaults to `0.10.4` across the workspace, frontend package, quickstart surfaces, and Docker workflow defaults.
 - Verified the release path with fresh build, health, and Docker-oriented publication checks.
 

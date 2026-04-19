@@ -11,7 +11,7 @@
 'use client';
 
 import { Toaster } from '@/components/ui/sonner';
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { I18nProvider } from './i18n-provider';
 import { KeyboardShortcutsProvider } from './keyboard-shortcuts-provider';
 import { QueryProvider } from './query-provider';
@@ -39,6 +39,30 @@ interface AppProvidersProps {
  * Use HydrationProvider if you need app-wide hydration gating.
  */
 export function AppProviders({ children }: AppProvidersProps) {
+  useEffect(() => {
+    // WHY: In Next.js development mode, the framework injects a `nextjs-portal`
+    // host for dev tooling. That host can accidentally become the first tab stop,
+    // which breaks keyboard navigation expectations and causes false-negative
+    // accessibility regressions. Removing the host from the tab order keeps focus
+    // on real application controls while preserving the overlay itself.
+    const keepDevPortalOutOfTabOrder = () => {
+      document.querySelectorAll('nextjs-portal').forEach((node) => {
+        const element = node as HTMLElement;
+        element.tabIndex = -1;
+        element.setAttribute('aria-hidden', 'true');
+      });
+    };
+
+    keepDevPortalOutOfTabOrder();
+
+    const observer = new MutationObserver(() => {
+      keepDevPortalOutOfTabOrder();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <QueryProvider>
       <ThemeProvider>

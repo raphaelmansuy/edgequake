@@ -50,14 +50,14 @@ Key differences:
 
 - 4 GB RAM
 - 2 CPU cores
-- Rust 1.78+
-- PostgreSQL 16 (optional)
+- Rust 1.95+
+- PostgreSQL 15+ with pgvector and AGE available
 
 **Production**:
 
 - 8+ GB RAM
 - 4+ CPU cores
-- PostgreSQL 16 with pgvector + AGE
+- PostgreSQL 15+ with pgvector + AGE
 - LLM provider (OpenAI or Ollama)
 
 ### Can I run EdgeQuake without PostgreSQL?
@@ -302,7 +302,7 @@ See [Troubleshooting Guide](/docs/troubleshooting/common-issues/) for more.
 curl http://localhost:8080/health
 
 # Full readiness (checks database)
-curl http://localhost:8080/health/ready
+curl http://localhost:8080/ready
 ```
 
 ---

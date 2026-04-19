@@ -1,3 +1,6 @@
 [toolchain]
-channel = "stable"
+# WHY: Pin local development to the same compiler used in CI so fmt/clippy/build
+# results are reproducible instead of drifting with whichever stable release happens
+# to be installed on a given machine.
+channel = "1.95.0"
 components = ["rustfmt", "clippy"]

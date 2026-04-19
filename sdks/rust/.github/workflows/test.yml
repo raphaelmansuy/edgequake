@@ -17,7 +17,7 @@ jobs:
         runs-on: ubuntu-latest
         strategy:
             matrix:
-                rust: [stable, "1.75"]
+                rust: ["1.95.0", "1.75"]
         steps:
             - uses: actions/checkout@v4
             - uses: dtolnay/rust-toolchain@master
@@ -28,7 +28,7 @@ jobs:
               with:
                   workspaces: sdks/rust
             - name: Check formatting
-              if: matrix.rust == 'stable'
+              if: matrix.rust == '1.95.0'
               run: cargo fmt --check
             - name: Clippy
               run: cargo clippy --all-targets -- -D warnings
@@ -42,7 +42,9 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
-            - uses: dtolnay/rust-toolchain@stable
+            - uses: dtolnay/rust-toolchain@master
+              with:
+                  toolchain: 1.95.0
             - uses: Swatinem/rust-cache@v2
               with:
                   workspaces: sdks/rust

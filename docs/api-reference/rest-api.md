@@ -4,7 +4,7 @@ title: "EdgeQuake REST API Reference"
 
 # EdgeQuake REST API Reference
 
-> **Version**: 0.8.0  
+> **Version**: 0.10.x  
 > **Base URL**: `http://localhost:8080/api/v1`  
 > **OpenAPI**: Available at `/api-docs/openapi.json`
 
@@ -88,8 +88,8 @@ Deep health check with component status for monitoring dashboards.
 ```json
 {
   "status": "healthy",
-  "version": "0.7.0",
-  "storage_mode": "postgres",
+  "version": "0.10.x",
+  "storage_mode": "postgresql",
   "workspace_id": "default",
   "components": {
     "kv_storage": true,
