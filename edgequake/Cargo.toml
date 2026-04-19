@@ -69,12 +69,12 @@ criterion = { workspace = true }
 tokio-test = { workspace = true }
 
 [workspace.package]
-version = "0.10.8"
+version = "0.10.9"
 edition = "2021"
 rust-version = "1.95"
 license = "Apache-2.0"
 authors = ["EdgeQuake Team"]
-repository = "https://github.com/edgequake/edgequake"
+repository = "https://github.com/raphaelmansuy/edgequake"
 description = "High-performance RAG system with knowledge graph capabilities"
 keywords = ["rag", "knowledge-graph", "llm", "embeddings", "search"]
 categories = ["science", "database", "web-programming"]

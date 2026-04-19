@@ -2,13 +2,14 @@
 //!
 //! This is the main entry point for the EdgeQuake server.
 
+use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
 use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
 use edgequake_tasks::{
     Pagination, TaskFilter, TaskQueue, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig,
 };
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// Print the EdgeQuake startup banner with storage mode information.
@@ -54,45 +55,31 @@ fn humanize_duration(d: Duration) -> String {
     }
 }
 
-/// Recover orphaned tasks that were stuck in "processing" state when backend restarted.
+fn clear_empty_env_var(name: &str) {
+    if matches!(std::env::var(name), Ok(value) if value.trim().is_empty()) {
+        std::env::remove_var(name);
+        info!("Removed empty env var '{}' to keep provider configuration valid", name);
+    }
+}
+
+fn redact_database_url(url: &str) -> String {
+    let Some((prefix, host)) = url.rsplit_once('@') else {
+        return url.to_string();
+    };
+
+    let Some((scheme, userinfo)) = prefix.split_once("://") else {
+        return format!("***@{host}");
+    };
+
+    let username = userinfo.split(':').next().unwrap_or("user");
+    format!("{scheme}://{username}:***@{host}")
+}
+
+/// Reset task rows left in processing state after an unclean restart.
 ///
-/// ## WHY This Fix Is Critical
-///
-/// When the backend restarts (crash, deployment, manual restart), active tasks remain
-/// in "processing" state in the database. Since workers are stateless and don't persist
-/// which tasks they were processing, these tasks become orphaned:
-/// - They never complete
-/// - Workers don't pick them up (status != "pending")
-/// - UI shows "Processing N document(s)" banner but no documents are actually processing
-/// - Users see documents stuck, can't retry without manual DB intervention
-///
-/// ## Recovery Strategy
-///
-/// **ALL** tasks with status "processing" are unconditionally recovered on startup.
-///
-/// WHY no age threshold: At startup, ZERO workers are running — every task in
-/// "processing" state is orphaned by definition. The previous 10-minute age threshold
-/// based on `updated_at` was defeated by the worker heartbeat mechanism: workers
-/// update `updated_at` every 60 seconds, so the threshold could never catch tasks
-/// where the heartbeat was still running until the moment of shutdown. This caused
-/// a phantom "Processing N document(s)" banner with no actual processing happening.
-///
-/// - Reset to "pending" status so they will be requeued by `requeue_pending_tasks()`
-/// - Pipeline checkpoint system ensures expensive LLM extraction is not repeated
-/// - Workers resume from checkpoint, skipping already-completed stages
-///
-/// ## Safety
-///
-/// Unconditional recovery is safe because:
-/// - Processing is idempotent (upserts to KV/graph/vector storage)
-/// - Checkpoint system prevents re-running expensive LLM extraction
-/// - No workers are running at startup → zero risk of resetting active work
-/// - Worst case: a small amount of duplicate storage writes
-///
-/// @implements PRODUCTION_BUG_FIX: Orphaned task recovery on startup
-async fn recover_orphaned_tasks(
-    task_storage: Arc<dyn TaskStorage>,
-) -> Result<(), Box<dyn std::error::Error>> {
+/// Startup is a safe recovery point because no workers are active yet, so every
+/// processing task is orphaned by definition and can be returned to pending.
+async fn recover_orphaned_tasks(task_storage: Arc<dyn TaskStorage>) -> Result<()> {
     info!("🔍 Checking for orphaned tasks from previous backend session...");
 
     let filter = TaskFilter {
@@ -175,41 +162,13 @@ async fn recover_orphaned_tasks(
     Ok(())
 }
 
-/// Recover orphaned documents stuck in non-terminal states after backend restart.
+/// Normalize document metadata left in non-terminal states after a restart.
 ///
-/// ## WHY This Fix Is Critical
-///
-/// When the backend restarts during upload or processing, documents can remain
-/// in non-terminal states like "uploading", "converting", "pending", "processing"
-/// in KV storage. Users cannot cancel or reprocess these "stuck" documents because:
-/// - The upload/processing context is lost on restart
-/// - The cancel endpoint may fail (no matching task, wrong status)
-/// - UI shows documents permanently stuck with animated spinners
-///
-/// ## WHY No Age Threshold
-///
-/// At startup, ZERO workers are running. Any document in a non-terminal state is
-/// orphaned by definition. The previous 10-minute age threshold was defeated by the
-/// worker heartbeat mechanism: workers update metadata periodically, keeping documents
-/// looking "recent" even after the previous server instance dies.
-///
-/// ## Recovery Strategy
-///
-/// Documents with non-terminal status/current_stage updated >5 minutes ago are
-/// reset to "pending" with a clear recovery message. This enables automatic
-/// retry through the normal task pipeline without user intervention.
-///
-/// Pipeline checkpoints ensure that expensive LLM extraction work is not repeated
-/// — the recovered document will resume from the last checkpoint.
-///
-/// Documents stuck in early stages (uploading, converting) where no checkpoint
-/// exists are marked as "retry_pending" to indicate they need user action
-/// to re-upload the source file.
-///
-/// @implements FIX: Stuck uploading status after cancel or server restart
+/// Early upload stages are marked for re-upload, while later stages are reset to
+/// pending so checkpoint-aware processing can resume automatically.
 async fn recover_orphaned_documents(
     kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     info!("🔍 Checking for orphaned documents from previous backend session...");
 
     let all_keys = kv_storage.keys().await?;
@@ -379,45 +338,11 @@ async fn recover_orphaned_documents(
     Ok(())
 }
 
-/// Requeue pending tasks from database to in-memory queue on startup.
-///
-/// @implements PRODUCTION_BUG_FIX: Pending task recovery
-///
-/// ## WHY this is needed
-///
-/// The worker pool pulls tasks from an in-memory TaskQueue (mpsc channel), not from
-/// the database. When tasks are created via API:
-/// 1. Task is saved to database with status="pending"
-/// 2. Task is enqueued to in-memory TaskQueue
-/// 3. Workers pull from TaskQueue and process
-///
-/// **Problem:** When backend restarts, the in-memory queue is empty! Pending tasks
-/// in the database are never picked up by workers.
-///
-/// **Solution:** On startup, query all pending tasks from database and re-enqueue them
-/// to the TaskQueue so workers can process them.
-///
-/// ## Strategy
-///
-/// - Query ALL tasks with status="pending" (no age threshold - all pending tasks should be processed)
-/// - Enqueue each task to the TaskQueue
-/// - Log requeue statistics for visibility
-/// - Non-fatal: If requeue fails, warning is logged but startup continues
-///
-/// ## Ordering
-///
-/// This MUST run BEFORE starting the worker pool to ensure pending tasks are available
-/// when workers start polling.
-///
-/// ## Risk mitigation
-///
-/// - Idempotent: Re-enqueueing the same task multiple times is safe (workers dedup)
-/// - No race conditions: Workers haven't started yet when this runs
-/// - Non-blocking: Uses queue.send() which is async and won't block startup
+/// Reload pending database tasks into the in-memory worker queue on startup.
 async fn requeue_pending_tasks(
     task_storage: Arc<dyn TaskStorage>,
     task_queue: Arc<dyn TaskQueue>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     info!("🔄 Checking for pending tasks to requeue from database...");
 
     // Query all pending tasks
@@ -467,25 +392,8 @@ async fn requeue_pending_tasks(
     Ok(())
 }
 
-/// Periodic runtime orphan check for tasks whose heartbeat stopped.
-///
-/// WHY: Complements startup recovery (which catches all processing tasks) and the
-/// processing timeout (which catches hung tasks with active heartbeats). This catches
-/// a specific edge case: tasks where the heartbeat tokio task died (e.g., worker panic,
-/// out-of-memory) but the server is still running. Without this, the task stays in
-/// "processing" forever until the next server restart.
-///
-/// Uses a 10-minute `updated_at` threshold which is safe because:
-/// - Legitimate tasks have heartbeats updating `updated_at` every 60 seconds
-/// - 10 minutes = 10x the heartbeat interval → very high confidence the heartbeat died
-///
-/// Recovered tasks are set to "failed" (not "pending") because:
-/// - If the heartbeat died, something went wrong with the worker state
-/// - Automatic retry could hit the same issue
-/// - "failed" gives the user visibility and the option to manually retry
-async fn periodic_orphan_check(
-    task_storage: Arc<dyn TaskStorage>,
-) -> Result<(), Box<dyn std::error::Error>> {
+/// Mark processing tasks as failed if their heartbeat has been dead for too long.
+async fn periodic_orphan_check(task_storage: Arc<dyn TaskStorage>) -> Result<()> {
     let filter = TaskFilter {
         status: Some(TaskStatus::Processing),
         ..Default::default()
@@ -559,7 +467,7 @@ async fn periodic_orphan_check(
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::registry()
         .with(
@@ -571,64 +479,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     info!("Starting EdgeQuake v{}", env!("CARGO_PKG_VERSION"));
 
-    // WHY: Docker Compose passes empty-string env vars when the variable is unset on the host
-    // (e.g. `OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}`). The OpenAI provider checks
-    // `if let Ok(base_url) = std::env::var("OPENAI_BASE_URL")` and uses it as the API base URL.
-    // An empty string produces a malformed URL that causes `reqwest` to fail with "builder error"
-    // on every request. Removing the variable when it is empty lets the provider fall back to its
-    // built-in default (https://api.openai.com/v1).
-    for var in &["OPENAI_BASE_URL", "OPENAI_API_KEY"] {
-        if let Ok(val) = std::env::var(var) {
-            if val.is_empty() {
-                std::env::remove_var(var);
-                info!(
-                    "Removed empty env var '{}' to prevent provider misconfiguration",
-                    var
-                );
-            }
-        }
+    for var in ["OPENAI_BASE_URL", "OPENAI_API_KEY"] {
+        clear_empty_env_var(var);
     }
 
     // Get API key from environment (optional - Ollama doesn't need it)
     let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
 
-    // OODA-03: DATABASE_URL is now REQUIRED - in-memory storage removed for production consistency
-    // WHY: Mission directive requires eliminating in-memory providers to ensure:
-    // 1. Consistent behavior between dev and production
-    // 2. No accidental data loss from memory mode
-    // 3. Proper testing against real storage
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        error!("═══════════════════════════════════════════════════════════════════════");
-        error!(" FATAL: DATABASE_URL environment variable is REQUIRED");
-        error!("═══════════════════════════════════════════════════════════════════════");
-        error!(" In-memory storage has been removed for production consistency.");
-        error!(" Please set DATABASE_URL to a PostgreSQL connection string:");
-        error!("");
-        error!("   export DATABASE_URL=\"postgresql://user:pass@localhost:5432/edgequake\"");
-        error!("");
-        error!(" Or use the Makefile:");
-        error!("   make dev          # Starts with PostgreSQL (recommended)");
-        error!("   make backend-dev  # Backend only with PostgreSQL");
-        error!("═══════════════════════════════════════════════════════════════════════");
-        std::process::exit(1);
-    });
+    let database_url = std::env::var("DATABASE_URL")
+        .context("DATABASE_URL is required; start PostgreSQL and rerun make dev or make dev-auth")?;
 
-    info!("🐘 PostgreSQL storage mode (DATABASE_URL detected)");
-    let mut state = match AppState::new_postgres(&database_url, &api_key).await {
-        Ok(state) => state,
-        Err(e) => {
-            // WHY: Database outages and daemon restarts are operational failures, not
-            // programmer bugs. Panicking here produces a noisy crash and can trigger
-            // cascading restarts in local tooling. Return a clear startup error instead.
-            error!("═══════════════════════════════════════════════════════════════════════");
-            error!(" FATAL: Failed to initialize PostgreSQL storage: {}", e);
-            error!("═══════════════════════════════════════════════════════════════════════");
-            error!(" EdgeQuake requires a reachable PostgreSQL database at startup.");
-            error!(" Verify DATABASE_URL and start your database before retrying.");
-            error!("═══════════════════════════════════════════════════════════════════════");
-            return Err(e);
-        }
-    };
+    let redacted_database_url = redact_database_url(&database_url);
+    info!("🐘 PostgreSQL storage mode using {}", redacted_database_url);
+    let mut state = AppState::new_postgres(&database_url, &api_key)
+        .await
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
+        .with_context(|| format!("failed to initialize PostgreSQL storage at {redacted_database_url}"))?;
 
     // Initialize default tenant and workspace for non-authenticated mode
     if let Err(e) = state.initialize_defaults().await {
