@@ -2,7 +2,7 @@
 
 **High-Performance RAG with Knowledge Graph**
 
-[![Rust](https://img.shields.io/badge/rust-1.78+-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-GHCR-blue.svg)](https://github.com/raphaelmansuy/edgequake/pkgs/container/edgequake)
 
@@ -52,7 +52,7 @@ EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... make stack
 
 **Pin to a specific version:**
 ```bash
-EDGEQUAKE_VERSION=0.9.4 make stack
+EDGEQUAKE_VERSION=0.10.5 make stack
 ```
 
 ---
@@ -71,7 +71,7 @@ EDGEQUAKE_VERSION=0.9.4 make stack
 
 ### Prerequisites
 
-- Rust 1.78 or later
+- Rust 1.95 or later
 - OpenAI API key (or compatible API)
 
 ### Installation

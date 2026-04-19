@@ -202,7 +202,7 @@ docker compose -f docker-compose.quickstart.yml down       # stop
 
 #### Prerequisites
 
-- **Rust**: 1.78 or later ([Install Rust](https://rustup.rs))
+- **Rust**: 1.95 or later ([Install Rust](https://rustup.rs))
 - **Node.js**: 18+ or Bun 1.0+ ([Install Node](https://nodejs.org))
 - **Docker**: For PostgreSQL ([Install Docker](https://www.docker.com/get-started))
 - **Ollama**: For local LLM (optional, [Install Ollama](https://ollama.ai))

@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh
 #
 # Or with a pinned version:
-#   EDGEQUAKE_VERSION=0.10.4 curl -fsSL ... | sh
+#   EDGEQUAKE_VERSION=0.10.5 curl -fsSL ... | sh
 #
 # Prerequisites: Docker  (https://docs.docker.com/get-docker/)
 #
