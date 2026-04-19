@@ -1,6 +1,6 @@
 {
   "name": "edgequake_webui",
-  "version": "0.10.9",
+  "version": "0.10.10",
   "private": true,
   "scripts": {
     "dev": "next dev",

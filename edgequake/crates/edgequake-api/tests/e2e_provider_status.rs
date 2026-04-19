@@ -8,6 +8,8 @@ mod common;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
+    routing::get,
+    Router,
 };
 use common::clear_provider_detection_env;
 use serial_test::serial;
@@ -88,6 +90,55 @@ async fn test_provider_status_ollama() {
     assert_eq!(status["storage"]["dimension"], 768);
 
     // Cleanup
+    clear_provider_detection_env();
+}
+
+#[tokio::test]
+#[serial]
+async fn test_models_health_ollama_http_endpoint() {
+    clear_provider_detection_env();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let probe_app = Router::new().route(
+        "/api/version",
+        get(|| async { axum::Json(serde_json::json!({ "version": "test" })) }),
+    );
+
+    tokio::spawn(async move {
+        axum::serve(listener, probe_app).await.unwrap();
+    });
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    std::env::set_var("OLLAMA_HOST", format!("http://{}", addr));
+
+    let app_state = edgequake_api::AppState::new_memory(None::<String>);
+    let app = edgequake_api::create_router(app_state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/models/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let providers: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let ollama = providers
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|provider| provider["name"] == "ollama")
+        .expect("ollama provider present");
+
+    assert_eq!(ollama["health"]["available"], true);
     clear_provider_detection_env();
 }
 
