@@ -12,27 +12,10 @@
  * @enforces BR0702 - Retry on 5xx with exponential backoff
  */
 
+import { getRuntimeApiBaseUrl, getRuntimeServerBaseUrl } from "@/lib/runtime-config";
 import type { ApiError } from "@/types";
 
-// Server Base URL (without /api/v1)
-const getServerBaseUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (envUrl) {
-    return envUrl.replace(/\/$/, "");
-  }
-  return "";
-};
-
-// API Base URL configuration
-// If NEXT_PUBLIC_API_URL is set (e.g., http://localhost:8080), append /api/v1
-// Otherwise default to /api/v1 for same-origin requests
-const getApiBaseUrl = () => {
-  const serverUrl = getServerBaseUrl();
-  return serverUrl ? `${serverUrl}/api/v1` : "/api/v1";
-};
-
-export const SERVER_BASE_URL = getServerBaseUrl();
-const API_BASE_URL = getApiBaseUrl();
+export const SERVER_BASE_URL = getRuntimeServerBaseUrl();
 
 // Custom error classes
 export class ApiRequestError extends Error {
@@ -195,7 +178,7 @@ export async function apiClient<T>(
 ): Promise<T> {
   const url = endpoint.startsWith("http")
     ? endpoint
-    : `${API_BASE_URL}${endpoint}`;
+    : `${getRuntimeApiBaseUrl()}${endpoint}`;
 
   const config: RequestInit = {
     ...options,
@@ -268,7 +251,7 @@ async function tryRefreshToken(): Promise<boolean> {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    const response = await fetch(`${getRuntimeApiBaseUrl()}/auth/refresh`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -301,7 +284,7 @@ export async function* streamClient<T>(
 ): AsyncGenerator<T, void, unknown> {
   const url = endpoint.startsWith("http")
     ? endpoint
-    : `${API_BASE_URL}${endpoint}`;
+    : `${getRuntimeApiBaseUrl()}${endpoint}`;
 
   const config: RequestInit = {
     ...options,

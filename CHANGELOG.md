@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.8] - 2026-04-19
+
+### Fixed
+
+- **Issue #180 — runtime auth and deployment hardening is now fail-closed.** Prebuilt WebUI deployments no longer depend exclusively on build-time `NEXT_PUBLIC_*` variables; runtime API/auth values are injected centrally so one image can move safely across environments.
+
+- **Protected dashboard routes are now actually protected.** When authentication is enabled or demo login is intentionally disabled, direct navigation to pages like Graph, Documents, Pipeline, Query, Workspace, Costs, Knowledge, API Explorer, and Settings redirects to the login screen instead of rendering the dashboard shell.
+
+- **Sensitive auth endpoints now enforce a single runtime source of truth.** Environment-based auth flags, bootstrap master API keys, public registration policy, and API-key creation rules are now applied consistently across middleware and handlers.
+
+- **Settings and provider panels now use the shared authenticated client.** This removes duplicated fetch logic, fixes authenticated-mode 401 noise, and keeps the frontend aligned with DRY/SOLID principles.
+
+### Changed
+
+- Added a runtime-config helper, shared auth guard, and shared request-auth helpers to make the deployment/auth model explicit and auditable.
+- Added backend auth regressions and verified the fix with fresh Rust E2E checks plus live browser validation in both unauthenticated and authenticated modes.
+- Added implementation notes in `specs/issue-180-runtime-auth-hardening.md` and deployment guidance in `docs/operations/runtime-auth-hardening.md`.
+
 ## [0.10.7] - 2026-04-19
 
 ### Fixed

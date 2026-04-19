@@ -52,7 +52,7 @@ EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... make stack
 
 **Pin to a specific version:**
 ```bash
-EDGEQUAKE_VERSION=0.10.7 make stack
+EDGEQUAKE_VERSION=0.10.8 make stack
 ```
 
 ---

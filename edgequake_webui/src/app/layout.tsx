@@ -8,6 +8,7 @@
  *
  * @enforces BR0800 - Theme persisted in localStorage
  */
+import { getRuntimeConfig } from '@/lib/runtime-config';
 import { AppProviders } from '@/providers';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
@@ -29,9 +30,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const runtimeConfig = getRuntimeConfig();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{
+            __html: `window.__EDGEQUAKE_RUNTIME_CONFIG__ = ${JSON.stringify(runtimeConfig)};`,
+          }}
+        />
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

@@ -43,6 +43,15 @@ pub struct AuthConfig {
 
     /// Whether to allow self-registration.
     pub allow_registration: bool,
+
+    /// Whether protected API routes require authentication.
+    pub auth_enabled: bool,
+
+    /// Optional bootstrap/master API key for secure first-time setup.
+    pub master_api_key: Option<String>,
+
+    /// Additional static API keys accepted by the API middleware.
+    pub api_keys: Vec<String>,
 }
 
 impl Default for AuthConfig {
@@ -61,6 +70,9 @@ impl Default for AuthConfig {
             require_email_verification: false,
             default_role: "user".to_string(),
             allow_registration: true,
+            auth_enabled: false,
+            master_api_key: None,
+            api_keys: Vec::new(),
         }
     }
 }
@@ -150,10 +162,35 @@ impl AuthConfig {
             .and_then(|s| s.parse().ok())
             .unwrap_or(15);
 
-        let allow_registration: bool = std::env::var("ALLOW_REGISTRATION")
+        let allow_registration = parse_bool_env("ALLOW_REGISTRATION", true);
+        let auth_enabled = parse_bool_env("EDGEQUAKE_AUTH_ENABLED", false)
+            || parse_bool_env("AUTH_ENABLED", false);
+
+        let master_api_key = std::env::var("EDGEQUAKE_MASTER_API_KEY")
             .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(true);
+            .or_else(|| std::env::var("EDGEQUAKE_GLOBAL_API_KEY").ok())
+            .or_else(|| std::env::var("MASTER_API_KEY").ok())
+            .map(|key| key.trim().to_string())
+            .filter(|key| !key.is_empty());
+
+        let mut api_keys: Vec<String> = std::env::var("EDGEQUAKE_API_KEYS")
+            .ok()
+            .or_else(|| std::env::var("API_KEYS").ok())
+            .map(|value| {
+                value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|item| !item.is_empty())
+                    .map(ToOwned::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        if let Some(master_key) = &master_api_key {
+            if !api_keys.iter().any(|key| key == master_key) {
+                api_keys.push(master_key.clone());
+            }
+        }
 
         Self {
             jwt_secret,
@@ -163,9 +200,24 @@ impl AuthConfig {
             max_login_attempts,
             lockout_duration: Duration::from_secs(lockout_minutes * 60),
             allow_registration,
+            auth_enabled,
+            master_api_key,
+            api_keys,
             ..Default::default()
         }
     }
+}
+
+fn parse_bool_env(var_name: &str, default: bool) -> bool {
+    std::env::var(var_name)
+        .ok()
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(default)
 }
 
 #[cfg(test)]

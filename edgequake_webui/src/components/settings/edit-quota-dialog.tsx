@@ -22,13 +22,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { SERVER_BASE_URL } from '@/lib/api/client';
+import { apiClient } from '@/lib/api/client';
 import type { Tenant } from '@/types';
 import { useState } from 'react';
 import { toast } from 'sonner';
-
-// Module-level constant (SERVER_BASE_URL doesn't change at runtime)
-const API_BASE = SERVER_BASE_URL ? `${SERVER_BASE_URL}/api/v1` : '/api/v1';
 
 interface EditQuotaDialogProps {
   tenant: Tenant & { current_workspace_count?: number };
@@ -66,16 +63,13 @@ export function EditQuotaDialog({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/tenants/${tenant.id}/quota`, {
+      const data = await apiClient<{
+        previous_max_workspaces: number;
+        max_workspaces: number;
+      }>(`/admin/tenants/${tenant.id}/quota`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ max_workspaces: val }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message ?? `HTTP ${res.status}`);
-      }
-      const data = await res.json();
       toast.success(
         `Quota updated: ${data.previous_max_workspaces} → ${data.max_workspaces} for ${tenant.name}`
       );

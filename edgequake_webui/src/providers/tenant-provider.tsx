@@ -12,6 +12,8 @@
 'use client';
 
 import { getTenants, getWorkspaces } from '@/lib/api/edgequake';
+import { getRuntimeConfig } from '@/lib/runtime-config';
+import { useAuthStore, useAuthStoreHydrated } from '@/stores/use-auth-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useEffect } from 'react';
@@ -26,6 +28,13 @@ interface TenantProviderProps {
  * if none is currently selected (fresh start scenario).
  */
 export function TenantProvider({ children }: TenantProviderProps) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const hasHydrated = useAuthStoreHydrated();
+  const { authEnabled, disableDemoLogin } = getRuntimeConfig();
+  const requiresAuth = authEnabled || disableDemoLogin;
+  const canLoadTenantData = !requiresAuth || (hasHydrated && isAuthenticated && !!accessToken);
+
   const {
     selectedTenantId,
     selectedWorkspaceId,
@@ -47,6 +56,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const { data: tenantsData } = useQuery({
     queryKey: ['tenants'],
     queryFn: getTenants,
+    enabled: canLoadTenantData,
     staleTime: 60000,
   });
 
@@ -71,7 +81,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const { data: workspacesData } = useQuery({
     queryKey: ['workspaces', selectedTenantId],
     queryFn: () => selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([]),
-    enabled: !!selectedTenantId,
+    enabled: canLoadTenantData && !!selectedTenantId,
     staleTime: 60000,
   });
 

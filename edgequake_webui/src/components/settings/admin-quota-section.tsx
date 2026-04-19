@@ -15,14 +15,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { SERVER_BASE_URL } from '@/lib/api/client';
+import { apiClient } from '@/lib/api/client';
 import type { Tenant } from '@/types';
 import { Shield } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-
-// Compute once at module level since SERVER_BASE_URL is a module constant
-const API_BASE = SERVER_BASE_URL ? `${SERVER_BASE_URL}/api/v1` : '/api/v1';
 
 interface TenantQuotaRow extends Tenant {
   current_workspace_count?: number;
@@ -41,19 +38,13 @@ export function AdminQuotaSection() {
     async function load() {
       setIsLoading(true);
       try {
-        const [tenantsRes, defaultsRes] = await Promise.all([
-          fetch(`${API_BASE}/tenants?limit=100`),
-          fetch(`${API_BASE}/admin/config/defaults`),
+        const [tenantsData, defaultsData] = await Promise.all([
+          apiClient<{ items?: TenantQuotaRow[] }>("/tenants?limit=100"),
+          apiClient<{ default_max_workspaces: number }>("/admin/config/defaults"),
         ]);
-        if (tenantsRes.ok) {
-          const data = await tenantsRes.json();
-          setTenants(data.items ?? []);
-        }
-        if (defaultsRes.ok) {
-          const data = await defaultsRes.json();
-          setServerDefault(data.default_max_workspaces);
-          setNewDefault(String(data.default_max_workspaces));
-        }
+        setTenants(tenantsData.items ?? []);
+        setServerDefault(defaultsData.default_max_workspaces);
+        setNewDefault(String(defaultsData.default_max_workspaces));
       } catch (e) {
         // Ignore load errors; section is best-effort
         console.warn('AdminQuotaSection: failed to load data', e);
@@ -72,16 +63,13 @@ export function AdminQuotaSection() {
     }
     setIsSavingDefault(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/config/defaults`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ default_max_workspaces: val }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message ?? `HTTP ${res.status}`);
-      }
-      const data = await res.json();
+      const data = await apiClient<{ default_max_workspaces: number }>(
+        '/admin/config/defaults',
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ default_max_workspaces: val }),
+        }
+      );
       setServerDefault(data.default_max_workspaces);
       toast.success(`Server default updated to ${data.default_max_workspaces} workspaces`);
     } catch (e: unknown) {

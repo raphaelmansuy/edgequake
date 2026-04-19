@@ -24,7 +24,7 @@
 use axum::{
     body::Body,
     extract::Request,
-    http::{HeaderValue, StatusCode},
+    http::{HeaderValue, Method, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
@@ -215,6 +215,55 @@ pub async fn api_key_auth(
 }
 
 /// Extract API key from request headers.
+pub async fn protected_api_auth(
+    axum::extract::State(state): axum::extract::State<crate::state::AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if !state.auth_config.auth_enabled {
+        return next.run(request).await;
+    }
+
+    let path = request.uri().path();
+    let method = request.method().clone();
+
+    if is_public_request(&state, &method, path) {
+        return next.run(request).await;
+    }
+
+    if let Some(token) = extract_api_key(&request) {
+        if state.auth_config.api_keys.iter().any(|configured| configured == &token)
+            || state.jwt_service.verify_token(&token).is_ok()
+        {
+            return next.run(request).await;
+        }
+    }
+
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(AuthError {
+            error: "unauthorized".to_string(),
+            message: "Authentication required".to_string(),
+        }),
+    )
+        .into_response()
+}
+
+fn is_public_request(state: &crate::state::AppState, method: &Method, path: &str) -> bool {
+    let normalized_path = path.strip_prefix("/api/v1").unwrap_or(path);
+
+    matches!(
+        normalized_path,
+        "/health"
+            | "/ready"
+            | "/live"
+            | "/swagger-ui"
+            | "/api-docs"
+            | "/auth/login"
+            | "/auth/refresh"
+    ) || (*method == Method::POST && normalized_path == "/users" && state.auth_config.allow_registration)
+}
+
 fn extract_api_key(request: &Request) -> Option<String> {
     // Try Authorization header first (Bearer token)
     if let Some(auth_header) = request.headers().get("authorization") {

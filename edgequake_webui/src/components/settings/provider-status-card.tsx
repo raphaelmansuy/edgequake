@@ -11,18 +11,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { SERVER_BASE_URL } from '@/lib/api/client';
+import { apiClient } from '@/lib/api/client';
 import type { ConnectionStatus, ProviderStatusResponse } from '@/types/provider';
 import { AlertTriangle, Copy, Database, RefreshCw, Server } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 const REFRESH_INTERVAL_MS = 30000; // 30 seconds
-
-// Get API base URL - defaults to http://localhost:8080 in development
-const getApiUrl = () => {
-  return SERVER_BASE_URL || 'http://localhost:8080';
-};
 
 export function ProviderStatusCard() {
   const [status, setStatus] = useState<ProviderStatusResponse | null>(null);
@@ -32,12 +27,7 @@ export function ProviderStatusCard() {
 
   const fetchStatus = async () => {
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/v1/settings/provider/status`);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      const data: ProviderStatusResponse = await response.json();
+      const data = await apiClient<ProviderStatusResponse>('/settings/provider/status');
       setStatus(data);
       setError(null);
       setLastRefresh(new Date());
@@ -240,7 +230,7 @@ export EDGEQUAKE_LLM_MODEL="MiniMax-M2.7"`,
         {status.storage.dimension_mismatch && (
           <div className="bg-destructive/10 border border-destructive rounded-lg p-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
               <div className="flex-1">
                 <h4 className="font-semibold text-destructive mb-1">
                   Dimension Mismatch Detected
