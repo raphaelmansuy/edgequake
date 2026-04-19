@@ -30,8 +30,8 @@ async fn main() -> Result<()> {
     println!("==========================================\n");
 
     // 1. Check for API key
-    let api_key = env::var("OPENAI_API_KEY")
-        .context("OPENAI_API_KEY environment variable must be set")?;
+    let api_key =
+        env::var("OPENAI_API_KEY").context("OPENAI_API_KEY environment variable must be set")?;
 
     if api_key.is_empty() || api_key == "test-key" {
         eprintln!("❌ Invalid API key. Please set a real OpenAI API key:");
