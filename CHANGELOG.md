@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.10.4] - 2026-04-17
+## [0.10.5] - 2026-04-19
 
 ### Fixed
 
@@ -30,7 +30,7 @@ All notable changes to this project will be documented in this file.
 
 - Added explicit WHY-comments around task lifecycle cleanup, workspace-scope enforcement, and development-overlay accessibility so the reliability invariants are easy to audit and maintain.
 - Verified the hardening with fresh Rust E2E coverage (`78 passed`) plus Playwright browser regression coverage (`16 passed, 2 skipped`).
-- Aligned release metadata and publish defaults to `0.10.4` across the workspace, frontend package, quickstart surfaces, and Docker workflow defaults.
+- Aligned release metadata and publish defaults to `0.10.5` across the workspace, frontend package, quickstart surfaces, and Docker workflow defaults.
 - Verified the release path with fresh build, health, and Docker-oriented publication checks.
 
 ## [0.10.3] - 2026-04-17
