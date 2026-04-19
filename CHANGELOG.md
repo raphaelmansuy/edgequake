@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.9] - 2026-04-19
+
+### Fixed
+
+- Local startup is now deterministic and matches the documentation. make dev always runs in unauthenticated local mode, while make dev-auth explicitly enables backend and frontend authentication flags.
+- The main Rust server entrypoint now uses concise contextual error propagation instead of boxed top-level errors and oversized fatal-print blocks.
+- Frontend workspace tooling now consistently uses bun or pnpm for local commands, avoiding npm lockfile drift in the main WebUI workspace.
+- Workspace release metadata now points at the correct repository origin and matches the new fix release.
+
+### Verified
+
+- Fresh backend auth regression suite: 28 passed, 0 failed.
+- Fresh frontend production build completed successfully.
+- Live browser proof confirmed protected dashboard routes redirect to the login screen when started with make dev-auth.
+
 ## [0.10.8] - 2026-04-19
 
 ### Fixed

@@ -130,7 +130,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 	cd edgequake && cargo release $$VERSION --workspace --no-publish --execute
 
 
-.PHONY: help install dev dev-bg dev-memory stop clean build test lint format \
+.PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-memory stop clean build test lint format \
         backend-dev backend-db backend-memory backend-bg backend-build backend-build-online backend-sqlx-prepare backend-test backend-run \
         frontend-dev frontend-bg frontend-build frontend-test frontend-lint \
         db-start db-stop db-wait db-logs db-shell docker-network-diagnose stop-docker-services \
@@ -206,6 +206,8 @@ export
 
 # Environment variables (can be overridden from shell)
 OPENAI_API_KEY ?= $(shell echo $$OPENAI_API_KEY)
+DEV_AUTH_ENABLED ?= false
+DEV_DISABLE_DEMO_LOGIN ?= false
 
 # OODA-09: Auto-configure providers based on OPENAI_API_KEY presence.
 # WHY: User sets OPENAI_API_KEY but system still uses Ollama defaults.
@@ -250,8 +252,10 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Quick Start$(RESET)"
 	@echo "  $(GREEN)make install$(RESET)      Install all dependencies"
-	@echo "  $(GREEN)make dev$(RESET)          Start full development stack (PostgreSQL, UI on port 3001 by default)"
-	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND (for agents)"
+	@echo "  $(GREEN)make dev$(RESET)          Start full development stack without authentication (default local mode)"
+	@echo "  $(GREEN)make dev-auth$(RESET)     Start full development stack with authentication enabled"
+	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND without authentication"
+	@echo "  $(GREEN)make dev-auth-bg$(RESET)  Start full stack in BACKGROUND with authentication enabled"
 	@echo "  $(GREEN)make dev-memory$(RESET)   Start with in-memory storage (for testing)"
 	@echo "  $(GREEN)make stop$(RESET)         Stop all services"
 	@echo "  $(GREEN)make status$(RESET)       Check status of all services"
@@ -355,7 +359,7 @@ sdk-rust-publish: ## Publish the Rust SDK (sdks/rust) to crates.io
 check-deps: ## Check that required dependencies are installed
 	@echo "$(BLUE)Checking dependencies...$(RESET)"
 	@command -v cargo >/dev/null 2>&1 || { echo "$(RED)❌ cargo not found. Install Rust: https://rustup.rs$(RESET)"; exit 1; }
-	@command -v bun >/dev/null 2>&1 || command -v npm >/dev/null 2>&1 || { echo "$(RED)❌ bun/npm not found. Install Node.js/Bun$(RESET)"; exit 1; }
+	@command -v pnpm >/dev/null 2>&1 || command -v bun >/dev/null 2>&1 || { echo "$(RED)❌ pnpm/bun not found. Install pnpm or Bun$(RESET)"; exit 1; }
 	@command -v docker >/dev/null 2>&1 || { echo "$(YELLOW)⚠️  docker not found. Some features require Docker$(RESET)"; }
 	@echo "$(GREEN)✓ All required dependencies found$(RESET)"
 
@@ -402,7 +406,7 @@ install: check-deps ## Install all project dependencies
 	@echo "$(GREEN)✓ Rust dependencies installed$(RESET)"
 	@echo ""
 	@echo "$(YELLOW)→ Installing frontend dependencies...$(RESET)"
-	@cd $(FRONTEND_DIR) && bun install 2>/dev/null || npm install
+	@cd $(FRONTEND_DIR) && pnpm install 2>/dev/null || bun install
 	@echo "$(GREEN)✓ Frontend dependencies installed$(RESET)"
 	@echo ""
 	@echo "$(BOLD)$(GREEN)✅ All dependencies installed!$(RESET)"
@@ -412,7 +416,7 @@ install: check-deps ## Install all project dependencies
 # Development
 # ============================================================================
 
-dev: check-deps check-ports ## Start full development stack (DB + Backend + Frontend) with Ollama
+dev: check-deps check-ports ## Start full development stack without authentication
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
 	@echo "$(YELLOW)→ Incremental startup: healthy services are reused; nothing is killed blindly$(RESET)"
@@ -432,6 +436,11 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 	@echo "  $(BLUE)Backend$(RESET):  $(BACKEND_URL)"
 	@echo "  $(BLUE)Frontend$(RESET): $(FRONTEND_URL)"
 	@echo "  $(BLUE)Swagger$(RESET):  $(BACKEND_URL)/swagger-ui"
+	@if [ "$(DEV_AUTH_ENABLED)" = "true" ]; then \
+		echo "  $(BLUE)Auth$(RESET):     enabled"; \
+	else \
+		echo "  $(BLUE)Auth$(RESET):     disabled (default local mode)"; \
+	fi
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "  $(BLUE)Provider$(RESET): OpenAI"; \
 	else \
@@ -450,12 +459,16 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 				PORT="$(BACKEND_PORT)" \
 				DATABASE_URL="$(DATABASE_URL)" \
 				OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+				EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+				AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 				cargo run 2>&1 | sed 's/^/[backend] /') & \
 			BACKEND_PID=$$!; \
 		else \
 			(cd $(BACKEND_DIR) && \
 				PORT="$(BACKEND_PORT)" \
 				DATABASE_URL="$(DATABASE_URL)" \
+				EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+				AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 				OLLAMA_HOST="http://localhost:11434" \
 				OLLAMA_MODEL="gemma4:latest" \
 				OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
@@ -467,7 +480,7 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 		echo "$(GREEN)✓ Reusing running frontend on port $(FRONTEND_PORT)$(RESET)"; \
 	else \
 		echo "$(YELLOW)→ Starting frontend on port $(FRONTEND_PORT)...$(RESET)"; \
-		(sleep 2 && cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" sh -c '(bun run dev 2>/dev/null || npm run dev)' 2>&1 | sed 's/^/[frontend] /') & \
+		(sleep 2 && cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)' 2>&1 | sed 's/^/[frontend] /') & \
 		FRONTEND_PID=$$!; \
 	fi; \
 	if [ -z "$$BACKEND_PID$$FRONTEND_PID" ]; then \
@@ -477,6 +490,9 @@ dev: check-deps check-ports ## Start full development stack (DB + Backend + Fron
 	echo "$(GREEN)✓ Startup in progress$(RESET)"; \
 	echo "$(YELLOW)Press Ctrl+C to stop only this session's app processes$(RESET)"; \
 	wait
+
+dev-auth: ## Start full development stack with authentication enabled
+	@$(MAKE) dev --no-print-directory DEV_AUTH_ENABLED=true DEV_DISABLE_DEMO_LOGIN=true
 
 dev-frontend: ## Start only frontend dev server
 	@$(MAKE) frontend-dev --no-print-directory
@@ -493,12 +509,12 @@ dev-memory: check-deps check-ports ## Start development with in-memory storage (
 	@trap 'echo ""; echo "$(YELLOW)Stopping services...$(RESET)"; $(MAKE) stop --no-print-directory; exit 0' INT; \
 	(cd $(BACKEND_DIR) && cargo run 2>&1 | sed 's/^/[backend] /') & \
 	BACKEND_PID=$$!; \
-	(sleep 5 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
+	(sleep 5 && cd $(FRONTEND_DIR) && (pnpm run dev 2>/dev/null || bun run dev) 2>&1 | sed 's/^/[frontend] /') & \
 	FRONTEND_PID=$$!; \
 	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
 	wait
 
-dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (agentic mode)
+dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND without authentication
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🤖 Starting EdgeQuake in Background Mode (Agentic)$(RESET)"
 	@echo "$(YELLOW)→ Incremental startup: healthy services are reused; Docker is touched only when needed$(RESET)"
@@ -527,7 +543,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 		echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
 	else \
 		echo "$(YELLOW)→ Starting backend in background...$(RESET)"; \
-		$(MAKE) backend-bg --no-print-directory; \
+		$(MAKE) backend-bg --no-print-directory DEV_AUTH_ENABLED="$(DEV_AUTH_ENABLED)"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)→ Waiting for backend to start...$(RESET)"
@@ -554,7 +570,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 		echo "$(GREEN)✓ Frontend already reachable on port $(FRONTEND_PORT)$(RESET)"; \
 	else \
 		echo "$(YELLOW)→ Starting frontend in background...$(RESET)"; \
-		$(MAKE) frontend-bg --no-print-directory; \
+		$(MAKE) frontend-bg --no-print-directory DEV_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" DEV_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)"; \
 	fi
 	@echo ""
 	@FRONTEND_OK=""; \
@@ -580,6 +596,11 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 	@echo "  $(BLUE)Backend$(RESET):  $(BACKEND_URL)"
 	@echo "  $(BLUE)Frontend$(RESET): $(FRONTEND_URL)"
 	@echo "  $(BLUE)Swagger$(RESET):  $(BACKEND_URL)/swagger-ui"
+	@if [ "$(DEV_AUTH_ENABLED)" = "true" ]; then \
+		echo "  $(BLUE)Auth$(RESET): enabled"; \
+	else \
+		echo "  $(BLUE)Auth$(RESET): disabled (default local mode)"; \
+	fi
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "  $(BLUE)LLM Provider$(RESET): openai (gpt-5-nano)"; \
 		echo "  $(BLUE)Embedding$(RESET): openai (text-embedding-3-small, 1536d)"; \
@@ -591,6 +612,9 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (ag
 	@echo "  Use $(BOLD)make status$(RESET) to check service health"
 	@echo "  Use $(BOLD)make stop$(RESET) to stop all services"
 	@echo ""
+
+dev-auth-bg: ## Start full development stack in BACKGROUND with authentication enabled
+	@$(MAKE) dev-bg --no-print-directory DEV_AUTH_ENABLED=true DEV_DISABLE_DEMO_LOGIN=true
 
 stop-docker-services: ## Stop Docker/OrbStack-backed EdgeQuake containers if they are running
 	@if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
@@ -656,6 +680,8 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 		PORT="$(BACKEND_PORT)" \
 		DATABASE_URL="$(DATABASE_URL)" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
 		EDGEQUAKE_DEFAULT_LLM_MODEL="$(EDGEQUAKE_DEFAULT_LLM_MODEL)" \
 		EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER="$(EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER)" \
@@ -677,6 +703,8 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 		PORT="$(BACKEND_PORT)" \
 		DATABASE_URL="$(DATABASE_URL)" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
 		EDGEQUAKE_DEFAULT_LLM_MODEL="$(EDGEQUAKE_DEFAULT_LLM_MODEL)" \
 		EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER="$(EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER)" \
@@ -716,6 +744,8 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENA
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"openai\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
 		chmod +x /tmp/edgequake-start.sh; \
@@ -725,6 +755,8 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENA
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_HOST=\"http://localhost:11434\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_MODEL=\"gemma4:latest\"" >> /tmp/edgequake-start.sh; \
@@ -776,7 +808,7 @@ backend-fmt: ## Format backend code
 
 frontend-dev: ## Start frontend development server
 	@echo "$(BLUE)Starting frontend development server on port $(FRONTEND_PORT)...$(RESET)"
-	@cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" sh -c '(bun run dev 2>/dev/null || npm run dev)'
+	@cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)'
 
 frontend-bg: ## Start frontend development server in background
 	@if curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
@@ -788,30 +820,32 @@ frontend-bg: ## Start frontend development server in background
 	@printf '%s\n' "cd $(FRONTEND_DIR)" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "export PORT=\"$(FRONTEND_PORT)\"" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "export NEXT_PUBLIC_API_URL=\"$(BACKEND_URL)\"" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "if command -v bun >/dev/null 2>&1; then" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "  exec bun run dev" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "export NEXT_PUBLIC_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "export NEXT_PUBLIC_DISABLE_DEMO_LOGIN=\"$(DEV_DISABLE_DEMO_LOGIN)\"" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "if command -v pnpm >/dev/null 2>&1; then" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "  exec pnpm run dev" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "fi" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "exec npm run dev" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "exec bun run dev" >> /tmp/edgequake-frontend-start.sh
 	@chmod +x /tmp/edgequake-frontend-start.sh
 	@/bin/bash -lc 'nohup /tmp/edgequake-frontend-start.sh > /tmp/edgequake-frontend.log 2>&1 < /dev/null & frontend_pid=$$!; disown "$$frontend_pid"; printf "%s\n" "$$frontend_pid" > /tmp/edgequake-frontend.pid'
 	@echo "$(GREEN)✓ Frontend starting in background. Log: /tmp/edgequake-frontend.log$(RESET)"
 
 frontend-build: ## Build frontend for production
 	@echo "$(BLUE)Building frontend...$(RESET)"
-	@cd $(FRONTEND_DIR) && (bun run build 2>/dev/null || npm run build)
+	@cd $(FRONTEND_DIR) && (pnpm run build 2>/dev/null || bun run build)
 	@echo "$(GREEN)✓ Frontend built$(RESET)"
 
 frontend-start: ## Start frontend production server
 	@echo "$(BLUE)Starting frontend production server...$(RESET)"
-	@cd $(FRONTEND_DIR) && (bun run start 2>/dev/null || npm run start)
+	@cd $(FRONTEND_DIR) && (pnpm run start 2>/dev/null || bun run start)
 
 frontend-lint: ## Lint frontend code
 	@echo "$(BLUE)Linting frontend code...$(RESET)"
-	@cd $(FRONTEND_DIR) && (bun run lint 2>/dev/null || npm run lint)
+	@cd $(FRONTEND_DIR) && (pnpm run lint 2>/dev/null || bun run lint)
 
 frontend-test: ## Run frontend tests
 	@echo "$(BLUE)Running frontend tests...$(RESET)"
-	@cd $(FRONTEND_DIR) && (bun test 2>/dev/null || npm test) || echo "$(YELLOW)No tests configured$(RESET)"
+	@cd $(FRONTEND_DIR) && (pnpm test 2>/dev/null || bun test) || echo "$(YELLOW)No tests configured$(RESET)"
 
 # ============================================================================
 # Database

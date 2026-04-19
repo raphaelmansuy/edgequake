@@ -5,13 +5,13 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.10.8-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.10.9-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.10.8** — Runtime-config portability for prebuilt frontend deployments, fail-closed auth hardening, protected route enforcement, and verified browser coverage across all main screens. See [CHANGELOG](CHANGELOG.md) for full details.
+> **v0.10.9** — Local development is now deterministic: make dev always starts in unauthenticated mode, make dev-auth explicitly enables route protection, and the startup path uses cleaner contextual Rust error handling. See [CHANGELOG](CHANGELOG.md) for full details.
 
 ---
 
@@ -223,16 +223,20 @@ make install
 # 3. Configure the frontend environment
 cp edgequake_webui/.env.local.example edgequake_webui/.env.local
 
-# 4. Start the full stack (PostgreSQL + Backend + Frontend)
+# 4. Start the full stack in the default local mode (no authentication)
 make dev
+
+# Optional: start the same stack with authentication enabled
+make dev-auth
 ```
 
 **That's it!** 🎉
 
 - **Backend**: http://localhost:8080
-- **Frontend**: http://localhost:3000
+- **Frontend**: http://localhost:3001 by default, or the next free port if 3001 is busy
 - **Swagger UI**: http://localhost:8080/swagger-ui
-- **Provider**: Ollama (local, free)
+- **Provider**: Ollama or OpenAI depending on your environment
+- **Auth**: disabled in make dev, enabled in make dev-auth
 
 ### First Document Upload
 
