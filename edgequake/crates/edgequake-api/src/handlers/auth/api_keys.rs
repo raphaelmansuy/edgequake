@@ -6,7 +6,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use chrono::{Duration, Utc};
@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::error::ApiError;
 use crate::state::AppState;
 
-use super::{ApiKeyRecord, API_KEY_PREFIX};
+use super::{require_authenticated_request, ApiKeyRecord, API_KEY_PREFIX};
 pub use crate::handlers::auth_types::{
     CreateApiKeyRequest, CreateApiKeyResponse, ListApiKeysQuery, ListApiKeysResponse,
     RevokeApiKeyResponse,
@@ -40,11 +40,11 @@ pub use crate::handlers::auth_types::{
 )]
 pub async fn create_api_key(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<CreateApiKeyResponse>), ApiError> {
-    // For demo purposes, use a hardcoded user ID
-    // In production, this would come from the auth middleware
-    let user_id = "demo-user".to_string();
+    let auth = require_authenticated_request(&headers, &state)?;
+    let user_id = auth.user_id;
 
     // Generate API key
     let key_id = Uuid::new_v4().to_string();
@@ -133,9 +133,11 @@ pub(super) fn generate_api_key() -> String {
     )
 )]
 pub async fn list_api_keys(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Query(query): Query<ListApiKeysQuery>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
+    require_authenticated_request(&headers, &state)?;
     // TODO: Implement listing with prefix scan when KV storage supports it
     let page = query.page.max(1);
     let page_size = query.page_size.clamp(1, 100);
@@ -168,8 +170,10 @@ pub async fn list_api_keys(
 )]
 pub async fn revoke_api_key(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(key_id): Path<String>,
 ) -> Result<Json<RevokeApiKeyResponse>, ApiError> {
+    require_authenticated_request(&headers, &state)?;
     let key = format!("{}{}", API_KEY_PREFIX, key_id);
 
     // Get the existing record

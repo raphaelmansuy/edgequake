@@ -45,14 +45,16 @@ import type {
     Workspace,
     WorkspacePdfParserBackendUpdate,
 } from "@/types";
-import { api, SERVER_BASE_URL, streamClient } from "./client";
+import { api, streamClient } from "./client";
+import { getRuntimeServerBaseUrl } from "@/lib/runtime-config";
 
 // ============================================================================
 // Health (These are at server root, not under /api/v1)
 // ============================================================================
 
 export async function checkHealth(): Promise<HealthResponse> {
-  const url = SERVER_BASE_URL ? `${SERVER_BASE_URL}/health` : "/health";
+  const serverBaseUrl = getRuntimeServerBaseUrl();
+  const url = serverBaseUrl ? `${serverBaseUrl}/health` : "/health";
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Health check failed: ${response.statusText}`);
@@ -61,7 +63,8 @@ export async function checkHealth(): Promise<HealthResponse> {
 }
 
 export async function checkReady(): Promise<{ status: string }> {
-  const url = SERVER_BASE_URL ? `${SERVER_BASE_URL}/ready` : "/ready";
+  const serverBaseUrl = getRuntimeServerBaseUrl();
+  const url = serverBaseUrl ? `${serverBaseUrl}/ready` : "/ready";
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Readiness check failed: ${response.statusText}`);
@@ -729,7 +732,7 @@ export async function getPdfProgress(
  * @returns EventSource instance (caller is responsible for closing)
  */
 export function createPdfProgressEventSource(trackId: string): EventSource {
-  const baseUrl = SERVER_BASE_URL || "";
+  const baseUrl = getRuntimeServerBaseUrl();
   const url = `${baseUrl}/api/v1/documents/pdf/progress/stream/${trackId}`;
   return new EventSource(url);
 }
@@ -805,9 +808,7 @@ export async function getPdfContent(
  * @returns Full URL to download the PDF
  */
 export function getPdfDownloadUrl(pdfId: string): string {
-  // WHY: Use SERVER_BASE_URL (derived from NEXT_PUBLIC_API_URL) for consistency
-  // with the rest of the API client. Fixes #79.
-  const baseUrl = SERVER_BASE_URL || "";
+  const baseUrl = getRuntimeServerBaseUrl();
   return `${baseUrl}/api/v1/documents/pdf/${pdfId}/download`;
 }
 
@@ -1564,9 +1565,7 @@ export async function exportDocumentLineage(
   documentId: string,
   format: "json" | "csv" = "json",
 ): Promise<void> {
-  // WHY: Use SERVER_BASE_URL (derived from NEXT_PUBLIC_API_URL) for consistency
-  // with the rest of the API client. Fixes #79.
-  const baseUrl = SERVER_BASE_URL || "";
+  const baseUrl = getRuntimeServerBaseUrl();
   const url = `${baseUrl}/api/v1/documents/${documentId}/lineage/export?format=${format}`;
   // WHY: Create temporary link for download — the endpoint returns
   // Content-Disposition: attachment headers that trigger browser download.

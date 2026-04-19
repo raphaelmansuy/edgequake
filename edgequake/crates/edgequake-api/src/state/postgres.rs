@@ -314,7 +314,7 @@ impl AppState {
             ));
 
         // Create auth services
-        let auth_config = AuthConfig::default();
+        let auth_config = AuthConfig::from_env();
         let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
         let password_service = Arc::new(PasswordService::new(auth_config.clone()));
         let rbac_service = Arc::new(RbacService::new());

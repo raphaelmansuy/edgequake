@@ -21,6 +21,8 @@ import {
   getTenants,
   getWorkspaces,
 } from "@/lib/api/edgequake";
+import { getRuntimeConfig } from "@/lib/runtime-config";
+import { useAuthStore, useAuthStoreHydrated } from "@/stores/use-auth-store";
 import { useTenantStore } from "@/stores/use-tenant-store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
@@ -32,6 +34,13 @@ import { useCallback, useEffect } from "react";
  */
 export function useTenantContext() {
   const queryClient = useQueryClient();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const hasHydrated = useAuthStoreHydrated();
+  const { authEnabled, disableDemoLogin } = getRuntimeConfig();
+  const requiresAuth = authEnabled || disableDemoLogin;
+  const hasSession = isAuthenticated && !!accessToken;
+  const canLoadTenantData = !requiresAuth || (hasHydrated && hasSession);
 
   const {
     tenants,
@@ -54,6 +63,7 @@ export function useTenantContext() {
   const tenantsQuery = useQuery({
     queryKey: ["tenants"],
     queryFn: getTenants,
+    enabled: canLoadTenantData,
     staleTime: 60000, // Cache for 1 minute
   });
 
@@ -73,7 +83,7 @@ export function useTenantContext() {
     queryKey: ["workspaces", selectedTenantId],
     queryFn: () =>
       selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([]),
-    enabled: !!selectedTenantId,
+    enabled: canLoadTenantData && !!selectedTenantId,
     staleTime: 60000,
   });
 
@@ -141,17 +151,21 @@ export function useTenantContext() {
   );
 
   const refetchAll = useCallback(() => {
+    if (!canLoadTenantData) {
+      return;
+    }
+
     tenantsQuery.refetch();
     if (selectedTenantId) {
       workspacesQuery.refetch();
     }
-  }, [tenantsQuery, workspacesQuery, selectedTenantId]);
+  }, [canLoadTenantData, tenantsQuery, workspacesQuery, selectedTenantId]);
 
   // Derived values
   const selectedTenant = tenants.find((t) => t.id === selectedTenantId) || null;
   const selectedWorkspace =
     workspaces.find((w) => w.id === selectedWorkspaceId) || null;
-  const isLoading = tenantsQuery.isLoading || workspacesQuery.isLoading;
+  const isLoading = canLoadTenantData && (tenantsQuery.isLoading || workspacesQuery.isLoading);
   const hasContext = !!selectedTenantId && !!selectedWorkspaceId;
 
   return {

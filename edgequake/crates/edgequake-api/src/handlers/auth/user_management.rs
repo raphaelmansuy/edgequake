@@ -6,7 +6,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use chrono::Utc;
@@ -18,7 +18,8 @@ use crate::state::AppState;
 use edgequake_auth::{Role, User};
 
 use super::{
-    get_user_by_id, UserRecord, USER_BY_EMAIL_PREFIX, USER_BY_USERNAME_PREFIX, USER_KEY_PREFIX,
+    authenticate_request, get_user_by_id, require_admin_request, UserRecord, USER_BY_EMAIL_PREFIX,
+    USER_BY_USERNAME_PREFIX, USER_KEY_PREFIX,
 };
 pub use crate::handlers::auth_types::{
     CreateUserRequest, CreateUserResponse, ListUsersQuery, ListUsersResponse, UserInfo,
@@ -42,6 +43,7 @@ pub use crate::handlers::auth_types::{
 )]
 pub async fn create_user(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<CreateUserResponse>), ApiError> {
     // Validate inputs
@@ -85,6 +87,12 @@ pub async fn create_user(
         return Err(ApiError::Conflict("Email already exists".to_string()));
     }
 
+    let auth_context = authenticate_request(&headers, &state)?;
+
+    if auth_context.is_none() && !state.auth_config.allow_registration {
+        return Err(ApiError::Forbidden);
+    }
+
     // Hash password
     let password_hash = state
         .password_service
@@ -92,11 +100,22 @@ pub async fn create_user(
         .map_err(|e| ApiError::BadRequest(format!("Password error: {}", e)))?;
 
     // Determine role
-    let role = request
-        .role
-        .as_ref()
-        .map(|r| Role::parse(r))
-        .unwrap_or(Role::User);
+    let default_role = Role::parse(&state.auth_config.default_role);
+    let requested_role = request.role.as_ref().map(|r| Role::parse(r));
+
+    let role = match auth_context {
+        Some(context) if context.role == Role::Admin => requested_role.unwrap_or(default_role),
+        Some(_) => {
+            if requested_role
+                .as_ref()
+                .is_some_and(|role| *role != default_role)
+            {
+                return Err(ApiError::Forbidden);
+            }
+            default_role
+        }
+        None => default_role,
+    };
 
     // Create user
     let user_id = Uuid::new_v4().to_string();
@@ -158,9 +177,11 @@ pub async fn create_user(
     )
 )]
 pub async fn list_users(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Query(query): Query<ListUsersQuery>,
 ) -> Result<Json<ListUsersResponse>, ApiError> {
+    require_admin_request(&headers, &state)?;
     // TODO: Implement listing with prefix scan when KV storage supports it
     // For now, return an empty paginated response
     let page = query.page.max(1);
@@ -194,8 +215,10 @@ pub async fn list_users(
 )]
 pub async fn get_user(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(user_id): Path<String>,
 ) -> Result<Json<UserInfo>, ApiError> {
+    require_admin_request(&headers, &state)?;
     let user = get_user_by_id(&state, &user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
@@ -222,8 +245,10 @@ pub async fn get_user(
 )]
 pub async fn delete_user(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(user_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
+    require_admin_request(&headers, &state)?;
     // Get user first to retrieve username/email for index cleanup
     let user = get_user_by_id(&state, &user_id)
         .await?

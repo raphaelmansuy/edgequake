@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { SERVER_BASE_URL } from '@/lib/api/client';
+import { apiClient } from '@/lib/api/client';
 import {
     AlertTriangle,
     CheckCircle2,
@@ -61,8 +61,6 @@ interface EffectiveConfigResponse {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-const getApiUrl = () => SERVER_BASE_URL || 'http://localhost:8080';
 
 const AREA_META: Record<string, { title: string; icon: React.ReactNode; description: string }> = {
   llm: {
@@ -267,9 +265,7 @@ export function ConfigExplainabilityPanel() {
   const fetchConfig = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${getApiUrl()}/api/v1/config/effective`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      const data: EffectiveConfigResponse = await res.json();
+      const data = await apiClient<EffectiveConfigResponse>('/config/effective');
       setConfig(data);
       setError(null);
       setLastRefresh(new Date());

@@ -111,7 +111,9 @@ test.describe('Spec #139 – Demo login button', () => {
   test('login page has EdgeQuake branding', async ({ page }) => {
     await gotoLogin(page);
 
-    const heading = page.locator('h1, h2').filter({ hasText: /edgequake/i });
-    await expect(heading.first()).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByText(/edgequake/i).first(),
+      'the login screen should show EdgeQuake branding'
+    ).toBeVisible({ timeout: 10_000 });
   });
 });

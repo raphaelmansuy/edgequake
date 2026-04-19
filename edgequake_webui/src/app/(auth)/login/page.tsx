@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { login } from '@/lib/api/edgequake';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { Loader2, Network } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -18,6 +19,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { authEnabled, disableDemoLogin } = getRuntimeConfig();
+  const showDemoLogin = !disableDemoLogin && !authEnabled;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +106,7 @@ export default function LoginPage() {
               )}
             </Button>
 
-            {process.env.NEXT_PUBLIC_DISABLE_DEMO_LOGIN !== 'true' && (
+            {showDemoLogin && (
               <>
                 <div className="relative my-4">
                   <div className="absolute inset-0 flex items-center">

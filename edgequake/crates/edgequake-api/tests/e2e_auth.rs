@@ -70,7 +70,18 @@ async fn test_create_user_success() {
 
 #[tokio::test]
 async fn test_create_user_with_role() {
-    let server = create_test_server();
+    let mut state = AppState::test_state();
+    state.auth_config.auth_enabled = true;
+    state.auth_config.api_keys = vec!["master-test-key".to_string()];
+
+    let config = ServerConfig {
+        host: "127.0.0.1".to_string(),
+        port: 0,
+        enable_cors: false,
+        enable_compression: false,
+        enable_swagger: true,
+    };
+    let server = Server::new(config, state);
     let app = server.build_router();
 
     let response = app
@@ -79,6 +90,7 @@ async fn test_create_user_with_role() {
                 .method("POST")
                 .uri("/api/v1/users")
                 .header(header::CONTENT_TYPE, "application/json")
+                .header("x-api-key", "master-test-key")
                 .body(Body::from(
                     json!({
                         "username": "adminuser",
@@ -97,6 +109,104 @@ async fn test_create_user_with_role() {
 
     let json = parse_json(response).await;
     assert_eq!(json["user"]["role"], "admin");
+}
+
+#[tokio::test]
+async fn test_public_registration_cannot_self_assign_admin_role() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/users")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "username": "should-not-be-admin",
+                        "email": "public-admin@example.com",
+                        "password": "SecurePass123!",
+                        "role": "admin"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let json = parse_json(response).await;
+    assert_eq!(json["user"]["role"], "user");
+}
+
+#[tokio::test]
+async fn test_registration_can_be_disabled_via_config() {
+    let mut state = AppState::test_state();
+    state.auth_config.allow_registration = false;
+
+    let config = ServerConfig {
+        host: "127.0.0.1".to_string(),
+        port: 0,
+        enable_cors: false,
+        enable_compression: false,
+        enable_swagger: true,
+    };
+    let server = Server::new(config, state);
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/users")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "username": "blocked-user",
+                        "email": "blocked@example.com",
+                        "password": "SecurePass123!"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn test_auth_enabled_protects_business_endpoints() {
+    let mut state = AppState::test_state();
+    state.auth_config.auth_enabled = true;
+    state.auth_config.api_keys = vec!["master-test-key".to_string()];
+
+    let config = ServerConfig {
+        host: "127.0.0.1".to_string(),
+        port: 0,
+        enable_cors: false,
+        enable_compression: false,
+        enable_swagger: true,
+    };
+    let server = Server::new(config, state);
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/documents")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

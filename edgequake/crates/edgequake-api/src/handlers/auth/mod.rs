@@ -31,6 +31,7 @@ pub use user_management::*;
 // Re-export DTOs from auth_types module
 pub use crate::handlers::auth_types::*;
 
+use axum::http::HeaderMap;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
@@ -183,6 +184,111 @@ pub(super) async fn get_user_by_id(
         Ok(None) => Ok(None),
         Err(e) => Err(ApiError::Internal(format!("Storage error: {}", e))),
     }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct RequestAuthContext {
+    pub user_id: String,
+    pub role: Role,
+}
+
+pub(super) fn authenticate_request(
+    headers: &HeaderMap,
+    state: &AppState,
+) -> Result<Option<RequestAuthContext>, ApiError> {
+    if let Some(api_key) = extract_api_key(headers) {
+        if state
+            .auth_config
+            .api_keys
+            .iter()
+            .any(|configured| configured == &api_key)
+        {
+            return Ok(Some(RequestAuthContext {
+                user_id: "master-api-key".to_string(),
+                role: Role::Admin,
+            }));
+        }
+    }
+
+    let Some(token) = extract_bearer_token(headers) else {
+        return Ok(None);
+    };
+
+    if state
+        .auth_config
+        .api_keys
+        .iter()
+        .any(|configured| configured == &token)
+    {
+        return Ok(Some(RequestAuthContext {
+            user_id: "master-api-key".to_string(),
+            role: Role::Admin,
+        }));
+    }
+
+    let claims = state
+        .jwt_service
+        .verify_token(&token)
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    Ok(Some(RequestAuthContext {
+        user_id: claims
+            .user_id()
+            .map_err(|_| ApiError::Unauthorized)?
+            .to_string(),
+        role: claims.role(),
+    }))
+}
+
+pub(super) fn require_authenticated_request(
+    headers: &HeaderMap,
+    state: &AppState,
+) -> Result<RequestAuthContext, ApiError> {
+    if !state.auth_config.auth_enabled {
+        return Ok(RequestAuthContext {
+            user_id: "demo-user".to_string(),
+            role: Role::Admin,
+        });
+    }
+
+    authenticate_request(headers, state)?.ok_or(ApiError::Unauthorized)
+}
+
+pub(super) fn require_admin_request(
+    headers: &HeaderMap,
+    state: &AppState,
+) -> Result<RequestAuthContext, ApiError> {
+    if !state.auth_config.auth_enabled {
+        return Ok(RequestAuthContext {
+            user_id: "demo-user".to_string(),
+            role: Role::Admin,
+        });
+    }
+
+    let auth = require_authenticated_request(headers, state)?;
+    if auth.role != Role::Admin {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(auth)
+}
+
+fn extract_bearer_token(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn extract_api_key(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-api-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 #[cfg(test)]

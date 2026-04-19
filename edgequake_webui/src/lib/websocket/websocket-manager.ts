@@ -12,6 +12,7 @@
  * @enforces BR0720 - Reconnect with exponential backoff
  */
 
+import { getRuntimeServerBaseUrl } from "@/lib/runtime-config";
 import { ProgressWebSocket } from "./progress-websocket";
 
 let instance: ProgressWebSocket | null = null;
@@ -22,28 +23,19 @@ let instance: ProgressWebSocket | null = null;
  * Backend WebSocket endpoint is at /ws/pipeline/progress
  */
 function getWebSocketUrl(): string {
-  // Check for environment variable
-  const baseUrl =
-    process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_URL;
+  const baseUrl = getRuntimeServerBaseUrl();
 
   if (baseUrl) {
-    // Convert http(s) to ws(s)
     const wsUrl = baseUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
     return `${wsUrl}/ws/pipeline/progress`;
   }
 
-  // Browser-based detection
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // Use backend port 9621 for API, the frontend runs on 3000
-    const apiHost = process.env.NEXT_PUBLIC_API_URL
-      ? new URL(process.env.NEXT_PUBLIC_API_URL).host
-      : "localhost:9621";
-    return `${protocol}//${apiHost}/ws/pipeline/progress`;
+    return `${protocol}//${window.location.host}/ws/pipeline/progress`;
   }
 
-  // Fallback for server-side rendering
-  return "ws://localhost:9621/ws/pipeline/progress";
+  return "ws://localhost:8080/ws/pipeline/progress";
 }
 
 /**

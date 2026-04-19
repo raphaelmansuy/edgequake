@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { SERVER_BASE_URL } from "@/lib/api/client";
+import { apiClient } from "@/lib/api/client";
 import type {
     EmbeddingModelsResponse,
     LlmModelsResponse,
@@ -20,30 +20,18 @@ import type {
 } from "@/types/provider";
 import { useQuery } from "@tanstack/react-query";
 
-const getApiUrl = () => SERVER_BASE_URL || "http://localhost:8080";
-
 /**
  * Fetch current provider status.
  */
 async function fetchProviderStatus(): Promise<ProviderStatusResponse> {
-  const response = await fetch(
-    `${getApiUrl()}/api/v1/settings/provider/status`,
-  );
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  return response.json();
+  return apiClient<ProviderStatusResponse>("/settings/provider/status");
 }
 
 /**
  * Fetch available providers.
  */
 async function fetchAvailableProviders(): Promise<AvailableProvidersResponse> {
-  const response = await fetch(`${getApiUrl()}/api/v1/settings/providers`);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  return response.json();
+  return apiClient<AvailableProvidersResponse>("/settings/providers");
 }
 
 /**
@@ -51,11 +39,7 @@ async function fetchAvailableProviders(): Promise<AvailableProvidersResponse> {
  * @implements SPEC-032: Multi-model support per provider (Focus 7)
  */
 async function fetchLlmModels(): Promise<LlmModelsResponse> {
-  const response = await fetch(`${getApiUrl()}/api/v1/models/llm`);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  return response.json();
+  return apiClient<LlmModelsResponse>("/models/llm");
 }
 
 /**
@@ -63,11 +47,7 @@ async function fetchLlmModels(): Promise<LlmModelsResponse> {
  * @implements SPEC-032: Multi-model support per provider (Focus 7)
  */
 async function fetchEmbeddingModels(): Promise<EmbeddingModelsResponse> {
-  const response = await fetch(`${getApiUrl()}/api/v1/models/embedding`);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  return response.json();
+  return apiClient<EmbeddingModelsResponse>("/models/embedding");
 }
 
 /**

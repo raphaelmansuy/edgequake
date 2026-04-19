@@ -82,6 +82,7 @@
 //! 3. Default tenant (for non-authenticated deployments)
 
 use axum::{
+    middleware,
     routing::{delete, get, patch, post, put},
     Router,
 };
@@ -91,6 +92,11 @@ use crate::state::AppState;
 
 /// Create the API router.
 pub fn create_router(state: AppState) -> Router {
+    let api_v1 = api_v1_routes().route_layer(middleware::from_fn_with_state(
+        state.clone(),
+        crate::middleware::protected_api_auth,
+    ));
+
     Router::new()
         // Health endpoints
         .route("/health", get(handlers::health_check))
@@ -108,7 +114,7 @@ pub fn create_router(state: AppState) -> Router {
         // Ollama Emulation API (GAP-038)
         .nest("/api", ollama_api_routes())
         // API v1 endpoints
-        .nest("/api/v1", api_v1_routes())
+        .nest("/api/v1", api_v1)
         .with_state(state)
 }
 
