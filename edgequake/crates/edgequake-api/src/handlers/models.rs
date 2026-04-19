@@ -365,18 +365,17 @@ async fn check_provider_health(
             checked_at: checked_at.to_string(),
         },
         ProviderType::Ollama | ProviderType::LMStudio => {
-            // Local providers: TCP connection check
+            // Local providers: probe their actual HTTP health/model endpoints.
+            // WHY: raw TCP probing against host.docker.internal can return a false
+            // DNS error inside Docker even when the provider is reachable and serving
+            // requests normally. Using the provider's HTTP endpoint validates the real
+            // runtime path users depend on.
             let start = Instant::now();
             let default_url = if provider.provider_type == ProviderType::Ollama {
                 "http://localhost:11434"
             } else {
                 "http://localhost:1234"
             };
-            // FIX #167: Honor OLLAMA_HOST env var for health checks in Docker.
-            // WHY: In Docker deployments, Ollama runs on the host and is reached via
-            // `host.docker.internal:11434`. The static `models.toml` config has
-            // `base_url: http://localhost:11434` which is unreachable from inside
-            // the container. The runtime uses OLLAMA_HOST but the health check didn't.
             let env_url = if provider.provider_type == ProviderType::Ollama {
                 std::env::var("OLLAMA_HOST").ok()
             } else {
@@ -385,40 +384,42 @@ async fn check_provider_health(
             let base_url = env_url
                 .as_deref()
                 .or(provider.base_url.as_deref())
-                .unwrap_or(default_url);
-            let host_port = base_url
-                .strip_prefix("http://")
-                .unwrap_or(base_url)
-                .strip_prefix("https://")
-                .unwrap_or(base_url);
+                .unwrap_or(default_url)
+                .trim_end_matches('/');
 
-            // FIX #167: Use DNS-aware connection instead of SocketAddr::parse().
-            // WHY: `host.docker.internal:11434` is a hostname, not an IP address.
-            // SocketAddr::parse() silently fails on hostnames, falling back to
-            // 127.0.0.1:11434 which defeats the purpose of OLLAMA_HOST.
-            let connect_result = tokio::time::timeout(
-                std::time::Duration::from_secs(2),
-                tokio::net::TcpStream::connect(host_port),
-            )
-            .await;
+            let health_url = if provider.provider_type == ProviderType::Ollama {
+                format!("{base_url}/api/version")
+            } else {
+                format!("{base_url}/v1/models")
+            };
 
-            match connect_result {
-                Ok(Ok(_)) => ProviderHealthResponse {
+            let request_result = reqwest::Client::new()
+                .get(&health_url)
+                .timeout(std::time::Duration::from_secs(5))
+                .send()
+                .await;
+
+            match request_result {
+                Ok(response) if response.status().is_success() => ProviderHealthResponse {
                     available: true,
                     latency_ms: start.elapsed().as_millis() as u64,
                     error: None,
                     checked_at: checked_at.to_string(),
                 },
-                Ok(Err(e)) => ProviderHealthResponse {
+                Ok(response) => ProviderHealthResponse {
+                    available: false,
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    error: Some(format!(
+                        "Health endpoint returned status {} ({})",
+                        response.status(),
+                        health_url
+                    )),
+                    checked_at: checked_at.to_string(),
+                },
+                Err(e) => ProviderHealthResponse {
                     available: false,
                     latency_ms: start.elapsed().as_millis() as u64,
                     error: Some(format!("Connection failed: {}", e)),
-                    checked_at: checked_at.to_string(),
-                },
-                Err(_) => ProviderHealthResponse {
-                    available: false,
-                    latency_ms: start.elapsed().as_millis() as u64,
-                    error: Some("Connection timed out".to_string()),
                     checked_at: checked_at.to_string(),
                 },
             }

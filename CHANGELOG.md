@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.10] - 2026-04-19
+
+### Fixed
+
+- Published Docker quickstart validation for local Ollama or Gemma now reports provider availability correctly by probing the real HTTP health endpoints instead of relying on brittle socket-level host resolution.
+- Added a regression test covering the Ollama health endpoint path so Docker-hosted local model setups stay verifiable across future releases.
+
+### Verified
+
+- Revalidated the public quickstart flow against both OpenAI and local Ollama or Gemma setups after the fix.
+
 ## [0.10.9] - 2026-04-19
 
 ### Fixed

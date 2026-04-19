@@ -50,6 +50,7 @@ futures.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
 async-trait.workspace = true
 sqlx = { workspace = true, optional = true }
+reqwest = { version = "0.12", features = ["blocking", "json"] }
 url = "2.5"
 lazy_static = "1.5"
 
@@ -71,7 +72,6 @@ sqlx = { workspace = true, features = [
     "uuid",
     "chrono",
 ] }
-reqwest = { version = "0.12", features = ["blocking", "json"] }
 serial_test = "3.2"
 tempfile = "3"
 urlencoding = "2.1"
