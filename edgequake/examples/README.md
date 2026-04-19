@@ -54,7 +54,7 @@ cargo run --example graph_exploration
 
 Before running examples, ensure you have:
 
-- Rust 1.78+ installed
+- Rust 1.95+ installed
 - For examples using real LLMs: `OPENAI_API_KEY` environment variable set
 
 ## Creating New Examples
