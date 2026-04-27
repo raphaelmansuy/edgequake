@@ -31,11 +31,21 @@ function getWebSocketUrl(): string {
   }
 
   if (typeof window !== "undefined") {
+    // WHY same host/port as the page (not hardcoded localhost:8080):
+    // When EDGEQUAKE_API_URL is not set the frontend falls back to relative
+    // routing. Using window.location.host means the WebSocket goes to the same
+    // origin the browser is already talking to, which works correctly when a
+    // reverse proxy (or docker-compose port mapping) forwards /ws/* to the API.
+    // A hardcoded "ws://localhost:8080" would only work if the browser and the
+    // API happen to share the same host AND port, breaking any custom-port or
+    // remote-access deployment.
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${protocol}//${window.location.host}/ws/pipeline/progress`;
   }
 
-  return "ws://localhost:8080/ws/pipeline/progress";
+  // SSR-only fallback (no window): this string is never sent to a real socket;
+  // the client-side path above runs in browsers. Kept as a safe placeholder.
+  return "/ws/pipeline/progress";
 }
 
 /**

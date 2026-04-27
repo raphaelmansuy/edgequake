@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.14] - 2026-04-27
+
+### Fixed
+
+- **Issue #189 & #192 — WebUI cannot reach API in any non-default deployment.** The `frontend` Docker service had no `EDGEQUAKE_API_URL` environment variable. The Next.js image bakes `http://localhost:8080` into the JS bundle at build time via `NEXT_PUBLIC_API_URL` (a Next.js build-time constant). With no runtime override, all deployments used the baked URL regardless of `EDGEQUAKE_PORT` — breaking custom-port setups (#189) and causing "Connection Error" when `apiUrl` fell back to empty (relative `/api/v1` hits Next.js with no proxy, #192).
+  - **Fix 1:** `runtime-config.ts` now reads `process.env.EDGEQUAKE_API_URL` (a plain env var, read at request time by the server component) before falling back to `NEXT_PUBLIC_API_URL`. This allows the API URL to be set at container startup without rebuilding the image.
+  - **Fix 2:** `docker-compose.quickstart.yml` frontend service now passes `EDGEQUAKE_API_URL: http://localhost:${EDGEQUAKE_PORT:-8080}`, so custom port deployments work automatically.
+  - **Fix 3:** `websocket-manager.ts` SSR fallback changed from hardcoded `ws://localhost:8080/ws/pipeline/progress` to the relative path `/ws/pipeline/progress`, eliminating the port-8080 assumption in SSR context.
+
+### Verified
+
+- TypeScript compile check: `tsc --noEmit --strict` passes (exit 0).
+- 31/31 WebSocket client tests pass unchanged.
+- Logic proof: `EDGEQUAKE_PORT=8081` scenario correctly injects `http://localhost:8081` into `window.__EDGEQUAKE_RUNTIME_CONFIG__` at runtime.
+- `window.__EDGEQUAKE_RUNTIME_CONFIG__` override (highest priority) still works; `NEXT_PUBLIC_API_URL` (local dev `.env.local`) still works as fallback.
+
 ## [0.10.13] - 2026-04-27
 
 ### Fixed
