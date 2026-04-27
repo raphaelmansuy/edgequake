@@ -22,18 +22,17 @@ public class DocumentService(HttpHelper http)
     public Task<DocumentDetailResponse> GetAsync(string id) =>
         http.GetAsync<DocumentDetailResponse>($"/api/v1/documents/{id}");
 
-    public Task<DocumentChunksResponse> ChunksAsync(string id) =>
-        http.GetAsync<DocumentChunksResponse>($"/api/v1/documents/{id}/chunks");
+    /// <summary>GET /api/v1/documents/track/{track_id} — processing status for an upload track.</summary>
+    public Task<TrackStatusResponse> TrackAsync(string trackId) =>
+        http.GetAsync<TrackStatusResponse>($"/api/v1/documents/track/{trackId}");
 
-    public Task<DocumentStatusResponse> StatusAsync(string id) =>
-        http.GetAsync<DocumentStatusResponse>($"/api/v1/documents/{id}/status");
+    /// <summary>POST /api/v1/documents — text upload. Parameters are <c>(title, content)</c> for historical SDK compatibility; JSON sends <c>content</c> + <c>title</c> per API.</summary>
+    public Task<UploadResponse> UploadTextAsync(string title, string content) =>
+        http.PostAsync<UploadResponse>("/api/v1/documents", new { content, title });
 
-    public Task<UploadResponse> UploadTextAsync(string title, string content, string fileType = "txt") =>
-        http.PostAsync<UploadResponse>("/api/v1/documents",
-            new { title, content, file_type = fileType });
-
-    public Task<UploadResponse> ReprocessAsync(string id) =>
-        http.PostAsync<UploadResponse>($"/api/v1/documents/{id}/reprocess", null);
+    /// <summary>POST /api/v1/documents/reprocess — reprocess failed documents (workspace-scoped via headers).</summary>
+    public Task<UploadResponse> ReprocessFailedAsync() =>
+        http.PostAsync<UploadResponse>("/api/v1/documents/reprocess", null);
 
     public Task<UploadResponse> RecoverStuckAsync() =>
         http.PostAsync<UploadResponse>("/api/v1/documents/recover-stuck", null);
@@ -41,6 +40,31 @@ public class DocumentService(HttpHelper http)
     /// <summary>WHY: DELETE returns 204 No Content — no body to deserialize.</summary>
     public Task DeleteAsync(string id) =>
         http.DeleteNoContentAsync($"/api/v1/documents/{id}");
+}
+
+/// <summary>Admin API — tenant quotas and server defaults (<c>/api/v1/admin/*</c>).</summary>
+public class AdminService(HttpHelper http)
+{
+    public Task<UpdateTenantQuotaResponse> PatchTenantQuotaAsync(string tenantId, int maxWorkspaces) =>
+        http.PatchAsync<UpdateTenantQuotaResponse>($"/api/v1/admin/tenants/{tenantId}/quota",
+            new { max_workspaces = maxWorkspaces });
+
+    public Task<ServerDefaultsResponse> GetServerDefaultsAsync() =>
+        http.GetAsync<ServerDefaultsResponse>("/api/v1/admin/config/defaults");
+
+    public Task<ServerDefaultsResponse> PatchServerDefaultsAsync(int defaultMaxWorkspaces) =>
+        http.PatchAsync<ServerDefaultsResponse>("/api/v1/admin/config/defaults",
+            new { default_max_workspaces = defaultMaxWorkspaces });
+}
+
+/// <summary>GET /api/v1/config/effective — merged runtime configuration.</summary>
+public class EffectiveConfigService(HttpHelper http)
+{
+    public async Task<JsonDocument> GetAsync()
+    {
+        var raw = await http.GetRawAsync("/api/v1/config/effective");
+        return JsonDocument.Parse(raw);
+    }
 }
 
 public class EntityService(HttpHelper http)
@@ -58,12 +82,13 @@ public class EntityService(HttpHelper http)
         http.PostAsync<CreateEntityResponse>("/api/v1/graph/entities",
             new { entity_name = entityName, entity_type = entityType, description, source_id = sourceId });
 
-    public Task<MergeEntitiesResponse> MergeAsync(string primaryId, string secondaryId) =>
+    public Task<MergeEntitiesResponse> MergeAsync(string sourceName, string targetName) =>
         http.PostAsync<MergeEntitiesResponse>("/api/v1/graph/entities/merge",
-            new { primary_id = primaryId, secondary_id = secondaryId });
+            new { source_name = sourceName, target_name = targetName });
 
-    public Task<EntityTypesResponse> TypesAsync() =>
-        http.GetAsync<EntityTypesResponse>("/api/v1/graph/entities/types");
+    public Task<EntityExistsResponse> ExistsAsync(string entityName) =>
+        http.GetAsync<EntityExistsResponse>(
+            $"/api/v1/graph/entities/exists?entity_name={Uri.EscapeDataString(entityName)}");
 
     public Task<EntityDeleteResponse> DeleteAsync(string name) =>
         http.DeleteAsync<EntityDeleteResponse>($"/api/v1/graph/entities/{name}?confirm=true");
@@ -74,32 +99,29 @@ public class RelationshipService(HttpHelper http)
     public Task<RelationshipListResponse> ListAsync(int page = 1, int pageSize = 20) =>
         http.GetAsync<RelationshipListResponse>($"/api/v1/graph/relationships?page={page}&page_size={pageSize}");
 
-    public Task<RelationshipDetailResponse> GetAsync(string source, string target) =>
-        http.GetAsync<RelationshipDetailResponse>($"/api/v1/graph/relationships/{source}/{target}");
+    public Task<RelationshipDetailResponse> GetAsync(string relationshipId) =>
+        http.GetAsync<RelationshipDetailResponse>(
+            $"/api/v1/graph/relationships/{Uri.EscapeDataString(relationshipId)}");
 
-    public Task<CreateRelationshipResponse> CreateAsync(string source, string target, string[] keywords, string description) =>
+    public Task<CreateRelationshipResponse> CreateAsync(
+        string srcId, string tgtId, string keywords, string description,
+        string sourceId = "manual_entry", double weight = 0.8) =>
         http.PostAsync<CreateRelationshipResponse>("/api/v1/graph/relationships",
-            new { source, target, keywords, description });
+            new { src_id = srcId, tgt_id = tgtId, keywords, description, source_id = sourceId, weight });
 
-    public Task<RelationshipTypesResponse> TypesAsync() =>
-        http.GetAsync<RelationshipTypesResponse>("/api/v1/graph/relationships/types");
-
-    public Task DeleteAsync(string source, string target) =>
-        http.DeleteNoContentAsync($"/api/v1/graph/relationships/{source}/{target}");
+    public Task DeleteAsync(string relationshipId) =>
+        http.DeleteNoContentAsync($"/api/v1/graph/relationships/{Uri.EscapeDataString(relationshipId)}");
 }
 
 public class GraphService(HttpHelper http)
 {
     public Task<GraphResponse> GetAsync() => http.GetAsync<GraphResponse>("/api/v1/graph");
 
-    public Task<GraphStatsResponse> StatsAsync() =>
-        http.GetAsync<GraphStatsResponse>("/api/v1/graph/stats");
-
     public Task<SearchResponse> SearchAsync(string query) =>
         http.GetAsync<SearchResponse>($"/api/v1/graph/nodes/search?q={Uri.EscapeDataString(query)}");
 
-    public Task<LabelSearchResponse> LabelSearchAsync(string label) =>
-        http.GetAsync<LabelSearchResponse>($"/api/v1/graph/labels/search?label={Uri.EscapeDataString(label)}");
+    public Task<LabelSearchResponse> LabelSearchAsync(string query) =>
+        http.GetAsync<LabelSearchResponse>($"/api/v1/graph/labels/search?q={Uri.EscapeDataString(query)}");
 
     public Task<PopularLabelsResponse> PopularLabelsAsync(int limit = 10) =>
         http.GetAsync<PopularLabelsResponse>($"/api/v1/graph/labels/popular?limit={limit}");
@@ -307,7 +329,9 @@ public class ConversationService(HttpHelper http)
         http.DeleteNoContentAsync($"/api/v1/conversations/{id}");
 
     public Task<BulkDeleteResponse> BulkDeleteAsync(List<string> ids) =>
-        http.PostAsync<BulkDeleteResponse>("/api/v1/conversations/bulk/delete", new { ids });
+        http.PostAsync<BulkDeleteResponse>(
+            "/api/v1/conversations/bulk/delete",
+            new Dictionary<string, object> { ["conversation_ids"] = ids });
 
     public Task<MessageListResponse> MessagesAsync(string conversationId) =>
         http.GetAsync<MessageListResponse>($"/api/v1/conversations/{conversationId}/messages");

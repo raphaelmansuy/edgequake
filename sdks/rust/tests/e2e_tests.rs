@@ -262,7 +262,7 @@ async fn e2e_lineage_for_entity() {
     let c = e2e_client();
     // Expected to 404 for non-existent entity
     match c.provenance().for_entity("NONEXISTENT_ENTITY").await {
-        Ok(r) => println!("Provenance: {} records", r.len()),
+        Ok(r) => println!("Provenance: entity={}", r.entity_name),
         Err(e) => println!("Lineage: expected error for nonexistent entity: {e}"),
     }
 }

@@ -154,14 +154,16 @@ export class DocumentsResource extends Resource {
     return this.transport.uploadBatch("/api/v1/documents/upload/batch", files);
   }
 
-  /** List documents with optional filters + pagination. */
+  /** List documents with optional filters + pagination (matches `ListDocumentsRequest` on the API). */
   async list(query?: ListDocumentsQuery): Promise<ListDocumentsResponse> {
     const params = new URLSearchParams();
     if (query?.page != null) params.set("page", String(query.page));
     if (query?.page_size != null)
       params.set("page_size", String(query.page_size));
-    if (query?.status) params.set("status", query.status);
-    if (query?.search) params.set("search", query.search);
+    if (query?.date_from) params.set("date_from", query.date_from);
+    if (query?.date_to) params.set("date_to", query.date_to);
+    if (query?.document_pattern)
+      params.set("document_pattern", query.document_pattern);
     const qs = params.toString();
     return this._get(`/api/v1/documents${qs ? `?${qs}` : ""}`);
   }

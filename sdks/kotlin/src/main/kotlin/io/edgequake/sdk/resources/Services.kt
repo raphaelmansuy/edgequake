@@ -3,6 +3,8 @@ package io.edgequake.sdk.resources
 import com.fasterxml.jackson.core.type.TypeReference
 import io.edgequake.sdk.internal.HttpHelper
 import io.edgequake.sdk.models.*
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 /** WHY: Each service maps 1:1 to an API resource for discoverability. */
 
@@ -35,21 +37,17 @@ class DocumentService(private val http: HttpHelper) {
 
     fun scan(path: String, recursive: Boolean = true): ScanResponse =
         http.post("/api/v1/documents/scan", ScanRequest(path, recursive))
-    
-    /** WHY: Get document chunks with extracted entities. */
-    fun chunks(id: String): DocumentChunksResponse = 
-        http.get("/api/v1/documents/$id/chunks")
-    
-    /** WHY: Get document processing status. */
-    fun status(id: String): DocumentStatusResponse = 
-        http.get("/api/v1/documents/$id/status")
-    
-    /** WHY: Reprocess a failed document. */
-    fun reprocess(id: String): StatusResponse = 
-        http.post("/api/v1/documents/$id/reprocess")
-    
+
+    /** WHY: GET /api/v1/documents/track/{track_id} */
+    fun track(trackId: String): TrackStatusResponse =
+        http.get("/api/v1/documents/track/$trackId")
+
+    /** WHY: POST /api/v1/documents/reprocess — workspace-scoped via headers. */
+    fun reprocessFailed(): StatusResponse =
+        http.post("/api/v1/documents/reprocess")
+
     /** WHY: Recover documents stuck in processing state. */
-    fun recoverStuck(): StatusResponse = 
+    fun recoverStuck(): StatusResponse =
         http.post("/api/v1/documents/recover-stuck")
 }
 
@@ -71,14 +69,12 @@ class EntityService(private val http: HttpHelper) {
 
     fun merge(source: String, target: String): Map<String, Any?> =
         http.post("/api/v1/graph/entities/merge", MergeEntitiesRequest(source, target))
-    
+
     /** WHY: Get entity's neighborhood for graph traversal. */
-    fun neighborhood(entityName: String, depth: Int = 1): EntityNeighborhoodResponse =
-        http.get("/api/v1/graph/entities/$entityName/neighborhood?depth=$depth")
-    
-    /** WHY: Get list of entity types for filtering. */
-    fun types(): EntityTypesResponse = 
-        http.get("/api/v1/graph/entities/types")
+    fun neighborhood(entityName: String, depth: Int = 1): EntityNeighborhoodResponse {
+        val enc = URLEncoder.encode(entityName, StandardCharsets.UTF_8).replace("+", "%20")
+        return http.get("/api/v1/graph/entities/$enc/neighborhood?depth=$depth")
+    }
 }
 
 class RelationshipService(private val http: HttpHelper) {
@@ -95,10 +91,6 @@ class RelationshipService(private val http: HttpHelper) {
     
     /** WHY: Delete a relationship. */
     fun delete(id: String) { http.deleteRaw("/api/v1/graph/relationships/$id") }
-    
-    /** WHY: Get list of relationship types. */
-    fun types(): RelationshipTypesResponse =
-        http.get("/api/v1/graph/relationships/types")
 }
 
 class GraphService(private val http: HttpHelper) {
@@ -106,25 +98,18 @@ class GraphService(private val http: HttpHelper) {
 
     fun search(query: String): SearchNodesResponse =
         http.get("/api/v1/graph/nodes/search?q=$query")
-    
-    /** WHY: Get graph statistics for monitoring. */
-    fun stats(): GraphStatsResponse = http.get("/api/v1/graph/stats")
-    
+
     /** WHY: Search labels across graph. */
     fun labelSearch(query: String): LabelSearchResponse =
         http.get("/api/v1/graph/labels/search?q=$query")
-    
+
     /** WHY: Get most popular labels. */
     fun popularLabels(limit: Int = 10): PopularLabelsResponse =
         http.get("/api/v1/graph/labels/popular?limit=$limit")
-    
+
     /** WHY: Batch degree calculation for multiple nodes. */
     fun batchDegrees(nodeIds: List<String>): BatchDegreesResponse =
         http.post("/api/v1/graph/degrees/batch", mapOf("node_ids" to nodeIds))
-    
-    /** WHY: Clear entire graph (dangerous!). */
-    fun clear(): StatusResponse =
-        http.post("/api/v1/graph/clear", mapOf("confirm" to true))
 }
 
 class QueryService(private val http: HttpHelper) {
@@ -241,32 +226,33 @@ class ConversationService(private val http: HttpHelper) {
     fun delete(id: String) { http.deleteRaw("/api/v1/conversations/$id") }
 
     fun bulkDelete(ids: List<String>): BulkDeleteResponse =
-        http.post("/api/v1/conversations/bulk/delete", mapOf("ids" to ids))
+        http.post("/api/v1/conversations/bulk/delete", mapOf("conversation_ids" to ids))
     
-    /** WHY: Update conversation title. */
+    /** WHY: Update conversation title (PATCH). */
     fun update(id: String, title: String): ConversationInfo =
-        http.put("/api/v1/conversations/$id", mapOf("title" to title))
-    
+        http.patch("/api/v1/conversations/$id", mapOf("title" to title))
+
     /** WHY: Get messages for a conversation. */
     fun messages(id: String): MessageListResponse =
         http.get("/api/v1/conversations/$id/messages")
-    
+
     /** WHY: Add message to conversation. */
     fun addMessage(id: String, role: String, content: String): Message =
         http.post("/api/v1/conversations/$id/messages", mapOf("role" to role, "content" to content))
-    
-    /** WHY: Delete message from conversation. */
-    fun deleteMessage(conversationId: String, messageId: String) {
-        http.deleteRaw("/api/v1/conversations/$conversationId/messages/$messageId")
+
+    /** WHY: Delete message — DELETE /api/v1/messages/{message_id}. */
+    fun deleteMessage(messageId: String) {
+        http.deleteRaw("/api/v1/messages/$messageId")
     }
-    
-    /** WHY: Search conversations by content. */
-    fun search(query: String): List<ConversationInfo> =
-        http.get("/api/v1/conversations/search?q=$query")
-    
+
     /** WHY: Share conversation via link. */
     fun share(id: String): ShareLinkResponse =
         http.post("/api/v1/conversations/$id/share")
+
+    /** WHY: Remove share link for a conversation. */
+    fun unshare(id: String) {
+        http.deleteRaw("/api/v1/conversations/$id/share")
+    }
     
     /** WHY: Import conversations from external source. */
     fun import(data: ConversationImport): ImportResponse =
@@ -281,21 +267,10 @@ class FolderService(private val http: HttpHelper) {
 
     /** WHY: DELETE returns 204 No Content — use deleteRaw to avoid deserialization of empty body. */
     fun delete(id: String) { http.deleteRaw("/api/v1/folders/$id") }
-    
-    /** WHY: Get folder by ID. */
-    fun get(id: String): FolderInfo = http.get("/api/v1/folders/$id")
-    
-    /** WHY: Update folder name. */
+
+    /** WHY: Update folder name (PATCH). */
     fun update(id: String, name: String): FolderInfo =
-        http.put("/api/v1/folders/$id", mapOf("name" to name))
-    
-    /** WHY: Move conversation to folder. */
-    fun moveConversation(folderId: String, conversationId: String): StatusResponse =
-        http.post("/api/v1/folders/$folderId/conversations/$conversationId")
-    
-    /** WHY: List conversations in folder. */
-    fun conversations(id: String): FolderConversationsResponse =
-        http.get("/api/v1/folders/$id/conversations")
+        http.patch("/api/v1/folders/$id", mapOf("name" to name))
 }
 
 class TaskService(private val http: HttpHelper) {
@@ -373,33 +348,42 @@ class ModelService(private val http: HttpHelper) {
 }
 
 class WorkspaceService(private val http: HttpHelper) {
-    fun list(): List<WorkspaceInfo> = http.get("/api/v1/workspaces")
-    
-    /** WHY: Get workspace by ID. */
+    /** WHY: GET /api/v1/tenants/{tenant_id}/workspaces — returns paginated wrapper. */
+    fun list(tenantId: String): List<WorkspaceInfo> {
+        val page: WorkspaceListResponse = http.get("/api/v1/tenants/$tenantId/workspaces")
+        return page.items ?: emptyList()
+    }
+
+    /** WHY: POST /api/v1/tenants/{tenant_id}/workspaces */
+    fun create(tenantId: String, name: String, slug: String? = null): WorkspaceInfo =
+        http.post(
+            "/api/v1/tenants/$tenantId/workspaces",
+            mapOf("name" to name, "slug" to slug),
+        )
+
+    fun getBySlug(tenantId: String, slug: String): WorkspaceInfo =
+        http.get("/api/v1/tenants/$tenantId/workspaces/by-slug/$slug")
+
     fun get(id: String): WorkspaceInfo = http.get("/api/v1/workspaces/$id")
-    
-    /** WHY: Create new workspace. */
-    fun create(name: String, slug: String): WorkspaceInfo =
-        http.post("/api/v1/workspaces", mapOf("name" to name, "slug" to slug))
-    
-    /** WHY: Update workspace. */
+
     fun update(id: String, updates: Map<String, Any?>): WorkspaceInfo =
         http.put("/api/v1/workspaces/$id", updates)
-    
-    /** WHY: Delete workspace. */
-    fun delete(id: String) { http.deleteRaw("/api/v1/workspaces/$id") }
-    
-    /** WHY: Get workspace statistics. */
+
+    fun delete(id: String) {
+        http.deleteRaw("/api/v1/workspaces/$id")
+    }
+
     fun stats(id: String): WorkspaceStatsResponse =
         http.get("/api/v1/workspaces/$id/stats")
-    
-    /** WHY: Switch to different workspace. */
-    fun switch(id: String): StatusResponse =
-        http.post("/api/v1/workspaces/$id/switch")
-    
-    /** WHY: Rebuild workspace index. */
-    fun rebuild(id: String): StatusResponse =
-        http.post("/api/v1/workspaces/$id/rebuild")
+
+    fun rebuildEmbeddings(id: String): StatusResponse =
+        http.post("/api/v1/workspaces/$id/rebuild-embeddings")
+
+    fun putInjection(id: String, body: Map<String, Any?>): Map<String, Any?> =
+        http.put("/api/v1/workspaces/$id/injection", body)
+
+    fun listInjections(id: String): Map<String, Any?> =
+        http.get("/api/v1/workspaces/$id/injections")
 }
 
 class PdfService(private val http: HttpHelper) {
@@ -441,24 +425,31 @@ class CostService(private val http: HttpHelper) {
         http.post("/api/v1/costs/budget", mapOf("amount" to amount, "period" to period))
 }
 
-/** WHY: Shared link service for public conversation access. */
+/** WHY: PATCH/GET under /api/v1/admin/ (quota, config defaults). */
+class AdminService(private val http: HttpHelper) {
+    fun patchTenantQuota(tenantId: String, maxWorkspaces: Int): UpdateTenantQuotaResponse =
+        http.patch(
+            "/api/v1/admin/tenants/$tenantId/quota",
+            mapOf("max_workspaces" to maxWorkspaces),
+        )
+
+    fun getServerDefaults(): ServerDefaultsResponse =
+        http.get("/api/v1/admin/config/defaults")
+
+    fun patchServerDefaults(defaultMaxWorkspaces: Int): ServerDefaultsResponse =
+        http.patch(
+            "/api/v1/admin/config/defaults",
+            mapOf("default_max_workspaces" to defaultMaxWorkspaces),
+        )
+}
+
+/** WHY: GET /api/v1/config/effective */
+class EffectiveConfigService(private val http: HttpHelper) {
+    fun get(): Map<String, Any?> = http.get("/api/v1/config/effective")
+}
+
+/** WHY: Public shared conversation — GET /api/v1/shared/{share_id} only. */
 class SharedService(private val http: HttpHelper) {
-    /** WHY: Create shared link for conversation. */
-    fun createLink(conversationId: String, expiresAt: String? = null): SharedLinkResponse =
-        http.post("/api/v1/shared", mapOf("conversation_id" to conversationId, "expires_at" to expiresAt))
-    
-    /** WHY: Get shared link info. */
-    fun getLink(shareId: String): SharedLinkResponse =
+    fun get(shareId: String): ConversationDetail =
         http.get("/api/v1/shared/$shareId")
-    
-    /** WHY: Delete shared link. */
-    fun deleteLink(shareId: String) { http.deleteRaw("/api/v1/shared/$shareId") }
-    
-    /** WHY: Access shared content. */
-    fun access(shareId: String): SharedAccessResponse =
-        http.get("/api/v1/shared/$shareId/access")
-    
-    /** WHY: List all shared links for user. */
-    fun listLinks(): SharedLinksListResponse =
-        http.get("/api/v1/shared")
 }

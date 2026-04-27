@@ -17,20 +17,45 @@ from edgequake.types.conversations import (
     BulkDeleteRequest,
     BulkDeleteResponse,
     BulkMoveRequest,
+    BulkOpResponse,
     ConversationCreate,
     ConversationDetail,
     ConversationInfo,
+    ConversationListParams,
     ConversationUpdate,
     FolderCreate,
     FolderInfo,
     FolderUpdate,
     ImportConversationsResponse,
+    ListMessagesParams,
     Message,
     MessageCreate,
     MessageUpdate,
+    PaginatedConversations,
+    PaginatedMessages,
     SharedConversation,
     ShareLink,
 )
+
+
+def _conversation_list_query_dict(
+    *,
+    params: ConversationListParams | None,
+    folder_id: str | None,
+    page: int | None,
+    page_size: int | None,
+) -> dict[str, Any]:
+    """Build GET /conversations query: canon params, or legacy folder_id/page_size shim."""
+    if params is not None:
+        return params.to_query_dict()
+    out: dict[str, Any] = {}
+    if folder_id is not None:
+        out["filter[folder_id]"] = folder_id
+    if page_size is not None:
+        out["limit"] = min(max(page_size, 1), 100)
+    elif page is not None:
+        out["limit"] = 20
+    return out
 
 
 class ConversationsResource(SyncResource):
@@ -39,26 +64,23 @@ class ConversationsResource(SyncResource):
     def list(
         self,
         *,
+        params: ConversationListParams | None = None,
         folder_id: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-    ) -> _list[ConversationInfo]:
-        """List conversations.
+        page: int | None = None,
+        page_size: int | None = None,
+    ) -> PaginatedConversations:
+        """List conversations (cursor + ``filter[…]``). Legacy ``folder_id`` / ``page_size`` map to canon query keys.
 
         GET /api/v1/conversations
         """
-        params: dict[str, Any] = {"page": page, "page_size": page_size}
-        if folder_id:
-            params["folder_id"] = folder_id
-        data = self._get("/api/v1/conversations", params=params)
-        if isinstance(data, list):
-            return [ConversationInfo.model_validate(c) for c in data]
-        items = (
-            data.get("conversations", data.get("items", []))
-            if isinstance(data, dict)
-            else []
+        q = _conversation_list_query_dict(
+            params=params,
+            folder_id=folder_id,
+            page=page,
+            page_size=page_size,
         )
-        return [ConversationInfo.model_validate(c) for c in items]
+        data = self._get("/api/v1/conversations", params=q or None)
+        return PaginatedConversations.model_validate(data)
 
     def create(
         self,
@@ -128,48 +150,58 @@ class ConversationsResource(SyncResource):
         """
         return self._post(
             "/api/v1/conversations/bulk/delete",
-            json=BulkDeleteRequest(ids=ids).model_dump(),
+            json=BulkDeleteRequest(conversation_ids=list(ids)).model_dump(),
             response_type=BulkDeleteResponse,
         )
 
-    def bulk_archive(self, ids: _list[str], *, archive: bool = True) -> dict[str, Any]:
+    def bulk_archive(
+        self, ids: _list[str], *, archive: bool = True
+    ) -> BulkOpResponse:
         """Bulk archive/unarchive conversations.
 
         POST /api/v1/conversations/bulk/archive
         """
         return self._post(
             "/api/v1/conversations/bulk/archive",
-            json=BulkArchiveRequest(ids=ids, archive=archive).model_dump(),
+            json=BulkArchiveRequest(
+                conversation_ids=list(ids), archive=archive
+            ).model_dump(),
+            response_type=BulkOpResponse,
         )
 
     def bulk_move(
         self, ids: _list[str], *, folder_id: str | None = None
-    ) -> dict[str, Any]:
+    ) -> BulkOpResponse:
         """Bulk move conversations to a folder.
 
         POST /api/v1/conversations/bulk/move
         """
         return self._post(
             "/api/v1/conversations/bulk/move",
-            json=BulkMoveRequest(ids=ids, folder_id=folder_id).model_dump(),
+            json=BulkMoveRequest(
+                conversation_ids=list(ids), folder_id=folder_id
+            ).model_dump(),
+            response_type=BulkOpResponse,
         )
 
     # --- Messages sub-operations ---
 
-    def list_messages(self, conversation_id: str) -> _list[Message]:
+    def list_messages(
+        self,
+        conversation_id: str,
+        *,
+        params: ListMessagesParams | None = None,
+    ) -> PaginatedMessages:
         """List messages in a conversation.
 
         GET /api/v1/conversations/{id}/messages
         """
-        data = self._get(f"/api/v1/conversations/{conversation_id}/messages")
-        if isinstance(data, list):
-            return [Message.model_validate(m) for m in data]
-        items = (
-            data.get("messages", data.get("items", []))
-            if isinstance(data, dict)
-            else []
+        q = params.to_query_dict() if params is not None else None
+        data = self._get(
+            f"/api/v1/conversations/{conversation_id}/messages",
+            params=q,
         )
-        return [Message.model_validate(m) for m in items]
+        return PaginatedMessages.model_validate(data)
 
     def create_message(self, conversation_id: str, message: MessageCreate) -> Message:
         """Add a message to a conversation.
@@ -283,20 +315,21 @@ class AsyncConversationsResource(AsyncResource):
     """Async conversations API."""
 
     async def list(
-        self, *, folder_id: str | None = None, page: int = 1, page_size: int = 50
-    ) -> _list[ConversationInfo]:
-        params: dict[str, Any] = {"page": page, "page_size": page_size}
-        if folder_id:
-            params["folder_id"] = folder_id
-        data = await self._get("/api/v1/conversations", params=params)
-        if isinstance(data, list):
-            return [ConversationInfo.model_validate(c) for c in data]
-        items = (
-            data.get("conversations", data.get("items", []))
-            if isinstance(data, dict)
-            else []
+        self,
+        *,
+        params: ConversationListParams | None = None,
+        folder_id: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+    ) -> PaginatedConversations:
+        q = _conversation_list_query_dict(
+            params=params,
+            folder_id=folder_id,
+            page=page,
+            page_size=page_size,
         )
-        return [ConversationInfo.model_validate(c) for c in items]
+        data = await self._get("/api/v1/conversations", params=q or None)
+        return PaginatedConversations.model_validate(data)
 
     async def create(
         self, *, title: str | None = None, folder_id: str | None = None
@@ -314,19 +347,69 @@ class AsyncConversationsResource(AsyncResource):
             response_type=ConversationDetail,
         )
 
+    async def update(
+        self, conversation_id: str, update: ConversationUpdate
+    ) -> ConversationInfo:
+        response = await self._transport.request(
+            "PATCH",
+            f"/api/v1/conversations/{conversation_id}",
+            json=update.model_dump(exclude_none=True),
+        )
+        return ConversationInfo.model_validate(response.json())
+
     async def delete(self, conversation_id: str) -> None:
         await self._delete(f"/api/v1/conversations/{conversation_id}")
 
-    async def list_messages(self, conversation_id: str) -> _list[Message]:
-        data = await self._get(f"/api/v1/conversations/{conversation_id}/messages")
-        if isinstance(data, list):
-            return [Message.model_validate(m) for m in data]
-        items = (
-            data.get("messages", data.get("items", []))
-            if isinstance(data, dict)
-            else []
+    async def import_conversations(
+        self, conversations: _list[dict[str, Any]]
+    ) -> ImportConversationsResponse:
+        return await self._post(
+            "/api/v1/conversations/import",
+            json={"conversations": conversations},
+            response_type=ImportConversationsResponse,
         )
-        return [Message.model_validate(m) for m in items]
+
+    async def bulk_delete(self, ids: _list[str]) -> BulkDeleteResponse:
+        return await self._post(
+            "/api/v1/conversations/bulk/delete",
+            json=BulkDeleteRequest(conversation_ids=list(ids)).model_dump(),
+            response_type=BulkDeleteResponse,
+        )
+
+    async def bulk_archive(
+        self, ids: _list[str], *, archive: bool = True
+    ) -> BulkOpResponse:
+        return await self._post(
+            "/api/v1/conversations/bulk/archive",
+            json=BulkArchiveRequest(
+                conversation_ids=list(ids), archive=archive
+            ).model_dump(),
+            response_type=BulkOpResponse,
+        )
+
+    async def bulk_move(
+        self, ids: _list[str], *, folder_id: str | None = None
+    ) -> BulkOpResponse:
+        return await self._post(
+            "/api/v1/conversations/bulk/move",
+            json=BulkMoveRequest(
+                conversation_ids=list(ids), folder_id=folder_id
+            ).model_dump(),
+            response_type=BulkOpResponse,
+        )
+
+    async def list_messages(
+        self,
+        conversation_id: str,
+        *,
+        params: ListMessagesParams | None = None,
+    ) -> PaginatedMessages:
+        q = params.to_query_dict() if params is not None else None
+        data = await self._get(
+            f"/api/v1/conversations/{conversation_id}/messages",
+            params=q,
+        )
+        return PaginatedMessages.model_validate(data)
 
     async def create_message(
         self, conversation_id: str, message: MessageCreate
@@ -337,6 +420,17 @@ class AsyncConversationsResource(AsyncResource):
             response_type=Message,
         )
 
+    async def update_message(self, message_id: str, update: MessageUpdate) -> Message:
+        response = await self._transport.request(
+            "PATCH",
+            f"/api/v1/messages/{message_id}",
+            json=update.model_dump(exclude_none=True),
+        )
+        return Message.model_validate(response.json())
+
+    async def delete_message(self, message_id: str) -> None:
+        await self._delete(f"/api/v1/messages/{message_id}")
+
     async def share(self, conversation_id: str) -> ShareLink:
         return await self._post(
             f"/api/v1/conversations/{conversation_id}/share",
@@ -345,6 +439,11 @@ class AsyncConversationsResource(AsyncResource):
 
     async def unshare(self, conversation_id: str) -> None:
         await self._delete(f"/api/v1/conversations/{conversation_id}/share")
+
+    async def get_shared(self, share_id: str) -> SharedConversation:
+        return await self._get(
+            f"/api/v1/shared/{share_id}", response_type=SharedConversation
+        )
 
 
 class AsyncFoldersResource(AsyncResource):

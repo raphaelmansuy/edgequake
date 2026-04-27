@@ -51,12 +51,13 @@ mod error_path_tests {
     async fn test_documents_upload_text_error() {
         let ms = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/api/v1/documents/upload/text"))
+            .and(path("/api/v1/documents"))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!({"message":"bad"})))
             .mount(&ms)
             .await;
         let c = client_no_retry(&ms).await;
-        let err = c.documents().upload_text(&json!({})).await.unwrap_err();
+        let req = types::documents::UploadDocumentRequest::text("");
+        let err = c.documents().upload(&req).await.unwrap_err();
         assert_eq!(err.status_code(), Some(400));
     }
 
@@ -83,18 +84,6 @@ mod error_path_tests {
             .await;
         let c = client_no_retry(&ms).await;
         assert!(c.documents().track("missing").await.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_documents_status_error() {
-        let ms = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/api/v1/documents/missing/status"))
-            .respond_with(ResponseTemplate::new(404))
-            .mount(&ms)
-            .await;
-        let c = client_no_retry(&ms).await;
-        assert!(c.documents().status("missing").await.is_err());
     }
 
     // ── Graph Error Paths ──────────────────────────────────────────
@@ -534,6 +523,8 @@ mod error_path_tests {
         let req = types::conversations::CreateMessageRequest {
             role: "user".into(),
             content: "hi".into(),
+            parent_id: None,
+            stream: None,
         };
         assert!(c.conversations().create_message("c1", &req).await.is_err());
     }
@@ -565,8 +556,8 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_pin_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/api/v1/conversations/missing/pin"))
+        Mock::given(method("PATCH"))
+            .and(path("/api/v1/conversations/missing"))
             .respond_with(ResponseTemplate::new(404))
             .mount(&ms)
             .await;
@@ -577,8 +568,8 @@ mod error_path_tests {
     #[tokio::test]
     async fn test_conversations_unpin_error() {
         let ms = MockServer::start().await;
-        Mock::given(method("DELETE"))
-            .and(path("/api/v1/conversations/missing/pin"))
+        Mock::given(method("PATCH"))
+            .and(path("/api/v1/conversations/missing"))
             .respond_with(ResponseTemplate::new(404))
             .mount(&ms)
             .await;
@@ -736,12 +727,12 @@ mod error_path_tests {
     async fn test_chunks_list_error() {
         let ms = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/api/v1/documents/missing/chunks"))
+            .and(path("/api/v1/chunks/missing"))
             .respond_with(ResponseTemplate::new(404))
             .mount(&ms)
             .await;
         let c = client_no_retry(&ms).await;
-        assert!(c.chunks().list("missing").await.is_err());
+        assert!(c.chunks().get("missing").await.is_err());
     }
 
     #[tokio::test]
@@ -774,7 +765,7 @@ mod error_path_tests {
     async fn test_provenance_lineage_error() {
         let ms = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path_regex("/api/v1/entities/.*/lineage"))
+            .and(path_regex("/api/v1/lineage/entities/.*"))
             .respond_with(ResponseTemplate::new(404))
             .mount(&ms)
             .await;
@@ -800,7 +791,7 @@ mod error_path_tests {
     async fn test_models_current_provider_error() {
         let ms = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/api/v1/settings/provider"))
+            .and(path("/api/v1/settings/provider/status"))
             .respond_with(ResponseTemplate::new(500))
             .mount(&ms)
             .await;
@@ -812,24 +803,12 @@ mod error_path_tests {
     async fn test_models_providers_health_error() {
         let ms = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/api/v1/settings/providers/health"))
+            .and(path("/api/v1/models/health"))
             .respond_with(ResponseTemplate::new(500))
             .mount(&ms)
             .await;
         let c = client_no_retry(&ms).await;
         assert!(c.models().providers_health().await.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_models_set_provider_error() {
-        let ms = MockServer::start().await;
-        Mock::given(method("PUT"))
-            .and(path("/api/v1/settings/provider"))
-            .respond_with(ResponseTemplate::new(400))
-            .mount(&ms)
-            .await;
-        let c = client_no_retry(&ms).await;
-        assert!(c.models().set_provider("invalid").await.is_err());
     }
 
     // ── Workspaces Error Paths ─────────────────────────────────────

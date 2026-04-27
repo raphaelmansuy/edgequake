@@ -97,6 +97,13 @@ Welcome to EdgeQuake — an advanced Retrieval-Augmented Generation (RAG) framew
 | [LangChain](/docs/integrations/langchain/)           | Retriever and agent integration      |
 | [Custom Clients](/docs/integrations/custom-clients/) | Python, TypeScript, Rust, Go clients |
 
+### 📦 SDKs (by language)
+
+| Guide | Description |
+| ----- | ----------- |
+| [SDK index](/docs/sdks/) | Rust, Python, TypeScript, Kotlin, Swift, Go, Java, C#, Ruby |
+| [Brutal SDK assessment](/docs/sdks/BRUTAL-ASSESSMENT.md) | Parity gaps and tiering (honest) |
+
 ### 📖 API Reference
 
 | API                                               | Description           |
@@ -140,6 +147,7 @@ Welcome to EdgeQuake — an advanced Retrieval-Augmented Generation (RAG) framew
 | Understand the architecture   | [Overview](/docs/architecture/overview/)                   |
 | Learn how the algorithm works | [LightRAG Algorithm](/docs/deep-dives/lightrag-algorithm/) |
 | See API endpoints             | [REST API](/docs/api-reference/rest-api/)                  |
+| Use an official SDK           | [SDKs](/docs/sdks/)                                        |
 | Deploy to production          | [Deployment](/docs/operations/deployment/)                 |
 
 ---

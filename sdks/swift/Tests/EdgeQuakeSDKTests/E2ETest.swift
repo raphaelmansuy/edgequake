@@ -10,6 +10,9 @@ final class E2ETest: XCTestCase {
     var client: EdgeQuakeClient!
 
     override func setUp() async throws {
+        try XCTSkipIf(
+            ProcessInfo.processInfo.environment["EDGEQUAKE_E2E"] != "1",
+            "Set EDGEQUAKE_E2E=1 with a running EdgeQuake API (see IMPLEMENTATION-PROOF.md).")
         let base =
             ProcessInfo.processInfo.environment["EDGEQUAKE_BASE_URL"] ?? "http://localhost:8080"
         /// WHY: Default tenant/user IDs from database migration — avoids XCTSkip.

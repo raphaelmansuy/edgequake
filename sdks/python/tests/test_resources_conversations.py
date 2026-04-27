@@ -40,9 +40,8 @@ class TestConversationsResource:
 
         client = EdgeQuake()
         result = client.conversations.list()
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert isinstance(result[0], ConversationInfo)
+        assert len(result.items) == 1
+        assert isinstance(result.items[0], ConversationInfo)
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
@@ -54,9 +53,8 @@ class TestConversationsResource:
         client = EdgeQuake()
         client.conversations.list(folder_id="f-1", page=2, page_size=10)
         params = mock_req.call_args[1]["params"]
-        assert params["folder_id"] == "f-1"
-        assert params["page"] == 2
-        assert params["page_size"] == 10
+        assert params["filter[folder_id]"] == "f-1"
+        assert params["limit"] == 10
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
@@ -67,7 +65,7 @@ class TestConversationsResource:
 
         client = EdgeQuake()
         result = client.conversations.list()
-        assert len(result) == 1
+        assert len(result.items) == 1
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
@@ -145,7 +143,7 @@ class TestConversationsResource:
     @patch("edgequake._transport.SyncTransport.request")
     def test_import_conversations(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"imported_count": 2}
+        mock_resp.json.return_value = {"imported": 2, "failed": 0, "errors": []}
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
@@ -153,42 +151,43 @@ class TestConversationsResource:
             [{"title": "Chat 1"}, {"title": "Chat 2"}]
         )
         assert isinstance(result, ImportConversationsResponse)
+        assert result.imported == 2
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
     def test_bulk_delete(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "deleted_count": 3,
+            "affected": 3,
         }
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
         result = client.conversations.bulk_delete(ids=["c1", "c2", "c3"])
         assert isinstance(result, BulkDeleteResponse)
-        assert result.deleted_count == 3
+        assert result.affected == 3
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
     def test_bulk_archive(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"archived_count": 2}
+        mock_resp.json.return_value = {"affected": 2}
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
         result = client.conversations.bulk_archive(["c1", "c2"], archive=True)
-        assert result == {"archived_count": 2}
+        assert result.affected == 2
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
     def test_bulk_move(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"moved_count": 2}
+        mock_resp.json.return_value = {"affected": 2}
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
         result = client.conversations.bulk_move(["c1", "c2"], folder_id="f-1")
-        assert result == {"moved_count": 2}
+        assert result.affected == 2
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
@@ -201,8 +200,8 @@ class TestConversationsResource:
 
         client = EdgeQuake()
         result = client.conversations.list_messages("conv-1")
-        assert len(result) == 1
-        assert isinstance(result[0], Message)
+        assert len(result.items) == 1
+        assert isinstance(result.items[0], Message)
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
@@ -215,7 +214,7 @@ class TestConversationsResource:
 
         client = EdgeQuake()
         result = client.conversations.list_messages("conv-1")
-        assert len(result) == 1
+        assert len(result.items) == 1
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
@@ -280,6 +279,7 @@ class TestConversationsResource:
         result = client.conversations.share("conv-1")
         assert isinstance(result, ShareLink)
         assert result.share_id == "abc123"
+        assert result.share_url == "https://app.edgequake.io/share/abc123"
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
@@ -407,8 +407,8 @@ class TestAsyncConversationsResource:
 
         client = AsyncEdgeQuake()
         result = await client.conversations.list()
-        assert len(result) == 1
-        assert isinstance(result[0], ConversationInfo)
+        assert len(result.items) == 1
+        assert isinstance(result.items[0], ConversationInfo)
 
     @pytest.mark.asyncio
     @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
@@ -452,8 +452,8 @@ class TestAsyncConversationsResource:
 
         client = AsyncEdgeQuake()
         result = await client.conversations.list_messages("c1")
-        assert len(result) == 1
-        assert isinstance(result[0], Message)
+        assert len(result.items) == 1
+        assert isinstance(result.items[0], Message)
 
     @pytest.mark.asyncio
     @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)

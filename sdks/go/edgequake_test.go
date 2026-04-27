@@ -418,15 +418,15 @@ func TestConversations_Share(t *testing.T) {
 }
 
 func TestConversations_BulkDelete(t *testing.T) {
-	srv := mockServer(t, 200, edgequake.BulkDeleteResponse{DeletedCount: 3})
+	srv := mockServer(t, 200, edgequake.BulkDeleteResponse{Affected: 3})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
 	resp, err := c.Conversations.BulkDelete(context.Background(), []string{"c1", "c2", "c3"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.DeletedCount != 3 {
-		t.Fatalf("got %d", resp.DeletedCount)
+	if resp.Affected != 3 {
+		t.Fatalf("got %d", resp.Affected)
 	}
 }
 
@@ -705,7 +705,9 @@ func TestModels_ProviderStatus(t *testing.T) {
 }
 
 func TestWorkspaces_ListForTenant(t *testing.T) {
-	srv := mockServer(t, 200, []edgequake.WorkspaceInfo{{ID: "w1", Name: "Default"}})
+	srv := mockServer(t, 200, edgequake.WorkspaceListResponse{
+		Items: []edgequake.WorkspaceInfo{{ID: "w1", Name: "Default"}},
+	})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
 	ws, err := c.Workspaces.ListForTenant(context.Background(), "t1")

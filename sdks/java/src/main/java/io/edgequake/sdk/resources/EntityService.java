@@ -21,7 +21,7 @@ public class EntityService {
     public EntityListResponse list(int page, int perPage, String entityType) {
         Map<String, String> params = new LinkedHashMap<>();
         if (page > 0) params.put("page", String.valueOf(page));
-        if (perPage > 0) params.put("per_page", String.valueOf(perPage));
+        if (perPage > 0) params.put("page_size", String.valueOf(perPage));
         if (entityType != null && !entityType.isEmpty()) params.put("entity_type", entityType);
         return http.get("/api/v1/graph/entities", params, EntityListResponse.class);
     }
@@ -63,13 +63,6 @@ public class EntityService {
         if (depth > 0) params.put("depth", String.valueOf(depth));
         return http.get("/api/v1/graph/entities/" + encode(name) + "/neighborhood",
                 params, NeighborhoodResponse.class);
-    }
-
-    // ── OODA-38: Added entity types method ───────────────────────────
-
-    /** Get all entity types. */
-    public EntityTypesResponse types() {
-        return http.get("/api/v1/graph/entities/types", null, EntityTypesResponse.class);
     }
 
     private static String encode(String value) {

@@ -28,6 +28,8 @@ public class EdgeQuakeClient
     public WorkspaceService Workspaces { get; }
     /// <summary>WHY: Shared service added in OODA-36 for conversation sharing.</summary>
     public SharedService Shared { get; }
+    public AdminService Admin { get; }
+    public EffectiveConfigService EffectiveConfig { get; }
 
     public EdgeQuakeClient(EdgeQuakeConfig? config = null)
     {
@@ -54,5 +56,7 @@ public class EdgeQuakeClient
         Auth = new AuthService(http);
         Workspaces = new WorkspaceService(http);
         Shared = new SharedService(http);
+        Admin = new AdminService(http);
+        EffectiveConfig = new EffectiveConfigService(http);
     }
 }

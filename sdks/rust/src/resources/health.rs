@@ -14,18 +14,18 @@ impl<'a> HealthResource<'a> {
         self.client.get("/health").await
     }
 
-    /// `GET /ready` — Kubernetes readiness probe.
-    pub async fn ready(&self) -> Result<serde_json::Value> {
-        self.client.get("/ready").await
+    /// `GET /ready` — Kubernetes readiness probe (plain text, usually `OK`).
+    pub async fn ready(&self) -> Result<String> {
+        self.client.get_text("/ready").await
     }
 
-    /// `GET /live` — Kubernetes liveness probe.
-    pub async fn live(&self) -> Result<serde_json::Value> {
-        self.client.get("/live").await
+    /// `GET /live` — Kubernetes liveness probe (plain text, usually `OK`).
+    pub async fn live(&self) -> Result<String> {
+        self.client.get_text("/live").await
     }
 
-    /// `GET /metrics` — Prometheus-format metrics.
-    pub async fn metrics(&self) -> Result<serde_json::Value> {
-        self.client.get("/metrics").await
+    /// `GET /metrics` — Prometheus text exposition format.
+    pub async fn metrics(&self) -> Result<String> {
+        self.client.get_text("/metrics").await
     }
 }

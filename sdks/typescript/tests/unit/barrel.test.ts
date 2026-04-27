@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  AdminResource,
   ApiKeysResource,
   AuthResource,
   ChatResource,
@@ -13,6 +14,7 @@ import {
   ConversationsResource,
   CostsResource,
   DocumentsResource,
+  EffectiveConfigResource,
   EntitiesResource,
   FoldersResource,
   GraphResource,
@@ -34,8 +36,9 @@ import {
 } from "../../src/resources/index.js";
 
 describe("resources barrel export", () => {
-  it("exports all 25 resource classes", () => {
+  it("exports all 27 resource classes", () => {
     const resources = [
+      AdminResource,
       ApiKeysResource,
       AuthResource,
       ChatResource,
@@ -44,6 +47,7 @@ describe("resources barrel export", () => {
       MessagesResource,
       CostsResource,
       DocumentsResource,
+      EffectiveConfigResource,
       PdfResource,
       FoldersResource,
       EntitiesResource,

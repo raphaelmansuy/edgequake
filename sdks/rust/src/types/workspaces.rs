@@ -67,6 +67,18 @@ pub struct WorkspaceInfo {
     pub updated_at: Option<String>,
 }
 
+/// Paginated workspace list from `GET /api/v1/tenants/{tenant_id}/workspaces`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct WorkspaceListResponse {
+    pub items: Vec<WorkspaceInfo>,
+    #[serde(default)]
+    pub total: usize,
+    #[serde(default)]
+    pub offset: usize,
+    #[serde(default)]
+    pub limit: usize,
+}
+
 /// Workspace statistics.
 #[derive(Debug, Clone, Deserialize)]
 pub struct WorkspaceStats {

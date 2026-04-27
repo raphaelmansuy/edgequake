@@ -55,6 +55,7 @@ export interface HttpTransport {
     path: string,
     file: Blob | ArrayBuffer | Uint8Array,
     metadata?: Record<string, string>,
+    options?: { method?: "POST" | "PUT" },
   ): Promise<T>;
 
   /** Batch file upload via multipart/form-data. */

@@ -103,6 +103,7 @@ export class FetchTransport implements HttpTransport {
     path: string,
     file: Blob | ArrayBuffer | Uint8Array,
     metadata?: Record<string, string>,
+    options?: { method?: "POST" | "PUT" },
   ): Promise<T> {
     const formData = new FormData();
 
@@ -116,8 +117,10 @@ export class FetchTransport implements HttpTransport {
       }
     }
 
+    const method = options?.method ?? "POST";
+
     const response = await this.executeWithMiddleware({
-      method: "POST",
+      method,
       path,
       body: formData,
     });

@@ -284,6 +284,45 @@ class ChunkDetail(BaseModel):
 # --- Provenance types ---
 
 
+class ChunkSourceInfo(BaseModel):
+    """Chunk reference inside entity provenance."""
+
+    chunk_id: str
+    start_line: int | None = None
+    end_line: int | None = None
+    source_text: str | None = None
+
+
+class EntitySourceInfo(BaseModel):
+    """Document + chunks for entity provenance."""
+
+    document_id: str
+    document_name: str | None = None
+    chunks: list[ChunkSourceInfo] = Field(default_factory=list)
+    first_extracted_at: str | None = None
+
+
+class RelatedEntityInfo(BaseModel):
+    """Related entity row in provenance response."""
+
+    entity_id: str
+    entity_name: str
+    relationship_type: str
+    shared_documents: int = 0
+
+
+class EntityProvenanceResponse(BaseModel):
+    """Response from GET /api/v1/entities/{entity_id}/provenance."""
+
+    entity_id: str
+    entity_name: str
+    entity_type: str
+    description: str | None = None
+    sources: list[EntitySourceInfo] = Field(default_factory=list)
+    total_extraction_count: int = 0
+    related_entities: list[RelatedEntityInfo] = Field(default_factory=list)
+
+
 class ProvenanceRecord(BaseModel):
     """A provenance record for an entity."""
 
@@ -350,6 +389,22 @@ class ModelDetail(ModelInfo):
     description: str | None = None
     pricing: ModelPriceInfo | None = None
     capabilities: list[str] | None = None
+
+
+class UpdateTenantQuotaResponse(BaseModel):
+    """PATCH /api/v1/admin/tenants/{tenant_id}/quota."""
+
+    tenant_id: str
+    max_workspaces: int
+    previous_max_workspaces: int
+    current_workspace_count: int
+
+
+class ServerDefaultsResponse(BaseModel):
+    """GET/PATCH /api/v1/admin/config/defaults."""
+
+    default_max_workspaces: int
+    note: str | None = None
 
 
 class ProviderHealthInfo(BaseModel):

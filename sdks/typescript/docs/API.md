@@ -173,6 +173,26 @@ await client.live(); // GET /live
 | `rebuildEmbeddings(id)`      | `POST /api/v1/workspaces/:id/rebuild-embeddings`      | Rebuild          |
 | `rebuildKnowledgeGraph(id)`  | `POST /api/v1/workspaces/:id/rebuild-knowledge-graph` | Rebuild          |
 | `reprocessDocuments(id)`     | `POST /api/v1/workspaces/:id/reprocess-documents`     | Reprocess        |
+| `putInjection(id, body)`     | `PUT /api/v1/workspaces/:id/injection`                  | Text injection   |
+| `putInjectionFile(id, file, filename?, contentType?)` | `PUT /api/v1/workspaces/:id/injection/file` (multipart) | File injection |
+| `listInjections(id)`         | `GET /api/v1/workspaces/:id/injections`                 | List injections  |
+| `getInjection(id, injId)`    | `GET /api/v1/workspaces/:id/injections/:injId`          | Get injection    |
+| `patchInjection(id, injId, body)` | `PATCH /api/v1/workspaces/:id/injections/:injId`   | Update injection |
+| `deleteInjection(id, injId)` | `DELETE /api/v1/workspaces/:id/injections/:injId`       | Delete injection |
+
+### `client.admin`
+
+| Method                         | Endpoint                                   | Description              |
+| ------------------------------ | ------------------------------------------ | ------------------------ |
+| `patchTenantQuota(tenantId, n)` | `PATCH /api/v1/admin/tenants/:id/quota`  | Update tenant workspace cap |
+| `getServerDefaults()`          | `GET /api/v1/admin/config/defaults`        | Read server defaults     |
+| `patchServerDefaults(n)`       | `PATCH /api/v1/admin/config/defaults`    | Update default workspace cap |
+
+### `client.effectiveConfig`
+
+| Method  | Endpoint                      | Description        |
+| ------- | ----------------------------- | ------------------ |
+| `get()` | `GET /api/v1/config/effective` | Resolved server config |
 
 ### Other Resources
 

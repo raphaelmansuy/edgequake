@@ -160,18 +160,19 @@ final class CreateEntityLineageTest: XCTestCase {
 final class RelationshipLineageTest: XCTestCase {
     func testAllFields() async throws {
         let json = """
-            {"items":[{"id":"r-1","source":"e-1","target":"e-2","relationshipType":"WORKS_WITH",
-              "weight":0.85,"description":"Colleagues","sourceId":"doc-1","createdAt":"2025-01-01T00:00:00Z"}],
-             "total":1,"page":1,"pageSize":20,"totalPages":1}
+            {"items":[{"id":"r-1","src_id":"e-1","tgt_id":"e-2","relation_type":"WORKS_WITH",
+              "keywords":"colleague","weight":0.85,"description":"Colleagues","source_id":"doc-1",
+              "created_at":"2025-01-01T00:00:00Z","updated_at":"2025-01-01T00:00:00Z"}],
+             "total":1,"page":1,"page_size":20,"total_pages":1}
             """
         let http = mockHelper(json: json)
         let svc = RelationshipService(http)
         let result = try await svc.list()
         let rel = result.items?.first
         XCTAssertEqual(rel?.id, "r-1")
-        XCTAssertEqual(rel?.source, "e-1")
-        XCTAssertEqual(rel?.target, "e-2")
-        XCTAssertEqual(rel?.relationshipType, "WORKS_WITH")
+        XCTAssertEqual(rel?.srcId, "e-1")
+        XCTAssertEqual(rel?.tgtId, "e-2")
+        XCTAssertEqual(rel?.relationType, "WORKS_WITH")
         XCTAssertEqual(rel?.weight, 0.85)
         XCTAssertEqual(rel?.description, "Colleagues")
         XCTAssertEqual(rel?.sourceId, "doc-1")
@@ -432,25 +433,27 @@ final class QueryLineageTest: XCTestCase {
 final class CostLineageTest: XCTestCase {
     func testAllFields() async throws {
         let json = """
-            {"totalCost":15.50,"documentCount":100,"queryCount":500,
-             "entries":[{"provider":"openai","cost":10.0},{"provider":"ollama","cost":5.50}]}
+            {"workspace_id":"ws-1","total_cost":15.50,"document_count":100,"total_tokens":500,
+             "average_cost_per_document":0.155,"period_start":"2025-01-01","period_end":"2025-01-31",
+             "by_operation":[{"operation":"query","cost":15.5,"percentage":100,"input_tokens":1,
+               "output_tokens":2,"total_tokens":3,"call_count":4}]}
             """
         let http = mockHelper(json: json)
         let svc = CostService(http)
         let result = try await svc.summary()
         XCTAssertEqual(result.totalCost, 15.50)
         XCTAssertEqual(result.documentCount, 100)
-        XCTAssertEqual(result.queryCount, 500)
-        XCTAssertEqual(result.entries?.count, 2)
+        XCTAssertEqual(result.totalTokens, 500)
+        XCTAssertEqual(result.byOperation?.count, 1)
     }
 
     func testZeroCost() async throws {
-        let json = #"{"totalCost":0.0,"documentCount":0,"queryCount":0,"entries":[]}"#
+        let json = #"{"workspace_id":"ws-1","total_cost":0.0,"document_count":0,"total_tokens":0,"by_operation":[]}"#
         let http = mockHelper(json: json)
         let svc = CostService(http)
         let result = try await svc.summary()
         XCTAssertEqual(result.totalCost, 0.0)
-        XCTAssertEqual(result.entries?.count, 0)
+        XCTAssertTrue(result.byOperation?.isEmpty ?? true)
     }
 }
 
@@ -506,11 +509,11 @@ final class ConversationLineageTest: XCTestCase {
     }
 
     func testBulkDelete() async throws {
-        let json = #"{"deleted":5,"status":"ok"}"#
+        let json = #"{"affected":5,"status":"ok"}"#
         let http = mockHelper(json: json)
         let svc = ChatService(http)
         let result = try await svc.bulkDeleteConversations(ids: ["c-1", "c-2", "c-3", "c-4", "c-5"])
-        XCTAssertEqual(result.deleted, 5)
+        XCTAssertEqual(result.affected, 5)
         XCTAssertEqual(result.status, "ok")
     }
 }
@@ -525,7 +528,7 @@ final class ProviderLineageTest: XCTestCase {
             """
         let http = mockHelper(json: json)
         let svc = ModelService(http)
-        let result = try await svc.providerHealth(name: "openai")
+        let result = try await svc.getProvider(name: "openai")
         XCTAssertEqual(result.name, "openai")
         XCTAssertEqual(result.displayName, "OpenAI")
         XCTAssertEqual(result.providerType, "cloud")
@@ -540,7 +543,7 @@ final class ProviderLineageTest: XCTestCase {
             #"{"name":"local","displayName":"Local","providerType":"local","enabled":false,"priority":99,"models":[]}"#
         let http = mockHelper(json: json)
         let svc = ModelService(http)
-        let result = try await svc.providerHealth(name: "local")
+        let result = try await svc.getProvider(name: "local")
         XCTAssertEqual(result.enabled, false)
         XCTAssertEqual(result.priority, 99)
         XCTAssertEqual(result.models?.count, 0)

@@ -643,11 +643,11 @@ class UnitTest {
     @Test
     void conversationsBulkDelete() {
         fake.respondWith("""
-            {"deleted_count":3}
+            {"affected":3}
             """);
         var svc = new ConversationService(http);
         var result = svc.bulkDelete(List.of("c1", "c2", "c3"));
-        assertEquals(3, result.deletedCount);
+        assertEquals(3, result.affected);
     }
 
     @Test
@@ -1839,28 +1839,22 @@ class UnitTest {
     // ── Document Extended Tests ──────────────────────────────────────
 
     @Test
-    void documentsChunks() {
-        fake.respondWith("{\"document_id\":\"d1\",\"chunks\":[{\"id\":\"c1\",\"content\":\"text\",\"index\":0}],\"total\":1}");
+    void documentsTrack() {
+        fake.respondWith("{\"track_id\":\"tk1\",\"status\":\"processing\",\"progress\":0.5}");
         var svc = new DocumentService(http);
-        var result = svc.chunks("d1");
-        assertEquals("d1", result.documentId);
-        assertEquals(1, result.total);
+        var result = svc.track("tk1");
+        assertEquals("tk1", result.trackId);
+        assertEquals("processing", result.status);
+        assertTrue(fake.lastPath().contains("/api/v1/documents/track/tk1"));
     }
 
     @Test
-    void documentsStatus() {
-        fake.respondWith("{\"document_id\":\"d1\",\"status\":\"completed\",\"progress\":1.0}");
-        var svc = new DocumentService(http);
-        var result = svc.status("d1");
-        assertEquals("completed", result.status);
-    }
-
-    @Test
-    void documentsReprocess() {
+    void documentsReprocessFailed() {
         fake.respondWith("{\"status\":\"ok\",\"message\":\"Reprocessing started\"}");
         var svc = new DocumentService(http);
-        var result = svc.reprocess("d1");
+        var result = svc.reprocessFailed();
         assertEquals("ok", result.status);
+        assertTrue(fake.lastPath().contains("/api/v1/documents/reprocess"));
     }
 
     @Test
@@ -1874,25 +1868,18 @@ class UnitTest {
     // ── Graph Extended Tests ─────────────────────────────────────────
 
     @Test
-    void graphStats() {
-        fake.respondWith("{\"node_count\":100,\"edge_count\":200,\"entity_count\":50,\"relationship_count\":80}");
-        var svc = new GraphService(http);
-        var result = svc.stats();
-        assertEquals(100, result.nodeCount);
-        assertEquals(200, result.edgeCount);
-    }
-
-    @Test
     void graphLabelSearch() {
-        fake.respondWith("{\"labels\":[{\"label\":\"PERSON\",\"count\":25}],\"total\":1}");
+        fake.respondWith("{\"labels\":[\"PERSON\",\"ORG\"]}");
         var svc = new GraphService(http);
-        var result = svc.labelSearch("PERSON");
-        assertEquals(1, result.total);
+        var result = svc.labelSearch("PER");
+        assertEquals(2, result.labels.size());
+        assertTrue(result.labels.contains("PERSON"));
     }
 
     @Test
     void graphPopularLabels() {
-        fake.respondWith("{\"labels\":[{\"label\":\"PERSON\",\"count\":50},{\"label\":\"ORG\",\"count\":30}]}");
+        fake.respondWith("{\"labels\":[{\"label\":\"PERSON\",\"entity_type\":\"PERSON\",\"degree\":50,\"description\":\"\"}," +
+                "{\"label\":\"ORG\",\"entity_type\":\"ORGANIZATION\",\"degree\":30,\"description\":\"\"}],\"total_entities\":100}");
         var svc = new GraphService(http);
         var result = svc.popularLabels();
         assertEquals(2, result.labels.size());
@@ -1900,29 +1887,11 @@ class UnitTest {
 
     @Test
     void graphBatchDegrees() {
-        fake.respondWith("{\"degrees\":{\"node1\":5,\"node2\":3}}");
+        fake.respondWith("{\"degrees\":[{\"node_id\":\"node1\",\"degree\":5},{\"node_id\":\"node2\",\"degree\":3}],\"count\":2}");
         var svc = new GraphService(http);
         var result = svc.batchDegrees(List.of("node1", "node2"));
-        assertEquals(5, result.degrees.get("node1"));
-    }
-
-    @Test
-    void graphClear() {
-        fake.respondWith("");
-        var svc = new GraphService(http);
-        svc.clear();
-        assertTrue(fake.lastRequest().uri().contains("/api/v1/graph"));
-    }
-
-    // ── Entity Extended Tests ────────────────────────────────────────
-
-    @Test
-    void entityTypes() {
-        fake.respondWith("{\"types\":[\"PERSON\",\"ORGANIZATION\",\"CONCEPT\"],\"total\":3}");
-        var svc = new EntityService(http);
-        var result = svc.types();
-        assertEquals(3, result.total);
-        assertTrue(result.types.contains("PERSON"));
+        assertEquals(5, result.degrees.get(0).degree);
+        assertEquals("node1", result.degrees.get(0).nodeId);
     }
 
     // ── Relationship Extended Tests ──────────────────────────────────
@@ -1941,14 +1910,6 @@ class UnitTest {
         var svc = new RelationshipService(http);
         svc.delete("r1");
         assertTrue(fake.lastRequest().uri().contains("/api/v1/graph/relationships/r1"));
-    }
-
-    @Test
-    void relationshipTypes() {
-        fake.respondWith("{\"types\":[\"KNOWS\",\"WORKS_WITH\",\"LOCATED_IN\"],\"total\":3}");
-        var svc = new RelationshipService(http);
-        var result = svc.types();
-        assertEquals(3, result.total);
     }
 
     // ── Query Extended Tests ─────────────────────────────────────────
@@ -2158,31 +2119,31 @@ class UnitTest {
 
     @Test
     void conversationBulkArchive() {
-        fake.respondWith("{\"deleted_count\":3}");
+        fake.respondWith("{\"affected\":3}");
         var svc = new ConversationService(http);
         var result = svc.bulkArchive(List.of("c1", "c2", "c3"));
-        assertEquals(3, result.deletedCount);
+        assertEquals(3, result.affected);
     }
 
     @Test
     void conversationBulkArchiveEmpty() {
-        fake.respondWith("{\"deleted_count\":0}");
+        fake.respondWith("{\"affected\":0}");
         var svc = new ConversationService(http);
         var result = svc.bulkArchive(List.of());
-        assertEquals(0, result.deletedCount);
+        assertEquals(0, result.affected);
     }
 
     @Test
     void conversationBulkMove() {
-        fake.respondWith("{\"deleted_count\":2}");
+        fake.respondWith("{\"affected\":2}");
         var svc = new ConversationService(http);
         var result = svc.bulkMove(List.of("c1", "c2"), "folder1");
-        assertEquals(2, result.deletedCount);
+        assertEquals(2, result.affected);
     }
 
     @Test
     void conversationBulkMoveEndpoint() {
-        fake.respondWith("{\"deleted_count\":1}");
+        fake.respondWith("{\"affected\":1}");
         var svc = new ConversationService(http);
         svc.bulkMove(List.of("c1"), "f1");
         assertTrue(fake.lastRequest().uri().contains("/bulk/move"));

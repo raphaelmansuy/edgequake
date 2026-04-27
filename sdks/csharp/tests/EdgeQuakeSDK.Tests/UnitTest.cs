@@ -611,10 +611,10 @@ public class UnitTest
     [Fact]
     public async Task Conversations_BulkDelete()
     {
-        var (http, mock) = MockHelperWithCalls(@"{""deleted"":3,""status"":""ok""}");
+        var (http, mock) = MockHelperWithCalls(@"{""affected"":3,""status"":""ok""}");
         var svc = new ConversationService(http);
         var result = await svc.BulkDeleteAsync(new List<string> { "c1", "c2", "c3" });
-        Assert.Equal(3, result.Deleted);
+        Assert.Equal(3, result.Affected);
         Assert.Equal(HttpMethod.Post, mock.LastCall!.Method);
         Assert.Contains("bulk/delete", mock.LastCall.Url);
     }
@@ -782,12 +782,14 @@ public class UnitTest
     // ── Documents Edge Cases ───────────────────────────────────────
 
     [Fact]
-    public async Task Documents_UploadText_DefaultFileType()
+    public async Task Documents_UploadText_SendsContentAndTitle()
     {
         var (http, mock) = MockHelperWithCalls(@"{""document_id"":""d3"",""status"":""processing""}");
         var svc = new DocumentService(http);
         var result = await svc.UploadTextAsync("Title", "Body");
-        Assert.Contains("txt", mock.LastCall!.Body!);
+        Assert.Contains("Body", mock.LastCall!.Body!);
+        Assert.Contains("Title", mock.LastCall!.Body!);
+        Assert.Equal("d3", result.DocumentId);
     }
 
     [Fact]
@@ -898,31 +900,24 @@ public class DocumentExtendedTests
     }
 
     [Fact]
-    public async Task Documents_Chunks()
+    public async Task Documents_Track()
     {
-        var (http, mock) = MockHelperWithCalls(@"{""chunks"":[],""total"":0}");
+        var (http, mock) = MockHelperWithCalls(
+            @"{""track_id"":""tk1"",""status"":""processing"",""progress"":0.5}");
         var svc = new DocumentService(http);
-        await svc.ChunksAsync("d1");
-        Assert.Contains("/api/v1/documents/d1/chunks", mock.LastCall!.Url);
-    }
-
-    [Fact]
-    public async Task Documents_Status()
-    {
-        var (http, mock) = MockHelperWithCalls(@"{""status"":""processing"",""progress"":50}");
-        var svc = new DocumentService(http);
-        var result = await svc.StatusAsync("d1");
+        var result = await svc.TrackAsync("tk1");
+        Assert.Equal("tk1", result.TrackId);
         Assert.Equal("processing", result.Status);
-        Assert.Contains("/api/v1/documents/d1/status", mock.LastCall!.Url);
+        Assert.Contains("/api/v1/documents/track/tk1", mock.LastCall!.Url);
     }
 
     [Fact]
-    public async Task Documents_Reprocess()
+    public async Task Documents_ReprocessFailed()
     {
-        var (http, mock) = MockHelperWithCalls(@"{""document_id"":""d1"",""status"":""queued""}");
+        var (http, mock) = MockHelperWithCalls(@"{""status"":""ok"",""message"":""Reprocessing started""}");
         var svc = new DocumentService(http);
-        await svc.ReprocessAsync("d1");
-        Assert.Contains("/api/v1/documents/d1/reprocess", mock.LastCall!.Url);
+        await svc.ReprocessFailedAsync();
+        Assert.Contains("/api/v1/documents/reprocess", mock.LastCall!.Url);
     }
 
     [Fact]
@@ -967,13 +962,14 @@ public class EntityExtendedTests
     }
 
     [Fact]
-    public async Task Entities_Types()
+    public async Task Entities_Exists()
     {
-        var (http, mock) = MockHelperWithCalls(@"{""types"":[""PERSON"",""ORG""]}");
+        var (http, mock) = MockHelperWithCalls(@"{""exists"":true,""entity_id"":""E1"",""entity_type"":""PERSON"",""degree"":2}");
         var svc = new EntityService(http);
-        var result = await svc.TypesAsync();
-        Assert.Contains("PERSON", result.Types!);
-        Assert.Contains("/api/v1/graph/entities/types", mock.LastCall!.Url);
+        var result = await svc.ExistsAsync("ALICE");
+        Assert.True(result.Exists);
+        Assert.Contains("entity_name=ALICE", mock.LastCall!.Url);
+        Assert.Contains("/api/v1/graph/entities/exists", mock.LastCall!.Url);
     }
 }
 
@@ -993,9 +989,9 @@ public class RelationshipExtendedTests
     {
         var (http, mock) = MockHelperWithCalls(@"{""source"":""A"",""target"":""B""}");
         var svc = new RelationshipService(http);
-        var result = await svc.GetAsync("A", "B");
+        var result = await svc.GetAsync("rel-1");
         Assert.Equal("A", result.Source);
-        Assert.Contains("/api/v1/graph/relationships/A/B", mock.LastCall!.Url);
+        Assert.Contains("/api/v1/graph/relationships/rel-1", mock.LastCall!.Url);
     }
 
     [Fact]
@@ -1003,18 +999,10 @@ public class RelationshipExtendedTests
     {
         var (http, mock) = MockHelperWithCalls(@"{""status"":""created""}");
         var svc = new RelationshipService(http);
-        await svc.CreateAsync("A", "B", new[] { "KNOWS" }, "They know each other");
+        await svc.CreateAsync("A", "B", "KNOWS", "They know each other");
         Assert.Equal(HttpMethod.Post, mock.LastCall!.Method);
-    }
-
-    [Fact]
-    public async Task Relationships_Types()
-    {
-        var (http, mock) = MockHelperWithCalls(@"{""types"":[""KNOWS"",""WORKS_AT""]}");
-        var svc = new RelationshipService(http);
-        var result = await svc.TypesAsync();
-        Assert.Contains("KNOWS", result.Types!);
-        Assert.Contains("/api/v1/graph/relationships/types", mock.LastCall!.Url);
+        Assert.Contains("src_id", mock.LastCall!.Body!);
+        Assert.Contains("tgt_id", mock.LastCall!.Body);
     }
 
     [Fact]
@@ -1022,8 +1010,9 @@ public class RelationshipExtendedTests
     {
         var (http, mock) = MockHelperWithCalls(@"{}");
         var svc = new RelationshipService(http);
-        await svc.DeleteAsync("A", "B");
+        await svc.DeleteAsync("rel-1");
         Assert.Equal(HttpMethod.Delete, mock.LastCall!.Method);
+        Assert.Contains("/api/v1/graph/relationships/rel-1", mock.LastCall!.Url);
     }
 }
 
@@ -1039,22 +1028,21 @@ public class GraphExtendedTests
     }
 
     [Fact]
-    public async Task Graph_Stats()
+    public async Task Graph_Get_CanonicalPath()
     {
-        var (http, mock) = MockHelperWithCalls(@"{""node_count"":100,""edge_count"":200}");
+        var (http, mock) = MockHelperWithCalls(@"{""nodes"":[],""edges"":[]}");
         var svc = new GraphService(http);
-        var result = await svc.StatsAsync();
-        Assert.Equal(100, result.NodeCount);
-        Assert.Contains("/api/v1/graph/stats", mock.LastCall!.Url);
+        _ = await svc.GetAsync();
+        Assert.Equal("/api/v1/graph", mock.LastCall!.Url);
     }
 
     [Fact]
     public async Task Graph_LabelSearch()
     {
-        var (http, mock) = MockHelperWithCalls(@"{""results"":[],""total"":0}");
+        var (http, mock) = MockHelperWithCalls(@"{""labels"":[""PERSON""]}");
         var svc = new GraphService(http);
         await svc.LabelSearchAsync("PERSON");
-        Assert.Contains("label=PERSON", mock.LastCall!.Url);
+        Assert.Contains("q=PERSON", mock.LastCall!.Url);
     }
 
     [Fact]
@@ -2005,7 +1993,7 @@ public class OODA47ValidationTests
     {
         var (http, mock) = MockHelperWithCalls(@"{""id"":""d1"",""title"":""Test""}");
         var svc = new DocumentService(http);
-        await svc.UploadTextAsync("Test content", "Test Document");
+        await svc.UploadTextAsync("Test Document", "Test content");
         Assert.Contains("content", mock.LastCall!.Body!);
     }
 
@@ -2023,7 +2011,7 @@ public class OODA47ValidationTests
     {
         var (http, mock) = MockHelperWithCalls(@"{""id"":""r1""}");
         var svc = new RelationshipService(http);
-        await svc.CreateAsync("e1", "e2", new[] { "works" }, "Employment relation");
+        await svc.CreateAsync("e1", "e2", "works", "Employment relation");
         Assert.Equal(HttpMethod.Post, mock.LastCall!.Method);
     }
 
@@ -2056,15 +2044,6 @@ public class OODA47ValidationTests
     }
 
     [Fact]
-    public async Task Graph_Stats_Success()
-    {
-        var (http, mock) = MockHelperWithCalls(@"{""node_count"":100,""edge_count"":250}");
-        var svc = new GraphService(http);
-        await svc.StatsAsync();
-        Assert.Contains("/stats", mock.LastCall!.Url);
-    }
-
-    [Fact]
     public async Task Graph_SearchNodes()
     {
         var (http, mock) = MockHelperWithCalls(@"{""nodes"":[]}");
@@ -2073,12 +2052,4 @@ public class OODA47ValidationTests
         Assert.Contains("/search", mock.LastCall!.Url);
     }
 
-    [Fact]
-    public async Task Relationships_Types()
-    {
-        var (http, mock) = MockHelperWithCalls(@"{""types"":[""WORKS_FOR"",""LOCATED_IN""]}");
-        var svc = new RelationshipService(http);
-        await svc.TypesAsync();
-        Assert.Contains("/types", mock.LastCall!.Url);
-    }
 }

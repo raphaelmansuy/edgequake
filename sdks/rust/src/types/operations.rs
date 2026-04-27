@@ -229,6 +229,53 @@ pub struct ChunkDetail {
 
 // --- Provenance ---
 
+/// `GET /api/v1/entities/{entity_id}/provenance` — full response body.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EntityProvenanceResponse {
+    pub entity_id: String,
+    pub entity_name: String,
+    pub entity_type: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub sources: Vec<EntitySourceInfo>,
+    #[serde(default)]
+    pub total_extraction_count: usize,
+    #[serde(default)]
+    pub related_entities: Vec<RelatedEntityInfo>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct EntitySourceInfo {
+    pub document_id: String,
+    #[serde(default)]
+    pub document_name: Option<String>,
+    #[serde(default)]
+    pub chunks: Vec<ChunkSourceInfo>,
+    #[serde(default)]
+    pub first_extracted_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChunkSourceInfo {
+    pub chunk_id: String,
+    #[serde(default)]
+    pub start_line: Option<usize>,
+    #[serde(default)]
+    pub end_line: Option<usize>,
+    #[serde(default)]
+    pub source_text: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RelatedEntityInfo {
+    pub entity_id: String,
+    pub entity_name: String,
+    pub relationship_type: String,
+    #[serde(default)]
+    pub shared_documents: usize,
+}
+
 /// Provenance record.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProvenanceRecord {

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 
 class UploadDocumentRequest(BaseModel):
@@ -53,11 +53,12 @@ class DocumentCostInfo(BaseModel):
 
 
 class StatusCounts(BaseModel):
-    """Document status aggregation counts."""
+    """Document status aggregation counts (full workspace, not only current page)."""
 
     pending: int = 0
     processing: int = 0
     completed: int = 0
+    partial_failure: int = 0
     failed: int = 0
     cancelled: int = 0
     total: int = 0
@@ -100,12 +101,59 @@ class PaginationInfo(BaseModel):
     total_pages: int = 0
 
 
+class DocumentListParams(BaseModel):
+    """Query params for GET /api/v1/documents (`ListDocumentsRequest` in the API)."""
+
+    page: int | None = Field(default=None, ge=1)
+    page_size: int | None = Field(default=None, ge=1, le=500)
+    date_from: str | None = None
+    date_to: str | None = None
+    document_pattern: str | None = None
+
+    def to_query_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {}
+        if self.page is not None:
+            d["page"] = self.page
+        if self.page_size is not None:
+            d["page_size"] = self.page_size
+        if self.date_from is not None:
+            d["date_from"] = self.date_from
+        if self.date_to is not None:
+            d["date_to"] = self.date_to
+        if self.document_pattern is not None:
+            d["document_pattern"] = self.document_pattern
+        return d
+
+
 class ListDocumentsResponse(BaseModel):
     """Response from GET /api/v1/documents."""
 
     documents: list[DocumentSummary] = Field(default_factory=list)
-    pagination: PaginationInfo | None = None
+    total: int = 0
+    page: int = 1
+    page_size: int = 20
+    total_pages: int = 0
+    has_more: bool = False
     status_counts: StatusCounts | None = None
+    pagination: PaginationInfo | None = None
+
+    model_config = {"populate_by_name": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_legacy_pagination(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if data.get("pagination") is not None and "total" not in data:
+            p = data["pagination"] or {}
+            return {
+                **data,
+                "total": p.get("total", 0),
+                "page": p.get("page", 1),
+                "page_size": p.get("page_size", 20),
+                "total_pages": p.get("total_pages", 0),
+            }
+        return data
 
 
 class DocumentDetail(BaseModel):

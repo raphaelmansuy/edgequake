@@ -17,6 +17,10 @@ import type { HttpTransport } from "./transport/types.js";
 import type { HealthResponse } from "./types/health.js";
 
 // Resource imports
+import {
+  AdminResource,
+  EffectiveConfigResource,
+} from "./resources/admin.js";
 import { ApiKeysResource } from "./resources/api-keys.js";
 import { AuthResource } from "./resources/auth.js";
 import { ChatResource } from "./resources/chat.js";
@@ -146,6 +150,12 @@ export class EdgeQuake {
   /** Ollama-compatible API. */
   readonly ollama: OllamaResource;
 
+  /** Admin — quotas and server defaults. */
+  readonly admin: AdminResource;
+
+  /** Effective resolved configuration. */
+  readonly effectiveConfig: EffectiveConfigResource;
+
   constructor(config?: EdgeQuakeConfig) {
     this._config = resolveConfig(config);
     // WHY: Allow test code to inject a mock transport via config._transport
@@ -173,6 +183,8 @@ export class EdgeQuake {
     this.settings = new SettingsResource(this._transport);
     this.models = new ModelsResource(this._transport);
     this.ollama = new OllamaResource(this._transport);
+    this.admin = new AdminResource(this._transport);
+    this.effectiveConfig = new EffectiveConfigResource(this._transport);
   }
 
   // ──────────────────────────── Top-Level Convenience ────────────────────────────

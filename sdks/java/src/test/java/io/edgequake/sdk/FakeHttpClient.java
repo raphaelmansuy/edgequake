@@ -72,6 +72,11 @@ public class FakeHttpClient extends HttpClient {
         return captured.get(captured.size() - 1);
     }
 
+    /** Full request URI string of the last captured call (for path assertions). */
+    public String lastPath() {
+        return lastRequest().uri();
+    }
+
     public List<CapturedRequest> allRequests() {
         return Collections.unmodifiableList(captured);
     }

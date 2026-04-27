@@ -223,11 +223,26 @@ pub struct CreateRelationshipRequest {
     pub description: Option<String>,
 }
 
-/// Degrees batch response.
+/// Request body for `POST /api/v1/graph/degrees/batch`.
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchDegreeRequest {
+    pub node_ids: Vec<String>,
+}
+
+/// One node degree entry from the batch API.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NodeDegree {
+    pub node_id: String,
+    pub degree: u32,
+}
+
+/// Response from `POST /api/v1/graph/degrees/batch`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct DegreesBatchResponse {
     #[serde(default)]
-    pub degrees: HashMap<String, u32>,
+    pub degrees: Vec<NodeDegree>,
+    #[serde(default)]
+    pub count: u32,
 }
 
 /// Paginated relationship list response.

@@ -6,9 +6,12 @@ namespace EdgeQuakeSDK.Tests;
 
 /// <summary>
 /// E2E tests for EdgeQuake C# SDK.
-/// Requires running backend at localhost:8080 (or EDGEQUAKE_BASE_URL).
+/// Requires a healthy EdgeQuake API and <c>EDGEQUAKE_E2E=1</c>.
+/// Run unit tests only: <c>dotnet test --filter "E2E!=true"</c>
+/// Run E2E: <c>EDGEQUAKE_E2E=1 dotnet test --filter "E2E=true"</c>
 /// </summary>
 [TestCaseOrderer("EdgeQuakeSDK.Tests.AlphabeticalOrderer", "EdgeQuakeSDK.Tests")]
+[Trait("E2E", "true")]
 public class E2ETest
 {
     private readonly EdgeQuakeClient _client;

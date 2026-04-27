@@ -7,9 +7,9 @@ module EdgeQuake
   class HealthService
     def initialize(http) = @http = http
     def check = @http.get("/health")
-    def readiness = @http.get("/health/ready")
-    def liveness = @http.get("/health/live")
-    def detailed = @http.get("/health/detailed")
+    def readiness = @http.get("/ready")
+    def liveness = @http.get("/live")
+    def metrics = @http.get_raw("/metrics")
   end
 
   class DocumentService
@@ -31,37 +31,22 @@ module EdgeQuake
       @http.delete("/api/v1/documents/#{id}")
     end
 
-    def update(id:, title: nil, content: nil)
-      body = {}
-      body[:title] = title if title
-      body[:content] = content if content
-      @http.put("/api/v1/documents/#{id}", body)
+    def track(track_id:)
+      enc = URI.encode_www_form_component(track_id.to_s)
+      @http.get("/api/v1/documents/track/#{enc}")
     end
 
-    def search(query:, page: 1, page_size: 20)
-      encoded = URI.encode_www_form_component(query)
-      @http.get("/api/v1/documents/search?q=#{encoded}&page=#{page}&page_size=#{page_size}")
+    def reprocess_failed
+      @http.post("/api/v1/documents/reprocess", {})
     end
 
-    def chunks(id:)
-      @http.get("/api/v1/documents/#{id}/chunks")
-    end
-
-    def status(id:)
-      @http.get("/api/v1/documents/#{id}/status")
-    end
-
-    def reprocess(id:)
-      @http.post("/api/v1/documents/#{id}/reprocess", {})
+    def recover_stuck
+      @http.post("/api/v1/documents/recover-stuck", {})
     end
 
     # OODA-42: Additional document methods
     def get_metadata(id:)
       @http.get("/api/v1/documents/#{id}/metadata")
-    end
-
-    def set_metadata(id:, metadata:)
-      @http.put("/api/v1/documents/#{id}/metadata", metadata)
     end
 
     def failed_chunks(id:)
@@ -123,8 +108,9 @@ module EdgeQuake
       })
     end
 
-    def types
-      @http.get("/api/v1/graph/entities/types")
+    def neighborhood(name:, depth: 1)
+      enc = URI.encode_www_form_component(name.to_s)
+      @http.get("/api/v1/graph/entities/#{enc}/neighborhood?depth=#{depth}")
     end
   end
 
@@ -135,21 +121,26 @@ module EdgeQuake
       @http.get("/api/v1/graph/relationships?page=#{page}&page_size=#{page_size}")
     end
 
-    def create(source:, target:, relationship_type:, weight: 1.0)
-      @http.post("/api/v1/graph/relationships", {
-        source: source,
-        target: target,
-        relationship_type: relationship_type,
+    def create(src_id:, tgt_id:, keywords:, description:, source_id: "manual_entry", weight: 0.8, metadata: {})
+      body = {
+        src_id: src_id,
+        tgt_id: tgt_id,
+        keywords: keywords,
+        description: description,
+        source_id: source_id,
         weight: weight
-      })
+      }
+      body[:metadata] = metadata if metadata && !metadata.empty?
+      @http.post("/api/v1/graph/relationships", body)
+    end
+
+    def get(id:)
+      enc = URI.encode_www_form_component(id.to_s)
+      @http.get("/api/v1/graph/relationships/#{enc}")
     end
 
     def delete(id:)
       @http.delete("/api/v1/graph/relationships/#{id}")
-    end
-
-    def types
-      @http.get("/api/v1/graph/relationships/types")
     end
   end
 
@@ -165,21 +156,22 @@ module EdgeQuake
       @http.get("/api/v1/graph/nodes/search?q=#{encoded}")
     end
 
-    def stats
-      @http.get("/api/v1/graph/stats")
+    def get_node(node_id:)
+      enc = URI.encode_www_form_component(node_id.to_s)
+      @http.get("/api/v1/graph/nodes/#{enc}")
     end
 
-    def clear
-      @http.delete("/api/v1/graph?confirm=true")
+    def label_search(query:, limit: 20)
+      q = URI.encode_www_form_component(query)
+      @http.get("/api/v1/graph/labels/search?q=#{q}&limit=#{limit}")
     end
 
-    def neighbors(name:, depth: 1)
-      encoded = URI.encode_www_form_component(name)
-      @http.get("/api/v1/graph/neighbors/#{encoded}?depth=#{depth}")
+    def popular_labels(limit: 20)
+      @http.get("/api/v1/graph/labels/popular?limit=#{limit}")
     end
 
-    def subgraph(entity_names:)
-      @http.post("/api/v1/graph/subgraph", { entity_names: entity_names })
+    def degrees_batch(node_ids:)
+      @http.post("/api/v1/graph/degrees/batch", { node_ids: node_ids })
     end
   end
 

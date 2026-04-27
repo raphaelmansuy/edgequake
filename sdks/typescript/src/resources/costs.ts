@@ -1,8 +1,7 @@
 /**
  * Costs resource — cost tracking, history, budgets, and estimation.
  *
- * WHY: Updated to match Rust costs_types.rs exactly.
- * Adds pricing, estimation, and workspace cost summary endpoints.
+ * WHY: Summary/history/budget under `/costs/*`; pricing + estimate under `/pipeline/costs/*` per routes.rs.
  *
  * @module resources/costs
  * @see edgequake/crates/edgequake-api/src/handlers/costs.rs
@@ -17,8 +16,11 @@ import type {
   EstimateCostRequest,
   EstimateCostResponse,
   UpdateBudgetRequest,
-  WorkspaceCostSummaryResponse,
 } from "../types/costs.js";
+import {
+  PIPELINE_COSTS_ESTIMATE_PATH,
+  PIPELINE_COSTS_PRICING_PATH,
+} from "../constants/api-paths.js";
 import { Resource } from "./base.js";
 
 export class CostsResource extends Resource {
@@ -49,16 +51,11 @@ export class CostsResource extends Resource {
 
   /** Get available model pricing configurations. */
   async pricing(): Promise<AvailablePricingResponse> {
-    return this._get("/api/v1/costs/pricing");
+    return this._get(PIPELINE_COSTS_PRICING_PATH);
   }
 
   /** Estimate cost for a given model and token counts. */
   async estimate(request: EstimateCostRequest): Promise<EstimateCostResponse> {
-    return this._post("/api/v1/costs/estimate", request);
-  }
-
-  /** Get workspace cost summary (includes per-operation breakdown). */
-  async workspaceSummary(): Promise<WorkspaceCostSummaryResponse> {
-    return this._get("/api/v1/costs/workspace");
+    return this._post(PIPELINE_COSTS_ESTIMATE_PATH, request);
   }
 }

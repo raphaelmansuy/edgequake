@@ -10,9 +10,20 @@ pub struct DocumentsResource<'a> {
 }
 
 impl<'a> DocumentsResource<'a> {
-    /// `GET /api/v1/documents`
+    /// `GET /api/v1/documents` with server default pagination and filters.
     pub async fn list(&self) -> Result<ListDocumentsResponse> {
-        self.client.get("/api/v1/documents").await
+        self.list_with_query(&DocumentListQuery::default()).await
+    }
+
+    /// `GET /api/v1/documents` with `page`, `page_size`, `date_from`, `date_to`, `document_pattern`.
+    pub async fn list_with_query(&self, q: &DocumentListQuery) -> Result<ListDocumentsResponse> {
+        let qs = crate::types::documents::document_list_query_string(q);
+        let path = if qs.is_empty() {
+            "/api/v1/documents".to_string()
+        } else {
+            format!("/api/v1/documents?{qs}")
+        };
+        self.client.get(&path).await
     }
 
     /// `GET /api/v1/documents/{id}`
@@ -27,18 +38,9 @@ impl<'a> DocumentsResource<'a> {
             .await
     }
 
-    /// `GET /api/v1/documents/{id}/status`
-    pub async fn status(&self, id: &str) -> Result<TrackStatusResponse> {
-        self.client
-            .get(&format!("/api/v1/documents/{id}/status"))
-            .await
-    }
-
-    /// `POST /api/v1/documents/upload/text`
-    pub async fn upload_text(&self, body: &serde_json::Value) -> Result<UploadDocumentResponse> {
-        self.client
-            .post("/api/v1/documents/upload/text", Some(body))
-            .await
+    /// `POST /api/v1/documents` — upload text/JSON body for ingestion.
+    pub async fn upload(&self, req: &UploadDocumentRequest) -> Result<UploadDocumentResponse> {
+        self.client.post("/api/v1/documents", Some(req)).await
     }
 
     /// `POST /api/v1/documents/scan`

@@ -22,6 +22,7 @@ thiserror = "2"
 url = "2"
 bytes = "1"
 futures-core = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 pin-project-lite = "0.2"
 tokio = { version = "1", features = ["time"] }
 urlencoding = "2"

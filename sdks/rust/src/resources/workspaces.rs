@@ -11,9 +11,11 @@ pub struct WorkspacesResource<'a> {
 impl<'a> WorkspacesResource<'a> {
     /// `GET /api/v1/tenants/{tenant_id}/workspaces`
     pub async fn list(&self, tenant_id: &str) -> Result<Vec<WorkspaceInfo>> {
-        self.client
+        let page: WorkspaceListResponse = self
+            .client
             .get(&format!("/api/v1/tenants/{tenant_id}/workspaces"))
-            .await
+            .await?;
+        Ok(page.items)
     }
 
     /// `POST /api/v1/tenants/{tenant_id}/workspaces`
@@ -37,11 +39,14 @@ impl<'a> WorkspacesResource<'a> {
             .await
     }
 
-    /// `POST /api/v1/workspaces/{id}/rebuild`
-    pub async fn rebuild(&self, workspace_id: &str) -> Result<RebuildResponse> {
+    /// `POST /api/v1/workspaces/{id}/metrics-snapshot`
+    pub async fn trigger_metrics_snapshot(
+        &self,
+        workspace_id: &str,
+    ) -> Result<serde_json::Value> {
         self.client
-            .post::<(), RebuildResponse>(
-                &format!("/api/v1/workspaces/{workspace_id}/rebuild"),
+            .post::<(), serde_json::Value>(
+                &format!("/api/v1/workspaces/{workspace_id}/metrics-snapshot"),
                 None,
             )
             .await
@@ -108,6 +113,88 @@ impl<'a> WorkspacesResource<'a> {
                 &format!("/api/v1/workspaces/{workspace_id}/reprocess-documents"),
                 None,
             )
+            .await
+    }
+
+    /// `PUT /api/v1/workspaces/{workspace_id}/injection` — knowledge injection (text).
+    pub async fn put_injection(
+        &self,
+        workspace_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.client
+            .put(
+                &format!("/api/v1/workspaces/{workspace_id}/injection"),
+                Some(body),
+            )
+            .await
+    }
+
+    /// `PUT /api/v1/workspaces/{workspace_id}/injection/file` — multipart file injection.
+    pub async fn put_injection_file(
+        &self,
+        workspace_id: &str,
+        name: &str,
+        file_bytes: Vec<u8>,
+        filename: &str,
+        content_type: &str,
+    ) -> Result<serde_json::Value> {
+        let mut fields = std::collections::HashMap::new();
+        fields.insert("name".into(), name.to_string());
+        self.client
+            .upload_multipart(
+                &format!("/api/v1/workspaces/{workspace_id}/injection/file"),
+                file_bytes,
+                filename,
+                content_type,
+                fields,
+            )
+            .await
+    }
+
+    /// `GET /api/v1/workspaces/{workspace_id}/injections`
+    pub async fn list_injections(&self, workspace_id: &str) -> Result<serde_json::Value> {
+        self.client
+            .get(&format!("/api/v1/workspaces/{workspace_id}/injections"))
+            .await
+    }
+
+    /// `GET /api/v1/workspaces/{workspace_id}/injections/{injection_id}`
+    pub async fn get_injection(
+        &self,
+        workspace_id: &str,
+        injection_id: &str,
+    ) -> Result<serde_json::Value> {
+        self.client
+            .get(&format!(
+                "/api/v1/workspaces/{workspace_id}/injections/{injection_id}"
+            ))
+            .await
+    }
+
+    /// `PATCH /api/v1/workspaces/{workspace_id}/injections/{injection_id}`
+    pub async fn patch_injection(
+        &self,
+        workspace_id: &str,
+        injection_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.client
+            .patch(
+                &format!(
+                    "/api/v1/workspaces/{workspace_id}/injections/{injection_id}"
+                ),
+                Some(body),
+            )
+            .await
+    }
+
+    /// `DELETE /api/v1/workspaces/{workspace_id}/injections/{injection_id}`
+    pub async fn delete_injection(&self, workspace_id: &str, injection_id: &str) -> Result<()> {
+        self.client
+            .delete_no_content(&format!(
+                "/api/v1/workspaces/{workspace_id}/injections/{injection_id}"
+            ))
             .await
     }
 }

@@ -5,7 +5,11 @@
 
 use crate::client::EdgeQuakeClient;
 use crate::error::Result;
-use crate::types::graph::*;
+use crate::types::graph::{
+    BatchDegreeRequest, CreateEntityRequest, CreateEntityResponse, DegreesBatchResponse,
+    EntityDetailResponse, EntityExistsResponse, EntityListResponse, MergeEntitiesRequest,
+    MergeEntitiesResponse, NeighborhoodResponse,
+};
 
 pub struct EntitiesResource<'a> {
     pub(crate) client: &'a EdgeQuakeClient,
@@ -74,9 +78,12 @@ impl<'a> EntitiesResource<'a> {
     }
 
     /// `POST /api/v1/graph/degrees/batch`
-    pub async fn degrees(&self, names: &[String]) -> Result<DegreesBatchResponse> {
+    pub async fn degrees(&self, node_ids: &[String]) -> Result<DegreesBatchResponse> {
+        let body = BatchDegreeRequest {
+            node_ids: node_ids.to_vec(),
+        };
         self.client
-            .post("/api/v1/graph/degrees/batch", Some(&names))
+            .post("/api/v1/graph/degrees/batch", Some(&body))
             .await
     }
 

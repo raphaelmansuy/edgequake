@@ -138,7 +138,8 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
         stack stack-down stack-logs stack-status stack-restart stack-pull \
         check-deps status \
         test-quality test-invariants test-timing test-count test-flaky \
-        test-e2e-critical test-e2e-full test-stability-report
+        test-e2e-critical test-e2e-full test-stability-report \
+        sdk-e2e sdk-e2e-with-stack sdk-csharp-test-unit
 
 # ============================================================================
 # Version Management
@@ -334,6 +335,9 @@ help: ## Show this help message
 	@echo "  $(GREEN)make test-flaky$(RESET)       Detect flaky tests"
 	@echo "  $(GREEN)make test-e2e-critical$(RESET) Run E2E critical path"
 	@echo "  $(GREEN)make test-e2e-full$(RESET)    Run full E2E suite"
+	@echo "  $(GREEN)make sdk-e2e$(RESET)          Run Rust/Python/TS SDK E2E vs SDK_E2E_URL (needs healthy API)"
+	@echo "  $(GREEN)make sdk-e2e-with-stack$(RESET)  $(GREEN)make stack$(RESET) then SDK E2E (Docker quickstart)"
+	@echo "  $(GREEN)make sdk-csharp-test-unit$(RESET)  C# SDK unit tests only (excludes E2E trait)"
 	@echo ""
 
 # ============================================================================
@@ -1281,6 +1285,42 @@ test-e2e-full: ## Run full E2E test suite
 	@echo "$(BLUE)Running full E2E suite...$(RESET)"
 	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
 		pnpm exec playwright test --reporter=line
+
+# ============================================================================
+# SDK E2E — Rust, Python, TypeScript against a live API (Docker Compose stack)
+# ============================================================================
+#
+# Prerequisites: API healthy at SDK_E2E_URL (default http://localhost:8080).
+#   make stack              # root quickstart (GHCR images)
+#   make docker-prebuilt    # edgequake/docker/docker-compose.prebuilt.yml
+#   make docker-up          # build-from-source full stack
+#
+# Override:  make sdk-e2e SDK_E2E_URL=http://127.0.0.1:9090
+
+SDK_E2E_URL ?= http://localhost:8080
+
+sdk-e2e: ## Run SDK E2E suites (Rust --features e2e, Python test_e2e, TS tests/e2e)
+	@echo "$(BOLD)$(BLUE)SDK E2E → $(SDK_E2E_URL)$(RESET)"
+	@curl -sf "$(SDK_E2E_URL)/health" >/dev/null || { \
+		echo "$(RED)✗ API not healthy at $(SDK_E2E_URL)$(RESET)"; \
+		echo "  Start: $(GREEN)make stack$(RESET) or $(GREEN)make docker-prebuilt$(RESET) or $(GREEN)make docker-up$(RESET)"; \
+		exit 1; \
+	}
+	@echo "$(YELLOW)→ Rust SDK (cargo test --features e2e)$(RESET)"
+	@cd $(ROOT_DIR)/sdks/rust && EDGEQUAKE_BASE_URL="$(SDK_E2E_URL)" \
+		cargo test -p edgequake-sdk --test e2e_tests --features e2e -- --nocapture
+	@echo "$(YELLOW)→ Python SDK (pytest tests/test_e2e.py)$(RESET)"
+	@cd $(ROOT_DIR)/sdks/python && EDGEQUAKE_E2E_URL="$(SDK_E2E_URL)" \
+		python3 -m pytest tests/test_e2e.py -v
+	@echo "$(YELLOW)→ TypeScript SDK (bun test tests/e2e)$(RESET)"
+	@cd $(ROOT_DIR)/sdks/typescript && EDGEQUAKE_E2E_URL="$(SDK_E2E_URL)" bun test tests/e2e
+	@echo "$(GREEN)✓ SDK E2E complete$(RESET)"
+
+sdk-e2e-with-stack: stack sdk-e2e ## Start quickstart stack, then run SDK E2E (containers left running)
+
+sdk-csharp-test-unit: ## Run C# SDK unit tests only (requires dotnet; skips live E2E tests)
+	@echo "$(BLUE)C# SDK unit tests (filter out E2E trait)...$(RESET)"
+	cd $(ROOT_DIR)/sdks/csharp && dotnet test --filter "E2E!=true"
 
 test-stability-report: ## Generate test stability report
 	@echo "$(BLUE)Generating stability report...$(RESET)"
