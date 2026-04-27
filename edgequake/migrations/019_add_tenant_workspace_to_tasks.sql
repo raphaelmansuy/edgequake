@@ -34,15 +34,8 @@ SET
 WHERE tenant_id IS NULL OR workspace_id IS NULL;
 
 -- ============================================================================
--- STEP 3: Add safe defaults and constraints
--- ==========================================================================
-
--- WHY: A small number of older maintenance/test paths may still omit these
--- columns on insert. Route those rows into a deterministic sentinel tenant and
--- workspace instead of failing with NULL violations or leaking across tenants.
-ALTER TABLE tasks
-ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
-ALTER COLUMN workspace_id SET DEFAULT '00000000-0000-0000-0000-000000000000'::UUID;
+-- STEP 3: Add constraints
+-- ============================================================================
 
 -- Make columns NOT NULL after data migration
 ALTER TABLE tasks 
