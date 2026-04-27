@@ -292,6 +292,8 @@ impl Workspace {
         match provider {
             "openai" | "openai-compatible" => "text-embedding-3-small".to_string(),
             "lmstudio" => "nomic-embed-text".to_string(),
+            // Mistral native embedding — 1024 dimensions, optimised for retrieval.
+            "mistral" => "mistral-embed".to_string(),
             // ollama and everything else: use the compiled-in Ollama default.
             _ => DEFAULT_EMBEDDING_MODEL.to_string(),
         }
@@ -335,6 +337,10 @@ impl Workspace {
             "text-embedding-3-small" | "text-embedding-ada-002" => Some(1536),
             "text-embedding-3-large" => Some(3072),
             "embeddinggemma:latest" | "nomic-embed-text" | "nomic-embed-text:latest" => Some(768),
+            // Mistral embed returns 1024-dimensional vectors.
+            "mistral-embed" | "mistral-embed-2312" | "codestral-embed" | "codestral-embed-2505" => {
+                Some(1024)
+            }
             "mxbai-embed-large" | "mxbai-embed-large:latest" => Some(1024),
             _ if model.contains("768") => Some(768),
             _ if model.contains("1024") => Some(1024),

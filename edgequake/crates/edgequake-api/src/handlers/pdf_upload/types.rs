@@ -115,6 +115,8 @@ pub(crate) fn default_vision_model_for_provider(provider: &str) -> String {
     match provider {
         "openai" => "gpt-4.1-nano".to_string(),
         "anthropic" => "claude-sonnet-4-20250514".to_string(),
+        // Pixtral Large is Mistral's flagship vision model for PDF ingestion.
+        "mistral" => "pixtral-large-latest".to_string(),
         _ => "gemma4:latest".to_string(),
     }
 }

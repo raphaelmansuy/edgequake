@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-04-27
+
+### Added — Mistral as First-Class LLM Provider
+
+- **edgequake-llm upgraded to v0.6.14** — the external `edgequake-llm` crate now ships full Mistral La Plateforme support including chat, vision (`pixtral-large-latest`), and embeddings (`mistral-embed`, 1024 dims).
+- **Mistral provider fully integrated at every layer:**
+  - `models.toml` — 11 new Mistral model cards (chat, vision, embedding families).
+  - `workspace.rs` — `default_embedding_model_for_provider("mistral")` returns `"mistral-embed"`; `known_embedding_dimension` maps all Mistral embedding model variants to 1024.
+  - `pdf_upload/types.rs` — `default_vision_model_for_provider("mistral")` returns `"pixtral-large-latest"` for PDF ingestion.
+  - `safety_limits.rs` — Mistral model family detection added; `"mistral-small-latest"` set as safe default.
+  - `state/provider_setup.rs` — provider-aware embedding model and dimension resolution; `MISTRAL_API_KEY` detection; `mistral-embed` registered at 1024 dims.
+- **Makefile** — `backend-bg` detects `MISTRAL_API_KEY` first (priority over OpenAI/Ollama) and exports the full Mistral environment block including `EDGEQUAKE_LLM_PROVIDER=mistral`, `EDGEQUAKE_EMBEDDING_PROVIDER=mistral`, `EDGEQUAKE_VISION_PROVIDER=mistral`, `EDGEQUAKE_VISION_MODEL=pixtral-large-latest`, `EDGEQUAKE_EMBEDDING_BATCH_SIZE=16` (critical — Mistral allows ≤16 embeddings per request).
+- **`.env.example`** — Option 5 (Mistral La Plateforme) documented with all required and optional env vars.
+
+### Fixed
+
+- **Mistral embedding batch size limit** — Mistral API rejects requests with > 16 texts in a single embedding call (HTTP 400, code 3210). Fixed by exporting `EDGEQUAKE_EMBEDDING_BATCH_SIZE=16` in Makefile Mistral startup; `edgequake-llm`'s `embed_batched()` respects `max_batch_size()` which reads this env var.
+- **Embedding model bleed-through in hybrid mode** — `OLLAMA_EMBEDDING_MODEL` env var was silently overriding Mistral embedding selection. Fixed by provider-aware env key resolution in `provider_setup.rs` (`provider_specific_embedding_env_key()`).
+
+### Verified E2E
+
+- Full pipeline tested with real Mistral API keys:
+  - Health endpoint confirms `llm_provider_name: "mistral"`, `model: "mistral-small-latest"`, `embedding.model: "mistral-embed"`, `embedding.dimension: 1024`.
+  - PDF ingestion: `AI_Services__Elitizon.pdf` → **45 entities extracted** (status: Completed).
+  - PDF ingestion: `national-capitals.pdf` → **570 entities extracted** (status: Completed).
+  - RAG query: "What are the main AI services and technologies described in these documents?" → **2,916 tokens, 224.5 tok/s, 2 Sources, 97 Topics, 100% confidence** using `mistral-small-latest` + `mistral-embed`.
+- All 550 Rust workspace tests pass (`cargo test --workspace --lib`).
+- `cargo clippy --workspace --lib -- -D warnings` passes with zero warnings.
+- `cargo fmt --all -- --check` passes.
+
 ## [0.10.14] - 2026-04-27
 
 ### Fixed

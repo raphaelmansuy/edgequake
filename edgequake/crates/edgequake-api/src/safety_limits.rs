@@ -587,6 +587,13 @@ pub fn is_model_provider_mismatch(provider_name: &str, model: &str) -> bool {
     let is_anthropic_model = model.starts_with("claude-");
     // Gemini model patterns: gemini-*
     let is_gemini_model = model.starts_with("gemini-") || model.starts_with("text-embedding-004");
+    // Mistral model patterns: mistral-*, magistral-*, pixtral-*, codestral-*, devstral-*, ministral-*
+    let is_mistral_model = model.starts_with("mistral-")
+        || model.starts_with("magistral-")
+        || model.starts_with("pixtral-")
+        || model.starts_with("codestral-")
+        || model.starts_with("devstral-")
+        || model.starts_with("ministral-");
     // Common local/self-hosted model patterns.
     let is_local_style_model = model.contains(':')
         || model.starts_with("gemma")
@@ -607,6 +614,15 @@ pub fn is_model_provider_mismatch(provider_name: &str, model: &str) -> bool {
             // Cloud providers should not inherit self-hosted model names.
             is_local_style_model || model.contains('/')
         }
+        "mistral" => {
+            // Mismatch when using a model from a different cloud or a purely local namespace.
+            // WHY: is_local_style_model includes model.starts_with("mistral") (for Ollama's
+            // bare "mistral" / "mistral:latest" tags). We must subtract the Mistral La
+            // Plateforme alias set (is_mistral_model) to avoid falsely flagging cloud model
+            // names like "mistral-small-latest" that also match the prefix.
+            (is_openai_model || is_anthropic_model || is_gemini_model || is_local_style_model)
+                && !is_mistral_model
+        }
         _ => false,
     }
 }
@@ -619,6 +635,7 @@ pub fn default_model_for_provider(provider_name: &str) -> &'static str {
         "gemini" => "gemini-2.5-flash",
         "xai" => "grok-4-1-fast",
         "openrouter" => "openai/gpt-4o-mini",
+        "mistral" => "mistral-small-latest",
         "ollama" => "gemma4:latest",
         "lmstudio" | "lm-studio" | "lm_studio" => "gemma-3n-e4b-it",
         "minimax" => "MiniMax-M2.7",
