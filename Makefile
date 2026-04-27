@@ -663,7 +663,13 @@ stop: ## Stop all development services
 # causes the backend to panic with `RelativeUrlWithoutBase`. Treat empty as
 # unset and fall back to the local development PostgreSQL container, while
 # still respecting any explicit external DATABASE_URL provided by the user.
-DEFAULT_DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
+# WHY ?options=-c%20search_path%3Dpublic: The edgequake schema is created by
+# migration 001. PostgreSQL's default search_path "$user",public resolves
+# "$user"=edgequake to that schema on subsequent connections. Without forcing
+# search_path=public at connection time, sqlx-cli creates _sqlx_migrations in
+# the edgequake schema (empty), then migration 001 switches the session path to
+# public, and subsequent tracking writes collide with public._sqlx_migrations.
+DEFAULT_DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake?options=-c%20search_path%3Dpublic
 ENV_DATABASE_URL := $(strip $(shell printf '%s' "$$DATABASE_URL"))
 ifneq ($(ENV_DATABASE_URL),)
   DATABASE_URL := $(ENV_DATABASE_URL)
