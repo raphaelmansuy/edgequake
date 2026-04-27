@@ -96,10 +96,33 @@ data class DocumentStatusResponse(
     val error: String? = null
 )
 
+/** WHY: GET /api/v1/documents/track/{track_id} */
+data class TrackStatusResponse(
+    @JsonProperty("track_id") val trackId: String? = null,
+    val status: String? = null,
+    val progress: Double? = null,
+    val message: String? = null,
+    @JsonProperty("document_id") val documentId: String? = null,
+)
+
 /** WHY: Generic status response for operations. */
 data class StatusResponse(
     val status: String? = null,
     val message: String? = null
+)
+
+// ── Admin / effective config ───────────────────────────────────────
+
+data class UpdateTenantQuotaResponse(
+    @JsonProperty("tenant_id") val tenantId: String? = null,
+    @JsonProperty("max_workspaces") val maxWorkspaces: Int? = null,
+    @JsonProperty("previous_max_workspaces") val previousMaxWorkspaces: Int? = null,
+    @JsonProperty("current_workspace_count") val currentWorkspaceCount: Int? = null,
+)
+
+data class ServerDefaultsResponse(
+    @JsonProperty("default_max_workspaces") val defaultMaxWorkspaces: Int? = null,
+    val note: String? = null,
 )
 
 // ── Entities ────────────────────────────────────────────────────────
@@ -157,28 +180,29 @@ data class EntityDeleteResponse(
 )
 
 data class MergeEntitiesRequest(
-    @JsonProperty("source_entity") val sourceEntity: String,
-    @JsonProperty("target_entity") val targetEntity: String
+    @JsonProperty("source_name") val sourceName: String,
+    @JsonProperty("target_name") val targetName: String
 )
 
-/** WHY: Entity neighborhood for graph traversal. */
+/** WHY: `GET /graph/entities/{name}/neighborhood` — nodes + edges subgraph. */
 data class EntityNeighborhoodResponse(
-    @JsonProperty("entity_name") val entityName: String? = null,
-    val neighbors: List<NeighborEntity>? = null,
-    val depth: Int? = null
+    val nodes: List<NeighborhoodNode>? = null,
+    val edges: List<NeighborhoodEdge>? = null
 )
 
-data class NeighborEntity(
-    val name: String? = null,
+data class NeighborhoodNode(
+    val id: String? = null,
     @JsonProperty("entity_type") val entityType: String? = null,
-    @JsonProperty("relationship_type") val relationshipType: String? = null,
-    val distance: Int? = null
+    val description: String? = null,
+    val degree: Int? = null
 )
 
-/** WHY: List of entity types for filtering. */
-data class EntityTypesResponse(
-    val types: List<String>? = null,
-    val total: Int? = null
+data class NeighborhoodEdge(
+    val id: String? = null,
+    val source: String? = null,
+    val target: String? = null,
+    @JsonProperty("relation_type") val relationType: String? = null,
+    val weight: Double? = null
 )
 
 // ── Relationships ───────────────────────────────────────────────────
@@ -265,26 +289,33 @@ data class GraphStatsResponse(
     @JsonProperty("relationship_count") val relationshipCount: Int? = null
 )
 
-/** WHY: Label search results. */
+/** WHY: `GET /graph/labels/search` returns string label hits. */
 data class LabelSearchResponse(
-    val labels: List<LabelMatch>? = null,
-    val total: Int? = null
+    val labels: List<String>? = null
 )
 
-data class LabelMatch(
-    val label: String? = null,
-    val count: Int? = null,
-    @JsonProperty("node_type") val nodeType: String? = null
-)
-
-/** WHY: Popular labels for discovery. */
+/** WHY: Popular labels include degree + entity metadata from API. */
 data class PopularLabelsResponse(
-    val labels: List<LabelMatch>? = null
+    val labels: List<PopularLabelItem>? = null,
+    @JsonProperty("total_entities") val totalEntities: Int? = null
 )
 
-/** WHY: Batch degree calculation results. */
+data class PopularLabelItem(
+    val label: String? = null,
+    @JsonProperty("entity_type") val entityType: String? = null,
+    val degree: Int? = null,
+    val description: String? = null
+)
+
+/** WHY: `POST /graph/degrees/batch` returns ordered degree rows. */
 data class BatchDegreesResponse(
-    val degrees: Map<String, Int>? = null
+    val degrees: List<NodeDegree>? = null,
+    val count: Int? = null
+)
+
+data class NodeDegree(
+    @JsonProperty("node_id") val nodeId: String? = null,
+    val degree: Int? = null
 )
 
 // ── Query & Chat ────────────────────────────────────────────────────
@@ -451,21 +482,30 @@ data class Message(
 )
 
 data class BulkDeleteResponse(
+    @JsonProperty("affected") val affected: Int? = null,
+    /** Legacy field from older mocks. */
     val deleted: Int? = null,
     val status: String? = null
 )
 
-/** WHY: Message list for conversation. */
-data class MessageListResponse(
-    val messages: List<Message>? = null,
-    val total: Int? = null
+/** WHY: Pagination meta from list messages API. */
+data class MessagePaginationMeta(
+    @JsonProperty("next_cursor") val nextCursor: String? = null,
+    @JsonProperty("prev_cursor") val prevCursor: String? = null,
+    val total: Int? = null,
+    @JsonProperty("has_more") val hasMore: Boolean? = null
 )
 
-/** WHY: Share link response. */
+/** WHY: `GET /conversations/{id}/messages` returns items + pagination. */
+data class MessageListResponse(
+    val items: List<Message>? = null,
+    val pagination: MessagePaginationMeta? = null
+)
+
+/** WHY: `POST /conversations/{id}/share` returns share id + relative URL. */
 data class ShareLinkResponse(
     @JsonProperty("share_id") val shareId: String? = null,
-    val url: String? = null,
-    @JsonProperty("expires_at") val expiresAt: String? = null
+    @JsonProperty("share_url") val shareUrl: String? = null
 )
 
 /** WHY: Import conversations from external source. */
@@ -481,13 +521,6 @@ data class ImportResponse(
     val errors: List<String>? = null
 )
 
-/** WHY: Conversations in folder. */
-data class FolderConversationsResponse(
-    @JsonProperty("folder_id") val folderId: String? = null,
-    val conversations: List<ConversationInfo>? = null,
-    val total: Int? = null
-)
-
 // ── Folders ─────────────────────────────────────────────────────────
 
 data class FolderInfo(
@@ -498,6 +531,13 @@ data class FolderInfo(
 )
 
 // ── Workspaces ──────────────────────────────────────────────────────
+
+data class WorkspaceListResponse(
+    val items: List<WorkspaceInfo>? = null,
+    val total: Int? = null,
+    val offset: Int? = null,
+    val limit: Int? = null,
+)
 
 data class WorkspaceInfo(
     val id: String? = null,
@@ -704,27 +744,3 @@ data class WorkspaceStatsResponse(
     @JsonProperty("storage_bytes") val storageBytes: Long? = null
 )
 
-// ── Shared Links ────────────────────────────────────────────────────
-
-/** WHY: Shared link info. */
-data class SharedLinkResponse(
-    @JsonProperty("share_id") val shareId: String? = null,
-    @JsonProperty("conversation_id") val conversationId: String? = null,
-    val url: String? = null,
-    @JsonProperty("created_at") val createdAt: String? = null,
-    @JsonProperty("expires_at") val expiresAt: String? = null,
-    @JsonProperty("access_count") val accessCount: Int? = null
-)
-
-/** WHY: Access shared content. */
-data class SharedAccessResponse(
-    val conversation: ConversationInfo? = null,
-    val messages: List<Message>? = null,
-    @JsonProperty("expires_at") val expiresAt: String? = null
-)
-
-/** WHY: List of shared links. */
-data class SharedLinksListResponse(
-    val links: List<SharedLinkResponse>? = null,
-    val total: Int? = null
-)

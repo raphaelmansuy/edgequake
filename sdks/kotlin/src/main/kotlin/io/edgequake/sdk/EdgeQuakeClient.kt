@@ -40,4 +40,6 @@ class EdgeQuakeClient(config: EdgeQuakeConfig = EdgeQuakeConfig()) {
     val costs = CostService(http)
     val lineage = LineageService(http)
     val shared = SharedService(http)
+    val admin = AdminService(http)
+    val effectiveConfig = EffectiveConfigService(http)
 }

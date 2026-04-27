@@ -12,6 +12,10 @@ import type {
   PipelineStatus,
   QueueMetrics,
 } from "../types/tasks.js";
+import {
+  PIPELINE_COSTS_ESTIMATE_PATH,
+  PIPELINE_COSTS_PRICING_PATH,
+} from "../constants/api-paths.js";
 import { Resource } from "./base.js";
 
 export class PipelineResource extends Resource {
@@ -32,11 +36,11 @@ export class PipelineResource extends Resource {
 
   /** Get model pricing information. */
   async pricing(): Promise<ModelPricing[]> {
-    return this._get("/api/v1/pipeline/costs/pricing");
+    return this._get(PIPELINE_COSTS_PRICING_PATH);
   }
 
   /** Estimate cost for a document processing request. */
   async estimateCost(request: CostEstimateRequest): Promise<CostEstimate> {
-    return this._post("/api/v1/pipeline/costs/estimate", request);
+    return this._post(PIPELINE_COSTS_ESTIMATE_PATH, request);
   }
 }

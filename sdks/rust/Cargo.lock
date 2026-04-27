@@ -179,6 +179,7 @@ version = "0.4.0"
 dependencies = [
  "bytes",
  "futures-core",
+ "futures-util",
  "pin-project-lite",
  "reqwest 0.13.2",
  "reqwest-eventsource",

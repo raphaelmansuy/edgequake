@@ -197,46 +197,34 @@ public class GraphModels {
 
     // ── OODA-38: Added missing graph models ──────────────────────────
 
-    /** Graph statistics response. */
-    public static class GraphStatsResponse {
-        @JsonProperty("node_count") public int nodeCount;
-        @JsonProperty("edge_count") public int edgeCount;
-        @JsonProperty("entity_count") public int entityCount;
-        @JsonProperty("relationship_count") public int relationshipCount;
-    }
-
-    /** Label search response. */
+    /** Label search response (API returns string label matches). */
     public static class LabelSearchResponse {
-        @JsonProperty("labels") public List<LabelMatch> labels;
-        @JsonProperty("total") public int total;
-    }
-
-    /** Label match info. */
-    public static class LabelMatch {
-        @JsonProperty("label") public String label;
-        @JsonProperty("count") public int count;
+        @JsonProperty("labels") public List<String> labels;
     }
 
     /** Popular labels response. */
     public static class PopularLabelsResponse {
-        @JsonProperty("labels") public List<LabelMatch> labels;
+        @JsonProperty("labels") public List<PopularLabel> labels;
+        @JsonProperty("total_entities") public int totalEntities;
+    }
+
+    /** One popular label entry from GET /graph/labels/popular. */
+    public static class PopularLabel {
+        @JsonProperty("label") public String label;
+        @JsonProperty("entity_type") public String entityType;
+        @JsonProperty("degree") public int degree;
+        @JsonProperty("description") public String description;
     }
 
     /** Batch degrees response. */
     public static class BatchDegreesResponse {
-        @JsonProperty("degrees") public Map<String, Integer> degrees;
+        @JsonProperty("degrees") public List<NodeDegree> degrees;
+        @JsonProperty("count") public int count;
     }
 
-    /** Entity types response. */
-    public static class EntityTypesResponse {
-        @JsonProperty("types") public List<String> types;
-        @JsonProperty("total") public int total;
-    }
-
-    /** Relationship types response. */
-    public static class RelationshipTypesResponse {
-        @JsonProperty("types") public List<String> types;
-        @JsonProperty("total") public int total;
+    public static class NodeDegree {
+        @JsonProperty("node_id") public String nodeId;
+        @JsonProperty("degree") public int degree;
     }
 
     /** Relationship detail response. */

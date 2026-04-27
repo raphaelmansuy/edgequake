@@ -16,7 +16,7 @@ public class DocumentService {
     public ListDocumentsResponse list(int page, int perPage) {
         Map<String, String> params = new LinkedHashMap<>();
         if (page > 0) params.put("page", String.valueOf(page));
-        if (perPage > 0) params.put("per_page", String.valueOf(perPage));
+        if (perPage > 0) params.put("page_size", String.valueOf(perPage));
         return http.get("/api/v1/documents", params, ListDocumentsResponse.class);
     }
 
@@ -53,21 +53,9 @@ public class DocumentService {
         return http.get("/api/v1/documents/" + id + "/deletion-impact", null, DeletionImpact.class);
     }
 
-    // ── OODA-38: Added missing document methods ──────────────────────
-
-    /** Get document chunks. */
-    public DocumentChunksResponse chunks(String id) {
-        return http.get("/api/v1/documents/" + id + "/chunks", null, DocumentChunksResponse.class);
-    }
-
-    /** Get document processing status. */
-    public DocumentStatusResponse status(String id) {
-        return http.get("/api/v1/documents/" + id + "/status", null, DocumentStatusResponse.class);
-    }
-
-    /** Reprocess a failed document. */
-    public StatusResponse reprocess(String id) {
-        return http.post("/api/v1/documents/" + id + "/reprocess", null, StatusResponse.class);
+    /** Reprocess failed documents in the current workspace (POST /api/v1/documents/reprocess). */
+    public StatusResponse reprocessFailed() {
+        return http.post("/api/v1/documents/reprocess", null, StatusResponse.class);
     }
 
     /** Recover stuck documents. */

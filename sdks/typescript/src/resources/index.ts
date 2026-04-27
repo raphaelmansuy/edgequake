@@ -3,6 +3,10 @@
  * @module resources
  */
 
+export {
+  AdminResource,
+  EffectiveConfigResource,
+} from "./admin.js";
 export { ApiKeysResource } from "./api-keys.js";
 export { AuthResource } from "./auth.js";
 export { ChatResource } from "./chat.js";

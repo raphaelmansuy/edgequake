@@ -2,15 +2,15 @@
 
 use crate::client::EdgeQuakeClient;
 use crate::error::Result;
-use crate::types::operations::{LineageGraph, ProvenanceRecord};
+use crate::types::operations::{EntityProvenanceResponse, LineageGraph};
 
 pub struct ProvenanceResource<'a> {
     pub(crate) client: &'a EdgeQuakeClient,
 }
 
 impl<'a> ProvenanceResource<'a> {
-    /// `GET /api/v1/entities/{name}/provenance`
-    pub async fn for_entity(&self, entity_name: &str) -> Result<Vec<ProvenanceRecord>> {
+    /// `GET /api/v1/entities/{entity_id}/provenance`
+    pub async fn for_entity(&self, entity_name: &str) -> Result<EntityProvenanceResponse> {
         self.client
             .get(&format!(
                 "/api/v1/entities/{}/provenance",

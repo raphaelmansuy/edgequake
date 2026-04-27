@@ -89,12 +89,19 @@ class TestDocumentsResource:
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
-        client.documents.list(page=2, page_size=10, status="completed", search="test")
+        client.documents.list(
+            page=2,
+            page_size=10,
+            date_from="2025-01-01",
+            date_to="2025-12-31",
+            document_pattern="report,summary",
+        )
         params = mock_req.call_args[1]["params"]
         assert params["page"] == 2
         assert params["page_size"] == 10
-        assert params["status"] == "completed"
-        assert params["search"] == "test"
+        assert params["date_from"] == "2025-01-01"
+        assert params["date_to"] == "2025-12-31"
+        assert params["document_pattern"] == "report,summary"
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")

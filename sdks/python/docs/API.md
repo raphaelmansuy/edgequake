@@ -12,6 +12,7 @@ Complete reference documentation for all API resources and methods in the EdgeQu
 - [Chat](#chat)
 - [Conversations](#conversations)
 - [Authentication](#authentication)
+- [Admin & effective configuration](#admin--effective-configuration)
 - [Operations](#operations)
 - [Error Handling](#error-handling)
 - [Pagination](#pagination)
@@ -121,23 +122,21 @@ with open("research.pdf", "rb") as f:
 
 ---
 
-### `client.documents.list(page=1, page_size=20, status=None)`
+### `client.documents.list(...)`
 
-List all documents (paginated).
+List documents (`GET /api/v1/documents`). Query parameters match the API’s `ListDocumentsRequest`: `page`, `page_size`, `date_from`, `date_to`, `document_pattern`. Omit arguments to let the server apply defaults.
 
 ```python
-result = client.documents.list(page=1, page_size=10)
-for doc in result.get("items", []):
-    print(f"{doc['id']}: {doc['title']} ({doc['status']})")
+from edgequake.types.documents import DocumentListParams
+
+result = client.documents.list(
+    params=DocumentListParams(page=1, page_size=10, document_pattern="report")
+)
+for doc in result.documents:
+    print(f"{doc.id}: {doc.title} ({doc.status})")
 ```
 
-**Parameters:**
-
-- `page` (int, optional): Page number (default: 1)
-- `page_size` (int, optional): Items per page (default: 20, max: 100)
-- `status` (str, optional): Filter by status (`uploading`, `processing`, `completed`, `failed`)
-
-**Returns:** Dictionary with `items`, `total`, `page`, `page_size`, `pages`
+**Returns:** `ListDocumentsResponse` with `documents`, `total`, `page`, `page_size`, `total_pages`, `has_more`, and optional `status_counts`.
 
 ---
 
@@ -421,17 +420,29 @@ print(conversation["id"])
 
 ---
 
-### `client.conversations.list()`
+### `client.conversations.list(...)`
 
-List all conversations.
+List conversations with cursor pagination and optional `filter[…]` / `sort` / `order` (see `ConversationListParams`). Legacy keyword arguments `folder_id`, `page`, and `page_size` are mapped to canon query keys.
 
 ```python
-conversations = client.conversations.list()
-for conv in conversations.get("items", []):
-    print(conv["id"], conv["title"])
+from edgequake.types.conversations import ConversationListParams
+
+page = client.conversations.list()
+for conv in page.items:
+    print(conv.id, conv.title)
+
+filtered = client.conversations.list(
+    params=ConversationListParams(filter_folder_id="folder-uuid", limit=50)
+)
 ```
 
-**Returns:** Dictionary with paginated conversations
+**Returns:** `PaginatedConversations` (Pydantic model with `items` and `pagination`).
+
+### `client.conversations.list_messages(conversation_id, params=None)`
+
+Lists messages for a conversation. Pass `ListMessagesParams` for `cursor` and `limit`.
+
+**Returns:** `PaginatedMessages`.
 
 ---
 
@@ -462,6 +473,26 @@ new_auth = client.auth.refresh(refresh_token="...")
 ```
 
 **Returns:** New access token
+
+---
+
+## Admin & effective configuration
+
+Platform operators can adjust tenant quotas and read resolved configuration.
+
+### `client.admin.patch_tenant_quota(tenant_id, max_workspaces)`
+
+`PATCH /api/v1/admin/tenants/{tenant_id}/quota` — returns `UpdateTenantQuotaResponse` (Pydantic model).
+
+### `client.admin.get_server_defaults()` / `client.admin.patch_server_defaults(default_max_workspaces)`
+
+`GET` and `PATCH /api/v1/admin/config/defaults` — returns `ServerDefaultsResponse`.
+
+### `client.effective_config.get()`
+
+`GET /api/v1/config/effective` — returns the merged effective configuration as a dictionary.
+
+Async client: same methods on `client.admin` and `client.effective_config`.
 
 ---
 

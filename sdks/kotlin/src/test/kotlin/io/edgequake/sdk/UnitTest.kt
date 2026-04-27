@@ -605,10 +605,11 @@ class UnitTest {
 
     @Test
     fun `conversations bulk delete`() {
-        fake.respondWith("""{"deleted":3,"status":"success"}""")
+        fake.respondWith("""{"affected":3,"status":"success"}""")
         val svc = ConversationService(http)
         val result = svc.bulkDelete(listOf("c1", "c2", "c3"))
-        assertEquals(3, result.deleted)
+        assertEquals(3, result.affected)
+        assertTrue(fake.lastRequest().body?.contains("conversation_ids") == true)
     }
 
     @Test
@@ -734,18 +735,19 @@ class UnitTest {
 
     @Test
     fun `workspaces list`() {
-        fake.respondWith("""[{"id":"w1","name":"Default","slug":"default"}]""")
+        fake.respondWith("""{"items":[{"id":"w1","name":"Default","slug":"default"}],"total":1}""")
         val svc = WorkspaceService(http)
-        val result = svc.list()
+        val result = svc.list("t1")
         assertEquals(1, result.size)
         assertEquals("Default", result.first().name)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/tenants/t1/workspaces"))
     }
 
     @Test
     fun `workspaces error`() {
         fake.respondWithError(403)
         val svc = WorkspaceService(http)
-        assertThrows(EdgeQuakeException::class.java) { svc.list() }
+        assertThrows(EdgeQuakeException::class.java) { svc.list("t1") }
     }
 
     // ── PdfService ───────────────────────────────────────────────────
@@ -883,8 +885,8 @@ class UnitTest {
 
     @Test
     fun `BulkDeleteResponse model`() {
-        val b = BulkDeleteResponse(deleted = 3, status = "success")
-        assertEquals(3, b.deleted)
+        val b = BulkDeleteResponse(affected = 3, status = "success")
+        assertEquals(3, b.affected)
     }
 
     @Test
@@ -1082,6 +1084,8 @@ class UnitTest {
         fake.respondWith("""{"merged_entity":{"entity_name":"ALICE"},"merged_count":2}""")
         EntityService(http).merge("ALICE_1", "ALICE_2")
         val body = fake.lastRequest().body
+        assertTrue(body?.contains("source_name") == true)
+        assertTrue(body?.contains("target_name") == true)
         assertTrue(body?.contains("ALICE_1") == true)
         assertTrue(body?.contains("ALICE_2") == true)
     }
@@ -1412,28 +1416,21 @@ class UnitTest {
     // ── Document Extended Tests ──────────────────────────────────────
 
     @Test
-    fun `documents chunks`() {
-        fake.respondWith("""{"document_id":"d1","chunks":[{"id":"c1","content":"text","index":0}],"total":1}""")
+    fun `documents track`() {
+        fake.respondWith("""{"track_id":"tk1","status":"processing","progress":0.5}""")
         val svc = DocumentService(http)
-        val result = svc.chunks("d1")
-        assertEquals("d1", result.documentId)
-        assertEquals(1, result.total)
+        val result = svc.track("tk1")
+        assertEquals("tk1", result.trackId)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/documents/track/tk1"))
     }
 
     @Test
-    fun `documents status`() {
-        fake.respondWith("""{"document_id":"d1","status":"completed","progress":1.0}""")
-        val svc = DocumentService(http)
-        val result = svc.status("d1")
-        assertEquals("completed", result.status)
-    }
-
-    @Test
-    fun `documents reprocess`() {
+    fun `documents reprocessFailed`() {
         fake.respondWith("""{"status":"ok","message":"Reprocessing started"}""")
         val svc = DocumentService(http)
-        val result = svc.reprocess("d1")
+        val result = svc.reprocessFailed()
         assertEquals("ok", result.status)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/documents/reprocess"))
     }
 
     @Test
@@ -1448,20 +1445,14 @@ class UnitTest {
 
     @Test
     fun `entities neighborhood`() {
-        fake.respondWith("""{"entity_name":"ALICE","neighbors":[{"name":"BOB","entity_type":"PERSON","relationship_type":"KNOWS","distance":1}],"depth":1}""")
+        fake.respondWith(
+            """{"nodes":[{"id":"ALICE","entity_type":"PERSON","degree":2},{"id":"BOB","entity_type":"PERSON","degree":1}],"edges":[{"id":"e1","source":"ALICE","target":"BOB","relation_type":"KNOWS"}]}"""
+        )
         val svc = EntityService(http)
         val result = svc.neighborhood("ALICE")
-        assertEquals("ALICE", result.entityName)
-        assertEquals(1, result.neighbors?.size)
-    }
-
-    @Test
-    fun `entities types`() {
-        fake.respondWith("""{"types":["PERSON","ORGANIZATION","CONCEPT"],"total":3}""")
-        val svc = EntityService(http)
-        val result = svc.types()
-        assertEquals(3, result.total)
-        assertTrue(result.types?.contains("PERSON") == true)
+        assertEquals("ALICE", result.nodes?.first()?.id)
+        assertEquals(1, result.edges?.size)
+        assertTrue(fake.lastRequest().uri.contains("neighborhood"))
     }
 
     // ── Relationship Extended Tests ──────────────────────────────────
@@ -1483,14 +1474,6 @@ class UnitTest {
     }
 
     @Test
-    fun `relationships types`() {
-        fake.respondWith("""{"types":["KNOWS","WORKS_WITH","LOCATED_IN"],"total":3}""")
-        val svc = RelationshipService(http)
-        val result = svc.types()
-        assertEquals(3, result.total)
-    }
-
-    @Test
     fun `relationships delete`() {
         fake.respondWith("")
         val svc = RelationshipService(http)
@@ -1501,36 +1484,28 @@ class UnitTest {
     // ── Graph Extended Tests ─────────────────────────────────────────
 
     @Test
-    fun `graph stats`() {
-        fake.respondWith("""{"node_count":100,"edge_count":200,"entity_count":50,"relationship_count":80}""")
-        val svc = GraphService(http)
-        val result = svc.stats()
-        assertEquals(100, result.nodeCount)
-        assertEquals(200, result.edgeCount)
-    }
-
-    @Test
     fun `graph labelSearch`() {
-        fake.respondWith("""{"labels":[{"label":"PERSON","count":25}],"total":1}""")
+        fake.respondWith("""{"labels":["PERSON","PERSON_NAME"]}""")
         val svc = GraphService(http)
-        val result = svc.labelSearch("PERSON")
-        assertEquals(1, result.total)
+        val result = svc.labelSearch("PER")
+        assertTrue(result.labels?.contains("PERSON") == true)
     }
 
     @Test
     fun `graph popularLabels`() {
-        fake.respondWith("""{"labels":[{"label":"PERSON","count":50},{"label":"ORG","count":30}]}""")
+        fake.respondWith("""{"labels":[{"label":"PERSON","degree":3,"entity_type":"x","description":""}],"total_entities":10}""")
         val svc = GraphService(http)
         val result = svc.popularLabels()
-        assertEquals(2, result.labels?.size)
+        assertEquals(1, result.labels?.size)
+        assertEquals(10, result.totalEntities)
     }
 
     @Test
     fun `graph batchDegrees`() {
-        fake.respondWith("""{"degrees":{"node1":5,"node2":3}}""")
+        fake.respondWith("""{"degrees":[{"node_id":"node1","degree":5},{"node_id":"node2","degree":3}],"count":2}""")
         val svc = GraphService(http)
         val result = svc.batchDegrees(listOf("node1", "node2"))
-        assertEquals(5, result.degrees?.get("node1"))
+        assertEquals(5, result.degrees?.firstOrNull { it.nodeId == "node1" }?.degree)
     }
 
     // ── Query Extended Tests ─────────────────────────────────────────
@@ -1705,14 +1680,18 @@ class UnitTest {
         val svc = ConversationService(http)
         val result = svc.update("c1", "Updated Title")
         assertEquals("Updated Title", result.title)
+        assertEquals("PATCH", fake.lastRequest().method)
     }
 
     @Test
     fun `conversations messages`() {
-        fake.respondWith("""{"messages":[{"id":"m1","role":"user","content":"Hi"}],"total":1}""")
+        fake.respondWith(
+            """{"items":[{"id":"m1","role":"user","content":"Hi"}],"pagination":{"total":1,"has_more":false}}"""
+        )
         val svc = ConversationService(http)
         val result = svc.messages("c1")
-        assertEquals(1, result.total)
+        assertEquals(1, result.items?.size)
+        assertEquals(1, result.pagination?.total)
     }
 
     @Test
@@ -1727,35 +1706,29 @@ class UnitTest {
     fun `conversations deleteMessage`() {
         fake.respondWith("")
         val svc = ConversationService(http)
-        svc.deleteMessage("c1", "m1")
-        assertTrue(fake.lastRequest().uri.contains("/api/v1/conversations/c1/messages/m1"))
-    }
-
-    @Test
-    fun `conversations search`() {
-        fake.respondWith("""[{"id":"c1","title":"Found Chat"}]""")
-        val svc = ConversationService(http)
-        val result = svc.search("test")
-        assertEquals("Found Chat", result.first().title)
+        svc.deleteMessage("m1")
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/messages/m1"))
     }
 
     @Test
     fun `conversations share`() {
-        fake.respondWith("""{"share_id":"s1","url":"https://share.test/s1"}""")
+        fake.respondWith("""{"share_id":"s1","share_url":"/api/v1/shared/s1"}""")
         val svc = ConversationService(http)
         val result = svc.share("c1")
         assertEquals("s1", result.shareId)
+        assertEquals("/api/v1/shared/s1", result.shareUrl)
+    }
+
+    @Test
+    fun `conversations unshare`() {
+        fake.respondWith("")
+        val svc = ConversationService(http)
+        svc.unshare("c1")
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/conversations/c1/share"))
+        assertEquals("DELETE", fake.lastRequest().method)
     }
 
     // ── Folder Extended Tests ────────────────────────────────────────
-
-    @Test
-    fun `folders get`() {
-        fake.respondWith("""{"id":"f1","name":"My Folder"}""")
-        val svc = FolderService(http)
-        val result = svc.get("f1")
-        assertEquals("My Folder", result.name)
-    }
 
     @Test
     fun `folders update`() {
@@ -1763,22 +1736,7 @@ class UnitTest {
         val svc = FolderService(http)
         val result = svc.update("f1", "Renamed")
         assertEquals("Renamed", result.name)
-    }
-
-    @Test
-    fun `folders moveConversation`() {
-        fake.respondWith("""{"status":"ok"}""")
-        val svc = FolderService(http)
-        val result = svc.moveConversation("f1", "c1")
-        assertEquals("ok", result.status)
-    }
-
-    @Test
-    fun `folders conversations`() {
-        fake.respondWith("""{"folder_id":"f1","conversations":[{"id":"c1","title":"Chat"}],"total":1}""")
-        val svc = FolderService(http)
-        val result = svc.conversations("f1")
-        assertEquals(1, result.total)
+        assertEquals("PATCH", fake.lastRequest().method)
     }
 
     // ── Task Extended Tests ──────────────────────────────────────────
@@ -1913,8 +1871,9 @@ class UnitTest {
     fun `workspaces create`() {
         fake.respondWith("""{"id":"w-new","name":"NewWS","slug":"newws"}""")
         val svc = WorkspaceService(http)
-        val result = svc.create("NewWS", "newws")
+        val result = svc.create("t1", "NewWS", "newws")
         assertEquals("NewWS", result.name)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/tenants/t1/workspaces"))
     }
 
     @Test
@@ -1942,19 +1901,12 @@ class UnitTest {
     }
 
     @Test
-    fun `workspaces switch`() {
-        fake.respondWith("""{"status":"ok"}""")
-        val svc = WorkspaceService(http)
-        val result = svc.switch("w2")
-        assertEquals("ok", result.status)
-    }
-
-    @Test
-    fun `workspaces rebuild`() {
+    fun `workspaces rebuildEmbeddings`() {
         fake.respondWith("""{"status":"rebuilding"}""")
         val svc = WorkspaceService(http)
-        val result = svc.rebuild("w1")
+        val result = svc.rebuildEmbeddings("w1")
         assertEquals("rebuilding", result.status)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/workspaces/w1/rebuild-embeddings"))
     }
 
     // ── Cost Extended Tests ──────────────────────────────────────────
@@ -2018,43 +1970,12 @@ class UnitTest {
     // ── Shared Service Tests ─────────────────────────────────────────
 
     @Test
-    fun `shared createLink`() {
-        fake.respondWith("""{"share_id":"s1","conversation_id":"c1","url":"https://share.test/s1"}""")
-        val svc = SharedService(http)
-        val result = svc.createLink("c1")
-        assertEquals("s1", result.shareId)
-    }
-
-    @Test
-    fun `shared getLink`() {
-        fake.respondWith("""{"share_id":"s1","conversation_id":"c1","access_count":10}""")
-        val svc = SharedService(http)
-        val result = svc.getLink("s1")
-        assertEquals(10, result.accessCount)
-    }
-
-    @Test
-    fun `shared deleteLink`() {
-        fake.respondWith("")
-        val svc = SharedService(http)
-        svc.deleteLink("s1")
-        assertTrue(fake.lastRequest().uri.contains("/api/v1/shared/s1"))
-    }
-
-    @Test
-    fun `shared access`() {
+    fun `shared get`() {
         fake.respondWith("""{"conversation":{"id":"c1","title":"Shared Chat"},"messages":[]}""")
         val svc = SharedService(http)
-        val result = svc.access("s1")
+        val result = svc.get("s1")
         assertEquals("Shared Chat", result.conversation?.title)
-    }
-
-    @Test
-    fun `shared listLinks`() {
-        fake.respondWith("""{"links":[{"share_id":"s1"},{"share_id":"s2"}],"total":2}""")
-        val svc = SharedService(http)
-        val result = svc.listLinks()
-        assertEquals(2, result.total)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/shared/s1"))
     }
 
     // ── New Model Type Tests ─────────────────────────────────────────
@@ -2079,8 +2000,12 @@ class UnitTest {
 
     @Test
     fun `EntityNeighborhoodResponse fields`() {
-        val e = EntityNeighborhoodResponse(entityName = "ALICE", neighbors = emptyList(), depth = 2)
-        assertEquals(2, e.depth)
+        val e = EntityNeighborhoodResponse(
+            nodes = listOf(NeighborhoodNode(id = "n1", entityType = "PERSON")),
+            edges = listOf(NeighborhoodEdge(id = "e1", source = "n1", target = "n2"))
+        )
+        assertEquals("n1", e.nodes?.first()?.id)
+        assertEquals("e1", e.edges?.first()?.id)
     }
 
     @Test
@@ -2108,9 +2033,10 @@ class UnitTest {
     }
 
     @Test
-    fun `SharedLinkResponse fields`() {
-        val s = SharedLinkResponse(shareId = "s1", url = "https://test.com/s1", accessCount = 5)
-        assertEquals(5, s.accessCount)
+    fun `ShareLinkResponse fields`() {
+        val s = ShareLinkResponse(shareId = "s1", shareUrl = "/api/v1/shared/s1")
+        assertEquals("s1", s.shareId)
+        assertEquals("/api/v1/shared/s1", s.shareUrl)
     }
 
     // ── Client Service Availability ──────────────────────────────────
@@ -2272,15 +2198,6 @@ class UnitTest {
     }
 
     @Test
-    fun `relationships types OODA-49`() {
-        fake.respondWith("""{"types":["WORKS_AT","KNOWS","COLLABORATES"],"total":3}""")
-        val svc = RelationshipService(http)
-        val result = svc.types()
-        assertEquals(3, result.total)
-        assertTrue(result.types?.contains("KNOWS") == true)
-    }
-
-    @Test
     fun `users list empty OODA-49`() {
         fake.respondWith("""{"users":[]}""")
         val svc = UserService(http)
@@ -2294,15 +2211,6 @@ class UnitTest {
         val svc = TenantService(http)
         val result = svc.get("t1")
         assertEquals("Test Tenant", result.name)
-    }
-
-    @Test
-    fun `graph stats OODA-49`() {
-        fake.respondWith("""{"node_count":500,"edge_count":1200}""")
-        val svc = GraphService(http)
-        val result = svc.stats()
-        assertEquals(500, result.nodeCount)
-        assertEquals(1200, result.edgeCount)
     }
 
     @Test
@@ -2323,10 +2231,11 @@ class UnitTest {
 
     @Test
     fun `workspaces list OODA-49`() {
-        fake.respondWith("""[{"id":"w1","name":"Default","slug":"default"}]""")
+        fake.respondWith("""{"items":[{"id":"w1","name":"Default","slug":"default"}],"total":1}""")
         val svc = WorkspaceService(http)
-        val result = svc.list()
+        val result = svc.list("00000000-0000-0000-0000-000000000002")
         assertEquals(1, result.size)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/tenants/00000000-0000-0000-0000-000000000002/workspaces"))
     }
 
     @Test
@@ -2407,17 +2316,18 @@ class UnitTest {
 
     @Test
     fun `graph popular labels OODA-49`() {
-        fake.respondWith("""{"labels":[{"name":"PERSON","count":50}]}""")
+        fake.respondWith("""{"labels":[{"label":"PERSON","degree":50,"entity_type":"PERSON","description":""}],"total_entities":100}""")
         val svc = GraphService(http)
         val result = svc.popularLabels(10)
         assertTrue(result.labels?.isNotEmpty() == true)
     }
 
     @Test
-    fun `shared listLinks empty OODA-49`() {
-        fake.respondWith("""{"links":[],"total":0}""")
+    fun `shared get empty messages OODA-49`() {
+        fake.respondWith("""{"conversation":{"id":"c1","title":"Public"},"messages":[]}""")
         val svc = SharedService(http)
-        val result = svc.listLinks()
-        assertEquals(0, result.total)
+        val result = svc.get("s-empty")
+        assertTrue(result.messages?.isEmpty() == true)
+        assertTrue(fake.lastRequest().uri.contains("/api/v1/shared/s-empty"))
     }
 }

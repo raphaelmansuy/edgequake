@@ -16,7 +16,7 @@ public class RelationshipService {
     public RelationshipListResponse list(int page, int perPage) {
         Map<String, String> params = new LinkedHashMap<>();
         if (page > 0) params.put("page", String.valueOf(page));
-        if (perPage > 0) params.put("per_page", String.valueOf(perPage));
+        if (perPage > 0) params.put("page_size", String.valueOf(perPage));
         return http.get("/api/v1/graph/relationships", params, RelationshipListResponse.class);
     }
 
@@ -34,10 +34,5 @@ public class RelationshipService {
     /** Delete relationship by ID. */
     public void delete(String id) {
         http.delete("/api/v1/graph/relationships/" + id);
-    }
-
-    /** Get all relationship types. */
-    public RelationshipTypesResponse types() {
-        return http.get("/api/v1/graph/relationships/types", null, RelationshipTypesResponse.class);
     }
 }

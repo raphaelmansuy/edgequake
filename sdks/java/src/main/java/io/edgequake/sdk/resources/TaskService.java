@@ -17,7 +17,7 @@ public class TaskService {
         Map<String, String> params = new LinkedHashMap<>();
         if (status != null && !status.isEmpty()) params.put("status", status);
         if (page > 0) params.put("page", String.valueOf(page));
-        if (perPage > 0) params.put("per_page", String.valueOf(perPage));
+        if (perPage > 0) params.put("page_size", String.valueOf(perPage));
         return http.get("/api/v1/tasks", params, TaskListResponse.class);
     }
 

@@ -22,12 +22,12 @@ from edgequake.types.operations import (
     CostEstimateRequest,
     CostEstimateResponse,
     CostSummary,
+    EntityProvenanceResponse,
     LineageGraph,
     ModelDetail,
     ModelInfo,
     ModelPricing,
     PipelineStatus,
-    ProvenanceRecord,
     ProviderDetail,
     ProvidersHealth,
     ProviderStatus,
@@ -168,6 +168,55 @@ class WorkspacesResource(SyncResource):
         return self._post(
             f"/api/v1/workspaces/{workspace_id}/reprocess-documents",
             response_type=RebuildResponse,
+        )
+
+    def put_injection(
+        self, workspace_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """PUT /api/v1/workspaces/{workspace_id}/injection"""
+        return self._put(
+            f"/api/v1/workspaces/{workspace_id}/injection",
+            json=body,
+        )
+
+    def put_injection_file(
+        self,
+        workspace_id: str,
+        *,
+        name: str,
+        file: Any,
+        filename: str | None = None,
+    ) -> dict[str, Any]:
+        """PUT /api/v1/workspaces/{workspace_id}/injection/file (multipart)."""
+        response = self._transport.put_upload(
+            f"/api/v1/workspaces/{workspace_id}/injection/file",
+            file=file,
+            filename=filename,
+            metadata={"name": name},
+        )
+        return response.json()
+
+    def list_injections(self, workspace_id: str) -> dict[str, Any]:
+        return self._get(f"/api/v1/workspaces/{workspace_id}/injections")
+
+    def get_injection(self, workspace_id: str, injection_id: str) -> dict[str, Any]:
+        return self._get(
+            f"/api/v1/workspaces/{workspace_id}/injections/{injection_id}"
+        )
+
+    def patch_injection(
+        self, workspace_id: str, injection_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        response = self._transport.request(
+            "PATCH",
+            f"/api/v1/workspaces/{workspace_id}/injections/{injection_id}",
+            json=body,
+        )
+        return response.json()
+
+    def delete_injection(self, workspace_id: str, injection_id: str) -> None:
+        self._delete(
+            f"/api/v1/workspaces/{workspace_id}/injections/{injection_id}"
         )
 
 
@@ -349,18 +398,15 @@ class ChunksResource(SyncResource):
 class ProvenanceResource(SyncResource):
     """Entity provenance operations."""
 
-    def get(self, entity_id: str) -> _list[ProvenanceRecord]:
+    def get(self, entity_id: str) -> EntityProvenanceResponse:
         """Get entity provenance.
 
         GET /api/v1/entities/{entity_id}/provenance
         """
-        data = self._get(f"/api/v1/entities/{entity_id}/provenance")
-        if isinstance(data, list):
-            return [ProvenanceRecord.model_validate(r) for r in data]
-        items = (
-            data.get("records", data.get("items", [])) if isinstance(data, dict) else []
+        return self._get(
+            f"/api/v1/entities/{entity_id}/provenance",
+            response_type=EntityProvenanceResponse,
         )
-        return [ProvenanceRecord.model_validate(r) for r in items]
 
 
 class SettingsResource(SyncResource):
@@ -465,7 +511,7 @@ class ModelsResource(SyncResource):
 
 
 class AsyncWorkspacesResource(AsyncResource):
-    """Async workspace management."""
+    """Async workspace management (parity with WorkspacesResource)."""
 
     async def create(self, tenant_id: str, workspace: WorkspaceCreate) -> WorkspaceInfo:
         return await self._post(
@@ -491,6 +537,12 @@ class AsyncWorkspacesResource(AsyncResource):
             response_type=WorkspaceDetail,
         )
 
+    async def get_by_slug(self, tenant_id: str, slug: str) -> WorkspaceInfo:
+        return await self._get(
+            f"/api/v1/tenants/{tenant_id}/workspaces/by-slug/{slug}",
+            response_type=WorkspaceInfo,
+        )
+
     async def update(self, workspace_id: str, update: WorkspaceUpdate) -> WorkspaceInfo:
         return await self._put(
             f"/api/v1/workspaces/{workspace_id}",
@@ -505,6 +557,84 @@ class AsyncWorkspacesResource(AsyncResource):
         return await self._get(
             f"/api/v1/workspaces/{workspace_id}/stats",
             response_type=WorkspaceStats,
+        )
+
+    async def metrics_history(self, workspace_id: str) -> MetricsHistoryResponse:
+        return await self._get(
+            f"/api/v1/workspaces/{workspace_id}/metrics-history",
+            response_type=MetricsHistoryResponse,
+        )
+
+    async def trigger_metrics_snapshot(self, workspace_id: str) -> dict[str, Any]:
+        return await self._post(
+            f"/api/v1/workspaces/{workspace_id}/metrics-snapshot"
+        )
+
+    async def rebuild_embeddings(self, workspace_id: str) -> RebuildResponse:
+        return await self._post(
+            f"/api/v1/workspaces/{workspace_id}/rebuild-embeddings",
+            response_type=RebuildResponse,
+        )
+
+    async def rebuild_knowledge_graph(self, workspace_id: str) -> RebuildResponse:
+        return await self._post(
+            f"/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph",
+            response_type=RebuildResponse,
+        )
+
+    async def reprocess_documents(self, workspace_id: str) -> RebuildResponse:
+        return await self._post(
+            f"/api/v1/workspaces/{workspace_id}/reprocess-documents",
+            response_type=RebuildResponse,
+        )
+
+    async def put_injection(
+        self, workspace_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        return await self._put(
+            f"/api/v1/workspaces/{workspace_id}/injection",
+            json=body,
+        )
+
+    async def put_injection_file(
+        self,
+        workspace_id: str,
+        *,
+        name: str,
+        file: Any,
+        filename: str | None = None,
+    ) -> dict[str, Any]:
+        response = await self._transport.put_upload(
+            f"/api/v1/workspaces/{workspace_id}/injection/file",
+            file=file,
+            filename=filename,
+            metadata={"name": name},
+        )
+        return response.json()
+
+    async def list_injections(self, workspace_id: str) -> dict[str, Any]:
+        return await self._get(f"/api/v1/workspaces/{workspace_id}/injections")
+
+    async def get_injection(
+        self, workspace_id: str, injection_id: str
+    ) -> dict[str, Any]:
+        return await self._get(
+            f"/api/v1/workspaces/{workspace_id}/injections/{injection_id}"
+        )
+
+    async def patch_injection(
+        self, workspace_id: str, injection_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        response = await self._transport.request(
+            "PATCH",
+            f"/api/v1/workspaces/{workspace_id}/injections/{injection_id}",
+            json=body,
+        )
+        return response.json()
+
+    async def delete_injection(self, workspace_id: str, injection_id: str) -> None:
+        await self._delete(
+            f"/api/v1/workspaces/{workspace_id}/injections/{injection_id}"
         )
 
 
@@ -558,6 +688,14 @@ class AsyncCostsResource(AsyncResource):
 
     async def budget(self) -> BudgetInfo:
         return await self._get("/api/v1/costs/budget", response_type=BudgetInfo)
+
+    async def update_budget(self, update: BudgetUpdate) -> BudgetInfo:
+        response = await self._transport.request(
+            "PATCH",
+            "/api/v1/costs/budget",
+            json=update.model_dump(exclude_none=True),
+        )
+        return BudgetInfo.model_validate(response.json())
 
 
 class AsyncLineageResource(AsyncResource):
@@ -619,18 +757,15 @@ class AsyncChunksResource(AsyncResource):
 class AsyncProvenanceResource(AsyncResource):
     """Async entity provenance operations."""
 
-    async def get(self, entity_id: str) -> _list[ProvenanceRecord]:
+    async def get(self, entity_id: str) -> EntityProvenanceResponse:
         """Get entity provenance.
 
         GET /api/v1/entities/{entity_id}/provenance
         """
-        data = await self._get(f"/api/v1/entities/{entity_id}/provenance")
-        if isinstance(data, list):
-            return [ProvenanceRecord.model_validate(r) for r in data]
-        items = (
-            data.get("records", data.get("items", [])) if isinstance(data, dict) else []
+        return await self._get(
+            f"/api/v1/entities/{entity_id}/provenance",
+            response_type=EntityProvenanceResponse,
         )
-        return [ProvenanceRecord.model_validate(r) for r in items]
 
 
 class AsyncModelsResource(AsyncResource):

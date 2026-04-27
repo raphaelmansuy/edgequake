@@ -64,4 +64,61 @@ export class WorkspacesResource extends Resource {
   async reprocessDocuments(workspaceId: string): Promise<void> {
     await this._post(`/api/v1/workspaces/${workspaceId}/reprocess-documents`);
   }
+
+  /** Create or update a knowledge injection (text). */
+  async putInjection(
+    workspaceId: string,
+    body: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    return this._put(`/api/v1/workspaces/${workspaceId}/injection`, body);
+  }
+
+  /** Upload injection file (multipart). */
+  async putInjectionFile(
+    workspaceId: string,
+    name: string,
+    file: File | Blob,
+  ): Promise<Record<string, unknown>> {
+    return this.transport.upload(
+      `/api/v1/workspaces/${workspaceId}/injection/file`,
+      file,
+      { name },
+      { method: "PUT" },
+    );
+  }
+
+  async listInjections(
+    workspaceId: string,
+  ): Promise<Record<string, unknown>> {
+    return this._get(`/api/v1/workspaces/${workspaceId}/injections`);
+  }
+
+  async getInjection(
+    workspaceId: string,
+    injectionId: string,
+  ): Promise<Record<string, unknown>> {
+    return this._get(
+      `/api/v1/workspaces/${workspaceId}/injections/${injectionId}`,
+    );
+  }
+
+  async patchInjection(
+    workspaceId: string,
+    injectionId: string,
+    body: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    return this._patch(
+      `/api/v1/workspaces/${workspaceId}/injections/${injectionId}`,
+      body,
+    );
+  }
+
+  async deleteInjection(
+    workspaceId: string,
+    injectionId: string,
+  ): Promise<void> {
+    await this._del(
+      `/api/v1/workspaces/${workspaceId}/injections/${injectionId}`,
+    );
+  }
 }

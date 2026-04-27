@@ -31,13 +31,6 @@ public class GraphService {
         return http.get("/api/v1/graph/nodes/search", params, SearchNodesResponse.class);
     }
 
-    // ── OODA-38: Added missing graph methods ─────────────────────────
-
-    /** Get graph statistics. */
-    public GraphStatsResponse stats() {
-        return http.get("/api/v1/graph/stats", null, GraphStatsResponse.class);
-    }
-
     /** Search labels. */
     public LabelSearchResponse labelSearch(String query) {
         Map<String, String> params = new LinkedHashMap<>();
@@ -55,10 +48,5 @@ public class GraphService {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("node_ids", nodeIds);
         return http.post("/api/v1/graph/degrees/batch", body, BatchDegreesResponse.class);
-    }
-
-    /** Clear the graph. */
-    public void clear() {
-        http.delete("/api/v1/graph");
     }
 }

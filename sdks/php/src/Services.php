@@ -46,6 +46,12 @@ class DocumentService
         return $this->http->delete('/api/v1/documents');
     }
 
+    public function track(string $trackId): array
+    {
+        $encoded = rawurlencode($trackId);
+        return $this->http->get("/api/v1/documents/track/{$encoded}");
+    }
+
     public function reprocess(): array
     {
         return $this->http->post('/api/v1/documents/reprocess');
@@ -66,48 +72,36 @@ class DocumentService
         return $this->http->get("/api/v1/documents/{$id}/failed-chunks");
     }
 
-    // OODA-39: Additional document methods.
-
-    /** Get document chunks with pagination. */
-    public function chunks(string $id, int $page = 1, int $pageSize = 20): array
-    {
-        return $this->http->get("/api/v1/documents/{$id}/chunks?page={$page}&page_size={$pageSize}");
-    }
-
-    /** Get document processing status. */
-    public function status(string $id): array
-    {
-        return $this->http->get("/api/v1/documents/{$id}/status");
-    }
-
-    /** Get document metadata. */
+    /** Get document metadata (GET only; no PATCH in routes.rs). */
     public function getMetadata(string $id): array
     {
         return $this->http->get("/api/v1/documents/{$id}/metadata");
     }
 
-    /** Update document metadata. */
-    public function setMetadata(string $id, array $metadata): array
-    {
-        return $this->http->patch("/api/v1/documents/{$id}/metadata", ['metadata' => $metadata]);
-    }
-
-    /** Upload PDF document. */
+    /** Upload PDF (multipart). Canonical: POST /api/v1/documents/pdf */
     public function uploadPdf(string $filePath, ?string $title = null): array
     {
-        return $this->http->upload('/api/v1/documents/pdf/upload', $filePath, 'file', $title ? ['title' => $title] : []);
+        return $this->http->upload('/api/v1/documents/pdf', $filePath, 'file', $title ? ['title' => $title] : []);
     }
 
-    /** Get PDF extraction status. */
-    public function pdfStatus(string $id): array
+    /** PDF job status: GET /api/v1/documents/pdf/{pdf_id} */
+    public function pdfStatus(string $pdfId): array
     {
-        return $this->http->get("/api/v1/documents/pdf/{$id}/status");
+        $encoded = rawurlencode($pdfId);
+        return $this->http->get("/api/v1/documents/pdf/{$encoded}");
     }
 
-    /** Download extracted PDF markdown. */
-    public function pdfDownload(string $id): string
+    /** PDF progress by track id: GET /api/v1/documents/pdf/progress/{track_id} */
+    public function pdfProgress(string $trackId): array
     {
-        return $this->http->getRaw("/api/v1/documents/pdf/{$id}/download");
+        $encoded = rawurlencode($trackId);
+        return $this->http->get("/api/v1/documents/pdf/progress/{$encoded}");
+    }
+
+    public function pdfDownload(string $pdfId): string
+    {
+        $encoded = rawurlencode($pdfId);
+        return $this->http->getRaw("/api/v1/documents/pdf/{$encoded}/download");
     }
 }
 
@@ -158,12 +152,10 @@ class EntityService
         return $this->http->get("/api/v1/graph/entities/{$encoded}/neighborhood?depth={$depth}");
     }
 
-    // OODA-39: Get available entity types.
-
-    /** Get list of entity types. */
-    public function types(): array
+    public function exists(string $entityName): array
     {
-        return $this->http->get('/api/v1/graph/entities/types');
+        $q = rawurlencode($entityName);
+        return $this->http->get("/api/v1/graph/entities/exists?entity_name={$q}");
     }
 }
 
@@ -174,6 +166,33 @@ class RelationshipService
     public function list(int $page = 1, int $pageSize = 20): array
     {
         return $this->http->get("/api/v1/graph/relationships?page={$page}&page_size={$pageSize}");
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function create(
+        string $srcId,
+        string $tgtId,
+        string $keywords,
+        string $description,
+        string $sourceId = 'manual_entry',
+        float $weight = 0.8,
+        array $metadata = [],
+    ): array {
+        $body = [
+            'src_id' => $srcId,
+            'tgt_id' => $tgtId,
+            'keywords' => $keywords,
+            'description' => $description,
+            'source_id' => $sourceId,
+            'weight' => $weight,
+        ];
+        if ($metadata !== []) {
+            $body['metadata'] = $metadata;
+        }
+
+        return $this->http->post('/api/v1/graph/relationships', $body);
     }
 
     public function get(string $id): array
@@ -192,14 +211,6 @@ class RelationshipService
     {
         $encoded = rawurlencode($id);
         return $this->http->delete("/api/v1/graph/relationships/{$encoded}");
-    }
-
-    // OODA-39: Get relationship types.
-
-    /** Get list of relationship types. */
-    public function types(): array
-    {
-        return $this->http->get('/api/v1/graph/relationships/types');
     }
 }
 
@@ -238,20 +249,6 @@ class GraphService
     public function degreesBatch(array $nodeIds): array
     {
         return $this->http->post('/api/v1/graph/degrees/batch', ['node_ids' => $nodeIds]);
-    }
-
-    // OODA-39: Additional graph methods.
-
-    /** Get graph statistics. */
-    public function stats(): array
-    {
-        return $this->http->get('/api/v1/graph/stats');
-    }
-
-    /** Clear all graph data. */
-    public function clear(): array
-    {
-        return $this->http->post('/api/v1/graph/clear');
     }
 }
 
@@ -326,8 +323,7 @@ class UserService
     {
         return $this->http->post('/api/v1/users', ['username' => $username, 'email' => $email]);
     }
-    // OODA-39: Update user.
-    public function update(string $id, array $data): array { return $this->http->put("/api/v1/users/{$id}", $data); }
+
     public function delete(string $id): array { return $this->http->delete("/api/v1/users/{$id}"); }
 }
 
@@ -337,7 +333,9 @@ class ApiKeyService
     public function list(): array { return $this->http->get('/api/v1/api-keys'); }
     public function create(string $name): array { return $this->http->post('/api/v1/api-keys', ['name' => $name]); }
     public function delete(string $id): array { return $this->http->delete("/api/v1/api-keys/{$id}"); }
-    public function revoke(string $id): array { return $this->http->post("/api/v1/api-keys/{$id}/revoke"); }
+
+    /** Alias for delete(); API revokes via DELETE /api/v1/api-keys/{key_id} */
+    public function revoke(string $id): array { return $this->delete($id); }
 }
 
 class TaskService
@@ -510,18 +508,20 @@ class ConversationService
 
     // OODA-39: Update and delete messages.
 
-    /** Update a message in conversation. */
+    /** Update a message — canonical: PATCH /api/v1/messages/{message_id} */
     public function updateMessage(string $id, string $messageId, string $content): array
     {
-        return $this->http->patch("/api/v1/conversations/{$id}/messages/{$messageId}", [
+        $m = rawurlencode($messageId);
+        return $this->http->patch("/api/v1/messages/{$m}", [
             'content' => $content,
         ]);
     }
 
-    /** Delete a message from conversation. */
+    /** Delete a message — canonical: DELETE /api/v1/messages/{message_id} */
     public function deleteMessage(string $id, string $messageId): array
     {
-        return $this->http->delete("/api/v1/conversations/{$id}/messages/{$messageId}");
+        $m = rawurlencode($messageId);
+        return $this->http->delete("/api/v1/messages/{$m}");
     }
 
     public function bulkArchive(array $ids): array

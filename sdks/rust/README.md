@@ -80,22 +80,22 @@ println!("{} v{}", health.status, health.version.unwrap_or_default());
 ### Documents
 
 ```rust
+use edgequake_sdk::types::documents::UploadDocumentRequest;
+
 // List documents
 let docs = client.documents().list().await?;
 
 // Get document by ID
 let doc = client.documents().get("doc-id").await?;
 
-// Upload text content
-let body = serde_json::json!({"content": "hello", "title": "test"});
-let result = client.documents().upload_text(&body).await?;
+// Upload text content (`POST /api/v1/documents`)
+let mut up = UploadDocumentRequest::text("hello");
+up.title = Some("test".into());
+let result = client.documents().upload(&up).await?;
 
 // Track processing status
 let status = client.documents().track("track-id").await?;
-println!("progress: {}", status.progress);
-
-// Status check
-let s = client.documents().status("doc-id").await?;
+println!("progress: {:?}", status.progress);
 
 // Delete document
 client.documents().delete("doc-id").await?;
@@ -263,7 +263,8 @@ client.tenants().delete("tenant-id").await?;
 ```rust
 use edgequake_sdk::types::conversations::*;
 
-let convos = client.conversations().list().await?;
+let page = client.conversations().list().await?;
+println!("{} conversations", page.items.len());
 
 let convo = client.conversations().create(&CreateConversationRequest {
     title: Some("Discussion".into()),
@@ -271,11 +272,14 @@ let convo = client.conversations().create(&CreateConversationRequest {
 }).await?;
 
 let detail = client.conversations().get("conv-id").await?;
+println!("title: {:?}", detail.conversation.title);
 
 // Send a message
 let msg = client.conversations().create_message("conv-id", &CreateMessageRequest {
     role: "user".into(),
     content: "Hello!".into(),
+    parent_id: None,
+    stream: None,
 }).await?;
 
 // Share conversation
@@ -283,6 +287,7 @@ let share = client.conversations().share("conv-id").await?;
 
 // Bulk delete
 let result = client.conversations().bulk_delete(&["c1".into(), "c2".into()]).await?;
+println!("affected: {}", result.affected);
 
 // Pin/unpin
 client.conversations().pin("conv-id").await?;
@@ -336,14 +341,15 @@ let budget = client.costs().budget().await?;
 ### Chunks
 
 ```rust
-let chunks = client.chunks().list("doc-id").await?;
+// Chunk detail and chunk lineage only (no document chunk listing in API)
 let chunk = client.chunks().get("chunk-id").await?;
+let chunk_lineage = client.chunks().get_lineage("chunk-id").await?;
 ```
 
 ### Provenance
 
 ```rust
-let records = client.provenance().for_entity("ALICE").await?;
+let prov = client.provenance().for_entity("ALICE").await?;
 let lineage = client.provenance().lineage("ALICE").await?;
 ```
 
@@ -353,7 +359,7 @@ let lineage = client.provenance().lineage("ALICE").await?;
 let catalog = client.models().list().await?;
 let provider = client.models().current_provider().await?;
 let health = client.models().providers_health().await?;
-let status = client.models().set_provider("ollama").await?;
+let llm = client.models().list_llm().await?;
 ```
 
 ### Workspaces
@@ -370,6 +376,19 @@ let ws = client.workspaces().create("tenant-id", &CreateWorkspaceRequest {
 }).await?;
 
 let stats = client.workspaces().stats("ws-id").await?;
+```
+
+### Admin
+
+```rust
+let updated = client.admin().patch_tenant_quota("tenant-id", 10).await?;
+let defaults = client.admin().get_server_defaults().await?;
+```
+
+### Effective configuration
+
+```rust
+let cfg = client.effective_config().get().await?;
 ```
 
 ### PDF

@@ -26,14 +26,6 @@ impl<'a> ModelsResource<'a> {
         self.client.get("/api/v1/settings/provider/status").await
     }
 
-    /// `PUT /api/v1/settings/provider`
-    pub async fn set_provider(&self, provider: &str) -> Result<ProviderStatus> {
-        let body = serde_json::json!({ "provider": provider });
-        self.client
-            .put("/api/v1/settings/provider", Some(&body))
-            .await
-    }
-
     /// `GET /api/v1/models/llm` — List LLM models only.
     pub async fn list_llm(&self) -> Result<serde_json::Value> {
         self.client.get("/api/v1/models/llm").await

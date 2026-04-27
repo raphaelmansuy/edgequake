@@ -33,7 +33,10 @@ lightrag.log*
 logs/
 /.playwright-mcp
 archive/
-specs/
+# Curated specs under specs/009-skd-update are tracked; ignore other local spec drafts.
+/specs/*
+!/specs/009-skd-update/
+!/specs/009-skd-update/**
 logf/
 zz_test_docs/
 zz-explore/
@@ -131,6 +134,5 @@ edgequake-website/
 # OS files
 Thumbs.db
 ehthumbs.db
-specs/
 ./metals
 .edgecrab-artifacts/

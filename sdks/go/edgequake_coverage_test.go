@@ -1383,14 +1383,14 @@ func TestConversations_BulkDelete_Body(t *testing.T) {
 	srv := routedServer(t, func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(b, &gotBody)
-		jsonOK(w, edgequake.BulkDeleteResponse{DeletedCount: 2})
+		jsonOK(w, edgequake.BulkDeleteResponse{Affected: 2})
 	})
 	defer srv.Close()
 	c := edgequake.NewClient(edgequake.WithBaseURL(srv.URL))
 	_, _ = c.Conversations.BulkDelete(context.Background(), []string{"c1", "c2"})
-	ids, ok := gotBody["ids"].([]interface{})
+	ids, ok := gotBody["conversation_ids"].([]interface{})
 	if !ok || len(ids) != 2 {
-		t.Fatalf("expected 2 ids, got %v", gotBody["ids"])
+		t.Fatalf("expected 2 conversation_ids, got %v", gotBody["conversation_ids"])
 	}
 }
 

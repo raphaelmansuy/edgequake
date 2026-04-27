@@ -16,11 +16,11 @@ from edgequake.types.operations import (
     CostEntry,
     CostEstimateResponse,
     CostSummary,
+    EntityProvenanceResponse,
     LineageGraph,
     ModelDetail,
     ModelInfo,
     PipelineStatus,
-    ProvenanceRecord,
     ProviderDetail,
     ProvidersHealth,
     ProviderStatus,
@@ -487,33 +487,42 @@ class TestProvenanceResource:
     @patch("edgequake._transport.SyncTransport.request")
     def test_get(self, mock_req: MagicMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = [
-            {
-                "chunk_id": "chunk-1",
-                "document_id": "doc-1",
-                "extraction_method": "llm",
-            }
-        ]
-        mock_req.return_value = mock_resp
-
-        client = EdgeQuake()
-        result = client.provenance.get("ent-1")
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert isinstance(result[0], ProvenanceRecord)
-        client.close()
-
-    @patch("edgequake._transport.SyncTransport.request")
-    def test_get_dict_response(self, mock_req: MagicMock) -> None:
-        mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "records": [{"chunk_id": "c1", "document_id": "d1"}]
+            "entity_id": "ent-1",
+            "entity_name": "ALICE",
+            "entity_type": "person",
+            "sources": [
+                {
+                    "document_id": "doc-1",
+                    "chunks": [{"chunk_id": "chunk-1"}],
+                }
+            ],
+            "total_extraction_count": 1,
+            "related_entities": [],
         }
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
         result = client.provenance.get("ent-1")
-        assert len(result) == 1
+        assert isinstance(result, EntityProvenanceResponse)
+        assert result.entity_name == "ALICE"
+        assert len(result.sources) == 1
+        client.close()
+
+    @patch("edgequake._transport.SyncTransport.request")
+    def test_get_minimal(self, mock_req: MagicMock) -> None:
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "entity_id": "e1",
+            "entity_name": "BOB",
+            "entity_type": "person",
+        }
+        mock_req.return_value = mock_resp
+
+        client = EdgeQuake()
+        result = client.provenance.get("ent-1")
+        assert isinstance(result, EntityProvenanceResponse)
+        assert result.entity_name == "BOB"
         client.close()
 
 
@@ -948,24 +957,35 @@ class TestAsyncProvenanceResource:
     @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
     async def test_get(self, mock_req: AsyncMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = [{"chunk_id": "c-1", "document_id": "d-1"}]
+        mock_resp.json.return_value = {
+            "entity_id": "e-1",
+            "entity_name": "ALICE",
+            "entity_type": "person",
+            "sources": [{"document_id": "d-1", "chunks": [{"chunk_id": "c-1"}]}],
+            "total_extraction_count": 1,
+            "related_entities": [],
+        }
         mock_req.return_value = mock_resp
 
         client = AsyncEdgeQuake()
         result = await client.provenance.get("e-1")
-        assert len(result) == 1
-        assert isinstance(result[0], ProvenanceRecord)
+        assert isinstance(result, EntityProvenanceResponse)
+        assert result.entity_name == "ALICE"
 
     @pytest.mark.asyncio
     @patch("edgequake._transport.AsyncTransport.request", new_callable=AsyncMock)
-    async def test_get_dict_response(self, mock_req: AsyncMock) -> None:
+    async def test_get_minimal(self, mock_req: AsyncMock) -> None:
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"records": [{"chunk_id": "c-1"}]}
+        mock_resp.json.return_value = {
+            "entity_id": "e-1",
+            "entity_name": "BOB",
+            "entity_type": "person",
+        }
         mock_req.return_value = mock_resp
 
         client = AsyncEdgeQuake()
         result = await client.provenance.get("e-1")
-        assert len(result) == 1
+        assert isinstance(result, EntityProvenanceResponse)
 
 
 class TestAsyncModelsResource:
@@ -1160,35 +1180,54 @@ class TestAsyncModelsExtended:
 
 
 class TestProvenanceEdgeCases:
-    """WHY: Provenance edge cases — empty results, multiple records."""
+    """WHY: Provenance edge cases — empty sources, many chunks."""
 
     @patch("edgequake._transport.SyncTransport.request")
     def test_empty_provenance(self, mock_req: MagicMock) -> None:
-        """WHY: Entity may have no provenance records."""
+        """WHY: Entity may have no source documents yet."""
         mock_resp = MagicMock()
-        mock_resp.json.return_value = []
+        mock_resp.json.return_value = {
+            "entity_id": "x",
+            "entity_name": "NONE",
+            "entity_type": "concept",
+            "sources": [],
+            "total_extraction_count": 0,
+            "related_entities": [],
+        }
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
         result = client.provenance.get("nonexistent")
-        assert result == []
+        assert isinstance(result, EntityProvenanceResponse)
+        assert result.sources == []
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
     def test_multiple_provenance_records(self, mock_req: MagicMock) -> None:
         """WHY: Entity may appear in multiple chunks."""
         mock_resp = MagicMock()
-        mock_resp.json.return_value = [
-            {"chunk_id": "c-1", "document_id": "d-1"},
-            {"chunk_id": "c-2", "document_id": "d-1"},
-            {"chunk_id": "c-3", "document_id": "d-2"},
-        ]
+        mock_resp.json.return_value = {
+            "entity_id": "e1",
+            "entity_name": "ALICE",
+            "entity_type": "person",
+            "sources": [
+                {
+                    "document_id": "d-1",
+                    "chunks": [
+                        {"chunk_id": "c-1"},
+                        {"chunk_id": "c-2"},
+                        {"chunk_id": "c-3"},
+                    ],
+                }
+            ],
+            "total_extraction_count": 3,
+            "related_entities": [],
+        }
         mock_req.return_value = mock_resp
 
         client = EdgeQuake()
         result = client.provenance.get("ALICE")
-        assert len(result) == 3
-        assert all(isinstance(r, ProvenanceRecord) for r in result)
+        assert len(result.sources[0].chunks) == 3
         client.close()
 
 

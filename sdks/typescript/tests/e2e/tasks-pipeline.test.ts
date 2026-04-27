@@ -17,7 +17,7 @@ describe.skipIf(!E2E_ENABLED)("Tasks E2E", () => {
     client = createE2EClient()!;
   });
 
-  it("lists tasks with pagination", { timeout: 15_000 }, async () => {
+  it("lists tasks with pagination", async () => {
     const result = await client.tasks.list({ page: 1, page_size: 5 });
     expect(result).toHaveProperty("tasks");
     expect(result).toHaveProperty("pagination");
@@ -25,9 +25,9 @@ describe.skipIf(!E2E_ENABLED)("Tasks E2E", () => {
     expect(Array.isArray(result.tasks)).toBe(true);
     expect(typeof result.pagination.total).toBe("number");
     expect(typeof result.statistics.pending).toBe("number");
-  });
+  }, 15_000);
 
-  it("lists tasks with status filter", { timeout: 15_000 }, async () => {
+  it("lists tasks with status filter", async () => {
     const result = await client.tasks.list({
       status: "indexed",
       page_size: 3,
@@ -37,9 +37,9 @@ describe.skipIf(!E2E_ENABLED)("Tasks E2E", () => {
     for (const task of result.tasks) {
       expect(task.status).toBe("indexed");
     }
-  });
+  }, 15_000);
 
-  it("gets a specific task by track_id", { timeout: 15_000 }, async () => {
+  it("gets a specific task by track_id", async () => {
     // First list to get a valid track_id
     const list = await client.tasks.list({ page_size: 1 });
     if (list.tasks.length === 0) {
@@ -54,7 +54,7 @@ describe.skipIf(!E2E_ENABLED)("Tasks E2E", () => {
     expect(task).toHaveProperty("workspace_id");
     expect(task).toHaveProperty("task_type");
     expect(task).toHaveProperty("status");
-  });
+  }, 15_000);
 });
 
 describe.skipIf(!E2E_ENABLED)("Pipeline E2E", () => {
@@ -64,14 +64,14 @@ describe.skipIf(!E2E_ENABLED)("Pipeline E2E", () => {
     client = createE2EClient()!;
   });
 
-  it("gets pipeline status", { timeout: 15_000 }, async () => {
+  it("gets pipeline status", async () => {
     const status = await client.pipeline.status();
     expect(status).toHaveProperty("is_busy");
     expect(status).toHaveProperty("total_documents");
     expect(typeof status.is_busy).toBe("boolean");
-  });
+  }, 15_000);
 
-  it("gets queue metrics", { timeout: 15_000 }, async () => {
+  it("gets queue metrics", async () => {
     try {
       const metrics = await client.pipeline.queueMetrics();
       expect(metrics).toBeDefined();
@@ -79,7 +79,7 @@ describe.skipIf(!E2E_ENABLED)("Pipeline E2E", () => {
       // Queue metrics may not be available
       console.log("Queue metrics not available:", String(err));
     }
-  });
+  }, 15_000);
 });
 
 describe.skipIf(!E2E_ENABLED)("Settings E2E", () => {
@@ -89,17 +89,17 @@ describe.skipIf(!E2E_ENABLED)("Settings E2E", () => {
     client = createE2EClient()!;
   });
 
-  it("gets provider status", { timeout: 15_000 }, async () => {
+  it("gets provider status", async () => {
     const status = await client.settings.providerStatus();
     expect(status).toHaveProperty("provider");
     expect(status.provider).toHaveProperty("name");
     expect(status.provider).toHaveProperty("status");
-  });
+  }, 15_000);
 
-  it("lists available providers", { timeout: 15_000 }, async () => {
+  it("lists available providers", async () => {
     const providers = await client.settings.listProviders();
     expect(providers).toBeDefined();
-  });
+  }, 15_000);
 });
 
 describe.skipIf(!E2E_ENABLED)("Models E2E", () => {
@@ -109,7 +109,7 @@ describe.skipIf(!E2E_ENABLED)("Models E2E", () => {
     client = createE2EClient()!;
   });
 
-  it("lists all models", { timeout: 15_000 }, async () => {
+  it("lists all models", async () => {
     const models = await client.models.list();
     expect(models).toHaveProperty("providers");
     expect(Array.isArray(models.providers)).toBe(true);
@@ -117,20 +117,20 @@ describe.skipIf(!E2E_ENABLED)("Models E2E", () => {
     // First provider should have models
     expect(models.providers[0]).toHaveProperty("name");
     expect(models.providers[0]).toHaveProperty("models");
-  });
+  }, 15_000);
 
-  it("lists LLM models", { timeout: 15_000 }, async () => {
+  it("lists LLM models", async () => {
     const llmModels = await client.models.listLlm();
     expect(llmModels).toBeDefined();
-  });
+  }, 15_000);
 
-  it("lists embedding models", { timeout: 15_000 }, async () => {
+  it("lists embedding models", async () => {
     const embeddingModels = await client.models.listEmbedding();
     expect(embeddingModels).toBeDefined();
-  });
+  }, 15_000);
 
-  it("checks providers health", { timeout: 15_000 }, async () => {
+  it("checks providers health", async () => {
     const health = await client.models.health();
     expect(health).toBeDefined();
-  });
+  }, 15_000);
 });

@@ -18,6 +18,7 @@ from edgequake.types.documents import (
     DeleteAllResponse,
     DeletionImpactResponse,
     DocumentDetail,
+    DocumentListParams,
     FailedChunkInfo,
     ListDocumentsResponse,
     PdfContentResponse,
@@ -70,22 +71,31 @@ class DocumentsResource(SyncResource):
     def list(
         self,
         *,
-        page: int = 1,
-        page_size: int = 50,
-        status: str | None = None,
-        search: str | None = None,
+        params: DocumentListParams | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        document_pattern: str | None = None,
     ) -> ListDocumentsResponse:
-        """List documents with pagination.
+        """List documents (`GET /api/v1/documents`).
 
-        GET /api/v1/documents
+        Pass a :class:`DocumentListParams` or individual fields matching the API:
+        ``page``, ``page_size``, ``date_from``, ``date_to``, ``document_pattern``.
+        Omits query parameters when unset so the server applies its defaults.
         """
-        params: dict[str, Any] = {"page": page, "page_size": page_size}
-        if status:
-            params["status"] = status
-        if search:
-            params["search"] = search
+        q = params or DocumentListParams(
+            page=page,
+            page_size=page_size,
+            date_from=date_from,
+            date_to=date_to,
+            document_pattern=document_pattern,
+        )
+        d = q.to_query_dict()
         return self._get(
-            "/api/v1/documents", params=params, response_type=ListDocumentsResponse
+            "/api/v1/documents",
+            params=d or None,
+            response_type=ListDocumentsResponse,
         )
 
     def get(self, document_id: str) -> DocumentDetail:
@@ -462,18 +472,25 @@ class AsyncDocumentsResource(AsyncResource):
     async def list(
         self,
         *,
-        page: int = 1,
-        page_size: int = 50,
-        status: str | None = None,
-        search: str | None = None,
+        params: DocumentListParams | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        document_pattern: str | None = None,
     ) -> ListDocumentsResponse:
-        params: dict[str, Any] = {"page": page, "page_size": page_size}
-        if status:
-            params["status"] = status
-        if search:
-            params["search"] = search
+        q = params or DocumentListParams(
+            page=page,
+            page_size=page_size,
+            date_from=date_from,
+            date_to=date_to,
+            document_pattern=document_pattern,
+        )
+        d = q.to_query_dict()
         return await self._get(
-            "/api/v1/documents", params=params, response_type=ListDocumentsResponse
+            "/api/v1/documents",
+            params=d or None,
+            response_type=ListDocumentsResponse,
         )
 
     async def get(self, document_id: str) -> DocumentDetail:

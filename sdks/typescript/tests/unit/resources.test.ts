@@ -1042,24 +1042,14 @@ describe("CostsResource", () => {
           is_over_budget: false,
         },
       },
-      "GET /api/v1/costs/pricing": { body: { models: [] } },
-      "POST /api/v1/costs/estimate": {
+      "GET /api/v1/pipeline/costs/pricing": { body: { models: [] } },
+      "POST /api/v1/pipeline/costs/estimate": {
         body: {
           model: "gpt-4",
           input_tokens: 1000,
           output_tokens: 500,
           estimated_cost_usd: 0.5,
           formatted_cost: "$0.50",
-        },
-      },
-      "GET /api/v1/costs/workspace": {
-        body: {
-          workspace_id: "ws1",
-          total_cost: 10.0,
-          document_count: 5,
-          total_tokens: 50000,
-          average_cost_per_document: 2.0,
-          by_operation: [],
         },
       },
     });
@@ -1094,24 +1084,18 @@ describe("CostsResource", () => {
     expect(mock.lastRequest?.method).toBe("PATCH");
   });
 
-  it("pricing → GET .../costs/pricing", async () => {
+  it("pricing → GET .../pipeline/costs/pricing", async () => {
     const p = await costs.pricing();
     expect(p.models).toBeDefined();
   });
 
-  it("estimate → POST .../costs/estimate", async () => {
+  it("estimate → POST .../pipeline/costs/estimate", async () => {
     const e = await costs.estimate({
       model: "gpt-4",
       input_tokens: 1000,
       output_tokens: 500,
     });
     expect(e.estimated_cost_usd).toBe(0.5);
-  });
-
-  it("workspaceSummary → GET .../costs/workspace", async () => {
-    const ws = await costs.workspaceSummary();
-    expect(ws.workspace_id).toBe("ws1");
-    expect(ws.total_cost).toBe(10.0);
   });
 });
 

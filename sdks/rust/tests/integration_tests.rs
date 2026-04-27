@@ -142,16 +142,25 @@ mod tests {
     async fn test_documents_upload_text() {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/api/v1/documents/upload/text"))
+            .and(path("/api/v1/documents"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "id":"doc-2","status":"processing","track_id":"trk-1"
+                "document_id":"doc-2","status":"processing","track_id":"trk-1"
             })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
-        let body = json!({"content":"hello world","title":"test"});
-        let res = client.documents().upload_text(&body).await.unwrap();
+        let req = types::documents::UploadDocumentRequest {
+            content: "hello world".into(),
+            title: Some("test".into()),
+            metadata: None,
+            async_processing: false,
+            track_id: None,
+            enable_gleaning: true,
+            max_gleaning: 1,
+            use_llm_summarization: true,
+        };
+        let res = client.documents().upload(&req).await.unwrap();
         assert_eq!(res.id, "doc-2");
     }
 
@@ -551,6 +560,8 @@ mod tests {
         let req = types::conversations::CreateMessageRequest {
             role: "user".into(),
             content: "Hello".into(),
+            parent_id: None,
+            stream: None,
         };
         let msg = client
             .conversations()
@@ -566,7 +577,7 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/api/v1/conversations/c1/share"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "share_id":"sh-1","url":"https://app.co/share/sh-1"
+                "share_id":"sh-1","share_url":"/api/v1/shared/sh-1"
             })))
             .mount(&mock_server)
             .await;
@@ -582,7 +593,7 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/api/v1/conversations/bulk/delete"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "deleted_count": 3
+                "affected": 3
             })))
             .mount(&mock_server)
             .await;
@@ -590,7 +601,7 @@ mod tests {
         let client = test_client(&mock_server).await;
         let ids = vec!["c1".into(), "c2".into(), "c3".into()];
         let r = client.conversations().bulk_delete(&ids).await.unwrap();
-        assert_eq!(r.deleted_count, 3);
+        assert_eq!(r.affected, 3);
     }
 
     // ── Folders ──────────────────────────────────────────────────────
@@ -701,24 +712,7 @@ mod tests {
         assert!((r.total_cost_usd - 12.5).abs() < 0.01);
     }
 
-    // ── Chunks ───────────────────────────────────────────────────────
-
-    #[tokio::test]
-    async fn test_chunks_list() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/api/v1/documents/doc-1/chunks"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"id":"ch-1","document_id":"doc-1","content":"chunk text","chunk_index":0}
-            ])))
-            .mount(&mock_server)
-            .await;
-
-        let client = test_client(&mock_server).await;
-        let chunks = client.chunks().list("doc-1").await.unwrap();
-        assert_eq!(chunks.len(), 1);
-        assert_eq!(chunks[0].id, "ch-1");
-    }
+    // ── Chunks (see also test_chunks_get in later section) ───────────
 
     // ── Provenance ───────────────────────────────────────────────────
 
@@ -727,16 +721,24 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path_regex("/api/v1/entities/.*/provenance"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"entity_name":"Alice","document_id":"d1","confidence":0.9}
-            ])))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "entity_id": "e1",
+                "entity_name": "ALICE",
+                "entity_type": "person",
+                "sources": [{
+                    "document_id": "d1",
+                    "chunks": [],
+                }],
+                "total_extraction_count": 1,
+                "related_entities": []
+            })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
         let r = client.provenance().for_entity("Alice").await.unwrap();
-        assert_eq!(r.len(), 1);
-        assert!((r[0].confidence.unwrap() - 0.9).abs() < 0.01);
+        assert_eq!(r.entity_name, "ALICE");
+        assert_eq!(r.sources.len(), 1);
     }
 
     // ── Models ───────────────────────────────────────────────────────
@@ -759,22 +761,6 @@ mod tests {
         assert_eq!(catalog.providers[0].models.len(), 1);
     }
 
-    #[tokio::test]
-    async fn test_models_set_provider() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("PUT"))
-            .and(path("/api/v1/settings/provider"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "current_provider":"ollama","status":"active"
-            })))
-            .mount(&mock_server)
-            .await;
-
-        let client = test_client(&mock_server).await;
-        let r = client.models().set_provider("ollama").await.unwrap();
-        assert_eq!(r.current_provider.as_deref(), Some("ollama"));
-    }
-
     // ── Workspaces ───────────────────────────────────────────────────
 
     #[tokio::test]
@@ -782,9 +768,12 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/v1/tenants/t1/workspaces"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"id":"w1","name":"default","tenant_id":"t1"}
-            ])))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items": [{"id":"w1","name":"default","tenant_id":"t1"}],
+                "total": 1,
+                "offset": 0,
+                "limit": 20
+            })))
             .mount(&mock_server)
             .await;
 
@@ -1217,22 +1206,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_provenance_for_entity_with_confidence() {
+    async fn test_provenance_for_entity_full_response() {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path_regex(r"/api/v1/entities/.+/provenance"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"entity_id": "e1", "document_id": "doc-1", "confidence": 0.9}
-            ])))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "entity_id": "e1",
+                "entity_name": "ALICE",
+                "entity_type": "person",
+                "sources": [],
+                "total_extraction_count": 0,
+                "related_entities": []
+            })))
             .mount(&mock_server)
             .await;
 
         let client = test_client(&mock_server).await;
         let result = client.provenance().for_entity("ALICE").await;
         assert!(result.is_ok());
-        let records = result.unwrap();
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].confidence, Some(0.9));
+        let prov = result.unwrap();
+        assert_eq!(prov.entity_name, "ALICE");
     }
 
     // ── Lineage resource tests (OODA-31) ──
@@ -1456,12 +1449,11 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/ready"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "ready"})))
+            .respond_with(ResponseTemplate::new(200).set_body_string("OK"))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
-        let val: serde_json::Value = client.health().ready().await.unwrap();
-        assert_eq!(val["status"], "ready");
+        assert_eq!(client.health().ready().await.unwrap(), "OK");
     }
 
     #[tokio::test]
@@ -1469,12 +1461,11 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/live"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "live"})))
+            .respond_with(ResponseTemplate::new(200).set_body_string("OK"))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
-        let val: serde_json::Value = client.health().live().await.unwrap();
-        assert_eq!(val["status"], "live");
+        assert_eq!(client.health().live().await.unwrap(), "OK");
     }
 
     #[tokio::test]
@@ -1482,12 +1473,14 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/metrics"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"requests": 42})))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                "# HELP edgequake_http_requests_total counter\nedgequake_http_requests_total 42\n",
+            ))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
-        let val: serde_json::Value = client.health().metrics().await.unwrap();
-        assert_eq!(val["requests"], 42);
+        let text = client.health().metrics().await.unwrap();
+        assert!(text.contains("edgequake_http_requests_total"));
     }
 
     // ── OODA-32: Auth logout ──
@@ -1837,13 +1830,13 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/api/v1/conversations/bulk/archive"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"archived": 2})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"affected": 2})))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
         let ids = vec!["c1".to_string(), "c2".to_string()];
-        let val = client.conversations().bulk_archive(&ids).await.unwrap();
-        assert_eq!(val["archived"], 2);
+        let val = client.conversations().bulk_archive(&ids, true).await.unwrap();
+        assert_eq!(val.affected, 2);
     }
 
     #[tokio::test]
@@ -1851,17 +1844,17 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/api/v1/conversations/bulk/move"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"moved": 2})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"affected": 2})))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
         let ids = vec!["c1".to_string(), "c2".to_string()];
         let val = client
             .conversations()
-            .bulk_move(&ids, "folder-1")
+            .bulk_move(&ids, Some("folder-1"))
             .await
             .unwrap();
-        assert_eq!(val["moved"], 2);
+        assert_eq!(val.affected, 2);
     }
 
     // ── OODA-32: Models extended ──
@@ -2204,17 +2197,17 @@ mod tests {
     // ── Documents (missing: status, scan, deletion_impact, get_lineage, get_metadata) ─
 
     #[tokio::test]
-    async fn test_documents_status() {
+    async fn test_documents_track_by_doc_flow() {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/api/v1/documents/doc1/status"))
+            .and(path("/api/v1/documents/track/trk1"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "track_id": "trk1", "status": "completed", "progress": 1.0
             })))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
-        let status = client.documents().status("doc1").await.unwrap();
+        let status = client.documents().track("trk1").await.unwrap();
         assert_eq!(status.status, "completed");
     }
 
@@ -2297,16 +2290,42 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/v1/conversations"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"id": "c1", "title": "Chat 1"},
-                {"id": "c2", "title": "Chat 2"}
-            ])))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items": [
+                    {"id": "c1", "title": "Chat 1"},
+                    {"id": "c2", "title": "Chat 2"}
+                ],
+                "pagination": {"has_more": false, "total": 2}
+            })))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
         let convos = client.conversations().list().await.unwrap();
-        assert_eq!(convos.len(), 2);
-        assert_eq!(convos[0].title, Some("Chat 1".to_string()));
+        assert_eq!(convos.items.len(), 2);
+        assert_eq!(convos.items[0].title, Some("Chat 1".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_conversations_list_with_query() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/conversations"))
+            .and(query_param("limit", "5"))
+            .and(query_param("filter[archived]", "false"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items": [{"id": "c1", "title": "A"}],
+                "pagination": {"has_more": false, "total": 1}
+            })))
+            .mount(&mock_server)
+            .await;
+        let client = test_client(&mock_server).await;
+        let q = types::conversations::ConversationListQuery {
+            limit: Some(5),
+            filter_archived: Some(false),
+            ..Default::default()
+        };
+        let page = client.conversations().list_with_query(&q).await.unwrap();
+        assert_eq!(page.items.len(), 1);
     }
 
     #[tokio::test]
@@ -2315,13 +2334,19 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/api/v1/conversations/c1"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "id": "c1", "title": "My Chat", "messages": [], "created_at": "2026-01-01"
+                "conversation": {
+                    "id": "c1",
+                    "title": "My Chat",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z"
+                },
+                "messages": []
             })))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
         let convo = client.conversations().get("c1").await.unwrap();
-        assert_eq!(convo.id, "c1");
+        assert_eq!(convo.conversation.id, "c1");
     }
 
     #[tokio::test]
@@ -2341,24 +2366,29 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/v1/conversations/c1/messages"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                {"id": "m1", "role": "user", "content": "Hello"},
-                {"id": "m2", "role": "assistant", "content": "Hi!"}
-            ])))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "items": [
+                    {"id": "m1", "role": "user", "content": "Hello"},
+                    {"id": "m2", "role": "assistant", "content": "Hi!"}
+                ],
+                "pagination": {"has_more": false, "total": 2}
+            })))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
-        let msgs = client.conversations().list_messages("c1").await.unwrap();
-        assert_eq!(msgs.len(), 2);
-        assert_eq!(msgs[0].content, "Hello");
+        let page = client.conversations().list_messages("c1").await.unwrap();
+        assert_eq!(page.items.len(), 2);
+        assert_eq!(page.items[0].content, "Hello");
     }
 
     #[tokio::test]
     async fn test_conversations_pin() {
         let mock_server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/api/v1/conversations/c1/pin"))
-            .respond_with(ResponseTemplate::new(204))
+        Mock::given(method("PATCH"))
+            .and(path("/api/v1/conversations/c1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "c1", "title": "Chat", "is_pinned": true
+            })))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;
@@ -2368,9 +2398,11 @@ mod tests {
     #[tokio::test]
     async fn test_conversations_unpin() {
         let mock_server = MockServer::start().await;
-        Mock::given(method("DELETE"))
-            .and(path("/api/v1/conversations/c1/pin"))
-            .respond_with(ResponseTemplate::new(204))
+        Mock::given(method("PATCH"))
+            .and(path("/api/v1/conversations/c1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "c1", "title": "Chat", "is_pinned": false
+            })))
             .mount(&mock_server)
             .await;
         let client = test_client(&mock_server).await;

@@ -23,6 +23,12 @@ from functools import cached_property
 
 from edgequake._config import ClientConfig
 from edgequake._transport import AsyncTransport, SyncTransport
+from edgequake.resources.admin import (
+    AdminResource,
+    AsyncAdminResource,
+    AsyncEffectiveConfigResource,
+    EffectiveConfigResource,
+)
 from edgequake.resources.auth import (
     ApiKeysResource,
     AsyncApiKeysResource,
@@ -242,6 +248,16 @@ class EdgeQuake:
         """Model management — list, health, provider details."""
         return ModelsResource(self._transport)
 
+    @cached_property
+    def admin(self) -> AdminResource:
+        """Admin — tenant quotas and server defaults."""
+        return AdminResource(self._transport)
+
+    @cached_property
+    def effective_config(self) -> EffectiveConfigResource:
+        """Resolved effective configuration."""
+        return EffectiveConfigResource(self._transport)
+
     # ── Core methods ──
 
     def health(self) -> HealthResponse:
@@ -439,6 +455,16 @@ class AsyncEdgeQuake:
     def models(self) -> AsyncModelsResource:
         """Model management — list, health, provider details."""
         return AsyncModelsResource(self._transport)
+
+    @cached_property
+    def admin(self) -> AsyncAdminResource:
+        """Admin — tenant quotas and server defaults."""
+        return AsyncAdminResource(self._transport)
+
+    @cached_property
+    def effective_config(self) -> AsyncEffectiveConfigResource:
+        """Resolved effective configuration."""
+        return AsyncEffectiveConfigResource(self._transport)
 
     # ── Core methods ──
 

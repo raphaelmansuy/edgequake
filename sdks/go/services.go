@@ -393,7 +393,7 @@ func (s *ConversationService) Share(ctx context.Context, id string) (*ShareLink,
 // WHY: Bulk delete uses /api/v1/conversations/bulk/delete (not bulk-delete).
 // Verified against routes.rs: .route("/conversations/bulk/delete", post(...))
 func (s *ConversationService) BulkDelete(ctx context.Context, ids []string) (*BulkDeleteResponse, error) {
-	body := map[string]interface{}{"ids": ids}
+	body := map[string]interface{}{"conversation_ids": ids}
 	var out BulkDeleteResponse
 	if err := s.c.post(ctx, "/api/v1/conversations/bulk/delete", body, &out); err != nil {
 		return nil, err
@@ -647,11 +647,11 @@ func (s *ModelService) ProviderHealth(ctx context.Context) ([]ProviderHealthInfo
 type WorkspaceService struct{ c *Client }
 
 func (s *WorkspaceService) ListForTenant(ctx context.Context, tenantID string) ([]WorkspaceInfo, error) {
-	var out []WorkspaceInfo
-	if err := s.c.get(ctx, fmt.Sprintf("/api/v1/tenants/%s/workspaces", tenantID), nil, &out); err != nil {
+	var page WorkspaceListResponse
+	if err := s.c.get(ctx, fmt.Sprintf("/api/v1/tenants/%s/workspaces", tenantID), nil, &page); err != nil {
 		return nil, err
 	}
-	return out, nil
+	return page.Items, nil
 }
 
 func (s *WorkspaceService) CreateForTenant(ctx context.Context, tenantID string, params *CreateWorkspaceParams) (*WorkspaceInfo, error) {
@@ -684,6 +684,58 @@ func (s *WorkspaceService) RebuildEmbeddings(ctx context.Context, id string) (*R
 		return nil, err
 	}
 	return &out, nil
+}
+
+// PutInjection sends JSON to PUT /api/v1/workspaces/{id}/injection (knowledge injection text).
+func (s *WorkspaceService) PutInjection(ctx context.Context, workspaceID string, body map[string]interface{}) (map[string]interface{}, error) {
+	var out map[string]interface{}
+	if err := s.c.put(ctx, fmt.Sprintf("/api/v1/workspaces/%s/injection", workspaceID), body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AdminService handles /api/v1/admin/*.
+type AdminService struct{ c *Client }
+
+// PatchTenantQuota updates PATCH /api/v1/admin/tenants/{tenant_id}/quota.
+func (s *AdminService) PatchTenantQuota(ctx context.Context, tenantID string, maxWorkspaces int) (map[string]interface{}, error) {
+	var out map[string]interface{}
+	body := map[string]interface{}{"max_workspaces": maxWorkspaces}
+	if err := s.c.patch(ctx, fmt.Sprintf("/api/v1/admin/tenants/%s/quota", tenantID), body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetServerDefaults returns GET /api/v1/admin/config/defaults.
+func (s *AdminService) GetServerDefaults(ctx context.Context) (map[string]interface{}, error) {
+	var out map[string]interface{}
+	if err := s.c.get(ctx, "/api/v1/admin/config/defaults", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// PatchServerDefaults updates PATCH /api/v1/admin/config/defaults.
+func (s *AdminService) PatchServerDefaults(ctx context.Context, defaultMaxWorkspaces int) (map[string]interface{}, error) {
+	var out map[string]interface{}
+	body := map[string]interface{}{"default_max_workspaces": defaultMaxWorkspaces}
+	if err := s.c.patch(ctx, "/api/v1/admin/config/defaults", body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// EffectiveConfigService handles GET /api/v1/config/effective.
+type EffectiveConfigService struct{ c *Client }
+
+func (s *EffectiveConfigService) Get(ctx context.Context) (map[string]interface{}, error) {
+	var out map[string]interface{}
+	if err := s.c.get(ctx, "/api/v1/config/effective", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // PDFService handles /api/v1/documents/pdf endpoints.

@@ -645,10 +645,10 @@ final class ConversationServiceTest: XCTestCase {
     }
 
     func testBulkDelete() async throws {
-        let http = mockHelper(json: #"{"deleted":3,"status":"ok"}"#)
+        let http = mockHelper(json: #"{"affected":3,"status":"ok"}"#)
         let svc = ConversationService(http)
         let result = try await svc.bulkDelete(ids: ["c1", "c2", "c3"])
-        XCTAssertEqual(result.deleted, 3)
+        XCTAssertEqual(result.affected, 3)
         let last = MockURLProtocol.lastRequest
         XCTAssertEqual(last?.method, "POST")
         XCTAssertTrue(last!.url.contains("bulk/delete"))
@@ -823,56 +823,49 @@ final class EdgeCaseTests: XCTestCase {
 
 final class HealthExtendedTests: XCTestCase {
     func testReadiness() async throws {
-        let http = mockHelper(json: #"{"ready":true,"status":"ok"}"#)
+        let http = mockHelper(json: "OK", status: 200)
         let res = try await HealthService(http).readiness()
-        XCTAssertEqual(res.ready, true)
+        XCTAssertTrue(res.contains("OK"))
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/ready"))
     }
 
     func testLiveness() async throws {
-        let http = mockHelper(json: #"{"alive":true,"status":"ok"}"#)
+        let http = mockHelper(json: "OK", status: 200)
         let res = try await HealthService(http).liveness()
-        XCTAssertEqual(res.alive, true)
+        XCTAssertTrue(res.contains("OK"))
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/live"))
     }
 
-    func testDetailed() async throws {
-        let http = mockHelper(json: #"{"status":"healthy","version":"1.0","uptime":3600}"#)
-        let res = try await HealthService(http).detailed()
-        XCTAssertEqual(res.status, "healthy")
+    func testMetrics() async throws {
+        let http = mockHelper(json: "# TYPE eq_up gauge\neq_up 1\n", status: 200)
+        let res = try await HealthService(http).metrics()
+        XCTAssertTrue(res.contains("TYPE"))
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/metrics"))
     }
 }
 
 // MARK: - Document Extended Tests
 
 final class DocumentExtendedTests: XCTestCase {
-    func testUpdate() async throws {
-        let http = mockHelper(json: #"{"id":"doc-1","title":"Updated"}"#)
-        let res = try await DocumentService(http).update(id: "doc-1", title: "Updated")
-        XCTAssertEqual(res.title, "Updated")
-        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "PUT")
+    func testTrack() async throws {
+        let http = mockHelper(
+            json: #"{"track_id":"tk-1","status":"processing","progress":0.5}"#)
+        let res = try await DocumentService(http).track(trackId: "tk-1")
+        XCTAssertEqual(res.trackId, "tk-1")
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/documents/track/tk-1"))
     }
 
-    func testSearch() async throws {
-        let http = mockHelper(json: #"{"documents":[],"total":0}"#)
-        _ = try await DocumentService(http).search(query: "test")
-        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/search"))
-    }
-
-    func testChunks() async throws {
-        let http = mockHelper(json: #"{"document_id":"doc-1","chunks":[]}"#)
-        _ = try await DocumentService(http).chunks(id: "doc-1")
-        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/chunks"))
-    }
-
-    func testStatus() async throws {
-        let http = mockHelper(json: #"{"id":"doc-1","status":"completed"}"#)
-        let res = try await DocumentService(http).status(id: "doc-1")
-        XCTAssertEqual(res.status, "completed")
-    }
-
-    func testReprocess() async throws {
-        let http = mockHelper(json: #"{"document_id":"doc-1","status":"queued"}"#)
-        _ = try await DocumentService(http).reprocess(id: "doc-1")
+    func testReprocessFailed() async throws {
+        let http = mockHelper(json: #"{"status":"ok"}"#)
+        _ = try await DocumentService(http).reprocessFailed()
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/documents/reprocess"))
+    }
+
+    func testRecoverStuck() async throws {
+        let http = mockHelper(json: #"{"status":"ok"}"#)
+        _ = try await DocumentService(http).recoverStuck()
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/recover-stuck"))
     }
 }
 
@@ -891,10 +884,11 @@ final class EntityExtendedTests: XCTestCase {
         XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/merge"))
     }
 
-    func testEntityTypes() async throws {
-        let http = mockHelper(json: #"{"types":["PERSON","ORG"]}"#)
-        let res = try await EntityService(http).types()
-        XCTAssertEqual(res.types, ["PERSON", "ORG"])
+    func testNeighborhood() async throws {
+        let http = mockHelper(json: #"{"nodes":[],"edges":[]}"#)
+        _ = try await EntityService(http).neighborhood(name: "ALICE", depth: 2)
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/neighborhood"))
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("depth=2"))
     }
 }
 
@@ -902,10 +896,16 @@ final class EntityExtendedTests: XCTestCase {
 
 final class RelationshipExtendedTests: XCTestCase {
     func testCreateRelationship() async throws {
-        let http = mockHelper(json: #"{"id":"rel-1","source":"A","target":"B"}"#)
+        let json = #"""
+            {"status":"success","message":"ok","relationship":{"id":"rel-1","src_id":"A","tgt_id":"B",
+             "relation_type":"KNOWS","keywords":"knows","weight":0.8,"description":"d","source_id":"manual_entry",
+             "created_at":"2025-01-01T00:00:00Z","updated_at":"2025-01-01T00:00:00Z","metadata":null}}
+            """#
+        let http = mockHelper(json: json)
         let res = try await RelationshipService(http).create(
-            source: "A", target: "B", relationshipType: "KNOWS")
-        XCTAssertEqual(res.source, "A")
+            srcId: "A", tgtId: "B", keywords: "knows", description: "d")
+        XCTAssertEqual(res.status, "success")
+        XCTAssertEqual(res.relationship?.srcId, "A")
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
     }
 
@@ -915,37 +915,40 @@ final class RelationshipExtendedTests: XCTestCase {
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "DELETE")
     }
 
-    func testRelationshipTypes() async throws {
-        let http = mockHelper(json: #"{"types":["KNOWS","WORKS_WITH"]}"#)
-        let res = try await RelationshipService(http).types()
-        XCTAssertEqual(res.types, ["KNOWS", "WORKS_WITH"])
+    func testGetRelationship() async throws {
+        let json = #"{"relationship":{"id":"rel-1","src_id":"A","tgt_id":"B"}}"#
+        let http = mockHelper(json: json)
+        let res = try await RelationshipService(http).get(id: "rel-1")
+        XCTAssertEqual(res.relationship?.id, "rel-1")
     }
 }
 
 // MARK: - Graph Extended Tests
 
 final class GraphExtendedTests: XCTestCase {
-    func testGraphStats() async throws {
-        let http = mockHelper(json: #"{"node_count":100,"edge_count":200}"#)
-        let res = try await GraphService(http).stats()
-        XCTAssertEqual(res.nodeCount, 100)
+    func testGetNode() async throws {
+        let http = mockHelper(json: #"{"id":"n1","label":"X"}"#)
+        let res = try await GraphService(http).getNode(nodeId: "n1")
+        XCTAssertEqual(res.id, "n1")
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/graph/nodes/n1"))
     }
 
-    func testGraphClear() async throws {
-        let http = mockHelper(json: "{}", status: 204)
-        try await GraphService(http).clear()
-        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "DELETE")
+    func testLabelSearch() async throws {
+        let http = mockHelper(json: #"{"labels":["PERSON"]}"#)
+        let res = try await GraphService(http).labelSearch(query: "PER")
+        XCTAssertEqual(res.labels?.count, 1)
     }
 
-    func testNeighbors() async throws {
-        let http = mockHelper(json: #"{"nodes":[],"edges":[]}"#)
-        _ = try await GraphService(http).neighbors(name: "TEST", depth: 2)
-        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("depth=2"))
+    func testPopularLabels() async throws {
+        let http = mockHelper(json: #"{"labels":[{"label":"A","degree":3}],"total_entities":10}"#)
+        let res = try await GraphService(http).popularLabels(limit: 5)
+        XCTAssertEqual(res.labels?.count, 1)
     }
 
-    func testSubgraph() async throws {
-        let http = mockHelper(json: #"{"nodes":[],"edges":[]}"#)
-        _ = try await GraphService(http).subgraph(entityNames: ["A", "B"])
+    func testDegreesBatch() async throws {
+        let http = mockHelper(json: #"{"degrees":[{"node_id":"a","degree":2}],"count":1}"#)
+        let res = try await GraphService(http).degreesBatch(nodeIds: ["a", "b"])
+        XCTAssertEqual(res.count, 1)
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
     }
 }
@@ -990,16 +993,11 @@ final class UserExtendedTests: XCTestCase {
     }
 
     func testCreateUser() async throws {
-        let http = mockHelper(json: #"{"id":"u-2","email":"new@example.com"}"#)
-        let res = try await UserService(http).create(email: "new@example.com")
+        let http = mockHelper(json: #"{"id":"u-2","email":"new@example.com","username":"newuser"}"#)
+        let res = try await UserService(http).create(
+            username: "newuser", email: "new@example.com", password: "secret")
         XCTAssertEqual(res.email, "new@example.com")
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
-    }
-
-    func testUpdateUser() async throws {
-        let http = mockHelper(json: #"{"id":"u-1","name":"Updated Name"}"#)
-        let res = try await UserService(http).update(id: "u-1", name: "Updated Name")
-        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "PUT")
     }
 
     func testDeleteUser() async throws {
@@ -1012,12 +1010,6 @@ final class UserExtendedTests: XCTestCase {
 // MARK: - ApiKey Extended Tests
 
 final class ApiKeyExtendedTests: XCTestCase {
-    func testGetApiKey() async throws {
-        let http = mockHelper(json: #"{"id":"key-1","name":"Test Key"}"#)
-        let res = try await ApiKeyService(http).get(id: "key-1")
-        XCTAssertEqual(res.name, "Test Key")
-    }
-
     func testCreateApiKey() async throws {
         let http = mockHelper(json: #"{"id":"key-2","key":"sk-xxx","name":"New"}"#)
         let res = try await ApiKeyService(http).create(name: "New")
@@ -1031,11 +1023,6 @@ final class ApiKeyExtendedTests: XCTestCase {
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "DELETE")
     }
 
-    func testRotateApiKey() async throws {
-        let http = mockHelper(json: #"{"id":"key-1","key":"sk-new"}"#)
-        _ = try await ApiKeyService(http).rotate(id: "key-1")
-        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/rotate"))
-    }
 }
 
 // MARK: - Task Extended Tests
@@ -1043,117 +1030,81 @@ final class ApiKeyExtendedTests: XCTestCase {
 final class TaskExtendedTests: XCTestCase {
     func testGetTask() async throws {
         let http = mockHelper(json: #"{"id":"task-1","status":"running"}"#)
-        let res = try await TaskService(http).get(id: "task-1")
+        let res = try await TaskService(http).get(trackId: "task-1")
         XCTAssertEqual(res.status, "running")
-    }
-
-    func testCreateTask() async throws {
-        let http = mockHelper(json: #"{"id":"task-2","task_type":"extraction"}"#)
-        let res = try await TaskService(http).create(taskType: "extraction")
-        XCTAssertEqual(res.taskType, "extraction")
-        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
     }
 
     func testCancelTask() async throws {
         let http = mockHelper(json: #"{"id":"task-1","status":"cancelled"}"#)
-        let res = try await TaskService(http).cancel(id: "task-1")
+        let res = try await TaskService(http).cancel(trackId: "task-1")
         XCTAssertEqual(res.status, "cancelled")
     }
 
-    func testTaskStatus() async throws {
-        let http = mockHelper(json: #"{"id":"task-1","status":"completed","progress":1.0}"#)
-        let res = try await TaskService(http).status(id: "task-1")
-        XCTAssertEqual(res.status, "completed")
+    func testRetryTask() async throws {
+        let http = mockHelper(json: #"{"id":"task-1","status":"pending"}"#)
+        let res = try await TaskService(http).retry(trackId: "task-1")
+        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/retry"))
+        XCTAssertEqual(res.status, "pending")
     }
 }
 
 // MARK: - Pipeline Extended Tests
 
 final class PipelineExtendedTests: XCTestCase {
-    func testProcessingList() async throws {
-        let http = mockHelper(json: #"{"items":[],"total":0}"#)
-        let res = try await PipelineService(http).processingList()
-        XCTAssertEqual(res.total, 0)
-    }
-
-    func testPause() async throws {
-        let http = mockHelper(json: #"{"is_busy":false}"#)
-        _ = try await PipelineService(http).pause()
-        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/pause"))
-    }
-
-    func testResume() async throws {
-        let http = mockHelper(json: #"{"is_busy":true}"#)
-        _ = try await PipelineService(http).resume()
-        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/resume"))
-    }
-
-    func testConfig() async throws {
-        let http = mockHelper(json: #"{"max_workers":4,"batch_size":10}"#)
-        let res = try await PipelineService(http).config()
-        XCTAssertEqual(res.maxWorkers, 4)
+    func testPipelineCancel() async throws {
+        let http = mockHelper(json: #"{"status":"ok"}"#)
+        _ = try await PipelineService(http).cancel()
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/pipeline/cancel"))
     }
 }
 
 // MARK: - Model Extended Tests
 
 final class ModelExtendedTests: XCTestCase {
-    func testModelList() async throws {
-        let http = mockHelper(json: #"{"models":[],"total":0}"#)
-        _ = try await ModelService(http).list()
-        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/list"))
+    func testModelCatalog() async throws {
+        let http = mockHelper(
+            json: #"{"providers":[],"default_llm_provider":"x","default_llm_model":"y","default_embedding_provider":"e","default_embedding_model":"m"}"#
+        )
+        let res = try await ModelService(http).catalog()
+        XCTAssertNotNil(res.defaultLlmProvider)
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.hasSuffix("/models"))
     }
 
-    func testGetModel() async throws {
-        let http = mockHelper(json: #"{"id":"gpt-4","name":"GPT-4"}"#)
-        let res = try await ModelService(http).get(id: "gpt-4")
-        XCTAssertEqual(res.name, "GPT-4")
+    func testListLlmModels() async throws {
+        let http = mockHelper(json: #"{"models":[],"default_provider":"a","default_model":"b"}"#)
+        let res = try await ModelService(http).listLlmModels()
+        XCTAssertEqual(res.defaultProvider, "a")
     }
 
-    func testProviders() async throws {
+    func testListAvailableProviders() async throws {
         let http = mockHelper(json: #"[{"name":"openai"}]"#)
-        let res = try await ModelService(http).providers()
+        let res = try await ModelService(http).listAvailableProviders()
         XCTAssertEqual(res.first?.name, "openai")
     }
 
-    func testSetDefault() async throws {
-        let http = mockHelper(json: #"{"provider":"openai","model":"gpt-4"}"#)
-        let res = try await ModelService(http).setDefault(provider: "openai", model: "gpt-4")
-        XCTAssertEqual(res.provider, "openai")
-    }
-
-    func testTestModel() async throws {
-        let http = mockHelper(json: #"{"success":true,"latency_ms":100}"#)
-        let res = try await ModelService(http).test(provider: "openai", model: "gpt-4")
-        XCTAssertEqual(res.success, true)
+    func testGetModelCard() async throws {
+        let http = mockHelper(json: #"{"name":"m1","display_name":"M","model_type":"llm"}"#)
+        let res = try await ModelService(http).getModel(provider: "openai", model: "m1")
+        XCTAssertEqual(res.name, "m1")
     }
 }
 
 // MARK: - Cost Extended Tests
 
 final class CostExtendedTests: XCTestCase {
-    func testDaily() async throws {
-        let http = mockHelper(json: #"[{"date":"2024-01-01","cost":10.5}]"#)
-        let res = try await CostService(http).daily()
-        XCTAssertEqual(res.first?.cost, 10.5)
+    func testHistory() async throws {
+        let http = mockHelper(json: #"[{"timestamp":"2024-01-01","total_cost":1.0,"total_tokens":2,"document_count":3}]"#)
+        let res = try await CostService(http).history()
+        XCTAssertEqual(res.first?.totalCost, 1.0)
     }
 
-    func testByProvider() async throws {
-        let http = mockHelper(json: #"[{"provider":"openai","cost":50.0}]"#)
-        let res = try await CostService(http).byProvider()
-        XCTAssertEqual(res.first?.provider, "openai")
-    }
-
-    func testByModel() async throws {
-        let http = mockHelper(json: #"[{"model":"gpt-4","cost":30.0}]"#)
-        let res = try await CostService(http).byModel()
-        XCTAssertEqual(res.first?.model, "gpt-4")
-    }
-
-    func testExport() async throws {
-        let http = mockHelper(json: "date,cost\n2024-01-01,10.5")
-        let data = try await CostService(http).export(format: "csv")
-        XCTAssertFalse(data.isEmpty)
+    func testBudget() async throws {
+        let http = mockHelper(
+            json: #"{"monthly_budget_usd":100,"spent_usd":0,"remaining_usd":100,"alert_threshold":80,"is_over_budget":false}"#
+        )
+        let res = try await CostService(http).budget()
+        XCTAssertEqual(res.monthlyBudgetUsd, 100)
     }
 }
 
@@ -1164,13 +1115,15 @@ final class ConversationExtendedTests: XCTestCase {
         let http = mockHelper(json: #"{"id":"conv-1","title":"Updated"}"#)
         let res = try await ConversationService(http).update(id: "conv-1", title: "Updated")
         XCTAssertEqual(res.title, "Updated")
-        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "PUT")
+        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "PATCH")
     }
 
     func testMessages() async throws {
-        let http = mockHelper(json: #"[{"id":"msg-1","content":"Hello"}]"#)
+        let http = mockHelper(
+            json: #"{"items":[{"id":"msg-1","content":"Hello"}],"pagination":{"total":1,"has_more":false}}"#
+        )
         let res = try await ConversationService(http).messages(id: "conv-1")
-        XCTAssertEqual(res.first?.content, "Hello")
+        XCTAssertEqual(res.items?.first?.content, "Hello")
     }
 
     func testAddMessage() async throws {
@@ -1182,51 +1135,20 @@ final class ConversationExtendedTests: XCTestCase {
 
     func testDeleteMessage() async throws {
         let http = mockHelper(json: "{}", status: 204)
-        try await ConversationService(http).deleteMessage(
-            conversationId: "conv-1", messageId: "msg-1")
+        try await ConversationService(http).deleteMessage(messageId: "msg-1")
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "DELETE")
-    }
-
-    func testSearchConversations() async throws {
-        let http = mockHelper(json: #"[{"id":"conv-1","title":"Test"}]"#)
-        let res = try await ConversationService(http).search(query: "test")
-        XCTAssertEqual(res.first?.title, "Test")
-    }
-
-    func testExportMessages() async throws {
-        let http = mockHelper(json: #"[{"id":"msg-1"}]"#)
-        let data = try await ConversationService(http).exportMessages(id: "conv-1")
-        XCTAssertFalse(data.isEmpty)
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/api/v1/messages/msg-1"))
     }
 }
 
 // MARK: - Folder Extended Tests
 
 final class FolderExtendedTests: XCTestCase {
-    func testGetFolder() async throws {
-        let http = mockHelper(json: #"{"id":"folder-1","name":"Test"}"#)
-        let res = try await FolderService(http).get(id: "folder-1")
-        XCTAssertEqual(res.name, "Test")
-    }
-
     func testUpdateFolder() async throws {
         let http = mockHelper(json: #"{"id":"folder-1","name":"Updated"}"#)
         let res = try await FolderService(http).update(id: "folder-1", name: "Updated")
         XCTAssertEqual(res.name, "Updated")
-        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "PUT")
-    }
-
-    func testMoveConversation() async throws {
-        let http = mockHelper(json: #"{"id":"conv-1","folder_id":"folder-1"}"#)
-        _ = try await FolderService(http).moveConversation(
-            conversationId: "conv-1", folderId: "folder-1")
-        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
-    }
-
-    func testFolderConversations() async throws {
-        let http = mockHelper(json: #"[{"id":"conv-1","title":"In Folder"}]"#)
-        let res = try await FolderService(http).conversations(id: "folder-1")
-        XCTAssertEqual(res.first?.title, "In Folder")
+        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "PATCH")
     }
 }
 
@@ -1235,7 +1157,7 @@ final class FolderExtendedTests: XCTestCase {
 final class AuthServiceTests: XCTestCase {
     func testLogin() async throws {
         let http = mockHelper(json: #"{"access_token":"tok-xxx","refresh_token":"ref-xxx"}"#)
-        let res = try await AuthService(http).login(email: "test@example.com", password: "secret")
+        let res = try await AuthService(http).login(username: "test@example.com", password: "secret")
         XCTAssertEqual(res.accessToken, "tok-xxx")
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
     }
@@ -1258,11 +1180,6 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertEqual(res.email, "me@example.com")
     }
 
-    func testChangePassword() async throws {
-        let http = mockHelper(json: "{}", status: 204)
-        try await AuthService(http).changePassword(currentPassword: "old", newPassword: "new")
-        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/change-password"))
-    }
 }
 
 // MARK: - Workspace Service Tests (New)
@@ -1270,8 +1187,9 @@ final class AuthServiceTests: XCTestCase {
 final class WorkspaceServiceTests: XCTestCase {
     func testListWorkspaces() async throws {
         let http = mockHelper(json: #"{"items":[],"total":0}"#)
-        let res = try await WorkspaceService(http).list()
+        let res = try await WorkspaceService(http).list(tenantId: "t-1")
         XCTAssertEqual(res.total, 0)
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/tenants/t-1/workspaces"))
     }
 
     func testGetWorkspace() async throws {
@@ -1282,7 +1200,7 @@ final class WorkspaceServiceTests: XCTestCase {
 
     func testCreateWorkspace() async throws {
         let http = mockHelper(json: #"{"id":"ws-2","name":"New"}"#)
-        let res = try await WorkspaceService(http).create(name: "New")
+        let res = try await WorkspaceService(http).create(tenantId: "t-1", name: "New")
         XCTAssertEqual(res.name, "New")
         XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
     }
@@ -1306,46 +1224,19 @@ final class WorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(res.documentCount, 10)
     }
 
-    func testSwitchWorkspace() async throws {
-        let http = mockHelper(json: #"{"id":"ws-2","name":"Switched"}"#)
-        let res = try await WorkspaceService(http).switchTo(id: "ws-2")
-        XCTAssertEqual(res.name, "Switched")
-    }
 }
 
 // MARK: - Shared Service Tests (New)
 
 final class SharedServiceTests: XCTestCase {
-    func testCreateLink() async throws {
-        let http = mockHelper(json: #"{"id":"link-1","url":"https://share.example.com/xxx"}"#)
-        let res = try await SharedService(http).createLink(
-            resourceType: "document", resourceId: "doc-1")
-        XCTAssertEqual(res.id, "link-1")
-        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "POST")
-    }
-
-    func testGetLink() async throws {
-        let http = mockHelper(json: #"{"id":"link-1","resource_type":"document"}"#)
-        let res = try await SharedService(http).getLink(id: "link-1")
-        XCTAssertEqual(res.resourceType, "document")
-    }
-
-    func testDeleteLink() async throws {
-        let http = mockHelper(json: "{}", status: 204)
-        try await SharedService(http).deleteLink(id: "link-1")
-        XCTAssertEqual(MockURLProtocol.lastRequest?.method, "DELETE")
-    }
-
-    func testAccess() async throws {
-        let http = mockHelper(json: #"{"resource_type":"document","resource_id":"doc-1"}"#)
-        let res = try await SharedService(http).access(token: "xxx-token")
-        XCTAssertEqual(res.resourceType, "document")
-    }
-
-    func testListLinks() async throws {
-        let http = mockHelper(json: #"[{"id":"link-1"}]"#)
-        let res = try await SharedService(http).listLinks()
-        XCTAssertEqual(res.first?.id, "link-1")
+    func testGetShared() async throws {
+        let json = """
+            {"conversation":{"id":"c-1","title":"Shared"},"messages":[]}
+            """
+        let http = mockHelper(json: json)
+        let res = try await SharedService(http).get(shareId: "shr-1")
+        XCTAssertEqual(res.conversation?.id, "c-1")
+        XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/api/v1/shared/shr-1"))
     }
 }
 
@@ -1384,15 +1275,9 @@ final class OODA45EdgeCaseTests: XCTestCase {
         XCTAssertEqual(res.id, "d-1")
     }
 
-    func testDocumentChunksReturnsChunks() async throws {
-        let http = mockHelper(json: #"{"document_id":"d-1","chunks":[]}"#)
-        let res = try await DocumentService(http).chunks(id: "d-1")
-        XCTAssertEqual(res.documentId, "d-1")
-    }
-
-    func testDocumentStatusReturnsStatus() async throws {
-        let http = mockHelper(json: #"{"status":"completed"}"#)
-        let res = try await DocumentService(http).status(id: "d-1")
+    func testDocumentTrackReturnsStatus() async throws {
+        let http = mockHelper(json: #"{"track_id":"tk","status":"completed"}"#)
+        let res = try await DocumentService(http).track(trackId: "tk")
         XCTAssertEqual(res.status, "completed")
     }
 
@@ -1415,10 +1300,10 @@ final class OODA45EdgeCaseTests: XCTestCase {
         XCTAssertEqual(res.exists, false)
     }
 
-    func testEntityTypesReturnsTypes() async throws {
-        let http = mockHelper(json: #"{"types":["PERSON","ORGANIZATION"]}"#)
-        let res = try await EntityService(http).types()
-        XCTAssertEqual(res.types?.count, 2)
+    func testEntityNeighborhood() async throws {
+        let http = mockHelper(json: #"{"nodes":[],"edges":[]}"#)
+        let res = try await EntityService(http).neighborhood(name: "E1")
+        XCTAssertTrue(res.nodes?.isEmpty ?? true)
     }
 
     // Graph edge cases
@@ -1434,10 +1319,10 @@ final class OODA45EdgeCaseTests: XCTestCase {
         XCTAssertTrue(res.nodes?.isEmpty ?? true)
     }
 
-    func testGraphStatsReturnsStats() async throws {
-        let http = mockHelper(json: #"{"node_count":10,"edge_count":20}"#)
-        let res = try await GraphService(http).stats()
-        XCTAssertEqual(res.nodeCount, 10)
+    func testGraphPopularLabels() async throws {
+        let http = mockHelper(json: #"{"labels":[],"total_entities":0}"#)
+        let res = try await GraphService(http).popularLabels(limit: 5)
+        XCTAssertEqual(res.totalEntities, 0)
     }
 
     // Pipeline edge cases
@@ -1455,22 +1340,26 @@ final class OODA45EdgeCaseTests: XCTestCase {
 
     // Cost edge cases
     func testCostSummaryReturns() async throws {
-        let http = mockHelper(json: #"{"total_cost":100.50}"#)
+        let http = mockHelper(
+            json: #"{"workspace_id":"ws","total_cost":100.50,"document_count":1,"total_tokens":2,"by_operation":[]}"#
+        )
         let res = try await CostService(http).summary()
         XCTAssertEqual(res.totalCost, 100.5)
     }
 
-    func testCostDailyReturns() async throws {
+    func testCostHistoryReturns() async throws {
         let http = mockHelper(json: #"[]"#)
-        let res = try await CostService(http).daily()
+        let res = try await CostService(http).history()
         XCTAssertTrue(res.isEmpty)
     }
 
     // Model edge cases
-    func testModelListReturns() async throws {
-        let http = mockHelper(json: #"{"models":[]}"#)
-        let res = try await ModelService(http).list()
-        XCTAssertTrue(res.models?.isEmpty ?? true)
+    func testModelCatalogReturns() async throws {
+        let http = mockHelper(
+            json: #"{"providers":[],"default_llm_provider":"a","default_llm_model":"b","default_embedding_provider":"c","default_embedding_model":"d"}"#
+        )
+        let res = try await ModelService(http).catalog()
+        XCTAssertTrue(res.providers?.isEmpty ?? true)
     }
 
     func testModelHealthReturns() async throws {
@@ -1488,7 +1377,7 @@ final class OODA45EdgeCaseTests: XCTestCase {
 
     func testTaskGetReturns() async throws {
         let http = mockHelper(json: #"{"id":"t-1","status":"completed"}"#)
-        let res = try await TaskService(http).get(id: "t-1")
+        let res = try await TaskService(http).get(trackId: "t-1")
         XCTAssertEqual(res.status, "completed")
     }
 
@@ -1515,10 +1404,10 @@ final class OODA45RelationshipConversationTests: XCTestCase {
         XCTAssertEqual(res.total, 0)
     }
 
-    func testRelationshipTypesReturns() async throws {
-        let http = mockHelper(json: #"{"types":["WORKS_FOR","LOCATED_IN"]}"#)
-        let res = try await RelationshipService(http).types()
-        XCTAssertEqual(res.types?.count, 2)
+    func testRelationshipGetReturns() async throws {
+        let http = mockHelper(json: #"{"relationship":{"id":"r1"}}"#)
+        let res = try await RelationshipService(http).get(id: "r1")
+        XCTAssertEqual(res.relationship?.id, "r1")
     }
 
     func testConversationListReturnsEmpty() async throws {
@@ -1533,11 +1422,6 @@ final class OODA45RelationshipConversationTests: XCTestCase {
         XCTAssertEqual(res.id, "conv-1")
     }
 
-    func testConversationSearchReturnsArray() async throws {
-        let http = mockHelper(json: #"[]"#)
-        let res = try await ConversationService(http).search(query: "test")
-        XCTAssertTrue(res.isEmpty)
-    }
 }
 
 // MARK: - OODA-45: Tenant & User Service Tests

@@ -71,12 +71,37 @@ public class DocumentStatusResponse
     public string? Message { get; set; }
 }
 
+/// <summary>GET /api/v1/documents/track/{track_id}</summary>
+public class TrackStatusResponse
+{
+    public string? TrackId { get; set; }
+    public string? Status { get; set; }
+    public double? Progress { get; set; }
+    public string? Message { get; set; }
+    public string? DocumentId { get; set; }
+}
+
 public class UploadResponse
 {
     public string? DocumentId { get; set; }
     public string? Status { get; set; }
     public string? TrackId { get; set; }
     public string? DuplicateOf { get; set; }
+}
+
+// ── Admin / config ──
+public class UpdateTenantQuotaResponse
+{
+    public string? TenantId { get; set; }
+    public int MaxWorkspaces { get; set; }
+    public int PreviousMaxWorkspaces { get; set; }
+    public int CurrentWorkspaceCount { get; set; }
+}
+
+public class ServerDefaultsResponse
+{
+    public int DefaultMaxWorkspaces { get; set; }
+    public string? Note { get; set; }
 }
 
 // ── Entities ──
@@ -119,10 +144,12 @@ public class MergeEntitiesResponse
     public int? MergedRelationships { get; set; }
 }
 
-public class EntityTypesResponse
+public class EntityExistsResponse
 {
-    public List<string>? Types { get; set; }
-    public Dictionary<string, int>? TypeCounts { get; set; }
+    public bool? Exists { get; set; }
+    public string? EntityId { get; set; }
+    public string? EntityType { get; set; }
+    public int? Degree { get; set; }
 }
 
 public class EntityDeleteResponse
@@ -156,26 +183,11 @@ public class CreateRelationshipResponse
     public string? Message { get; set; }
 }
 
-public class RelationshipTypesResponse
-{
-    public List<string>? Types { get; set; }
-    public Dictionary<string, int>? TypeCounts { get; set; }
-}
-
 // ── Graph ──
 public class GraphResponse
 {
     public List<JsonElement>? Nodes { get; set; }
     public List<JsonElement>? Edges { get; set; }
-}
-
-public class GraphStatsResponse
-{
-    public int? NodeCount { get; set; }
-    public int? EdgeCount { get; set; }
-    public int? ComponentCount { get; set; }
-    public double? Density { get; set; }
-    public Dictionary<string, int>? TypeDistribution { get; set; }
 }
 
 public class SearchResponse
@@ -185,8 +197,8 @@ public class SearchResponse
 
 public class LabelSearchResponse
 {
-    public List<JsonElement>? Results { get; set; }
-    public int? Total { get; set; }
+    /// <summary>Canonical API: GET /graph/labels/search returns string label matches.</summary>
+    public List<string>? Labels { get; set; }
 }
 
 public class PopularLabelsResponse
@@ -546,7 +558,12 @@ public class MessageListResponse
 
 public class BulkDeleteResponse
 {
+    [JsonPropertyName("affected")]
+    public int? Affected { get; set; }
+
+    [JsonPropertyName("deleted")]
     public int? Deleted { get; set; }
+
     public string? Status { get; set; }
 }
 

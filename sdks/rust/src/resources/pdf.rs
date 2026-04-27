@@ -57,7 +57,13 @@ impl<'a> PdfResource<'a> {
         }
 
         self.client
-            .upload_multipart("/api/v1/documents/pdf", file_bytes, filename, fields)
+            .upload_multipart(
+                "/api/v1/documents/pdf",
+                file_bytes,
+                filename,
+                "application/pdf",
+                fields,
+            )
             .await
     }
 
@@ -92,6 +98,34 @@ impl<'a> PdfResource<'a> {
     pub async fn content(&self, pdf_id: &str) -> Result<PdfContentResponse> {
         self.client
             .get(&format!("/api/v1/documents/pdf/{pdf_id}/content"))
+            .await
+    }
+
+    /// `GET /api/v1/documents/pdf/{pdf_id}/download` — raw PDF bytes.
+    pub async fn download(&self, pdf_id: &str) -> Result<Vec<u8>> {
+        self.client
+            .get_raw(&format!("/api/v1/documents/pdf/{pdf_id}/download"))
+            .await
+    }
+
+    /// `POST /api/v1/documents/pdf/{pdf_id}/retry`
+    pub async fn retry(&self, pdf_id: &str) -> Result<()> {
+        self.client
+            .post_no_content::<()>(&format!("/api/v1/documents/pdf/{pdf_id}/retry"), None)
+            .await
+    }
+
+    /// `DELETE /api/v1/documents/pdf/{pdf_id}/cancel`
+    pub async fn cancel(&self, pdf_id: &str) -> Result<()> {
+        self.client
+            .delete_no_content(&format!("/api/v1/documents/pdf/{pdf_id}/cancel"))
+            .await
+    }
+
+    /// `DELETE /api/v1/documents/pdf/{pdf_id}`
+    pub async fn delete(&self, pdf_id: &str) -> Result<()> {
+        self.client
+            .delete_no_content(&format!("/api/v1/documents/pdf/{pdf_id}"))
             .await
     }
 }

@@ -2,6 +2,7 @@ package io.edgequake.sdk.models;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -211,8 +212,11 @@ public class AuthModels {
         @JsonProperty("expires_at") public String expiresAt;
     }
 
+    /** WHY: API returns `BulkOperationResponse` with `affected`. */
     public static class BulkDeleteResponse {
-        @JsonProperty("deleted_count") public int deletedCount;
+        @JsonProperty("affected")
+        @JsonAlias({"deleted_count", "deleted"})
+        public int affected;
     }
 
     // ── Folders ──────────────────────────────────────────────────────

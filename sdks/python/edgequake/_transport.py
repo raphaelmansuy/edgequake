@@ -208,6 +208,47 @@ class SyncTransport:
             if should_close:
                 file_obj.close()
 
+    def put_upload(
+        self,
+        path: str,
+        *,
+        file: Path | BinaryIO,
+        filename: str | None = None,
+        metadata: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        """Multipart PUT (e.g. knowledge injection file)."""
+        merged_headers = {**self._config.build_headers(), **(headers or {})}
+        merged_headers.pop("Content-Type", None)
+
+        if isinstance(file, Path):
+            fname = filename or file.name
+            file_obj: BinaryIO = open(file, "rb")  # noqa: SIM115
+            should_close = True
+        else:
+            fname = filename or getattr(file, "name", "upload")
+            file_obj = file
+            should_close = False
+
+        try:
+            files = {"file": (fname, file_obj)}
+            data = metadata or {}
+            response = self._client.put(
+                path,
+                files=files,
+                data=data,
+                headers=merged_headers,
+            )
+            raise_for_status(response)
+            return response
+        except httpx.ConnectError as exc:
+            raise EQConnectionError(str(exc)) from exc
+        except httpx.TimeoutException as exc:
+            raise EQTimeoutError(str(exc)) from exc
+        finally:
+            if should_close:
+                file_obj.close()
+
     def close(self) -> None:
         """Close the underlying httpx.Client."""
         self._client.close()
@@ -351,6 +392,47 @@ class AsyncTransport:
             files = {"file": (fname, file_obj)}
             data = metadata or {}
             response = await self._client.post(
+                path,
+                files=files,
+                data=data,
+                headers=merged_headers,
+            )
+            raise_for_status(response)
+            return response
+        except httpx.ConnectError as exc:
+            raise EQConnectionError(str(exc)) from exc
+        except httpx.TimeoutException as exc:
+            raise EQTimeoutError(str(exc)) from exc
+        finally:
+            if should_close:
+                file_obj.close()
+
+    async def put_upload(
+        self,
+        path: str,
+        *,
+        file: Path | BinaryIO,
+        filename: str | None = None,
+        metadata: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        """Multipart PUT (async)."""
+        merged_headers = {**self._config.build_headers(), **(headers or {})}
+        merged_headers.pop("Content-Type", None)
+
+        if isinstance(file, Path):
+            fname = filename or file.name
+            file_obj: BinaryIO = open(file, "rb")  # noqa: SIM115
+            should_close = True
+        else:
+            fname = filename or getattr(file, "name", "upload")
+            file_obj = file
+            should_close = False
+
+        try:
+            files = {"file": (fname, file_obj)}
+            data = metadata or {}
+            response = await self._client.put(
                 path,
                 files=files,
                 data=data,

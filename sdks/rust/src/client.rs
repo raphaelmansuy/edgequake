@@ -78,6 +78,10 @@ impl EdgeQuakeClient {
         crate::resources::conversations::ConversationsResource { client: self }
     }
 
+    pub fn shared(&self) -> crate::resources::shared::SharedResource<'_> {
+        crate::resources::shared::SharedResource { client: self }
+    }
+
     pub fn folders(&self) -> crate::resources::folders::FoldersResource<'_> {
         crate::resources::folders::FoldersResource { client: self }
     }
@@ -120,6 +124,14 @@ impl EdgeQuakeClient {
 
     pub fn lineage(&self) -> crate::resources::lineage::LineageResource<'_> {
         crate::resources::lineage::LineageResource { client: self }
+    }
+
+    pub fn admin(&self) -> crate::resources::admin::AdminResource<'_> {
+        crate::resources::admin::AdminResource { client: self }
+    }
+
+    pub fn effective_config(&self) -> crate::resources::effective_config::EffectiveConfigResource<'_> {
+        crate::resources::effective_config::EffectiveConfigResource { client: self }
     }
 
     pub fn settings(&self) -> crate::resources::settings::SettingsResource<'_> {
@@ -206,6 +218,30 @@ impl EdgeQuakeClient {
         }
     }
 
+    /// Plain-text or non-JSON GET (e.g. `/ready`, `/metrics`).
+    pub(crate) async fn get_text(&self, path: &str) -> Result<String> {
+        let resp = self
+            .send_with_retry(Method::GET, path, Option::<&()>::None)
+            .await?;
+        let status = resp.status();
+        if status.is_success() {
+            resp.text().await.map_err(Error::Network)
+        } else {
+            Err(Error::from_response(resp).await)
+        }
+    }
+
+    /// POST returning the raw [`Response`] (streaming / non-JSON).
+    pub(crate) async fn post_raw<B: Serialize>(&self, path: &str, body: &B) -> Result<Response> {
+        self.send_with_retry(Method::POST, path, Some(body)).await
+    }
+
+    /// GET returning the raw [`Response`] (e.g. SSE streams).
+    pub(crate) async fn get_raw_response(&self, path: &str) -> Result<Response> {
+        self.send_with_retry(Method::GET, path, Option::<&()>::None)
+            .await
+    }
+
     /// Execute a POST and discard the body (returns `()`).
     pub(crate) async fn post_no_content<B: Serialize>(
         &self,
@@ -231,13 +267,14 @@ impl EdgeQuakeClient {
         path: &str,
         file_bytes: Vec<u8>,
         filename: &str,
+        content_type: &str,
         extra_fields: HashMap<String, String>,
     ) -> Result<T> {
         let url = self.url(path)?;
 
         let part = multipart::Part::bytes(file_bytes)
             .file_name(filename.to_owned())
-            .mime_str("application/pdf")
+            .mime_str(content_type)
             .map_err(Error::Network)?;
 
         let mut form = multipart::Form::new().part("file", part);

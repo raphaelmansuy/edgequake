@@ -710,11 +710,11 @@ public class LineageTest
     [Fact]
     public async Task BulkDelete_AllFields()
     {
-        var json = @"{""deleted"":10,""status"":""ok""}";
+        var json = @"{""affected"":10,""status"":""ok""}";
         var (http, mock) = MockHelperWithCalls(json);
         var result = await new ConversationService(http).BulkDeleteAsync(
             new List<string> { "c1", "c2", "c3", "c4", "c5" });
-        Assert.Equal(10, result.Deleted);
+        Assert.Equal(10, result.Affected);
         Assert.Equal("ok", result.Status);
         Assert.Contains("c1", mock.LastCall!.Body!);
         Assert.Contains("c5", mock.LastCall.Body!);
@@ -789,15 +789,14 @@ public class LineageTest
     // ── Client Service Count ───────────────────────────────────────
 
     [Fact]
-    public void Client_Has20Services()
+    public void Client_ServiceCount_MatchesEdgeQuakeClient()
     {
         var client = new EdgeQuakeClient();
         var props = typeof(EdgeQuakeClient).GetProperties();
-        // 20 services: Health, Documents, Entities, Relationships, Graph, Query,
-        // Chat, Tenants, Users, ApiKeys, Tasks, Pipeline, Models, Costs,
-        // Conversations, Folders, Lineage, Auth, Workspaces, Shared
-        // OODA-36: Added Auth, Workspaces, Shared services
-        Assert.Equal(20, props.Length);
+        // Health, Documents, Entities, Relationships, Graph, Query, Chat, Tenants, Users,
+        // ApiKeys, Tasks, Pipeline, Models, Costs, Conversations, Folders, Lineage, Auth,
+        // Workspaces, Shared, Admin, EffectiveConfig
+        Assert.Equal(22, props.Length);
     }
 
     // ── LineageService Endpoint Tests (OODA-25) ────────────────────

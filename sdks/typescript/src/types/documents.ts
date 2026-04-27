@@ -86,14 +86,16 @@ export type UploadFileResponse = UploadDocumentResponse;
 // ── List ──────────────────────────────────────────────────────
 
 export interface ListDocumentsQuery {
-  /** Page number (1-indexed). Default: 1. */
+  /** Page number (1-indexed). Omit to use server default. */
   page?: number;
-  /** Page size. Default: 20. */
+  /** Page size. Omit to use server default. */
   page_size?: number;
-  /** Filter by status. */
-  status?: string;
-  /** Search text in title/content. */
-  search?: string;
+  /** Inclusive start date filter (ISO 8601). */
+  date_from?: string;
+  /** Inclusive end date filter (ISO 8601). */
+  date_to?: string;
+  /** Case-insensitive title substring patterns; comma-separated = OR. */
+  document_pattern?: string;
 }
 
 /** Status counts for document filtering. */

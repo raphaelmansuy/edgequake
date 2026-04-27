@@ -97,46 +97,6 @@ export interface EstimateCostResponse {
   formatted_cost: string;
 }
 
-/** Workspace cost summary response. */
-export interface WorkspaceCostSummaryResponse {
-  /** Workspace ID. */
-  workspace_id: string;
-  /** Total cost in USD. */
-  total_cost: number;
-  /** Total document count. */
-  document_count: number;
-  /** Total tokens used. */
-  total_tokens: number;
-  /** Average cost per document. */
-  average_cost_per_document: number;
-  /** Period start (ISO date). */
-  period_start?: string;
-  /** Period end (ISO date). */
-  period_end?: string;
-  /** Cost breakdown by operation. */
-  by_operation: OperationBreakdown[];
-  /** Budget info if configured. */
-  budget?: BudgetInfo;
-}
-
-/** Operation cost breakdown within workspace summary. */
-export interface OperationBreakdown {
-  /** Operation name. */
-  operation: string;
-  /** Cost in USD. */
-  cost: number;
-  /** Percentage of total cost. */
-  percentage: number;
-  /** Input tokens for this operation. */
-  input_tokens: number;
-  /** Output tokens for this operation. */
-  output_tokens: number;
-  /** Total tokens for this operation. */
-  total_tokens: number;
-  /** Number of API calls for this operation. */
-  call_count: number;
-}
-
 /** Budget information. */
 export interface BudgetInfo {
   /** Monthly budget limit in USD. */

@@ -374,7 +374,7 @@ type ShareLink struct {
 }
 
 type BulkDeleteResponse struct {
-	DeletedCount int `json:"deleted_count"`
+	Affected int `json:"affected"`
 }
 
 type FolderInfo struct {
@@ -618,6 +618,18 @@ type CreateWorkspaceParams struct {
 	// Vision LLM for PDF image extraction (SPEC-041). Inherits from tenant if not set.
 	VisionLLMModel    string `json:"vision_llm_model,omitempty"`
 	VisionLLMProvider string `json:"vision_llm_provider,omitempty"`
+}
+
+// WorkspaceListResponse is returned by GET /api/v1/tenants/{tenant_id}/workspaces.
+type WorkspaceListResponse struct {
+	Items      []WorkspaceInfo `json:"items"`
+	Total      int             `json:"total,omitempty"`
+	Offset     int             `json:"offset,omitempty"`
+	Limit      int             `json:"limit,omitempty"`
+	Page       int             `json:"page,omitempty"`
+	PageSize   int             `json:"page_size,omitempty"`
+	TotalPages int             `json:"total_pages,omitempty"`
+	HasMore    bool            `json:"has_more,omitempty"`
 }
 
 type WorkspaceInfo struct {

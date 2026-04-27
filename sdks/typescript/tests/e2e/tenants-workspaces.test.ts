@@ -17,7 +17,7 @@ describe.skipIf(!E2E_ENABLED)("Tenants E2E", () => {
     client = createE2EClient()!;
   });
 
-  it("lists existing tenants", { timeout: 15_000 }, async () => {
+  it("lists existing tenants", async () => {
     // WHY: The API returns paginated { items: [...], total, offset, limit }
     const result = await client.tenants.list();
     expect(Array.isArray(result)).toBe(true);
@@ -29,9 +29,9 @@ describe.skipIf(!E2E_ENABLED)("Tenants E2E", () => {
     expect(first).toHaveProperty("name");
     expect(first).toHaveProperty("slug");
     expect(first).toHaveProperty("plan");
-  });
+  }, 15_000);
 
-  it("creates, gets, and deletes a tenant", { timeout: 20_000 }, async () => {
+  it("creates, gets, and deletes a tenant", async () => {
     const name = `SDK-E2E-${testId()}`;
 
     // Create
@@ -60,37 +60,33 @@ describe.skipIf(!E2E_ENABLED)("Tenants E2E", () => {
       const e = err as { status?: number };
       expect([404, 410]).toContain(e.status);
     }
-  });
+  }, 20_000);
 
-  it(
-    "lists and creates workspaces within a tenant",
-    { timeout: 20_000 },
-    async () => {
-      // First get an existing tenant
-      const tenants = await client.tenants.list();
-      expect(tenants.length).toBeGreaterThan(0);
-      const tenantId = tenants[0].id;
+  it("lists and creates workspaces within a tenant", async () => {
+    // First get an existing tenant
+    const tenants = await client.tenants.list();
+    expect(tenants.length).toBeGreaterThan(0);
+    const tenantId = tenants[0].id;
 
-      // List workspaces
-      const workspaces = await client.tenants.listWorkspaces(tenantId);
-      expect(Array.isArray(workspaces)).toBe(true);
+    // List workspaces
+    const workspaces = await client.tenants.listWorkspaces(tenantId);
+    expect(Array.isArray(workspaces)).toBe(true);
 
-      // Create a workspace
-      const wsName = `SDK-WS-${testId()}`;
-      try {
-        const ws = await client.tenants.createWorkspace(tenantId, {
-          name: wsName,
-        });
-        expect(ws).toHaveProperty("id");
+    // Create a workspace
+    const wsName = `SDK-WS-${testId()}`;
+    try {
+      const ws = await client.tenants.createWorkspace(tenantId, {
+        name: wsName,
+      });
+      expect(ws).toHaveProperty("id");
 
-        // Clean up
-        await client.workspaces.delete(ws.id);
-      } catch (err: unknown) {
-        // Some setups may not allow workspace creation
-        console.log("Workspace creation not available:", String(err));
-      }
-    },
-  );
+      // Clean up
+      await client.workspaces.delete(ws.id);
+    } catch (err: unknown) {
+      // Some setups may not allow workspace creation
+      console.log("Workspace creation not available:", String(err));
+    }
+  }, 20_000);
 });
 
 describe.skipIf(!E2E_ENABLED)("Workspaces E2E", () => {
@@ -109,16 +105,16 @@ describe.skipIf(!E2E_ENABLED)("Workspaces E2E", () => {
     }
   }, 15_000);
 
-  it("gets workspace by ID", { timeout: 15_000 }, async () => {
+  it("gets workspace by ID", async () => {
     if (!workspaceId) return; // Skip if no workspace available
     const ws = await client.workspaces.get(workspaceId);
     expect(ws).toHaveProperty("id");
     expect(ws).toHaveProperty("name");
     expect(ws).toHaveProperty("llm_model");
     expect(ws).toHaveProperty("embedding_model");
-  });
+  }, 15_000);
 
-  it("gets workspace stats", { timeout: 15_000 }, async () => {
+  it("gets workspace stats", async () => {
     if (!workspaceId) return;
     try {
       const stats = await client.workspaces.stats(workspaceId);
@@ -128,9 +124,9 @@ describe.skipIf(!E2E_ENABLED)("Workspaces E2E", () => {
       // Stats may not be available for all workspaces
       console.log("Workspace stats not available:", String(err));
     }
-  });
+  }, 15_000);
 
-  it("gets workspace metrics history", { timeout: 15_000 }, async () => {
+  it("gets workspace metrics history", async () => {
     if (!workspaceId) return;
     try {
       const history = await client.workspaces.metricsHistory(workspaceId);
@@ -138,5 +134,5 @@ describe.skipIf(!E2E_ENABLED)("Workspaces E2E", () => {
     } catch (err: unknown) {
       console.log("Metrics history not available:", String(err));
     }
-  });
+  }, 15_000);
 });

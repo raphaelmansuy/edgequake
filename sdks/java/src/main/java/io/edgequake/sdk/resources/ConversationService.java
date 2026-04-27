@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import io.edgequake.sdk.internal.HttpHelper;
 import io.edgequake.sdk.models.AuthModels.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,7 +51,7 @@ public class ConversationService {
      */
     public BulkDeleteResponse bulkDelete(List<String> ids) {
         return http.post("/api/v1/conversations/bulk/delete",
-                Map.of("ids", ids), BulkDeleteResponse.class);
+                Map.of("conversation_ids", ids), BulkDeleteResponse.class);
     }
 
     /** WHY: Pin/unpin via PATCH /api/v1/conversations/{id} with is_pinned field. */
@@ -92,14 +93,20 @@ public class ConversationService {
 
     /** Bulk archive conversations. */
     public BulkDeleteResponse bulkArchive(List<String> ids) {
-        return http.post("/api/v1/conversations/bulk/archive",
-                Map.of("ids", ids), BulkDeleteResponse.class);
+        var body = new HashMap<String, Object>();
+        body.put("conversation_ids", ids);
+        body.put("archive", true);
+        return http.post("/api/v1/conversations/bulk/archive", body, BulkDeleteResponse.class);
     }
 
     /** Bulk move conversations to folder. */
     public BulkDeleteResponse bulkMove(List<String> ids, String folderId) {
-        return http.post("/api/v1/conversations/bulk/move",
-                Map.of("ids", ids, "folder_id", folderId), BulkDeleteResponse.class);
+        var body = new HashMap<String, Object>();
+        body.put("conversation_ids", ids);
+        if (folderId != null) {
+            body.put("folder_id", folderId);
+        }
+        return http.post("/api/v1/conversations/bulk/move", body, BulkDeleteResponse.class);
     }
 
     /** Import a conversation. */

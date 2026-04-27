@@ -55,6 +55,19 @@ public struct UploadResponse: Codable, Sendable {
     public let duplicateOf: String?
 }
 
+public struct TrackStatusResponse: Codable, Sendable {
+    public let trackId: String?
+    public let status: String?
+    public let progress: Double?
+    public let message: String?
+    public let documentId: String?
+}
+
+public struct SimpleStatusResponse: Codable, Sendable {
+    public let status: String?
+    public let message: String?
+}
+
 public struct ListDocumentsResponse: Codable, Sendable {
     public let documents: [Document]?
     public let items: [Document]?
@@ -147,13 +160,16 @@ public struct MergeEntitiesRequest: Codable, Sendable {
 
 public struct Relationship: Codable, Sendable {
     public let id: String?
-    public let source: String?
-    public let target: String?
-    public let relationshipType: String?
+    public let srcId: String?
+    public let tgtId: String?
+    public let relationType: String?
+    public let keywords: String?
     public let weight: Double?
     public let description: String?
     public let sourceId: String?
     public let createdAt: String?
+    public let updatedAt: String?
+    public let metadata: AnyCodable?
 }
 
 public struct RelationshipListResponse: Codable, Sendable {
@@ -162,6 +178,17 @@ public struct RelationshipListResponse: Codable, Sendable {
     public let page: Int?
     public let pageSize: Int?
     public let totalPages: Int?
+}
+
+public struct CreateRelationshipResponse: Codable, Sendable {
+    public let status: String?
+    public let message: String?
+    public let relationship: Relationship?
+}
+
+public struct GetRelationshipResponse: Codable, Sendable {
+    public let relationship: Relationship?
+    public let entities: AnyCodable?
 }
 
 // MARK: - Graph
@@ -188,6 +215,52 @@ public struct GraphResponse: Codable, Sendable {
 public struct SearchNodesResponse: Codable, Sendable {
     public let nodes: [GraphNode]?
     public let total: Int?
+}
+
+public struct SearchLabelsResponse: Codable, Sendable {
+    public let labels: [String]?
+}
+
+public struct PopularLabel: Codable, Sendable {
+    public let label: String?
+    public let entityType: String?
+    public let degree: Int?
+    public let description: String?
+}
+
+public struct PopularLabelsResponse: Codable, Sendable {
+    public let labels: [PopularLabel]?
+    public let totalEntities: Int?
+}
+
+public struct NodeDegree: Codable, Sendable {
+    public let nodeId: String?
+    public let degree: Int?
+}
+
+public struct BatchDegreeResponse: Codable, Sendable {
+    public let degrees: [NodeDegree]?
+    public let count: Int?
+}
+
+public struct NeighborhoodNode: Codable, Sendable {
+    public let id: String?
+    public let entityType: String?
+    public let description: String?
+    public let degree: Int?
+}
+
+public struct NeighborhoodEdge: Codable, Sendable {
+    public let id: String?
+    public let source: String?
+    public let target: String?
+    public let relationType: String?
+    public let weight: Double?
+}
+
+public struct EntityNeighborhoodResponse: Codable, Sendable {
+    public let nodes: [NeighborhoodNode]?
+    public let edges: [NeighborhoodEdge]?
 }
 
 // MARK: - Query & Chat
@@ -373,7 +446,32 @@ public struct ProviderCatalog: Codable, Sendable {
 public struct ProviderInfo: Codable, Sendable {
     public let name: String?
     public let displayName: String?
+    public let providerType: String?
+    public let enabled: Bool?
+    public let priority: Int?
+    public let description: String?
     public let models: [AnyCodable]?
+    public let health: AnyCodable?
+}
+
+public struct ModelsListResponse: Codable, Sendable {
+    public let providers: [ProviderInfo]?
+    public let defaultLlmProvider: String?
+    public let defaultLlmModel: String?
+    public let defaultEmbeddingProvider: String?
+    public let defaultEmbeddingModel: String?
+}
+
+public struct LlmModelsResponse: Codable, Sendable {
+    public let models: [AnyCodable]?
+    public let defaultProvider: String?
+    public let defaultModel: String?
+}
+
+public struct EmbeddingModelsResponse: Codable, Sendable {
+    public let models: [AnyCodable]?
+    public let defaultProvider: String?
+    public let defaultModel: String?
 }
 
 public struct ProviderHealthInfo: Codable, Sendable {
@@ -399,6 +497,43 @@ public struct CostSummary: Codable, Sendable {
     public let documentCount: Int?
     public let queryCount: Int?
     public let entries: [AnyCodable]?
+}
+
+public struct OperationBreakdown: Codable, Sendable {
+    public let operation: String?
+    public let cost: Double?
+    public let percentage: Double?
+    public let inputTokens: Int?
+    public let outputTokens: Int?
+    public let totalTokens: Int?
+    public let callCount: Int?
+}
+
+public struct BudgetInfo: Codable, Sendable {
+    public let monthlyBudgetUsd: Double?
+    public let spentUsd: Double?
+    public let remainingUsd: Double?
+    public let alertThreshold: Double?
+    public let isOverBudget: Bool?
+}
+
+public struct WorkspaceCostSummaryResponse: Codable, Sendable {
+    public let workspaceId: String?
+    public let totalCost: Double?
+    public let documentCount: Int?
+    public let totalTokens: Int?
+    public let averageCostPerDocument: Double?
+    public let periodStart: String?
+    public let periodEnd: String?
+    public let byOperation: [OperationBreakdown]?
+    public let budget: BudgetInfo?
+}
+
+public struct CostHistoryPoint: Codable, Sendable {
+    public let timestamp: String?
+    public let totalCost: Double?
+    public let totalTokens: Int?
+    public let documentCount: Int?
 }
 
 // MARK: - Conversations
@@ -441,6 +576,18 @@ public struct ConversationMessage: Codable, Sendable {
     public let createdAt: String?
 }
 
+public struct PaginationMetaResponse: Codable, Sendable {
+    public let nextCursor: String?
+    public let prevCursor: String?
+    public let total: Int?
+    public let hasMore: Bool?
+}
+
+public struct PaginatedMessagesResponse: Codable, Sendable {
+    public let items: [ConversationMessage]?
+    public let pagination: PaginationMetaResponse?
+}
+
 public struct CreateConversationRequest: Codable, Sendable {
     public let title: String
     public let mode: String?
@@ -454,6 +601,9 @@ public struct CreateConversationRequest: Codable, Sendable {
 }
 
 public struct BulkDeleteResponse: Codable, Sendable {
+    /// API field from `BulkOperationResponse`.
+    public let affected: Int?
+    /// Legacy mocks only.
     public let deleted: Int?
     public let status: String?
 }
@@ -714,6 +864,7 @@ public struct AuthTokenResponse: Codable, Sendable {
     public let refreshToken: String?
     public let expiresIn: Int?
     public let tokenType: String?
+    public let user: AuthUserResponse?
 }
 
 public struct AuthUserResponse: Codable, Sendable {
