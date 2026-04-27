@@ -401,6 +401,294 @@ embedding_per_1k = 0.0001
 image_per_unit = 0.0
 
 # =============================================================================
+# MISTRAL AI PROVIDER (La Plateforme)
+# =============================================================================
+# Mistral AI cloud provider — chat, vision (pixtral), embeddings, OCR, audio.
+# Requires: MISTRAL_API_KEY environment variable (console.mistral.ai)
+# Models validated: 2026-04-23
+# Docs: https://docs.mistral.ai/models/overview
+
+[[providers]]
+name = "mistral"
+display_name = "Mistral AI"
+type = "openai_compatible"
+api_base = "https://api.mistral.ai/v1"
+api_key_env = "MISTRAL_API_KEY"
+enabled = true
+priority = 9
+description = "Mistral AI La Plateforme — high-efficiency frontier models, native embeddings, pixtral vision"
+
+# --- Mistral LLM Models (chat) ---
+
+[[providers.models]]
+name = "mistral-small-latest"
+display_name = "Mistral Small (latest)"
+model_type = "llm"
+description = "Default Mistral chat model — cost-effective, 128K context, tool calling"
+deprecated = false
+tags = ["recommended", "default", "fast", "tools"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0002
+output_per_1k = 0.0006
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "mistral-medium-latest"
+display_name = "Mistral Medium (latest)"
+model_type = "llm"
+description = "Frontier multimodal Mistral model — best balance of capability and cost"
+deprecated = false
+tags = ["recommended", "multimodal", "tools"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0004
+output_per_1k = 0.002
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "mistral-large-latest"
+display_name = "Mistral Large (latest)"
+model_type = "llm"
+description = "Highest-capability Mistral chat model — advanced reasoning, 128K context"
+deprecated = false
+tags = ["premium", "reasoning", "tools"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.002
+output_per_1k = 0.006
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "magistral-small-latest"
+display_name = "Magistral Small (latest)"
+model_type = "llm"
+description = "Reasoning-oriented Mistral model — extended thinking traces"
+deprecated = false
+tags = ["reasoning", "thinking"]
+
+[providers.models.capabilities]
+context_length = 40000
+max_output_tokens = 40000
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0005
+output_per_1k = 0.002
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "magistral-medium-latest"
+display_name = "Magistral Medium (latest)"
+model_type = "llm"
+description = "Reasoning-oriented Mistral frontier model — extended thinking traces"
+deprecated = false
+tags = ["reasoning", "thinking", "premium"]
+
+[providers.models.capabilities]
+context_length = 40000
+max_output_tokens = 40000
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.002
+output_per_1k = 0.007
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "codestral-latest"
+display_name = "Codestral (latest)"
+model_type = "llm"
+description = "Code-specialised Mistral model — optimised for code generation and completion"
+deprecated = false
+tags = ["code", "specialized"]
+
+[providers.models.capabilities]
+context_length = 262144
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0003
+output_per_1k = 0.0009
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "devstral-latest"
+display_name = "Devstral (latest)"
+model_type = "llm"
+description = "Code-agent Mistral model — optimised for multi-file agentic coding tasks"
+deprecated = false
+tags = ["code", "agent", "specialized"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.001
+output_per_1k = 0.003
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- Mistral Vision Models (pixtral) ---
+
+[[providers.models]]
+name = "pixtral-large-latest"
+display_name = "Pixtral Large (latest)"
+model_type = "multimodal"
+description = "Mistral's flagship vision model — 128K context, high-quality image understanding for PDF ingestion"
+deprecated = false
+tags = ["vision", "multimodal", "recommended", "pdf"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.002
+output_per_1k = 0.006
+embedding_per_1k = 0.0
+image_per_unit = 0.0015
+
+[[providers.models]]
+name = "pixtral-12b-2409"
+display_name = "Pixtral 12B"
+model_type = "multimodal"
+description = "Mistral 12B vision model — cost-effective image understanding"
+deprecated = false
+tags = ["vision", "multimodal", "cost-effective"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.00015
+output_per_1k = 0.00015
+embedding_per_1k = 0.0
+image_per_unit = 0.0002
+
+# --- Mistral Embedding Models ---
+
+[[providers.models]]
+name = "mistral-embed"
+display_name = "Mistral Embed"
+model_type = "embedding"
+description = "Mistral native embedding model — 1024 dimensions, optimised for retrieval"
+deprecated = false
+tags = ["embedding", "recommended"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1024
+
+[providers.models.cost]
+input_per_1k = 0.0001
+output_per_1k = 0.0
+embedding_per_1k = 0.0001
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "codestral-embed"
+display_name = "Codestral Embed"
+model_type = "embedding"
+description = "Mistral code embedding model — 1024 dimensions, code-optimised retrieval"
+deprecated = false
+tags = ["embedding", "code"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1024
+
+[providers.models.cost]
+input_per_1k = 0.0001
+output_per_1k = 0.0
+embedding_per_1k = 0.0001
+image_per_unit = 0.0
+
+# =============================================================================
 # OLLAMA PROVIDER
 # =============================================================================
 # Local open-source models via Ollama

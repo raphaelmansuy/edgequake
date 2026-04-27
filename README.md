@@ -5,13 +5,13 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.10.11-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.11.0-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.10.11** — Clean canonical main-branch release after the squash merge, preserving the published Docker validation fixes for both OpenAI and local Ollama or Gemma flows. See [CHANGELOG](CHANGELOG.md) for full details.
+> **v0.11.0** — Mistral La Plateforme is now a first-class citizen: chat (`mistral-small-latest`), vision PDF ingestion (`pixtral-large-latest`), and embeddings (`mistral-embed`, 1024 dims) all work out of the box. Set `MISTRAL_API_KEY` and `make dev` — no other config needed. See [CHANGELOG](CHANGELOG.md) for full details.
 
 ---
 
@@ -182,8 +182,13 @@ docker compose -f docker-compose.quickstart.yml up -d
 **Headless / CI install (no interactive terminal):**
 
 ```bash
+# OpenAI
 EDGEQUAKE_LLM_PROVIDER=openai \
   OPENAI_API_KEY=sk-... \
+  docker compose -f docker-compose.quickstart.yml up -d
+
+# Mistral La Plateforme ✨ new in v0.11.0
+MISTRAL_API_KEY=... \
   docker compose -f docker-compose.quickstart.yml up -d
 ```
 
@@ -340,8 +345,9 @@ curl -X POST http://localhost:8080/api/v1/query \
 │  │   LLM Providers             │   │   Storage Backends               │     │
 │  │  • OpenAI (gpt-4.1-nano)    │   │  • PostgreSQL 15+ (AGE + vector) │     │
 │  │  • Anthropic (Claude)       │   │  • In-Memory (dev/testing)       │     │
-│  │  • MiniMax (MiniMax-M2.7)   │   │  • Graph: Property graph model   │     │
-│  │  • Ollama (gemma3:12b)      │   │  • Vector: pgvector embeddings   │     │
+│  │  • Mistral (mistral-small)  │   │  • Graph: Property graph model   │     │
+│  │  • MiniMax (MiniMax-M2.7)   │   │  • Vector: pgvector embeddings   │     │
+│  │  • Ollama (gemma3:12b)      │   │                                  │     │
 │  │  • LM Studio, xAI, Gemini   │   │                                  │     │
 │  │  Auto-detection via env     │   │                                  │     │
 │  └─────────────────────────────┘   └──────────────────────────────────┘     │

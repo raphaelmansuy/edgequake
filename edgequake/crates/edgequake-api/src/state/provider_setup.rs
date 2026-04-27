@@ -13,9 +13,11 @@
 //! |---|---|---|
 //! | `EDGEQUAKE_EMBEDDING_PROVIDER` | Override provider type | `ollama`, `openai`, `azure`, `mistral` |
 //! | `OLLAMA_EMBEDDING_HOST` | Dedicated Ollama host for embeddings | `http://gpu-box:11434` |
-//! | `OLLAMA_EMBEDDING_MODEL` | Model on the dedicated embedding host | `nomic-embed-text` |
-//! | `EDGEQUAKE_EMBEDDING_MODEL` | Alternative embedding model override | `text-embedding-3-small` |
-//! | `EDGEQUAKE_EMBEDDING_DIMENSION` | Dimension of the embedding vectors | `768`, `1536` |
+//! | `OLLAMA_EMBEDDING_MODEL` | Model for Ollama embedding (Ollama-provider path only) | `nomic-embed-text` |
+//! | `MISTRAL_EMBEDDING_MODEL` | Model for Mistral embedding | `mistral-embed` |
+//! | `OPENAI_EMBEDDING_MODEL` | Model for OpenAI embedding | `text-embedding-3-small` |
+//! | `EDGEQUAKE_EMBEDDING_MODEL` | Generic embedding model override (all providers) | `text-embedding-3-small` |
+//! | `EDGEQUAKE_EMBEDDING_DIMENSION` | Dimension of the embedding vectors (overrides well-known table) | `768`, `1536` |
 //! | `EDGEQUAKE_EMBEDDING_BASE_URL` | Override base URL for embedding provider | `https://embed.example.com/v1` |
 //! | `EDGEQUAKE_EMBEDDING_API_KEY` | Override API key for embedding provider | `sk-embed-...` |
 //! | `AZURE_OPENAI_API_KEY` | Azure embedding (auto-detected when `EDGEQUAKE_EMBEDDING_PROVIDER=azure`) | `sk-...` |
@@ -24,6 +26,7 @@
 
 use std::sync::Arc;
 
+use edgequake_core::Workspace;
 use edgequake_llm::traits::EmbeddingProvider;
 use edgequake_llm::{OllamaProvider, OpenAIProvider, ProviderFactory};
 
@@ -48,8 +51,10 @@ pub fn resolve_embedding_provider(
     // to the auto-detection logic below.
     if let Ok(provider_name) = std::env::var("EDGEQUAKE_EMBEDDING_PROVIDER") {
         if !provider_name.is_empty() {
-            let model = embedding_model_from_env();
-            let dimension = embedding_dimension_from_env();
+            // WHY: Use provider-aware model resolution so that e.g. MISTRAL_EMBEDDING_MODEL
+            // is not shadowed by OLLAMA_EMBEDDING_MODEL from an unrelated .env entry.
+            let model = embedding_model_for_provider(&provider_name);
+            let dimension = embedding_dimension_for_model_and_env(&model);
 
             // FIX #163: Check for embedding-specific base URL and API key.
             // WHY: In split-provider deployments, chat and embedding traffic go to
@@ -175,10 +180,73 @@ pub fn apply_chat_env_aliases() {
     }
 }
 
-/// Read the embedding model name from environment variables.
+/// Resolve the embedding model name for a named provider.
 ///
-/// Checks `OLLAMA_EMBEDDING_MODEL` then `EDGEQUAKE_EMBEDDING_MODEL`, falling
-/// back to `"nomic-embed-text"` if neither is set.
+/// # Priority (First Principle: most-specific wins)
+///
+/// 1. Provider-specific env var (e.g. `MISTRAL_EMBEDDING_MODEL`, `OPENAI_EMBEDDING_MODEL`)
+/// 2. Generic `EDGEQUAKE_EMBEDDING_MODEL`
+/// 3. `Workspace::default_embedding_model_for_provider(provider_name)`
+///
+/// WHY NOT `OLLAMA_EMBEDDING_MODEL` here: that var is Ollama-specific and would
+/// erroneously override Mistral / OpenAI embedding models when both are present
+/// in the environment (e.g. from a `.env` that also configures Ollama).
+fn embedding_model_for_provider(provider_name: &str) -> String {
+    // 1. Provider-specific env var
+    if let Some(key) = provider_specific_embedding_env_key(provider_name) {
+        if let Ok(model) = std::env::var(key) {
+            if !model.is_empty() {
+                return model;
+            }
+        }
+    }
+    // 2. Generic override
+    if let Ok(model) = std::env::var("EDGEQUAKE_EMBEDDING_MODEL") {
+        if !model.is_empty() {
+            return model;
+        }
+    }
+    // 3. Provider default
+    Workspace::default_embedding_model_for_provider(provider_name)
+}
+
+/// Return the well-known env-var key for a provider's embedding model, or `None`
+/// if no provider-specific key is defined.
+fn provider_specific_embedding_env_key(provider_name: &str) -> Option<&'static str> {
+    match provider_name.to_ascii_lowercase().as_str() {
+        "mistral" => Some("MISTRAL_EMBEDDING_MODEL"),
+        "openai" | "openai-compatible" | "openai_compatible" => Some("OPENAI_EMBEDDING_MODEL"),
+        "ollama" => Some("OLLAMA_EMBEDDING_MODEL"),
+        "lmstudio" | "lm-studio" | "lm_studio" => Some("LMSTUDIO_EMBEDDING_MODEL"),
+        "anthropic" => Some("ANTHROPIC_EMBEDDING_MODEL"),
+        "gemini" => Some("GEMINI_EMBEDDING_MODEL"),
+        _ => None,
+    }
+}
+
+/// Resolve the embedding dimension.
+///
+/// # Priority
+///
+/// 1. `EDGEQUAKE_EMBEDDING_DIMENSION` — explicit user override
+/// 2. `Workspace::known_embedding_dimension(model)` — compile-time well-known table
+/// 3. 768 — conservative default (safe for most Ollama models)
+fn embedding_dimension_for_model_and_env(model: &str) -> usize {
+    if let Some(d) = std::env::var("EDGEQUAKE_EMBEDDING_DIMENSION")
+        .ok()
+        .and_then(|d| d.parse::<usize>().ok())
+    {
+        return d;
+    }
+    Workspace::known_embedding_dimension(model).unwrap_or(768)
+}
+
+/// Read the embedding model name from environment variables (Ollama-specific path).
+///
+/// Used exclusively by the `OLLAMA_EMBEDDING_HOST` code path where we know the
+/// provider is Ollama.  Checks `OLLAMA_EMBEDDING_MODEL` first, then the generic
+/// `EDGEQUAKE_EMBEDDING_MODEL`, then falls back to `"nomic-embed-text"`.
+#[allow(dead_code)] // kept for backward compatibility / tests
 fn embedding_model_from_env() -> String {
     std::env::var("OLLAMA_EMBEDDING_MODEL")
         .or_else(|_| std::env::var("EDGEQUAKE_EMBEDDING_MODEL"))
@@ -187,6 +255,7 @@ fn embedding_model_from_env() -> String {
 
 /// Read the embedding dimension from `EDGEQUAKE_EMBEDDING_DIMENSION`, defaulting
 /// to 768 (compatible with most Ollama embedding models).
+#[allow(dead_code)] // kept for tests that call it directly
 fn embedding_dimension_from_env() -> usize {
     std::env::var("EDGEQUAKE_EMBEDDING_DIMENSION")
         .ok()
@@ -357,5 +426,111 @@ mod tests {
         std::env::remove_var("OPENAI_BASE_URL");
         std::env::remove_var("OPENAI_API_KEY");
         std::env::remove_var("EDGEQUAKE_LLM_MODEL");
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests for the new provider-aware embedding model resolution (First Principle)
+    // -------------------------------------------------------------------------
+
+    /// Mistral-specific env var wins over OLLAMA_EMBEDDING_MODEL.
+    /// WHY: This is the exact scenario that caused the "embeddinggemma" leak
+    /// when both MISTRAL_EMBEDDING_MODEL and OLLAMA_EMBEDDING_MODEL were set.
+    #[test]
+    #[serial]
+    fn embedding_model_for_provider_mistral_specific_key_wins() {
+        std::env::set_var("OLLAMA_EMBEDDING_MODEL", "embeddinggemma:latest");
+        std::env::set_var("MISTRAL_EMBEDDING_MODEL", "mistral-embed");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_MODEL");
+
+        assert_eq!(embedding_model_for_provider("mistral"), "mistral-embed");
+
+        std::env::remove_var("OLLAMA_EMBEDDING_MODEL");
+        std::env::remove_var("MISTRAL_EMBEDDING_MODEL");
+    }
+
+    /// Generic EDGEQUAKE_EMBEDDING_MODEL is used when no provider-specific key is set.
+    #[test]
+    #[serial]
+    fn embedding_model_for_provider_generic_override() {
+        std::env::remove_var("MISTRAL_EMBEDDING_MODEL");
+        std::env::remove_var("OLLAMA_EMBEDDING_MODEL");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_MODEL", "custom-embed");
+
+        assert_eq!(embedding_model_for_provider("mistral"), "custom-embed");
+
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_MODEL");
+    }
+
+    /// Provider default returned when no env vars set.
+    #[test]
+    #[serial]
+    fn embedding_model_for_provider_falls_back_to_workspace_default() {
+        std::env::remove_var("MISTRAL_EMBEDDING_MODEL");
+        std::env::remove_var("OLLAMA_EMBEDDING_MODEL");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_MODEL");
+
+        assert_eq!(
+            embedding_model_for_provider("mistral"),
+            "mistral-embed",
+            "Should return Workspace default for mistral"
+        );
+        assert_eq!(
+            embedding_model_for_provider("openai"),
+            "text-embedding-3-small",
+            "Should return Workspace default for openai"
+        );
+    }
+
+    /// OLLAMA_EMBEDDING_MODEL is NOT picked up for the Mistral provider.
+    /// This test codifies the fix for the .env bleed-through bug.
+    #[test]
+    #[serial]
+    fn ollama_embedding_model_does_not_bleed_into_mistral() {
+        std::env::set_var("OLLAMA_EMBEDDING_MODEL", "embeddinggemma:latest");
+        std::env::remove_var("MISTRAL_EMBEDDING_MODEL");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_MODEL");
+
+        let model = embedding_model_for_provider("mistral");
+        assert_ne!(
+            model, "embeddinggemma:latest",
+            "OLLAMA_EMBEDDING_MODEL must not bleed into Mistral provider"
+        );
+        assert_eq!(model, "mistral-embed");
+
+        std::env::remove_var("OLLAMA_EMBEDDING_MODEL");
+    }
+
+    /// Dimension resolves from model name for well-known models.
+    #[test]
+    #[serial]
+    fn embedding_dimension_for_model_uses_known_table() {
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_DIMENSION");
+        assert_eq!(embedding_dimension_for_model_and_env("mistral-embed"), 1024);
+        assert_eq!(
+            embedding_dimension_for_model_and_env("codestral-embed"),
+            1024
+        );
+        assert_eq!(
+            embedding_dimension_for_model_and_env("text-embedding-3-small"),
+            1536
+        );
+        assert_eq!(
+            embedding_dimension_for_model_and_env("unknown-model"),
+            768,
+            "Unknown model should fall back to 768"
+        );
+    }
+
+    /// Explicit EDGEQUAKE_EMBEDDING_DIMENSION overrides the well-known table.
+    #[test]
+    #[serial]
+    fn embedding_dimension_env_override_wins_over_table() {
+        std::env::set_var("EDGEQUAKE_EMBEDDING_DIMENSION", "2048");
+        assert_eq!(
+            embedding_dimension_for_model_and_env("mistral-embed"),
+            2048,
+            "Env override must win over well-known table"
+        );
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_DIMENSION");
     }
 }
