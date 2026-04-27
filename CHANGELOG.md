@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.13] - 2026-04-27
+
+### Fixed
+
+- **Bug 1 (CRITICAL) — Migration 019 checksum mismatch on v0.10.1 → v0.10.12 upgrade.** Commit `6f3d0204` modified `019_add_tenant_workspace_to_tasks.sql` after it had been deployed in v0.10.1, adding `ALTER TABLE tasks ALTER COLUMN tenant_id/workspace_id SET DEFAULT` statements that changed the SHA-384 checksum. Any database that had run v0.10.1 stored the old checksum; the v0.10.12 binary shipped the mutated file, causing sqlx to abort at startup with *"migration 19 was previously applied but has been modified"*. The file has been restored to its byte-for-byte v0.10.1 content. The DEFAULT-value logic correctly lives in the separately-created migration 035.
+- **Bug 2 — sqlx-cli schema ambiguity causing duplicate-key error on every restart.** When the PostgreSQL user is named `edgequake`, the default search_path `"$user",public` resolves to `edgequake,public` once migration 001 creates the `edgequake` schema. On a second `sqlx migrate run` invocation, sqlx-cli resolved `_sqlx_migrations` to the `edgequake` schema (empty), then migration 001's session-level `SET search_path = public` redirected tracking writes back to `public._sqlx_migrations` (already fully populated), producing a duplicate-key constraint violation. Fixed by: (1) adding `?options=-c%20search_path%3Dpublic` to `DEFAULT_DATABASE_URL` in the Makefile, `.env`, and `.env.example` so sqlx-cli always connects with `search_path=public`; (2) changing `SET search_path = public` to `SET LOCAL search_path = public` in migration 001 so the path override is transaction-scoped, not session-scoped. The compiled application binary was not affected (its connection pool already sets `search_path TO public` via an `after_connect` hook).
+
+### Documentation
+
+- Added `specs/fix-migration-db-issue/` documentation suite: root cause analysis with SHA-384 proof, step-by-step reproduction guide (Docker-based), prevention playbook with golden rules for migration immutability, and a runnable Python checksum proof script.
+
+### Verified
+
+- Restored migration 019: `sha384sum` output matches the golden v0.10.1 checksum (`1f538faa…`).
+- Two-run proof on a fresh Docker PostgreSQL container: first `sqlx migrate run` applies all 35 migrations (exit 0); second run exits 0 silently with no duplicate-key error and no `edgequake._sqlx_migrations` ghost table.
+
 ## [0.10.12] - 2026-04-19
 
 ### Fixed
