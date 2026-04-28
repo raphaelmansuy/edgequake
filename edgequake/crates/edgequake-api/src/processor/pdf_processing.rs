@@ -328,6 +328,101 @@ impl DocumentTaskProcessor {
             Arc::new(callback);
 
         // 4. Extract content (vision or text mode)
+        //
+        // RESUME SHORTCUT: If this is a retry and the markdown was already stored
+        // in the pdf_documents table from the previous run, skip the expensive
+        // PDF→Markdown conversion entirely and jump straight to text_insert.
+        //
+        // WHY: A failed job (e.g., entity extraction failed at chunk 140/142)
+        // should not redo the multi-minute PDF conversion. The markdown is
+        // already in the DB; we only need to re-run the ingestion pipeline.
+        if should_resume_from_checkpoint {
+            if let Some(stored_markdown) = pdf.markdown_content.clone() {
+                if !stored_markdown.is_empty() {
+                    info!(
+                        document_id = %early_doc_id,
+                        pdf_id = %data.pdf_id,
+                        markdown_len = stored_markdown.len(),
+                        "RESUME: Markdown already stored — skipping PDF conversion, resuming at text_insert"
+                    );
+
+                    // Update status so the UI shows we're resuming extraction, not reconverting.
+                    let _ = self
+                        .update_document_status(
+                            &early_doc_id,
+                            "processing",
+                            Some("Resuming entity extraction from previously converted markdown"),
+                        )
+                        .await;
+
+                    task.update_progress("entity_extraction".to_string(), 4, 50);
+
+                    self.check_cancelled(&cancel_token, "pre-text-insert-resume", &early_doc_id)
+                        .await?;
+
+                    let stored_extraction_method = pdf.extraction_method.clone();
+                    let stored_vision_model = pdf.vision_model.clone();
+                    // Clone for linking step after process_text_insert consumes the string.
+                    let stored_markdown_for_link = stored_markdown.clone();
+
+                    let text_data = edgequake_tasks::TextInsertData {
+                        text: stored_markdown,
+                        file_source: filename.clone(),
+                        workspace_id: data.workspace_id.to_string(),
+                        metadata: Some(json!({
+                            "document_id": early_doc_id.clone(),
+                            "source": "pdf_upload",
+                            "source_type": "pdf",
+                            "document_type": "pdf",
+                            "pdf_id": data.pdf_id.to_string(),
+                            "filename": filename.clone(),
+                            "page_count": page_count_opt,
+                            "file_size_bytes": file_size_bytes,
+                            "sha256_checksum": sha256_checksum.clone(),
+                            "tenant_id": data.tenant_id.to_string(),
+                            "workspace_id": data.workspace_id.to_string(),
+                            "pdf_vision_model": stored_vision_model,
+                            "pdf_extraction_method": stored_extraction_method.as_ref().map(|m| m.as_str()),
+                        })),
+                    };
+
+                    let result = self
+                        .process_text_insert(task, text_data, cancel_token)
+                        .await?;
+
+                    // Link PDF to document (same as the normal path below).
+                    task.update_progress("linking".to_string(), 5, 95);
+                    if let Ok(document_uuid) = uuid::Uuid::parse_str(&early_doc_id) {
+                        let workspace_uuid = data.workspace_id;
+                        let tenant_uuid = Some(data.tenant_id);
+                        let truncate_at = stored_markdown_for_link.len().min(65_536);
+                        let safe_truncate = stored_markdown_for_link[..truncate_at]
+                            .char_indices()
+                            .map(|(i, _)| i)
+                            .take_while(|&i| i <= 65_536)
+                            .last()
+                            .unwrap_or(0);
+                        let _ = pdf_storage
+                            .ensure_document_record(
+                                &document_uuid,
+                                &workspace_uuid,
+                                tenant_uuid.as_ref(),
+                                &filename,
+                                &stored_markdown_for_link[..safe_truncate],
+                                "indexed",
+                            )
+                            .await;
+                        let _ = pdf_storage
+                            .link_pdf_to_document(&data.pdf_id, &document_uuid)
+                            .await;
+                    }
+
+                    task.update_progress("complete".to_string(), 6, 100);
+                    return Ok(result);
+                }
+            }
+        }
+
         // == Progress: starting conversion (this can take 5-10+ minutes) ==
         task.update_progress("pdf_converting".to_string(), 2, 10);
 
@@ -869,5 +964,32 @@ mod tests {
         let (concurrency, dpi) = compute_safe_pdf_resource_profile(40, 4 * 1024 * 1024, "openai");
         assert_eq!(concurrency, 8);
         assert_eq!(dpi, 150);
+    }
+
+    // ── Resume-shortcut logic tests ──────────────────────────────────────────
+
+    /// should_resume_pdf_conversion is the gate for the resume shortcut.
+    /// Without an existing document there is nothing to resume.
+    #[test]
+    fn new_document_never_resumes() {
+        assert!(!should_resume_pdf_conversion(false, false));
+        assert!(!should_resume_pdf_conversion(false, true));
+    }
+
+    /// When an existing document is present AND restart is not requested, the
+    /// shortcut should be taken so we never re-run PDF→Markdown conversion.
+    #[test]
+    fn retry_without_restart_flag_takes_shortcut() {
+        // has_existing_document=true, restart_from_scratch=false
+        assert!(should_resume_pdf_conversion(true, false));
+        // No cleanup of old content should happen
+        assert!(!should_restart_pdf_conversion(true, false));
+    }
+
+    /// An explicit "restart from scratch" request overrides the shortcut.
+    #[test]
+    fn explicit_restart_bypasses_resume_shortcut() {
+        assert!(!should_resume_pdf_conversion(true, true));
+        assert!(should_restart_pdf_conversion(true, true));
     }
 }
