@@ -39,6 +39,8 @@ archive/
 !/specs/009-skd-update/**
 !/specs/01-fix-195/
 !/specs/01-fix-195/**
+!/specs/010-ingestion-reliability/
+!/specs/010-ingestion-reliability/**
 logf/
 zz_test_docs/
 zz-explore/
