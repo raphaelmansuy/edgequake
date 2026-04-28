@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] — 0.11.2
+
+### Fixed
+
+- **Issue #194 — Configurable pipeline timeouts / concurrency** ([#194](https://github.com/raphaelmansuy/edgequake/issues/194)):
+  Hardcoded 180-second per-chunk timeout and 600-second HTTP safety cap prevented
+  Ollama/local-LLM users from processing large documents or slow GPU workloads.
+  The root cause was two-layer timeout architecture where neither limit was tunable
+  at runtime.
+  Fix:
+  - `PipelineConfig::from_env()` reads four new env vars at startup:
+    - `EDGEQUAKE_CHUNK_TIMEOUT_SECS` (default 180, minimum 10)
+    - `EDGEQUAKE_CHUNK_MAX_RETRIES` (default 3, max 20)
+    - `EDGEQUAKE_CHUNK_RETRY_DELAY_MS` (default 1000 ms)
+    - `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` (default 16, clamped 1–256)
+  - `Pipeline::default_pipeline()` now calls `from_env()` instead of `PipelineConfig::default()`
+  - `MAXIMUM_TIMEOUT_SECS` raised from 600 to 3600 seconds (1 hour) for local LLM support
+  - Startup tracing log emits effective timeout/concurrency configuration
+  - 14 E2E tests prove all env-var overrides work correctly, including boundary clamping
+    and non-numeric fallback
+
 ## [0.11.1] - 2026-04-28
 
 ### Fixed

@@ -184,6 +184,50 @@ export OLLAMA_EMBEDDING_HOST=http://gpu-box:11434
 export OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
+### Pipeline Timeout & Concurrency (fixes [#194](https://github.com/raphaelmansuy/edgequake/issues/194))
+
+Controls how aggressively the ingestion pipeline calls the LLM and how long it waits for each
+response. These are the knobs to reach for when processing **large documents** or using **slow
+local LLMs** (Ollama, LM Studio on CPU or a single GPU).
+
+| Variable                               | Type    | Default | Min  | Max   | Description                                           |
+| -------------------------------------- | ------- | ------- | ---- | ----- | ----------------------------------------------------- |
+| `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | Integer | `180`   | `10` | ∞     | Per-chunk LLM call timeout in seconds                 |
+| `EDGEQUAKE_CHUNK_MAX_RETRIES`          | Integer | `3`     | `0`  | `20`  | Max retry attempts per chunk on timeout or error      |
+| `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | Integer | `1000`  | `0`  | `60000` | Initial backoff delay between retries (milliseconds) |
+| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | Integer | `16`    | `1`  | `256` | Max parallel LLM extraction calls per document        |
+| `EDGEQUAKE_LLM_TIMEOUT_SECS`          | Integer | `600`   | —    | `3600` | HTTP safety-layer timeout (Layer 2, supports up to 1 hour) |
+
+**Two-layer timeout architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   TIMEOUT LAYERS                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Layer 1 — EDGEQUAKE_CHUNK_TIMEOUT_SECS  (pipeline, fires first)│
+│    └─ Set this to allow the LLM enough time per chunk           │
+│                                                                 │
+│  Layer 2 — EDGEQUAKE_LLM_TIMEOUT_SECS   (HTTP safety cap)      │
+│    └─ Must be ≥ EDGEQUAKE_CHUNK_TIMEOUT_SECS                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Quick configuration for slow local LLMs:**
+
+```bash
+# Large document on a single-GPU Ollama instance
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600       # 10 minutes per chunk
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=4  # reduce parallelism
+export EDGEQUAKE_LLM_TIMEOUT_SECS=3600        # 1-hour HTTP cap
+```
+
+> **Note:** Values below the allowed minimum are automatically clamped.
+> Non-numeric values are silently ignored and the default is used.
+
+---
+
 ### Security / Frontend
 
 | Variable                         | Type   | Default | Description                                                                                                                             |

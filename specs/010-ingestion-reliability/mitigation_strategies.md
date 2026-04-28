@@ -23,11 +23,11 @@ truncated at or near token 8 192.
 
 ### Applied Mitigations
 
-| Layer | Strategy | Status |
-|-------|----------|--------|
-| **Fix A** | Raise `DEFAULT_MAX_TOKENS` 8 192 → 16 384 | ✅ v0.11.2 |
-| **Fix B** | Partial JSON recovery via suffix-append heuristic | ✅ v0.11.2 |
-| **WHY comment** | Document the safety-limit defaults in source | ✅ v0.11.2 |
+| Layer           | Strategy                                          | Status    |
+| --------------- | ------------------------------------------------- | --------- |
+| **Fix A**       | Raise `DEFAULT_MAX_TOKENS` 8 192 → 16 384         | ✅ v0.11.2 |
+| **Fix B**       | Partial JSON recovery via suffix-append heuristic | ✅ v0.11.2 |
+| **WHY comment** | Document the safety-limit defaults in source      | ✅ v0.11.2 |
 
 ### Additional Strategies Considered
 
@@ -75,10 +75,10 @@ budget in a single sub-batch.
 
 ### Applied Mitigations
 
-| Layer | Strategy | Status |
-|-------|----------|--------|
-| **Fix C** | Token-aware sub-batching in `embed_with_token_budget` | ✅ v0.11.2 |
-| **Safety factor** | 15% headroom via `EMBED_SAFETY_FACTOR = 0.85` | ✅ v0.11.2 |
+| Layer             | Strategy                                              | Status    |
+| ----------------- | ----------------------------------------------------- | --------- |
+| **Fix C**         | Token-aware sub-batching in `embed_with_token_budget` | ✅ v0.11.2 |
+| **Safety factor** | 15% headroom via `EMBED_SAFETY_FACTOR = 0.85`         | ✅ v0.11.2 |
 
 ### Additional Strategies Considered
 
@@ -131,12 +131,12 @@ Document ingested
 
 ## Monitoring Recommendations
 
-| Signal | Alert threshold | Notes |
-|--------|----------------|-------|
-| `WARN: JSON parse failed for chunk … attempting recovery` | > 5 / hour | Indicates chunks regularly exceeding output budget |
-| `WARN: recovered truncated JSON` | > 5 / hour | As above |
-| HTTP 400 on embed endpoint | Any | Should not occur after Fix C |
-| Extraction retry count per chunk | > 1 consistently | May indicate extractor prompt is generating oversized output |
+| Signal                                                    | Alert threshold  | Notes                                                        |
+| --------------------------------------------------------- | ---------------- | ------------------------------------------------------------ |
+| `WARN: JSON parse failed for chunk … attempting recovery` | > 5 / hour       | Indicates chunks regularly exceeding output budget           |
+| `WARN: recovered truncated JSON`                          | > 5 / hour       | As above                                                     |
+| HTTP 400 on embed endpoint                                | Any              | Should not occur after Fix C                                 |
+| Extraction retry count per chunk                          | > 1 consistently | May indicate extractor prompt is generating oversized output |
 
 ---
 

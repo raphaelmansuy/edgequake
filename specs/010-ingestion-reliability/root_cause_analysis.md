@@ -126,11 +126,11 @@ Both failures stem from the same root pattern:
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
-| Property            | Failure 1 (Extraction)          | Failure 2 (Embedding)           |
-|---------------------|---------------------------------|---------------------------------|
-| Trigger             | Chunk with > 100 entities       | Batch of > ~80 entity texts     |
-| Limit violated      | Output token cap (8 192)        | Total batch token budget (8 192)|
-| Where limit lives   | `safety_limits.rs` (API crate)  | Mistral API (external)          |
-| Failure mode        | JSON truncation → parse error   | HTTP 400 → hard crash           |
-| Retry behavior      | 3 retries, all fail identically | No retry (hard fail)            |
-| Documents affected  | Dense PDFs, scientific papers   | Same (many entities)            |
+| Property           | Failure 1 (Extraction)          | Failure 2 (Embedding)            |
+| ------------------ | ------------------------------- | -------------------------------- |
+| Trigger            | Chunk with > 100 entities       | Batch of > ~80 entity texts      |
+| Limit violated     | Output token cap (8 192)        | Total batch token budget (8 192) |
+| Where limit lives  | `safety_limits.rs` (API crate)  | Mistral API (external)           |
+| Failure mode       | JSON truncation → parse error   | HTTP 400 → hard crash            |
+| Retry behavior     | 3 retries, all fail identically | No retry (hard fail)             |
+| Documents affected | Dense PDFs, scientific papers   | Same (many entities)             |

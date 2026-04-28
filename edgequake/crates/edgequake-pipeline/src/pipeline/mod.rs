@@ -107,18 +107,147 @@ pub struct PipelineConfig {
     pub initial_retry_delay_ms: u64,
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//                      PIPELINE CONFIG DEFAULTS & ENV VARS
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// WHY these constants are in one place: single source of truth.
+// Every default_* fn just returns the constant so serialization (serde) still
+// works (serde requires a bare fn, not a const ref).
+
+/// Default per-chunk entity-extraction timeout (seconds).
+///
+/// WHY 180: Ollama / LM Studio on consumer hardware can take 90–120 s per
+/// chunk for a large gemma3 model.  180 s gives a 50 % safety margin while
+/// still catching hung requests within 3 minutes.
+/// Configurable via `EDGEQUAKE_CHUNK_TIMEOUT_SECS`.
+pub const DEFAULT_CHUNK_TIMEOUT_SECS: u64 = 180;
+
+/// Minimum acceptable per-chunk timeout (seconds).
+pub const MIN_CHUNK_TIMEOUT_SECS: u64 = 10;
+
+/// Default maximum retry attempts per chunk.
+///
+/// Configurable via `EDGEQUAKE_CHUNK_MAX_RETRIES`.
+pub const DEFAULT_CHUNK_MAX_RETRIES: u32 = 3;
+
+/// Maximum allowed retry count (safety cap).
+pub const MAX_CHUNK_MAX_RETRIES: u32 = 20;
+
+/// Default initial exponential-backoff delay (milliseconds).
+///
+/// Configurable via `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`.
+pub const DEFAULT_INITIAL_RETRY_DELAY_MS: u64 = 1_000;
+
+/// Default maximum concurrent LLM extraction tasks.
+///
+/// WHY 16: Enough parallelism for cloud APIs while avoiding over-subscription
+/// on a single-GPU local Ollama instance.  Reduce via
+/// `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` for slow hardware.
+pub const DEFAULT_MAX_CONCURRENT_EXTRACTIONS: usize = 16;
+
 fn default_chunk_timeout() -> u64 {
-    // WHY 180: Ollama and other local LLMs need more time for entity extraction
-    // prompts. Testing showed gemma3 can take 90-120s per chunk. 180s gives margin.
-    180 // 180 seconds default timeout (increased from 60s for local LLM support)
+    DEFAULT_CHUNK_TIMEOUT_SECS
 }
 
 fn default_max_retries() -> u32 {
-    3 // 3 retry attempts by default
+    DEFAULT_CHUNK_MAX_RETRIES
 }
 
 fn default_initial_retry_delay() -> u64 {
-    1000 // 1 second initial delay
+    DEFAULT_INITIAL_RETRY_DELAY_MS
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//                         ENVIRONMENT-VARIABLE HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Read a `u64` env var, clamping to `[min_val, max_val]`.
+/// Returns `default` when the variable is absent or non-numeric.
+fn read_env_u64(name: &str, default: u64, min_val: u64, max_val: u64) -> u64 {
+    std::env::var(name)
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(default)
+        .clamp(min_val, max_val)
+}
+
+/// Read a `u32` env var, clamping to `[min_val, max_val]`.
+/// Returns `default` when the variable is absent or non-numeric.
+fn read_env_u32(name: &str, default: u32, min_val: u32, max_val: u32) -> u32 {
+    std::env::var(name)
+        .ok()
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(default)
+        .clamp(min_val, max_val)
+}
+
+/// Read a `usize` env var, clamping to `[min_val, max_val]`.
+/// Returns `default` when the variable is absent or non-numeric.
+fn read_env_usize(name: &str, default: usize, min_val: usize, max_val: usize) -> usize {
+    std::env::var(name)
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(default)
+        .clamp(min_val, max_val)
+}
+
+impl PipelineConfig {
+    /// Create a `PipelineConfig` from environment variables, falling back to
+    /// compile-time defaults.
+    ///
+    /// ## Environment variables honoured
+    ///
+    /// | Variable                               | Default | Min | Description                     |
+    /// |----------------------------------------|---------|-----|---------------------------------|
+    /// | `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | 180     | 10  | Per-chunk LLM call timeout      |
+    /// | `EDGEQUAKE_CHUNK_MAX_RETRIES`          | 3       | 0   | Max retry attempts per chunk    |
+    /// | `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | 1000    | 0   | Initial backoff delay (ms)      |
+    /// | `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | 16      | 1   | Max parallel LLM calls          |
+    ///
+    /// ## Why env-based construction matters
+    ///
+    /// The `Default` impl uses compile-time constants.  Running
+    /// `Pipeline::default_pipeline()` for every workspace-specific pipeline
+    /// would ignore user tuning.  This method ensures operator `.env` overrides
+    /// are respected at pipeline construction time (once per pipeline, not per
+    /// chunk).
+    ///
+    /// @implements SPEC-010-T/FR-T01 through FR-T07
+    pub fn from_env() -> Self {
+        let chunk_timeout = read_env_u64(
+            "EDGEQUAKE_CHUNK_TIMEOUT_SECS",
+            DEFAULT_CHUNK_TIMEOUT_SECS,
+            MIN_CHUNK_TIMEOUT_SECS,
+            u64::MAX,
+        );
+        let max_retries = read_env_u32(
+            "EDGEQUAKE_CHUNK_MAX_RETRIES",
+            DEFAULT_CHUNK_MAX_RETRIES,
+            0,
+            MAX_CHUNK_MAX_RETRIES,
+        );
+        let retry_delay = read_env_u64(
+            "EDGEQUAKE_CHUNK_RETRY_DELAY_MS",
+            DEFAULT_INITIAL_RETRY_DELAY_MS,
+            0,
+            60_000,
+        );
+        let max_concurrent = read_env_usize(
+            "EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS",
+            DEFAULT_MAX_CONCURRENT_EXTRACTIONS,
+            1,
+            256,
+        );
+
+        Self {
+            chunk_extraction_timeout_secs: chunk_timeout,
+            chunk_max_retries: max_retries,
+            initial_retry_delay_ms: retry_delay,
+            max_concurrent_extractions: max_concurrent,
+            ..Self::default()
+        }
+    }
 }
 
 impl Default for PipelineConfig {
@@ -132,15 +261,15 @@ impl Default for PipelineConfig {
             enable_chunk_embeddings: true,
             enable_entity_embeddings: true,
             enable_relationship_embeddings: true,
-            max_concurrent_extractions: 16,
+            max_concurrent_extractions: DEFAULT_MAX_CONCURRENT_EXTRACTIONS,
             // OODA-06: Enable lineage tracking by default
             // WHY: Lineage data is critical for provenance queries. Without it,
             // no chunk↔entity↔document traceability is possible. The overhead is
             // minimal (one in-memory tree per document processing run).
             enable_lineage_tracking: true,
-            chunk_extraction_timeout_secs: default_chunk_timeout(),
-            chunk_max_retries: default_max_retries(),
-            initial_retry_delay_ms: default_initial_retry_delay(),
+            chunk_extraction_timeout_secs: DEFAULT_CHUNK_TIMEOUT_SECS,
+            chunk_max_retries: DEFAULT_CHUNK_MAX_RETRIES,
+            initial_retry_delay_ms: DEFAULT_INITIAL_RETRY_DELAY_MS,
         }
     }
 }
@@ -397,6 +526,13 @@ pub struct Pipeline {
 impl Pipeline {
     /// Create a new pipeline with the given configuration.
     pub fn new(config: PipelineConfig) -> Self {
+        tracing::info!(
+            chunk_timeout_secs = config.chunk_extraction_timeout_secs,
+            max_retries = config.chunk_max_retries,
+            retry_delay_ms = config.initial_retry_delay_ms,
+            max_concurrent = config.max_concurrent_extractions,
+            "Pipeline created (effective extraction config)"
+        );
         let chunker = Chunker::new(config.chunker.clone());
 
         Self {
@@ -407,9 +543,22 @@ impl Pipeline {
         }
     }
 
-    /// Create a pipeline with default configuration.
+    /// Create a pipeline with default configuration, honouring environment variables.
+    ///
+    /// ## Why `from_env()` and not `PipelineConfig::default()`
+    ///
+    /// `PipelineConfig::default()` uses compile-time constants.  Any operator
+    /// tuning via `.env` (e.g. `EDGEQUAKE_CHUNK_TIMEOUT_SECS=600`) would be
+    /// silently ignored.  Using `from_env()` here ensures that ALL pipelines
+    /// constructed via `default_pipeline()` respect the operator's intent.
+    ///
+    /// Tests that need deterministic config should call `Pipeline::new(PipelineConfig::default())`
+    /// directly instead of `Pipeline::default_pipeline()`.
+    ///
+    /// @implements SPEC-010-T/FR-T01: chunk timeout env var
+    /// @implements SPEC-010-T/FR-T04: concurrency env var
     pub fn default_pipeline() -> Self {
-        Self::new(PipelineConfig::default())
+        Self::new(PipelineConfig::from_env())
     }
 
     /// Set the entity extractor.

@@ -616,22 +616,42 @@ docker compose down
 
 All compose files read from a `.env` file placed in the same directory. Copy `edgequake/docker/.env.example` to get started.
 
-| Variable                       | Default                             | Description                                                                             |
-| ------------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                 | *(set by compose in full-stack)*    | PostgreSQL connection string                                                            |
-| `EDGEQUAKE_LLM_PROVIDER`       | `ollama`                            | LLM provider: `openai`, `anthropic`, `gemini`, `mistral`, `azure`, `vertexai`, `ollama` |
-| `EDGEQUAKE_EMBEDDING_PROVIDER` | *(same as LLM)*                     | Separate embedding provider for hybrid mode                                             |
-| `OPENAI_API_KEY`               | —                                   | Required for `openai` / `azure`                                                         |
-| `ANTHROPIC_API_KEY`            | —                                   | Required for `anthropic`                                                                |
-| `GEMINI_API_KEY`               | —                                   | Required for `gemini`                                                                   |
-| `MISTRAL_API_KEY`              | —                                   | Required for `mistral`                                                                  |
-| `AZURE_OPENAI_API_KEY`         | —                                   | Required for `azure`                                                                    |
-| `AZURE_OPENAI_ENDPOINT`        | —                                   | Azure resource endpoint URL                                                             |
-| `GOOGLE_CLOUD_PROJECT`         | —                                   | Required for `vertexai`                                                                 |
-| `XAI_API_KEY`                  | —                                   | Required for `xai`                                                                      |
-| `OLLAMA_HOST`                  | `http://host.docker.internal:11434` | Ollama server URL (host machine via gateway)                                            |
-| `EDGEQUAKE_VERSION`            | `latest`                            | GHCR image tag (Option B only)                                                          |
-| `RUST_LOG`                     | `info`                              | Log level (`debug`, `info`, `warn`, `error`)                                            |
+| Variable                             | Default                             | Description                                                                             |
+| ------------------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                       | *(set by compose in full-stack)*    | PostgreSQL connection string                                                            |
+| `EDGEQUAKE_LLM_PROVIDER`             | `ollama`                            | LLM provider: `openai`, `anthropic`, `gemini`, `mistral`, `azure`, `vertexai`, `ollama` |
+| `EDGEQUAKE_EMBEDDING_PROVIDER`       | *(same as LLM)*                     | Separate embedding provider for hybrid mode                                             |
+| `OPENAI_API_KEY`                     | —                                   | Required for `openai` / `azure`                                                         |
+| `ANTHROPIC_API_KEY`                  | —                                   | Required for `anthropic`                                                                |
+| `GEMINI_API_KEY`                     | —                                   | Required for `gemini`                                                                   |
+| `MISTRAL_API_KEY`                    | —                                   | Required for `mistral`                                                                  |
+| `AZURE_OPENAI_API_KEY`               | —                                   | Required for `azure`                                                                    |
+| `AZURE_OPENAI_ENDPOINT`              | —                                   | Azure resource endpoint URL                                                             |
+| `GOOGLE_CLOUD_PROJECT`               | —                                   | Required for `vertexai`                                                                 |
+| `XAI_API_KEY`                        | —                                   | Required for `xai`                                                                      |
+| `OLLAMA_HOST`                        | `http://host.docker.internal:11434` | Ollama server URL (host machine via gateway)                                            |
+| `EDGEQUAKE_VERSION`                  | `latest`                            | GHCR image tag (Option B only)                                                          |
+| `RUST_LOG`                           | `info`                              | Log level (`debug`, `info`, `warn`, `error`)                                            |
+
+#### Pipeline Timeout & Concurrency Tuning (fixes #194)
+
+For large documents or slow local LLMs (Ollama, LM Studio), set these env vars to avoid "Timeout after Xs" failures:
+
+| Variable                               | Default | Min  | Max   | Description                                           |
+| -------------------------------------- | ------- | ---- | ----- | ----------------------------------------------------- |
+| `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | `180`   | `10` | ∞     | Per-chunk LLM call timeout in seconds                 |
+| `EDGEQUAKE_CHUNK_MAX_RETRIES`          | `3`     | `0`  | `20`  | Max retry attempts per chunk on timeout/error         |
+| `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | `1000`  | `0`  | `60000` | Initial backoff delay in milliseconds               |
+| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | `16`    | `1`  | `256` | Max parallel LLM extraction calls                     |
+| `EDGEQUAKE_LLM_TIMEOUT_SECS`          | `600`   | —    | `3600` | HTTP safety-layer timeout (Layer 2, raised to 1 hour) |
+
+Example for a large document on a slow GPU:
+
+```bash
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600       # 10 minutes per chunk
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=4  # reduce parallelism for slow GPU
+export EDGEQUAKE_LLM_TIMEOUT_SECS=3600        # 1 hour HTTP-level timeout
+```
 
 > **Tip — Ollama on the host:** When running EdgeQuake inside Docker and Ollama on your machine, leave `OLLAMA_HOST` at its default (`http://host.docker.internal:11434`). On Linux, the `extra_hosts: host.docker.internal:host-gateway` entry in the compose file resolves this automatically.
 

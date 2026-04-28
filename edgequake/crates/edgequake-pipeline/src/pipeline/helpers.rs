@@ -363,8 +363,7 @@ impl Pipeline {
 
             if !all_entity_texts.is_empty() {
                 let safe_entity_texts = guard_for_embedding(&all_entity_texts, max_chars);
-                let all_embeddings =
-                    embed_with_token_budget(provider, &safe_entity_texts).await?;
+                let all_embeddings = embed_with_token_budget(provider, &safe_entity_texts).await?;
 
                 // Validate embedding count matches input count
                 // WHY: If provider returns fewer embeddings than inputs, zip() silently drops
@@ -407,8 +406,7 @@ impl Pipeline {
 
             if !all_relationship_texts.is_empty() {
                 let safe_rel_texts = guard_for_embedding(&all_relationship_texts, max_chars);
-                let all_embeddings =
-                    embed_with_token_budget(provider, &safe_rel_texts).await?;
+                let all_embeddings = embed_with_token_budget(provider, &safe_rel_texts).await?;
 
                 if all_embeddings.len() != all_relationship_texts.len() {
                     tracing::warn!(
@@ -657,10 +655,18 @@ mod tests {
 
     #[async_trait::async_trait]
     impl edgequake_llm::traits::EmbeddingProvider for CountingEmbedProvider {
-        fn name(&self) -> &str { "counting" }
-        fn model(&self) -> &str { "counting-embed" }
-        fn dimension(&self) -> usize { 4 }
-        fn max_tokens(&self) -> usize { self.max_tokens }
+        fn name(&self) -> &str {
+            "counting"
+        }
+        fn model(&self) -> &str {
+            "counting-embed"
+        }
+        fn dimension(&self) -> usize {
+            4
+        }
+        fn max_tokens(&self) -> usize {
+            self.max_tokens
+        }
 
         async fn embed(&self, texts: &[String]) -> edgequake_llm::Result<Vec<Vec<f32>>> {
             self.call_sizes.lock().unwrap().push(texts.len());
@@ -717,7 +723,10 @@ mod tests {
 
         let result = embed_with_token_budget(&provider, &[]).await.unwrap();
         assert!(result.is_empty());
-        assert!(call_sizes.lock().unwrap().is_empty(), "No calls for empty input");
+        assert!(
+            call_sizes.lock().unwrap().is_empty(),
+            "No calls for empty input"
+        );
     }
 
     /// When `max_tokens == 0` (limit unknown), fall back to `embed_batched` — one call.
@@ -730,7 +739,10 @@ mod tests {
         let result = embed_with_token_budget(&provider, &texts).await.unwrap();
         assert_eq!(result.len(), 5);
         let sizes = call_sizes.lock().unwrap();
-        assert_eq!(sizes.len(), 1, "Should fall back to a single embed_batched call");
+        assert_eq!(
+            sizes.len(),
+            1,
+            "Should fall back to a single embed_batched call"
+        );
     }
 }
-

@@ -39,8 +39,16 @@ pub const ABSOLUTE_MAX_TOKENS: usize = 65536;
 /// Minimum timeout in seconds (10).
 pub const MINIMUM_TIMEOUT_SECS: u64 = 10;
 
-/// Maximum timeout in seconds (600 = 10 minutes).
-pub const MAXIMUM_TIMEOUT_SECS: u64 = 600;
+/// Maximum timeout in seconds (3600 = 1 hour).
+///
+/// WHY 3600: The previous cap of 600 s (10 min) was appropriate for cloud
+/// APIs (OpenAI, Anthropic) but too restrictive for local LLMs running on
+/// consumer hardware (Ollama on a single GPU can take 5–10 minutes per large
+/// chunk).  Raising to 1 hour lets operators set
+/// `EDGEQUAKE_LLM_TIMEOUT_SECS=1800` without hitting an invisible wall.
+/// The real per-chunk safeguard is `EDGEQUAKE_CHUNK_TIMEOUT_SECS` in the
+/// pipeline layer; this is the HTTP-level safety backstop.
+pub const MAXIMUM_TIMEOUT_SECS: u64 = 3600;
 
 /// Configuration for safety limits.
 #[derive(Debug, Clone)]

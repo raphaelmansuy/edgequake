@@ -193,14 +193,14 @@ Respond with valid JSON in this exact format:
         // Each attempt closes a different level of nesting that the LLM might
         // have been cut off inside.
         let suffixes: &[&str] = &[
-            "",            // already complete — fastest path, no allocation
-            "}",          // already a complete object?
-            "]}",         // truncated inside relationships array
-            "}]}",        // truncated inside a relationship object
-            "]}]}",       // truncated inside entities array, after a complete object
-            "}]}]}",      // truncated inside an entity object
-            "\"}]}]}",    // truncated inside a string field of an entity
-            "\"}]}", // truncated inside a string in the relationships array
+            "",        // already complete — fastest path, no allocation
+            "}",       // already a complete object?
+            "]}",      // truncated inside relationships array
+            "}]}",     // truncated inside a relationship object
+            "]}]}",    // truncated inside entities array, after a complete object
+            "}]}]}",   // truncated inside an entity object
+            "\"}]}]}", // truncated inside a string field of an entity
+            "\"}]}",   // truncated inside a string in the relationships array
         ];
         for &suffix in suffixes {
             let candidate = format!("{}{}", s, suffix);
@@ -276,7 +276,8 @@ mod tests {
     #[test]
     fn test_recover_already_complete_json() {
         let complete = r#"{"entities":[],"relationships":[]}"#;
-        let result = LLMExtractor::<edgequake_llm::MockProvider>::try_recover_truncated_json(complete);
+        let result =
+            LLMExtractor::<edgequake_llm::MockProvider>::try_recover_truncated_json(complete);
         // A complete JSON value must be recoverable (empty suffix matches).
         assert!(result.is_some());
     }
@@ -306,8 +307,12 @@ mod tests {
     #[test]
     fn test_recover_truncated_entities_array_open() {
         let truncated = r#"{"entities":[{"name":"SEISMOLOGY","type":"CONCEPT","description":"Study of earthquakes"}],"relationships":["#;
-        let result = LLMExtractor::<edgequake_llm::MockProvider>::try_recover_truncated_json(truncated);
-        assert!(result.is_some(), "Should recover with open relationships array");
+        let result =
+            LLMExtractor::<edgequake_llm::MockProvider>::try_recover_truncated_json(truncated);
+        assert!(
+            result.is_some(),
+            "Should recover with open relationships array"
+        );
         if let Some(v) = result {
             let entities = v["entities"].as_array().expect("entities must be an array");
             assert_eq!(entities.len(), 1);
@@ -319,7 +324,8 @@ mod tests {
     #[test]
     fn test_recover_returns_none_for_unrecoverable_input() {
         let garbage = "not json at all ///";
-        let result = LLMExtractor::<edgequake_llm::MockProvider>::try_recover_truncated_json(garbage);
+        let result =
+            LLMExtractor::<edgequake_llm::MockProvider>::try_recover_truncated_json(garbage);
         assert!(result.is_none());
     }
 
@@ -337,9 +343,17 @@ mod tests {
         let truncated_response = r#"{"entities":[{"name":"ALICE","type":"PERSON","description":"A scientist"},{"name":"BOB","type":"PERSON","description":"A colleague"}],"relationships":["#;
 
         let result = extractor.parse_response(truncated_response, "chunk_001");
-        assert!(result.is_ok(), "parse_response should recover, got: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "parse_response should recover, got: {:?}",
+            result
+        );
         let extraction = result.unwrap();
-        assert_eq!(extraction.entities.len(), 2, "Both complete entities should be salvaged");
+        assert_eq!(
+            extraction.entities.len(),
+            2,
+            "Both complete entities should be salvaged"
+        );
         assert_eq!(extraction.entities[0].name, "ALICE");
         assert_eq!(extraction.entities[1].name, "BOB");
     }

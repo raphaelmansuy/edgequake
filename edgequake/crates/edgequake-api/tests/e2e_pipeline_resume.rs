@@ -136,8 +136,15 @@ async fn test_checkpoint_save_load_roundtrip_returns_identical_result() {
 async fn test_checkpoint_missing_triggers_full_reprocess() {
     let kv = fresh_kv();
 
-    let loaded =
-        load_pipeline_checkpoint(&kv, "nonexistent-doc", WORKSPACE_A, PROVIDER_MOCK, PROVIDER_MOCK, SAMPLE_TEXT).await;
+    let loaded = load_pipeline_checkpoint(
+        &kv,
+        "nonexistent-doc",
+        WORKSPACE_A,
+        PROVIDER_MOCK,
+        PROVIDER_MOCK,
+        SAMPLE_TEXT,
+    )
+    .await;
 
     assert!(
         loaded.is_none(),
@@ -202,7 +209,7 @@ async fn test_checkpoint_extraction_provider_mismatch_rejects() {
         &doc_id,
         &make_result(&doc_id, 5),
         WORKSPACE_A,
-        "openai",    // saved with openai
+        "openai", // saved with openai
         PROVIDER_MOCK,
         SAMPLE_TEXT,
     )
@@ -213,7 +220,7 @@ async fn test_checkpoint_extraction_provider_mismatch_rejects() {
         &kv,
         &doc_id,
         WORKSPACE_A,
-        "mistral",   // now loading with mistral — should reject
+        "mistral", // now loading with mistral — should reject
         PROVIDER_MOCK,
         SAMPLE_TEXT,
     )
@@ -290,19 +297,31 @@ async fn test_clear_checkpoint_removes_entry() {
     .unwrap();
 
     // Confirm it exists
-    assert!(
-        load_pipeline_checkpoint(&kv, &doc_id, WORKSPACE_A, PROVIDER_MOCK, PROVIDER_MOCK, SAMPLE_TEXT)
-            .await
-            .is_some()
-    );
+    assert!(load_pipeline_checkpoint(
+        &kv,
+        &doc_id,
+        WORKSPACE_A,
+        PROVIDER_MOCK,
+        PROVIDER_MOCK,
+        SAMPLE_TEXT
+    )
+    .await
+    .is_some());
 
     clear_pipeline_checkpoint(&kv, &doc_id).await;
 
     // Must be gone now
     assert!(
-        load_pipeline_checkpoint(&kv, &doc_id, WORKSPACE_A, PROVIDER_MOCK, PROVIDER_MOCK, SAMPLE_TEXT)
-            .await
-            .is_none(),
+        load_pipeline_checkpoint(
+            &kv,
+            &doc_id,
+            WORKSPACE_A,
+            PROVIDER_MOCK,
+            PROVIDER_MOCK,
+            SAMPLE_TEXT
+        )
+        .await
+        .is_none(),
         "checkpoint must be absent after clear"
     );
 }
@@ -363,14 +382,14 @@ fn test_resume_predicate_matrix() {
     // (has_existing, restart) → (should_resume, should_restart)
     let cases = [
         (false, false, false, false),
-        (false, true,  false, false),
-        (true,  false, true,  false), // ← the retry path: must resume
-        (true,  true,  false, true),  // ← explicit restart: must restart
+        (false, true, false, false),
+        (true, false, true, false), // ← the retry path: must resume
+        (true, true, false, true),  // ← explicit restart: must restart
     ];
 
     for (has_existing, restart, expect_resume, expect_restart) in cases {
         // Inline the predicate logic (mirrors processor/pdf_processing.rs)
-        let should_resume  = has_existing && !restart;
+        let should_resume = has_existing && !restart;
         let should_restart = has_existing && restart;
 
         assert_eq!(
@@ -398,9 +417,12 @@ async fn test_corrupt_checkpoint_cleaned_up_and_returns_none() {
 
     // Manually store garbage at the checkpoint key
     let key = format!("{}-pipeline-checkpoint", doc_id);
-    kv.upsert(&[(key.clone(), serde_json::json!({"garbage": true, "no_result_field": 99}))])
-        .await
-        .unwrap();
+    kv.upsert(&[(
+        key.clone(),
+        serde_json::json!({"garbage": true, "no_result_field": 99}),
+    )])
+    .await
+    .unwrap();
 
     let loaded = load_pipeline_checkpoint(
         &kv,

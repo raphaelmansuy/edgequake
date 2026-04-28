@@ -570,6 +570,62 @@ curl -X POST http://localhost:8080/api/v1/query \
 
 ---
 
+## Ingestion Pipeline Tuning (fixes [#194](https://github.com/raphaelmansuy/edgequake/issues/194))
+
+When ingesting **large documents** or using a **slow local LLM** (Ollama on a single GPU, LM Studio
+on CPU), the default pipeline limits can cause "Timeout after 180s" failures. Use these env vars
+to tune the ingestion pipeline:
+
+### Key variables
+
+| Variable                               | Default | Guidance                                       |
+| -------------------------------------- | ------- | ---------------------------------------------- |
+| `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | `180`   | Increase to match your LLM's expected latency  |
+| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | `16`    | Lower on a single GPU (use 2–4 for Ollama CPU) |
+| `EDGEQUAKE_CHUNK_MAX_RETRIES`          | `3`     | Reduce to 1 for fast-fail during debugging     |
+| `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | `1000`  | Increase to 5000 if the LLM needs warm-up time |
+| `EDGEQUAKE_LLM_TIMEOUT_SECS`          | `600`   | Must be ≥ `EDGEQUAKE_CHUNK_TIMEOUT_SECS`       |
+
+### Profiles
+
+**GPU server (powerful) — maximize throughput:**
+
+```bash
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=120
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=32
+export EDGEQUAKE_LLM_TIMEOUT_SECS=600
+```
+
+**Single-GPU workstation — balanced:**
+
+```bash
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=300
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=4
+export EDGEQUAKE_LLM_TIMEOUT_SECS=1800
+```
+
+**CPU-only Ollama — conservative:**
+
+```bash
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=2
+export EDGEQUAKE_CHUNK_RETRY_DELAY_MS=5000
+export EDGEQUAKE_LLM_TIMEOUT_SECS=3600
+```
+
+**Cloud LLM (OpenAI / Anthropic) — fast, rate-limited:**
+
+```bash
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=60
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=8   # stay under RPM limits
+export EDGEQUAKE_LLM_TIMEOUT_SECS=120
+```
+
+> **Rule of thumb:** Set `EDGEQUAKE_CHUNK_TIMEOUT_SECS` = (time one LLM call takes for your
+> biggest chunk) × 1.5 as a safety margin. Then set `EDGEQUAKE_LLM_TIMEOUT_SECS` ≥ that value.
+
+---
+
 ## See Also
 
 - [Configuration Reference](/docs/operations/configuration/) - All settings

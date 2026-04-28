@@ -951,6 +951,56 @@ curl -X POST "http://localhost:8080/api/v1/query" \
 
 ---
 
+#### Symptom: "Timeout after 180s (attempt X/3)" during document ingestion
+
+**Root Cause**: The default 180-second per-chunk timeout fires before your local LLM finishes
+processing. This is common with Ollama on CPU or a slow GPU, or when ingesting large documents
+with many text chunks.
+
+Two timeout layers exist and both need to be configured:
+
+| Layer | Variable | Default | Description |
+|-------|----------|---------|-------------|
+| 1 (fires first) | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | 180s | Per-chunk pipeline timeout |
+| 2 (HTTP cap) | `EDGEQUAKE_LLM_TIMEOUT_SECS` | 600s | HTTP-level safety cap (max 3600) |
+
+**Diagnosis**:
+
+```bash
+# Check backend logs for the pattern
+grep "Timeout after\|attempt.*/" /tmp/edgequake-backend.log | tail -20
+
+# Measure how long a single LLM call actually takes on your hardware
+time curl -s http://localhost:11434/api/chat \
+  -d '{"model":"gemma3:latest","messages":[{"role":"user","content":"extract entities from: Alice works at Acme"}]}'
+```
+
+**Fix — raise both timeout layers to match your hardware:**
+
+```bash
+# Single-GPU Ollama workstation
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600        # 10 minutes per chunk
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=4   # avoid GPU overload
+export EDGEQUAKE_LLM_TIMEOUT_SECS=3600         # 1-hour HTTP cap
+```
+
+```bash
+# CPU-only (slow — be patient)
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=2
+export EDGEQUAKE_CHUNK_RETRY_DELAY_MS=5000
+export EDGEQUAKE_LLM_TIMEOUT_SECS=3600
+```
+
+> **Key insight:** Reducing `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` often fixes timeouts even
+> without raising the timeout limit. 16 parallel LLM calls on a single GPU creates contention
+> where each request queues behind 15 others — all 16 then time out together.
+
+See [Performance Tuning — Ingestion Pipeline](/docs/operations/performance-tuning/#ingestion-pipeline-tuning) for
+profile-based recommendations.
+
+---
+
 ### 7. Database Issues
 
 #### Symptom: "Connection pool exhausted"

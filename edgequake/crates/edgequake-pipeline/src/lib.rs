@@ -99,8 +99,20 @@ pub use lineage::{
 };
 pub use merger::{KnowledgeGraphMerger, MergeStats, MergerConfig};
 pub use pipeline::{
-    ChunkProgressCallback, ChunkProgressUpdate, CostBreakdownStats, Pipeline, PipelineConfig,
-    ProcessingResult, ProcessingStats,
+    ChunkProgressCallback,
+    ChunkProgressUpdate,
+    CostBreakdownStats,
+    Pipeline,
+    PipelineConfig,
+    ProcessingResult,
+    ProcessingStats,
+    // Issue-194: configurable timeout / concurrency constants
+    DEFAULT_CHUNK_MAX_RETRIES,
+    DEFAULT_CHUNK_TIMEOUT_SECS,
+    DEFAULT_INITIAL_RETRY_DELAY_MS,
+    DEFAULT_MAX_CONCURRENT_EXTRACTIONS,
+    MAX_CHUNK_MAX_RETRIES,
+    MIN_CHUNK_TIMEOUT_SECS,
 };
 pub use progress::{
     default_model_pricing, CostBreakdown, CostTracker, IngestionError, IngestionProgress,
