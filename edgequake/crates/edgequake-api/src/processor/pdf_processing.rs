@@ -360,7 +360,7 @@ impl DocumentTaskProcessor {
                     self.check_cancelled(&cancel_token, "pre-text-insert-resume", &early_doc_id)
                         .await?;
 
-                    let stored_extraction_method = pdf.extraction_method.clone();
+                    let stored_extraction_method = pdf.extraction_method;
                     let stored_vision_model = pdf.vision_model.clone();
                     // Clone for linking step after process_text_insert consumes the string.
                     let stored_markdown_for_link = stored_markdown.clone();

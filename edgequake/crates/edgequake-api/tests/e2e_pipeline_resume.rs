@@ -26,7 +26,7 @@
 //!    `has_existing_document` and `restart_from_scratch`.
 //!
 //! @implements FIX-RESUME: Stage-aware retry for failed ingestion tasks
-//! @implements FEAT0001: Document Ingestion Pipeline orchestration
+//! @implements FIX-194-RESUME: Document ingestion retry orchestration coverage
 
 use std::sync::Arc;
 

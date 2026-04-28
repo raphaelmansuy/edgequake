@@ -959,10 +959,10 @@ with many text chunks.
 
 Two timeout layers exist and both need to be configured:
 
-| Layer | Variable | Default | Description |
-|-------|----------|---------|-------------|
-| 1 (fires first) | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | 180s | Per-chunk pipeline timeout |
-| 2 (HTTP cap) | `EDGEQUAKE_LLM_TIMEOUT_SECS` | 600s | HTTP-level safety cap (max 3600) |
+| Layer           | Variable                       | Default | Description                      |
+| --------------- | ------------------------------ | ------- | -------------------------------- |
+| 1 (fires first) | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | 180s    | Per-chunk pipeline timeout       |
+| 2 (HTTP cap)    | `EDGEQUAKE_LLM_TIMEOUT_SECS`   | 600s    | HTTP-level safety cap (max 3600) |
 
 **Diagnosis**:
 

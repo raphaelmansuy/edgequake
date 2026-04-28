@@ -190,13 +190,13 @@ Controls how aggressively the ingestion pipeline calls the LLM and how long it w
 response. These are the knobs to reach for when processing **large documents** or using **slow
 local LLMs** (Ollama, LM Studio on CPU or a single GPU).
 
-| Variable                               | Type    | Default | Min  | Max   | Description                                           |
-| -------------------------------------- | ------- | ------- | ---- | ----- | ----------------------------------------------------- |
-| `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | Integer | `180`   | `10` | ∞     | Per-chunk LLM call timeout in seconds                 |
-| `EDGEQUAKE_CHUNK_MAX_RETRIES`          | Integer | `3`     | `0`  | `20`  | Max retry attempts per chunk on timeout or error      |
-| `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | Integer | `1000`  | `0`  | `60000` | Initial backoff delay between retries (milliseconds) |
-| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | Integer | `16`    | `1`  | `256` | Max parallel LLM extraction calls per document        |
-| `EDGEQUAKE_LLM_TIMEOUT_SECS`          | Integer | `600`   | —    | `3600` | HTTP safety-layer timeout (Layer 2, supports up to 1 hour) |
+| Variable                               | Type    | Default | Min  | Max     | Description                                                |
+| -------------------------------------- | ------- | ------- | ---- | ------- | ---------------------------------------------------------- |
+| `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | Integer | `180`   | `10` | ∞       | Per-chunk LLM call timeout in seconds                      |
+| `EDGEQUAKE_CHUNK_MAX_RETRIES`          | Integer | `3`     | `0`  | `20`    | Max retry attempts per chunk on timeout or error           |
+| `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | Integer | `1000`  | `0`  | `60000` | Initial backoff delay between retries (milliseconds)       |
+| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | Integer | `16`    | `1`  | `256`   | Max parallel LLM extraction calls per document             |
+| `EDGEQUAKE_LLM_TIMEOUT_SECS`           | Integer | `600`   | —    | `3600`  | HTTP safety-layer timeout (Layer 2, supports up to 1 hour) |
 
 **Two-layer timeout architecture:**
 

@@ -45,7 +45,7 @@ This guide covers performance tuning strategies for EdgeQuake deployments.
 | Model                | Latency (TTFT) | Cost | Quality   |
 | -------------------- | -------------- | ---- | --------- |
 | gpt-4o               | 500ms          | $$$$ | Excellent |
-| gpt-5-nano          | 200ms          | $    | Very Good |
+| gpt-5-nano           | 200ms          | $    | Very Good |
 | gemma3:12b (Ollama)  | 100ms          | Free | Good      |
 | llama3.2:3b (Ollama) | 50ms           | Free | Moderate  |
 
@@ -66,11 +66,11 @@ curl -X POST http://localhost:8080/api/v1/query \
 ```
 
 **Default vs Optimized**:
-| Setting | Default | Optimized |
-|---------|---------|-----------|
-| `max_chunks` | 20 | 5-10 |
-| `max_entities` | 10 | 3-5 |
-| `max_relationships` | 20 | 5-10 |
+| Setting             | Default | Optimized |
+| ------------------- | ------- | --------- |
+| `max_chunks`        | 20      | 5-10      |
+| `max_entities`      | 10      | 3-5       |
+| `max_relationships` | 20      | 5-10      |
 
 ### 3. Use Appropriate Query Mode
 
@@ -355,12 +355,12 @@ ollama serve
 ```
 
 **Model Quantization**:
-| Quantization | Speed | Quality | VRAM |
-|--------------|-------|---------|------|
-| Q4_K_M | Fastest | Good | 4GB |
-| Q5_K_M | Fast | Better | 5GB |
-| Q8_0 | Slow | Best | 8GB |
-| FP16 | Slowest | Reference | 16GB |
+| Quantization | Speed   | Quality   | VRAM |
+| ------------ | ------- | --------- | ---- |
+| Q4_K_M       | Fastest | Good      | 4GB  |
+| Q5_K_M       | Fast    | Better    | 5GB  |
+| Q8_0         | Slow    | Best      | 8GB  |
+| FP16         | Slowest | Reference | 16GB |
 
 ```bash
 # Download quantized model
@@ -584,7 +584,7 @@ to tune the ingestion pipeline:
 | `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | `16`    | Lower on a single GPU (use 2–4 for Ollama CPU) |
 | `EDGEQUAKE_CHUNK_MAX_RETRIES`          | `3`     | Reduce to 1 for fast-fail during debugging     |
 | `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | `1000`  | Increase to 5000 if the LLM needs warm-up time |
-| `EDGEQUAKE_LLM_TIMEOUT_SECS`          | `600`   | Must be ≥ `EDGEQUAKE_CHUNK_TIMEOUT_SECS`       |
+| `EDGEQUAKE_LLM_TIMEOUT_SECS`           | `600`   | Must be ≥ `EDGEQUAKE_CHUNK_TIMEOUT_SECS`       |
 
 ### Profiles
 
