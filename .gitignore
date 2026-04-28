@@ -33,10 +33,12 @@ lightrag.log*
 logs/
 /.playwright-mcp
 archive/
-# Curated specs under specs/009-skd-update are tracked; ignore other local spec drafts.
+# Curated specs under specific directories are tracked; ignore other local spec drafts.
 /specs/*
 !/specs/009-skd-update/
 !/specs/009-skd-update/**
+!/specs/01-fix-195/
+!/specs/01-fix-195/**
 logf/
 zz_test_docs/
 zz-explore/

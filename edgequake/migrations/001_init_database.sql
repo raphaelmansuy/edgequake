@@ -19,12 +19,8 @@
 -- ============================================================================
 
 -- CRITICAL: Set search_path to public FIRST to ensure all tables are created
--- in the public schema, not in the user's schema (edgequake).
--- WHY LOCAL: SET LOCAL scopes this change to the current transaction only.
--- Session-level SET would pollute sqlx-cli's connection state and cause it
--- to write migration tracking records to the wrong _sqlx_migrations table
--- on subsequent runs (edgequake schema vs public schema mismatch).
-SET LOCAL search_path = public;
+-- in the public schema, not in the user's schema (edgequake)
+SET search_path = public;
 
 -- ============================================================================
 -- SECTION 1: EXTENSIONS
