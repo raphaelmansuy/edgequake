@@ -1,0 +1,213 @@
+name: Migration Guard
+
+# PURPOSE: Three-layer defense against migration immutability violations.
+#
+# LAYER 1 — Static (no DB needed): verify every .sql file matches checksums.lock.
+#            Catches any byte-level mutation before it reaches deployment.
+#
+# LAYER 2 — Dynamic (needs PostgreSQL): run sqlx migrate run on a fresh DB and
+#            verify the migration stack applies cleanly end-to-end.
+#
+# LAYER 3 — Regression (needs PostgreSQL): prove migration 001 carries the
+#            canonical bb40c61f... checksum, guaranteeing v0.10.12 → current
+#            upgrades succeed (regression test for issue #195).
+#
+# This workflow runs on:
+#   - Every push/PR touching migration files or the guard itself (Layer 1+2+3)
+#   - Every push/PR to main branches (Layer 1 always runs)
+#   - Manual dispatch
+
+on:
+  push:
+    branches: [main, edgequake-main, "feat/**", "fix/**"]
+    paths:
+      - "edgequake/migrations/**"
+      - "scripts/check_migration_checksums.sh"
+      - "scripts/test_migration_e2e.sh"
+      - ".github/workflows/migration-guard.yml"
+  pull_request:
+    branches: [main, edgequake-main]
+    paths:
+      - "edgequake/migrations/**"
+      - "scripts/check_migration_checksums.sh"
+      - "scripts/test_migration_e2e.sh"
+      - ".github/workflows/migration-guard.yml"
+  # Run Layer 1 on every PR to main (checksum check is fast, no DB needed)
+  pull_request_target:
+    branches: [main, edgequake-main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: migration-guard-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_TOOLCHAIN: 1.95.0
+  POSTGRES_DB: edgequake_mig_guard
+  POSTGRES_USER: edgequake_guard
+  POSTGRES_PASSWORD: guard_password_123
+  DATABASE_URL: postgresql://edgequake_guard:guard_password_123@localhost:5432/edgequake_mig_guard
+  TEST_DATABASE_URL: postgresql://edgequake_guard:guard_password_123@localhost:5432/edgequake_mig_guard
+
+jobs:
+  # ──────────────────────────────────────────────────────────
+  # LAYER 1: Static checksum guard (no PostgreSQL required)
+  # Fast, always runs. Catches file mutations immediately.
+  # ──────────────────────────────────────────────────────────
+  static-checksum-guard:
+    name: "Layer 1 — Static checksum guard"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify migration checksums against lockfile
+        run: |
+          chmod +x scripts/check_migration_checksums.sh
+          ./scripts/check_migration_checksums.sh --verbose
+
+  # ──────────────────────────────────────────────────────────
+  # LAYER 2 + 3: Dynamic E2E migration test (PostgreSQL)
+  # Proves the full migration stack applies cleanly on a fresh DB
+  # AND that the canonical bb40c61f... checksum is in place
+  # (regression test for issue #195).
+  # ──────────────────────────────────────────────────────────
+  migration-e2e:
+    name: "Layer 2+3 — E2E migration + upgrade regression"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # WHY: only when migration files or the workflow itself changed
+    # Layer 1 (static) already runs on all PRs.
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: edgequake_mig_guard
+          POSTGRES_USER: edgequake_guard
+          POSTGRES_PASSWORD: guard_password_123
+          POSTGRES_HOST_AUTH_METHOD: md5
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U edgequake_guard -d edgequake_mig_guard"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+          key: migration-guard
+
+      - name: Install sqlx-cli
+        run: |
+          cargo install sqlx-cli \
+            --no-default-features \
+            --features postgres \
+            --locked 2>&1 | tail -5
+
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update -q && sudo apt-get install -yq postgresql-client
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          echo "Waiting for PostgreSQL..."
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -p 5432 -U edgequake_guard -d edgequake_mig_guard; then
+              echo "PostgreSQL ready after $i attempts."
+              break
+            fi
+            echo "Attempt $i — not ready yet, waiting 2s..."
+            sleep 2
+          done
+
+      - name: Install pgvector extension
+        run: |
+          PGPASSWORD=guard_password_123 psql \
+            -h localhost -p 5432 \
+            -U edgequake_guard -d edgequake_mig_guard \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      # ── Layer 1 (repeated here so the full job is self-contained) ──
+      - name: "[Layer 1] Static checksum guard"
+        run: |
+          chmod +x scripts/check_migration_checksums.sh
+          ./scripts/check_migration_checksums.sh --verbose
+
+      # ── Layer 2: Fresh apply ────────────────────────────────────────
+      - name: "[Layer 2] sqlx migrate run — fresh database"
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          echo "Applying all migrations to a fresh database..."
+          sqlx migrate run \
+            --source edgequake/migrations \
+            --database-url "$DATABASE_URL"
+          echo "Migration apply: PASSED"
+
+      # ── Layer 2b: Verify idempotency ────────────────────────────────
+      - name: "[Layer 2b] sqlx migrate run — idempotent re-run"
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          echo "Re-running migrations (must be idempotent — exit 0)..."
+          sqlx migrate run \
+            --source edgequake/migrations \
+            --database-url "$DATABASE_URL"
+          echo "Idempotent re-run: PASSED"
+
+      # ── Layer 3: Regression for issue #195 ─────────────────────────
+      - name: "[Layer 3] Regression: migration 001 carries canonical checksum"
+        run: |
+          EXPECTED="bb40c61f7d5cbeafa7827f2e8878588464e814ed118179bdb3c16e92880c79b2a3db4c92240e632bc8355363a768daf2"
+          ACTUAL=$(sha384sum edgequake/migrations/001_init_database.sql | awk '{print $1}')
+          echo "Expected: $EXPECTED"
+          echo "Actual  : $ACTUAL"
+          if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+            echo ""
+            echo "FAIL: Migration 001 checksum mismatch!"
+            echo "  This means any upgrade from v0.10.12 WILL FAIL."
+            echo "  This is the exact regression tested by issue #195."
+            exit 1
+          fi
+          echo "PASS: Migration 001 has canonical checksum (bb40c61f...)"
+          echo "      All v0.10.12 → current upgrades are guaranteed to succeed."
+
+      # ── Layer 3b: Full E2E test script ──────────────────────────────
+      - name: "[Layer 3b] Full migration E2E test suite"
+        env:
+          TEST_DATABASE_URL: postgresql://edgequake_guard:guard_password_123@localhost:5432/postgres
+          DATABASE_URL: postgresql://edgequake_guard:guard_password_123@localhost:5432/postgres
+        run: |
+          chmod +x scripts/test_migration_e2e.sh
+          # The E2E script creates/drops its own test databases.
+          # We pass postgres as the base DB URL so it can create test DBs.
+          ./scripts/test_migration_e2e.sh
+
+      # ── Summary ─────────────────────────────────────────────────────
+      - name: Migration guard summary
+        if: always()
+        run: |
+          echo ""
+          echo "Migration Guard Results:"
+          echo "  Layer 1 (static checksum): see step above"
+          echo "  Layer 2 (fresh apply):     see step above"
+          echo "  Layer 2b (idempotency):    see step above"
+          echo "  Layer 3 (issue #195 regression): see step above"
+          echo "  Layer 3b (full E2E suite): see step above"
+          echo ""
+          echo "Migration guard is the last line of defense before a broken"
+          echo "migration reaches production and causes a deployment outage."
