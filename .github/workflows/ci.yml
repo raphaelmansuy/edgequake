@@ -21,10 +21,26 @@ env:
   # so we do NOT use --no-default-features for edgequake-api / pdf-related crates.
 
 jobs:
+  # WHY: Migration immutability is the fastest check (no DB, no Rust build).
+  # Run it first so PRs get instant feedback if a migration file was mutated.
+  # Any byte change to a deployed .sql file breaks all existing deployments.
+  # This caught the regression in issue #195 (v0.11.0 checksum mismatch).
+  migration-checksum-guard:
+    name: Migration checksum guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify migration checksums against lockfile
+        run: |
+          chmod +x scripts/check_migration_checksums.sh
+          ./scripts/check_migration_checksums.sh --verbose
+
   check:
     name: Check
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: migration-checksum-guard
     steps:
       - uses: actions/checkout@v4
 
@@ -53,6 +69,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: migration-checksum-guard
     steps:
       - uses: actions/checkout@v4
 
@@ -78,6 +95,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: migration-checksum-guard
     steps:
       - uses: actions/checkout@v4
 
