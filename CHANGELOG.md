@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.1] - 2026-04-28
+
+### Fixed
+
+- **CRITICAL — Migration checksum mismatch on 0.10.12→0.11.0 upgrade** ([#195](https://github.com/raphaelmansuy/edgequake/issues/195)):
+  `001_init_database.sql` was inadvertently mutated in v0.11.0 (commit `e91108df`):
+  `SET search_path = public` was changed to `SET LOCAL search_path = public` and
+  4 comment lines were added, changing the SHA-384 checksum stored in `_sqlx_migrations`.
+  Any persistent PostgreSQL database that ran 0.10.12 migrations had the original
+  checksum stored; the v0.11.0 binary found a mismatch and refused to start with:
+  `migration 1 was previously applied but has been modified`.
+  Fix: restored `001_init_database.sql` to its byte-exact pre-v0.11.0 content.
+  The `SET LOCAL` concern is already addressed at the `DATABASE_URL` connection level
+  (`?options=-c%20search_path%3Dpublic`). No data loss. No manual DB intervention required.
+  Verified: `sha384sum` of the restored file matches `bb40c61f…` — the value stored
+  in all 0.10.12 production databases.
+
+### Upgrade notes
+
+Users on 0.10.12 upgrading to 0.11.0 who hit the startup failure should upgrade
+directly to 0.11.1. No database changes required — just update the container image.
+Users who already applied the workaround (manual checksum update) are also safe
+to upgrade; the fix is idempotent.
+
 ## [0.11.0] - 2026-04-27
 
 ### Added — Mistral as First-Class LLM Provider
