@@ -1308,10 +1308,10 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let sql = format!(
             "WITH edge_counts AS ( \
                 SELECT \
-                    ag_catalog.graphid_to_agtype(start_id)::text as start_id_text, \
+                    start_id::bigint as start_id_int, \
                     COUNT(*) as out_degree \
                 FROM {}.\"_ag_label_edge\" \
-                GROUP BY ag_catalog.graphid_to_agtype(start_id)::text \
+                GROUP BY start_id::bigint \
             ), \
             node_degrees AS ( \
                 SELECT \
@@ -1319,7 +1319,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
                     v.properties, \
                     COALESCE(ec.out_degree, 0) as degree \
                 FROM {}.\"_ag_label_vertex\" v \
-                LEFT JOIN edge_counts ec ON ag_catalog.graphid_to_agtype(v.id)::text = ec.start_id_text \
+                LEFT JOIN edge_counts ec ON v.id::bigint = ec.start_id_int \
                 {} \
             ) \
             SELECT \

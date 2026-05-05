@@ -36,9 +36,11 @@ impl PostgresAGEGraphStorage {
             .await
             .map_err(|e| StorageError::Database(format!("Failed to set AGE search path: {}", e)))?;
 
-        // Set statement timeout to 30 seconds to allow complex graph queries to complete
-        // Application-level timeouts (5s) will trigger fallback before this for most cases
-        sqlx::query("SET statement_timeout = '30s'")
+        // Set statement timeout - configurable via EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS env var (default: 30s)
+        let graph_timeout_secs = std::env::var("EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS")
+            .unwrap_or_else(|_| "30".to_string());
+        let timeout_sql = format!("SET statement_timeout = '{}s'", graph_timeout_secs);
+        sqlx::query(&timeout_sql)
             .execute(&mut *conn)
             .await
             .map_err(|e| {
@@ -511,7 +513,11 @@ impl PostgresAGEGraphStorage {
             .map_err(|e| StorageError::Database(format!("Failed to set search path: {}", e)))?;
 
         // Set statement timeout
-        sqlx::query("SET statement_timeout = '30s'")
+        // Set statement timeout - configurable via EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS env var (default: 30s)
+        let graph_timeout_secs = std::env::var("EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS")
+            .unwrap_or_else(|_| "30".to_string());
+        let timeout_sql = format!("SET statement_timeout = '{}s'", graph_timeout_secs);
+        sqlx::query(&timeout_sql)
             .execute(&mut *conn)
             .await
             .map_err(|e| StorageError::Database(format!("Failed to set timeout: {}", e)))?;
