@@ -41,6 +41,8 @@ archive/
 !/specs/01-fix-195/**
 !/specs/010-ingestion-reliability/
 !/specs/010-ingestion-reliability/**
+!/specs/edgequake-llm-update/
+!/specs/edgequake-llm-update/**
 logf/
 zz_test_docs/
 zz-explore/
