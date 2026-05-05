@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] — 0.11.2
 
+### Added
+
+- **Issue #132 — B2B header propagation via `with_extra_headers()`** ([#132](https://github.com/raphaelmansuy/edgequake/issues/132)):
+  Multi-tenant deployments that need to propagate `x-request-id`, `x-tenant-id`,
+  `x-correlation-id`, `traceparent`, or HMAC tokens into outgoing LLM API calls can
+  now use the `with_extra_headers()` builder available on all five major providers:
+  `OpenAICompatibleProvider`, `MistralProvider`, `AnthropicProvider`, `GeminiProvider`,
+  and `NvidiaProvider`. Reserved headers (`authorization`, `x-api-key`, `content-type`,
+  `content-length`, `host`, `user-agent`) are silently dropped to prevent accidental
+  credential overrides. Shipped in `edgequake-llm` v0.6.17.
+
 ### Fixed
 
 - **Issue #194 — Configurable pipeline timeouts / concurrency** ([#194](https://github.com/raphaelmansuy/edgequake/issues/194)):
