@@ -147,7 +147,7 @@ edgequake-auth = { path = "crates/edgequake-auth" }
 edgequake-core = { path = "crates/edgequake-core" }
 edgequake-pdf = { path = "crates/edgequake-pdf" }
 # v0.6.14: Mistral first-class support (chat, embeddings, vision), NVIDIA NIM, Gemini 3.x model IDs.
-edgequake-llm = "0.6.14"
+edgequake-llm = "0.6.15"
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }
