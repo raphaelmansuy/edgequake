@@ -237,6 +237,61 @@ impl QueryEmbeddings {
             low_level: embedding,
         }
     }
+
+    /// Compute keyword-level embeddings when the query vector is already available.
+    ///
+    /// WHY: In the parallel query pipeline, the query embedding is computed
+    /// concurrently with keyword extraction. Once both are ready, this method
+    /// embeds only the keyword texts, avoiding a redundant re-embedding of the
+    /// query and reducing total embedding calls.
+    ///
+    /// If both keyword texts fall back to the query string (empty keywords),
+    /// the pre-computed `query_vec` is reused for all three levels — no extra
+    /// embedding call is made at all.
+    pub async fn compute_with_query_vec(
+        query: &str,
+        query_vec: Vec<f32>,
+        keywords: &ExtractedKeywords,
+        embedder: &dyn EmbeddingProvider,
+    ) -> Result<Self> {
+        let high_level_text = if keywords.high_level.is_empty() {
+            query.to_string()
+        } else {
+            keywords.high_level.join(", ")
+        };
+
+        let low_level_text = if keywords.low_level.is_empty() {
+            query.to_string()
+        } else {
+            keywords.low_level.join(", ")
+        };
+
+        // Fast path: if both keyword texts equal the query, reuse the query vector.
+        // WHY: Avoids an extra embedding call when keyword extraction returned nothing.
+        if high_level_text == query && low_level_text == query {
+            return Ok(Self {
+                query: query_vec.clone(),
+                high_level: query_vec.clone(),
+                low_level: query_vec,
+            });
+        }
+
+        // Embed only the keyword texts (query_vec is already computed).
+        let texts = vec![high_level_text, low_level_text];
+        let embeds = embedder.embed(&texts).await.map_err(QueryError::from)?;
+        if embeds.len() != 2 {
+            return Err(QueryError::Internal(format!(
+                "Expected 2 keyword embeddings, got {}",
+                embeds.len()
+            )));
+        }
+
+        Ok(Self {
+            query: query_vec,
+            high_level: embeds[0].clone(),
+            low_level: embeds[1].clone(),
+        })
+    }
 }
 
 pub struct SOTAQueryEngine {
