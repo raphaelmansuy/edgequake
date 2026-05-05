@@ -455,14 +455,15 @@ dev: check-deps check-ports ## Start full development stack without authenticati
 	@trap 'echo ""; echo "$(YELLOW)Stopping only the processes started by this make dev session...$(RESET)"; [ -n "$$BACKEND_PID" ] && kill "$$BACKEND_PID" 2>/dev/null || true; [ -n "$$FRONTEND_PID" ] && kill "$$FRONTEND_PID" 2>/dev/null || true; echo "$(GREEN)✓ App processes stopped. PostgreSQL is left running for faster restarts.$(RESET)"; exit 0' INT; \
 	BACKEND_PID=""; \
 	FRONTEND_PID=""; \
+	$(LOAD_EFF_DB_URL); \
 	if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
 		echo "$(GREEN)✓ Reusing running backend on port $(BACKEND_PORT)$(RESET)"; \
 	else \
-		echo "$(YELLOW)→ Starting backend...$(RESET)"; \
+		echo "$(YELLOW)→ Starting backend (DATABASE_URL port: $$(printf '%s' $$_EFF_DB_URL | sed -E 's|.*:([0-9]+)/.*|\1|'))...$(RESET)"; \
 		if [ -n "$(OPENAI_API_KEY)" ]; then \
 			(cd $(BACKEND_DIR) && \
 				PORT="$(BACKEND_PORT)" \
-				DATABASE_URL="$(DATABASE_URL)" \
+				DATABASE_URL="$$_EFF_DB_URL" \
 				OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 				EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 				AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
@@ -471,7 +472,7 @@ dev: check-deps check-ports ## Start full development stack without authenticati
 		else \
 			(cd $(BACKEND_DIR) && \
 				PORT="$(BACKEND_PORT)" \
-				DATABASE_URL="$(DATABASE_URL)" \
+				DATABASE_URL="$$_EFF_DB_URL" \
 				EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 				AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 				OLLAMA_HOST="http://localhost:11434" \
@@ -533,16 +534,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 		echo "$(YELLOW)→ Existing EdgeQuake services detected; continuing with reuse checks$(RESET)"; \
 	fi
 	@echo "$(YELLOW)→ Ensuring PostgreSQL availability...$(RESET)"
-	@$(MAKE) db-start --no-print-directory
-	@echo ""
-	@echo "$(YELLOW)→ Waiting for database...$(RESET)"
-	@DB_READY_CMD='pg_isready -h localhost -p 5432'; \
-	if ! printf '%s' "$(DATABASE_URL)" | grep -Eiq '@(localhost|127\.0\.0\.1)(:|/)|://(localhost|127\.0\.0\.1)(:|/)'; then \
-		DB_READY_CMD='pg_isready -d "$(DATABASE_URL)"'; \
-	fi; \
-	for i in 1 2 3 4 5 6 7 8 9 10; do \
-		eval "$$DB_READY_CMD" >/dev/null 2>&1 && break || sleep 2; \
-	done
+	@$(MAKE) db-wait --no-print-directory
 	@echo ""
 	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
 		echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
@@ -683,6 +675,20 @@ ifeq ($(strip $(DATABASE_URL)),)
 endif
 export DATABASE_URL
 
+# DRY: Single shell snippet to read the effective DATABASE_URL resolved by db-start.
+#
+# WHY: db-start detects when another PostgreSQL instance occupies the default port
+# (e.g. infrastructure-postgres, k8s) and starts edgequake-postgres on a free port
+# instead, writing the corrected URL to /tmp/edgequake-db-url.
+# pg_isready alone cannot catch this case — it only checks TCP socket liveness,
+# not credentials.  All backend-launching recipes MUST read from this file so they
+# pass the correct port to the backend binary.
+#
+# Usage in any recipe:
+#   @$(LOAD_EFF_DB_URL); \
+#     DATABASE_URL="$$_EFF_DB_URL" cargo run ...
+LOAD_EFF_DB_URL = _EFF_DB_URL=$$(cat /tmp/edgequake-db-url 2>/dev/null); [ -z "$$_EFF_DB_URL" ] && _EFF_DB_URL="$(DATABASE_URL)"
+
 # SPEC-040 v0.4.1: pdfium is now EMBEDDED in the edgequake-pdf2md 0.4.1 binary
 # via pdfium-auto at compile time. No external libpdfium.dylib, no env vars needed.
 
@@ -691,9 +697,10 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 	@if [ -n "$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" ]; then \
 		echo "$(GREEN)✓ LLM Provider: $(EDGEQUAKE_DEFAULT_LLM_PROVIDER) ($(EDGEQUAKE_DEFAULT_LLM_MODEL))$(RESET)"; \
 	fi
-	@cd $(BACKEND_DIR) && \
+	@$(LOAD_EFF_DB_URL); \
+	cd $(BACKEND_DIR) && \
 		PORT="$(BACKEND_PORT)" \
-		DATABASE_URL="$(DATABASE_URL)" \
+		DATABASE_URL="$$_EFF_DB_URL" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
@@ -714,9 +721,10 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 	@if [ -n "$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" ]; then \
 		echo "$(GREEN)✓ LLM Provider: $(EDGEQUAKE_DEFAULT_LLM_PROVIDER) ($(EDGEQUAKE_DEFAULT_LLM_MODEL))$(RESET)"; \
 	fi
-	@cd $(BACKEND_DIR) && \
+	@$(LOAD_EFF_DB_URL); \
+	cd $(BACKEND_DIR) && \
 		PORT="$(BACKEND_PORT)" \
-		DATABASE_URL="$(DATABASE_URL)" \
+		DATABASE_URL="$$_EFF_DB_URL" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
@@ -753,12 +761,15 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		exit 0; \
 	fi
 	@echo "$(BLUE)Starting backend in background...$(RESET)"
-	@if [ -n "$$MISTRAL_API_KEY" ] || [ -n "$(MISTRAL_API_KEY)" ]; then \
+	@# Read the effective DATABASE_URL resolved by db-start (may differ in port
+	@# when another PostgreSQL occupies the default 5432).
+	@$(LOAD_EFF_DB_URL); \
+	if [ -n "$$MISTRAL_API_KEY" ] || [ -n "$(MISTRAL_API_KEY)" ]; then \
 		_MISTRAL_KEY="$${MISTRAL_API_KEY:-$(MISTRAL_API_KEY)}"; \
 		echo "$(YELLOW)→ MISTRAL_API_KEY detected - using Mistral as default provider$(RESET)"; \
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export MISTRAL_API_KEY=\"$$_MISTRAL_KEY\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$(OPENAI_API_KEY)" ] && printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
@@ -776,7 +787,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		echo "$(YELLOW)→ OPENAI_API_KEY detected - using OpenAI as default provider$(RESET)"; \
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
@@ -788,7 +799,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		echo "$(YELLOW)→ No OPENAI_API_KEY, using Ollama provider$(RESET)"; \
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \
@@ -885,18 +896,32 @@ frontend-test: ## Run frontend tests
 # Database
 # ============================================================================
 
-db-wait: db-start ## Wait for database to be ready (used by other targets)
+db-wait: db-start ## Wait for database to be ready with credential verification (used by other targets)
 	@echo "$(YELLOW)Waiting for database to be ready...$(RESET)"
-	@DB_READY_CMD='pg_isready -h localhost -p 5432'; \
-	if ! printf '%s' "$(DATABASE_URL)" | grep -Eiq '@(localhost|127\.0\.0\.1)(:|/)|://(localhost|127\.0\.0\.1)(:|/)'; then \
-		DB_READY_CMD='pg_isready -d "$(DATABASE_URL)"'; \
-	fi; \
+	@# WHY auth probe (not just pg_isready):
+	@# db-start may have started edgequake-postgres on a non-default port to avoid
+	@# a port conflict.  We read the effective URL it wrote, parse credentials, and
+	@# verify that a psql connection actually succeeds — not just that a socket is
+	@# open.  This catches the "wrong PostgreSQL instance" failure mode early.
+	@$(LOAD_EFF_DB_URL); \
+	_DBWAIT_HOST=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://[^@]+@([^:/]+).*|\1|'); \
+	_DBWAIT_PORT=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://[^@]+@[^:]+:([0-9]+)/.*|\1|'); \
+	_DBWAIT_PORT=$${_DBWAIT_PORT:-5432}; \
+	_DBWAIT_USER=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://([^:]+):.*|\1|'); \
+	_DBWAIT_PASS=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://[^:]+:([^@]+)@.*|\1|'); \
+	_DBWAIT_NAME=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://[^/]+/([^?]*).*|\1|'); \
 	for i in 1 2 3 4 5 6 7 8 9 10; do \
-		eval "$$DB_READY_CMD" >/dev/null 2>&1 && break || sleep 2; \
+		if pg_isready -h "$$_DBWAIT_HOST" -p "$$_DBWAIT_PORT" >/dev/null 2>&1 && \
+		   PGPASSWORD="$$_DBWAIT_PASS" psql -h "$$_DBWAIT_HOST" -p "$$_DBWAIT_PORT" \
+		       -U "$$_DBWAIT_USER" -d "$$_DBWAIT_NAME" -c '\q' >/dev/null 2>&1; then \
+			echo "$(GREEN)✓ Database is ready (auth verified on $$_DBWAIT_HOST:$$_DBWAIT_PORT)$(RESET)"; \
+			exit 0; \
+		fi; \
+		sleep 2; \
 	done; \
-	eval "$$DB_READY_CMD" >/dev/null 2>&1 && \
-		echo "$(GREEN)✓ Database is ready$(RESET)" || \
-		(echo "$(RED)✗ Database failed to start$(RESET)" && exit 1)
+	echo "$(RED)✗ Database failed to start or authentication failed on $$_DBWAIT_HOST:$$_DBWAIT_PORT$(RESET)"; \
+	echo "$(YELLOW)  Tip: run 'make db-start' manually to see detailed diagnostics$(RESET)"; \
+	exit 1
 
 docker-network-diagnose: ## Diagnose common OrbStack/Docker network route conflicts
 	@ROUTES=$$(netstat -rn 2>/dev/null | egrep '(^10[[:space:]]|^172\.16/12|^192\.168\.0/16)' || true); \
@@ -912,40 +937,85 @@ docker-network-diagnose: ## Diagnose common OrbStack/Docker network route confli
 
 db-start: ## Start PostgreSQL container
 	@echo "$(BLUE)Starting PostgreSQL...$(RESET)"
-	@# WHY: Prefer a single lightweight probe before touching Docker. When
-	@# OrbStack/Docker is down, repeated docker exec/compose retries can amplify
-	@# the failure and make the local environment feel unstable.
+	@# WHY: All pg_isready probes are paired with a credential auth probe.
+	@# pg_isready only checks if *any* PostgreSQL is listening on a port.
+	@# When other services (infrastructure-postgres, k8s, etc.) occupy port 5432,
+	@# the socket check passes but authentication fails — crashing the backend with
+	@# "password authentication failed for user 'edgequake'".
+	@#
+	@# Fix strategy:
+	@#   1. Parse credentials from DATABASE_URL.
+	@#   2. After pg_isready succeeds, run a psql auth probe.
+	@#   3. If auth fails → port conflict → auto-detect a free port (5433…5437).
+	@#   4. Start edgequake-postgres on that free port via POSTGRES_PORT env var.
+	@#   5. Write the effective DATABASE_URL (with correct port) to
+	@#      /tmp/edgequake-db-url for consumption by make dev / make dev-bg / etc.
 	@LOCAL_DB_PATTERN='@(localhost|127\.0\.0\.1)(:|/)|://(localhost|127\.0\.0\.1)(:|/)'; \
 	if ! printf '%s' "$(DATABASE_URL)" | grep -Eiq "$$LOCAL_DB_PATTERN"; then \
 		echo "$(GREEN)✓ Using external PostgreSQL from DATABASE_URL; skipping Docker startup$(RESET)"; \
+		printf '%s' "$(DATABASE_URL)" > /tmp/edgequake-db-url; \
 		exit 0; \
 	fi; \
-	if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
-		echo "$(GREEN)✓ PostgreSQL already reachable on port 5432$(RESET)"; \
-		exit 0; \
+	_DB_USER=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://([^:]+):.*|\1|'); \
+	_DB_PASS=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://[^:]+:([^@]+)@.*|\1|'); \
+	_DB_HOST=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://[^@]+@([^:/]+).*|\1|'); \
+	_DB_PORT=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://[^@]+@[^:]+:([0-9]+)/.*|\1|'); \
+	_DB_PORT=$${_DB_PORT:-5432}; \
+	_DB_NAME=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://[^/]+/([^?]*).*|\1|'); \
+	if pg_isready -h "$$_DB_HOST" -p "$$_DB_PORT" >/dev/null 2>&1; then \
+		if PGPASSWORD="$$_DB_PASS" psql -h "$$_DB_HOST" -p "$$_DB_PORT" -U "$$_DB_USER" -d "$$_DB_NAME" -c '\q' >/dev/null 2>&1; then \
+			echo "$(GREEN)✓ PostgreSQL already reachable on port $$_DB_PORT (credentials verified)$(RESET)"; \
+			printf '%s' "$(DATABASE_URL)" > /tmp/edgequake-db-url; \
+			exit 0; \
+		else \
+			echo "$(YELLOW)⚠  Port $$_DB_PORT is occupied by a PostgreSQL instance that does not accept our credentials.$(RESET)"; \
+			echo "$(YELLOW)   Root cause: another service (infrastructure-postgres, k8s, etc.) is using that port.$(RESET)"; \
+			echo "$(YELLOW)   Auto-detecting a free port for edgequake-postgres...$(RESET)"; \
+			_FREE_PORT=""; \
+			for _TRY in 5433 5434 5435 5436 5437; do \
+				if ! pg_isready -h localhost -p "$$_TRY" >/dev/null 2>&1 && ! lsof -ti ":$$_TRY" >/dev/null 2>&1; then \
+					_FREE_PORT="$$_TRY"; \
+					break; \
+				fi; \
+			done; \
+			if [ -z "$$_FREE_PORT" ]; then \
+				echo "$(RED)✗ No free PostgreSQL port found in range 5433-5437$(RESET)"; \
+				exit 1; \
+			fi; \
+			echo "$(YELLOW)→ Will start edgequake-postgres on port $$_FREE_PORT instead$(RESET)"; \
+			_DB_PORT="$$_FREE_PORT"; \
+			if command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
+				echo "$(YELLOW)→ Removing stale edgequake-postgres container to rebind on port $$_FREE_PORT...$(RESET)"; \
+				docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+			fi; \
+		fi; \
 	fi; \
 	if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
 		for i in 1 2 3 4 5; do \
-			if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
+			if pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
 				echo "$(GREEN)✓ Existing edgequake-postgres container is already running and reachable$(RESET)"; \
+				_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
+				printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
 				exit 0; \
 			fi; \
 			sleep 2; \
 		done; \
-		echo "$(YELLOW)→ Existing edgequake-postgres container is running but not reachable on localhost:5432; recreating it$(RESET)"; \
+		echo "$(YELLOW)→ Existing edgequake-postgres container is running but not reachable on localhost:$$_DB_PORT; recreating it$(RESET)"; \
 		docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
 	fi; \
 	if command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
 		echo "$(YELLOW)→ Starting existing edgequake-postgres container...$(RESET)"; \
 		docker start edgequake-postgres >/dev/null 2>&1 || true; \
 		for i in 1 2 3 4 5; do \
-			if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
+			if pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
 				echo "$(GREEN)✓ Existing edgequake-postgres container is ready$(RESET)"; \
+				_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
+				printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
 				exit 0; \
 			fi; \
 			sleep 2; \
 		done; \
-		echo "$(YELLOW)→ Existing edgequake-postgres container is not reachable on localhost:5432; recreating it with the current compose settings$(RESET)"; \
+		echo "$(YELLOW)→ Existing edgequake-postgres container is not reachable on localhost:$$_DB_PORT; recreating it$(RESET)"; \
 		docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
 	fi; \
 	if ! command -v docker >/dev/null 2>&1; then \
@@ -961,7 +1031,7 @@ db-start: ## Start PostgreSQL container
 		exit 1; \
 	fi; \
 	TMP_LOG=$$(mktemp); \
-	if cd $(DOCKER_DIR) && docker compose up -d postgres >"$$TMP_LOG" 2>&1; then \
+	if cd $(DOCKER_DIR) && POSTGRES_PORT="$$_DB_PORT" docker compose up -d postgres >"$$TMP_LOG" 2>&1; then \
 		cat "$$TMP_LOG"; \
 		rm -f "$$TMP_LOG"; \
 	else \
@@ -974,12 +1044,18 @@ db-start: ## Start PostgreSQL container
 		rm -f "$$TMP_LOG"; \
 		exit 1; \
 	fi; \
-	echo "$(GREEN)✓ PostgreSQL container started on port 5432$(RESET)"; \
+	echo "$(GREEN)✓ PostgreSQL container started on port $$_DB_PORT$(RESET)"; \
 	echo "$(YELLOW)Waiting for database to be ready...$(RESET)"; \
 	for i in 1 2 3 4 5 6 7 8 9 10; do \
-		pg_isready -h localhost -p 5432 >/dev/null 2>&1 && break || { echo "Waiting..."; sleep 2; }; \
+		pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1 && break || { echo "Waiting..."; sleep 2; }; \
 	done; \
-	pg_isready -h localhost -p 5432 >/dev/null 2>&1 && echo "$(GREEN)✓ Database is ready$(RESET)" || { echo "$(RED)✗ Database failed to start$(RESET)"; exit 1; }
+	if ! pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
+		echo "$(RED)✗ Database failed to start$(RESET)"; exit 1; \
+	fi; \
+	echo "$(GREEN)✓ Database is ready$(RESET)"; \
+	_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
+	printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
+	echo "$(GREEN)✓ Effective DATABASE_URL written to /tmp/edgequake-db-url$(RESET)"
 
 db-stop: ## Stop PostgreSQL container
 	@echo "$(BLUE)Stopping PostgreSQL...$(RESET)"
