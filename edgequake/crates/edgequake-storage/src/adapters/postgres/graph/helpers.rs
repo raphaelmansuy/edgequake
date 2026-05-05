@@ -200,6 +200,33 @@ impl PostgresAGEGraphStorage {
         })
     }
 
+    /// Parse a `GraphEdge` from a plain edge-properties JSON value.
+    ///
+    /// # WHY: Native SQL path
+    ///
+    /// When edges are fetched via native SQL (`ag_catalog.agtype_to_json(properties)`),
+    /// the result is already the flat properties object — NOT the full AGE edge envelope
+    /// `{"id":…,"label":…,"properties":{…}}::edge` returned by Cypher.
+    /// This helper avoids the extra unwrapping done by `parse_edge`.
+    pub(super) fn parse_edge_from_props(props_json: serde_json::Value) -> Option<GraphEdge> {
+        let properties = props_json.as_object()?;
+        let source = properties.get("source_id")?.as_str()?.to_string();
+        let target = properties.get("target_id")?.as_str()?.to_string();
+
+        let mut props: HashMap<String, serde_json::Value> = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k != "source_id" && k != "target_id" {
+                props.insert(k.clone(), v.clone());
+            }
+        }
+
+        Some(GraphEdge {
+            source,
+            target,
+            properties: props,
+        })
+    }
+
     /// Escape a string for use in Cypher queries.
     pub(super) fn escape_cypher_string(s: &str) -> String {
         s.replace('\\', "\\\\")

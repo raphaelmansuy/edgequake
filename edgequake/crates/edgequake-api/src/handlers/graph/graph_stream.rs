@@ -70,89 +70,55 @@ pub async fn stream_graph(
     tokio::spawn(async move {
         let start_time = std::time::Instant::now();
 
-        // Get total counts
-        let total_nodes = state_clone.graph_storage.node_count().await.unwrap_or(0);
-        let total_edges = state_clone.graph_storage.edge_count().await.unwrap_or(0);
-
-        // Get nodes with degrees (optimized batch query with timeout)
+        // WHY: Run node_count, edge_count, and the main node query in parallel.
+        // Previously these were sequential: count1 → count2 → nodes = 3 serial RTTs
+        // before the client received its first event. Parallelising shaves off 2
+        // full Cypher round-trips (now native SQL, still cheaper to parallelise).
         const QUERY_TIMEOUT_SECS: u64 = 15;
 
-        debug!("About to query nodes with timeout wrapper");
+        debug!("About to query counts + nodes in parallel");
 
-        let query_future = state_clone.graph_storage.get_popular_nodes_with_degree(
-            params_clone.max_nodes,
-            None,
-            None,
-            tenant_ctx_clone.tenant_id.as_deref(),
-            tenant_ctx_clone.workspace_id.as_deref(),
+        let (total_nodes, total_edges, nodes_result) = tokio::join!(
+            async { state_clone.graph_storage.node_count().await.unwrap_or(0) },
+            async { state_clone.graph_storage.edge_count().await.unwrap_or(0) },
+            tokio::time::timeout(
+                Duration::from_secs(QUERY_TIMEOUT_SECS),
+                state_clone.graph_storage.get_popular_nodes_with_degree(
+                    params_clone.max_nodes,
+                    None,
+                    None,
+                    tenant_ctx_clone.tenant_id.as_deref(),
+                    tenant_ctx_clone.workspace_id.as_deref(),
+                ),
+            ),
         );
 
-        let nodes_with_degrees =
-            match tokio::time::timeout(Duration::from_secs(QUERY_TIMEOUT_SECS), query_future).await
-            {
-                Ok(Ok(nodes)) => {
-                    debug!("Query succeeded with {} nodes", nodes.len());
-                    nodes
-                }
-                Ok(Err(e)) => {
-                    // Check if this is a statement timeout error - if so, fall back
-                    let error_msg = format!("{}", e);
-                    debug!("Query returned error: {}", error_msg);
-                    if error_msg.contains("statement timeout")
-                        || error_msg.contains("canceling statement")
-                    {
-                        warn!(
-                            max_nodes = params_clone.max_nodes,
-                            "Database query timed out, falling back to simple node fetch"
-                        );
-
-                        match state_clone.graph_storage.get_all_nodes().await {
-                            Ok(all_nodes) => all_nodes
-                                .into_iter()
-                                .filter(|n| {
-                                    properties_match_tenant_context(
-                                        &n.properties,
-                                        &tenant_ctx_clone,
-                                    )
-                                })
-                                .take(params_clone.max_nodes)
-                                .map(|n| (n, 0usize)) // Degree unknown, use 0
-                                .collect(),
-                            Err(e) => {
-                                let _ = tx
-                                    .send(GraphStreamEvent::Error {
-                                        message: format!(
-                                            "Failed to fetch nodes after timeout: {}",
-                                            e
-                                        ),
-                                    })
-                                    .await;
-                                return;
-                            }
-                        }
-                    } else {
-                        // Some other error, not a timeout
-                        let _ = tx
-                            .send(GraphStreamEvent::Error {
-                                message: format!("Failed to fetch nodes: {}", e),
-                            })
-                            .await;
-                        return;
-                    }
-                }
-                Err(_) => {
-                    // Timeout: Fall back to simple node list
+        // Get nodes with degrees (optimized batch query with timeout)
+        let nodes_with_degrees = match nodes_result {
+            Ok(Ok(nodes)) => {
+                debug!("Query succeeded with {} nodes", nodes.len());
+                nodes
+            }
+            Ok(Err(e)) => {
+                // Check if this is a statement timeout error - if so, fall back
+                let error_msg = format!("{}", e);
+                debug!("Query returned error: {}", error_msg);
+                if error_msg.contains("statement timeout")
+                    || error_msg.contains("canceling statement")
+                {
                     warn!(
-                        timeout_secs = QUERY_TIMEOUT_SECS,
                         max_nodes = params_clone.max_nodes,
-                        "Stream query timed out, falling back to simple node fetch"
+                        "Database query timed out, falling back to simple node fetch"
                     );
 
                     match state_clone.graph_storage.get_all_nodes().await {
                         Ok(all_nodes) => all_nodes
                             .into_iter()
                             .filter(|n| {
-                                properties_match_tenant_context(&n.properties, &tenant_ctx_clone)
+                                properties_match_tenant_context(
+                                    &n.properties,
+                                    &tenant_ctx_clone,
+                                )
                             })
                             .take(params_clone.max_nodes)
                             .map(|n| (n, 0usize)) // Degree unknown, use 0
@@ -160,14 +126,53 @@ pub async fn stream_graph(
                         Err(e) => {
                             let _ = tx
                                 .send(GraphStreamEvent::Error {
-                                    message: format!("Failed to fetch nodes after timeout: {}", e),
+                                    message: format!(
+                                        "Failed to fetch nodes after timeout: {}",
+                                        e
+                                    ),
                                 })
                                 .await;
                             return;
                         }
                     }
+                } else {
+                    // Some other error, not a timeout
+                    let _ = tx
+                        .send(GraphStreamEvent::Error {
+                            message: format!("Failed to fetch nodes: {}", e),
+                        })
+                        .await;
+                    return;
                 }
-            };
+            }
+            Err(_) => {
+                // Timeout: Fall back to simple node list
+                warn!(
+                    timeout_secs = QUERY_TIMEOUT_SECS,
+                    max_nodes = params_clone.max_nodes,
+                    "Stream query timed out, falling back to simple node fetch"
+                );
+
+                match state_clone.graph_storage.get_all_nodes().await {
+                    Ok(all_nodes) => all_nodes
+                        .into_iter()
+                        .filter(|n| {
+                            properties_match_tenant_context(&n.properties, &tenant_ctx_clone)
+                        })
+                        .take(params_clone.max_nodes)
+                        .map(|n| (n, 0usize)) // Degree unknown, use 0
+                        .collect(),
+                    Err(e) => {
+                        let _ = tx
+                            .send(GraphStreamEvent::Error {
+                                message: format!("Failed to fetch nodes after timeout: {}", e),
+                            })
+                            .await;
+                        return;
+                    }
+                }
+            }
+        };
 
         let nodes_to_stream = nodes_with_degrees.len();
         let total_batches = nodes_to_stream.div_ceil(params_clone.batch_size);
