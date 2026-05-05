@@ -2,6 +2,9 @@ use crate::keywords::ExtractedKeywords;
 
 use super::SOTAQueryEngine;
 
+// WHY: validate_keywords makes N graph search calls for N keywords.
+// Using parallel execution eliminates the N×RTT sequential latency.
+
 impl SOTAQueryEngine {
     pub(super) async fn rerank_chunks(
         &self,
@@ -126,6 +129,10 @@ impl SOTAQueryEngine {
     ///
     /// This method checks each low-level keyword against the graph and drops
     /// those with zero entity matches, preventing embedding dilution.
+    ///
+    /// WHY parallel: Each `search_labels` call is an independent DB round-trip.
+    /// Running them sequentially paid N×RTT; `join_all` pays max(RTT) instead.
+    /// Cache hits are separated first to avoid holding the lock during IO.
     pub(super) async fn validate_keywords(
         &self,
         keywords: &ExtractedKeywords,
@@ -134,40 +141,64 @@ impl SOTAQueryEngine {
             return keywords.clone();
         }
 
+        // Step 1: Separate cache hits from misses under a short-lived read lock.
+        let mut hit_results: std::collections::HashMap<String, bool> =
+            std::collections::HashMap::new();
+        let mut miss_keywords: Vec<String> = Vec::new();
+        {
+            let cache = self.keyword_validation_cache.read().await;
+            for kw in &keywords.low_level {
+                match cache.get(&kw.to_lowercase()) {
+                    Some(&exists) => {
+                        hit_results.insert(kw.clone(), exists);
+                    }
+                    None => miss_keywords.push(kw.clone()),
+                }
+            }
+        }
+
+        // Step 2: Fan-out all cache misses in parallel (no sequential RTT stacking).
+        let miss_futures: Vec<_> = miss_keywords
+            .iter()
+            .map(|kw| {
+                let storage = self.graph_storage.clone();
+                let kw = kw.clone();
+                async move {
+                    let exists = storage
+                        .search_labels(&kw, 1)
+                        .await
+                        .map(|labels| !labels.is_empty())
+                        .unwrap_or(false);
+                    (kw, exists)
+                }
+            })
+            .collect();
+
+        let miss_results: Vec<(String, bool)> = futures::future::join_all(miss_futures).await;
+
+        // Step 3: Write results to cache (single lock acquisition).
+        {
+            let mut cache = self.keyword_validation_cache.write().await;
+            for (kw, exists) in &miss_results {
+                if cache.len() < 10000 {
+                    cache.insert(kw.to_lowercase(), *exists);
+                }
+            }
+        }
+
+        // Step 4: Build validated list preserving original keyword order.
         let mut validated_low_level = Vec::new();
         let mut dropped_keywords = Vec::new();
-
-        for keyword in &keywords.low_level {
-            // Check cache first
-            let cache_key = keyword.to_lowercase();
-            let cached_result = {
-                let cache = self.keyword_validation_cache.read().await;
-                cache.get(&cache_key).copied()
-            };
-
-            let exists = if let Some(exists) = cached_result {
-                // Cache hit
-                exists
-            } else {
-                // Cache miss - check graph
-                let matches = self.graph_storage.search_labels(keyword, 1).await;
-                let exists = matches.map(|labels| !labels.is_empty()).unwrap_or(false);
-
-                // Update cache
-                {
-                    let mut cache = self.keyword_validation_cache.write().await;
-                    // Limit cache size to prevent unbounded growth
-                    if cache.len() < 10000 {
-                        cache.insert(cache_key, exists);
-                    }
-                }
-                exists
-            };
-
+        for kw in &keywords.low_level {
+            let exists = hit_results
+                .get(kw)
+                .copied()
+                .or_else(|| miss_results.iter().find(|(k, _)| k == kw).map(|(_, e)| *e))
+                .unwrap_or(false);
             if exists {
-                validated_low_level.push(keyword.clone());
+                validated_low_level.push(kw.clone());
             } else {
-                dropped_keywords.push(keyword.clone());
+                dropped_keywords.push(kw.clone());
             }
         }
 
@@ -179,7 +210,7 @@ impl SOTAQueryEngine {
             );
         }
 
-        // If ALL keywords were dropped, fall back to original to avoid empty search
+        // If ALL keywords were dropped, fall back to original to avoid empty search.
         if validated_low_level.is_empty() {
             tracing::warn!(
                 original = ?keywords.low_level,

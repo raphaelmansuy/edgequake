@@ -50,6 +50,22 @@ pub const MINIMUM_TIMEOUT_SECS: u64 = 10;
 /// pipeline layer; this is the HTTP-level safety backstop.
 pub const MAXIMUM_TIMEOUT_SECS: u64 = 3600;
 
+/// Default safe maximum embedding batch count (512).
+///
+/// WHY 512: Mistral's `mistral-embed` API enforces a hard limit on the NUMBER
+/// of input strings per embedding request, independent of total token count.
+/// Exceeding this limit returns HTTP 400 error code 3210:
+///   "Too many inputs in request, split into more batches."
+///
+/// Evidence: EU AI Act (231 764 chars) extracts 1 000+ short legal entities.
+/// With token budget 6 963 and entities averaging 10 tokens each, the token-
+/// based splitter builds sub-batches of 696 items — exceeding Mistral's 512
+/// input limit. (See spec 011-pipeline-reliability/ROOT_CAUSE.md)
+///
+/// OpenAI and Ollama support larger batches; this cap can be raised via
+/// `EDGEQUAKE_EMBEDDING_BATCH_SIZE` environment variable.
+pub const DEFAULT_SAFE_EMBED_BATCH_SIZE: usize = 512;
+
 /// Configuration for safety limits.
 #[derive(Debug, Clone)]
 pub struct SafetyLimitsConfig {
@@ -59,6 +75,13 @@ pub struct SafetyLimitsConfig {
     pub timeout: Duration,
     /// Whether to log when limits are enforced.
     pub log_enforcement: bool,
+    /// Maximum number of inputs per embedding request.
+    ///
+    /// Acts as a safety cap on `EmbeddingProvider::max_batch_size()`. The inner
+    /// provider value is clamped to `min(inner, max_embed_batch_size)` so that
+    /// providers that advertise a large batch size (e.g. Mistral returning 2048)
+    /// are still limited to the provider's actual API input count limit.
+    pub max_embed_batch_size: usize,
 }
 
 impl Default for SafetyLimitsConfig {
@@ -67,11 +90,21 @@ impl Default for SafetyLimitsConfig {
             max_tokens: DEFAULT_MAX_TOKENS,
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
             log_enforcement: true,
+            max_embed_batch_size: Self::env_embed_batch_size(),
         }
     }
 }
 
 impl SafetyLimitsConfig {
+    /// Read max_embed_batch_size from env, falling back to DEFAULT_SAFE_EMBED_BATCH_SIZE.
+    fn env_embed_batch_size() -> usize {
+        std::env::var("EDGEQUAKE_EMBEDDING_BATCH_SIZE")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(DEFAULT_SAFE_EMBED_BATCH_SIZE)
+            .max(1) // must be at least 1
+    }
+
     /// Create a new config with custom limits.
     pub fn new(max_tokens: usize, timeout_secs: u64) -> Self {
         Self {
@@ -80,6 +113,7 @@ impl SafetyLimitsConfig {
                 timeout_secs.clamp(MINIMUM_TIMEOUT_SECS, MAXIMUM_TIMEOUT_SECS),
             ),
             log_enforcement: true,
+            max_embed_batch_size: Self::env_embed_batch_size(),
         }
     }
 
@@ -101,6 +135,7 @@ impl SafetyLimitsConfig {
             max_tokens,
             timeout: Duration::from_secs(timeout_secs),
             log_enforcement: true,
+            max_embed_batch_size: Self::env_embed_batch_size(),
         }
     }
 
@@ -110,6 +145,7 @@ impl SafetyLimitsConfig {
             max_tokens: 1024,
             timeout: Duration::from_secs(30),
             log_enforcement: true,
+            max_embed_batch_size: DEFAULT_SAFE_EMBED_BATCH_SIZE,
         }
     }
 
@@ -119,6 +155,7 @@ impl SafetyLimitsConfig {
             max_tokens: ABSOLUTE_MAX_TOKENS,
             timeout: Duration::from_secs(MAXIMUM_TIMEOUT_SECS),
             log_enforcement: true,
+            max_embed_batch_size: DEFAULT_SAFE_EMBED_BATCH_SIZE,
         }
     }
 
@@ -307,7 +344,25 @@ impl EmbeddingProvider for SafetyLimitedEmbeddingProviderWrapper {
     }
 
     fn max_batch_size(&self) -> usize {
-        self.inner.max_batch_size()
+        // Clamp the inner provider's batch size to the configured safety cap.
+        //
+        // WHY: Providers like Mistral advertise `max_batch_size()` = 2048 (the
+        // trait default) but their actual API enforces a 512-input limit per
+        // request. Sending more inputs returns HTTP 400 code 3210
+        // "Too many inputs in request". By clamping here, `embed_with_token_budget`
+        // (which reads this value) produces sub-batches that satisfy both
+        // the token-count AND input-count limits.
+        let inner = self.inner.max_batch_size();
+        let cap = self.config.max_embed_batch_size;
+        let effective = inner.min(cap);
+        if effective < inner && self.config.log_enforcement {
+            tracing::debug!(
+                inner_batch_size = inner,
+                effective_batch_size = effective,
+                "Safety limit: embedding batch size clamped"
+            );
+        }
+        effective
     }
 
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
@@ -562,6 +617,7 @@ pub fn create_safe_vision_provider(
         max_tokens: DEFAULT_MAX_TOKENS,
         timeout: Duration::from_secs(timeout_secs),
         log_enforcement: true,
+        max_embed_batch_size: SafetyLimitsConfig::env_embed_batch_size(),
     };
 
     tracing::info!(

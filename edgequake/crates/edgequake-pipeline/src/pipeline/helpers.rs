@@ -260,6 +260,23 @@ async fn embed_with_token_budget(
 
     // Effective token budget per sub-batch (apply safety headroom)
     let token_budget = (max_tokens as f64 * EMBED_SAFETY_FACTOR) as usize;
+
+    // Maximum input count per sub-batch from the provider (e.g. 512 for Mistral).
+    //
+    // WHY DUAL-DIMENSION SPLIT (spec-011):
+    // Mistral enforces TWO independent limits per embedding request:
+    //   (A) total tokens ≤ 8 192  → guarded by `token_budget` above
+    //   (B) input count  ≤ 512    → guarded by `max_batch_count` here
+    //
+    // For dense legal/regulatory documents (EU AI Act, GDPR) many short entity
+    // names (~10 tokens each) fit within the token budget but may exceed the
+    // input count limit (e.g. 700 items × 10 tokens = 7 000 ≤ 8 192, but
+    // 700 > 512).  The previous token-only split produced sub-batches of 700
+    // items, triggering HTTP 400 "Too many inputs in request" (code 3210).
+    //
+    // By flushing on EITHER dimension we satisfy both limits simultaneously.
+    let max_batch_count = provider.max_batch_size();
+
     let mut all_embeddings: Vec<Vec<f32>> = Vec::with_capacity(texts.len());
     let mut batch_start: usize = 0;
     let mut batch_tokens: usize = 0;
@@ -268,15 +285,22 @@ async fn embed_with_token_budget(
         // Estimate token count for this text
         let text_tokens = ((text.len() as f64) / EMBED_CHARS_PER_TOKEN).ceil() as usize;
 
-        // If adding this text would overflow the budget, flush the current sub-batch first.
+        let current_count = i - batch_start;
+        let token_overflow = batch_tokens + text_tokens > token_budget;
+        let count_overflow = current_count >= max_batch_count;
+
+        // Flush if EITHER the token budget OR the input count limit would be exceeded.
         // Always include at least one text even if it alone exceeds the budget (single-text
         // requests are the smallest possible unit; the provider must handle them).
-        if batch_tokens + text_tokens > token_budget && i > batch_start {
+        if (token_overflow || count_overflow) && i > batch_start {
+            let flush_reason = if count_overflow { "count limit" } else { "token budget" };
             tracing::debug!(
-                sub_batch_texts = i - batch_start,
+                sub_batch_texts = current_count,
                 estimated_tokens = batch_tokens,
-                budget = token_budget,
-                "Flushing embedding sub-batch (token budget reached)"
+                token_budget = token_budget,
+                max_batch_count = max_batch_count,
+                reason = flush_reason,
+                "Flushing embedding sub-batch"
             );
             let batch_result = provider
                 .embed_batched(&texts[batch_start..i])
@@ -299,6 +323,55 @@ async fn embed_with_token_budget(
     }
 
     Ok(all_embeddings)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//                       SAFE EMBEDDING HELPER
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Guard `texts`, embed with token-budget batching, and validate result count.
+///
+/// Encapsulates the three-step pattern repeated for every embeddable item kind
+/// (chunks, entities, relationships):
+/// 1. `guard_for_embedding` — truncate inputs that exceed the provider's
+///    character limit to avoid 400 "input too long" errors.
+/// 2. `embed_with_token_budget` — split into sub-batches respecting BOTH the
+///    token budget and the provider's input-count limit.
+/// 3. Count mismatch warning — if the provider silently drops embeddings,
+///    log a warning so that operators notice orphaned graph nodes.
+///
+/// Returns the embeddings in the same order as `texts`, or an empty `Vec` when
+/// `texts` is empty (short-circuit avoids a provider round-trip).
+async fn safe_embed(
+    provider: &Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+    texts: &[String],
+    max_chars: usize,
+    kind: &str,
+) -> crate::error::Result<Vec<Vec<f32>>> {
+    if texts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let safe_texts = guard_for_embedding(texts, max_chars);
+    let embeddings = embed_with_token_budget(provider, &safe_texts).await?;
+    if embeddings.len() != texts.len() {
+        tracing::warn!(
+            expected = texts.len(),
+            actual = embeddings.len(),
+            kind,
+            "{kind} embedding count mismatch - some items may lack embeddings"
+        );
+    }
+    Ok(embeddings)
+}
+
+/// Estimate the number of embedding tokens for a character count.
+///
+/// Uses `EMBED_CHARS_PER_TOKEN` — the same conservative constant as the
+/// batch-splitting logic — so that cost estimates and batch boundaries share a
+/// single denominator (DRY). Previously the cost loops used a hardcoded `/ 4`
+/// (4 chars/token) which diverged from the `2.5` used in sub-batch sizing.
+fn estimate_embed_tokens(char_count: usize) -> usize {
+    (char_count as f64 / EMBED_CHARS_PER_TOKEN).ceil() as usize
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -339,13 +412,9 @@ impl Pipeline {
         // ── Chunk embeddings ──
         if self.config.enable_chunk_embeddings {
             let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
-            if !texts.is_empty() {
-                let safe_texts = guard_for_embedding(&texts, max_chars);
-                let embeddings = embed_with_token_budget(provider, &safe_texts).await?;
-
-                for (chunk, embedding) in chunks.iter_mut().zip(embeddings) {
-                    chunk.embedding = Some(embedding);
-                }
+            let embeddings = safe_embed(provider, &texts, max_chars, "Chunk").await?;
+            for (chunk, embedding) in chunks.iter_mut().zip(embeddings) {
+                chunk.embedding = Some(embedding);
             }
         }
 
@@ -361,26 +430,12 @@ impl Pipeline {
                 }
             }
 
-            if !all_entity_texts.is_empty() {
-                let safe_entity_texts = guard_for_embedding(&all_entity_texts, max_chars);
-                let all_embeddings = embed_with_token_budget(provider, &safe_entity_texts).await?;
-
-                // Validate embedding count matches input count
-                // WHY: If provider returns fewer embeddings than inputs, zip() silently drops
-                // entities without embeddings, causing graph nodes with missing vectors.
-                if all_embeddings.len() != all_entity_texts.len() {
-                    tracing::warn!(
-                        expected = all_entity_texts.len(),
-                        actual = all_embeddings.len(),
-                        "Entity embedding count mismatch - some entities may lack embeddings"
-                    );
-                }
-
-                for (embedding, (ext_idx, ent_idx)) in
-                    all_embeddings.into_iter().zip(entity_indices)
-                {
-                    extractions[ext_idx].entities[ent_idx].embedding = Some(embedding);
-                }
+            // WHY safe_embed: guards length, embeds in compliant sub-batches, and
+            // warns if the provider silently drops results (zip() would otherwise
+            // create orphaned graph nodes with no embedding vector).
+            let all_embeddings = safe_embed(provider, &all_entity_texts, max_chars, "Entity").await?;
+            for (embedding, (ext_idx, ent_idx)) in all_embeddings.into_iter().zip(entity_indices) {
+                extractions[ext_idx].entities[ent_idx].embedding = Some(embedding);
             }
         }
 
@@ -404,46 +459,40 @@ impl Pipeline {
                 }
             }
 
-            if !all_relationship_texts.is_empty() {
-                let safe_rel_texts = guard_for_embedding(&all_relationship_texts, max_chars);
-                let all_embeddings = embed_with_token_budget(provider, &safe_rel_texts).await?;
-
-                if all_embeddings.len() != all_relationship_texts.len() {
-                    tracing::warn!(
-                        expected = all_relationship_texts.len(),
-                        actual = all_embeddings.len(),
-                        "Relationship embedding count mismatch - some relationships may lack embeddings"
-                    );
-                }
-
-                for (embedding, (ext_idx, rel_idx)) in
-                    all_embeddings.into_iter().zip(relationship_indices)
-                {
-                    extractions[ext_idx].relationships[rel_idx].embedding = Some(embedding);
-                }
+            let all_embeddings =
+                safe_embed(provider, &all_relationship_texts, max_chars, "Relationship").await?;
+            for (embedding, (ext_idx, rel_idx)) in
+                all_embeddings.into_iter().zip(relationship_indices)
+            {
+                extractions[ext_idx].relationships[rel_idx].embedding = Some(embedding);
             }
         }
 
         // ── Embedding cost calculation ──
+        // WHY estimate_embed_tokens: uses the same EMBED_CHARS_PER_TOKEN denominator
+        // as sub-batch sizing — one constant, one formula (DRY). The previous code
+        // used a hardcoded / 4 (4 chars/token) which diverged from the 2.5 used in
+        // the batch splitter, giving inconsistent cost estimates for the same content.
         let mut total_embed_tokens = 0usize;
 
         if self.config.enable_chunk_embeddings {
             let chunk_text_len: usize = chunks.iter().map(|c| c.content.len()).sum();
-            // Estimate token count (approx 4 chars per token)
-            total_embed_tokens += chunk_text_len / 4;
+            total_embed_tokens += estimate_embed_tokens(chunk_text_len);
         }
         if self.config.enable_entity_embeddings {
             for extraction in extractions.iter() {
                 for entity in &extraction.entities {
-                    total_embed_tokens += (entity.name.len() + entity.description.len()) / 4;
+                    total_embed_tokens +=
+                        estimate_embed_tokens(entity.name.len() + entity.description.len());
                 }
             }
         }
         if self.config.enable_relationship_embeddings {
             for extraction in extractions.iter() {
                 for rel in &extraction.relationships {
-                    total_embed_tokens +=
-                        (rel.source.len() + rel.target.len() + rel.description.len()) / 4;
+                    total_embed_tokens += estimate_embed_tokens(
+                        rel.source.len() + rel.target.len() + rel.description.len(),
+                    );
                 }
             }
         }
@@ -638,15 +687,22 @@ mod tests {
         call_sizes: Arc<Mutex<Vec<usize>>>,
         /// Simulated max_tokens limit.
         max_tokens: usize,
+        /// Simulated max_batch_size (input count limit).
+        max_batch: usize,
     }
 
     impl CountingEmbedProvider {
         fn new(max_tokens: usize) -> (Self, Arc<Mutex<Vec<usize>>>) {
+            Self::new_with_batch(max_tokens, 2048)
+        }
+
+        fn new_with_batch(max_tokens: usize, max_batch: usize) -> (Self, Arc<Mutex<Vec<usize>>>) {
             let call_sizes = Arc::new(Mutex::new(Vec::new()));
             (
                 Self {
                     call_sizes: call_sizes.clone(),
                     max_tokens,
+                    max_batch,
                 },
                 call_sizes,
             )
@@ -666,6 +722,9 @@ mod tests {
         }
         fn max_tokens(&self) -> usize {
             self.max_tokens
+        }
+        fn max_batch_size(&self) -> usize {
+            self.max_batch
         }
 
         async fn embed(&self, texts: &[String]) -> edgequake_llm::Result<Vec<Vec<f32>>> {
@@ -744,5 +803,125 @@ mod tests {
             1,
             "Should fall back to a single embed_batched call"
         );
+    }
+
+    // ── count-limit splitting (spec-011) ──────────────────────────────────
+
+    /// When input count exceeds max_batch_size, splits into multiple calls.
+    ///
+    /// This is the regression test for the EU AI Act failure:
+    /// many short entities fit within the token budget but exceed the
+    /// Mistral input count limit (512).
+    #[tokio::test]
+    async fn test_embed_count_limit_splits_batches() {
+        // 600 short texts (each 10 chars, ~4 tokens) with max_batch=512
+        // Token budget = 8192 * 0.85 = 6963, 600 × 4 = 2400 tokens → fits budget
+        // But 600 > 512 → must split
+        let texts: Vec<String> = (0..600_usize).map(|i| format!("entity_{:04}", i)).collect();
+        let (provider, call_sizes) = CountingEmbedProvider::new_with_batch(8192, 512);
+        let provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider> = Arc::new(provider);
+
+        let result = embed_with_token_budget(&provider, &texts).await.unwrap();
+        assert_eq!(result.len(), 600, "All 600 embeddings returned");
+
+        let sizes = call_sizes.lock().unwrap();
+        assert!(
+            sizes.len() >= 2,
+            "600 texts with max_batch=512 must produce ≥ 2 calls, got {}",
+            sizes.len()
+        );
+        // Each individual call must respect the count limit
+        for (idx, &size) in sizes.iter().enumerate() {
+            assert!(
+                size <= 512,
+                "Call {} sent {} items, exceeds max_batch_size 512",
+                idx,
+                size
+            );
+        }
+        // No items lost or duplicated
+        let total: usize = sizes.iter().sum();
+        assert_eq!(total, 600, "Total items across all calls must be 600");
+    }
+
+    /// Exactly max_batch_size items → exactly ONE call (boundary: not exceeded).
+    #[tokio::test]
+    async fn test_embed_count_exactly_at_limit_is_one_call() {
+        let texts: Vec<String> = (0..512_usize).map(|i| format!("e_{}", i)).collect();
+        let (provider, call_sizes) = CountingEmbedProvider::new_with_batch(8192, 512);
+        let provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider> = Arc::new(provider);
+
+        let result = embed_with_token_budget(&provider, &texts).await.unwrap();
+        assert_eq!(result.len(), 512);
+
+        let sizes = call_sizes.lock().unwrap();
+        assert_eq!(sizes.len(), 1, "Exactly 512 texts (== limit) → 1 call");
+        assert_eq!(sizes[0], 512);
+    }
+
+    /// One more than max_batch_size → exactly TWO calls.
+    #[tokio::test]
+    async fn test_embed_count_one_over_limit_is_two_calls() {
+        let texts: Vec<String> = (0..513_usize).map(|i| format!("e_{}", i)).collect();
+        let (provider, call_sizes) = CountingEmbedProvider::new_with_batch(8192, 512);
+        let provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider> = Arc::new(provider);
+
+        let result = embed_with_token_budget(&provider, &texts).await.unwrap();
+        assert_eq!(result.len(), 513);
+
+        let sizes = call_sizes.lock().unwrap();
+        assert_eq!(sizes.len(), 2, "513 texts with limit 512 → 2 calls");
+        assert_eq!(sizes[0], 512, "First call: 512");
+        assert_eq!(sizes[1], 1, "Second call: 1 remainder");
+    }
+
+    /// Both limits active simultaneously: token budget AND count limit both trigger.
+    /// Verifies the flush uses the more restrictive limit.
+    #[tokio::test]
+    async fn test_embed_dual_limit_count_wins_over_token() {
+        // 20 texts × 100 chars each = 40 tokens each
+        // Token budget = 8192 * 0.85 = 6963 → 20×40=800 tokens fits budget
+        // max_batch_count = 5 → must split on count, not tokens
+        let texts: Vec<String> = (0..20).map(|_| "x".repeat(100)).collect();
+        let (provider, call_sizes) = CountingEmbedProvider::new_with_batch(8192, 5);
+        let provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider> = Arc::new(provider);
+
+        let result = embed_with_token_budget(&provider, &texts).await.unwrap();
+        assert_eq!(result.len(), 20);
+
+        let sizes = call_sizes.lock().unwrap();
+        assert!(
+            sizes.len() >= 4,
+            "20 texts with max_batch=5 → ≥ 4 calls, got {}",
+            sizes.len()
+        );
+        for (idx, &size) in sizes.iter().enumerate() {
+            assert!(size <= 5, "Call {} sent {} items, exceeds max_batch 5", idx, size);
+        }
+        let total: usize = sizes.iter().sum();
+        assert_eq!(total, 20);
+    }
+
+    /// Token budget wins over count when texts are very large.
+    #[tokio::test]
+    async fn test_embed_dual_limit_token_wins_over_count() {
+        // 20 texts × 1000 chars each = 400 tokens each
+        // max_batch_count = 2048 (large) → count won't trigger
+        // Token budget = 100 * 0.85 = 85 tokens → one 400-token text already exceeds budget
+        // → splits on token budget (1 text per call since each > budget)
+        let texts: Vec<String> = (0..5).map(|_| "y".repeat(1000)).collect();
+        let (provider, call_sizes) = CountingEmbedProvider::new_with_batch(100, 2048);
+        let provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider> = Arc::new(provider);
+
+        let result = embed_with_token_budget(&provider, &texts).await.unwrap();
+        assert_eq!(result.len(), 5);
+
+        // Each text = ceil(1000/2.5) = 400 tokens; budget = 100*0.85 = 85 tokens
+        // First text: 400 > 85 but i == batch_start (can't flush empty batch) → sent alone
+        // Second text: 400 > 85 → flush first → each text in its own call
+        let sizes = call_sizes.lock().unwrap();
+        assert_eq!(sizes.len(), 5, "Each text should be its own call due to tiny budget");
+        let total: usize = sizes.iter().sum();
+        assert_eq!(total, 5);
     }
 }

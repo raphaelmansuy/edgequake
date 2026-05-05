@@ -130,7 +130,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 	cd edgequake && cargo release $$VERSION --workspace --no-publish --execute
 
 
-.PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-memory stop clean build test lint format \
+.PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-memory kill-app stop clean build test lint format \
         backend-dev backend-db backend-memory backend-bg backend-build backend-build-online backend-sqlx-prepare backend-test backend-run \
         frontend-dev frontend-bg frontend-build frontend-test frontend-lint \
         db-start db-stop db-wait db-logs db-shell docker-network-diagnose stop-docker-services \
@@ -421,10 +421,10 @@ install: check-deps ## Install all project dependencies
 # Development
 # ============================================================================
 
-dev: check-deps check-ports ## Start full development stack without authentication
+dev: kill-app check-deps check-ports ## Start full development stack without authentication
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
-	@echo "$(YELLOW)→ Incremental startup: healthy services are reused; nothing is killed blindly$(RESET)"
+	@echo "$(YELLOW)→ Previous app processes killed; starting fresh$(RESET)"
 	@# OODA-09: Dynamically select provider based on OPENAI_API_KEY
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "$(BOLD)$(YELLOW)📝 Using OpenAI provider (OPENAI_API_KEY detected)$(RESET)"; \
@@ -432,9 +432,6 @@ dev: check-deps check-ports ## Start full development stack without authenticati
 		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
 	fi
 	@echo ""
-	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1 && curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
-		echo "$(YELLOW)→ Existing EdgeQuake services detected; continuing with reuse checks$(RESET)"; \
-	fi
 	@echo "$(YELLOW)→ Ensuring PostgreSQL availability...$(RESET)"
 	@$(MAKE) db-start --no-print-directory
 	@echo ""
@@ -456,43 +453,31 @@ dev: check-deps check-ports ## Start full development stack without authenticati
 	BACKEND_PID=""; \
 	FRONTEND_PID=""; \
 	$(LOAD_EFF_DB_URL); \
-	if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
-		echo "$(GREEN)✓ Reusing running backend on port $(BACKEND_PORT)$(RESET)"; \
+	echo "$(YELLOW)→ Starting backend (DATABASE_URL port: $$(printf '%s' $$_EFF_DB_URL | sed -E 's|.*:([0-9]+)/.*|\1|'))...$(RESET)"; \
+	if [ -n "$(OPENAI_API_KEY)" ]; then \
+		(cd $(BACKEND_DIR) && \
+			PORT="$(BACKEND_PORT)" \
+			DATABASE_URL="$$_EFF_DB_URL" \
+			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+			EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			cargo run 2>&1 | sed 's/^/[backend] /') & \
+		BACKEND_PID=$$!; \
 	else \
-		echo "$(YELLOW)→ Starting backend (DATABASE_URL port: $$(printf '%s' $$_EFF_DB_URL | sed -E 's|.*:([0-9]+)/.*|\1|'))...$(RESET)"; \
-		if [ -n "$(OPENAI_API_KEY)" ]; then \
-			(cd $(BACKEND_DIR) && \
-				PORT="$(BACKEND_PORT)" \
-				DATABASE_URL="$$_EFF_DB_URL" \
-				OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-				EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-				AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-				cargo run 2>&1 | sed 's/^/[backend] /') & \
-			BACKEND_PID=$$!; \
-		else \
-			(cd $(BACKEND_DIR) && \
-				PORT="$(BACKEND_PORT)" \
-				DATABASE_URL="$$_EFF_DB_URL" \
-				EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-				AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-				OLLAMA_HOST="http://localhost:11434" \
-				OLLAMA_MODEL="gemma4:latest" \
-				OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
-				cargo run 2>&1 | sed 's/^/[backend] /') & \
-			BACKEND_PID=$$!; \
-		fi; \
+		(cd $(BACKEND_DIR) && \
+			PORT="$(BACKEND_PORT)" \
+			DATABASE_URL="$$_EFF_DB_URL" \
+			EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			OLLAMA_HOST="http://localhost:11434" \
+			OLLAMA_MODEL="gemma4:latest" \
+			OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
+			cargo run 2>&1 | sed 's/^/[backend] /') & \
+		BACKEND_PID=$$!; \
 	fi; \
-	if curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
-		echo "$(GREEN)✓ Reusing running frontend on port $(FRONTEND_PORT)$(RESET)"; \
-	else \
-		echo "$(YELLOW)→ Starting frontend on port $(FRONTEND_PORT)...$(RESET)"; \
-		(sleep 2 && cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)' 2>&1 | sed 's/^/[frontend] /') & \
-		FRONTEND_PID=$$!; \
-	fi; \
-	if [ -z "$$BACKEND_PID$$FRONTEND_PID" ]; then \
-		echo "$(GREEN)✓ Stack already running; nothing new to start$(RESET)"; \
-		exit 0; \
-	fi; \
+	echo "$(YELLOW)→ Starting frontend on port $(FRONTEND_PORT)...$(RESET)"; \
+	(sleep 2 && cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)' 2>&1 | sed 's/^/[frontend] /') & \
+	FRONTEND_PID=$$!; \
 	echo "$(GREEN)✓ Startup in progress$(RESET)"; \
 	echo "$(YELLOW)Press Ctrl+C to stop only this session's app processes$(RESET)"; \
 	wait
@@ -627,6 +612,20 @@ stop-docker-services: ## Stop Docker/OrbStack-backed EdgeQuake containers if the
 	else \
 		echo "$(YELLOW)→ Docker daemon unavailable; skipping container stop$(RESET)"; \
 	fi
+
+kill-app: ## Kill backend and frontend processes (leaves PostgreSQL running)
+	@echo "$(YELLOW)→ Killing existing backend processes...$(RESET)"
+	@-if [ -f /tmp/edgequake-backend.pid ]; then kill -9 $$(cat /tmp/edgequake-backend.pid) 2>/dev/null || true; rm -f /tmp/edgequake-backend.pid; fi
+	@-pkill -9 -f "target/debug/edgequake" 2>/dev/null || true
+	@-pkill -9 -f "target/release/edgequake" 2>/dev/null || true
+	@-BPID=$$(lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	[ -n "$$BPID" ] && kill -9 "$$BPID" 2>/dev/null || true
+	@echo "$(YELLOW)→ Killing existing frontend processes...$(RESET)"
+	@-if [ -f /tmp/edgequake-frontend.pid ]; then kill -9 $$(cat /tmp/edgequake-frontend.pid) 2>/dev/null || true; rm -f /tmp/edgequake-frontend.pid; fi
+	@-pkill -f "node.*edgequake_webui" 2>/dev/null || true
+	@-FPID=$$(lsof -nP -iTCP:$(FRONTEND_PORT) -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	[ -n "$$FPID" ] && kill -9 "$$FPID" 2>/dev/null || true
+	@echo "$(GREEN)✓ App processes cleared (PostgreSQL left running)$(RESET)"
 
 stop: ## Stop all development services
 	@echo "$(YELLOW)Stopping services...$(RESET)"

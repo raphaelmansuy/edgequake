@@ -24,18 +24,28 @@ impl SOTAQueryEngine {
     ) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
         use futures::StreamExt;
 
-        // Step 1: Extract keywords (with caching)
-        // WHY: These methods (query, query_stream) don't have an LLM override parameter.
-        // They always use the engine's default LLM provider (self.llm_provider).
-        // Pass None to extract_with_llm_override to use the default LLM.
-        // For workspace-specific LLM selection, use query_with_full_config or query_stream_with_full_config.
-        let raw_keywords = if self.config.use_keyword_extraction {
-            self.keyword_extractor
-                .extract_with_llm_override(&request.query, None)
-                .await?
-        } else {
-            ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
-        };
+        // Steps 1 + 3 (partial): parallel keyword extraction + query embedding.
+        // WHY: LLM keyword extraction (~1-3 s) and embedding (~100-500 ms) are independent;
+        // running them concurrently eliminates the embedding RTT from the critical path.
+        let (raw_keywords_result, query_vec_result) = tokio::join!(
+            async {
+                if self.config.use_keyword_extraction {
+                    self.keyword_extractor
+                        .extract_with_llm_override(&request.query, None)
+                        .await
+                } else {
+                    Ok(ExtractedKeywords::new(
+                        vec![],
+                        vec![],
+                        QueryIntent::Exploratory,
+                    ))
+                }
+            },
+            self.embedding_provider.embed_one(&request.query)
+        );
+
+        let raw_keywords = raw_keywords_result?;
+        let query_vec = query_vec_result.map_err(crate::error::QueryError::from)?;
 
         // Step 1.5: Validate keywords against knowledge graph
         // WHY: Drop keywords with no graph matches to prevent embedding dilution
@@ -52,10 +62,14 @@ impl SOTAQueryEngine {
 
         tracing::debug!(mode = %mode, streaming = true, "Selected query mode for streaming");
 
-        // Step 3: Compute embeddings
-        let embeddings =
-            QueryEmbeddings::compute(&request.query, &keywords, self.embedding_provider.as_ref())
-                .await?;
+        // Step 3: Compute keyword embeddings (query_vec already available).
+        let embeddings = QueryEmbeddings::compute_with_query_vec(
+            &request.query,
+            query_vec,
+            &keywords,
+            self.embedding_provider.as_ref(),
+        )
+        .await?;
 
         // Step 4: Mode-specific retrieval
         let context = match mode {
@@ -358,18 +372,28 @@ impl SOTAQueryEngine {
     )> {
         use futures::StreamExt;
 
-        // Step 1: Extract keywords (with caching)
-        // WHY: Use extract_with_llm_override when user selected a specific LLM provider.
-        // This ensures keyword extraction uses the SAME LLM as answer generation.
-        // Without this, keyword extraction would use the server default (often Ollama)
-        // while answer generation uses the user's choice (e.g., OpenAI GPT-4).
-        let raw_keywords = if self.config.use_keyword_extraction {
-            self.keyword_extractor
-                .extract_with_llm_override(&request.query, llm_provider.clone())
-                .await?
-        } else {
-            ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
-        };
+        // Steps 1 + 3 (partial): parallel keyword extraction + query embedding.
+        // WHY: FIX #168 still applies — keyword extraction uses the same LLM as answer
+        // generation. Embedding is independent; run both concurrently.
+        let (raw_keywords_result, query_vec_result) = tokio::join!(
+            async {
+                if self.config.use_keyword_extraction {
+                    self.keyword_extractor
+                        .extract_with_llm_override(&request.query, llm_provider.clone())
+                        .await
+                } else {
+                    Ok(ExtractedKeywords::new(
+                        vec![],
+                        vec![],
+                        QueryIntent::Exploratory,
+                    ))
+                }
+            },
+            embedding_provider.embed_one(&request.query)
+        );
+
+        let raw_keywords = raw_keywords_result?;
+        let query_vec = query_vec_result.map_err(crate::error::QueryError::from)?;
 
         // Step 1.5: Validate keywords against knowledge graph
         let keywords = self.validate_keywords(&raw_keywords).await;
@@ -385,10 +409,14 @@ impl SOTAQueryEngine {
 
         tracing::debug!(mode = %mode, "Selected query mode (stream full config)");
 
-        // Step 3: Compute embeddings using WORKSPACE-SPECIFIC embedding provider
-        let embeddings =
-            QueryEmbeddings::compute(&request.query, &keywords, embedding_provider.as_ref())
-                .await?;
+        // Step 3: Compute keyword embeddings using WORKSPACE-SPECIFIC embedding provider.
+        let embeddings = QueryEmbeddings::compute_with_query_vec(
+            &request.query,
+            query_vec,
+            &keywords,
+            embedding_provider.as_ref(),
+        )
+        .await?;
 
         // Step 4: Mode-specific retrieval using WORKSPACE-SPECIFIC vector storage
         let context = match mode {
