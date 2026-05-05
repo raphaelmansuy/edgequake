@@ -176,16 +176,16 @@ as long as the retry uses `self.build_request(...)`.
 
 ## Implementation checklist
 
-- [x] `MistralProvider::with_extra_headers()`
-- [ ] `OpenAiProvider::with_extra_headers()` (via `OpenAiCompatibleProvider`)
-- [ ] `AnthropicProvider::with_extra_headers()`
-- [ ] `GeminiProvider::with_extra_headers()`
-- [ ] `NvidiaProvider::with_extra_headers()`
+- [x] `MistralProvider::with_extra_headers()` (v0.6.16)
+- [x] `OpenAICompatibleProvider::with_extra_headers()` (v0.6.16)
+- [x] `AnthropicProvider::with_extra_headers()` (v0.6.17)
+- [x] `GeminiProvider::with_extra_headers()` (v0.6.17)
+- [x] `NvidiaProvider::with_extra_headers()` (v0.6.17)
 - [x] CRLF injection validation
 - [x] Reserved header filtering
 - [x] No-log of header values
-- [ ] Integration in `edgequake-api` workspace resolver
-- [ ] E2E test: headers forwarded to Mistral via mock server
+- [ ] Integration in `edgequake-api` workspace resolver (future)
+- [ ] E2E test: headers forwarded to provider via mock server (future)
 
 ---
 
