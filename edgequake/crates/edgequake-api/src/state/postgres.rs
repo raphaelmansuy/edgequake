@@ -126,11 +126,20 @@ impl AppState {
         let password = url.password().unwrap_or("").to_string();
 
         // Create PostgreSQL configuration
+        // WHY 25 connections (env-configurable via DATABASE_POOL_SIZE):
+        // The frontend polls ~8 concurrent endpoints every 2s. Pipeline workers
+        // hold connections for the full processing duration (embedding = minutes).
+        // 10 connections are exhausted instantly under any real load, causing
+        // "pool timed out" 500s → polling feedback loop. 25 gives headroom.
+        let db_pool_size: u32 = std::env::var("DATABASE_POOL_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(25);
         let pg_config = edgequake_storage::adapters::postgres::PostgresConfig::new(
             host, port, database, user, password,
         )
         .with_namespace("default")
-        .with_max_connections(10);
+        .with_max_connections(db_pool_size);
 
         // Create PostgreSQL connection pool for conversation service.
         //
@@ -144,8 +153,12 @@ impl AppState {
         // _sqlx_migrations_pkey" → panic on every restart.
         // Using after_connect guarantees ALL pool connections always use public,
         // so _sqlx_migrations is consistently read/written in the correct schema.
+        //
+        // acquire_timeout(5s): fail fast instead of queuing 30s — callers get
+        // a quick 500 and back off, rather than stacking up 30s waiters.
         let pool = sqlx::postgres::PgPoolOptions::new()
-            .max_connections(10)
+            .max_connections(db_pool_size)
+            .acquire_timeout(std::time::Duration::from_secs(5))
             .after_connect(|conn, _| {
                 Box::pin(async move {
                     sqlx::query("SET search_path TO public")
