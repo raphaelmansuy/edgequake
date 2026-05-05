@@ -151,7 +151,13 @@ impl Default for SOTAQueryConfig {
             // 30000 tokens uses only 23% of the context window — safe and effective.
             max_context_tokens: 30000,
             graph_depth: 2,
-            min_score: 0.1,
+            // Configurable via EDGEQUAKE_MIN_ENTITY_SCORE env var (default: 0.1).
+            // Lower this (e.g. 0.0) to retrieve low-frequency entities that score
+            // below the default threshold on bare name queries.
+            min_score: std::env::var("EDGEQUAKE_MIN_ENTITY_SCORE")
+                .ok()
+                .and_then(|v| v.parse::<f32>().ok())
+                .unwrap_or(0.1),
             use_keyword_extraction: true,
             use_adaptive_mode: true,
             // WHY derived from max_context_tokens: The truncation budget MUST match
