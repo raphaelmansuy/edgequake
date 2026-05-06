@@ -215,7 +215,7 @@ export function DocumentDetailDialog({
                     ? t('documents.details.cancelled', 'Cancelled')
                     : t('documents.details.error', 'Error')}
                 </h4>
-                <p className={`text-xs ${document.status === 'cancelled' ? 'text-gray-500' : 'text-destructive/80'}`}>{document.error_message}</p>
+                <p className={`text-xs break-words overflow-hidden ${document.status === 'cancelled' ? 'text-gray-500' : 'text-destructive/80'}`}>{document.error_message}</p>
               </div>
             )}
 

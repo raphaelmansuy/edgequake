@@ -265,7 +265,7 @@ export default function DocumentViewPage() {
 
         {isFailed && document.error_message && (
           <div className="px-3 py-2 bg-destructive/10 border-t">
-            <p className="text-xs text-destructive">{document.error_message}</p>
+            <p className="text-xs text-destructive break-words overflow-hidden">{document.error_message}</p>
           </div>
         )}
         {isCancelled && (

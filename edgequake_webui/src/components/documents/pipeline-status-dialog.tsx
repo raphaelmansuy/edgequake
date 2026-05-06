@@ -74,8 +74,8 @@ function MessageItem({ message }: { message: PipelineMessage }) {
   return (
     <div className={`flex items-start gap-2 py-1.5 px-2 rounded text-xs ${config.bgColor}`}>
       <Icon className={`h-3 w-3 mt-0.5 shrink-0 ${config.color}`} />
-      <div className="flex-1 min-w-0">
-        <p className="wrap-break-word">{message.message}</p>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <p className="break-words whitespace-pre-wrap">{message.message}</p>
         <p className="text-[10px] text-muted-foreground mt-0.5">
           {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
         </p>
@@ -528,7 +528,7 @@ export function PipelineStatusDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-w-[95vw]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
