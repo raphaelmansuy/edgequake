@@ -47,7 +47,8 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::safety_limits::{
-    create_safe_embedding_provider, create_safe_llm_provider, default_model_for_provider,
+    create_safe_embedding_provider, create_safe_llm_provider_with_headers,
+    default_model_for_provider,
 };
 use edgequake_core::{Workspace, WorkspaceService};
 use edgequake_query::{EmbeddingProvider, LLMProvider};
@@ -61,6 +62,12 @@ pub struct LlmResolutionRequest {
     pub provider: Option<String>,
     /// Model name from request (e.g., "gpt-4o-mini", "gemma3:12b")
     pub model: Option<String>,
+    /// Optional HTTP headers to propagate to the upstream LLM provider call.
+    ///
+    /// Enables B2B / multi-tenant metadata (`x-request-id`, `x-tenant-id`,
+    /// `x-correlation-id`, `traceparent`, HMAC tokens) to flow through to the
+    /// LLM API. Reserved headers are silently dropped by the provider.
+    pub extra_headers: Option<std::collections::HashMap<String, String>>,
 }
 
 impl LlmResolutionRequest {
@@ -70,7 +77,11 @@ impl LlmResolutionRequest {
     /// - "openai/gpt-4o-mini" (legacy)
     /// - "openai" with separate model field (new)
     pub fn from_provider_string(provider: Option<String>, model: Option<String>) -> Self {
-        Self { provider, model }
+        Self {
+            provider,
+            model,
+            extra_headers: None,
+        }
     }
 
     /// Check if this request has an explicit provider selection.
@@ -200,7 +211,12 @@ impl WorkspaceProviderResolver {
         // Case 1: Explicit provider in request
         if let (Some(provider), Some(model)) = (&provider_name, &model_name) {
             return self
-                .create_llm_provider(provider, model, ProviderSource::Request)
+                .create_llm_provider_with_headers(
+                    provider,
+                    model,
+                    ProviderSource::Request,
+                    request.extra_headers.clone(),
+                )
                 .map(Some);
         }
 
@@ -257,7 +273,12 @@ impl WorkspaceProviderResolver {
         // Case 1: Explicit provider in request
         if let (Some(provider), Some(model)) = (&provider_name, &model_name) {
             return self
-                .create_llm_provider(provider, model, ProviderSource::Request)
+                .create_llm_provider_with_headers(
+                    provider,
+                    model,
+                    ProviderSource::Request,
+                    request.extra_headers.clone(),
+                )
                 .map(Some);
         }
 
@@ -472,6 +493,17 @@ impl WorkspaceProviderResolver {
         model: &str,
         source: ProviderSource,
     ) -> Result<ResolvedLlmProvider, ProviderResolutionError> {
+        self.create_llm_provider_with_headers(provider, model, source, None)
+    }
+
+    /// Create an LLM provider with safety limits and optional caller-supplied headers.
+    fn create_llm_provider_with_headers(
+        &self,
+        provider: &str,
+        model: &str,
+        source: ProviderSource,
+        extra_headers: Option<std::collections::HashMap<String, String>>,
+    ) -> Result<ResolvedLlmProvider, ProviderResolutionError> {
         debug!(
             provider = provider,
             model = model,
@@ -479,9 +511,10 @@ impl WorkspaceProviderResolver {
             "Creating LLM provider"
         );
 
-        let provider_arc = create_safe_llm_provider(provider, model).map_err(|e| {
-            ProviderResolutionError::from_creation_error(provider, model, &e.to_string())
-        })?;
+        let provider_arc =
+            create_safe_llm_provider_with_headers(provider, model, extra_headers).map_err(
+                |e| ProviderResolutionError::from_creation_error(provider, model, &e.to_string()),
+            )?;
 
         info!(
             provider = provider,

@@ -148,7 +148,7 @@ edgequake-core = { path = "crates/edgequake-core" }
 edgequake-pdf = { path = "crates/edgequake-pdf" }
 # v0.6.18: Mistral embed() defense-in-depth — internal count guard prevents
 # HTTP 400 code 3210 "Too many inputs" even when called directly (query engine).
-edgequake-llm = "0.6.18"
+edgequake-llm = "0.6.19"
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }

@@ -442,6 +442,57 @@ pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<
     Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
 }
 
+/// Create a safety-limited LLM provider with optional caller-supplied HTTP headers.
+///
+/// Headers are forwarded to the upstream LLM API call so that B2B / multi-tenant
+/// metadata (`x-request-id`, `x-tenant-id`, `x-correlation-id`, `traceparent`,
+/// HMAC tokens) flows through from the incoming API request to the LLM provider.
+///
+/// If `extra_headers` is `None` or empty this is identical to
+/// [`create_safe_llm_provider`].
+pub fn create_safe_llm_provider_with_headers(
+    provider_name: &str,
+    model: &str,
+    extra_headers: Option<std::collections::HashMap<String, String>>,
+) -> Result<Arc<dyn LLMProvider>> {
+    check_api_key(provider_name)?;
+
+    let effective_model = if is_model_provider_mismatch(provider_name, model) {
+        let corrected = default_model_for_provider(provider_name);
+        tracing::warn!(
+            provider = provider_name,
+            requested_model = model,
+            corrected_model = corrected,
+            "COMPAT-GUARD: LLM model/provider mismatch — auto-correcting to provider default."
+        );
+        corrected
+    } else {
+        model
+    };
+
+    let headers = extra_headers.unwrap_or_default();
+    let header_count = headers.len();
+
+    let inner = ProviderFactory::create_llm_provider_with_headers(
+        provider_name,
+        effective_model,
+        headers,
+    )?;
+
+    let config = SafetyLimitsConfig::from_env();
+
+    tracing::info!(
+        provider = provider_name,
+        model = effective_model,
+        max_tokens = config.max_tokens,
+        timeout_secs = config.timeout.as_secs(),
+        extra_header_count = header_count,
+        "Creating safety-limited LLM provider with extra headers"
+    );
+
+    Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
+}
+
 /// Create a safety-limited embedding provider from workspace configuration.
 ///
 /// FIX #163: When the provider is OpenAI-compatible, checks `EDGEQUAKE_EMBEDDING_BASE_URL`

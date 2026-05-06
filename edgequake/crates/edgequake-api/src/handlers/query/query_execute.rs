@@ -191,8 +191,12 @@ pub async fn execute_query(
     {
         debug!(provider = %provider, model = %model, "Creating LLM provider override from request");
         Some(
-            edgequake_llm::ProviderFactory::create_llm_provider(provider, model)
-                .map_err(|e| ApiError::Internal(format!("Failed to create LLM provider: {}", e)))?,
+            crate::safety_limits::create_safe_llm_provider_with_headers(
+                provider,
+                model,
+                request.extra_headers.clone(),
+            )
+            .map_err(|e| ApiError::Internal(format!("Failed to create LLM provider: {}", e)))?,
         )
     } else {
         None
