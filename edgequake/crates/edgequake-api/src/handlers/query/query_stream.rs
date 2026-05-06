@@ -131,10 +131,11 @@ pub async fn stream_query(
     // SPEC-006 + SPEC-032: Resolve LLM provider override
     let workspace_id_str = tenant_ctx.workspace_id.clone();
     let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
-    let llm_request = LlmResolutionRequest::from_provider_string(
-        request.llm_provider.clone(),
-        request.llm_model.clone(),
-    );
+    let llm_request = LlmResolutionRequest {
+        provider: request.llm_provider.clone(),
+        model: request.llm_model.clone(),
+        extra_headers: request.extra_headers.clone(),
+    };
 
     let (llm_override, used_provider, used_model) =
         match resolver.resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request) {

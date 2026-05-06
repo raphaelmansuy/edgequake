@@ -183,6 +183,7 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            extra_headers: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -209,6 +210,7 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            extra_headers: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -228,6 +230,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             stream_format: None,
+            extra_headers: None,
         };
 
         let result = stream_query(State(state), tenant_ctx, Json(request)).await;
@@ -256,6 +259,7 @@ mod tests {
                 llm_model: None,
                 system_prompt: None,
                 document_filter: None,
+                extra_headers: None,
             };
 
             let result = execute_query(State(state.clone()), tenant_ctx, Json(request)).await;
@@ -283,6 +287,7 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            extra_headers: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -309,6 +314,7 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            extra_headers: None,
         };
 
         let result = execute_query(State(state), tenant_ctx, Json(request)).await;
@@ -328,6 +334,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             stream_format: None,
+            extra_headers: None,
         };
 
         let result = stream_query(State(state), tenant_ctx, Json(request)).await;
