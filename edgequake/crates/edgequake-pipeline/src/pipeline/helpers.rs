@@ -15,7 +15,7 @@ use crate::error::Result;
 use crate::extractor::ExtractionResult;
 use crate::lineage::{DocumentLineage, ExtractionMetadata, LineageBuilder, SourceSpan};
 
-use super::{CostBreakdownStats, Pipeline, ProcessingStats};
+use super::{CostBreakdownStats, EmbedProgressCallback, EmbedProgressUpdate, Pipeline, ProcessingStats};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //                       EXTRACTION POST-PROCESSING
@@ -387,11 +387,40 @@ impl Pipeline {
     /// - Entity embeddings (name: description → vector)
     /// - Relationship embeddings (keywords + source→target + description → vector)
     /// - Embedding cost calculation
+    /// Fire an `EmbedProgressUpdate` via the optional callback.
+    ///
+    /// WHY helper fn: keeps the embedding loop bodies readable — avoids
+    /// repeating the `if let Some(cb) = progress { cb(...) }` guard at every
+    /// call-site (DRY).
+    fn emit_embed_progress(
+        progress: Option<&EmbedProgressCallback>,
+        stage: &'static str,
+        current: usize,
+        total: usize,
+    ) {
+        if let Some(cb) = progress {
+            cb(EmbedProgressUpdate { stage, current, total });
+        }
+    }
+
+    /// Generate embeddings for chunks, entities, and relationships.
+    ///
+    /// WHY UNIFIED: All three processing methods shared identical embedding
+    /// logic (~120 lines each). This single implementation handles:
+    /// - Chunk embeddings (content → vector)
+    /// - Entity embeddings (name: description → vector)
+    /// - Relationship embeddings (keywords + source→target + description → vector)
+    /// - Embedding cost calculation
+    ///
+    /// `progress` is invoked **at the start and end of each sub-stage** so
+    /// callers can surface real-time progress while embeddings are generated.
+    /// Pass `None` when no progress reporting is needed.
     pub(super) async fn generate_all_embeddings(
         &self,
         chunks: &mut [TextChunk],
         extractions: &mut [ExtractionResult],
         stats: &mut ProcessingStats,
+        progress: Option<&EmbedProgressCallback>,
     ) -> Result<()> {
         let provider = match &self.embedding_provider {
             Some(p) => p,
@@ -412,10 +441,14 @@ impl Pipeline {
         // ── Chunk embeddings ──
         if self.config.enable_chunk_embeddings {
             let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+            // Notify: starting chunk embeddings
+            Self::emit_embed_progress(progress, "chunks", 0, texts.len());
             let embeddings = safe_embed(provider, &texts, max_chars, "Chunk").await?;
             for (chunk, embedding) in chunks.iter_mut().zip(embeddings) {
                 chunk.embedding = Some(embedding);
             }
+            // Notify: chunk embeddings complete
+            Self::emit_embed_progress(progress, "chunks", texts.len(), texts.len());
         }
 
         // ── Entity embeddings (batched) ──
@@ -430,6 +463,9 @@ impl Pipeline {
                 }
             }
 
+            // Notify: starting entity embeddings
+            Self::emit_embed_progress(progress, "entities", 0, all_entity_texts.len());
+
             // WHY safe_embed: guards length, embeds in compliant sub-batches, and
             // warns if the provider silently drops results (zip() would otherwise
             // create orphaned graph nodes with no embedding vector).
@@ -437,6 +473,9 @@ impl Pipeline {
             for (embedding, (ext_idx, ent_idx)) in all_embeddings.into_iter().zip(entity_indices) {
                 extractions[ext_idx].entities[ent_idx].embedding = Some(embedding);
             }
+
+            // Notify: entity embeddings complete
+            Self::emit_embed_progress(progress, "entities", all_entity_texts.len(), all_entity_texts.len());
         }
 
         // ── Relationship embeddings (batched) ──
@@ -459,6 +498,9 @@ impl Pipeline {
                 }
             }
 
+            // Notify: starting relationship embeddings
+            Self::emit_embed_progress(progress, "relationships", 0, all_relationship_texts.len());
+
             let all_embeddings =
                 safe_embed(provider, &all_relationship_texts, max_chars, "Relationship").await?;
             for (embedding, (ext_idx, rel_idx)) in
@@ -466,6 +508,9 @@ impl Pipeline {
             {
                 extractions[ext_idx].relationships[rel_idx].embedding = Some(embedding);
             }
+
+            // Notify: relationship embeddings complete
+            Self::emit_embed_progress(progress, "relationships", all_relationship_texts.len(), all_relationship_texts.len());
         }
 
         // ── Embedding cost calculation ──

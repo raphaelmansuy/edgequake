@@ -59,12 +59,16 @@ pub const MAXIMUM_TIMEOUT_SECS: u64 = 3600;
 ///
 /// Evidence: EU AI Act (231 764 chars) extracts 1 000+ short legal entities.
 /// With token budget 6 963 and entities averaging 10 tokens each, the token-
-/// based splitter builds sub-batches of 696 items — exceeding Mistral's 512
-/// input limit. (See spec 011-pipeline-reliability/ROOT_CAUSE.md)
+/// based splitter builds sub-batches of 696 items — exceeding Mistral's 256
+/// input limit (empirically confirmed: n=256→OK, n=257→HTTP 400 code 3210).
+///
+/// NOTE: The Mistral hard limit is 256 (not 512 as previously assumed). This
+/// cap is used as a ceiling for all providers; provider-specific limits in
+/// edgequake-llm further constrain the effective batch size via min().
 ///
 /// OpenAI and Ollama support larger batches; this cap can be raised via
 /// `EDGEQUAKE_EMBEDDING_BATCH_SIZE` environment variable.
-pub const DEFAULT_SAFE_EMBED_BATCH_SIZE: usize = 512;
+pub const DEFAULT_SAFE_EMBED_BATCH_SIZE: usize = 256;
 
 /// Configuration for safety limits.
 #[derive(Debug, Clone)]
