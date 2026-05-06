@@ -576,23 +576,24 @@ impl SOTAQueryEngine {
         workspace_id: Option<String>,
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
-        let mf = MetadataFilter::from_tenant_workspace(tenant_id, workspace_id);
 
-        // SPEC-007: tenant/workspace filter pushed to storage layer via query_filtered.
+        // WHY: Use vector_type filter at the SQL layer so LIMIT operates only on chunk
+        // vectors. Without this, large graphs (60k+ entities) cause the top-k results
+        // to be dominated by entity vectors, leaving 0 chunks after in-memory filtering.
+        // SPEC-007: tenant/workspace/type filter pushed to storage layer via query_filtered.
+        let mf = MetadataFilter::from_tenant_workspace_type(tenant_id, workspace_id, "chunk");
+
         let results = self
             .vector_storage
             .query_filtered(
                 &embeddings.query,
-                self.config.max_chunks * 2,
+                self.config.max_chunks,
                 None,
                 mf.as_ref(),
             )
             .await?;
 
-        // Filter to chunk vectors only
-        let chunk_results = filter_by_type(results, VectorType::Chunk);
-
-        for result in chunk_results
+        for result in results
             .iter()
             .filter(|r| r.score >= self.config.min_score)
             .take(self.config.max_chunks)

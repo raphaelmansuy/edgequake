@@ -53,6 +53,12 @@ services:
       # NOTE: Only set OLLAMA_HOST when you actually want to use Ollama.
       #       Remove or leave blank when using OpenAI / another cloud provider.
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # WHY: Expose OLLAMA_CONTEXT_LENGTH so users can tune token window without
+      # rebuilding the image. Ollama default is 2048 which is too small for many
+      # documents; common override is 32768 or 131072.
+      - OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH:-32768}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-}
+      - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-}
       - EDGEQUAKE_LLM_PROVIDER=${EDGEQUAKE_LLM_PROVIDER:-ollama}
       - EDGEQUAKE_EMBEDDING_PROVIDER=${EDGEQUAKE_EMBEDDING_PROVIDER:-}
       # Vision extraction timeout (seconds). Default 600s (10 min).

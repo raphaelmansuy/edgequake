@@ -767,6 +767,15 @@ impl VectorStorage for PgVectorStorage {
             param_offset += 1;
         }
 
+        // Vector type (e.g. "chunk", "entity", "relationship")
+        // WHY: Pushed to SQL layer so LIMIT operates on correctly-typed vectors.
+        // Without this, naive mode on large graphs returns only entity vectors
+        // in the top-k, resulting in 0 chunk results after in-memory filtering.
+        if mf.vector_type.is_some() {
+            conditions.push(format!("metadata->>'type' = ${}", param_offset));
+            param_offset += 1;
+        }
+
         let where_clause = if conditions.is_empty() {
             String::new()
         } else {
@@ -818,6 +827,12 @@ impl VectorStorage for PgVectorStorage {
         if let Some(wid) = &mf.workspace_id {
             args.add(wid).map_err(|e| {
                 StorageError::Database(format!("Failed to bind workspace_id: {}", e))
+            })?;
+        }
+
+        if let Some(vtype) = &mf.vector_type {
+            args.add(vtype).map_err(|e| {
+                StorageError::Database(format!("Failed to bind vector_type: {}", e))
             })?;
         }
 

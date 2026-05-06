@@ -119,14 +119,21 @@ fn parse_query_mode(mode: &Option<String>) -> QueryMode {
 
 /// Convert an ISO 639-1 language code to its full English name.
 /// Used to build a clear language directive for the LLM prompt.
+///
+/// WHY: Region-tagged locales like "fr-FR" must be normalized to bare codes
+/// ("fr") before matching. Browsers often send "fr-FR" instead of "fr", and
+/// without stripping the region the match falls through to "English", causing
+/// the LLM to respond in English regardless of the user's language setting.
 fn language_code_to_name(code: &str) -> &'static str {
-    match code.to_lowercase().as_str() {
+    // Strip region suffix: "fr-FR" → "fr", "zh-TW" → "zh"
+    let base = code.split('-').next().unwrap_or(code);
+    match base.to_lowercase().as_str() {
         "en" => "English",
-        "zh" | "zh-cn" | "zh-tw" | "zh-hans" | "zh-hant" => "Chinese",
+        "zh" => "Chinese",
         "fr" => "French",
         "de" => "German",
         "es" => "Spanish",
-        "pt" | "pt-br" => "Portuguese",
+        "pt" => "Portuguese",
         "it" => "Italian",
         "ja" => "Japanese",
         "ko" => "Korean",

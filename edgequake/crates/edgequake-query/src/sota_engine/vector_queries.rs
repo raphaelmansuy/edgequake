@@ -22,23 +22,27 @@ impl SOTAQueryEngine {
         vector_storage: &Arc<dyn VectorStorage>,
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
-        let mf = MetadataFilter::from_tenant_workspace(tenant_id, workspace_id);
 
-        // WHY 2x oversampling: Vector storage returns all types (entities, relationships, chunks).
-        // We retrieve 2x max_chunks to compensate for non-chunk results in top results.
-        // SPEC-007: tenant/workspace filter pushed to storage layer via query_filtered.
+        // WHY: Use vector_type filter at the SQL layer so LIMIT operates only on chunk
+        // vectors. Without this, large graphs (60k+ entities) cause the top-k results
+        // to be dominated by entity vectors, leaving 0 chunks after in-memory filtering.
+        // SPEC-007: tenant/workspace/type filter pushed to storage layer via query_filtered.
+        let mf = MetadataFilter::from_tenant_workspace_type(
+            tenant_id,
+            workspace_id,
+            "chunk",
+        );
+
         let results = vector_storage
             .query_filtered(
                 &embeddings.query,
-                self.config.max_chunks * 2,
+                self.config.max_chunks,
                 None,
                 mf.as_ref(),
             )
             .await?;
 
-        let chunk_results = filter_by_type(results, VectorType::Chunk);
-
-        for result in chunk_results
+        for result in results
             .iter()
             .filter(|r| r.score >= self.config.min_score)
             .take(self.config.max_chunks)

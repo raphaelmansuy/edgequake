@@ -107,6 +107,11 @@ services:
       #   '127.x.x.x' — use 'host.docker.internal' or a real IP/hostname.
       #   quickstart.sh auto-translates loopback addresses when launching.
       OLLAMA_HOST:                  ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # WHY: Pass through OLLAMA_CONTEXT_LENGTH so users can tune the model
+      # token window without rebuilding. Default 32768; set to 131072 for large docs.
+      OLLAMA_CONTEXT_LENGTH:        ${OLLAMA_CONTEXT_LENGTH:-32768}
+      OLLAMA_MODEL:                 ${OLLAMA_MODEL:-}
+      OLLAMA_EMBEDDING_MODEL:       ${OLLAMA_EMBEDDING_MODEL:-}
       PDFIUM_AUTO_CACHE_DIR:        /tmp/edgequake-pdfium-cache
       RUST_LOG:                     ${RUST_LOG:-info}
     extra_hosts:
