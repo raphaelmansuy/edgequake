@@ -540,7 +540,11 @@ impl GraphStorage for PostgresAGEGraphStorage {
             return Ok(Vec::new());
         }
 
-        // Combined query for nodes and their degrees
+        // WHY: All graphid comparisons must go via ::text — Apache AGE's graphid type has
+        // no registered = operator in the PostgreSQL type system. Direct graphid = graphid
+        // comparisons produce "operator does not exist: ag_catalog.graphid = ag_catalog.graphid".
+        // The consistent fix (same pattern as node_degree / node_degrees_batch) is to cast
+        // every graphid to text before comparing, turning all joins into text = text.
         let sql = format!(
             r#"
             WITH input(v, ord) AS (
@@ -550,31 +554,31 @@ impl GraphStorage for PostgresAGEGraphStorage {
               SELECT (to_json(v)::text)::agtype AS node_id, ord FROM input
             ),
             vids AS (
-              SELECT n.id AS vid, i.node_id, i.ord, n.properties
+              SELECT n.id::text AS vid_text, i.node_id, i.ord, n.properties
               FROM {}."Node" AS n
               JOIN ids i ON ag_catalog.agtype_access_operator(
                   VARIADIC ARRAY[n.properties, '"node_id"'::agtype]
               ) = i.node_id
             ),
             deg_out AS (
-              SELECT e.start_id AS vid, COUNT(*)::bigint AS out_degree
+              SELECT e.start_id::text AS vid_text, COUNT(*)::bigint AS out_degree
               FROM {}."EDGE" AS e
-              JOIN vids v ON v.vid = e.start_id
-              GROUP BY e.start_id
+              JOIN vids v ON v.vid_text = e.start_id::text
+              GROUP BY e.start_id::text
             ),
             deg_in AS (
-              SELECT e.end_id AS vid, COUNT(*)::bigint AS in_degree
+              SELECT e.end_id::text AS vid_text, COUNT(*)::bigint AS in_degree
               FROM {}."EDGE" AS e
-              JOIN vids v ON v.vid = e.end_id
-              GROUP BY e.end_id
+              JOIN vids v ON v.vid_text = e.end_id::text
+              GROUP BY e.end_id::text
             )
             SELECT v.node_id::text AS node_id,
                    ag_catalog.agtype_to_json(v.properties) AS properties,
                    COALESCE(o.out_degree, 0)::bigint AS out_degree,
                    COALESCE(n.in_degree, 0)::bigint AS in_degree
             FROM vids v
-            LEFT JOIN deg_out o ON o.vid = v.vid
-            LEFT JOIN deg_in n ON n.vid = v.vid
+            LEFT JOIN deg_out o ON o.vid_text = v.vid_text
+            LEFT JOIN deg_in n ON n.vid_text = v.vid_text
             ORDER BY v.ord
             "#,
             self.graph_name, self.graph_name, self.graph_name
@@ -1332,23 +1336,25 @@ impl GraphStorage for PostgresAGEGraphStorage {
             String::new()
         };
 
-        // WHY: graphid cannot be cast directly to bigint in Apache AGE — must go via ::text first.
-        // See: https://github.com/apache/age/issues — graphid::text::bigint is the required two-step cast.
+        // WHY: graphid::text::bigint is unreliable across AGE versions — if the graphid
+        // output format is not a bare integer string, the ::bigint cast fails.
+        // The consistent pattern (same as node_degree / node_degrees_batch) is to cast
+        // graphid to text and join on text = text, which AGE always supports.
         let sql = format!(
             "WITH edge_counts AS ( \
                 SELECT \
-                    start_id::text::bigint as start_id_int, \
+                    start_id::text AS start_id_text, \
                     COUNT(*) as out_degree \
                 FROM {}.\"_ag_label_edge\" \
-                GROUP BY start_id::text::bigint \
+                GROUP BY start_id::text \
             ), \
             node_degrees AS ( \
                 SELECT \
-                    v.id, \
+                    v.id::text AS id_text, \
                     v.properties, \
                     COALESCE(ec.out_degree, 0) as degree \
                 FROM {}.\"_ag_label_vertex\" v \
-                LEFT JOIN edge_counts ec ON v.id::text::bigint = ec.start_id_int \
+                LEFT JOIN edge_counts ec ON v.id::text = ec.start_id_text \
                 {} \
             ) \
             SELECT \

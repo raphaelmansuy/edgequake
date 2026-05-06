@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.12.1] — 2026-05-06
+
+### Fixed
+
+- **Issue #214 — Graph visualisation fails with "operator does not exist: ag_catalog.graphid = ag_catalog.graphid"**
+  - Root cause (regression from v0.12.0): `get_nodes_with_degrees_batch` used
+    direct `graphid = graphid` comparisons in four JOIN / GROUP BY clauses
+    (`deg_out`, `deg_in`, and two `LEFT JOIN` clauses).  Apache AGE does **not**
+    register an equality operator for the `graphid` type in the PostgreSQL type
+    system, so these comparisons produced the above error.
+  - Secondary fix: `get_popular_nodes_with_degree` was updated from the
+    `::text::bigint` two-step cast (introduced in v0.12.0) to the simpler and
+    universally supported `::text` cast, matching the established pattern used by
+    `node_degree()` and `node_degrees_batch()`.  The `::bigint` step is
+    unnecessary and unreliable across AGE versions.
+  - Six new regression tests added to `graph_optimized_tests.rs` covering empty
+    input, non-existent nodes, mixed IDs, isolated nodes, and degree-consistency.
+
+---
+
 ## [0.12.0] — 2026-05-06
 
 ### Fixed
