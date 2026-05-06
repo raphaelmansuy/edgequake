@@ -511,6 +511,31 @@ pub struct ChunkProgressUpdate {
 /// The callback receives a `ChunkProgressUpdate` with details about the completed chunk.
 pub type ChunkProgressCallback = Arc<dyn Fn(ChunkProgressUpdate) + Send + Sync>;
 
+/// Progress update emitted during the embedding generation phase.
+///
+/// WHY: `generate_all_embeddings` runs AFTER chunk extraction completes
+/// (status = "99%") and can take 10–60 s for large documents because it
+/// embeds all chunk texts, entity texts, and relationship texts via the
+/// vector-embedding API. Without this struct there is zero UI feedback
+/// during that window, leaving users staring at "chunk 141/141 (99%)".
+#[derive(Debug, Clone)]
+pub struct EmbedProgressUpdate {
+    /// Sub-stage: "chunks", "entities", or "relationships".
+    pub stage: &'static str,
+    /// Number of items whose embeddings have been requested so far
+    /// (may be 0 at the start of a sub-stage).
+    pub current: usize,
+    /// Total number of items to embed in this sub-stage.
+    pub total: usize,
+}
+
+/// Callback invoked at key milestones during embedding generation.
+///
+/// Mirrors the `ChunkProgressCallback` pattern — callers use fire-and-forget
+/// `tokio::spawn` tasks to update document metadata without blocking the
+/// embedding calls.
+pub type EmbedProgressCallback = Arc<dyn Fn(EmbedProgressUpdate) + Send + Sync>;
+
 // ─────────────────────────────────────────────────────────────────────────────
 //                              PIPELINE STRUCT
 // ─────────────────────────────────────────────────────────────────────────────

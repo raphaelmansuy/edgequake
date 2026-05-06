@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 use crate::error::Result;
 
 use super::helpers::{aggregate_extraction_stats, link_extractions_to_chunks};
-use super::{ChunkErrorInfo, ChunkProgressCallback, Pipeline, ProcessingResult};
+use super::{ChunkErrorInfo, ChunkProgressCallback, EmbedProgressCallback, Pipeline, ProcessingResult};
 
 impl Pipeline {
     /// Process a document through the pipeline.
@@ -38,7 +38,7 @@ impl Pipeline {
         }
 
         // Step 3: Generate embeddings
-        self.generate_all_embeddings(&mut chunks, &mut extractions, &mut stats)
+        self.generate_all_embeddings(&mut chunks, &mut extractions, &mut stats, None)
             .await?;
 
         stats.processing_time_ms = start.elapsed().as_millis() as u64;
@@ -97,7 +97,7 @@ impl Pipeline {
         }
 
         // Step 3: Generate embeddings
-        self.generate_all_embeddings(&mut chunks, &mut extractions, &mut stats)
+        self.generate_all_embeddings(&mut chunks, &mut extractions, &mut stats, None)
             .await?;
 
         stats.processing_time_ms = start.elapsed().as_millis() as u64;
@@ -147,8 +147,14 @@ impl Pipeline {
         content: &str,
         progress_callback: Option<ChunkProgressCallback>,
     ) -> Result<ProcessingResult> {
-        self.process_with_resilience_cancellable(document_id, content, progress_callback, None)
-            .await
+        self.process_with_resilience_cancellable(
+            document_id,
+            content,
+            progress_callback,
+            None,
+            None,
+        )
+        .await
     }
 
     /// Process a document with resilient chunk-level error handling and
@@ -157,12 +163,17 @@ impl Pipeline {
     /// When a `cancel_token` is provided, new chunk extractions are skipped
     /// once the token is cancelled. Already in-flight LLM calls finish
     /// naturally  (cooperative, not preemptive).
+    ///
+    /// `embed_progress` is called at the start of each embedding sub-stage
+    /// (chunks / entities / relationships) so callers can update document
+    /// metadata and surface progress while the embedding phase runs.
     pub async fn process_with_resilience_cancellable(
         &self,
         document_id: &str,
         content: &str,
         progress_callback: Option<ChunkProgressCallback>,
         cancel_token: Option<CancellationToken>,
+        embed_progress: Option<EmbedProgressCallback>,
     ) -> Result<ProcessingResult> {
         let start = std::time::Instant::now();
 
@@ -241,7 +252,7 @@ impl Pipeline {
         }
 
         // Step 3: Generate embeddings
-        self.generate_all_embeddings(&mut chunks, &mut extractions, &mut stats)
+        self.generate_all_embeddings(&mut chunks, &mut extractions, &mut stats, embed_progress.as_ref())
             .await?;
 
         stats.processing_time_ms = start.elapsed().as_millis() as u64;

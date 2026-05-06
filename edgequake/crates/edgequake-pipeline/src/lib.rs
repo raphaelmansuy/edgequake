@@ -102,6 +102,8 @@ pub use pipeline::{
     ChunkProgressCallback,
     ChunkProgressUpdate,
     CostBreakdownStats,
+    EmbedProgressCallback,
+    EmbedProgressUpdate,
     Pipeline,
     PipelineConfig,
     ProcessingResult,

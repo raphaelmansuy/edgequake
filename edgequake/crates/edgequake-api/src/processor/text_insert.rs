@@ -347,6 +347,66 @@ impl DocumentTaskProcessor {
             );
             (checkpointed, true)
         } else {
+            // OODA-PERF-02: Build embed progress callback for KV metadata updates.
+            // WHY: generate_all_embeddings runs AFTER chunk 141/141 extraction completes
+            // (status = "99%"). For a large document it embeds thousands of entity /
+            // relationship texts via the API — with zero UI feedback. This fire-and-forget
+            // callback updates document metadata so the UI shows progress instead of
+            // freezing at "99%" for minutes.
+            let doc_id_for_embed = document_id.clone();
+            let kv_for_embed = Arc::clone(&self.kv_storage);
+            let embed_progress_callback: EmbedProgressCallback =
+                Arc::new(move |update: EmbedProgressUpdate| {
+                    let doc_id_clone = doc_id_for_embed.clone();
+                    let kv_clone = Arc::clone(&kv_for_embed);
+                    let stage = update.stage;
+                    let current = update.current;
+                    let total = update.total;
+
+                    // Fire-and-forget metadata update — same pattern as chunk callback
+                    tokio::spawn(async move {
+                        let metadata_key = format!("{}-metadata", doc_id_clone);
+                        if let Ok(Some(existing)) = kv_clone.get_by_id(&metadata_key).await {
+                            if let Some(obj) = existing.as_object() {
+                                let mut updated = obj.clone();
+                                let pct = if total == 0 {
+                                    100u32
+                                } else {
+                                    ((current as f64 / total as f64) * 100.0).round() as u32
+                                };
+                                let label = match stage {
+                                    "chunks" => "chunk",
+                                    "entities" => "entit",
+                                    "relationships" => "relationship",
+                                    other => other,
+                                };
+                                let msg = if current == 0 {
+                                    format!("Embedding {}ies: starting ({} total)", label, total)
+                                } else {
+                                    format!(
+                                        "Embedding {}ies: {}/{} ({}%)",
+                                        label, current, total, pct
+                                    )
+                                };
+                                updated.insert(
+                                    "current_stage".to_string(),
+                                    json!("embedding"),
+                                );
+                                updated.insert("stage_message".to_string(), json!(msg));
+                                updated.insert(
+                                    "stage_progress".to_string(),
+                                    json!(0.99 + (0.01 * pct as f64 / 100.0)),
+                                );
+                                updated.insert(
+                                    "updated_at".to_string(),
+                                    json!(chrono::Utc::now().to_rfc3339()),
+                                );
+                                let _ = kv_clone.upsert(&[(metadata_key, json!(updated))]).await;
+                            }
+                        }
+                    });
+                });
+
             // No valid checkpoint — run the full pipeline
             let fresh_result = match pipeline
                 .process_with_resilience_cancellable(
@@ -354,6 +414,7 @@ impl DocumentTaskProcessor {
                     &processed_text,
                     Some(chunk_progress_callback),
                     Some(cancel_token.clone()),
+                    Some(embed_progress_callback),
                 )
                 .await
             {
