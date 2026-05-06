@@ -176,7 +176,3 @@ debug = true
 [profile.dev.package.sqlx-macros]
 opt-level = 3
 
-# Use the local edgequake-llm source while 0.6.20 is being published.
-# Remove this patch section once 0.6.20 is available on crates.io.
-[patch.crates-io]
-edgequake-llm = { path = "/Users/raphaelmansuy/Github/03-working/edgequake-llm" }
