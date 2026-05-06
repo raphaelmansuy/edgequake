@@ -52,12 +52,22 @@ pub struct MetadataFilter {
     pub tenant_id: Option<String>,
     /// Filter by workspace ID.
     pub workspace_id: Option<String>,
+    /// Filter by vector type (e.g. "chunk", "entity", "relationship").
+    ///
+    /// WHY: At scale (60k+ entities, 10k+ chunks), the top-k results from a workspace
+    /// vector table are dominated by entity vectors if no type filter is applied.
+    /// Pushing type filtering to the SQL layer ensures the LIMIT clause operates on
+    /// the correct vector type, preventing naive mode from returning 0 chunks.
+    pub vector_type: Option<String>,
 }
 
 impl MetadataFilter {
     /// Returns true when no filter fields are set.
     pub fn is_empty(&self) -> bool {
-        self.document_ids.is_none() && self.tenant_id.is_none() && self.workspace_id.is_none()
+        self.document_ids.is_none()
+            && self.tenant_id.is_none()
+            && self.workspace_id.is_none()
+            && self.vector_type.is_none()
     }
 
     /// Build a filter from optional tenant and workspace IDs.
@@ -72,6 +82,24 @@ impl MetadataFilter {
             document_ids: None,
             tenant_id,
             workspace_id,
+            vector_type: None,
+        })
+    }
+
+    /// Build a filter with tenant, workspace, and vector type.
+    ///
+    /// WHY: Naive mode must filter by type=chunk at the SQL level to avoid returning
+    /// entity/relationship vectors when the top-k results are entity-dominated.
+    pub fn from_tenant_workspace_type(
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+        vector_type: impl Into<String>,
+    ) -> Option<Self> {
+        Some(Self {
+            document_ids: None,
+            tenant_id,
+            workspace_id,
+            vector_type: Some(vector_type.into()),
         })
     }
 }
@@ -243,6 +271,7 @@ mod tests {
             document_ids: Some(vec!["doc1".into(), "doc2".into()]),
             tenant_id: Some("t1".into()),
             workspace_id: Some("ws1".into()),
+            vector_type: None,
         };
         let json = serde_json::to_string(&mf).unwrap();
         let mf2: MetadataFilter = serde_json::from_str(&json).unwrap();

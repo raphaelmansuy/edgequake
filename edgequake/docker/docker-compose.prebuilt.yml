@@ -47,6 +47,9 @@ services:
       # WHY host.docker.internal: Ollama typically runs on the host, not inside
       # Docker. Using the gateway address lets the container reach the host port.
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH:-32768}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-}
+      - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-}
       - EDGEQUAKE_EMBEDDING_MODEL=${EDGEQUAKE_EMBEDDING_MODEL:-}
       - EDGEQUAKE_EMBEDDING_DIMENSION=${EDGEQUAKE_EMBEDDING_DIMENSION:-}
       - EDGEQUAKE_VISION_TIMEOUT_SECS=${EDGEQUAKE_VISION_TIMEOUT_SECS:-600}

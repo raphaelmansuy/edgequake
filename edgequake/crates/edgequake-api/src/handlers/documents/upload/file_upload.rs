@@ -10,6 +10,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
 use crate::state::AppState;
+use edgequake_pipeline::normalize_entity_name;
 
 use crate::file_validation::validate_file;
 #[allow(unused_imports)]
@@ -351,9 +352,13 @@ pub async fn upload_file(
                 serde_json::json!(&workspace_id_for_storage),
             );
 
+            // WHY: Normalize entity names to UPPERCASE_UNDERSCORE before storage.
+            // Without this, variants like "Systems Thinking" and "systems thinking"
+            // are stored as separate nodes, bypassing deduplication in the merger.
+            let entity_key = normalize_entity_name(&entity.name);
             match state
                 .graph_storage
-                .upsert_node(&entity.name, properties)
+                .upsert_node(&entity_key, properties)
                 .await
             {
                 Ok(_) => {
@@ -386,8 +391,8 @@ pub async fn upload_file(
                 }
                 metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
 
-                // Use entity name as vector ID for dedup
-                let entity_id = format!("entity:{}", entity.name);
+                // Use normalized entity key as vector ID for dedup (matches graph node ID)
+                let entity_id = format!("entity:{}", entity_key);
                 if let Err(e) = workspace_vector_storage
                     .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
                     .await
