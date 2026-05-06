@@ -511,10 +511,10 @@ impl WorkspaceProviderResolver {
             "Creating LLM provider"
         );
 
-        let provider_arc =
-            create_safe_llm_provider_with_headers(provider, model, extra_headers).map_err(
-                |e| ProviderResolutionError::from_creation_error(provider, model, &e.to_string()),
-            )?;
+        let provider_arc = create_safe_llm_provider_with_headers(provider, model, extra_headers)
+            .map_err(|e| {
+                ProviderResolutionError::from_creation_error(provider, model, &e.to_string())
+            })?;
 
         info!(
             provider = provider,

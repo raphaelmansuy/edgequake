@@ -14,7 +14,9 @@ use tokio_util::sync::CancellationToken;
 use crate::error::Result;
 
 use super::helpers::{aggregate_extraction_stats, link_extractions_to_chunks};
-use super::{ChunkErrorInfo, ChunkProgressCallback, EmbedProgressCallback, Pipeline, ProcessingResult};
+use super::{
+    ChunkErrorInfo, ChunkProgressCallback, EmbedProgressCallback, Pipeline, ProcessingResult,
+};
 
 impl Pipeline {
     /// Process a document through the pipeline.
@@ -252,8 +254,13 @@ impl Pipeline {
         }
 
         // Step 3: Generate embeddings
-        self.generate_all_embeddings(&mut chunks, &mut extractions, &mut stats, embed_progress.as_ref())
-            .await?;
+        self.generate_all_embeddings(
+            &mut chunks,
+            &mut extractions,
+            &mut stats,
+            embed_progress.as_ref(),
+        )
+        .await?;
 
         stats.processing_time_ms = start.elapsed().as_millis() as u64;
 

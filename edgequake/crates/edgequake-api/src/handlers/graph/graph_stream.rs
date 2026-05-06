@@ -115,10 +115,7 @@ pub async fn stream_graph(
                         Ok(all_nodes) => all_nodes
                             .into_iter()
                             .filter(|n| {
-                                properties_match_tenant_context(
-                                    &n.properties,
-                                    &tenant_ctx_clone,
-                                )
+                                properties_match_tenant_context(&n.properties, &tenant_ctx_clone)
                             })
                             .take(params_clone.max_nodes)
                             .map(|n| (n, 0usize)) // Degree unknown, use 0
@@ -126,10 +123,7 @@ pub async fn stream_graph(
                         Err(e) => {
                             let _ = tx
                                 .send(GraphStreamEvent::Error {
-                                    message: format!(
-                                        "Failed to fetch nodes after timeout: {}",
-                                        e
-                                    ),
+                                    message: format!("Failed to fetch nodes after timeout: {}", e),
                                 })
                                 .await;
                             return;

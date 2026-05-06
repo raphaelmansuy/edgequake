@@ -2,9 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] — 0.11.2
+## [Unreleased]
+
+---
+
+## [0.11.3] — 2026-05-06
 
 ### Added
+
+- **Embedding progress reporting via `EmbedProgressCallback`** ([#197](https://github.com/raphaelmansuy/edgequake/issues/197)):
+  Large document ingestion previously froze the UI at 99% for 30–120 seconds while
+  batch embeddings were generated silently. The root cause: `generate_all_embeddings()`
+  ran three sequential embedding passes (chunks, entities, relationships) with no
+  progress signals reaching the pipeline status API.
+  Fix:
+  - New `EmbedProgressUpdate` struct and `EmbedProgressCallback = Arc<dyn Fn(EmbedProgressUpdate) + Send + Sync>` type in `edgequake-pipeline`.
+  - `generate_all_embeddings()` accepts `progress: Option<&EmbedProgressCallback>` and fires stage events for "chunks", "entities", and "relationships" at start, every 10 items, and on completion.
+  - `process_text_insert()` in `edgequake-api` creates a callback that writes `current_stage: "embedding"` and `stage_message: "Embedding entities: X/Y (Z%)"` to KV metadata. Progress value: `0.99 + (0.01 * pct/100)`.
+  - The UI now shows real-time embedding progress instead of freezing at 99%.
 
 - **Issue #132 — B2B header propagation via `with_extra_headers()`** ([#132](https://github.com/raphaelmansuy/edgequake/issues/132)):
   Multi-tenant deployments that need to propagate `x-request-id`, `x-tenant-id`,
@@ -16,6 +31,13 @@ All notable changes to this project will be documented in this file.
   credential overrides. Shipped in `edgequake-llm` v0.6.17.
 
 ### Fixed
+
+- **Mistral embedding batch size limit** — `edgequake-llm` v0.6.20 corrects
+  `MISTRAL_EMBED_MAX_BATCH_SIZE` from 512 to **256** (the true Mistral API hard limit).
+  Sending more than 256 inputs per embedding request triggered HTTP 400 code 3210
+  "Too many inputs in request", causing large-document ingestion to fail permanently
+  with no retry possible. The fix is transparent: `embed_batched()` automatically
+  splits into chunks of ≤256.
 
 - **Issue #194 — Configurable pipeline timeouts / concurrency** ([#194](https://github.com/raphaelmansuy/edgequake/issues/194)):
   Hardcoded 180-second per-chunk timeout and 600-second HTTP safety cap prevented
@@ -33,6 +55,11 @@ All notable changes to this project will be documented in this file.
   - Startup tracing log emits effective timeout/concurrency configuration
   - 14 E2E tests prove all env-var overrides work correctly, including boundary clamping
     and non-numeric fallback
+
+### Dependencies
+
+- **`edgequake-llm` bumped `0.6.18` → `0.6.20`** — picks up the Mistral batch size fix and B2B header propagation feature.
+- **`edgequake-pdf2md` bumped `0.9.0` → `0.9.2`** — tracks the `edgequake-llm` 0.6.20 update; v0.9.2 also fixes a SIGBUS crash at process exit on Linux (pdfium singleton pattern).
 
 ## [0.11.1] - 2026-04-28
 
