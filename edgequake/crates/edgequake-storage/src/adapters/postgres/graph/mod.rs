@@ -1474,16 +1474,11 @@ impl GraphStorage for PostgresAGEGraphStorage {
         sqlx::query("SET search_path = ag_catalog, \"$user\", public")
             .execute(&mut *conn)
             .await
-            .map_err(|e| {
-                StorageError::Database(format!("Failed to set search_path: {}", e))
-            })?;
+            .map_err(|e| StorageError::Database(format!("Failed to set search_path: {}", e)))?;
 
-        let rows = sqlx::query(&sql)
-            .fetch_all(&mut *conn)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("get_edges_for_node_set SQL failed: {}", e))
-            })?;
+        let rows = sqlx::query(&sql).fetch_all(&mut *conn).await.map_err(|e| {
+            StorageError::Database(format!("get_edges_for_node_set SQL failed: {}", e))
+        })?;
 
         let edges: Vec<GraphEdge> = rows
             .iter()

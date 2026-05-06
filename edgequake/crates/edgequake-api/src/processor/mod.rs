@@ -90,7 +90,10 @@ use crate::handlers::websocket_types::ProgressBroadcaster;
 use crate::pipeline_progress_callback::PipelineProgressCallback;
 use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
-use edgequake_pipeline::{ChunkProgressCallback, ChunkProgressUpdate, EmbedProgressCallback, EmbedProgressUpdate, LLMExtractor, Pipeline};
+use edgequake_pipeline::{
+    ChunkProgressCallback, ChunkProgressUpdate, EmbedProgressCallback, EmbedProgressUpdate,
+    LLMExtractor, Pipeline,
+};
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{
     PipelinePhase, PipelineState, Task, TaskError, TaskProcessor, TaskResult, TaskType,

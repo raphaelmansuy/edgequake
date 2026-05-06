@@ -477,11 +477,8 @@ pub fn create_safe_llm_provider_with_headers(
     let headers = extra_headers.unwrap_or_default();
     let header_count = headers.len();
 
-    let inner = ProviderFactory::create_llm_provider_with_headers(
-        provider_name,
-        effective_model,
-        headers,
-    )?;
+    let inner =
+        ProviderFactory::create_llm_provider_with_headers(provider_name, effective_model, headers)?;
 
     let config = SafetyLimitsConfig::from_env();
 
