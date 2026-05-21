@@ -81,7 +81,10 @@ async fn setup_app_with_workspace() -> (AppState, Router, Uuid, Uuid) {
         .unwrap();
 
     let row_count = seed_kv(&state, ws.workspace_id, tenant.tenant_id).await;
-    assert!(row_count >= 2000, "seed should create 2000+ rows, got {row_count}");
+    assert!(
+        row_count >= 2000,
+        "seed should create 2000+ rows, got {row_count}"
+    );
 
     let router = Server::new(
         ServerConfig {
