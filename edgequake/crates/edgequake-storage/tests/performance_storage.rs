@@ -129,10 +129,7 @@ async fn test_keys_with_prefix_subset() {
     storage.initialize().await.unwrap();
     populate_kv(&storage).await;
 
-    let keys = storage
-        .keys_with_prefix("doc-00001-chunk-")
-        .await
-        .unwrap();
+    let keys = storage.keys_with_prefix("doc-00001-chunk-").await.unwrap();
     assert_eq!(keys.len(), CHUNKS_PER_DOC);
     for key in keys {
         assert!(key.starts_with("doc-00001-chunk-"));
@@ -199,7 +196,10 @@ mod postgres_perf {
             count_time
         );
 
-        storage.delete(&["stats-row-0-metadata".to_string()]).await.unwrap();
+        storage
+            .delete(&["stats-row-0-metadata".to_string()])
+            .await
+            .unwrap();
         assert_eq!(storage.count().await.unwrap(), 4999);
 
         eprintln!(
@@ -220,10 +220,7 @@ mod postgres_perf {
 
         let mut batch = Vec::new();
         for i in 0..2000 {
-            batch.push((
-                format!("row-{i}-metadata"),
-                serde_json::json!({"i": i}),
-            ));
+            batch.push((format!("row-{i}-metadata"), serde_json::json!({"i": i})));
         }
         storage.upsert(&batch).await.unwrap();
 
