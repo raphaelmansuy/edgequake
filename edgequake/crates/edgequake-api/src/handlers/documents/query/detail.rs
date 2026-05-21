@@ -53,10 +53,7 @@ pub async fn get_document(
 
     // SPEC-011: prefix scan — no full keys() table scan
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_keys = state
-        .kv_storage
-        .keys_with_prefix(&chunk_prefix)
-        .await?;
+    let chunk_keys = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
     let chunk_count = chunk_keys.len();
     debug!(chunk_count = chunk_count, "Document chunk keys loaded");
 

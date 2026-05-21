@@ -144,7 +144,7 @@ pub struct QueryRequest {
     /// Optional images to include with the query (multimodal vision queries).
     /// Each entry is a base64-encoded image with its MIME type.
     /// When set, the SOTA engine forwards images to the vision-capable LLM.
-    /// @implements FEAT0203: Image attachment in chat
+    /// @implements FEAT0240: Image attachment in chat
     #[serde(default)]
     pub images: Option<Vec<edgequake_llm::traits::ImageData>>,
 }
@@ -294,7 +294,6 @@ impl QueryRequest {
     }
 
     /// Attach images for a multimodal (vision) query.
-    /// @implements FEAT0203: Image attachment in chat
     pub fn with_images(mut self, images: Vec<edgequake_llm::traits::ImageData>) -> Self {
         self.images = Some(images);
         self

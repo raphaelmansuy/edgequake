@@ -430,10 +430,7 @@ async fn test_get_nodes_with_degrees_batch_basic() {
 
     // Query subset of nodes — A (out=4,in=0), B (out=2,in=1), E (out=0,in=1)
     let ids = vec!["A".to_string(), "B".to_string(), "E".to_string()];
-    let results = storage
-        .get_nodes_with_degrees_batch(&ids)
-        .await
-        .unwrap();
+    let results = storage.get_nodes_with_degrees_batch(&ids).await.unwrap();
 
     assert_eq!(results.len(), 3, "Should return exactly the queried nodes");
 
@@ -452,7 +449,10 @@ async fn test_get_nodes_with_degrees_batch_basic() {
     assert!(a_in + a_out > 0, "Node A should have connections");
 
     let (e_in, e_out) = map["E"];
-    assert!(e_in + e_out > 0, "Node E should have at least one connection");
+    assert!(
+        e_in + e_out > 0,
+        "Node E should have at least one connection"
+    );
 }
 
 /// Verify that an empty input returns an empty result without panicking.
@@ -461,10 +461,7 @@ async fn test_get_nodes_with_degrees_batch_empty_input() {
     let storage = MemoryGraphStorage::new("test");
     storage.initialize().await.unwrap();
 
-    let results = storage
-        .get_nodes_with_degrees_batch(&[])
-        .await
-        .unwrap();
+    let results = storage.get_nodes_with_degrees_batch(&[]).await.unwrap();
 
     assert!(results.is_empty(), "Empty input must produce empty output");
 }
@@ -480,10 +477,7 @@ async fn test_get_nodes_with_degrees_batch_nonexistent_nodes() {
         "DOES_NOT_EXIST_1".to_string(),
         "DOES_NOT_EXIST_2".to_string(),
     ];
-    let results = storage
-        .get_nodes_with_degrees_batch(&ids)
-        .await
-        .unwrap();
+    let results = storage.get_nodes_with_degrees_batch(&ids).await.unwrap();
 
     assert!(
         results.is_empty(),
@@ -498,15 +492,8 @@ async fn test_get_nodes_with_degrees_batch_mixed_ids() {
     storage.initialize().await.unwrap();
     setup_test_graph(&storage).await;
 
-    let ids = vec![
-        "A".to_string(),
-        "NONEXISTENT".to_string(),
-        "C".to_string(),
-    ];
-    let results = storage
-        .get_nodes_with_degrees_batch(&ids)
-        .await
-        .unwrap();
+    let ids = vec!["A".to_string(), "NONEXISTENT".to_string(), "C".to_string()];
+    let results = storage.get_nodes_with_degrees_batch(&ids).await.unwrap();
 
     let found_ids: Vec<_> = results.iter().map(|(n, _, _)| n.id.as_str()).collect();
     assert!(
@@ -542,10 +529,7 @@ async fn test_get_nodes_with_degrees_batch_consistent_with_degrees_batch() {
         .into_iter()
         .collect::<std::collections::HashMap<_, _>>();
 
-    let with_nodes = storage
-        .get_nodes_with_degrees_batch(&ids)
-        .await
-        .unwrap();
+    let with_nodes = storage.get_nodes_with_degrees_batch(&ids).await.unwrap();
 
     // Every node returned by node_degrees_batch with degree > 0 should also appear
     // in get_nodes_with_degrees_batch with a non-zero in_deg or out_deg.
@@ -574,17 +558,10 @@ async fn test_get_nodes_with_degrees_batch_isolated_node() {
     storage.upsert_node("ISOLATED", props).await.unwrap();
 
     let ids = vec!["ISOLATED".to_string()];
-    let results = storage
-        .get_nodes_with_degrees_batch(&ids)
-        .await
-        .unwrap();
+    let results = storage.get_nodes_with_degrees_batch(&ids).await.unwrap();
 
     assert_eq!(results.len(), 1);
     let (node, in_deg, out_deg) = &results[0];
     assert_eq!(node.id, "ISOLATED");
-    assert_eq!(
-        *in_deg + *out_deg,
-        0,
-        "Isolated node must have degree 0"
-    );
+    assert_eq!(*in_deg + *out_deg, 0, "Isolated node must have degree 0");
 }

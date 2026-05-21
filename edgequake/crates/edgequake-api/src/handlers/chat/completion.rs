@@ -268,21 +268,25 @@ pub async fn chat_completion(
     // WHY: Some models (e.g. mistral-small-latest) silently drop image content.
     // The vision provider (e.g. pixtral-large-latest) is used instead when available.
     // A request-level provider override takes precedence over the server-default vision provider.
-    let (llm_override, used_provider, used_model) =
-        if llm_override.is_none() && engine_request.images.as_ref().is_some_and(|imgs| !imgs.is_empty()) {
-            if let Some(ref vision_provider) = state.vision_llm_provider {
-                debug!("Using vision LLM provider for image query (FEAT0203)");
-                (
-                    Some(Arc::clone(vision_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>),
-                    Some("vision".to_string()),
-                    Some("vision-model".to_string()),
-                )
-            } else {
-                (llm_override, used_provider, used_model)
-            }
+    let (llm_override, used_provider, used_model) = if llm_override.is_none()
+        && engine_request
+            .images
+            .as_ref()
+            .is_some_and(|imgs| !imgs.is_empty())
+    {
+        if let Some(ref vision_provider) = state.vision_llm_provider {
+            debug!("Using vision LLM provider for image query (FEAT0203)");
+            (
+                Some(Arc::clone(vision_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>),
+                Some("vision".to_string()),
+                Some("vision-model".to_string()),
+            )
         } else {
             (llm_override, used_provider, used_model)
-        };
+        }
+    } else {
+        (llm_override, used_provider, used_model)
+    };
 
     // OADA-228: Get workspace-specific embedding provider and vector storage
     // This ensures query embeddings match the dimension of stored vectors

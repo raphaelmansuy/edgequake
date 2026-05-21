@@ -297,8 +297,7 @@ mod tests {
         // WHY: Unlike from_tenant_workspace which returns None when both IDs are None,
         // from_tenant_workspace_type ALWAYS returns Some because the type filter alone
         // is meaningful (e.g. filter to "chunk" globally across all tenants).
-        let mf =
-            MetadataFilter::from_tenant_workspace_type(None, None, "chunk").unwrap();
+        let mf = MetadataFilter::from_tenant_workspace_type(None, None, "chunk").unwrap();
         assert_eq!(mf.vector_type.as_deref(), Some("chunk"));
         assert!(mf.tenant_id.is_none());
         assert!(mf.workspace_id.is_none());

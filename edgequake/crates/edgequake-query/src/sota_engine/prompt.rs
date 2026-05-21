@@ -257,11 +257,15 @@ Generate a comprehensive, well-structured answer that integrates observations fr
                 Ok(r) => r,
                 Err(e) => {
                     tracing::warn!(error = %e, "Vision chat failed; retrying as text-only query");
-                    provider.complete(&self.build_prompt(query, context, system_prompt_extension)).await?
+                    provider
+                        .complete(&self.build_prompt(query, context, system_prompt_extension))
+                        .await?
                 }
             }
         } else {
-            provider.complete(&self.build_prompt(query, context, system_prompt_extension)).await?
+            provider
+                .complete(&self.build_prompt(query, context, system_prompt_extension))
+                .await?
         };
 
         Ok((response.content, response.completion_tokens))
