@@ -154,9 +154,12 @@ impl PostgresKVStorage {
             fn_insert = fn_insert,
             stats = self.stats_table_name
         );
-        sqlx::query(&create_insert_fn).execute(pool).await.map_err(|e| {
-            StorageError::Database(format!("Failed to create KV stats insert fn: {}", e))
-        })?;
+        sqlx::query(&create_insert_fn)
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to create KV stats insert fn: {}", e))
+            })?;
 
         let create_delete_fn = format!(
             r#"
@@ -172,9 +175,12 @@ impl PostgresKVStorage {
             fn_delete = fn_delete,
             stats = self.stats_table_name
         );
-        sqlx::query(&create_delete_fn).execute(pool).await.map_err(|e| {
-            StorageError::Database(format!("Failed to create KV stats delete fn: {}", e))
-        })?;
+        sqlx::query(&create_delete_fn)
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to create KV stats delete fn: {}", e))
+            })?;
 
         let trigger_insert = format!("eq_{}_kv_stats_insert_trg", self.prefix);
         let trigger_delete = format!("eq_{}_kv_stats_delete_trg", self.prefix);
@@ -196,9 +202,12 @@ impl PostgresKVStorage {
             table = self.table_name,
             fn_insert = fn_insert
         );
-        sqlx::query(&create_insert_trg).execute(pool).await.map_err(|e| {
-            StorageError::Database(format!("Failed to create KV stats insert trigger: {}", e))
-        })?;
+        sqlx::query(&create_insert_trg)
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to create KV stats insert trigger: {}", e))
+            })?;
 
         let drop_delete = format!(
             "DROP TRIGGER IF EXISTS {trigger_delete} ON {table}",
@@ -217,9 +226,12 @@ impl PostgresKVStorage {
             table = self.table_name,
             fn_delete = fn_delete
         );
-        sqlx::query(&create_delete_trg).execute(pool).await.map_err(|e| {
-            StorageError::Database(format!("Failed to create KV stats delete trigger: {}", e))
-        })?;
+        sqlx::query(&create_delete_trg)
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to create KV stats delete trigger: {}", e))
+            })?;
 
         Ok(())
     }
@@ -314,8 +326,7 @@ impl KVStorage for PostgresKVStorage {
 
         for chunk in data.chunks(BATCH_SIZE) {
             let keys: Vec<String> = chunk.iter().map(|(k, _)| k.clone()).collect();
-            let values: Vec<serde_json::Value> =
-                chunk.iter().map(|(_, v)| v.clone()).collect();
+            let values: Vec<serde_json::Value> = chunk.iter().map(|(_, v)| v.clone()).collect();
 
             let sql = format!(
                 r#"

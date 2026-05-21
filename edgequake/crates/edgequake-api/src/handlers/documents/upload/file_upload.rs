@@ -110,29 +110,25 @@ pub async fn upload_file(
         // WHY: If the configured LLM doesn't support vision (e.g. Mistral text-only),
         // we still ingest the image as a document with a descriptive placeholder rather
         // than returning a hard error to the user.
-        let extracted = match extract_text_from_image(
-            &content,
-            mime,
-            &filename,
-            state.llm_provider.as_ref(),
-        )
-        .await
-        {
-            Ok(text) => text,
-            Err(e) => {
-                tracing::warn!(
-                    filename = %filename,
-                    error = %e,
-                    "Vision extraction failed; storing image with placeholder text"
-                );
-                format!(
-                    "# Image Document: {filename}\n\n\
+        let extracted =
+            match extract_text_from_image(&content, mime, &filename, state.llm_provider.as_ref())
+                .await
+            {
+                Ok(text) => text,
+                Err(e) => {
+                    tracing::warn!(
+                        filename = %filename,
+                        error = %e,
+                        "Vision extraction failed; storing image with placeholder text"
+                    );
+                    format!(
+                        "# Image Document: {filename}\n\n\
                      *Automatic text extraction failed: {e}*\n\n\
                      Configure a vision-capable LLM (e.g., gpt-4o, gemma3:12b, llava) \
                      to enable OCR/text extraction from image uploads."
-                )
-            }
-        };
+                    )
+                }
+            };
         (extracted, mime)
     } else {
         // ── Text path: validate size, extension, and UTF-8 ───────────────────

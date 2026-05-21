@@ -585,12 +585,7 @@ impl SOTAQueryEngine {
 
         let results = self
             .vector_storage
-            .query_filtered(
-                &embeddings.query,
-                self.config.max_chunks,
-                None,
-                mf.as_ref(),
-            )
+            .query_filtered(&embeddings.query, self.config.max_chunks, None, mf.as_ref())
             .await?;
 
         for result in results

@@ -330,14 +330,8 @@ mod tests {
         // Rust is_alphanumeric() returns true for Unicode accented chars,
         // so they are preserved (not stripped). The key insight is that
         // case variants still normalize to the same key.
-        assert_eq!(
-            normalize_entity_name("Rémi"),
-            normalize_entity_name("rémi")
-        );
-        assert_eq!(
-            normalize_entity_name("Rémi"),
-            normalize_entity_name("RÉMI")
-        );
+        assert_eq!(normalize_entity_name("Rémi"), normalize_entity_name("rémi"));
+        assert_eq!(normalize_entity_name("Rémi"), normalize_entity_name("RÉMI"));
         assert_eq!(normalize_entity_name("Rémi"), "RÉMI");
     }
 

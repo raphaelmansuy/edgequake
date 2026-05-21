@@ -15,7 +15,9 @@ use crate::error::Result;
 use crate::extractor::ExtractionResult;
 use crate::lineage::{DocumentLineage, ExtractionMetadata, LineageBuilder, SourceSpan};
 
-use super::{CostBreakdownStats, EmbedProgressCallback, EmbedProgressUpdate, Pipeline, ProcessingStats};
+use super::{
+    CostBreakdownStats, EmbedProgressCallback, EmbedProgressUpdate, Pipeline, ProcessingStats,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //                       EXTRACTION POST-PROCESSING
@@ -293,7 +295,11 @@ async fn embed_with_token_budget(
         // Always include at least one text even if it alone exceeds the budget (single-text
         // requests are the smallest possible unit; the provider must handle them).
         if (token_overflow || count_overflow) && i > batch_start {
-            let flush_reason = if count_overflow { "count limit" } else { "token budget" };
+            let flush_reason = if count_overflow {
+                "count limit"
+            } else {
+                "token budget"
+            };
             tracing::debug!(
                 sub_batch_texts = current_count,
                 estimated_tokens = batch_tokens,
@@ -400,7 +406,11 @@ impl Pipeline {
         total: usize,
     ) {
         if let Some(cb) = progress {
-            cb(EmbedProgressUpdate { stage, current, total });
+            cb(EmbedProgressUpdate {
+                stage,
+                current,
+                total,
+            });
         }
     }
 
@@ -470,13 +480,19 @@ impl Pipeline {
             // WHY safe_embed: guards length, embeds in compliant sub-batches, and
             // warns if the provider silently drops results (zip() would otherwise
             // create orphaned graph nodes with no embedding vector).
-            let all_embeddings = safe_embed(provider, &all_entity_texts, max_chars, "Entity").await?;
+            let all_embeddings =
+                safe_embed(provider, &all_entity_texts, max_chars, "Entity").await?;
             for (embedding, (ext_idx, ent_idx)) in all_embeddings.into_iter().zip(entity_indices) {
                 extractions[ext_idx].entities[ent_idx].embedding = Some(embedding);
             }
 
             // Notify: entity embeddings complete
-            Self::emit_embed_progress(progress, "entities", all_entity_texts.len(), all_entity_texts.len());
+            Self::emit_embed_progress(
+                progress,
+                "entities",
+                all_entity_texts.len(),
+                all_entity_texts.len(),
+            );
         }
 
         // ── Relationship embeddings (batched) ──
@@ -511,7 +527,12 @@ impl Pipeline {
             }
 
             // Notify: relationship embeddings complete
-            Self::emit_embed_progress(progress, "relationships", all_relationship_texts.len(), all_relationship_texts.len());
+            Self::emit_embed_progress(
+                progress,
+                "relationships",
+                all_relationship_texts.len(),
+                all_relationship_texts.len(),
+            );
         }
 
         // ── Embedding cost calculation ──
@@ -942,7 +963,12 @@ mod tests {
             sizes.len()
         );
         for (idx, &size) in sizes.iter().enumerate() {
-            assert!(size <= 5, "Call {} sent {} items, exceeds max_batch 5", idx, size);
+            assert!(
+                size <= 5,
+                "Call {} sent {} items, exceeds max_batch 5",
+                idx,
+                size
+            );
         }
         let total: usize = sizes.iter().sum();
         assert_eq!(total, 20);
@@ -966,7 +992,11 @@ mod tests {
         // First text: 400 > 85 but i == batch_start (can't flush empty batch) → sent alone
         // Second text: 400 > 85 → flush first → each text in its own call
         let sizes = call_sizes.lock().unwrap();
-        assert_eq!(sizes.len(), 5, "Each text should be its own call due to tiny budget");
+        assert_eq!(
+            sizes.len(),
+            5,
+            "Each text should be its own call due to tiny budget"
+        );
         let total: usize = sizes.iter().sum();
         assert_eq!(total, 5);
     }

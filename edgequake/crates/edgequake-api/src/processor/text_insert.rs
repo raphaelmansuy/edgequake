@@ -388,10 +388,7 @@ impl DocumentTaskProcessor {
                                         label, current, total, pct
                                     )
                                 };
-                                updated.insert(
-                                    "current_stage".to_string(),
-                                    json!("embedding"),
-                                );
+                                updated.insert("current_stage".to_string(), json!("embedding"));
                                 updated.insert("stage_message".to_string(), json!(msg));
                                 updated.insert(
                                     "stage_progress".to_string(),

@@ -201,11 +201,7 @@ pub async fn list_users(
 
     // WHY Issue #205: Use prefix scan to list all user keys.
     // USER_KEY_PREFIX = "auth:user:" so filter to keys starting with that prefix.
-    let all_keys = state
-        .kv_storage
-        .keys()
-        .await
-        .map_err(storage_err)?;
+    let all_keys = state.kv_storage.keys().await.map_err(storage_err)?;
 
     let user_keys: Vec<String> = all_keys
         .into_iter()
@@ -233,7 +229,11 @@ pub async fn list_users(
     let total = users.len();
     let total_pages = total.div_ceil(page_size as usize) as u32;
     let start = ((page - 1) * page_size) as usize;
-    let page_users: Vec<UserInfo> = users.into_iter().skip(start).take(page_size as usize).collect();
+    let page_users: Vec<UserInfo> = users
+        .into_iter()
+        .skip(start)
+        .take(page_size as usize)
+        .collect();
 
     Ok(Json(ListUsersResponse {
         users: page_users,
@@ -367,11 +367,7 @@ pub async fn update_user(
         // WHY: Guard against demoting the last admin — system would be unmanageable.
         if current_role == Role::Admin && parsed != Role::Admin {
             // Count remaining admins (excluding this user)
-            let all_keys = state
-                .kv_storage
-                .keys()
-                .await
-                .map_err(storage_err)?;
+            let all_keys = state.kv_storage.keys().await.map_err(storage_err)?;
             let mut admin_count = 0u32;
             for key in all_keys.iter().filter(|k| k.starts_with(USER_KEY_PREFIX)) {
                 let uid = key.trim_start_matches(USER_KEY_PREFIX);

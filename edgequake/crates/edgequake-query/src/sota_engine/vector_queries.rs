@@ -27,19 +27,10 @@ impl SOTAQueryEngine {
         // vectors. Without this, large graphs (60k+ entities) cause the top-k results
         // to be dominated by entity vectors, leaving 0 chunks after in-memory filtering.
         // SPEC-007: tenant/workspace/type filter pushed to storage layer via query_filtered.
-        let mf = MetadataFilter::from_tenant_workspace_type(
-            tenant_id,
-            workspace_id,
-            "chunk",
-        );
+        let mf = MetadataFilter::from_tenant_workspace_type(tenant_id, workspace_id, "chunk");
 
         let results = vector_storage
-            .query_filtered(
-                &embeddings.query,
-                self.config.max_chunks,
-                None,
-                mf.as_ref(),
-            )
+            .query_filtered(&embeddings.query, self.config.max_chunks, None, mf.as_ref())
             .await?;
 
         for result in results

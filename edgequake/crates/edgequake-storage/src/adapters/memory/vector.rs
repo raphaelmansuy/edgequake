@@ -1329,12 +1329,8 @@ mod tests {
         assert_eq!(all.len(), 4);
 
         // With vector_type = "chunk" — only chunks returned
-        let mf = MetadataFilter::from_tenant_workspace_type(
-            Some("t1".into()),
-            None,
-            "chunk",
-        )
-        .unwrap();
+        let mf =
+            MetadataFilter::from_tenant_workspace_type(Some("t1".into()), None, "chunk").unwrap();
         let chunks = storage
             .query_filtered(&[1.0, 0.0, 0.0], 10, None, Some(&mf))
             .await
@@ -1343,12 +1339,8 @@ mod tests {
         assert!(chunks.iter().all(|r| r.id.starts_with('c')));
 
         // With vector_type = "entity" — only entities returned
-        let mf_ent = MetadataFilter::from_tenant_workspace_type(
-            Some("t1".into()),
-            None,
-            "entity",
-        )
-        .unwrap();
+        let mf_ent =
+            MetadataFilter::from_tenant_workspace_type(Some("t1".into()), None, "entity").unwrap();
         let entities = storage
             .query_filtered(&[1.0, 0.0, 0.0], 10, None, Some(&mf_ent))
             .await
