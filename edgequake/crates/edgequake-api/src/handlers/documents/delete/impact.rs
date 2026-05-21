@@ -30,21 +30,13 @@ pub async fn analyze_deletion_impact(
     State(state): State<AppState>,
     axum::extract::Path(document_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<DeletionImpactResponse>> {
-    let keys = state.kv_storage.keys().await?;
-
-    // Find chunks belonging to this document
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_ids: Vec<String> = keys
-        .iter()
-        .filter(|k| k.starts_with(&chunk_prefix))
-        .cloned()
-        .collect();
+    let chunk_ids = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
 
-    // Also check for metadata and content keys
     let metadata_key = format!("{}-metadata", document_id);
     let content_key = format!("{}-content", document_id);
-    let has_metadata = keys.contains(&metadata_key);
-    let has_content = keys.contains(&content_key);
+    let has_metadata = state.kv_storage.get_by_id(&metadata_key).await?.is_some();
+    let has_content = state.kv_storage.get_by_id(&content_key).await?.is_some();
 
     // Document must have either chunks, metadata, or content
     if chunk_ids.is_empty() && !has_metadata && !has_content {

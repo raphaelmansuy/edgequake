@@ -141,14 +141,7 @@ pub async fn get_cost_summary(
         }));
     }
     // Query all document metadata to aggregate costs
-    let keys = state.kv_storage.keys().await?;
-
-    // Find all metadata keys
-    let metadata_keys: Vec<String> = keys
-        .iter()
-        .filter(|k| k.ends_with("-metadata"))
-        .cloned()
-        .collect();
+    let metadata_keys = state.kv_storage.keys_like("%-metadata").await?;
 
     let mut total_cost = 0.0;
     let mut total_input_tokens = 0usize;
@@ -378,12 +371,7 @@ pub async fn get_cost_history(
     let granularity = params.granularity.as_deref().unwrap_or("day");
 
     // Query all document metadata
-    let keys = state.kv_storage.keys().await?;
-    let metadata_keys: Vec<String> = keys
-        .iter()
-        .filter(|k| k.ends_with("-metadata"))
-        .cloned()
-        .collect();
+    let metadata_keys = state.kv_storage.keys_like("%-metadata").await?;
 
     // Group costs by time period
     let mut period_data: BTreeMap<String, (f64, usize, usize)> = BTreeMap::new();

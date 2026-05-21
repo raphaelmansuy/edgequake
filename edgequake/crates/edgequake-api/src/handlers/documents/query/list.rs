@@ -59,31 +59,36 @@ pub async fn list_documents(
         }));
     }
 
-    let keys = state.kv_storage.keys().await?;
-    debug!(key_count = keys.len(), "Total keys in KV storage");
-    debug!(keys = ?keys, "All keys in KV storage");
+    // SPEC-011: SQL LIKE filters avoid O(N) full key scan + in-memory filter.
+    let metadata_keys = state.kv_storage.keys_like("%-metadata").await?;
+    let chunk_keys = state.kv_storage.keys_like("%-chunk-%").await?;
+    debug!(
+        metadata_key_count = metadata_keys.len(),
+        chunk_key_count = chunk_keys.len(),
+        "KV keys loaded via LIKE filters"
+    );
 
     // Group by document and collect metadata keys
     let mut doc_chunks: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    let mut metadata_keys: Vec<String> = Vec::new();
 
-    for key in &keys {
+    for key in &chunk_keys {
         // Skip injection entries — they are managed by the /knowledge route (SPEC-0002)
         if key.starts_with("injection::") {
             continue;
         }
-        if key.ends_with("-metadata") {
-            debug!(metadata_key = %key, "Found metadata key");
-            metadata_keys.push(key.clone());
-        } else if key.contains("-chunk-") {
-            // Only count actual chunk keys (e.g., "doc-id-chunk-0")
-            if let Some(doc_id) = key.split("-chunk-").next() {
-                // Filter out non-document keys (like -metadata, -content suffixes)
-                if !doc_id.ends_with("-metadata") && !doc_id.ends_with("-content") {
-                    *doc_chunks.entry(doc_id.to_string()).or_default() += 1;
-                }
+        if let Some(doc_id) = key.split("-chunk-").next() {
+            // Filter out non-document keys (like -metadata, -content suffixes)
+            if !doc_id.ends_with("-metadata") && !doc_id.ends_with("-content") {
+                *doc_chunks.entry(doc_id.to_string()).or_default() += 1;
             }
         }
+    }
+
+    for key in &metadata_keys {
+        if key.starts_with("injection::") {
+            continue;
+        }
+        debug!(metadata_key = %key, "Found metadata key");
     }
 
     // Fetch all metadata and store complete document info

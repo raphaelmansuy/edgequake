@@ -161,19 +161,17 @@ async fn try_kv_storage_stats(
     state: &AppState,
     workspace_id: Uuid,
 ) -> Result<WorkspaceStatsResponse, ApiError> {
-    // Get all keys from KV storage
-    let all_keys = state
+    // SPEC-011: fetch only metadata + chunk keys instead of full table scan.
+    let metadata_keys = state
         .kv_storage
-        .keys()
+        .keys_like("%-metadata")
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get KV storage keys: {}", e)))?;
-
-    // Filter metadata keys
-    let metadata_keys: Vec<String> = all_keys
-        .iter()
-        .filter(|k| k.ends_with("-metadata"))
-        .cloned()
-        .collect();
+        .map_err(|e| ApiError::Internal(format!("Failed to get KV metadata keys: {}", e)))?;
+    let chunk_keys = state
+        .kv_storage
+        .keys_like("%-chunk-%")
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get KV chunk keys: {}", e)))?;
 
     // Get all metadata values
     let metadata_values = state
@@ -232,8 +230,8 @@ async fn try_kv_storage_stats(
     let mut embedding_count = 0;
 
     for doc_id in &workspace_doc_ids {
-        // Count chunk keys for this document
-        let doc_chunk_keys: Vec<String> = all_keys
+        // Count chunk keys for this document (from pre-filtered chunk key list)
+        let doc_chunk_keys: Vec<String> = chunk_keys
             .iter()
             .filter(|k| k.starts_with(&format!("{}-chunk-", doc_id)))
             .cloned()

@@ -213,13 +213,22 @@ impl AppState {
             std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_else(|_| "auto-detected".to_string())
         );
 
-        // Create PostgreSQL-backed storages
-        let kv_storage = Arc::new(PostgresKVStorage::new(pg_config.clone()));
-        let vector_storage = Arc::new(PgVectorStorage::with_dimension(
+        // Create PostgreSQL-backed storages (SPEC-011: single shared pool)
+        use edgequake_storage::adapters::postgres::PostgresPool;
+        let storage_pool = PostgresPool::from_existing(pool.clone(), pg_config.clone());
+        let kv_storage = Arc::new(PostgresKVStorage::with_pool(
+            storage_pool.clone(),
+            pg_config.clone(),
+        ));
+        let vector_storage = Arc::new(PgVectorStorage::with_pool_and_dimension(
+            storage_pool.clone(),
             pg_config.clone(),
             embedding_dim,
         ));
-        let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pg_config.clone()));
+        let graph_storage = Arc::new(PostgresAGEGraphStorage::with_pool(
+            storage_pool,
+            pg_config.clone(),
+        ));
 
         // OODA-228: Ensure default vector storage has correct dimension BEFORE initialize
         // WHY: If embedding provider changed (e.g., OpenAI 1536 → Ollama 768),

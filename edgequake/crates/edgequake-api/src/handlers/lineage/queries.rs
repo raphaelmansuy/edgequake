@@ -124,20 +124,12 @@ pub async fn get_document_lineage(
     // SECURITY: Verify the document belongs to the requesting tenant/workspace first.
     verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
-    // WHY: We scan KV keys by prefix rather than querying a separate index.
-    // This is correct for in-memory and moderate-scale PostgreSQL KV stores.
-    // For very large datasets (>100K documents), consider adding a dedicated
-    // chunk-count index to avoid full key scan.
-    let keys = state.kv_storage.keys().await?;
+    // SPEC-011: prefix scan for document chunks; point lookup for metadata
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_ids: Vec<String> = keys
-        .iter()
-        .filter(|k| k.starts_with(&chunk_prefix))
-        .cloned()
-        .collect();
+    let chunk_ids = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
 
     let metadata_key = format!("{}-metadata", document_id);
-    if chunk_ids.is_empty() && !keys.contains(&metadata_key) {
+    if chunk_ids.is_empty() && state.kv_storage.get_by_id(&metadata_key).await?.is_none() {
         return Err(ApiError::NotFound(format!(
             "Document '{}' not found",
             document_id

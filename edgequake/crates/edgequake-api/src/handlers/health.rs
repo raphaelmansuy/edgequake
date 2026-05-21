@@ -72,9 +72,10 @@ pub use crate::handlers::health_types::{
 )]
 pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<HealthResponse>> {
     let components = ComponentHealth {
-        kv_storage: state.kv_storage.count().await.is_ok(),
-        vector_storage: state.vector_storage.count().await.is_ok(),
-        graph_storage: state.graph_storage.node_count().await.is_ok(),
+        // SPEC-011: ping() is O(1); count() was O(N) full-table scan per health probe.
+        kv_storage: state.kv_storage.ping().await.is_ok(),
+        vector_storage: state.vector_storage.ping().await.is_ok(),
+        graph_storage: state.graph_storage.ping().await.is_ok(),
         llm_provider: true, // Assume available, actual check would require API call
     };
 

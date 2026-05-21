@@ -41,6 +41,7 @@ use crate::traits::KVStorage;
 pub struct PostgresKVStorage {
     pool: PostgresPool,
     table_name: String,
+    stats_table_name: String,
     namespace: String,
     prefix: String,
 }
@@ -48,13 +49,20 @@ pub struct PostgresKVStorage {
 impl PostgresKVStorage {
     /// Create a new PostgreSQL key-value storage.
     pub fn new(config: PostgresConfig) -> Self {
+        Self::with_pool(PostgresPool::new(config.clone()), config)
+    }
+
+    /// Create KV storage using a shared connection pool (SPEC-011).
+    pub fn with_pool(pool: PostgresPool, config: PostgresConfig) -> Self {
         let prefix = config.table_prefix();
         let table_name = format!("public.eq_{}_kv", prefix);
+        let stats_table_name = format!("public.eq_{}_kv_stats", prefix);
         let namespace = config.namespace.clone();
 
         Self {
-            pool: PostgresPool::new(config),
+            pool,
             table_name,
+            stats_table_name,
             namespace,
             prefix,
         }
@@ -94,6 +102,134 @@ impl PostgresKVStorage {
 
         sqlx::query(&gin_sql).execute(&pool).await.ok();
 
+        self.ensure_row_count_stats(&pool).await?;
+
+        Ok(())
+    }
+
+    /// O(1) row counter for `count()` — avoids `SELECT COUNT(*) FROM kv` full-table scans.
+    ///
+    /// SPEC-011: Production incident — 13s `COUNT(*)` on `eq_eq_default_kv` during health
+    /// probes. Maintained counter + triggers keep exact counts at O(1) when `count()` is
+    /// called from tests or admin tools.
+    async fn ensure_row_count_stats(&self, pool: &sqlx::PgPool) -> Result<()> {
+        let stats_sql = format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS {} (
+                id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+                row_count BIGINT NOT NULL DEFAULT 0
+            )
+            "#,
+            self.stats_table_name
+        );
+        sqlx::query(&stats_sql).execute(pool).await.map_err(|e| {
+            StorageError::Database(format!("Failed to create KV stats table: {}", e))
+        })?;
+
+        // One-time backfill for existing tables (runs COUNT(*) once at migration).
+        let backfill_sql = format!(
+            r#"
+            INSERT INTO {} (id, row_count)
+            SELECT 1, COUNT(*)::bigint FROM {}
+            ON CONFLICT (id) DO NOTHING
+            "#,
+            self.stats_table_name, self.table_name
+        );
+        sqlx::query(&backfill_sql).execute(pool).await.ok();
+
+        let fn_insert = format!("eq_{}_kv_stats_insert", self.prefix);
+        let fn_delete = format!("eq_{}_kv_stats_delete", self.prefix);
+
+        let create_insert_fn = format!(
+            r#"
+            CREATE OR REPLACE FUNCTION {fn_insert}() RETURNS trigger AS $$
+            BEGIN
+                UPDATE {stats}
+                SET row_count = row_count + 1
+                WHERE id = 1;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            "#,
+            fn_insert = fn_insert,
+            stats = self.stats_table_name
+        );
+        sqlx::query(&create_insert_fn).execute(pool).await.map_err(|e| {
+            StorageError::Database(format!("Failed to create KV stats insert fn: {}", e))
+        })?;
+
+        let create_delete_fn = format!(
+            r#"
+            CREATE OR REPLACE FUNCTION {fn_delete}() RETURNS trigger AS $$
+            BEGIN
+                UPDATE {stats}
+                SET row_count = GREATEST(row_count - 1, 0)
+                WHERE id = 1;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql
+            "#,
+            fn_delete = fn_delete,
+            stats = self.stats_table_name
+        );
+        sqlx::query(&create_delete_fn).execute(pool).await.map_err(|e| {
+            StorageError::Database(format!("Failed to create KV stats delete fn: {}", e))
+        })?;
+
+        let trigger_insert = format!("eq_{}_kv_stats_insert_trg", self.prefix);
+        let trigger_delete = format!("eq_{}_kv_stats_delete_trg", self.prefix);
+
+        let drop_insert = format!(
+            "DROP TRIGGER IF EXISTS {trigger_insert} ON {table}",
+            trigger_insert = trigger_insert,
+            table = self.table_name
+        );
+        sqlx::query(&drop_insert).execute(pool).await.ok();
+
+        let create_insert_trg = format!(
+            r#"
+            CREATE TRIGGER {trigger_insert}
+            AFTER INSERT ON {table}
+            FOR EACH ROW EXECUTE FUNCTION {fn_insert}()
+            "#,
+            trigger_insert = trigger_insert,
+            table = self.table_name,
+            fn_insert = fn_insert
+        );
+        sqlx::query(&create_insert_trg).execute(pool).await.map_err(|e| {
+            StorageError::Database(format!("Failed to create KV stats insert trigger: {}", e))
+        })?;
+
+        let drop_delete = format!(
+            "DROP TRIGGER IF EXISTS {trigger_delete} ON {table}",
+            trigger_delete = trigger_delete,
+            table = self.table_name
+        );
+        sqlx::query(&drop_delete).execute(pool).await.ok();
+
+        let create_delete_trg = format!(
+            r#"
+            CREATE TRIGGER {trigger_delete}
+            AFTER DELETE ON {table}
+            FOR EACH ROW EXECUTE FUNCTION {fn_delete}()
+            "#,
+            trigger_delete = trigger_delete,
+            table = self.table_name,
+            fn_delete = fn_delete
+        );
+        sqlx::query(&create_delete_trg).execute(pool).await.map_err(|e| {
+            StorageError::Database(format!("Failed to create KV stats delete trigger: {}", e))
+        })?;
+
+        Ok(())
+    }
+
+    async fn reset_row_count_stats(&self, pool: &sqlx::PgPool) -> Result<()> {
+        let sql = format!(
+            "UPDATE {} SET row_count = 0 WHERE id = 1",
+            self.stats_table_name
+        );
+        sqlx::query(&sql).execute(pool).await.ok();
         Ok(())
     }
 }
@@ -174,12 +310,18 @@ impl KVStorage for PostgresKVStorage {
         }
 
         let pool = self.pool.get().await?;
+        const BATCH_SIZE: usize = 1000;
 
-        for (key, value) in data {
+        for chunk in data.chunks(BATCH_SIZE) {
+            let keys: Vec<String> = chunk.iter().map(|(k, _)| k.clone()).collect();
+            let values: Vec<serde_json::Value> =
+                chunk.iter().map(|(_, v)| v.clone()).collect();
+
             let sql = format!(
                 r#"
                 INSERT INTO {} (key, value, updated_at)
-                VALUES ($1, $2, NOW())
+                SELECT k, v, NOW()
+                FROM unnest($1::text[], $2::jsonb[]) AS batch(k, v)
                 ON CONFLICT (key) DO UPDATE SET
                     value = EXCLUDED.value,
                     updated_at = NOW()
@@ -188,8 +330,8 @@ impl KVStorage for PostgresKVStorage {
             );
 
             sqlx::query(&sql)
-                .bind(key)
-                .bind(value)
+                .bind(&keys)
+                .bind(&values)
                 .execute(&pool)
                 .await
                 .map_err(|e| StorageError::Database(format!("KV upsert failed: {}", e)))?;
@@ -217,21 +359,88 @@ impl KVStorage for PostgresKVStorage {
     }
 
     async fn is_empty(&self) -> Result<bool> {
-        let count = self.count().await?;
-        Ok(count == 0)
+        let pool = self.pool.get().await?;
+
+        let sql = format!(
+            "SELECT NOT EXISTS (SELECT 1 FROM {} LIMIT 1) AS is_empty",
+            self.table_name
+        );
+
+        let row: (bool,) = sqlx::query_as(&sql)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV is_empty failed: {}", e)))?;
+
+        Ok(row.0)
     }
 
     async fn count(&self) -> Result<usize> {
         let pool = self.pool.get().await?;
 
-        let sql = format!("SELECT COUNT(*) as count FROM {}", self.table_name);
+        // O(1): read maintained counter — never `SELECT COUNT(*) FROM kv` (SPEC-011).
+        let sql = format!(
+            "SELECT row_count FROM {} WHERE id = 1",
+            self.stats_table_name
+        );
 
-        let row: (i64,) = sqlx::query_as(&sql)
-            .fetch_one(&pool)
+        let row: Option<(i64,)> = sqlx::query_as(&sql)
+            .fetch_optional(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV count failed: {}", e)))?;
 
+        if let Some((count,)) = row {
+            return Ok(count as usize);
+        }
+
+        // Fallback if stats table missing (should not happen after initialize).
+        let fallback = format!("SELECT COUNT(*) as count FROM {}", self.table_name);
+        let row: (i64,) = sqlx::query_as(&fallback)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV count fallback failed: {}", e)))?;
         Ok(row.0 as usize)
+    }
+
+    async fn ping(&self) -> Result<()> {
+        let pool = self.pool.get().await?;
+
+        let sql = format!("SELECT 1 FROM {} LIMIT 1", self.table_name);
+
+        sqlx::query(&sql)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV ping failed: {}", e)))?;
+
+        Ok(())
+    }
+
+    async fn keys_like(&self, pattern: &str) -> Result<Vec<String>> {
+        let pool = self.pool.get().await?;
+
+        let sql = format!("SELECT key FROM {} WHERE key LIKE $1", self.table_name);
+
+        let rows: Vec<(String,)> = sqlx::query_as(&sql)
+            .bind(pattern)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV keys_like failed: {}", e)))?;
+
+        Ok(rows.into_iter().map(|(k,)| k).collect())
+    }
+
+    async fn keys_with_prefix(&self, prefix: &str) -> Result<Vec<String>> {
+        let pool = self.pool.get().await?;
+        let like_pattern = format!("{prefix}%");
+
+        let sql = format!("SELECT key FROM {} WHERE key LIKE $1", self.table_name);
+
+        let rows: Vec<(String,)> = sqlx::query_as(&sql)
+            .bind(&like_pattern)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV keys_with_prefix failed: {}", e)))?;
+
+        Ok(rows.into_iter().map(|(k,)| k).collect())
     }
 
     async fn keys(&self) -> Result<Vec<String>> {
@@ -250,12 +459,15 @@ impl KVStorage for PostgresKVStorage {
     async fn clear(&self) -> Result<()> {
         let pool = self.pool.get().await?;
 
-        let sql = format!("DELETE FROM {}", self.table_name);
+        // TRUNCATE is faster than DELETE; row triggers don't fire — reset stats explicitly.
+        let sql = format!("TRUNCATE {}", self.table_name);
 
         sqlx::query(&sql)
             .execute(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV clear failed: {}", e)))?;
+
+        self.reset_row_count_stats(&pool).await?;
 
         Ok(())
     }

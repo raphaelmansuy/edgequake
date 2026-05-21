@@ -101,12 +101,17 @@ pub struct PostgresAGEGraphStorage {
 impl PostgresAGEGraphStorage {
     /// Create a new Apache AGE graph storage.
     pub fn new(config: PostgresConfig) -> Self {
+        Self::with_pool(PostgresPool::new(config.clone()), config)
+    }
+
+    /// Create graph storage using a shared connection pool (SPEC-011).
+    pub fn with_pool(pool: PostgresPool, config: PostgresConfig) -> Self {
         let prefix = config.table_prefix();
         let graph_name = format!("eq_{}_graph", prefix);
         let namespace = config.namespace.clone();
 
         Self {
-            pool: PostgresPool::new(config),
+            pool,
             graph_name,
             namespace,
             prefix,
@@ -1146,6 +1151,27 @@ impl GraphStorage for PostgresAGEGraphStorage {
         );
         let count = self.cypher_query_count(&cypher).await?;
         Ok(count as usize)
+    }
+
+    async fn ping(&self) -> Result<()> {
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+
+        // Probe the Node label table — succeeds even when empty (0 rows).
+        let sql = format!(r#"SELECT 1 FROM {}."Node" LIMIT 1"#, self.graph_name);
+        if sqlx::query(&sql).fetch_optional(&mut *conn).await.is_ok() {
+            return Ok(());
+        }
+
+        // Graph may not be initialized yet — fall back to connection-level ping.
+        sqlx::query("SELECT 1")
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("Graph ping failed: {}", e)))?;
+
+        Ok(())
     }
 
     /// Get edge count for a specific workspace (OODA-03: Fix dashboard stats).

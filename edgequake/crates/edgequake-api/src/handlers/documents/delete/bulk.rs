@@ -41,14 +41,7 @@ pub async fn delete_all_documents(
 ) -> ApiResult<Json<DeleteAllDocumentsResponse>> {
     tracing::info!(workspace_id = ?tenant_ctx.workspace_id, "Bulk delete documents requested");
 
-    let keys = state.kv_storage.keys().await?;
-
-    // Find all document metadata keys to identify unique documents
-    let metadata_keys: Vec<String> = keys
-        .iter()
-        .filter(|k| k.ends_with("-metadata"))
-        .cloned()
-        .collect();
+    let metadata_keys = state.kv_storage.keys_like("%-metadata").await?;
 
     let mut deleted_count = 0usize;
     let mut total_chunks_deleted = 0usize;
@@ -146,11 +139,7 @@ pub async fn delete_all_documents(
 
         // Attempt to delete this document within the validated workspace scope.
         let chunk_prefix = format!("{}-chunk-", document_id);
-        let chunk_ids: Vec<String> = keys
-            .iter()
-            .filter(|k| k.starts_with(&chunk_prefix))
-            .cloned()
-            .collect();
+        let chunk_ids = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
 
         let content_key = format!("{}-content", document_id);
 
