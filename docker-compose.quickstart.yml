@@ -70,6 +70,22 @@ services:
       # Optional model override — when unset the API picks a sensible default
       # (e.g. text-embedding-3-small for OpenAI, embeddinggemma for Ollama).
       EDGEQUAKE_EMBEDDING_MODEL:    ${EDGEQUAKE_EMBEDDING_MODEL:-}
+      # Embedding vector dimension — must match the chosen model. Required when
+      # the OpenAI-compat provider points at a non-OpenAI backend (e.g. Infinity
+      # serving BAAI/bge-base-en-v1.5 at 768d), otherwise the API defaults to
+      # OpenAI's 1536 and DB writes will fail with a dimension mismatch.
+      EDGEQUAKE_EMBEDDING_DIMENSION: ${EDGEQUAKE_EMBEDDING_DIMENSION:-}
+      # Per-role OpenAI-compat overrides. Take precedence over global OPENAI_BASE_URL
+      # / OPENAI_API_KEY. Enables routing LLM and embedding to different
+      # OpenAI-compatible endpoints (e.g. RunPod vLLM for LLM, RunPod Infinity
+      # for embedding) without colliding on a single global base URL.
+      EDGEQUAKE_CHAT_BASE_URL:       ${EDGEQUAKE_CHAT_BASE_URL:-}
+      EDGEQUAKE_CHAT_API_KEY:        ${EDGEQUAKE_CHAT_API_KEY:-}
+      EDGEQUAKE_EMBEDDING_BASE_URL:  ${EDGEQUAKE_EMBEDDING_BASE_URL:-}
+      EDGEQUAKE_EMBEDDING_API_KEY:   ${EDGEQUAKE_EMBEDDING_API_KEY:-}
+      # Cap requested max_tokens below vLLM MAX_MODEL_LEN to avoid instant 500s
+      # when the safety wrapper sends its default 16384.
+      EDGEQUAKE_LLM_MAX_TOKENS:      ${EDGEQUAKE_LLM_MAX_TOKENS:-}
       # ── Vision LLM Provider (PDF → Markdown) ────────────────────────────────
       # Used exclusively for rendering PDF pages into Markdown (multimodal LLM).
       # Default: same provider as EDGEQUAKE_LLM_PROVIDER (set by quickstart.sh).
@@ -96,6 +112,8 @@ services:
       ANTHROPIC_API_KEY:            ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY:               ${GEMINI_API_KEY:-}
       MISTRAL_API_KEY:              ${MISTRAL_API_KEY:-}
+      OPENROUTER_API_KEY:           ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL:             ${OPENROUTER_MODEL:-}
       # WHY host.docker.internal (NOT localhost):
       #   Docker containers have their own network namespace. 'localhost' inside
       #   a container refers to the container itself, NOT to the host where Ollama

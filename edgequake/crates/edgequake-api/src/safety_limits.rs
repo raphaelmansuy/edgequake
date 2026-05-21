@@ -701,6 +701,31 @@ pub fn is_model_provider_mismatch(provider_name: &str, model: &str) -> bool {
     }
 
     let provider = provider_name.to_lowercase();
+
+    // FORK-PATCH: when the user has explicitly pointed the openai provider at a
+    // custom OpenAI-compatible endpoint (vLLM, Infinity, LM Studio, etc.) via
+    // EDGEQUAKE_CHAT_BASE_URL or a non-default OPENAI_BASE_URL, model names like
+    // "Qwen/Qwen2.5-7B-Instruct" or "BAAI/bge-base-en-v1.5" are valid for that
+    // endpoint even though they don't match OpenAI's catalog. Trust the user's
+    // explicit configuration and skip the mismatch check.
+    if matches!(
+        provider.as_str(),
+        "openai" | "openai-compatible" | "openai_compatible"
+    ) {
+        let has_custom_base = std::env::var("EDGEQUAKE_CHAT_BASE_URL")
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false)
+            || std::env::var("OPENAI_BASE_URL")
+                .map(|v| {
+                    let v = v.trim();
+                    !v.is_empty() && !v.contains("api.openai.com")
+                })
+                .unwrap_or(false);
+        if has_custom_base {
+            return false;
+        }
+    }
+
     let model = model.to_lowercase();
 
     // OpenAI model patterns: gpt-*, o1-*, o3-*, o4-*, text-embedding-*

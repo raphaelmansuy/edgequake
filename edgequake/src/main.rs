@@ -486,6 +486,13 @@ async fn main() -> Result<()> {
         clear_empty_env_var(var);
     }
 
+    // FORK-PATCH: Apply EDGEQUAKE_CHAT_* env aliases BEFORE reading OPENAI_API_KEY.
+    // Upstream FIX #166 calls apply_chat_env_aliases() inside AppState::new_postgres,
+    // which runs AFTER the api_key capture below — so the captured key is empty
+    // and the default OpenAI provider gets constructed with no credentials,
+    // causing queries that hit the default LLM to silently hang at upstream auth.
+    edgequake_api::state::provider_setup::apply_chat_env_aliases();
+
     // Get API key from environment (optional - Ollama doesn't need it)
     let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
 

@@ -73,7 +73,10 @@ mod config;
 mod memory;
 #[cfg(feature = "postgres")]
 mod postgres;
-mod provider_setup;
+// FORK-PATCH: expose provider_setup so main.rs can call apply_chat_env_aliases()
+// before constructing AppState (needed to make EDGEQUAKE_CHAT_* env aliases
+// effective for the default OpenAI provider).
+pub mod provider_setup;
 
 pub use config::*;
 
