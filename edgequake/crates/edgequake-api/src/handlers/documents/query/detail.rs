@@ -51,19 +51,14 @@ pub async fn get_document(
     let metadata = metadata_values.into_iter().next();
     debug!(has_metadata = metadata.is_some(), "Metadata value present");
 
-    // Check if document exists by metadata or chunks
-    let keys = state.kv_storage.keys().await?;
-    debug!(total_keys = keys.len(), "Total keys in storage");
-    let matching_keys: Vec<_> = keys
-        .iter()
-        .filter(|k| k.contains(&document_id))
-        .cloned()
-        .collect();
-    debug!(matching_keys = ?matching_keys, "Keys matching document ID");
-    let chunk_count = keys
-        .iter()
-        .filter(|k| k.starts_with(&format!("{}-chunk-", document_id)))
-        .count();
+    // SPEC-011: prefix scan — no full keys() table scan
+    let chunk_prefix = format!("{}-chunk-", document_id);
+    let chunk_keys = state
+        .kv_storage
+        .keys_with_prefix(&chunk_prefix)
+        .await?;
+    let chunk_count = chunk_keys.len();
+    debug!(chunk_count = chunk_count, "Document chunk keys loaded");
 
     // Document must have either metadata or chunks
     if metadata.is_none() && chunk_count == 0 {

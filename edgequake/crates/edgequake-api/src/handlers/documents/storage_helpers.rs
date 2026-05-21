@@ -758,13 +758,8 @@ pub(super) async fn delete_document_for_reingestion(
     .await?;
 
     // Delete chunk embeddings from vector storage
-    let keys = state.kv_storage.keys().await?;
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_ids: Vec<String> = keys
-        .iter()
-        .filter(|k| k.starts_with(&chunk_prefix))
-        .cloned()
-        .collect();
+    let chunk_ids = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
 
     if !chunk_ids.is_empty() {
         if let Err(e) = workspace_vector_storage.delete(&chunk_ids).await {

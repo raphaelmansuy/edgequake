@@ -26,21 +26,15 @@ pub async fn get_track_status(
     State(state): State<AppState>,
     axum::extract::Path(track_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<TrackStatusResponse>> {
-    let keys = state.kv_storage.keys().await?;
-
-    // Find all metadata keys
-    let metadata_keys: Vec<String> = keys
-        .iter()
-        .filter(|k| k.ends_with("-metadata"))
-        .cloned()
-        .collect();
+    let metadata_keys = state.kv_storage.keys_like("%-metadata").await?;
+    let chunk_keys = state.kv_storage.keys_like("%-chunk-%").await?;
 
     // Fetch all metadata
     let metadata_values = state.kv_storage.get_by_ids(&metadata_keys).await?;
 
     // Group chunks by document
     let mut doc_chunks: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for key in &keys {
+    for key in &chunk_keys {
         if let Some(doc_id) = key.split("-chunk-").next() {
             if !doc_id.ends_with("-metadata") && !doc_id.ends_with("-content") {
                 *doc_chunks.entry(doc_id.to_string()).or_default() += 1;

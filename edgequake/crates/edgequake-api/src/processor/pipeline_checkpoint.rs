@@ -293,18 +293,13 @@ pub async fn clear_pipeline_checkpoint(kv: &Arc<dyn KVStorage>, document_id: &st
 /// and removes them. This prevents unbounded storage growth from crashed
 /// processing runs that never completed.
 pub async fn cleanup_stale_checkpoints(kv: &Arc<dyn KVStorage>) {
-    let all_keys = match kv.keys().await {
+    let checkpoint_keys = match kv.keys_like("%-pipeline-checkpoint").await {
         Ok(keys) => keys,
         Err(e) => {
-            warn!(error = %e, "Failed to list KV keys for checkpoint cleanup");
+            warn!(error = %e, "Failed to list checkpoint keys for cleanup");
             return;
         }
     };
-
-    let checkpoint_keys: Vec<String> = all_keys
-        .into_iter()
-        .filter(|k| k.ends_with(&format!("-{}", CHECKPOINT_PREFIX)))
-        .collect();
 
     if checkpoint_keys.is_empty() {
         return;

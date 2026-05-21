@@ -41,6 +41,17 @@ impl PostgresPool {
         }
     }
 
+    /// Wrap an already-initialized `PgPool` (SPEC-011: shared pool across adapters).
+    ///
+    /// Skips lazy pool creation and extension setup — caller must have initialized
+    /// extensions on the underlying pool already.
+    pub fn from_existing(pool: PgPool, config: PostgresConfig) -> Self {
+        Self {
+            pool: Arc::new(RwLock::new(Some(pool))),
+            config,
+        }
+    }
+
     /// Get the configuration.
     pub fn config(&self) -> &PostgresConfig {
         &self.config

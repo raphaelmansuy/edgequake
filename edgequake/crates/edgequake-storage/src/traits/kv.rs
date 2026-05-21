@@ -129,7 +129,44 @@ pub trait KVStorage: Send + Sync {
     async fn is_empty(&self) -> Result<bool>;
 
     /// Get the count of records in storage.
+    ///
+    /// # Performance (SPEC-011)
+    ///
+    /// Exact `COUNT(*)` is **O(N)** on PostgreSQL heap tables. Use [`Self::ping`]
+    /// for connectivity checks and [`Self::keys_like`] for filtered enumeration.
     async fn count(&self) -> Result<usize>;
+
+    /// Lightweight connectivity probe — must not scan the full table.
+    ///
+    /// # WHY (SPEC-011)
+    ///
+    /// Health checks previously called `count()`, causing 10+ second sequential
+    /// scans on large KV tables. `ping()` verifies pool + table reachability in O(1).
+    async fn ping(&self) -> Result<()> {
+        let _ = self.count().await?;
+        Ok(())
+    }
+
+    /// Return keys matching a SQL LIKE pattern (e.g. `"%-metadata"`, `"%-chunk-%"`).
+    ///
+    /// Prefer this over [`Self::keys`] when only a key subset is needed.
+    /// **Note (SPEC-011)**: Leading `%` patterns are O(N) in PostgreSQL — see
+    /// [`Self::keys_with_prefix`] for index-friendly prefix scans.
+    async fn keys_like(&self, pattern: &str) -> Result<Vec<String>> {
+        let all = self.keys().await?;
+        Ok(all
+            .into_iter()
+            .filter(|key| kv_key_matches_like(key, pattern))
+            .collect())
+    }
+
+    /// Return keys with the given prefix (index-friendly: `LIKE 'prefix%'`).
+    ///
+    /// Use for document-scoped scans such as `{doc_id}-chunk-`.
+    async fn keys_with_prefix(&self, prefix: &str) -> Result<Vec<String>> {
+        let pattern = format!("{prefix}%");
+        self.keys_like(&pattern).await
+    }
 
     /// Get all keys in storage.
     async fn keys(&self) -> Result<Vec<String>>;
@@ -232,3 +269,31 @@ pub trait KVStorageExt: KVStorage {
 }
 
 impl<T: KVStorage + ?Sized> KVStorageExt for T {}
+
+/// Match a key against a SQL LIKE pattern (supports `%` wildcards only).
+pub fn kv_key_matches_like(key: &str, pattern: &str) -> bool {
+    if let Some(suffix) = pattern.strip_prefix('%').filter(|p| !p.contains('%')) {
+        return key.ends_with(suffix);
+    }
+    if let Some(prefix) = pattern.strip_suffix('%').filter(|p| !p.contains('%')) {
+        return key.starts_with(prefix);
+    }
+    if pattern.starts_with('%') && pattern.ends_with('%') && pattern.len() > 2 {
+        let needle = &pattern[1..pattern.len() - 1];
+        return key.contains(needle);
+    }
+    key == pattern
+}
+
+#[cfg(test)]
+mod kv_like_tests {
+    use super::kv_key_matches_like;
+
+    #[test]
+    fn test_kv_key_matches_like_patterns() {
+        assert!(kv_key_matches_like("abc-metadata", "%-metadata"));
+        assert!(!kv_key_matches_like("abc-content", "%-metadata"));
+        assert!(kv_key_matches_like("doc-chunk-0", "%-chunk-%"));
+        assert!(!kv_key_matches_like("doc-metadata", "%-chunk-%"));
+    }
+}

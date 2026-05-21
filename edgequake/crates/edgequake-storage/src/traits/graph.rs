@@ -562,6 +562,12 @@ pub trait GraphStorage: Send + Sync {
     /// Get edge count.
     async fn edge_count(&self) -> Result<usize>;
 
+    /// Lightweight connectivity probe — must not count all graph vertices.
+    async fn ping(&self) -> Result<()> {
+        let _ = self.node_count().await?;
+        Ok(())
+    }
+
     /// Get node count for a specific workspace.
     ///
     /// WHY: Dashboard and workspace pages need accurate per-workspace statistics.

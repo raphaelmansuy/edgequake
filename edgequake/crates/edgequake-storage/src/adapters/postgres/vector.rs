@@ -49,17 +49,21 @@ pub struct PgVectorStorage {
 impl PgVectorStorage {
     /// Create a new pgvector storage.
     pub fn new(config: PostgresConfig) -> Self {
+        Self::with_pool(PostgresPool::new(config.clone()), config, 1536)
+    }
+
+    /// Create pgvector storage with a shared connection pool (SPEC-011).
+    pub fn with_pool(pool: PostgresPool, config: PostgresConfig, dimension: usize) -> Self {
         let prefix = config.table_prefix();
         let table_name = format!("public.eq_{}_vectors", prefix);
         let namespace = config.namespace.clone();
-        let dimension = 1536; // Default OpenAI embedding dimension
         let index_type = config.vector_index_type;
         let ivfflat_lists = config.ivfflat_lists;
         let hnsw_m = config.hnsw_m;
         let hnsw_ef_construction = config.hnsw_ef_construction;
 
         Self {
-            pool: PostgresPool::new(config),
+            pool,
             table_name,
             namespace,
             dimension,
@@ -73,9 +77,16 @@ impl PgVectorStorage {
 
     /// Create a new pgvector storage with a specific dimension.
     pub fn with_dimension(config: PostgresConfig, dimension: usize) -> Self {
-        let mut storage = Self::new(config);
-        storage.dimension = dimension;
-        storage
+        Self::with_pool(PostgresPool::new(config.clone()), config, dimension)
+    }
+
+    /// Create pgvector storage with shared pool and explicit dimension (SPEC-011).
+    pub fn with_pool_and_dimension(
+        pool: PostgresPool,
+        config: PostgresConfig,
+        dimension: usize,
+    ) -> Self {
+        Self::with_pool(pool, config, dimension)
     }
 
     /// Create the vectors table.
@@ -650,8 +661,19 @@ impl VectorStorage for PgVectorStorage {
     }
 
     async fn is_empty(&self) -> Result<bool> {
-        let count = self.count().await?;
-        Ok(count == 0)
+        let pool = self.pool.get().await?;
+
+        let sql = format!(
+            "SELECT NOT EXISTS (SELECT 1 FROM {} LIMIT 1) AS is_empty",
+            self.table_name
+        );
+
+        let row: (bool,) = sqlx::query_as(&sql)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("is_empty failed: {}", e)))?;
+
+        Ok(row.0)
     }
 
     async fn count(&self) -> Result<usize> {
@@ -665,6 +687,19 @@ impl VectorStorage for PgVectorStorage {
             .map_err(|e| StorageError::Database(format!("Count failed: {}", e)))?;
 
         Ok(row.0 as usize)
+    }
+
+    async fn ping(&self) -> Result<()> {
+        let pool = self.pool.get().await?;
+
+        let sql = format!("SELECT 1 FROM {} LIMIT 1", self.table_name);
+
+        sqlx::query(&sql)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("Vector ping failed: {}", e)))?;
+
+        Ok(())
     }
 
     async fn clear(&self) -> Result<()> {

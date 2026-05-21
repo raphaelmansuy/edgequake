@@ -23,7 +23,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::RwLock;
 
 use crate::error::{Result, StorageError};
-use crate::traits::KVStorage;
+use crate::traits::{kv_key_matches_like, KVStorage};
 
 /// In-memory key-value storage implementation.
 ///
@@ -137,6 +137,39 @@ impl KVStorage for MemoryKVStorage {
             .read()
             .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
         Ok(data.len())
+    }
+
+    async fn ping(&self) -> Result<()> {
+        let data = self
+            .data
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let _reachable = data.len();
+        Ok(())
+    }
+
+    async fn keys_like(&self, pattern: &str) -> Result<Vec<String>> {
+        let data = self
+            .data
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        Ok(data
+            .keys()
+            .filter(|key| kv_key_matches_like(key, pattern))
+            .cloned()
+            .collect())
+    }
+
+    async fn keys_with_prefix(&self, prefix: &str) -> Result<Vec<String>> {
+        let data = self
+            .data
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        Ok(data
+            .keys()
+            .filter(|key| key.starts_with(prefix))
+            .cloned()
+            .collect())
     }
 
     async fn keys(&self) -> Result<Vec<String>> {

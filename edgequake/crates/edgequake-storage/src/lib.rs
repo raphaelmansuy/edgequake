@@ -75,8 +75,9 @@ pub use pdf_storage::{
 // Re-export traits
 pub use error::StorageError;
 pub use traits::{
-    GraphEdge, GraphNode, GraphStorage, KVStorage, KnowledgeGraph, MetadataFilter,
-    VectorSearchResult, VectorStorage, WorkspaceVectorConfig, WorkspaceVectorRegistry,
+    kv_key_matches_like, GraphEdge, GraphNode, GraphStorage, KVStorage, KnowledgeGraph,
+    MetadataFilter, VectorSearchResult, VectorStorage, WorkspaceVectorConfig,
+    WorkspaceVectorRegistry,
 };
 
 // Re-export adapters
