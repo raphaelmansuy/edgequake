@@ -65,6 +65,7 @@ tokio-util = "0.7"
 async-stream = "0.3"
 
 [dev-dependencies]
+edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
 sqlx = { workspace = true, features = [

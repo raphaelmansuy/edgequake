@@ -282,6 +282,8 @@ pub struct UpdateWorkspaceRequest {
     /// New PDF parser backend for PDF extraction (optional).
     /// Set to Some("") or Some("none") to clear the workspace override.
     pub pdf_parser_backend: Option<String>,
+    /// Entity types for future ingestions (SPEC-085 / GitHub #216).
+    pub entity_types: Option<Vec<String>>,
 }
 
 /// Statistics for a workspace.

@@ -66,8 +66,9 @@ where
         format!(
             r#"Extract entities and relationships from the following text.
 
-## Entity Types
-{entity_types_str}
+## Entity Types (STRICT)
+Use ONLY these types exactly as written — never invent new types: {entity_types_str}
+If nothing fits, use OTHER when listed, otherwise CONCEPT.
 
 ## Output Format
 Respond with valid JSON in this exact format:
@@ -107,6 +108,14 @@ Respond with valid JSON in this exact format:
             .filter(|c| !c.is_control() || *c == '\n' || *c == '\r' || *c == '\t')
             .collect();
 
+        // If we couldn't extract any JSON, return an empty extraction.
+        // This prevents pipeline-level flakiness when a provider returns non-JSON text
+        // for a chunk (e.g. truncated safety-limited output with no recoverable JSON).
+        if sanitized.trim().is_empty() {
+            tracing::warn!(chunk_id = %chunk_id, "LLM returned empty extraction JSON; treating as empty result");
+            return Ok(result);
+        }
+
         let parsed: serde_json::Value = match serde_json::from_str(&sanitized) {
             Ok(v) => v,
             Err(primary_err) => {
@@ -145,7 +154,16 @@ Respond with valid JSON in this exact format:
                     entity_val.get("type").and_then(|v| v.as_str()),
                     entity_val.get("description").and_then(|v| v.as_str()),
                 ) {
-                    result.add_entity(ExtractedEntity::new(name, entity_type, description));
+                    let (enforced_type, remapped) =
+                        crate::prompts::enforce_entity_type(entity_type, &self.entity_types);
+                    if remapped {
+                        tracing::debug!(
+                            raw_type = %entity_type,
+                            enforced = %enforced_type,
+                            "Remapped entity type to workspace schema"
+                        );
+                    }
+                    result.add_entity(ExtractedEntity::new(name, &enforced_type, description));
                 }
             }
         }
@@ -366,6 +384,12 @@ mod tests {
         let extractor = LLMExtractor::new(provider);
 
         let result = extractor.parse_response("this is not json", "chunk_bad");
-        assert!(result.is_err(), "Unrecoverable JSON must return an error");
+        assert!(
+            result.is_ok(),
+            "Non-JSON responses should be treated as empty extraction"
+        );
+        let extraction = result.unwrap();
+        assert_eq!(extraction.entities.len(), 0);
+        assert_eq!(extraction.relationships.len(), 0);
     }
 }

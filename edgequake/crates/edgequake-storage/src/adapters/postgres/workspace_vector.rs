@@ -21,6 +21,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use super::config::{PostgresConfig, VectorIndexType};
+use super::connection::PostgresPool;
 use super::vector::PgVectorStorage;
 use crate::error::{Result, StorageError};
 use crate::traits::{VectorStorage, WorkspaceVectorConfig, WorkspaceVectorRegistry};
@@ -34,6 +35,8 @@ use crate::traits::{VectorStorage, WorkspaceVectorConfig, WorkspaceVectorRegistr
 pub struct PgWorkspaceVectorRegistry {
     /// Base PostgreSQL configuration
     config: PostgresConfig,
+    /// Shared connection pool (SPEC-011) — avoids per-workspace pools and search_path races
+    shared_pool: PostgresPool,
     /// Cached workspace vector storage instances
     instances: RwLock<HashMap<Uuid, Arc<dyn VectorStorage>>>,
     /// Default vector storage for backward compatibility
@@ -52,11 +55,13 @@ impl PgWorkspaceVectorRegistry {
     /// * `default_dimension` - Default dimension for new workspaces
     pub fn new(
         config: PostgresConfig,
+        shared_pool: PostgresPool,
         default_storage: Arc<dyn VectorStorage>,
         default_dimension: usize,
     ) -> Self {
         Self {
             config,
+            shared_pool,
             instances: RwLock::new(HashMap::new()),
             default_storage,
             default_dimension,
@@ -86,12 +91,14 @@ impl PgWorkspaceVectorRegistry {
             self.config.password.clone(),
         )
         .with_namespace(&namespace)
-        .with_max_connections(self.config.max_connections)
         .with_vector_index(VectorIndexType::HNSW);
-        // WHY: HNSW config defaults (m=16, ef_construction=64) are already optimal
 
-        // Create storage with workspace-specific dimension
-        let storage = PgVectorStorage::with_dimension(pg_config, config.dimension);
+        // Create storage with workspace-specific dimension on the shared pool
+        let storage = PgVectorStorage::with_pool_and_dimension(
+            self.shared_pool.clone(),
+            pg_config,
+            config.dimension,
+        );
 
         // OODA-228: Ensure table has correct dimension BEFORE initialize
         // WHY: If embedding provider changed (e.g., OpenAI 1536 → Ollama 768),

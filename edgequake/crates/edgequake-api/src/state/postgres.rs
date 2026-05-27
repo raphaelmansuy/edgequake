@@ -226,7 +226,7 @@ impl AppState {
             embedding_dim,
         ));
         let graph_storage = Arc::new(PostgresAGEGraphStorage::with_pool(
-            storage_pool,
+            storage_pool.clone(),
             pg_config.clone(),
         ));
 
@@ -331,6 +331,7 @@ impl AppState {
         let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
             Arc::new(PgWorkspaceVectorRegistry::new(
                 pg_config,
+                storage_pool.clone(),
                 Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
                 embedding_dim,
             ));

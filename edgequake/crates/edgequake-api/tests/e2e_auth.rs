@@ -963,6 +963,25 @@ async fn test_list_api_keys() {
     let server = create_test_server();
     let app = server.build_router();
 
+    // Create a key first (GitHub #232 — list was stubbed empty)
+    let create_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/api-keys")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({ "name": "list-roundtrip-key" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+    let created = parse_json(create_response).await;
+    let key_id = created["key_id"].as_str().unwrap();
+
     let response = app
         .oneshot(
             Request::builder()
@@ -979,6 +998,9 @@ async fn test_list_api_keys() {
     let json = parse_json(response).await;
     assert!(json.get("keys").is_some());
     assert!(json.get("total").is_some());
+    assert!(json["total"].as_u64().unwrap_or(0) >= 1);
+    let keys = json["keys"].as_array().unwrap();
+    assert!(keys.iter().any(|k| k["key_id"].as_str() == Some(key_id)));
 }
 
 // ============ Full Auth Flow Integration Test ============

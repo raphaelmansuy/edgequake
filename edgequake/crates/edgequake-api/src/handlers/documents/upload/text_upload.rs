@@ -54,6 +54,10 @@ use crate::handlers::documents_types::*;
     post,
     path = "/api/v1/documents",
     tag = "Documents",
+    params(
+        ("X-Tenant-ID" = Option<String>, Header, description = "Tenant UUID for multi-tenant isolation"),
+        ("X-Workspace-ID" = Option<String>, Header, description = "Workspace UUID — scopes uploaded documents"),
+    ),
     request_body = UploadDocumentRequest,
     responses(
         (status = 201, description = "Document uploaded successfully", body = UploadDocumentResponse),

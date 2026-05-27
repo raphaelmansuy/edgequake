@@ -35,6 +35,8 @@ import { EmbeddingModelSelector, type EmbeddingSelection } from '@/components/wo
 import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-model-selector';
 import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
 import { RebuildKnowledgeGraphButton } from '@/components/workspace/rebuild-knowledge-graph-button';
+import { EntityTypeSelector } from '@/components/shared/entity-type-selector';
+import { ENTITY_PRESETS } from '@/constants/entity-presets';
 import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 import { deleteWorkspace, getWorkspace, getWorkspaceStats, updateWorkspace } from '@/lib/api/edgequake';
 import { fetchProvidersHealth } from '@/lib/api/models';
@@ -112,6 +114,9 @@ export default function WorkspacePage() {
   const [selectedVisionLLM, setSelectedVisionLLM] = useState<LLMSelection | undefined>(undefined);
   const [selectedPdfParserBackend, setSelectedPdfParserBackend] =
     useState<PdfParserBackendChoice>('none');
+  const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([
+    ...ENTITY_PRESETS.general.types,
+  ]);
   // FIX #171: Delete workspace state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -188,6 +193,7 @@ export default function WorkspacePage() {
       vision_llm_provider?: string;
       vision_llm_model?: string;
       pdf_parser_backend?: PdfParserBackendChoice;
+      entity_types?: string[];
       _embeddingChanged?: boolean;
       _llmChanged?: boolean;
       _visionChanged?: boolean;
@@ -201,6 +207,7 @@ export default function WorkspacePage() {
         vision_llm_provider: data.vision_llm_provider,
         vision_llm_model: data.vision_llm_model,
         pdf_parser_backend: data.pdf_parser_backend,
+        entity_types: data.entity_types,
       }),
     onSuccess: (_result, variables) => {
       toast.success(t('workspace.updateSuccess', 'Workspace updated successfully'));
@@ -291,6 +298,7 @@ export default function WorkspacePage() {
     data.vision_llm_provider = selectedVisionLLM?.provider ?? '';
     data.vision_llm_model = selectedVisionLLM?.model ?? '';
     data.pdf_parser_backend = selectedPdfParserBackend;
+    data.entity_types = selectedEntityTypes;
 
     // Track which models changed for post-save rebuild notification
     data._embeddingChanged = embeddingModelChanged ?? false;
@@ -306,6 +314,11 @@ export default function WorkspacePage() {
     setSelectedEmbedding(getWorkspaceEmbeddingSelection(workspace));
     setSelectedVisionLLM(getWorkspaceVisionSelection(workspace));
     setSelectedPdfParserBackend(getWorkspacePdfParserBackend(workspace));
+    setSelectedEntityTypes(
+      workspace?.entity_types?.length
+        ? [...workspace.entity_types]
+        : [...ENTITY_PRESETS.general.types]
+    );
   };
 
   const handleEditStart = () => {
@@ -313,6 +326,11 @@ export default function WorkspacePage() {
     setSelectedEmbedding(getWorkspaceEmbeddingSelection(workspace));
     setSelectedVisionLLM(getWorkspaceVisionSelection(workspace));
     setSelectedPdfParserBackend(getWorkspacePdfParserBackend(workspace));
+    setSelectedEntityTypes(
+      workspace?.entity_types?.length
+        ? [...workspace.entity_types]
+        : [...ENTITY_PRESETS.general.types]
+    );
     setIsEditing(true);
   };
 
@@ -762,19 +780,24 @@ export default function WorkspacePage() {
         </Card>
       </div>
 
-      {/* Entity Types - SPEC-085: Read-only display of configured entity types */}
-      <Card>
+      {/* Entity Types - SPEC-085 / GitHub #216: editable for future ingestions */}
+      <Card data-testid="workspace-entity-types-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Tags className="h-5 w-5 text-indigo-600" />
             {t('entityTypes.title', 'Entity Types')}
           </CardTitle>
           <CardDescription>
-            {t('entityTypes.description', 'Types of entities to extract from documents in this workspace.')}
+            {t(
+              'entityTypes.futureOnlyHint',
+              'Applies to future document ingestions. Use Rebuild Knowledge Graph to re-extract existing documents.'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {workspace.entity_types && workspace.entity_types.length > 0 ? (
+          {isEditing ? (
+            <EntityTypeSelector value={selectedEntityTypes} onChange={setSelectedEntityTypes} />
+          ) : workspace.entity_types && workspace.entity_types.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {workspace.entity_types.map((type) => (
                 <Badge

@@ -339,15 +339,83 @@ fn extract_json_from_response(response: &str) -> String {
     }
 
     // Try to find JSON starting with {
-    if let Some(start) = response.find('{') {
-        if let Some(end) = response.rfind('}') {
-            if end > start {
-                return response[start..=end].to_string();
+    // WHY: Truncation is a known production failure mode (max_tokens / safety limits).
+    // If the model output is cut mid-JSON and the closing `}` is missing,
+    // we still want to return a substring starting at the first `{` (or `[`)
+    // so `try_recover_truncated_json()` can salvage the parse.
+    let start_obj = response.find('{');
+    let start_arr = response.find('[');
+
+    // Choose the earliest JSON start token, if any.
+    let (start_idx, start_ch) = match (start_obj, start_arr) {
+        (Some(o), Some(a)) => {
+            if o <= a {
+                (o, '{')
+            } else {
+                (a, '[')
             }
         }
+        (Some(o), None) => (o, '{'),
+        (None, Some(a)) => (a, '['),
+        (None, None) => (usize::MAX, '\0'),
+    };
+
+    if start_idx == usize::MAX {
+        // No obvious JSON start token; callers will treat this as a non-recoverable
+        // empty extraction.
+        return String::new();
     }
 
-    response.to_string()
+    match start_ch {
+        '{' => {
+            // If braces are unbalanced, we are likely missing the root closing `}`.
+            // In that case we must return from the first `{` to the end, otherwise
+            // `rfind('}')` may land on an inner object close and truncate too early.
+            let mut balance: i32 = 0;
+            for c in response[start_idx..].chars() {
+                if c == '{' {
+                    balance += 1;
+                } else if c == '}' {
+                    balance -= 1;
+                }
+            }
+
+            if balance == 0 {
+                if let Some(end) = response.rfind('}') {
+                    if end > start_idx {
+                        return response[start_idx..=end].to_string();
+                    }
+                }
+            }
+
+            // Truncated JSON object: return from `{` to the end and let recovery suffixes
+            // close the structure.
+            response[start_idx..].to_string()
+        }
+        '[' => {
+            let mut balance: i32 = 0;
+            for c in response[start_idx..].chars() {
+                if c == '[' {
+                    balance += 1;
+                } else if c == ']' {
+                    balance -= 1;
+                }
+            }
+
+            if balance == 0 {
+                if let Some(end) = response.rfind(']') {
+                    if end > start_idx {
+                        return response[start_idx..=end].to_string();
+                    }
+                }
+            }
+
+            // Truncated JSON array: return from `[` to the end and let recovery suffixes
+            // close the structure.
+            response[start_idx..].to_string()
+        }
+        _ => String::new(),
+    }
 }
 
 /// Returns the effective temperature override to send for a model.
@@ -500,5 +568,42 @@ mod tests {
 
         assert_eq!(result.entities.len(), 1);
         assert_eq!(result.relationships.len(), 1);
+    }
+
+    #[test]
+    fn test_extract_json_from_response_returns_substring_when_object_truncated() {
+        let response = r#"Preamble text
+{"entities":[{"name":"SEISMOLOGY","type":"CONCEPT","description":"Study"}],"relationships":["#;
+
+        let extracted = extract_json_from_response(response);
+        assert!(extracted.starts_with('{'));
+        assert!(extracted.contains("\"entities\""));
+        // Truncated input should be returned to the end of the response.
+        // The input ends mid-string for relationships: `"relationships":["` (so the
+        // extracted substring contains the relationships start even if it isn't closed).
+        assert!(extracted.contains("\"relationships\":["));
+    }
+
+    #[test]
+    fn test_extract_json_from_response_ignores_preamble_and_trailing_text() {
+        let response = r#"Some preamble... {"key":"value"} trailing stuff"#;
+
+        let extracted = extract_json_from_response(response);
+        assert_eq!(extracted, r#"{"key":"value"}"#);
+    }
+
+    #[test]
+    fn test_extract_json_from_response_returns_array_slice() {
+        let response = r#"prefix [{\"a\":1},{\"b\":2}] suffix"#;
+        let extracted = extract_json_from_response(response);
+        assert!(extracted.starts_with('['));
+        assert!(extracted.ends_with(']'));
+    }
+
+    #[test]
+    fn test_extract_json_from_response_no_json_returns_empty_string() {
+        let response = "hello world";
+        let extracted = extract_json_from_response(response);
+        assert!(extracted.is_empty());
     }
 }

@@ -26,11 +26,13 @@
 //! ```
 
 mod entity_extraction;
+mod entity_type_policy;
 mod normalizer;
 mod parser;
 mod summarization;
 
 pub use entity_extraction::EntityExtractionPrompts;
+pub use entity_type_policy::{enforce_entity_type, normalize_type_token};
 pub use normalizer::normalize_entity_name;
 pub use parser::{HybridExtractionParser, JsonExtractionParser, TupleParser};
 pub use summarization::SummarizationPrompts;

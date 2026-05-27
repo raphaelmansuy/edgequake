@@ -237,4 +237,8 @@ pub struct UpdateWorkspaceApiRequest {
     /// Default PDF parser backend for this workspace ("vision" or "edgeparse").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_parser_backend: Option<String>,
+
+    /// Entity types for future ingestions (does not rewrite existing graph nodes).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_types: Option<Vec<String>>,
 }

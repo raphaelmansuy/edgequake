@@ -6,6 +6,7 @@ use axum::{extract::State, Json};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
+use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
 use crate::state::AppState;
 
@@ -20,6 +21,10 @@ use axum_extra::extract::Multipart;
     post,
     path = "/api/v1/documents/upload/batch",
     tag = "Documents",
+    params(
+        ("X-Tenant-ID" = Option<String>, Header, description = "Tenant UUID for multi-tenant isolation"),
+        ("X-Workspace-ID" = Option<String>, Header, description = "Workspace UUID — scopes uploaded documents"),
+    ),
     request_body(content_type = "multipart/form-data", description = "Files to upload"),
     responses(
         (status = 201, description = "Batch upload completed", body = BatchUploadResponse),
@@ -28,6 +33,7 @@ use axum_extra::extract::Multipart;
 )]
 pub async fn upload_files_batch(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     mut multipart: Multipart,
 ) -> ApiResult<(StatusCode, Json<BatchUploadResponse>)> {
     let mut results = Vec::new();
@@ -61,10 +67,7 @@ pub async fn upload_files_batch(
         }
     }
 
-    // Process each file (uses default workspace for batch uploads)
-    // WHY-OODA81: Batch upload uses "default" workspace for dedup scoping
-    // For proper workspace isolation, use the single file upload endpoint with tenant context
-    let workspace_id = "default".to_string();
+    let workspace_id = tenant_ctx.workspace_id_or_default();
     for (filename, content) in files {
         let result = process_single_file(&state, &filename, &content, &workspace_id).await;
 

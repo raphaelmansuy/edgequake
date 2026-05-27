@@ -24,6 +24,7 @@ use async_trait::async_trait;
 
 use super::config::PostgresConfig;
 use super::connection::PostgresPool;
+use super::row_count_stats::{self, RowCountStatsConfig};
 use crate::error::{Result, StorageError};
 use crate::traits::KVStorage;
 
@@ -123,127 +124,16 @@ impl PostgresKVStorage {
     /// probes. Maintained counter + triggers keep exact counts at O(1) when `count()` is
     /// called from tests or admin tools.
     async fn ensure_row_count_stats(&self, pool: &sqlx::PgPool) -> Result<()> {
-        let stats_sql = format!(
-            r#"
-            CREATE TABLE IF NOT EXISTS {} (
-                id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-                row_count BIGINT NOT NULL DEFAULT 0
-            )
-            "#,
-            self.stats_table_name
-        );
-        sqlx::query(&stats_sql).execute(pool).await.map_err(|e| {
-            StorageError::Database(format!("Failed to create KV stats table: {}", e))
-        })?;
-
-        // One-time backfill for existing tables (runs COUNT(*) once at migration).
-        let backfill_sql = format!(
-            r#"
-            INSERT INTO {} (id, row_count)
-            SELECT 1, COUNT(*)::bigint FROM {}
-            ON CONFLICT (id) DO NOTHING
-            "#,
-            self.stats_table_name, self.table_name
-        );
-        sqlx::query(&backfill_sql).execute(pool).await.ok();
-
-        let fn_insert = format!("eq_{}_kv_stats_insert", self.prefix);
-        let fn_delete = format!("eq_{}_kv_stats_delete", self.prefix);
-
-        let create_insert_fn = format!(
-            r#"
-            CREATE OR REPLACE FUNCTION {fn_insert}() RETURNS trigger AS $$
-            BEGIN
-                UPDATE {stats}
-                SET row_count = row_count + 1
-                WHERE id = 1;
-                RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql
-            "#,
-            fn_insert = fn_insert,
-            stats = self.stats_table_name
-        );
-        sqlx::query(&create_insert_fn)
-            .execute(pool)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("Failed to create KV stats insert fn: {}", e))
-            })?;
-
-        let create_delete_fn = format!(
-            r#"
-            CREATE OR REPLACE FUNCTION {fn_delete}() RETURNS trigger AS $$
-            BEGIN
-                UPDATE {stats}
-                SET row_count = GREATEST(row_count - 1, 0)
-                WHERE id = 1;
-                RETURN OLD;
-            END;
-            $$ LANGUAGE plpgsql
-            "#,
-            fn_delete = fn_delete,
-            stats = self.stats_table_name
-        );
-        sqlx::query(&create_delete_fn)
-            .execute(pool)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("Failed to create KV stats delete fn: {}", e))
-            })?;
-
-        let trigger_insert = format!("eq_{}_kv_stats_insert_trg", self.prefix);
-        let trigger_delete = format!("eq_{}_kv_stats_delete_trg", self.prefix);
-
-        let drop_insert = format!(
-            "DROP TRIGGER IF EXISTS {trigger_insert} ON {table}",
-            trigger_insert = trigger_insert,
-            table = self.table_name
-        );
-        sqlx::query(&drop_insert).execute(pool).await.ok();
-
-        let create_insert_trg = format!(
-            r#"
-            CREATE TRIGGER {trigger_insert}
-            AFTER INSERT ON {table}
-            FOR EACH ROW EXECUTE FUNCTION {fn_insert}()
-            "#,
-            trigger_insert = trigger_insert,
-            table = self.table_name,
-            fn_insert = fn_insert
-        );
-        sqlx::query(&create_insert_trg)
-            .execute(pool)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("Failed to create KV stats insert trigger: {}", e))
-            })?;
-
-        let drop_delete = format!(
-            "DROP TRIGGER IF EXISTS {trigger_delete} ON {table}",
-            trigger_delete = trigger_delete,
-            table = self.table_name
-        );
-        sqlx::query(&drop_delete).execute(pool).await.ok();
-
-        let create_delete_trg = format!(
-            r#"
-            CREATE TRIGGER {trigger_delete}
-            AFTER DELETE ON {table}
-            FOR EACH ROW EXECUTE FUNCTION {fn_delete}()
-            "#,
-            trigger_delete = trigger_delete,
-            table = self.table_name,
-            fn_delete = fn_delete
-        );
-        sqlx::query(&create_delete_trg)
-            .execute(pool)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("Failed to create KV stats delete trigger: {}", e))
-            })?;
-
-        Ok(())
+        row_count_stats::ensure_row_count_stats(
+            pool,
+            &RowCountStatsConfig {
+                prefix: &self.prefix,
+                table_name: &self.table_name,
+                stats_table_name: &self.stats_table_name,
+                kind: "kv",
+            },
+        )
+        .await
     }
 
     async fn reset_row_count_stats(&self, pool: &sqlx::PgPool) -> Result<()> {

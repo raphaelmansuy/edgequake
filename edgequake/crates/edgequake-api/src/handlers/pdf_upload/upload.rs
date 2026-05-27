@@ -57,6 +57,10 @@ use edgequake_storage::{
 #[utoipa::path(
     post,
     path = "/api/v1/documents/pdf",
+    params(
+        ("X-Tenant-ID" = Option<String>, Header, description = "Tenant UUID for multi-tenant isolation"),
+        ("X-Workspace-ID" = Option<String>, Header, description = "Workspace UUID — scopes uploaded PDFs"),
+    ),
     request_body(content_type = "multipart/form-data"),
     responses(
         (status = 200, description = "PDF uploaded successfully", body = PdfUploadResponse),

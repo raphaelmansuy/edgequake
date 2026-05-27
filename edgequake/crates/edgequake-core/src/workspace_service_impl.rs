@@ -684,6 +684,16 @@ impl WorkspaceService for WorkspaceServiceImpl {
                 )));
             }
         }
+        if let Some(entity_types) = request.entity_types {
+            let normalized = normalize_entity_types(&entity_types);
+            if normalized.is_empty() {
+                workspace.metadata.remove("entity_types");
+            } else {
+                workspace
+                    .metadata
+                    .insert("entity_types".to_string(), serde_json::json!(normalized));
+            }
+        }
         workspace.updated_at = chrono::Utc::now();
 
         // Store all config in metadata JSONB column (database schema uses metadata, not separate columns)

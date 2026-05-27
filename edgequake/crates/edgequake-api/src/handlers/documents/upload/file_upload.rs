@@ -29,6 +29,10 @@ use axum_extra::extract::Multipart;
     post,
     path = "/api/v1/documents/upload",
     tag = "Documents",
+    params(
+        ("X-Tenant-ID" = Option<String>, Header, description = "Tenant UUID for multi-tenant isolation"),
+        ("X-Workspace-ID" = Option<String>, Header, description = "Workspace UUID — scopes uploaded documents"),
+    ),
     request_body(content_type = "multipart/form-data", description = "File to upload"),
     responses(
         (status = 201, description = "File uploaded successfully", body = FileUploadResponse),

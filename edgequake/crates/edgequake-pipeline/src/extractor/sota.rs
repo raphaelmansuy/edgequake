@@ -475,6 +475,20 @@ where
             // Parse response using hybrid parser (with built-in fallbacks)
             match self.parser.parse(&response.content, &chunk.id) {
                 Ok(mut result) => {
+                    for entity in &mut result.entities {
+                        let (enforced, remapped) = crate::prompts::enforce_entity_type(
+                            &entity.entity_type,
+                            &self.entity_types,
+                        );
+                        if remapped {
+                            tracing::debug!(
+                                raw_type = %entity.entity_type,
+                                enforced = %enforced,
+                                "Remapped SOTA entity type to workspace schema"
+                            );
+                        }
+                        entity.entity_type = enforced;
+                    }
                     // Add token usage from response
                     result.input_tokens = response.prompt_tokens;
                     result.output_tokens = response.completion_tokens;

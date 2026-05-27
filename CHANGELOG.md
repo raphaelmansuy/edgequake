@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **GitHub #218** — Root layout now uses `export const dynamic = 'force-dynamic'` so `EDGEQUAKE_API_URL`, `NEXT_PUBLIC_AUTH_ENABLED`, and `NEXT_PUBLIC_DISABLE_DEMO_LOGIN` are read at request time in container deployments (not baked into static HTML).
+- **GitHub #232** — `GET /api/v1/api-keys` lists keys via `keys_with_prefix("auth:api_key:")` filtered by authenticated user (was a TODO stub returning empty).
+- **GitHub #231** — Document/PDF/text upload OpenAPI specs document `X-Tenant-ID` and `X-Workspace-ID` headers; batch upload respects `TenantContext` workspace instead of hardcoded `"default"`.
+- **GitHub #233** — Workspace creation UI collapses model configuration when server defaults exist (`WorkspaceCreateModelSection` + `/api/v1/models`); create works without manual LLM/embedding/vision picks.
+- **GitHub #217** — Entity extraction enforces workspace schema post-parse (`enforce_entity_type`) and uses stricter prompts; unknown types remap to `OTHER` / closest allowed type.
+- **GitHub #216** — `PUT /api/v1/workspaces/{id}` accepts `entity_types`; in-memory and Postgres workspace services persist updates; workspace settings page allows editing entity types for future ingestions.
+
+### Added
+
+- **SPEC-013** — Intensive E2E coverage: `e2e_spec013_github_issues` and `e2e_spec013_mistral_live` use **PostgreSQL** (`--features postgres`, `DATABASE_URL`); Playwright `spec013-intensive-mistral.spec.ts`; Makefile targets `spec013-e2e-rust`, `spec013-mistral-backend-bg`, `spec013-e2e-playwright-intensive`, `spec013-e2e-mistral`, `spec013-e2e-mistral-live`. Audit docs under `specs/013-fix-issues-05-2026/`.
+
 ---
 
 ## [0.12.3] — 2026-05-21

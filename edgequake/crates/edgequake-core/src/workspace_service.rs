@@ -515,6 +515,22 @@ impl WorkspaceService for InMemoryWorkspaceService {
             workspace.embedding_dimension = embedding_dimension;
         }
 
+        // SPEC-085 / GitHub #216: entity type updates (mirror Postgres impl)
+        if let Some(entity_types) = request.entity_types {
+            let normalized: Vec<String> = entity_types
+                .iter()
+                .map(|t| t.trim().to_uppercase().replace([' ', '-'], "_"))
+                .filter(|t| !t.is_empty())
+                .collect();
+            if normalized.is_empty() {
+                workspace.metadata.remove("entity_types");
+            } else {
+                workspace
+                    .metadata
+                    .insert("entity_types".to_string(), serde_json::json!(normalized));
+            }
+        }
+
         workspace.updated_at = chrono::Utc::now();
 
         Ok(workspace.clone())

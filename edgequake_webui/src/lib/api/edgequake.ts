@@ -284,6 +284,8 @@ export interface UpdateWorkspaceRequest {
   vision_llm_model?: string;
   /** Default PDF parser backend for this workspace. */
   pdf_parser_backend?: WorkspacePdfParserBackendUpdate;
+  /** Entity types for future ingestions (SPEC-085 / GitHub #216). */
+  entity_types?: string[];
 }
 
 /**

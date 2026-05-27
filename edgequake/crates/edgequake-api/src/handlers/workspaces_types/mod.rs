@@ -104,10 +104,12 @@ mod tests {
             vision_llm_provider: None,
             vision_llm_model: None,
             pdf_parser_backend: None,
+            entity_types: Some(vec!["PERSON".to_string(), "ORGANIZATION".to_string()]),
         };
 
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("Updated Workspace"));
+        assert!(json.contains("PERSON"));
         assert!(json.contains("true"));
     }
 

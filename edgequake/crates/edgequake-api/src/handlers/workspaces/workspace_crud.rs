@@ -271,6 +271,7 @@ pub async fn update_workspace(
         vision_llm_provider: request.vision_llm_provider,
         vision_llm_model: request.vision_llm_model,
         pdf_parser_backend: request.pdf_parser_backend,
+        entity_types: request.entity_types,
     };
 
     let workspace = state

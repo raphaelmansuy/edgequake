@@ -138,12 +138,22 @@ impl PostgresPool {
             .await
         {
             Ok(_) => {
-                // Set search path to include ag_catalog
+                // Verify AGE catalog is reachable, then reset search_path on this connection
+                // so it is not returned to the pool with ag_catalog-first resolution.
+                let mut conn = pool.acquire().await.map_err(|e| {
+                    StorageError::Database(format!("Failed to acquire connection for AGE: {}", e))
+                })?;
                 sqlx::query("SET search_path = ag_catalog, \"$user\", public")
-                    .execute(pool)
+                    .execute(&mut *conn)
                     .await
                     .map_err(|e| {
-                        StorageError::Database(format!("Failed to set AGE search path: {}", e))
+                        StorageError::Database(format!("Failed to set AGE search_path: {}", e))
+                    })?;
+                sqlx::query("SET search_path TO public")
+                    .execute(&mut *conn)
+                    .await
+                    .map_err(|e| {
+                        StorageError::Database(format!("Failed to reset search_path: {}", e))
                     })?;
             }
             Err(e) => {
