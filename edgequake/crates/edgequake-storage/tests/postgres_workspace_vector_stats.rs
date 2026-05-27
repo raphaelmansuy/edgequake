@@ -92,6 +92,12 @@ async fn workspace_vector_stats_init_with_search_path_pollution() {
         .execute(&pool)
         .await
         .expect("pgvector extension");
+    // CI uses pgvector-only Postgres (no Apache AGE); create ag_catalog so we can
+    // simulate graph search_path pollution without the full AGE extension.
+    sqlx::query("CREATE SCHEMA IF NOT EXISTS ag_catalog")
+        .execute(&pool)
+        .await
+        .expect("ag_catalog schema stub");
 
     let storage_pool = PostgresPool::from_existing(pool.clone(), base_config.clone());
 
