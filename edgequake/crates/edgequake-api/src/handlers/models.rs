@@ -73,31 +73,28 @@ fn model_card_to_response(card: &edgequake_llm::ModelCard) -> ModelResponse {
 
 /// Determine which provider names are visible in the current deployment.
 ///
-/// # WHY: Issue #204b — Incorrect Model Visibility
+/// # WHY: Model Visibility in Workspace/Tenant Creation
 ///
-/// By default every provider defined in `models.toml` was returned, even when
-/// only a single provider was deployed. This led to users seeing Anthropic and
-/// OpenAI model dropdowns when they had only configured `openai-compatible`.
+/// All providers with `enabled = true` in models.toml are intentionally
+/// configured and should be selectable when creating workspaces/tenants.
+/// The `enabled` flag in the TOML is the correct gate for visibility.
+///
+/// `EDGEQUAKE_ALLOWED_PROVIDERS` is an explicit opt-in restriction for
+/// deployments that want to expose only a subset of configured providers.
 ///
 /// Priority order:
-/// 1. `EDGEQUAKE_ALLOWED_PROVIDERS=*`  → return all enabled providers
-/// 2. `EDGEQUAKE_ALLOWED_PROVIDERS=a,b,c` → return only listed providers
-/// 3. Not set → return only the active LLM and embedding provider names
+/// 1. Not set / `*`               → return all enabled providers (default)
+/// 2. `EDGEQUAKE_ALLOWED_PROVIDERS=a,b,c` → restrict to listed providers only
 fn active_provider_names(
-    active_llm: &str,
-    active_embedding: &str,
+    _active_llm: &str,
+    _active_embedding: &str,
 ) -> Option<std::collections::HashSet<String>> {
     let env_val = std::env::var("EDGEQUAKE_ALLOWED_PROVIDERS").unwrap_or_default();
     match env_val.trim() {
-        "" => {
-            // Not set → restrict to active providers only
-            let mut names = std::collections::HashSet::new();
-            names.insert(active_llm.to_string());
-            names.insert(active_embedding.to_string());
-            Some(names)
-        }
-        "*" => None, // None = show all enabled providers
+        // Not set or wildcard → show all enabled providers from models.toml
+        "" | "*" => None,
         list => {
+            // Explicit allowlist → restrict to named providers only
             let names: std::collections::HashSet<String> =
                 list.split(',').map(|s| s.trim().to_lowercase()).collect();
             Some(names)
@@ -163,9 +160,9 @@ fn provider_to_response(provider: &edgequake_llm::ProviderConfig) -> ProviderRes
 pub async fn list_models(State(state): State<AppState>) -> ApiResult<Json<ModelsListResponse>> {
     let config = &*state.models_config;
 
-    // WHY Issue #204b: Only return providers that are active in this deployment.
-    // `active_provider_names` respects EDGEQUAKE_ALLOWED_PROVIDERS; without it
-    // only the runtime-wired LLM and embedding providers are exposed.
+    // WHY: Show all enabled providers from models.toml by default so every
+    // model is selectable when creating workspaces/tenants. Restrict with
+    // EDGEQUAKE_ALLOWED_PROVIDERS=a,b,c for single-provider deployments.
     let allowed = active_provider_names(
         &state.llm_provider.name().to_lowercase(),
         &config.defaults.embedding_provider.to_lowercase(),
@@ -207,7 +204,8 @@ pub async fn list_models(State(state): State<AppState>) -> ApiResult<Json<Models
 pub async fn list_llm_models(State(state): State<AppState>) -> ApiResult<Json<LlmModelsResponse>> {
     let config = &*state.models_config;
 
-    // WHY Issue #204b: Filter to active LLM provider(s) only.
+    // WHY: Show all enabled providers from models.toml by default.
+    // Use EDGEQUAKE_ALLOWED_PROVIDERS=a,b,c to restrict to a subset.
     let allowed = active_provider_names(
         &state.llm_provider.name().to_lowercase(),
         &config.defaults.embedding_provider.to_lowercase(),
@@ -555,18 +553,15 @@ mod tests {
         assert!(!response.capabilities.supports_vision);
     }
 
-    // ---- Issue #204b: Model visibility / provider filtering tests ----
+    // ---- Model visibility / provider filtering tests ----
 
     #[test]
     #[serial_test::serial]
-    fn test_active_provider_names_no_env_returns_active_only() {
-        // Unset or empty → only the active LLM + embedding provider
+    fn test_active_provider_names_no_env_returns_all() {
+        // Unset → show all enabled providers (None means no restriction)
         std::env::remove_var("EDGEQUAKE_ALLOWED_PROVIDERS");
         let result = active_provider_names("openai", "ollama");
-        let names = result.expect("should be Some when env is empty");
-        assert!(names.contains("openai"));
-        assert!(names.contains("ollama"));
-        assert!(!names.contains("lmstudio"));
+        assert!(result.is_none(), "empty env should return None (all providers)");
     }
 
     #[test]

@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.12.6] — 2026-06-01
+
+### Added
+
+- **Latest model catalog** — `models.toml` updated with flagship models released through May 2026:
+  - **OpenAI**: `gpt-5.5` (1M context, $5/$30 per MTok input/output)
+  - **Anthropic**: `claude-opus-4-8` (1M context, 128K output, $5/$25 per MTok); `claude-opus-4-6` marked deprecated
+  - **xAI**: `grok-4.3` (flagship, 1M context, vision-capable, $1.25/$2.50 per MTok; aliases: `grok-4`, `grok-4-0709`); `grok-build-0.1` (coding-optimised, 256K context); stale aliases (`grok-4-1-fast`, `grok-3`, `grok-3-mini`) marked deprecated
+  - **Google**: `gemini-3.5-flash` (stable May 2026, 1M context, $0.00015/$0.0006 per MTok); `gemini-2.0-flash` marked deprecated
+- **Bundled model catalog** — `models.toml` is now embedded in the binary via `include_str!` at compile time. The server no longer requires `models.toml` to be present in the working directory. Fallback chain: bundled TOML → runtime file (`ModelsConfig::load()`) → hardcoded defaults.
+
+### Fixed
+
+- **Model visibility in workspace/tenant creation** — All enabled providers were previously invisible in the model-selection dropdowns unless the `EDGEQUAKE_ALLOWED_PROVIDERS` env var was explicitly set. The default is now to show all enabled providers; set `EDGEQUAKE_ALLOWED_PROVIDERS` to a comma-separated list to restrict to named providers only.
+- **Env-var test race** — `workspace_model_update` tests that mutate process env vars now carry `#[serial_test::serial]` to prevent flaky failures under parallel test execution.
+
+---
+
 ## [0.12.5] — 2026-05-28
 
 ### Release readiness

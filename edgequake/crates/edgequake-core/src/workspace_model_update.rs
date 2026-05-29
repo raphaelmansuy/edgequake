@@ -102,6 +102,7 @@ mod tests {
     use uuid::Uuid;
 
     #[test]
+    #[serial_test::serial]
     fn clear_llm_resets_to_env_defaults() {
         let key_runtime = "EDGEQUAKE_LLM_PROVIDER";
         let key_model = "EDGEQUAKE_LLM_MODEL";
@@ -135,6 +136,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn clear_llm_prefers_runtime_provider_over_default_vars() {
         let key_default = "EDGEQUAKE_DEFAULT_LLM_PROVIDER";
         let key_runtime = "EDGEQUAKE_LLM_PROVIDER";

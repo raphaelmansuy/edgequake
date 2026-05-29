@@ -11,7 +11,7 @@
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.12.5** — Release hardening + SPEC-014 batch ingestion: OpenAPI/API parity for multi-file and multi-PDF uploads, SDK support across all official clients, and updated release-facing ingestion documentation. See [CHANGELOG](CHANGELOG.md) for full details.
+> **v0.12.6** — Model catalog refresh (gpt-5.5, claude-opus-4-8, grok-4.3, gemini-3.5-flash) + bundled `models.toml` (no CWD dependency) + all enabled providers now visible in workspace/tenant model dropdowns by default. See [CHANGELOG](CHANGELOG.md) for full details.
 
 ## Release & CD Cycle
 

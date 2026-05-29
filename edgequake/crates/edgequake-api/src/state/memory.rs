@@ -76,9 +76,13 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory, // Default to memory for generic constructor
-            models_config: Arc::new(
-                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
-            ),
+            models_config: Arc::new({
+                const BUNDLED_MODELS: &str =
+                    include_str!("../../../../models.toml");
+                ModelsConfig::from_toml(BUNDLED_MODELS)
+                    .or_else(|_| ModelsConfig::load())
+                    .unwrap_or_else(|_| ModelsConfig::builtin_defaults())
+            }),
             #[cfg(feature = "postgres")]
             pg_pool: None,
             #[cfg(feature = "postgres")]
@@ -224,9 +228,13 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory,
-            models_config: Arc::new(
-                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
-            ),
+            models_config: Arc::new({
+                const BUNDLED_MODELS: &str =
+                    include_str!("../../../../models.toml");
+                ModelsConfig::from_toml(BUNDLED_MODELS)
+                    .or_else(|_| ModelsConfig::load())
+                    .unwrap_or_else(|_| ModelsConfig::builtin_defaults())
+            }),
             #[cfg(feature = "postgres")]
             pg_pool: None,
             // PDF storage not available in memory mode
