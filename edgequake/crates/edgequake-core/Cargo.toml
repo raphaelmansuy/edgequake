@@ -28,6 +28,7 @@ edgequake-pdf = { workspace = true }
 edgequake-storage = { path = "../edgequake-storage", default-features = false }
 edgequake-pipeline = { workspace = true, optional = true }
 async-trait.workspace = true
+futures = { workspace = true }
 lru = "0.16"
 sqlx = { workspace = true, optional = true }
 

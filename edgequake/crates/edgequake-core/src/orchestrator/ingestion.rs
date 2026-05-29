@@ -284,8 +284,16 @@ impl EdgeQuake {
         // Stage 3: Store chunk embeddings with type metadata
         // WHY type: "chunk" metadata: Enables filtering entity vs chunk vectors at query time
         // WHY tenant/workspace: Multi-tenancy isolation at vector level
-        for chunk in &processing_result.chunks {
-            if let Some(embedding) = &chunk.embedding {
+        //
+        // QW2: collect ALL chunk embeddings into a SINGLE batched `upsert` call
+        // instead of one round trip per chunk. The vector adapter now performs
+        // a chunked UNNEST insert in one transaction, so for an N-chunk document
+        // this collapses N network round trips into ~ceil(N/1000).
+        let chunk_vectors: Vec<(String, Vec<f32>, serde_json::Value)> = processing_result
+            .chunks
+            .iter()
+            .filter_map(|chunk| {
+                let embedding = chunk.embedding.as_ref()?;
                 let mut metadata = serde_json::json!({
                     "type": "chunk",  // Mark as chunk for retrieval filtering
                     "document_id": doc_id,
@@ -301,11 +309,15 @@ impl EdgeQuake {
                     metadata["workspace_id"] = serde_json::json!(workspace_id);
                 }
 
-                vector_storage
-                    .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
-                    .await
-                    .map_err(|e| Error::internal(format!("Vector storage error: {}", e)))?;
-            }
+                Some((chunk.id.clone(), embedding.clone(), metadata))
+            })
+            .collect();
+
+        if !chunk_vectors.is_empty() {
+            vector_storage
+                .upsert(&chunk_vectors)
+                .await
+                .map_err(|e| Error::internal(format!("Vector storage error: {}", e)))?;
         }
 
         let processing_time_ms = start.elapsed().as_millis() as u64;
@@ -323,16 +335,53 @@ impl EdgeQuake {
     }
 
     /// Insert multiple documents.
+    ///
+    /// SC5: documents are ingested with bounded concurrency while results are
+    /// returned in input order. A single failing document no longer aborts the
+    /// whole batch (previously a `?` would bubble the first error and discard
+    /// every other document's work); instead each failure is captured as an
+    /// `InsertResult { success: false, error: Some(..) }` so callers can do
+    /// partial-success accounting.
+    ///
+    /// WHY bounded concurrency: ingestion is dominated by LLM/embedding round
+    /// trips, so processing a few documents in parallel hides that latency, but
+    /// an unbounded fan-out would overwhelm provider rate limits and the DB
+    /// pool. The limit is read from `EDGEQUAKE_INGEST_CONCURRENCY` (default 4).
     pub async fn insert_batch(
         &self,
         documents: Vec<(&str, Option<&str>)>,
     ) -> Result<Vec<InsertResult>> {
-        let mut results = Vec::with_capacity(documents.len());
+        use futures::stream::{self, StreamExt};
 
-        for (content, doc_id) in documents {
-            let result = self.insert(content, doc_id).await?;
-            results.push(result);
-        }
+        let concurrency = std::env::var("EDGEQUAKE_INGEST_CONCURRENCY")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|&n| n > 0)
+            .unwrap_or(4);
+
+        // `buffered` polls up to `concurrency` futures at once but yields their
+        // outputs in the original stream order, so result[i] always maps to
+        // documents[i] regardless of which finished first.
+        let results = stream::iter(documents.into_iter())
+            .map(|(content, doc_id)| async move {
+                match self.insert(content, doc_id).await {
+                    Ok(result) => result,
+                    Err(e) => InsertResult {
+                        // Preserve the caller-supplied id when known so the
+                        // failure can be correlated to its source document.
+                        document_id: doc_id.map(|s| s.to_string()).unwrap_or_default(),
+                        success: false,
+                        chunks_created: 0,
+                        entities_extracted: 0,
+                        relationships_extracted: 0,
+                        processing_time_ms: 0,
+                        error: Some(e.to_string()),
+                    },
+                }
+            })
+            .buffered(concurrency)
+            .collect::<Vec<_>>()
+            .await;
 
         Ok(results)
     }
