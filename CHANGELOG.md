@@ -6,7 +6,24 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [0.12.6] — 2026-06-01
+## [0.12.6] — 2026-05-29
+
+### Performance
+
+- **QW1 — Batch AGE session setup** (`graph/helpers.rs`) — AGE `SET search_path` and `LOAD 'age'` are now issued once per connection rather than once per query. Eliminates repeated round-trips on every graph read/write.
+- **QW2 — UNNEST batch vector upsert** (`postgres/vector.rs`) — Chunk-vector inserts now use a single `INSERT … SELECT UNNEST($1::text[], …) ON CONFLICT DO UPDATE` statement inside one transaction instead of N individual upserts. Includes full deduplication and validate-all logic. Caller reduced to one batched call per chunk.
+- **QW3 — pgvector search recall tuning** (`postgres/vector.rs`) — `ef_search` / `probes` hints always emitted; `hnsw.iterative_scan` and `hnsw.max_scan_tuples` now gated behind a pgvector ≥ 0.8.0 version check (cached `OnceCell`) so the server is compatible with pgvector 0.7.x deployments without crashing.
+- **QW4 — Neighbor depth/limit clamping** (`graph/mod.rs`) — Unbounded depth and neighbor-limit parameters are clamped to safe maxima before AGE query generation, preventing runaway graph traversals.
+- **QW5 — Connection pool sizing** (`config.rs`) — `DATABASE_POOL_SIZE` default raised from 25 → 32; pool-prefix sanitization added. AGE session setup batched (complements QW1).
+- **QW6 — `clear_workspace` column-first fallback** (`postgres/vector.rs`) — Workspace wipe now tries an explicit column list first and falls back to JSONB field removal, making it robust against schema drift.
+
+### Fixed
+
+- **SC1 — Single-MERGE edge upsert + UNWIND batch node/edge overrides** (`graph/mod.rs`) — Edge upsert collapsed to one `MERGE` Cypher pattern; node and edge batch overrides use `UNWIND` instead of repeated per-element merges, cutting graph write latency significantly.
+- **SC2 — Cross-store saga rollback** (`ingestion.rs`) — When graph merge reports errors (merge results with `errors > 0`), chunk vectors are now rolled back via `compensate_orphan_chunk_vectors`. Two previously divergent failure-mode paths unified into `fail_with_chunk_vector_rollback`; the two call sites cannot drift in cleanup behaviour or error messaging.
+- **SC5 — Bounded-concurrency ordered `insert_batch`** (`ingestion.rs`) — Concurrent chunk ingestion is now bounded by a semaphore and results are collected in insertion order, preventing out-of-order graph edges and unbounded task spawning under large documents.
+- **F8 — Dollar-quote injection fix** (`graph/helpers.rs`) — Graph property values containing `$` characters no longer break AGE dollar-quoted string literals; values are now escaped before interpolation.
+- **Migration 037** — Defensive `ADD COLUMN IF NOT EXISTS` + per-column `COALESCE` backfill closes the schema gap left by migration 028. Fully idempotent; checksum locked.
 
 ### Added
 
@@ -17,7 +34,12 @@ All notable changes to this project will be documented in this file.
   - **Google**: `gemini-3.5-flash` (stable May 2026, 1M context, $0.00015/$0.0006 per MTok); `gemini-2.0-flash` marked deprecated
 - **Bundled model catalog** — `models.toml` is now embedded in the binary via `include_str!` at compile time. The server no longer requires `models.toml` to be present in the working directory. Fallback chain: bundled TOML → runtime file (`ModelsConfig::load()`) → hardcoded defaults.
 
-### Fixed
+### Changed
+
+- Workspace server defaults switched from Ollama → OpenAI (`gpt-4.1-mini` / `text-embedding-3-small`).
+- Makefile `backend-bg` targets propagate `ANTHROPIC_API_KEY` and `MISTRAL_API_KEY` to the background server process.
+
+### Fixed (continued)
 
 - **Model visibility in workspace/tenant creation** — All enabled providers were previously invisible in the model-selection dropdowns unless the `EDGEQUAKE_ALLOWED_PROVIDERS` env var was explicitly set. The default is now to show all enabled providers; set `EDGEQUAKE_ALLOWED_PROVIDERS` to a comma-separated list to restrict to named providers only.
 - **Env-var test race** — `workspace_model_update` tests that mutate process env vars now carry `#[serial_test::serial]` to prevent flaky failures under parallel test execution.
