@@ -126,15 +126,17 @@ impl AppState {
         let password = url.password().unwrap_or("").to_string();
 
         // Create PostgreSQL configuration
-        // WHY 25 connections (env-configurable via DATABASE_POOL_SIZE):
+        // WHY 32 connections (env-configurable via DATABASE_POOL_SIZE):
         // The frontend polls ~8 concurrent endpoints every 2s. Pipeline workers
         // hold connections for the full processing duration (embedding = minutes).
         // 10 connections are exhausted instantly under any real load, causing
-        // "pool timed out" 500s → polling feedback loop. 25 gives headroom.
+        // "pool timed out" 500s → polling feedback loop. QW5: raised 25→32 to
+        // match PostgresConfig::default max_connections and absorb the new
+        // bounded-concurrency batch ingestion (EDGEQUAKE_INGEST_CONCURRENCY).
         let db_pool_size: u32 = std::env::var("DATABASE_POOL_SIZE")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(25);
+            .unwrap_or(32);
         let pg_config = edgequake_storage::adapters::postgres::PostgresConfig::new(
             host, port, database, user, password,
         )
