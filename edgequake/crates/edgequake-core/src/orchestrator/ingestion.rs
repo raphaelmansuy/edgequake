@@ -363,64 +363,59 @@ impl EdgeQuake {
             merger = merger.with_summarizer(summarizer);
         }
 
+        // ── SC2 saga: the graph merge is the LAST fallible stage ──────────────
+        //
+        // Both failure modes below are the SAME logical event — "the graph stage
+        // failed, so undo the chunk vectors Stage 2 committed" — and therefore
+        // share ONE compensation path (`fail_with_chunk_vector_rollback`):
+        //
+        //   1. `merge()` returns `Err`: a catastrophic early abort (e.g. a
+        //      pre-flight failure before per-element processing).
+        //
+        //   2. `merge()` returns `Ok` but `stats.errors > 0`:
+        //      `KnowledgeGraphMerger::merge` is deliberately resilient — it does
+        //      NOT abort on the first bad element. It catches each
+        //      `merge_entity` / `merge_relationship` failure, increments
+        //      `MergeStats::errors`, logs it, and returns `Ok(stats)`. Good for
+        //      *data-level* hiccups, but it means a wholesale graph-storage fault
+        //      (backend down, transaction rejected) is silently absorbed and the
+        //      insert would otherwise report `success: true` while the graph is
+        //      partially/fully unwritten — orphaning the Stage 2 chunk vectors.
+        //      `errors > 0` is a reliable storage-fault signal because every
+        //      counted error originates from a storage call (`get_node`,
+        //      `upsert_node`, `get_edge`, `upsert_edge`, vector `upsert`):
+        //      parsing/validation happened upstream in the extractor and
+        //      LLM-summarization failures fall back instead of erroring.
+        //
+        // WHY we roll back only the vectors (not the graph): the graph MERGE is
+        // idempotent and source-tracked, so any partial graph residue is safe to
+        // re-run or to clean up via normal document deletion. Deleting the
+        // freshly-written chunk vectors collapses the orphan window to that
+        // re-runnable graph side.
         let merge_stats = match merger.merge(processing_result.extractions.clone()).await {
-            Ok(stats) => stats,
-            Err(merge_err) => {
-                // SAGA compensation: roll back this document's chunk vectors so a
-                // failed graph merge cannot leave orphaned, unreachable embeddings.
-                Self::compensate_orphan_chunk_vectors(
+            Ok(stats) if stats.errors == 0 => stats,
+            Ok(stats) => {
+                return Err(Self::fail_with_chunk_vector_rollback(
                     vector_storage.as_ref(),
                     &doc_id,
                     &chunk_ids,
-                    &merge_err.to_string(),
+                    format!(
+                        "{} knowledge-graph merge error(s) during insert",
+                        stats.errors
+                    ),
                 )
-                .await;
-                return Err(Error::internal(format!("Merge error: {}", merge_err)));
+                .await);
+            }
+            Err(merge_err) => {
+                return Err(Self::fail_with_chunk_vector_rollback(
+                    vector_storage.as_ref(),
+                    &doc_id,
+                    &chunk_ids,
+                    merge_err.to_string(),
+                )
+                .await);
             }
         };
-
-        // ── SC2 saga: treat per-element merge faults as a failed cross-store write ──
-        //
-        // WHY this check exists: `KnowledgeGraphMerger::merge` is deliberately
-        // resilient — it does NOT abort on the first bad element. Instead it
-        // catches each `merge_entity` / `merge_relationship` failure, increments
-        // `MergeStats::errors`, logs it, and returns `Ok(stats)`. That is the
-        // right behaviour for *data-level* hiccups, but it means a wholesale
-        // graph-storage fault (backend down, transaction rejected) is silently
-        // absorbed and the insert would otherwise report `success: true` while
-        // the graph is partially/fully unwritten — leaving the chunk vectors we
-        // committed in Stage 2 orphaned and unreachable. That is precisely the
-        // cross-store inconsistency SC2/F4 must prevent.
-        //
-        // WHY `errors > 0` is the right signal: every error counted here
-        // originates from a storage call (`get_node`, `upsert_node`, `get_edge`,
-        // `upsert_edge`, vector `upsert`). Parsing/validation already happened in
-        // the extractor, and LLM-summarization failures fall back instead of
-        // erroring — so a non-zero count is a storage fault, exactly when
-        // compensation is warranted.
-        //
-        // WHY we still only roll back the vectors (not the graph): the graph
-        // MERGE is idempotent and source-tracked, so any partial graph residue is
-        // safe to re-run or to clean up via normal document deletion. Deleting the
-        // freshly-written chunk vectors collapses the orphan window to that
-        // re-runnable graph side.
-        if merge_stats.errors > 0 {
-            Self::compensate_orphan_chunk_vectors(
-                vector_storage.as_ref(),
-                &doc_id,
-                &chunk_ids,
-                &format!(
-                    "{} knowledge-graph merge error(s) during insert",
-                    merge_stats.errors
-                ),
-            )
-            .await;
-            return Err(Error::internal(format!(
-                "Knowledge graph merge failed for {} element(s) of document {}; \
-                 rolled back chunk vectors to avoid orphaned embeddings",
-                merge_stats.errors, doc_id
-            )));
-        }
 
         let processing_time_ms = start.elapsed().as_millis() as u64;
 
@@ -434,6 +429,27 @@ impl EdgeQuake {
             processing_time_ms,
             error: None,
         })
+    }
+
+    /// Compensate a failed cross-store document write and build the error to
+    /// surface to the caller.
+    ///
+    /// SOLID/DRY: this is the SINGLE place the two graph-stage failure modes
+    /// (`merge()` returning `Err`, and `merge()` returning `Ok` with
+    /// `errors > 0`) converge. It composes the best-effort vector rollback
+    /// (`compensate_orphan_chunk_vectors`) with a uniform, caller-facing error
+    /// so neither call site can drift in cleanup behaviour or messaging.
+    async fn fail_with_chunk_vector_rollback(
+        vector_storage: &dyn VectorStorage,
+        doc_id: &str,
+        chunk_ids: &[String],
+        cause: String,
+    ) -> Error {
+        Self::compensate_orphan_chunk_vectors(vector_storage, doc_id, chunk_ids, &cause).await;
+        Error::internal(format!(
+            "Knowledge graph merge failed for document {doc_id} ({cause}); \
+             rolled back chunk vectors to avoid orphaned embeddings"
+        ))
     }
 
     /// Best-effort saga compensation for a failed cross-store document write.
