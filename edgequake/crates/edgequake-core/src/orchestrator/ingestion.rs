@@ -9,6 +9,8 @@ use edgequake_pipeline::{
     MergerConfig, Pipeline, PipelineConfig, SummarizerConfig,
 };
 
+use edgequake_storage::traits::VectorStorage;
+
 use crate::error::{Error, Result};
 use crate::types::InsertResult;
 
@@ -88,14 +90,26 @@ impl EdgeQuake {
     ///    - WHY chunks: LLM context windows are limited; chunks enable parallel processing
     ///    - WHY overlapping chunks: Entities spanning chunk boundaries are captured
     ///
-    /// 2. **Knowledge Graph Merge** - Deduplicate and merge into graph storage
+    /// 2. **Vector Storage** - Store chunk embeddings for semantic search
+    ///    - WHY first: this write is internally atomic (QW2 single-transaction
+    ///      UNNEST), so writing it before the graph merge lets us cleanly roll it
+    ///      back if the merge fails (see SC2 saga compensation below).
+    ///    - WHY type metadata: Distinguish entity vectors from chunk vectors
+    ///    - WHY tenant isolation: Multi-tenancy requires vector filtering
+    ///
+    /// 3. **Knowledge Graph Merge** - Deduplicate and merge into graph storage
+    ///    - WHY last: the merge is the only remaining fallible step and is
+    ///      idempotent/source-tracked, so a failed merge is safe to re-run.
     ///    - WHY merge instead of insert: Same entity may appear in multiple documents
     ///    - WHY LLM summarization: Merge conflicting descriptions intelligently
     ///    - WHY source tracking: Enable cascade delete when documents are removed
     ///
-    /// 3. **Vector Storage** - Store embeddings for semantic search
-    ///    - WHY type metadata: Distinguish entity vectors from chunk vectors
-    ///    - WHY tenant isolation: Multi-tenancy requires vector filtering
+    /// # WHY: SC2 cross-store saga (no 2PC available)
+    ///
+    /// Vector and graph stores are independent `Arc<dyn _>` backends with no
+    /// shared transaction. A true ACID boundary is impossible, so on graph-merge
+    /// failure we COMPENSATE by deleting this document's chunk vectors,
+    /// guaranteeing no orphaned, unreachable embeddings survive a partial write.
     ///
     /// # Arguments
     ///
@@ -250,45 +264,42 @@ impl EdgeQuake {
             .await
             .map_err(|e| Error::internal(format!("Pipeline error: {}", e)))?;
 
-        // Stage 2: Merge results into knowledge graph
-        // WHY: Entities may exist from previous documents; merge avoids duplicates
-        // WHY LLM summarization: When merging descriptions, LLM produces coherent summary
-        let llm = self
-            .llm_provider
-            .as_ref()
-            .ok_or_else(|| Error::not_initialized("LLM provider not initialized"))?;
+        // ── Cross-store write ordering & saga compensation (SC2 / finding F4) ──
+        //
+        // WHY this matters: a single document is persisted across TWO independent
+        // backends — the vector store (chunk embeddings) and the graph store
+        // (entities + relationships). They are separate `Arc<dyn _>` trait objects
+        // with NO shared connection or transaction handle, and at least one
+        // backend (the in-memory adapter) has no transactional semantics at all.
+        // A true cross-store ACID/2PC boundary is therefore architecturally
+        // impossible here without a distributed transaction coordinator we do not
+        // have.
+        //
+        // WHAT we do instead — a bounded, deterministic SAGA:
+        //   1. Write chunk vectors FIRST. This write is internally atomic (QW2
+        //      performs a single chunked-UNNEST transaction: all chunk rows for
+        //      the document commit together, or none do).
+        //   2. Run the graph merge LAST. The graph MERGE is idempotent and
+        //      source-tracked, so a failed/partial merge is safe to re-run or to
+        //      clean up via normal document deletion.
+        //   3. If the merge fails, COMPENSATE by deleting exactly this document's
+        //      chunk vectors (uniquely owned by `doc_id`) and emit a structured
+        //      quarantine log, then surface the error.
+        //
+        // Net effect vs. the previous "graph-first, vectors-second, no cleanup"
+        // ordering: orphaned chunk vectors become impossible (they are written
+        // immediately before the only remaining fallible step and are actively
+        // removed on failure), shrinking the orphan class to the idempotent,
+        // re-runnable graph side.
 
-        let merger_config = MergerConfig {
-            use_llm_summarization: self.config.use_llm_summarization,
-            ..Default::default()
-        };
-
-        let mut merger =
-            KnowledgeGraphMerger::new(merger_config, graph_storage.clone(), vector_storage.clone())
-                .with_tenant_context(
-                    self.config.tenant_id.clone(),
-                    self.config.workspace_id.clone(),
-                );
-
-        // Add LLM summarizer if enabled
-        if self.config.use_llm_summarization {
-            let summarizer = Arc::new(LLMSummarizer::new(llm.clone(), SummarizerConfig::default()));
-            merger = merger.with_summarizer(summarizer);
-        }
-
-        let merge_stats = merger
-            .merge(processing_result.extractions.clone())
-            .await
-            .map_err(|e| Error::internal(format!("Merge error: {}", e)))?;
-
-        // Stage 3: Store chunk embeddings with type metadata
-        // WHY type: "chunk" metadata: Enables filtering entity vs chunk vectors at query time
-        // WHY tenant/workspace: Multi-tenancy isolation at vector level
+        // Stage 2: Store chunk embeddings with type metadata (written FIRST).
+        // WHY type:"chunk" metadata: enables filtering entity vs chunk vectors at query time.
+        // WHY tenant/workspace: multi-tenancy isolation at the vector level.
         //
         // QW2: collect ALL chunk embeddings into a SINGLE batched `upsert` call
-        // instead of one round trip per chunk. The vector adapter now performs
-        // a chunked UNNEST insert in one transaction, so for an N-chunk document
-        // this collapses N network round trips into ~ceil(N/1000).
+        // instead of one round trip per chunk. The vector adapter performs a
+        // chunked UNNEST insert in one transaction, collapsing N round trips into
+        // ~ceil(N/1000).
         let chunk_vectors: Vec<(String, Vec<f32>, serde_json::Value)> = processing_result
             .chunks
             .iter()
@@ -313,11 +324,102 @@ impl EdgeQuake {
             })
             .collect();
 
+        // Capture the chunk IDs up front so the compensation path can delete
+        // exactly what stage 2 wrote — nothing more, nothing less.
+        let chunk_ids: Vec<String> = chunk_vectors.iter().map(|(id, _, _)| id.clone()).collect();
+
         if !chunk_vectors.is_empty() {
             vector_storage
                 .upsert(&chunk_vectors)
                 .await
                 .map_err(|e| Error::internal(format!("Vector storage error: {}", e)))?;
+        }
+
+        // Stage 3: Merge results into the knowledge graph (the LAST fallible step).
+        // WHY merge: entities may already exist from previous documents; merge
+        // de-duplicates instead of creating conflicting nodes.
+        // WHY LLM summarization: when merging descriptions, the LLM produces a
+        // single coherent summary rather than concatenated fragments.
+        let llm = self
+            .llm_provider
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("LLM provider not initialized"))?;
+
+        let merger_config = MergerConfig {
+            use_llm_summarization: self.config.use_llm_summarization,
+            ..Default::default()
+        };
+
+        let mut merger =
+            KnowledgeGraphMerger::new(merger_config, graph_storage.clone(), vector_storage.clone())
+                .with_tenant_context(
+                    self.config.tenant_id.clone(),
+                    self.config.workspace_id.clone(),
+                );
+
+        // Add LLM summarizer if enabled
+        if self.config.use_llm_summarization {
+            let summarizer = Arc::new(LLMSummarizer::new(llm.clone(), SummarizerConfig::default()));
+            merger = merger.with_summarizer(summarizer);
+        }
+
+        let merge_stats = match merger.merge(processing_result.extractions.clone()).await {
+            Ok(stats) => stats,
+            Err(merge_err) => {
+                // SAGA compensation: roll back this document's chunk vectors so a
+                // failed graph merge cannot leave orphaned, unreachable embeddings.
+                Self::compensate_orphan_chunk_vectors(
+                    vector_storage.as_ref(),
+                    &doc_id,
+                    &chunk_ids,
+                    &merge_err.to_string(),
+                )
+                .await;
+                return Err(Error::internal(format!("Merge error: {}", merge_err)));
+            }
+        };
+
+        // ── SC2 saga: treat per-element merge faults as a failed cross-store write ──
+        //
+        // WHY this check exists: `KnowledgeGraphMerger::merge` is deliberately
+        // resilient — it does NOT abort on the first bad element. Instead it
+        // catches each `merge_entity` / `merge_relationship` failure, increments
+        // `MergeStats::errors`, logs it, and returns `Ok(stats)`. That is the
+        // right behaviour for *data-level* hiccups, but it means a wholesale
+        // graph-storage fault (backend down, transaction rejected) is silently
+        // absorbed and the insert would otherwise report `success: true` while
+        // the graph is partially/fully unwritten — leaving the chunk vectors we
+        // committed in Stage 2 orphaned and unreachable. That is precisely the
+        // cross-store inconsistency SC2/F4 must prevent.
+        //
+        // WHY `errors > 0` is the right signal: every error counted here
+        // originates from a storage call (`get_node`, `upsert_node`, `get_edge`,
+        // `upsert_edge`, vector `upsert`). Parsing/validation already happened in
+        // the extractor, and LLM-summarization failures fall back instead of
+        // erroring — so a non-zero count is a storage fault, exactly when
+        // compensation is warranted.
+        //
+        // WHY we still only roll back the vectors (not the graph): the graph
+        // MERGE is idempotent and source-tracked, so any partial graph residue is
+        // safe to re-run or to clean up via normal document deletion. Deleting the
+        // freshly-written chunk vectors collapses the orphan window to that
+        // re-runnable graph side.
+        if merge_stats.errors > 0 {
+            Self::compensate_orphan_chunk_vectors(
+                vector_storage.as_ref(),
+                &doc_id,
+                &chunk_ids,
+                &format!(
+                    "{} knowledge-graph merge error(s) during insert",
+                    merge_stats.errors
+                ),
+            )
+            .await;
+            return Err(Error::internal(format!(
+                "Knowledge graph merge failed for {} element(s) of document {}; \
+                 rolled back chunk vectors to avoid orphaned embeddings",
+                merge_stats.errors, doc_id
+            )));
         }
 
         let processing_time_ms = start.elapsed().as_millis() as u64;
@@ -332,6 +434,53 @@ impl EdgeQuake {
             processing_time_ms,
             error: None,
         })
+    }
+
+    /// Best-effort saga compensation for a failed cross-store document write.
+    ///
+    /// Deletes the chunk vectors that Stage 2 already committed for `doc_id`
+    /// after the graph merge (the last fallible stage) failed, preventing
+    /// orphaned embeddings that would otherwise be retrievable yet disconnected
+    /// from the knowledge graph.
+    ///
+    /// WHY best-effort (no `?`, never returns an error): compensation runs on an
+    /// already-failing path. If cleanup itself fails we must NOT mask the
+    /// original merge error; instead we emit a structured `quarantine` log so an
+    /// operator (or a reconciliation job) can remove the residue out of band.
+    /// Deletion is keyed by the exact chunk IDs we wrote, so it is idempotent
+    /// and safe to retry.
+    async fn compensate_orphan_chunk_vectors(
+        vector_storage: &dyn VectorStorage,
+        doc_id: &str,
+        chunk_ids: &[String],
+        cause: &str,
+    ) {
+        // Nothing was written (e.g. a document with no embeddable chunks) — there
+        // is nothing to roll back.
+        if chunk_ids.is_empty() {
+            return;
+        }
+
+        match vector_storage.delete(chunk_ids).await {
+            Ok(()) => {
+                tracing::warn!(
+                    document_id = %doc_id,
+                    chunk_vectors_deleted = chunk_ids.len(),
+                    cause = %cause,
+                    "saga_compensation: rolled back chunk vectors after graph merge failure"
+                );
+            }
+            Err(cleanup_err) => {
+                tracing::error!(
+                    document_id = %doc_id,
+                    orphan_chunk_vectors = chunk_ids.len(),
+                    merge_cause = %cause,
+                    cleanup_error = %cleanup_err,
+                    "quarantine: failed to roll back chunk vectors after graph merge \
+                     failure; manual or reconciliation cleanup required"
+                );
+            }
+        }
     }
 
     /// Insert multiple documents.
@@ -362,7 +511,7 @@ impl EdgeQuake {
         // `buffered` polls up to `concurrency` futures at once but yields their
         // outputs in the original stream order, so result[i] always maps to
         // documents[i] regardless of which finished first.
-        let results = stream::iter(documents.into_iter())
+        let results = stream::iter(documents)
             .map(|(content, doc_id)| async move {
                 match self.insert(content, doc_id).await {
                     Ok(result) => result,
