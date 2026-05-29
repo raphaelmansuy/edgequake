@@ -278,6 +278,64 @@ impl GraphStorage for PostgresAGEGraphStorage {
         Ok(())
     }
 
+    /// SC1: batched node upsert using a single `UNWIND ... MERGE` per chunk.
+    ///
+    /// WHY: the default trait impl issues one `cypher()` round trip per node.
+    /// For a document yielding hundreds of entities that is hundreds of network
+    /// + planner round trips. UNWIND expands an inline list literal into rows
+    /// inside ONE AGE query, so a 500-node batch becomes a single round trip.
+    ///
+    /// WHY inline literal (not a bound `$param`): AGE's `cypher()` SQL wrapper
+    /// does not forward sqlx bind parameters into the Cypher scope, so the list
+    /// must be materialized as a Cypher literal. Every value flows through
+    /// `value_to_cypher`, which single-quote-escapes strings, so injection via
+    /// node ids/properties is neutralized exactly as in the single-node path.
+    async fn upsert_nodes_batch(
+        &self,
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        if nodes.is_empty() {
+            return Ok(());
+        }
+
+        // WHY chunk: bound the generated query string so a pathological batch
+        // cannot blow past PostgreSQL's statement size / planner limits.
+        const CHUNK: usize = 500;
+
+        for chunk in nodes.chunks(CHUNK) {
+            let rows: Vec<String> = chunk
+                .iter()
+                .map(|(node_id, properties)| {
+                    let mut map = properties.clone();
+                    // node_id is the MERGE key; force it into the property map.
+                    map.insert(
+                        "node_id".to_string(),
+                        serde_json::Value::String(node_id.clone()),
+                    );
+                    Self::properties_to_cypher(&map)
+                })
+                .collect();
+
+            let cypher = format!(
+                "UNWIND [{}] AS props \
+                 MERGE (n:Node {{node_id: props.node_id}}) \
+                 SET n = props",
+                rows.join(", ")
+            );
+            self.cypher_execute(&cypher).await?;
+        }
+
+        // Lazily create indexes after the first successful batch (AGE builds the
+        // Node table lazily, mirroring the single-node path).
+        if !self.indexes_verified.load(Ordering::Relaxed) {
+            self.ensure_indexes().await?;
+            self.indexes_verified.store(true, Ordering::Relaxed);
+            tracing::info!("Created AGE indexes after first node batch");
+        }
+
+        Ok(())
+    }
+
     async fn delete_node(&self, node_id: &str) -> Result<()> {
         let escaped_id = Self::escape_cypher_string(node_id);
 
@@ -705,26 +763,76 @@ impl GraphStorage for PostgresAGEGraphStorage {
         );
         let props_cypher = Self::properties_to_cypher(&props_with_ids);
 
-        // First ensure both nodes exist
-        let create_nodes = format!(
-            "MERGE (a:Node {{node_id: '{}'}}) MERGE (b:Node {{node_id: '{}'}})",
-            escaped_source, escaped_target
+        // SC1: collapse the old 3-round-trip MERGE-nodes / DELETE-edge /
+        // CREATE-edge dance into ONE idempotent Cypher statement.
+        //
+        // WHY single statement: the previous pattern issued three separate
+        // `cypher_execute` calls per edge. Under concurrent ingestion the
+        // DELETE-then-CREATE window also created a race where two writers could
+        // both delete and then both create, yielding duplicate EDGE rows.
+        //
+        // WHY MERGE on (source_id, target_id): MERGE keyed only on the edge's
+        // logical identity guarantees at-most-one edge between the pair, and the
+        // trailing `SET r +=` overlays the latest properties (last-write-wins)
+        // without ever producing a duplicate. This is the canonical AGE upsert.
+        let cypher = format!(
+            "MERGE (a:Node {{node_id: '{src}'}}) \
+             MERGE (b:Node {{node_id: '{tgt}'}}) \
+             MERGE (a)-[r:EDGE {{source_id: '{src}', target_id: '{tgt}'}}]->(b) \
+             SET r += {props}",
+            src = escaped_source,
+            tgt = escaped_target,
+            props = props_cypher
         );
-        self.cypher_execute(&create_nodes).await?;
+        self.cypher_execute(&cypher).await
+    }
 
-        // Then create/update the edge
-        // Use MATCH + DELETE + CREATE pattern for upsert since MERGE on edges can be tricky
-        let delete_existing = format!(
-            "MATCH (a:Node {{node_id: '{}'}})-[r:EDGE]->(b:Node {{node_id: '{}'}}) DELETE r",
-            escaped_source, escaped_target
-        );
-        let _ = self.cypher_execute(&delete_existing).await; // Ignore if no edge exists
+    /// SC1: batched edge upsert using a single `UNWIND ... MERGE` per chunk.
+    ///
+    /// WHY: same round-trip collapse as `upsert_nodes_batch`. Each row carries
+    /// `source_id`/`target_id` plus the edge properties; MERGE on the endpoint
+    /// nodes then MERGE on the relationship keyed by (source_id, target_id)
+    /// guarantees at-most-one edge per pair (no DELETE/CREATE race), and
+    /// `SET r += props` applies last-write-wins property updates.
+    async fn upsert_edges_batch(
+        &self,
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        if edges.is_empty() {
+            return Ok(());
+        }
 
-        let create_edge = format!(
-            "MATCH (a:Node {{node_id: '{}'}}), (b:Node {{node_id: '{}'}}) CREATE (a)-[r:EDGE {}]->(b)",
-            escaped_source, escaped_target, props_cypher
-        );
-        self.cypher_execute(&create_edge).await
+        const CHUNK: usize = 500;
+
+        for chunk in edges.chunks(CHUNK) {
+            let rows: Vec<String> = chunk
+                .iter()
+                .map(|(source, target, properties)| {
+                    let mut map = properties.clone();
+                    map.insert(
+                        "source_id".to_string(),
+                        serde_json::Value::String(source.clone()),
+                    );
+                    map.insert(
+                        "target_id".to_string(),
+                        serde_json::Value::String(target.clone()),
+                    );
+                    Self::properties_to_cypher(&map)
+                })
+                .collect();
+
+            let cypher = format!(
+                "UNWIND [{}] AS e \
+                 MERGE (a:Node {{node_id: e.source_id}}) \
+                 MERGE (b:Node {{node_id: e.target_id}}) \
+                 MERGE (a)-[r:EDGE {{source_id: e.source_id, target_id: e.target_id}}]->(b) \
+                 SET r += e",
+                rows.join(", ")
+            );
+            self.cypher_execute(&cypher).await?;
+        }
+
+        Ok(())
     }
 
     async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {
@@ -1117,12 +1225,27 @@ impl GraphStorage for PostgresAGEGraphStorage {
     async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>> {
         let escaped_id = Self::escape_cypher_string(node_id);
 
+        // QW4: clamp traversal depth to a hard ceiling of 3 hops. Variable-length
+        // path expansion in AGE is combinatorial — each extra hop multiplies the
+        // intermediate row set by the average degree, so an unbounded `depth`
+        // (e.g. a caller passing usize::MAX) can OOM the backend or hang the
+        // connection. 3 hops is the practical limit for "related context" in
+        // graph-RAG retrieval; anything deeper is noise.
+        let safe_depth = depth.clamp(1, 3);
+
+        // QW4: cap the neighbor result set. Hub nodes (high-degree entities like
+        // a country or a common topic) can expand to tens of thousands of
+        // neighbors; without a LIMIT we'd buffer all of them into memory and
+        // flood downstream ranking. 500 is generous for context assembly.
+        const MAX_NEIGHBORS: usize = 500;
+
         // Use variable-length path traversal to get neighbors at specified depth
         let cypher = format!(
             "MATCH (start:Node {{node_id: '{}'}})-[*1..{}]-(neighbor:Node) \
              WHERE neighbor.node_id <> '{}' \
-             RETURN DISTINCT neighbor",
-            escaped_id, depth, escaped_id
+             RETURN DISTINCT neighbor \
+             LIMIT {}",
+            escaped_id, safe_depth, escaped_id, MAX_NEIGHBORS
         );
 
         let rows = self.cypher_query(&cypher, &["neighbor"]).await?;

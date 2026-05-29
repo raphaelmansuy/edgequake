@@ -1765,6 +1765,7 @@ dependencies = [
  "edgequake-pipeline",
  "edgequake-query",
  "edgequake-storage",
+ "futures",
  "lru",
  "md5",
  "serde",
