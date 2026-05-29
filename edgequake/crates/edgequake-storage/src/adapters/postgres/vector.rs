@@ -20,8 +20,11 @@
 //! - [`BR0320`]: Dimension consistency validation
 //! - [`BR0321`]: Index type selection based on dataset size
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use sqlx::Row;
+use tokio::sync::OnceCell;
 
 use super::config::{PostgresConfig, VectorIndexType};
 use super::connection::PostgresPool;
@@ -47,6 +50,15 @@ pub struct PgVectorStorage {
     hnsw_m: u32,
     hnsw_ef_construction: u32,
     prefix: String,
+    /// Lazily-detected capability cache: does the live pgvector support the
+    /// iterative-scan GUCs (`hnsw.iterative_scan` / `ivfflat.iterative_scan`)?
+    ///
+    /// WHY: those GUCs only exist in pgvector >= 0.8.0. On 0.7.x the server
+    /// rejects them with `invalid configuration parameter name`, which would
+    /// abort every filtered query. We probe `pg_extension.extversion` once and
+    /// cache the answer so the QW3 recall tuning degrades gracefully (it simply
+    /// omits the optional iterative-scan hints) instead of breaking search.
+    iterative_scan_supported: Arc<OnceCell<bool>>,
 }
 
 impl PgVectorStorage {
@@ -77,6 +89,7 @@ impl PgVectorStorage {
             hnsw_m,
             hnsw_ef_construction,
             prefix,
+            iterative_scan_supported: Arc::new(OnceCell::new()),
         }
     }
 
@@ -221,6 +234,11 @@ impl PgVectorStorage {
     /// keeps pulling candidates until the post-filter `LIMIT` is satisfied,
     /// bounded by `max_scan_tuples`.
     ///
+    /// `iterative_scan_supported` gates the version-specific GUCs: on pgvector
+    /// < 0.8.0 those parameters do not exist and the server would reject them,
+    /// so the caller passes `false` and we emit only the always-available
+    /// `ef_search` / `probes` hints.
+    ///
     /// `SET LOCAL` is mandatory: it scopes the change to the current
     /// transaction and is reverted on commit/rollback, so it never leaks onto
     /// the shared pooled connection used by other requests.
@@ -228,13 +246,14 @@ impl PgVectorStorage {
         index_type: VectorIndexType,
         top_k: usize,
         filtered: bool,
+        iterative_scan_supported: bool,
     ) -> Vec<String> {
         let mut stmts = Vec::new();
         match index_type {
             VectorIndexType::HNSW => {
                 let ef = (top_k.saturating_mul(4)).clamp(40, 1000);
                 stmts.push(format!("SET LOCAL hnsw.ef_search = {}", ef));
-                if filtered {
+                if filtered && iterative_scan_supported {
                     // strict_order preserves exact distance ordering while
                     // iterating; max_scan_tuples bounds worst-case work.
                     stmts.push("SET LOCAL hnsw.iterative_scan = strict_order".to_string());
@@ -244,7 +263,7 @@ impl PgVectorStorage {
             VectorIndexType::IVFFlat => {
                 let probes = top_k.clamp(10, 200);
                 stmts.push(format!("SET LOCAL ivfflat.probes = {}", probes));
-                if filtered {
+                if filtered && iterative_scan_supported {
                     // IVFFlat only supports relaxed_order for iterative scan.
                     stmts.push("SET LOCAL ivfflat.iterative_scan = relaxed_order".to_string());
                 }
@@ -252,6 +271,44 @@ impl PgVectorStorage {
             VectorIndexType::None => {}
         }
         stmts
+    }
+
+    /// Detect (once, then cache) whether the live pgvector supports iterative
+    /// scan GUCs, i.e. version >= 0.8.0.
+    ///
+    /// WHY cache: the version cannot change within a process lifetime, so a
+    /// single `pg_extension` lookup amortizes across all queries. On any error
+    /// (missing extension row, unparsable version, pool not ready) we default
+    /// to `false` — the safe choice that keeps queries working by skipping the
+    /// optional optimization rather than risking an invalid-GUC failure.
+    async fn supports_iterative_scan(&self) -> bool {
+        *self
+            .iterative_scan_supported
+            .get_or_init(|| async {
+                let pool = match self.pool.get().await {
+                    Ok(p) => p,
+                    Err(_) => return false,
+                };
+                let version: Option<(String,)> =
+                    sqlx::query_as("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
+                        .fetch_optional(&pool)
+                        .await
+                        .ok()
+                        .flatten();
+                match version {
+                    Some((v,)) => {
+                        let supported = pgvector_supports_iterative_scan(&v);
+                        tracing::debug!(
+                            pgvector_version = %v,
+                            iterative_scan_supported = supported,
+                            "Detected pgvector iterative-scan capability"
+                        );
+                        supported
+                    }
+                    None => false,
+                }
+            })
+            .await
     }
 
     /// Parse embedding from PostgreSQL text format.
@@ -562,7 +619,7 @@ impl VectorStorage for PgVectorStorage {
             .await
             .map_err(|e| StorageError::Database(format!("Failed to begin query tx: {}", e)))?;
 
-        for stmt in Self::search_tuning_statements(self.index_type, top_k, false) {
+        for stmt in Self::search_tuning_statements(self.index_type, top_k, false, false) {
             sqlx::query(&stmt)
                 .execute(&mut *tx)
                 .await
@@ -1057,7 +1114,8 @@ impl VectorStorage for PgVectorStorage {
             StorageError::Database(format!("Failed to begin filtered query tx: {}", e))
         })?;
 
-        for stmt in Self::search_tuning_statements(self.index_type, top_k, true) {
+        let iterative_scan = self.supports_iterative_scan().await;
+        for stmt in Self::search_tuning_statements(self.index_type, top_k, true, iterative_scan) {
             sqlx::query(&stmt)
                 .execute(&mut *tx)
                 .await
@@ -1101,6 +1159,27 @@ impl std::fmt::Debug for PgVectorStorage {
     }
 }
 
+/// Return true if a pgvector `extversion` string is >= 0.8.0, the first release
+/// that ships the iterative-scan GUCs.
+///
+/// WHY a tolerant parser: pgvector reports versions like `"0.7.4"` or `"0.8.0"`,
+/// but a packaged build may append suffixes (e.g. pre-release/build metadata).
+/// We compare only the leading `major.minor` numerics and treat anything we
+/// cannot parse as unsupported (the safe default that avoids invalid-GUC errors).
+fn pgvector_supports_iterative_scan(version: &str) -> bool {
+    let mut parts = version
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| s.parse::<u32>().ok());
+    let major = parts.next();
+    let minor = parts.next().unwrap_or(0);
+    match major {
+        Some(0) => minor >= 8,
+        Some(_) => true, // 1.x and beyond
+        None => false,   // unparsable -> conservative
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1122,17 +1201,19 @@ mod tests {
     #[test]
     fn test_search_tuning_hnsw_clamps_ef_search() {
         // QW3: ef_search scales with top_k but is clamped to [40, 1000].
-        let small = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 1, false);
+        let small = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 1, false, true);
         assert_eq!(small, vec!["SET LOCAL hnsw.ef_search = 40"]);
-        let mid = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 50, false);
+        let mid = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 50, false, true);
         assert_eq!(mid, vec!["SET LOCAL hnsw.ef_search = 200"]);
-        let huge = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 100_000, false);
+        let huge =
+            PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 100_000, false, true);
         assert_eq!(huge, vec!["SET LOCAL hnsw.ef_search = 1000"]);
     }
 
     #[test]
     fn test_search_tuning_hnsw_filtered_enables_iterative_scan() {
-        let stmts = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 10, true);
+        let stmts =
+            PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 10, true, true);
         assert!(stmts.iter().any(|s| s.contains("hnsw.ef_search")));
         assert!(stmts
             .iter()
@@ -1143,19 +1224,57 @@ mod tests {
     }
 
     #[test]
+    fn test_search_tuning_hnsw_filtered_without_iterative_scan_support() {
+        // Edge case (pgvector < 0.8): filtered query must NOT emit the
+        // iterative_scan/max_scan_tuples GUCs the server would reject.
+        let stmts =
+            PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 10, true, false);
+        assert!(stmts.iter().any(|s| s.contains("hnsw.ef_search")));
+        assert!(!stmts.iter().any(|s| s.contains("iterative_scan")));
+        assert!(!stmts.iter().any(|s| s.contains("max_scan_tuples")));
+    }
+
+    #[test]
     fn test_search_tuning_ivfflat() {
-        let plain = PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, false);
+        let plain =
+            PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, false, true);
         assert_eq!(plain, vec!["SET LOCAL ivfflat.probes = 10"]);
-        let filtered = PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, true);
+        let filtered =
+            PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, true, true);
         assert!(filtered
             .iter()
             .any(|s| s == "SET LOCAL ivfflat.iterative_scan = relaxed_order"));
     }
 
     #[test]
+    fn test_search_tuning_ivfflat_without_iterative_scan_support() {
+        // Edge case (pgvector < 0.8): only `probes` is emitted.
+        let filtered =
+            PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, true, false);
+        assert_eq!(filtered, vec!["SET LOCAL ivfflat.probes = 10"]);
+    }
+
+    #[test]
     fn test_search_tuning_none_is_empty() {
         // No index -> no GUCs (sequential scan is exact anyway).
-        let stmts = PgVectorStorage::search_tuning_statements(VectorIndexType::None, 100, true);
+        let stmts =
+            PgVectorStorage::search_tuning_statements(VectorIndexType::None, 100, true, true);
         assert!(stmts.is_empty());
+    }
+
+    #[test]
+    fn test_pgvector_version_gate() {
+        // >= 0.8.0 supports iterative scan; older does not. Be tolerant of
+        // build-metadata / pre-release suffixes pgvector may report.
+        assert!(pgvector_supports_iterative_scan("0.8.0"));
+        assert!(pgvector_supports_iterative_scan("0.8.2"));
+        assert!(pgvector_supports_iterative_scan("1.0.0"));
+        assert!(pgvector_supports_iterative_scan("0.9"));
+        assert!(!pgvector_supports_iterative_scan("0.7.4"));
+        assert!(!pgvector_supports_iterative_scan("0.7"));
+        assert!(!pgvector_supports_iterative_scan("0.5.1"));
+        // Unparsable -> conservative false.
+        assert!(!pgvector_supports_iterative_scan(""));
+        assert!(!pgvector_supports_iterative_scan("garbage"));
     }
 }
