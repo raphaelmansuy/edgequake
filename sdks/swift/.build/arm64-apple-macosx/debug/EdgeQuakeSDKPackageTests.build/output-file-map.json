@@ -1,6 +1,6 @@
 {
   "": {
-    "swift-dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKPackageTests.build/master.swiftdeps"
+    "swift-dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKPackageTests.build/primary.swiftdeps"
   },
   "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKPackageTests.derived/runner.swift": {
     "dependencies": "/Users/raphaelmansuy/Github/03-working/edgequake/sdks/swift/.build/arm64-apple-macosx/debug/EdgeQuakeSDKPackageTests.build/runner.d",
