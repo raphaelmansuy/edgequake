@@ -1201,7 +1201,8 @@ mod tests {
     #[test]
     fn test_search_tuning_hnsw_clamps_ef_search() {
         // QW3: ef_search scales with top_k but is clamped to [40, 1000].
-        let small = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 1, false, true);
+        let small =
+            PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 1, false, true);
         assert_eq!(small, vec!["SET LOCAL hnsw.ef_search = 40"]);
         let mid = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 50, false, true);
         assert_eq!(mid, vec!["SET LOCAL hnsw.ef_search = 200"]);
