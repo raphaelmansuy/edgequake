@@ -17,24 +17,28 @@
 # =============================================================================
 # DEFAULT SELECTIONS
 # =============================================================================
-# Define which provider and model to use by default for LLM and embedding tasks.
+# Define which provider and model to use by default for LLM, embedding, and vision tasks.
 # These are used when no explicit provider/model is specified in API calls.
+# OPENAI_API_KEY is required to use the OpenAI defaults below.
 #
 # Supported default configurations:
-#   - OpenAI: gpt-4.1-nano (LLM), text-embedding-3-small (embedding)
-#   - Anthropic: claude-sonnet-4-5-20250929 (LLM)
+#   - OpenAI (default): gpt-4.1-mini (LLM), text-embedding-3-small (embedding), gpt-4o (vision)
+#   - Anthropic: claude-sonnet-4-6 (LLM), claude-opus-4-6 (flagship LLM)
+#   - Mistral: mistral-large-latest (LLM), mistral-embed (embedding), pixtral-large-latest (vision)
 #   - Gemini: gemini-2.5-flash (LLM), gemini-embedding-001 (embedding)
-#   - xAI: grok-4-1-fast (LLM)
+#   - xAI: grok-4.3 (LLM)
 #   - MiniMax: MiniMax-M2.7 (LLM)
 #   - OpenRouter: openai/gpt-4o-mini (LLM)
-#   - Ollama: gemma3:12b (LLM), embeddinggemma (embedding)
+#   - Ollama: gemma4:latest (LLM), embeddinggemma (embedding)
 #   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
 
 [defaults]
-llm_provider = "ollama"              # Default LLM provider
-llm_model = "gemma4:latest"          # Default LLM model (alias for gemma4:e4b — 128K context, multimodal+audio)
-embedding_provider = "ollama"        # Default embedding provider
-embedding_model = "embeddinggemma"   # Default embedding model (768 dimensions, 2K context)
+llm_provider = "openai"              # Default LLM provider
+llm_model = "gpt-4.1-mini"          # Default LLM model (OpenAI GPT-4.1 Mini — 1M ctx, vision, cost-effective)
+embedding_provider = "openai"        # Default embedding provider
+embedding_model = "text-embedding-3-small"  # Default embedding model (1536 dimensions)
+vision_provider = "openai"           # Default vision LLM provider (for PDF page rendering)
+vision_model = "gpt-4o"              # Default vision LLM model (OpenAI GPT-4o — established multimodal)
 
 # =============================================================================
 # OPENAI PROVIDER
@@ -201,7 +205,34 @@ output_per_1k = 0.0004
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 
-# --- GPT-5.4 Series (Latest Flagship, April 2026) ---
+# --- GPT-5.5 (Flagship, May 2026) ---
+# Verified from: https://platform.openai.com/docs/models
+
+[[providers.models]]
+name = "gpt-5.5"
+display_name = "GPT-5.5"
+model_type = "llm"
+description = "OpenAI's newest flagship model — a new class of intelligence for complex reasoning, coding, and professional work"
+deprecated = false
+tags = ["latest", "flagship", "reasoning", "coding"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.005
+output_per_1k = 0.030
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- GPT-5.4 Series (Previous Flagship, April 2026) ---
 # Verified from: https://platform.openai.com/docs/models
 
 [[providers.models]]
@@ -411,7 +442,7 @@ image_per_unit = 0.0
 [[providers]]
 name = "mistral"
 display_name = "Mistral AI"
-type = "openai_compatible"
+type = "mistral"
 api_base = "https://api.mistral.ai/v1"
 api_key_env = "MISTRAL_API_KEY"
 enabled = true
@@ -1531,13 +1562,42 @@ enabled = true
 priority = 15
 description = "Anthropic Claude models - Excellent for analysis and long-form content"
 
+# --- Claude Opus 4.8 (Latest Flagship, 2026) ---
+# Verified from: https://docs.anthropic.com/en/docs/models-overview
+
+[[providers.models]]
+name = "claude-opus-4-8"
+display_name = "Claude Opus 4.8"
+model_type = "llm"
+description = "Anthropic's most capable model — exceptional intelligence for complex reasoning, agentic coding, and analysis (1M context, 128K output)"
+deprecated = false
+tags = ["flagship", "reasoning", "latest", "agentic"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.005
+output_per_1k = 0.025
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- Claude Opus 4.6 (Legacy, April 2026) ---
+
 [[providers.models]]
 name = "claude-opus-4-6"
-display_name = "Claude Opus 4.6"
+display_name = "Claude Opus 4.6 (Legacy)"
 model_type = "llm"
-description = "Anthropic's most capable model with 1M context and 128K max output"
-deprecated = false
-tags = ["flagship", "reasoning", "latest"]
+description = "Anthropic's previous flagship model with 1M context and 128K max output (use claude-opus-4-8 instead)"
+deprecated = true
+tags = ["legacy", "flagship"]
 
 [providers.models.capabilities]
 context_length = 1000000
@@ -1712,18 +1772,22 @@ enabled = true
 priority = 16
 description = "xAI Grok models - High-performance reasoning and real-time knowledge"
 
+# --- Grok 4.3 (Latest Flagship, 2026) ---
+# Verified from: https://docs.x.ai/developers/models/grok-4.3
+# Aliases: grok-4.3-latest, grok-latest, grok-4, grok-4-latest, grok-4-0709, grok-4-1-fast, grok-3, grok-3-mini
+
 [[providers.models]]
-name = "grok-4-1-fast"
-display_name = "Grok 4.1 Fast"
+name = "grok-4.3"
+display_name = "Grok 4.3"
 model_type = "llm"
-description = "xAI's fastest model with 2M context, excellent price-performance"
+description = "xAI's most advanced flagship model — industry-leading non-hallucination rate, agentic tool calling, and instruction following (1M context)"
 deprecated = false
-tags = ["recommended", "fast", "latest"]
+tags = ["latest", "flagship", "agentic", "recommended"]
 
 [providers.models.capabilities]
-context_length = 2000000
+context_length = 1000000
 max_output_tokens = 131072
-supports_vision = false
+supports_vision = true
 supports_function_calling = true
 supports_json_mode = true
 supports_streaming = true
@@ -1731,18 +1795,21 @@ supports_system_message = true
 embedding_dimension = 0
 
 [providers.models.cost]
-input_per_1k = 0.0002
-output_per_1k = 0.0005
+input_per_1k = 0.00125
+output_per_1k = 0.0025
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 
+# --- Grok Build 0.1 (Coding Model, 2026) ---
+# Verified from: https://docs.x.ai/developers/models
+
 [[providers.models]]
-name = "grok-4-0709"
-display_name = "Grok 4"
+name = "grok-build-0.1"
+display_name = "Grok Build 0.1"
 model_type = "llm"
-description = "xAI's most capable reasoning model (256K context)"
+description = "xAI's fast coding model optimized for agentic coding workflows (256K context)"
 deprecated = false
-tags = ["flagship", "reasoning"]
+tags = ["coding", "agentic", "fast"]
 
 [providers.models.capabilities]
 context_length = 256000
@@ -1755,23 +1822,73 @@ supports_system_message = true
 embedding_dimension = 0
 
 [providers.models.cost]
-input_per_1k = 0.003
-output_per_1k = 0.015
+input_per_1k = 0.001
+output_per_1k = 0.002
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- Legacy Grok models (aliases for grok-4.3 — kept for backward compatibility) ---
+
+[[providers.models]]
+name = "grok-4-1-fast"
+display_name = "Grok 4.1 Fast (alias)"
+model_type = "llm"
+description = "Alias for grok-4.3 — use grok-4.3 instead"
+deprecated = true
+tags = ["legacy"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 131072
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.00125
+output_per_1k = 0.0025
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "grok-4-0709"
+display_name = "Grok 4 (alias)"
+model_type = "llm"
+description = "Alias for grok-4.3 — use grok-4.3 instead"
+deprecated = true
+tags = ["legacy"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 131072
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.00125
+output_per_1k = 0.0025
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 
 [[providers.models]]
 name = "grok-3"
-display_name = "Grok 3"
+display_name = "Grok 3 (alias)"
 model_type = "llm"
-description = "xAI's balanced model with strong reasoning (131K context)"
-deprecated = false
-tags = ["balanced", "reasoning"]
+description = "Alias for grok-4.3 — use grok-4.3 instead"
+deprecated = true
+tags = ["legacy"]
 
 [providers.models.capabilities]
-context_length = 131072
-max_output_tokens = 8192
-supports_vision = false
+context_length = 1000000
+max_output_tokens = 131072
+supports_vision = true
 supports_function_calling = true
 supports_json_mode = true
 supports_streaming = true
@@ -1779,23 +1896,23 @@ supports_system_message = true
 embedding_dimension = 0
 
 [providers.models.cost]
-input_per_1k = 0.003
-output_per_1k = 0.015
+input_per_1k = 0.00125
+output_per_1k = 0.0025
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 
 [[providers.models]]
 name = "grok-3-mini"
-display_name = "Grok 3 Mini"
+display_name = "Grok 3 Mini (alias)"
 model_type = "llm"
-description = "xAI's cost-effective model for simpler tasks (131K context)"
-deprecated = false
-tags = ["cost-effective", "fast"]
+description = "Alias for grok-4.3 — use grok-4.3 instead"
+deprecated = true
+tags = ["legacy"]
 
 [providers.models.capabilities]
-context_length = 131072
-max_output_tokens = 8192
-supports_vision = false
+context_length = 1000000
+max_output_tokens = 131072
+supports_vision = true
 supports_function_calling = true
 supports_json_mode = true
 supports_streaming = true
@@ -1803,8 +1920,8 @@ supports_system_message = true
 embedding_dimension = 0
 
 [providers.models.cost]
-input_per_1k = 0.0003
-output_per_1k = 0.0005
+input_per_1k = 0.00125
+output_per_1k = 0.0025
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 
@@ -1937,6 +2054,33 @@ enabled = true
 priority = 18
 description = "Google Gemini models - Multimodal AI with massive context windows"
 
+# --- Gemini 3.5 Flash (Frontier Flagship, May 2026) ---
+# Verified from: https://ai.google.dev/gemini-api/docs/models
+
+[[providers.models]]
+name = "gemini-3.5-flash"
+display_name = "Gemini 3.5 Flash"
+model_type = "llm"
+description = "Google's frontier model for sustained performance on agentic and coding tasks (1M context, stable May 2026)"
+deprecated = false
+tags = ["latest", "flagship", "agentic", "coding", "recommended"]
+
+[providers.models.capabilities]
+context_length = 1048576
+max_output_tokens = 65536
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.00015
+output_per_1k = 0.0006
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
 [[providers.models]]
 name = "gemini-2.5-pro"
 display_name = "Gemini 2.5 Pro"
@@ -2011,11 +2155,11 @@ image_per_unit = 0.0
 
 [[providers.models]]
 name = "gemini-2.0-flash"
-display_name = "Gemini 2.0 Flash"
+display_name = "Gemini 2.0 Flash (Legacy)"
 model_type = "llm"
-description = "Budget-friendly multimodal model with 1M context"
-deprecated = false
-tags = ["budget", "multimodal"]
+description = "Budget-friendly multimodal model with 1M context (deprecated — use gemini-2.5-flash-lite instead)"
+deprecated = true
+tags = ["legacy", "budget", "multimodal"]
 
 [providers.models.capabilities]
 context_length = 1048576

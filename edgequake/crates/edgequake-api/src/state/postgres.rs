@@ -375,9 +375,13 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::PostgreSQL,
-            models_config: Arc::new(
-                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
-            ),
+            models_config: Arc::new({
+                const BUNDLED_MODELS: &str =
+                    include_str!("../../../../models.toml");
+                ModelsConfig::from_toml(BUNDLED_MODELS)
+                    .or_else(|_| ModelsConfig::load())
+                    .unwrap_or_else(|_| ModelsConfig::builtin_defaults())
+            }),
             pg_pool: Some(pool),
             pdf_storage: Some(pdf_storage),
             start_time: std::time::Instant::now(),
