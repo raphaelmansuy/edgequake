@@ -206,6 +206,54 @@ impl PgVectorStorage {
         format!("[{}]", values.join(","))
     }
 
+    /// QW3: derive the transaction-scoped approximate-search GUCs for a query.
+    ///
+    /// Returns the list of `SET LOCAL ...` statements to run before the search.
+    /// Kept as a pure function (no I/O) so its policy is unit-testable.
+    ///
+    /// # WHY tune recall per query
+    /// pgvector's defaults (`hnsw.ef_search = 40`, `ivfflat.probes = 1`) favor
+    /// latency over recall. For larger `top_k`, or when a metadata pre-filter
+    /// discards candidates, the approximate scan can return fewer/worse rows
+    /// than requested. We scale the search effort with `top_k` (clamped to a
+    /// sane ceiling so a pathological `top_k` cannot melt the database) and, for
+    /// filtered queries, enable `iterative_scan` (pgvector >= 0.8) so the scan
+    /// keeps pulling candidates until the post-filter `LIMIT` is satisfied,
+    /// bounded by `max_scan_tuples`.
+    ///
+    /// `SET LOCAL` is mandatory: it scopes the change to the current
+    /// transaction and is reverted on commit/rollback, so it never leaks onto
+    /// the shared pooled connection used by other requests.
+    fn search_tuning_statements(
+        index_type: VectorIndexType,
+        top_k: usize,
+        filtered: bool,
+    ) -> Vec<String> {
+        let mut stmts = Vec::new();
+        match index_type {
+            VectorIndexType::HNSW => {
+                let ef = (top_k.saturating_mul(4)).clamp(40, 1000);
+                stmts.push(format!("SET LOCAL hnsw.ef_search = {}", ef));
+                if filtered {
+                    // strict_order preserves exact distance ordering while
+                    // iterating; max_scan_tuples bounds worst-case work.
+                    stmts.push("SET LOCAL hnsw.iterative_scan = strict_order".to_string());
+                    stmts.push("SET LOCAL hnsw.max_scan_tuples = 20000".to_string());
+                }
+            }
+            VectorIndexType::IVFFlat => {
+                let probes = top_k.clamp(10, 200);
+                stmts.push(format!("SET LOCAL ivfflat.probes = {}", probes));
+                if filtered {
+                    // IVFFlat only supports relaxed_order for iterative scan.
+                    stmts.push("SET LOCAL ivfflat.iterative_scan = relaxed_order".to_string());
+                }
+            }
+            VectorIndexType::None => {}
+        }
+        stmts
+    }
+
     /// Parse embedding from PostgreSQL text format.
     fn parse_embedding(text: &str) -> Vec<f32> {
         let trimmed = text.trim_start_matches('[').trim_end_matches(']');
@@ -505,23 +553,43 @@ impl VectorStorage for PgVectorStorage {
             )
         };
 
+        // QW3: run inside a short transaction so we can raise recall via
+        // `SET LOCAL` GUCs scoped to just this search (never leaking onto the
+        // shared pooled connection). The plain `query()` path applies no
+        // metadata post-filter, so iterative_scan is not requested here.
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to begin query tx: {}", e)))?;
+
+        for stmt in Self::search_tuning_statements(self.index_type, top_k, false) {
+            sqlx::query(&stmt)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| StorageError::Database(format!("Failed to set search GUC: {}", e)))?;
+        }
+
         let rows = if let Some(ids) = filter_ids {
             sqlx::query(&sql)
                 .bind(&embedding_str)
                 .bind(ids)
                 .bind(top_k as i32)
-                .fetch_all(&pool)
+                .fetch_all(&mut *tx)
                 .await
         } else {
             sqlx::query(&sql)
                 .bind(&embedding_str)
                 .bind(top_k as i32)
-                .fetch_all(&pool)
+                .fetch_all(&mut *tx)
                 .await
         };
 
         let rows =
             rows.map_err(|e| StorageError::Database(format!("Vector query failed: {}", e)))?;
+
+        tx.commit()
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to commit query tx: {}", e)))?;
 
         let results = rows
             .iter()
@@ -545,46 +613,94 @@ impl VectorStorage for PgVectorStorage {
             return Ok(());
         }
 
-        let pool = self.pool.get().await?;
-
-        for (id, embedding, metadata) in data {
+        // QW2 edge case #1: validate EVERY embedding dimension up front (fail
+        // fast, all-or-nothing). WHY: a single malformed row must not be
+        // silently committed alongside good rows, and validating before we
+        // build the batch arrays avoids partial writes.
+        for (id, embedding, _) in data {
             if embedding.len() != self.dimension {
                 return Err(StorageError::InvalidQuery(format!(
-                    "Embedding dimension mismatch: expected {}, got {}",
+                    "Embedding dimension mismatch for id '{}': expected {}, got {}",
+                    id,
                     self.dimension,
                     embedding.len()
                 )));
             }
+        }
 
-            let embedding_str = Self::format_embedding(embedding);
+        // QW2 edge case #2: de-duplicate IDs WITHIN the batch (last-write-wins).
+        // WHY: `INSERT ... SELECT ... ON CONFLICT DO UPDATE` raises
+        // "ON CONFLICT DO UPDATE command cannot affect row a second time" if the
+        // same conflict target appears twice in one statement. We keep only the
+        // last occurrence of each id, matching the previous row-by-row loop's
+        // observable behavior (later rows overwrote earlier ones).
+        let mut last_index: std::collections::HashMap<&str, usize> =
+            std::collections::HashMap::with_capacity(data.len());
+        for (i, (id, _, _)) in data.iter().enumerate() {
+            last_index.insert(id.as_str(), i);
+        }
+        let kept: Vec<usize> = (0..data.len())
+            .filter(|&i| last_index.get(data[i].0.as_str()) == Some(&i))
+            .collect();
 
-            // Dual-write: populate both JSONB metadata AND materialized columns (SPEC-007 Tier 3)
-            // COALESCE handles the document_id/source_document_id inconsistency
-            let sql = format!(
-                r#"
-                INSERT INTO {} (id, embedding, metadata, document_id, tenant_id, workspace_id)
-                VALUES ($1, $2::vector, $3,
-                        COALESCE($3->>'document_id', $3->>'source_document_id'),
-                        $3->>'tenant_id',
-                        $3->>'workspace_id')
-                ON CONFLICT (id) DO UPDATE SET
-                    embedding = EXCLUDED.embedding,
-                    metadata = EXCLUDED.metadata,
-                    document_id = EXCLUDED.document_id,
-                    tenant_id = EXCLUDED.tenant_id,
-                    workspace_id = EXCLUDED.workspace_id
-                "#,
-                self.table_name
-            );
+        let pool = self.pool.get().await?;
+
+        // QW2: single round trip per chunk via UNNEST instead of one INSERT per
+        // row. WHY chunk: bounds per-statement memory/transaction size for very
+        // large ingests; UNNEST keeps the bind-parameter count constant (3)
+        // regardless of row count, so we are not limited by Postgres' 65535
+        // parameter cap. All chunks run in ONE transaction for atomicity.
+        const CHUNK: usize = 1_000;
+
+        let sql = format!(
+            r#"
+            INSERT INTO {} (id, embedding, metadata, document_id, tenant_id, workspace_id)
+            SELECT
+                t.id,
+                t.embedding::vector,
+                t.metadata,
+                COALESCE(t.metadata->>'document_id', t.metadata->>'source_document_id'),
+                t.metadata->>'tenant_id',
+                t.metadata->>'workspace_id'
+            FROM UNNEST($1::text[], $2::text[], $3::jsonb[]) AS t(id, embedding, metadata)
+            ON CONFLICT (id) DO UPDATE SET
+                embedding = EXCLUDED.embedding,
+                metadata = EXCLUDED.metadata,
+                document_id = EXCLUDED.document_id,
+                tenant_id = EXCLUDED.tenant_id,
+                workspace_id = EXCLUDED.workspace_id
+            "#,
+            self.table_name
+        );
+
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to begin upsert tx: {}", e)))?;
+
+        for chunk in kept.chunks(CHUNK) {
+            let mut ids: Vec<String> = Vec::with_capacity(chunk.len());
+            let mut embeddings: Vec<String> = Vec::with_capacity(chunk.len());
+            let mut metadatas: Vec<serde_json::Value> = Vec::with_capacity(chunk.len());
+            for &i in chunk {
+                let (id, embedding, metadata) = &data[i];
+                ids.push(id.clone());
+                embeddings.push(Self::format_embedding(embedding));
+                metadatas.push(metadata.clone());
+            }
 
             sqlx::query(&sql)
-                .bind(id)
-                .bind(&embedding_str)
-                .bind(metadata)
-                .execute(&pool)
+                .bind(&ids)
+                .bind(&embeddings)
+                .bind(&metadatas)
+                .execute(&mut *tx)
                 .await
-                .map_err(|e| StorageError::Database(format!("Upsert failed: {}", e)))?;
+                .map_err(|e| StorageError::Database(format!("Batch upsert failed: {}", e)))?;
         }
+
+        tx.commit()
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to commit upsert tx: {}", e)))?;
 
         Ok(())
     }
@@ -770,13 +886,21 @@ impl VectorStorage for PgVectorStorage {
 
     /// Clear vectors for a specific workspace.
     ///
-    /// Uses JSONB query on metadata to filter by workspace_id.
+    /// QW6: match the materialized `workspace_id` column FIRST, then fall back
+    /// to the JSONB key.
+    ///
+    /// # WHY both predicates
+    /// Rows written after the SPEC-007 Tier-3 dual-write carry a populated
+    /// `workspace_id` column, while rows written before the backfill (or by
+    /// older code paths) only carry `metadata->>'workspace_id'`. Matching on
+    /// the column alone would silently leave legacy rows behind on delete;
+    /// matching on JSONB alone forfeits the column index. The `OR` keeps the
+    /// delete correct during and after the migration window.
     async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
         let pool = self.pool.get().await?;
 
-        // Query vectors where metadata->>'workspace_id' matches
         let sql = format!(
-            "DELETE FROM {} WHERE metadata->>'workspace_id' = $1",
+            "DELETE FROM {} WHERE workspace_id = $1 OR metadata->>'workspace_id' = $1",
             self.table_name
         );
 
@@ -927,10 +1051,27 @@ impl VectorStorage for PgVectorStorage {
         args.add(top_k as i32)
             .map_err(|e| StorageError::Database(format!("Failed to bind top_k: {}", e)))?;
 
+        // QW3: metadata pre-filter present -> raise recall AND enable iterative
+        // scan (scoped to this transaction) so the post-filter LIMIT is met.
+        let mut tx = pool.begin().await.map_err(|e| {
+            StorageError::Database(format!("Failed to begin filtered query tx: {}", e))
+        })?;
+
+        for stmt in Self::search_tuning_statements(self.index_type, top_k, true) {
+            sqlx::query(&stmt)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| StorageError::Database(format!("Failed to set search GUC: {}", e)))?;
+        }
+
         let rows = sqlx::query_with(&sql, args)
-            .fetch_all(&pool)
+            .fetch_all(&mut *tx)
             .await
             .map_err(|e| StorageError::Database(format!("Filtered vector query failed: {}", e)))?;
+
+        tx.commit().await.map_err(|e| {
+            StorageError::Database(format!("Failed to commit filtered query tx: {}", e))
+        })?;
 
         let results = rows
             .iter()
@@ -976,5 +1117,46 @@ mod tests {
         let text = "[1,2,3]";
         let parsed = PgVectorStorage::parse_embedding(text);
         assert_eq!(parsed, vec![1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn test_search_tuning_hnsw_clamps_ef_search() {
+        // QW3: ef_search scales with top_k but is clamped to [40, 1000].
+        let small = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 1, false);
+        assert_eq!(small, vec!["SET LOCAL hnsw.ef_search = 40"]);
+        let mid = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 50, false);
+        assert_eq!(mid, vec!["SET LOCAL hnsw.ef_search = 200"]);
+        let huge = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 100_000, false);
+        assert_eq!(huge, vec!["SET LOCAL hnsw.ef_search = 1000"]);
+    }
+
+    #[test]
+    fn test_search_tuning_hnsw_filtered_enables_iterative_scan() {
+        let stmts = PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 10, true);
+        assert!(stmts.iter().any(|s| s.contains("hnsw.ef_search")));
+        assert!(stmts
+            .iter()
+            .any(|s| s == "SET LOCAL hnsw.iterative_scan = strict_order"));
+        assert!(stmts
+            .iter()
+            .any(|s| s == "SET LOCAL hnsw.max_scan_tuples = 20000"));
+    }
+
+    #[test]
+    fn test_search_tuning_ivfflat() {
+        let plain = PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, false);
+        assert_eq!(plain, vec!["SET LOCAL ivfflat.probes = 10"]);
+        let filtered =
+            PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, true);
+        assert!(filtered
+            .iter()
+            .any(|s| s == "SET LOCAL ivfflat.iterative_scan = relaxed_order"));
+    }
+
+    #[test]
+    fn test_search_tuning_none_is_empty() {
+        // No index -> no GUCs (sequential scan is exact anyway).
+        let stmts = PgVectorStorage::search_tuning_statements(VectorIndexType::None, 100, true);
+        assert!(stmts.is_empty());
     }
 }
