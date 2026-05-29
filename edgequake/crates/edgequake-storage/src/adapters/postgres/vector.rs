@@ -1146,8 +1146,7 @@ mod tests {
     fn test_search_tuning_ivfflat() {
         let plain = PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, false);
         assert_eq!(plain, vec!["SET LOCAL ivfflat.probes = 10"]);
-        let filtered =
-            PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, true);
+        let filtered = PgVectorStorage::search_tuning_statements(VectorIndexType::IVFFlat, 5, true);
         assert!(filtered
             .iter()
             .any(|s| s == "SET LOCAL ivfflat.iterative_scan = relaxed_order"));

@@ -100,7 +100,9 @@ impl PostgresAGEGraphStorage {
         sqlx::query(&format!("SET statement_timeout = '{}s'", timeout_secs))
             .execute(&mut *conn)
             .await
-            .map_err(|e| StorageError::Database(format!("Failed to set statement timeout: {}", e)))?;
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to set statement timeout: {}", e))
+            })?;
         Ok(())
     }
 

@@ -155,7 +155,13 @@ impl PostgresConfig {
         let sanitized: String = self
             .namespace
             .chars()
-            .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         format!("eq_{}", sanitized)
     }
