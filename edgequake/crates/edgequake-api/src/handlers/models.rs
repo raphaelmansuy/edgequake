@@ -561,7 +561,10 @@ mod tests {
         // Unset → show all enabled providers (None means no restriction)
         std::env::remove_var("EDGEQUAKE_ALLOWED_PROVIDERS");
         let result = active_provider_names("openai", "ollama");
-        assert!(result.is_none(), "empty env should return None (all providers)");
+        assert!(
+            result.is_none(),
+            "empty env should return None (all providers)"
+        );
     }
 
     #[test]

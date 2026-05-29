@@ -376,8 +376,7 @@ impl AppState {
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::PostgreSQL,
             models_config: Arc::new({
-                const BUNDLED_MODELS: &str =
-                    include_str!("../../../../models.toml");
+                const BUNDLED_MODELS: &str = include_str!("../../../../models.toml");
                 ModelsConfig::from_toml(BUNDLED_MODELS)
                     .or_else(|_| ModelsConfig::load())
                     .unwrap_or_else(|_| ModelsConfig::builtin_defaults())

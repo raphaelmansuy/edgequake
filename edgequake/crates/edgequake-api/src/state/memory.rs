@@ -77,8 +77,7 @@ impl AppState {
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory, // Default to memory for generic constructor
             models_config: Arc::new({
-                const BUNDLED_MODELS: &str =
-                    include_str!("../../../../models.toml");
+                const BUNDLED_MODELS: &str = include_str!("../../../../models.toml");
                 ModelsConfig::from_toml(BUNDLED_MODELS)
                     .or_else(|_| ModelsConfig::load())
                     .unwrap_or_else(|_| ModelsConfig::builtin_defaults())
@@ -229,8 +228,7 @@ impl AppState {
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory,
             models_config: Arc::new({
-                const BUNDLED_MODELS: &str =
-                    include_str!("../../../../models.toml");
+                const BUNDLED_MODELS: &str = include_str!("../../../../models.toml");
                 ModelsConfig::from_toml(BUNDLED_MODELS)
                     .or_else(|_| ModelsConfig::load())
                     .unwrap_or_else(|_| ModelsConfig::builtin_defaults())

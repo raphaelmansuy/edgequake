@@ -704,8 +704,7 @@ mod tests {
 
         assert_eq!(provider, "openai");
         assert_eq!(
-            model,
-            DEFAULT_LLM_MODEL,
+            model, DEFAULT_LLM_MODEL,
             "Should pick the sensible OpenAI default when no model is explicitly set"
         );
     }
